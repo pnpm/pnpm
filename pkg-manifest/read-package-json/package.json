@@ -37,7 +37,11 @@
     "load-json-file": "catalog:",
     "normalize-package-data": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@types/normalize-package-data": "catalog:"
   },

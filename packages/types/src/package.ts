@@ -114,7 +114,7 @@ export interface BaseManifest {
     node?: string
     npm?: string
     pnpm?: string
-  }
+  } & Pick<DevEngines, 'runtime'>
   devEngines?: DevEngines
   cpu?: string[]
   os?: string[]

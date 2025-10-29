@@ -25,6 +25,9 @@
       "path": "../../text/comments-parser"
     },
     {
+      "path": "../read-package-json"
+    },
+    {
       "path": "../write-project-manifest"
     }
   ]

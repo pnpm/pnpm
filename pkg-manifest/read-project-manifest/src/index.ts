@@ -1,7 +1,7 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { globalWarn } from '@pnpm/logger'
+import { convertEngineDependencyToDependency } from '@pnpm/read-package-json'
 import { type ProjectManifest, type DevEngineDependency } from '@pnpm/types'
 import { extractComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
@@ -223,20 +223,8 @@ function createManifestWriter (
 }
 
 function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
-  for (const runtimeName of ['node', 'deno', 'bun']) {
-    if (manifest.devEngines?.runtime && !manifest.devDependencies?.[runtimeName]) {
-      const runtimes = Array.isArray(manifest.devEngines.runtime) ? manifest.devEngines.runtime : [manifest.devEngines.runtime]
-      const runtime = runtimes.find((runtime) => runtime.name === runtimeName)
-      if (runtime && runtime.onFail === 'download') {
-        if ('webcontainer' in process.versions) {
-          globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
-        } else {
-          manifest.devDependencies ??= {}
-          manifest.devDependencies[runtimeName] = `runtime:${runtime.version}`
-        }
-      }
-    }
-  }
+  convertEngineDependencyToDependency(manifest, 'devEngines', 'devDependencies')
+  convertEngineDependencyToDependency(manifest, 'engines', 'dependencies')
   return manifest
 }
 
