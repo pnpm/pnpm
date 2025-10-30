@@ -99,7 +99,7 @@ test('config get without key show list all settings', async () => {
     rawConfig,
   }, ['list'])
 
-  expect(getOutput).toEqual(listOutput)
+  expect(getOutput).toStrictEqual(listOutput)
 })
 
 describe('config get with a property path', () => {
