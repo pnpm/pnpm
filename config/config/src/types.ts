@@ -1,6 +1,7 @@
 import npmTypes from '@pnpm/npm-conf/lib/types.js'
 
 export const types = Object.assign({
+  'attestation-check': Boolean,
   'auto-install-peers': Boolean,
   bail: Boolean,
   ci: Boolean,

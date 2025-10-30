@@ -158,6 +158,7 @@ export interface PackageResponse {
     // resolved package, it is out-of-date.
     latest?: string
     alias?: string
+    provenanceDowngraded?: boolean
   } & (
     {
       isLocal: true
