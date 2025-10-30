@@ -55,6 +55,7 @@ export type PartialResolvedPackage = Pick<ResolvedPackage,
 | 'name'
 | 'peerDependencies'
 | 'version'
+| 'fetching'
 >
 
 export interface GenericDependenciesGraph<T extends PartialResolvedPackage> {

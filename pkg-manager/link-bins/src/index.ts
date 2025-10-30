@@ -1,5 +1,5 @@
 import { promises as fs, existsSync } from 'fs'
-import Module from 'module'
+import Module, { createRequire } from 'module'
 import path from 'path'
 import { getNodeBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getBunBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -251,6 +251,13 @@ async function getPackageBins (
 
 async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string, nodeExecPath?: string): Promise<CommandInfo[]> {
   const cmds = await getBinsFromPackageManifest(manifest, pkgDir)
+  if (manifest.engines?.runtime && !nodeExecPath) {
+    const require = createRequire(import.meta.dirname)
+    const nodeDir = path.dirname(require.resolve('node/CHANGELOG.md', { paths: [pkgDir] }))
+    if (nodeDir) {
+      nodeExecPath = path.join(nodeDir, 'bin/node')
+    }
+  }
   return cmds.map((cmd) => ({
     ...cmd,
     ownName: cmd.name === manifest.name,

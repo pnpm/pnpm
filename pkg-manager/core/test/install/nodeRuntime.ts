@@ -353,3 +353,16 @@ test('installing Node.js runtime for the given supported architecture', async ()
   await install(manifest, testDefaults({ frozenLockfile: true, supportedArchitectures }))
   project.has(expectedBinLocation)
 })
+
+test('installing Node.js runtime, when it is set via the engines field of a dependency', async () => {
+  prepareEmpty()
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/cli-with-node-engine@1.0.0'],
+    testDefaults({
+      fastUnpack: false,
+      onlyBuiltDependencies: ['@pnpm.e2e/cli-with-node-engine'],
+      neverBuiltDependencies: undefined,
+    })
+  )
+})
