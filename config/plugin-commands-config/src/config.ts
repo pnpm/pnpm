@@ -32,7 +32,7 @@ export function help (): string {
             name: 'set',
           },
           {
-            description: 'Print the config value for the provided key or property path',
+            description: 'Print the config value for the provided key',
             name: 'get',
           },
           {
