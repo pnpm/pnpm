@@ -64,7 +64,7 @@ test('config get on array should return a comma-separated list', async () => {
   ])
 })
 
-test('config get on object should return an ini string', async () => {
+test('config get on object should return a JSON string', async () => {
   const getResult = await config.handler({
     dir: process.cwd(),
     cliOptions: {},
@@ -77,7 +77,7 @@ test('config get on object should return an ini string', async () => {
     },
   }, ['get', 'catalog'])
 
-  expect(ini.decode(getOutputString(getResult))).toEqual({ react: '^19.0.0' })
+  expect(JSON.parse(getOutputString(getResult))).toStrictEqual({ react: '^19.0.0' })
 })
 
 test('config get without key show list all settings', async () => {
@@ -184,7 +184,7 @@ describe('config get with a property path', () => {
         rawConfig,
       }, ['get', propertyPath])
 
-      expect(ini.decode(getOutputString(getResult))).toEqual(expected)
+      expect(JSON.parse(getOutputString(getResult))).toStrictEqual(expected)
     })
   })
 
