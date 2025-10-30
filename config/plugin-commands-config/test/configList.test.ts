@@ -1,4 +1,3 @@
-import * as ini from 'ini'
 import { config } from '@pnpm/plugin-commands-config'
 import { getOutputString } from './utils/index.js'
 
@@ -13,7 +12,7 @@ test('config list', async () => {
     },
   }, ['list'])
 
-  expect(ini.decode(getOutputString(output))).toEqual({
+  expect(JSON.parse(getOutputString(output))).toStrictEqual({
     'fetch-retries': '2',
     'store-dir': '~/store',
   })
@@ -53,7 +52,7 @@ test('config list censors protected settings', async () => {
     rawConfig,
   }, ['list'])
 
-  expect(ini.decode(getOutputString(output))).toEqual({
+  expect(JSON.parse(getOutputString(output))).toStrictEqual({
     ...rawConfig,
     '//my-org.example.com:username': '(protected)',
     username: '(protected)',
