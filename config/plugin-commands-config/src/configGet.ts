@@ -62,7 +62,7 @@ function displayConfig (config: unknown, opts: DisplayConfigOptions): string {
     return JSON.stringify(config, undefined, 2)
   }
   if (typeof config === 'object' && config != null) {
-    return JSON.stringify(config)
+    return JSON.stringify(config, undefined, 2)
   }
   return String(config)
 }
