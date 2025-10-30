@@ -1,5 +1,4 @@
 import fs from 'fs'
-import * as ini from 'ini'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { type Config } from '@pnpm/config'
 import { prepare } from '@pnpm/prepare'
@@ -109,12 +108,6 @@ test('pnpm config list still reads unknown camelCase keys from pnpm-workspace.ya
 
   {
     const { stdout } = execPnpmSync(['config', 'list'], { expectSuccess: true })
-    expect(ini.decode(stdout.toString())).toMatchObject(workspaceManifest)
-    expect(ini.decode(stdout.toString())).not.toHaveProperty(['this-option-is-not-defined-by-pnpm'])
-  }
-
-  {
-    const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
     expect(JSON.parse(stdout.toString())).toMatchObject(workspaceManifest)
     expect(JSON.parse(stdout.toString())).not.toHaveProperty(['this-option-is-not-defined-by-pnpm'])
   }
@@ -172,13 +165,13 @@ test('pnpm config list without --json shows rc options in kebab-case and workspa
   writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
 
   const { stdout } = execPnpmSync(['config', 'list'], { expectSuccess: true })
-  expect(ini.decode(stdout.toString())).toEqual(expect.objectContaining({
-    'dlx-cache-max-age': String(workspaceManifest.dlxCacheMaxAge), // must be a string because ini doesn't decode to numbers
+  expect(JSON.parse(stdout.toString())).toEqual(expect.objectContaining({
+    'dlx-cache-max-age': workspaceManifest.dlxCacheMaxAge,
     'only-built-dependencies': workspaceManifest.onlyBuiltDependencies,
     packages: workspaceManifest.packages,
     packageExtensions: workspaceManifest.packageExtensions,
   }))
-  expect(ini.decode(stdout.toString())).not.toHaveProperty(['dlxCacheMaxAge'])
-  expect(ini.decode(stdout.toString())).not.toHaveProperty(['onlyBuiltDependencies'])
-  expect(ini.decode(stdout.toString())).not.toHaveProperty(['package-extensions'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlxCacheMaxAge'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['onlyBuiltDependencies'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
 })
