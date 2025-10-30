@@ -145,6 +145,7 @@ function getTreeHelper (
       name: packageInfo.name,
       version: packageInfo.version,
       readManifest,
+      alias,
     })
     let newEntry: PackageNode | null = null
     const nodeId = getTreeNodeChildId({
