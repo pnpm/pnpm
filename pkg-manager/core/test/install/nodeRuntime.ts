@@ -1,3 +1,4 @@
+import fs from 'fs'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
@@ -365,4 +366,5 @@ test('installing Node.js runtime, when it is set via the engines field of a depe
       neverBuiltDependencies: undefined,
     })
   )
+  expect(fs.readFileSync('node_modules/@pnpm.e2e/cli-with-node-engine/node-version', 'utf8')).toBe('v22.19.0')
 })
