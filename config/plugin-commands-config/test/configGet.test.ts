@@ -1,4 +1,3 @@
-import * as ini from 'ini'
 import { config } from '@pnpm/plugin-commands-config'
 import { getOutputString } from './utils/index.js'
 
@@ -64,7 +63,7 @@ test('config get on array should return a comma-separated list', async () => {
   ])
 })
 
-test('config get on object should return an ini string', async () => {
+test('config get on object should return a JSON string', async () => {
   const getResult = await config.handler({
     dir: process.cwd(),
     cliOptions: {},
@@ -77,7 +76,7 @@ test('config get on object should return an ini string', async () => {
     },
   }, ['get', 'catalog'])
 
-  expect(ini.decode(getOutputString(getResult))).toEqual({ react: '^19.0.0' })
+  expect(JSON.parse(getOutputString(getResult))).toStrictEqual({ react: '^19.0.0' })
 })
 
 test('config get without key show list all settings', async () => {
@@ -100,10 +99,11 @@ test('config get without key show list all settings', async () => {
     rawConfig,
   }, ['list'])
 
-  expect(getOutput).toEqual(listOutput)
+  expect(getOutput).toStrictEqual(listOutput)
 })
 
 describe('config get with a property path', () => {
+  // TODO: change `rawConfig` into camelCase (to emulate pnpm-workspace.yaml)
   const rawConfig = {
     'dlx-cache-max-age': '1234',
     'only-built-dependencies': ['foo', 'bar'],
@@ -169,7 +169,13 @@ describe('config get with a property path', () => {
 
   describe('object without --json', () => {
     test.each([
-      ['', rawConfig],
+      // TODO: change `rawConfig` into camelCase and replace this object with just `rawConfig`.
+      ['', {
+        dlxCacheMaxAge: rawConfig['dlx-cache-max-age'],
+        onlyBuiltDependencies: rawConfig['only-built-dependencies'],
+        packageExtensions: rawConfig.packageExtensions,
+      }],
+
       ['packageExtensions', rawConfig.packageExtensions],
       ['packageExtensions["@babel/parser"]', rawConfig.packageExtensions['@babel/parser']],
       ['packageExtensions["@babel/parser"].peerDependencies', rawConfig.packageExtensions['@babel/parser'].peerDependencies],
@@ -184,7 +190,7 @@ describe('config get with a property path', () => {
         rawConfig,
       }, ['get', propertyPath])
 
-      expect(ini.decode(getOutputString(getResult))).toEqual(expected)
+      expect(JSON.parse(getOutputString(getResult))).toStrictEqual(expected)
     })
   })
 

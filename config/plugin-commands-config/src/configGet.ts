@@ -1,5 +1,4 @@
 import kebabCase from 'lodash.kebabcase'
-import { encode } from 'ini'
 import { types } from '@pnpm/config'
 import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
@@ -42,13 +41,11 @@ function getRcConfig (rawConfig: Record<string, unknown>, key: string, isScopedK
   return undefined
 }
 
-type GetConfigByPropertyPathOptions = Pick<ConfigCommandOptions, 'json'>
-
-function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string, opts?: GetConfigByPropertyPathOptions): Found<unknown> {
+function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string): Found<unknown> {
   const parsedPropertyPath = Array.from(parseConfigPropertyPath(propertyPath))
   if (parsedPropertyPath.length === 0) {
     return {
-      value: processConfig(rawConfig, opts),
+      value: processConfig(rawConfig),
     }
   }
   return {
@@ -63,7 +60,7 @@ function displayConfig (config: unknown, opts: DisplayConfigOptions): string {
     return JSON.stringify(config, undefined, 2)
   }
   if (typeof config === 'object' && config != null) {
-    return encode(config)
+    return JSON.stringify(config, undefined, 2)
   }
   return String(config)
 }

@@ -58,7 +58,7 @@ export function help (): string {
             name: '--location <project|global>',
           },
           {
-            description: 'Show all the config settings in JSON format',
+            description: 'Show all types of values in JSON format (not just objects and arrays)',
             name: '--json',
           },
         ],
@@ -68,9 +68,9 @@ export function help (): string {
     usages: [
       'pnpm config set <key> <value>',
       'pnpm config get <key>',
+      'pnpm config get --json <key>',
       'pnpm config delete <key>',
       'pnpm config list',
-      'pnpm config list --json',
     ],
   })
 }
