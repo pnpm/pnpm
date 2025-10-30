@@ -13,8 +13,8 @@ test('config list', async () => {
   }, ['list'])
 
   expect(JSON.parse(getOutputString(output))).toStrictEqual({
-    'fetch-retries': '2',
-    'store-dir': '~/store',
+    fetchRetries: '2',
+    storeDir: '~/store',
   })
 })
 
@@ -53,7 +53,9 @@ test('config list censors protected settings', async () => {
   }, ['list'])
 
   expect(JSON.parse(getOutputString(output))).toStrictEqual({
-    ...rawConfig,
+    storeDir: '~/store',
+    fetchRetries: '2',
+    '@my-org:registry': 'https://my-org.example.com/registry',
     '//my-org.example.com:username': '(protected)',
     username: '(protected)',
   })

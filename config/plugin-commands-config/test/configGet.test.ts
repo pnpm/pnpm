@@ -103,6 +103,7 @@ test('config get without key show list all settings', async () => {
 })
 
 describe('config get with a property path', () => {
+  // TODO: change `rawConfig` into camelCase (to emulate pnpm-workspace.yaml)
   const rawConfig = {
     'dlx-cache-max-age': '1234',
     'only-built-dependencies': ['foo', 'bar'],
@@ -168,7 +169,13 @@ describe('config get with a property path', () => {
 
   describe('object without --json', () => {
     test.each([
-      ['', rawConfig],
+      // TODO: change `rawConfig` into camelCase and replace this object with just `rawConfig`.
+      ['', {
+        dlxCacheMaxAge: rawConfig['dlx-cache-max-age'],
+        onlyBuiltDependencies: rawConfig['only-built-dependencies'],
+        packageExtensions: rawConfig.packageExtensions,
+      }],
+
       ['packageExtensions', rawConfig.packageExtensions],
       ['packageExtensions["@babel/parser"]', rawConfig.packageExtensions['@babel/parser']],
       ['packageExtensions["@babel/parser"].peerDependencies', rawConfig.packageExtensions['@babel/parser'].peerDependencies],

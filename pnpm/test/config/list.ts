@@ -135,43 +135,9 @@ test('pnpm config list --json shows all keys in camelCase', () => {
   prepare()
   writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
 
-  const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
+  const { stdout } = execPnpmSync(['config', 'list'], { expectSuccess: true })
   expect(JSON.parse(stdout.toString())).toStrictEqual(expect.objectContaining(workspaceManifest))
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
-})
-
-test('pnpm config list without --json shows rc options in kebab-case and workspace-specific settings in camelCase', () => {
-  const workspaceManifest = {
-    dlxCacheMaxAge: 1234,
-    onlyBuiltDependencies: ['foo', 'bar'],
-    packages: ['baz', 'qux'],
-    packageExtensions: {
-      '@babel/parser': {
-        peerDependencies: {
-          '@babel/types': '*',
-        },
-      },
-      'jest-circus': {
-        dependencies: {
-          slash: '3',
-        },
-      },
-    },
-  }
-
-  prepare()
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
-
-  const { stdout } = execPnpmSync(['config', 'list'], { expectSuccess: true })
-  expect(JSON.parse(stdout.toString())).toEqual(expect.objectContaining({
-    'dlx-cache-max-age': workspaceManifest.dlxCacheMaxAge,
-    'only-built-dependencies': workspaceManifest.onlyBuiltDependencies,
-    packages: workspaceManifest.packages,
-    packageExtensions: workspaceManifest.packageExtensions,
-  }))
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlxCacheMaxAge'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['onlyBuiltDependencies'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
 })

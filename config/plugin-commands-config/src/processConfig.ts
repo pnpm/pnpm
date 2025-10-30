@@ -17,10 +17,6 @@ export interface ProcessConfigOptions {
   json?: boolean
 }
 
-function normalizeConfigKeyCases (rawConfig: Record<string, unknown>, opts?: ProcessConfigOptions): Record<string, unknown> {
-  return opts?.json ? camelCaseConfig(rawConfig) : rawConfig
-}
-
-export function processConfig (rawConfig: Record<string, unknown>, opts?: ProcessConfigOptions): Record<string, unknown> {
-  return normalizeConfigKeyCases(censorProtectedSettings(sortDirectKeys(rawConfig)), opts)
+export function processConfig (rawConfig: Record<string, unknown>): Record<string, unknown> {
+  return camelCaseConfig(censorProtectedSettings(sortDirectKeys(rawConfig)))
 }

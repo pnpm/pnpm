@@ -41,13 +41,11 @@ function getRcConfig (rawConfig: Record<string, unknown>, key: string, isScopedK
   return undefined
 }
 
-type GetConfigByPropertyPathOptions = Pick<ConfigCommandOptions, 'json'>
-
-function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string, opts?: GetConfigByPropertyPathOptions): Found<unknown> {
+function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string): Found<unknown> {
   const parsedPropertyPath = Array.from(parseConfigPropertyPath(propertyPath))
   if (parsedPropertyPath.length === 0) {
     return {
-      value: processConfig(rawConfig, opts),
+      value: processConfig(rawConfig),
     }
   }
   return {
