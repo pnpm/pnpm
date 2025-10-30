@@ -8,6 +8,7 @@ export const ENGINE_NAME = `${process.platform};${process.arch};node${process.ve
 export const LAYOUT_VERSION = 5
 export const STORE_VERSION = 'v10'
 
+export const GLOBAL_CONFIG_YAML_FILENAME = 'rc.yaml'
 export const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 
 // This file contains meta information
