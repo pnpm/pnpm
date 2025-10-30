@@ -58,7 +58,7 @@ export function help (): string {
             name: '--location <project|global>',
           },
           {
-            description: 'Show all type of values in JSON format (not just objects and arrays)',
+            description: 'Show all types of values in JSON format (not just objects and arrays)',
             name: '--json',
           },
         ],
