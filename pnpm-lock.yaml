@@ -253,8 +253,8 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     '@yarnpkg/pnp':
-      specifier: ^4.0.8
-      version: 4.1.1
+      specifier: 4.0.8
+      version: 4.0.8
     '@zkochan/cmd-shim':
       specifier: ^7.0.0
       version: 7.0.0
@@ -3779,7 +3779,7 @@ importers:
         version: link:../../packages/types
       '@yarnpkg/pnp':
         specifier: 'catalog:'
-        version: 4.1.1
+        version: 4.0.8
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -10902,6 +10902,10 @@ packages:
 
   '@yarnpkg/parsers@3.0.3':
     resolution: {integrity: sha512-mQZgUSgFurUtA07ceMjxrWkYz8QtDuYkvPlu0ZqncgjopQ0t6CNEo/OSealkmnagSUx8ZD5ewvezUwUuMqutQg==}
+    engines: {node: '>=18.12.0'}
+
+  '@yarnpkg/pnp@4.0.8':
+    resolution: {integrity: sha512-D0hcRPYgYlp4W98tWYG4tCNEyenL6yxazWCxzxdnKF1r9rauDMImtAR5Sh0ERSrTf3lHKXAz8Jy7S+ztOxf7yQ==}
     engines: {node: '>=18.12.0'}
 
   '@yarnpkg/pnp@4.1.1':
@@ -18837,6 +18841,11 @@ snapshots:
     dependencies:
       js-yaml: 3.14.1
       tslib: 2.8.1
+
+  '@yarnpkg/pnp@4.0.8':
+    dependencies:
+      '@types/node': 18.19.110
+      '@yarnpkg/fslib': 3.1.2
 
   '@yarnpkg/pnp@4.1.1':
     dependencies:
