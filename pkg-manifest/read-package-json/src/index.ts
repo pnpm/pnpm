@@ -48,7 +48,7 @@ export async function safeReadPackageJsonFromDir (pkgPath: string): Promise<Pack
   return safeReadPackageJson(path.join(pkgPath, 'package.json'))
 }
 
-export function convertEngineDependencyToDependency (manifest: ProjectManifest, enginesFieldName: 'devEngines' | 'engines', dependenciesFieldName: DependenciesField): ProjectManifest {
+export function convertEnginesRuntimeToDependencies (manifest: ProjectManifest, enginesFieldName: 'devEngines' | 'engines', dependenciesFieldName: DependenciesField): ProjectManifest {
   for (const runtimeName of ['node', 'deno', 'bun']) {
     if (manifest[enginesFieldName]?.runtime && !manifest[dependenciesFieldName]?.[runtimeName]) {
       const runtimes: DevEngineDependency[] = Array.isArray(manifest[enginesFieldName]!.runtime) ? manifest[enginesFieldName]!.runtime! : [manifest[enginesFieldName]!.runtime!]

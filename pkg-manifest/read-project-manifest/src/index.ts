@@ -1,8 +1,8 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { convertEngineDependencyToDependency } from '@pnpm/read-package-json'
 import { type ProjectManifest, type DevEngineDependency } from '@pnpm/types'
+import { convertEnginesRuntimeToDependencies } from '@pnpm/read-package-json'
 import { extractComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
@@ -223,8 +223,8 @@ function createManifestWriter (
 }
 
 function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
-  convertEngineDependencyToDependency(manifest, 'devEngines', 'devDependencies')
-  convertEngineDependencyToDependency(manifest, 'engines', 'dependencies')
+  convertEnginesRuntimeToDependencies(manifest, 'devEngines', 'devDependencies')
+  convertEnginesRuntimeToDependencies(manifest, 'engines', 'dependencies')
   return manifest
 }
 

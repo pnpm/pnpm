@@ -58,7 +58,7 @@ import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers.js'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable.js'
 import { type CatalogLookupMetadata } from './resolveDependencyTree.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
-import { convertEngineDependencyToDependency } from '@pnpm/read-package-json'
+import { convertEnginesRuntimeToDependencies } from '@pnpm/read-package-json'
 
 export type { WantedDependency }
 
@@ -1438,7 +1438,7 @@ async function resolveDependency (
     }
   }
   if (pkg.engines?.runtime != null) {
-    convertEngineDependencyToDependency(pkg, 'engines', 'dependencies')
+    convertEnginesRuntimeToDependencies(pkg, 'engines', 'dependencies')
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.bareSpecifier}: Missing package name`)
