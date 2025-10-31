@@ -7,7 +7,7 @@ import { jest } from '@jest/globals'
 
 const debug = jest.fn()
 jest.unstable_mockModule('@pnpm/logger', () => {
-  return ({ debug, logger: () => ({ debug }) })
+  return ({ globalWarn: jest.fn(), debug, logger: () => ({ debug }) })
 })
 const { createDirectoryFetcher } = await import('@pnpm/directory-fetcher')
 
