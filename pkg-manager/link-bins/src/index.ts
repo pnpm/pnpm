@@ -253,6 +253,10 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
   const cmds = await getBinsFromPackageManifest(manifest, pkgDir)
   if (manifest.engines?.runtime && runtimeHasNodeDownloaded(manifest.engines.runtime) && !nodeExecPath) {
     const require = createRequire(import.meta.dirname)
+    // Using Node.js’ resolution algorithm is the most reliable way to find the Node.js
+    // package that comes from this CLI's dependencies, because the layout of node_modules can vary.
+    // In an isolated layout, it will be located in the same node_modules directory as the CLI.
+    // In a hoisted layout, it may be in one of the parent node_modules directories.
     const nodeDir = path.dirname(require.resolve('node/CHANGELOG.md', { paths: [pkgDir] }))
     if (nodeDir) {
       nodeExecPath = path.join(nodeDir, IS_WINDOWS ? 'node.exe' : 'bin/node')
