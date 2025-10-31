@@ -43,6 +43,7 @@ import {
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
+import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
 import { type PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
@@ -1437,6 +1438,9 @@ async function resolveDependency (
         ),
       }
     }
+  }
+  if (pkg.engines?.runtime != null) {
+    convertEnginesRuntimeToDependencies(pkg, 'engines', 'dependencies')
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.bareSpecifier}: Missing package name`)

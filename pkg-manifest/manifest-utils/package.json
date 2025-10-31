@@ -36,7 +36,11 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*"
   },
   "engines": {

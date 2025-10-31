@@ -11,7 +11,7 @@ import { jest } from '@jest/globals'
 const f = fixtures(__dirname)
 jest.mock('@pnpm/logger', () => {
   const debug = jest.fn()
-  return ({ debug, logger: () => ({ debug }) })
+  return ({ globalWarn: jest.fn(), debug, logger: () => ({ debug }) })
 })
 
 test('fetch including only package files', async () => {

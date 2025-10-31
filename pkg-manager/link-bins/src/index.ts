@@ -1,5 +1,5 @@
 import { promises as fs, existsSync } from 'fs'
-import Module from 'module'
+import Module, { createRequire } from 'module'
 import path from 'path'
 import { getNodeBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getBunBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -9,7 +9,7 @@ import { type Command, getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
+import { type EngineDependency, type DependencyManifest, type ProjectManifest } from '@pnpm/types'
 import cmdShim from '@zkochan/cmd-shim'
 import rimraf from '@zkochan/rimraf'
 import isSubdir from 'is-subdir'
@@ -254,6 +254,17 @@ async function getPackageBins (
 
 async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string, nodeExecPath?: string): Promise<CommandInfo[]> {
   const cmds = await getBinsFromPackageManifest(manifest, pkgDir)
+  if (manifest.engines?.runtime && runtimeHasNodeDownloaded(manifest.engines.runtime) && !nodeExecPath) {
+    const require = createRequire(import.meta.dirname)
+    // Using Node.js’ resolution algorithm is the most reliable way to find the Node.js
+    // package that comes from this CLI's dependencies, because the layout of node_modules can vary.
+    // In an isolated layout, it will be located in the same node_modules directory as the CLI.
+    // In a hoisted layout, it may be in one of the parent node_modules directories.
+    const nodeDir = path.dirname(require.resolve('node/CHANGELOG.md', { paths: [pkgDir] }))
+    if (nodeDir) {
+      nodeExecPath = path.join(nodeDir, IS_WINDOWS ? 'node.exe' : 'bin/node')
+    }
+  }
   return cmds.map((cmd) => ({
     ...cmd,
     ownName: cmd.name === manifest.name,
@@ -262,6 +273,13 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
     makePowerShellShim: POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm',
     nodeExecPath,
   }))
+}
+
+function runtimeHasNodeDownloaded (runtime: EngineDependency | EngineDependency[]): boolean {
+  if (!Array.isArray(runtime)) {
+    return runtime.name === 'node' && runtime.onFail === 'download'
+  }
+  return runtime.find(({ name }) => name === 'node')?.onFail === 'download'
 }
 
 export interface LinkBinOptions {

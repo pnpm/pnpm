@@ -34,6 +34,7 @@
     "@gwhitney/detect-indent": "catalog:",
     "@pnpm/error": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
