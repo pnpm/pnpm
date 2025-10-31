@@ -64,7 +64,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
   return settings
 }
 
-export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
+export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
   const renamedKeys = ['allowNonAppliedPatches'] as const satisfies Array<keyof PnpmSettings>
   const settings: OptionsFromRootManifest = omit(renamedKeys, replaceEnvInSettings(pnpmSettings))
   if (settings.overrides) {
@@ -74,13 +74,13 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
       settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
     }
   }
-  if (pnpmSettings.onlyBuiltDependenciesFile) {
+  if (pnpmSettings.onlyBuiltDependenciesFile && manifestDir != null) {
     settings.onlyBuiltDependenciesFile = path.join(manifestDir, pnpmSettings.onlyBuiltDependenciesFile)
   }
   if (pnpmSettings.patchedDependencies) {
     settings.patchedDependencies = { ...pnpmSettings.patchedDependencies }
     for (const [dep, patchFile] of Object.entries(pnpmSettings.patchedDependencies)) {
-      if (path.isAbsolute(patchFile)) continue
+      if (manifestDir == null || path.isAbsolute(patchFile)) continue
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
   }
