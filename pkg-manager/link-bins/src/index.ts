@@ -9,7 +9,7 @@ import { type Command, getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
+import { type DevEngineDependency, type DependencyManifest, type ProjectManifest } from '@pnpm/types'
 import cmdShim from '@zkochan/cmd-shim'
 import rimraf from '@zkochan/rimraf'
 import isSubdir from 'is-subdir'
@@ -251,11 +251,11 @@ async function getPackageBins (
 
 async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string, nodeExecPath?: string): Promise<CommandInfo[]> {
   const cmds = await getBinsFromPackageManifest(manifest, pkgDir)
-  if (manifest.engines?.runtime && !nodeExecPath) {
+  if (manifest.engines?.runtime && runtimeHasNodeDownloaded(manifest.engines.runtime) && !nodeExecPath) {
     const require = createRequire(import.meta.dirname)
     const nodeDir = path.dirname(require.resolve('node/CHANGELOG.md', { paths: [pkgDir] }))
     if (nodeDir) {
-      nodeExecPath = path.join(nodeDir, 'bin/node')
+      nodeExecPath = path.join(nodeDir, IS_WINDOWS ? 'node.exe' : 'bin/node')
     }
   }
   return cmds.map((cmd) => ({
@@ -266,6 +266,13 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
     makePowerShellShim: POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm',
     nodeExecPath,
   }))
+}
+
+function runtimeHasNodeDownloaded (runtime: DevEngineDependency | DevEngineDependency[]): boolean {
+  if (!Array.isArray(runtime)) {
+    return runtime.name === 'node' && runtime.onFail === 'download'
+  }
+  return runtime.find(({ name }) => name === 'node')?.onFail === 'download'
 }
 
 export interface LinkBinOptions {
