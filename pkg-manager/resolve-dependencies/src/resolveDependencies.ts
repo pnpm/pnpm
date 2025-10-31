@@ -43,6 +43,7 @@ import {
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
+import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
 import { type PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
 import { pathExists } from 'path-exists'
@@ -58,7 +59,6 @@ import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers.js'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable.js'
 import { type CatalogLookupMetadata } from './resolveDependencyTree.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
-import { convertEnginesRuntimeToDependencies } from '@pnpm/read-package-json'
 
 export type { WantedDependency }
 

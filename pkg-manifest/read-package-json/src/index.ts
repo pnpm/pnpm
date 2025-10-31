@@ -1,7 +1,6 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { globalWarn } from '@pnpm/logger'
-import { type PackageManifest, type ProjectManifest, type DependenciesField, type DevEngineDependency } from '@pnpm/types'
+import { type PackageManifest } from '@pnpm/types'
 import { loadJsonFile, loadJsonFileSync } from 'load-json-file'
 import normalizePackageData from 'normalize-package-data'
 
@@ -46,22 +45,4 @@ export async function safeReadPackageJson (pkgPath: string): Promise<PackageMani
 
 export async function safeReadPackageJsonFromDir (pkgPath: string): Promise<PackageManifest | null> {
   return safeReadPackageJson(path.join(pkgPath, 'package.json'))
-}
-
-export function convertEnginesRuntimeToDependencies (manifest: ProjectManifest, enginesFieldName: 'devEngines' | 'engines', dependenciesFieldName: DependenciesField): ProjectManifest {
-  for (const runtimeName of ['node', 'deno', 'bun']) {
-    if (manifest[enginesFieldName]?.runtime && !manifest[dependenciesFieldName]?.[runtimeName]) {
-      const runtimes: DevEngineDependency[] = Array.isArray(manifest[enginesFieldName]!.runtime) ? manifest[enginesFieldName]!.runtime! : [manifest[enginesFieldName]!.runtime!]
-      const runtime = runtimes.find((runtime) => runtime.name === runtimeName)
-      if (runtime && runtime.onFail === 'download') {
-        if ('webcontainer' in process.versions) {
-          globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
-        } else {
-          manifest[dependenciesFieldName] ??= {}
-          manifest[dependenciesFieldName]![runtimeName] = `runtime:${runtime.version}`
-        }
-      }
-    }
-  }
-  return manifest
 }
