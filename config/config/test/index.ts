@@ -981,9 +981,7 @@ test('getConfig() should read cafile', async () => {
 -----END CERTIFICATE-----`])
 })
 
-// NOTE: new bug detected: it doesn't work with pnpm-workspace.yaml
-// TODO: fix it later
-test.skip('respect mergeGitBranchLockfilesBranchPattern', async () => {
+test('respect mergeGitBranchLockfilesBranchPattern', async () => {
   {
     prepareEmpty()
     const { config } = await getConfig({
@@ -1020,9 +1018,7 @@ test.skip('respect mergeGitBranchLockfilesBranchPattern', async () => {
   }
 })
 
-// NOTE: new bug detected: it doesn't work with pnpm-workspace.yaml
-// TODO: fix it later
-test.skip('getConfig() sets mergeGitBranchLockfiles when branch matches mergeGitBranchLockfilesBranchPattern', async () => {
+test('getConfig() sets mergeGitBranchLockfiles when branch matches mergeGitBranchLockfilesBranchPattern', async () => {
   prepareEmpty()
   {
     writeYamlFile('pnpm-workspace.yaml', {
@@ -1234,6 +1230,23 @@ test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async
   expect(config.shamefullyHoist).toBe(true)
   expect(config.publicHoistPattern).toStrictEqual(['*'])
   expect(config.rawConfig['shamefully-hoist']).toBe(true)
+})
+
+test('settings gitBranchLockfile in pnpm-workspace.yaml should take effect', async () => {
+  const workspaceDir = f.find('settings-in-workspace-yaml')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {},
+    workspaceDir,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.gitBranchLockfile).toBe(true)
+  expect(config.useGitBranchLockfile).toBe(true)
+  expect(config.rawConfig['git-branch-lockfile']).toBe(true)
 })
 
 test('when dangerouslyAllowAllBuilds is set to true neverBuiltDependencies is set to an empty array', async () => {
