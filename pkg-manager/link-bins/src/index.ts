@@ -9,7 +9,7 @@ import { type Command, getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DevEngineDependency, type DependencyManifest, type ProjectManifest } from '@pnpm/types'
+import { type EngineDependency, type DependencyManifest, type ProjectManifest } from '@pnpm/types'
 import cmdShim from '@zkochan/cmd-shim'
 import rimraf from '@zkochan/rimraf'
 import isSubdir from 'is-subdir'
@@ -268,7 +268,7 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
   }))
 }
 
-function runtimeHasNodeDownloaded (runtime: DevEngineDependency | DevEngineDependency[]): boolean {
+function runtimeHasNodeDownloaded (runtime: EngineDependency | EngineDependency[]): boolean {
   if (!Array.isArray(runtime)) {
     return runtime.name === 'node' && runtime.onFail === 'download'
   }
