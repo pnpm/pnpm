@@ -255,7 +255,7 @@ async function getPackageBins (
 async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string, nodeExecPath?: string): Promise<CommandInfo[]> {
   const cmds = await getBinsFromPackageManifest(manifest, pkgDir)
   if (manifest.engines?.runtime && runtimeHasNodeDownloaded(manifest.engines.runtime) && !nodeExecPath) {
-    const require = createRequire(import.meta.dirname)
+    const require = createRequire(__dirname)
     // Using Node.js’ resolution algorithm is the most reliable way to find the Node.js
     // package that comes from this CLI's dependencies, because the layout of node_modules can vary.
     // In an isolated layout, it will be located in the same node_modules directory as the CLI.
