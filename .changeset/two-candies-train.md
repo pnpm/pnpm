@@ -13,7 +13,7 @@
   "engines": {
     "runtime": {
       "name": "node",
-      "version": "^24.11.0"
+      "version": "^24.11.0",
       "onFail": "download"
     }
   }
