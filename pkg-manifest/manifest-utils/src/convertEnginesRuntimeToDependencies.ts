@@ -22,4 +22,3 @@ export function convertEnginesRuntimeToDependencies (manifest: ProjectManifest, 
   }
   return manifest
 }
-
