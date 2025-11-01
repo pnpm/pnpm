@@ -34,7 +34,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
     const subdir = path.join(indexDir, dir)
     await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
       const filePath = path.join(subdir, fileName)
-      if (fileName.endsWith('.json')) {
+      if (fileName.endsWith('.v8')) {
         pkgIndexFiles.push(filePath)
       }
     }))
@@ -46,7 +46,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
     const subdir = path.join(cafsDir, dir)
     await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
       const filePath = path.join(subdir, fileName)
-      if (fileName.endsWith('.json')) {
+      if (fileName.endsWith('.v8')) {
         pkgIndexFiles.push(filePath)
         return
       }

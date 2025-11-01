@@ -1,10 +1,10 @@
 import path from 'path'
 import fs from 'fs'
-import v8 from 'v8'
 import chalk from 'chalk'
 
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { safeReadV8FileSync } from '@pnpm/fs.v8-file'
 import { getStorePath } from '@pnpm/store-path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 
@@ -57,17 +57,15 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   for (const { name: dirName } of cafsChildrenDirs) {
     const dirIndexFiles = fs
       .readdirSync(`${indexDir}/${dirName}`)
-      .filter((fileName) => fileName.includes('.json'))
+      .filter((fileName) => fileName.includes('.v8'))
       ?.map((fileName) => `${indexDir}/${dirName}/${fileName}`)
 
     indexFiles.push(...dirIndexFiles)
   }
 
   for (const filesIndexFile of indexFiles) {
-    let pkgFilesIndex!: PackageFilesIndex
-    try {
-      pkgFilesIndex = v8.deserialize(fs.readFileSync(filesIndexFile))
-    } catch {
+    const pkgFilesIndex = safeReadV8FileSync<PackageFilesIndex>(filesIndexFile)
+    if (!pkgFilesIndex) {
       continue
     }
 

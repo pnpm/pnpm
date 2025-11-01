@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import v8 from 'v8'
 import path from 'path'
 import fs from 'fs'
+import { safeReadV8FileSync } from '@pnpm/fs.v8-file'
 import gfs from '@pnpm/graceful-fs'
 import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
@@ -80,7 +81,7 @@ async function handleMessage (
       let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
-        pkgFilesIndex = v8.deserialize(fs.readFileSync(filesIndexFile))
+        pkgFilesIndex = safeReadV8FileSync(filesIndexFile)
       } catch {
         // ignoring. It is fine if the integrity file is not present. Just refetch the package
       }
@@ -209,10 +210,12 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   let requiresBuild: boolean
   if (sideEffectsCacheKey) {
-    let filesIndex!: PackageFilesIndex
+    let filesIndex!: PackageFilesIndex | undefined
     try {
-      filesIndex = v8.deserialize(fs.readFileSync(filesIndexFile))
+      filesIndex = safeReadV8FileSync<PackageFilesIndex>(filesIndexFile)
     } catch {
+    }
+    if (!filesIndex) {
       // If there is no existing index file, then we cannot store the side effects.
       return {
         status: 'success',
@@ -230,7 +233,7 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
     } else {
       requiresBuild = filesIndex.requiresBuild
     }
-    writeJsonFile(filesIndexFile, filesIndex)
+    writeV8File(filesIndexFile, filesIndex)
   } else {
     requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
   }
@@ -343,11 +346,11 @@ function writeFilesIndexFile (
     files,
     sideEffects,
   }
-  writeJsonFile(filesIndexFile, filesIndex)
+  writeV8File(filesIndexFile, filesIndex)
   return requiresBuild
 }
 
-function writeJsonFile (filePath: string, data: unknown): void {
+function writeV8File (filePath: string, data: unknown): void {
   const targetDir = path.dirname(filePath)
   // TODO: use the API of @pnpm/cafs to write this file
   // There is actually no need to create the directory in 99% of cases.

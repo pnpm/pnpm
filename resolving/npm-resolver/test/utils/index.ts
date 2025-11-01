@@ -1,4 +1,4 @@
-import { loadJsonFile } from 'load-json-file'
+import { safeReadV8FileSync } from '@pnpm/fs.v8-file'
 
 export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {
   let retry = 0
@@ -6,7 +6,11 @@ export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {
   while (true) {
     await delay(500)
     try {
-      return await loadJsonFile<T>(filePath)
+      const result = safeReadV8FileSync<T>(filePath)
+      if (!result) {
+        throw new Error('not found')
+      }
+      return result
     } catch (err: any) { // eslint-disable-line
       if (retry > 2) throw err
       retry++
