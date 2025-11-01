@@ -37,6 +37,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pkg-requires-build": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
+    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",

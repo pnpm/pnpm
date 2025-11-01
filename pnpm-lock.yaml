@@ -1254,6 +1254,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
@@ -3459,6 +3462,12 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/symlink-dependency':
+        specifier: workspace:*
+        version: 'link:'
+
+  fs/v8-file:
+    devDependencies:
+      '@pnpm/fs.v8-file':
         specifier: workspace:*
         version: 'link:'
 
@@ -7321,6 +7330,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -8647,6 +8659,9 @@ importers:
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../fs/hard-link-dir
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../fs/v8-file
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../fs/graceful-fs
