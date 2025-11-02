@@ -4165,6 +4165,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
