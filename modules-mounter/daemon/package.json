@@ -38,6 +38,7 @@
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/logger": "workspace:*",

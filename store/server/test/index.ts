@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
+import v8 from 'v8'
 import getPort from 'get-port'
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
@@ -8,7 +9,6 @@ import { connectStoreController, createServer } from '@pnpm/server'
 import { type Registries } from '@pnpm/types'
 import fetch from 'node-fetch'
 import { sync as rimraf } from '@zkochan/rimraf'
-import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 import isPortReachable from 'is-port-reachable'
 
@@ -172,18 +172,18 @@ test('server upload', async () => {
   const fakeEngine = 'client-engine'
   const filesIndexFile = path.join(storeDir, 'fake-pkg@1.0.0.json')
 
-  fs.writeFileSync(filesIndexFile, JSON.stringify({
+  fs.writeFileSync(filesIndexFile, v8.serialize({
     name: 'fake-pkg',
     version: '1.0.0',
     files: {},
-  }), 'utf8')
+  }))
 
   await storeCtrl.upload(path.join(import.meta.dirname, '__fixtures__/side-effect-fake-dir'), {
     sideEffectsCacheKey: fakeEngine,
     filesIndexFile,
   })
 
-  const cacheIntegrity = loadJsonFileSync<any>(filesIndexFile) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = v8.deserialize(fs.readFileSync(filesIndexFile))
   expect(Object.keys(cacheIntegrity?.['sideEffects'][fakeEngine].added).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
 
   await server.close()
