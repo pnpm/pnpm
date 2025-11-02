@@ -1,7 +1,6 @@
-import { promises as fs } from 'fs'
 import path from 'path'
-import v8 from 'v8'
-import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
+import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
+import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
   nameVerFromPkgSnapshot,
@@ -53,7 +52,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     const pkgIndexFilePath = integrity
       ? getIndexFilePathInCafs(storeDir, integrity, id)
       : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.json')
-    const { files } = v8.deserialize(await fs.readFile(pkgIndexFilePath))
+    const { files } = await readV8FileStrictAsync<PackageFilesIndex>(pkgIndexFilePath)
     return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), files)) === false
   }, { concurrency: 8 })
 

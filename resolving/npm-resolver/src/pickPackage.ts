@@ -4,7 +4,7 @@ import path from 'path'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import { safeReadV8FileSync } from '@pnpm/fs.v8-file'
+import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
 import gfs from '@pnpm/graceful-fs'
 import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import getRegistryName from 'encode-registry'
@@ -284,8 +284,8 @@ function encodePkgName (pkgName: string): string {
 
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
-    return safeReadV8FileSync<PackageMeta>(pkgMirror) ?? null
-  } catch (err: any) { // eslint-disable-line
+    return await readV8FileStrictAsync<PackageMeta>(pkgMirror)
+  } catch {
     return null
   }
 }

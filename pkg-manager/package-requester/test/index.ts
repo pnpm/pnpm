@@ -1,8 +1,9 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import v8 from 'v8'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
+import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
 import { createCafsStore } from '@pnpm/create-cafs-store'
@@ -384,7 +385,7 @@ test('fetchPackageToStore()', async () => {
   expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 
-  const indexFile = v8.deserialize(fs.readFileSync(fetchResult.filesIndexFile))
+  const indexFile = readV8FileStrictSync<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
   expect(typeof indexFile.files['package.json'].checkedAt).toBeTruthy()
 

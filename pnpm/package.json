@@ -78,6 +78,7 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/assert-project": "workspace:*",
+    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/byline": "catalog:",
     "@pnpm/cache.commands": "workspace:*",
     "@pnpm/cli-meta": "workspace:*",

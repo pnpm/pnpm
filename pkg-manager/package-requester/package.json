@@ -64,6 +64,7 @@
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/registry-mock": "catalog:",

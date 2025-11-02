@@ -2,12 +2,13 @@ import fs from 'fs'
 import path from 'path'
 import v8 from 'v8'
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getIntegrity } from '@pnpm/registry-mock'
-import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
+import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
@@ -158,7 +159,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
-  const { files: integrityFile } = v8.deserialize(fs.readFileSync(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0')))
+  const { files: integrityFile } = readV8FileStrictSync<PackageFilesIndex>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
   const packageFiles = Object.keys(integrityFile).sort()
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
@@ -452,7 +453,7 @@ test('installation fails when the stored package name and version do not match t
   await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
-  const cacheIntegrity = v8.deserialize(fs.readFileSync(cacheIntegrityPath))
+  const cacheIntegrity = readV8FileStrictSync<PackageFilesIndex>(cacheIntegrityPath)
   cacheIntegrity.name = 'foo'
   fs.writeFileSync(cacheIntegrityPath, v8.serialize({
     ...cacheIntegrity,

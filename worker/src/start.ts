@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import v8 from 'v8'
 import path from 'path'
 import fs from 'fs'
-import { safeReadV8FileSync } from '@pnpm/fs.v8-file'
+import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import gfs from '@pnpm/graceful-fs'
 import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
@@ -81,7 +81,7 @@ async function handleMessage (
       let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
-        pkgFilesIndex = safeReadV8FileSync(filesIndexFile)
+        pkgFilesIndex = readV8FileStrictSync(filesIndexFile)
       } catch {
         // ignoring. It is fine if the integrity file is not present. Just refetch the package
       }
@@ -210,12 +210,10 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   let requiresBuild: boolean
   if (sideEffectsCacheKey) {
-    let filesIndex!: PackageFilesIndex | undefined
+    let filesIndex!: PackageFilesIndex
     try {
-      filesIndex = safeReadV8FileSync<PackageFilesIndex>(filesIndexFile)
+      filesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
     } catch {
-    }
-    if (!filesIndex) {
       // If there is no existing index file, then we cannot store the side effects.
       return {
         status: 'success',

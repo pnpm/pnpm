@@ -4,6 +4,8 @@ import path from 'path'
 import v8 from 'v8'
 import getPort from 'get-port'
 import { createClient } from '@pnpm/client'
+import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createPackageStore } from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
 import { type Registries } from '@pnpm/types'
@@ -183,8 +185,8 @@ test('server upload', async () => {
     filesIndexFile,
   })
 
-  const cacheIntegrity = v8.deserialize(fs.readFileSync(filesIndexFile))
-  expect(Object.keys(cacheIntegrity?.['sideEffects'][fakeEngine].added).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
+  const cacheIntegrity = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
+  expect(Object.keys(cacheIntegrity.sideEffects![fakeEngine].added!).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
 
   await server.close()
   await storeCtrl.close()

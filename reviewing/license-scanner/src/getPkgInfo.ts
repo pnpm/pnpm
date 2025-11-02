@@ -1,5 +1,4 @@
 import path from 'path'
-import v8 from 'v8'
 import pathAbsolute from 'path-absolute'
 import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
@@ -11,11 +10,13 @@ import {
   getIndexFilePathInCafs,
   type PackageFiles,
   type PackageFileInfo,
+  type PackageFilesIndex,
 } from '@pnpm/store.cafs'
 import { PnpmError } from '@pnpm/error'
 import { type LicensePackage } from './licenses.js'
 import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile.utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
+import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
 
 const limitPkgReads = pLimit(4)
 
@@ -275,7 +276,7 @@ export async function readPackageIndexFile (
   }
 
   try {
-    const { files } = v8.deserialize(await readFile(pkgIndexFilePath))
+    const { files } = await readV8FileStrictAsync<PackageFilesIndex>(pkgIndexFilePath)
     return {
       local: false,
       files,

@@ -19,3 +19,13 @@ export function readV8FileSync <T> (filePath: string): T | undefined {
     return undefined
   }
 }
+
+export function readV8FileStrictSync <T> (filePath: string): T {
+  const buffer: Buffer = fs.readFileSync(filePath)
+  return v8.deserialize(buffer)
+}
+
+export async function readV8FileStrictAsync <T> (filePath: string): Promise<T> {
+  const buffer: Buffer = await fs.promises.readFile(filePath)
+  return v8.deserialize(buffer)
+}

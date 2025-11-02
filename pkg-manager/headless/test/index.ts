@@ -4,7 +4,8 @@ import v8 from 'v8'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
-import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
+import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
+import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   type PackageManifestLog,
@@ -680,7 +681,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   await headlessInstall(opts)
 
   const cacheIntegrityPath = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const cacheIntegrity = v8.deserialize(fs.readFileSync(cacheIntegrityPath))
+  const cacheIntegrity = readV8FileStrictSync<PackageFilesIndex>(cacheIntegrityPath)
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -692,7 +693,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
     },
   })}`
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-postinstall.js'])
-  delete cacheIntegrity!.sideEffects[sideEffectsKey].added['generated-by-postinstall.js']
+  delete cacheIntegrity!.sideEffects![sideEffectsKey].added!['generated-by-postinstall.js']
 
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-preinstall.js'])
   fs.writeFileSync(cacheIntegrityPath, v8.serialize(cacheIntegrity))

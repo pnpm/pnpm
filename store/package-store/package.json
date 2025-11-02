@@ -46,6 +46,7 @@
   "dependencies": {
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",

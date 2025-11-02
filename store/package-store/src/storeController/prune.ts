@@ -1,7 +1,8 @@
 import { type Dirent, promises as fs } from 'fs'
-import v8 from 'v8'
 import util from 'util'
 import path from 'path'
+import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
 import ssri from 'ssri'
@@ -73,7 +74,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
 
   let pkgCounter = 0
   await Promise.all(pkgIndexFiles.map(async (pkgIndexFilePath) => {
-    const { files: pkgFilesIndex } = v8.deserialize(await fs.readFile(pkgIndexFilePath))
+    const { files: pkgFilesIndex } = await readV8FileStrictAsync<PackageFilesIndex>(pkgIndexFilePath)
     if (removedHashes.has(pkgFilesIndex['package.json'].integrity)) {
       await fs.unlink(pkgIndexFilePath)
       pkgCounter++

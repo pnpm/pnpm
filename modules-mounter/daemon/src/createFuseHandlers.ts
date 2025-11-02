@@ -1,6 +1,6 @@
 // cspell:ignore ents
 import fs from 'fs'
-import { readV8FileSync } from '@pnpm/fs.v8-file'
+import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
@@ -185,7 +185,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       pkgSnapshotCache.set(depPath, {
         ...nameVer,
         pkgSnapshot,
-        index: readV8FileSync<PackageFilesIndex>(indexPath)!, // TODO: maybe make it async?
+        index: readV8FileStrictSync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
       })
     }
     return pkgSnapshotCache.get(depPath)

@@ -1,10 +1,9 @@
-import fs from 'fs'
-import v8 from 'v8'
 import { type Config } from '@pnpm/config'
 import { createResolver } from '@pnpm/client'
 import { type TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
+import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
 import { sortDeepKeys } from '@pnpm/object.key-sorting'
 import { getStorePath } from '@pnpm/store-path'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
@@ -87,7 +86,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     `${alias}@${bareSpecifier}`
   )
   try {
-    const pkgFilesIndex: PackageFilesIndex = v8.deserialize(fs.readFileSync(filesIndexFile))
+    const pkgFilesIndex = await readV8FileStrictAsync<PackageFilesIndex>(filesIndexFile)
     return JSON.stringify(sortDeepKeys(pkgFilesIndex), null, 2)
   } catch {
     throw new PnpmError(
