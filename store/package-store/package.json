@@ -53,7 +53,6 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "load-json-file": "catalog:",
     "ramda": "catalog:",
     "ssri": "catalog:"
   },

@@ -4192,9 +4192,6 @@ importers:
       hyperdrive-schemas:
         specifier: 'catalog:'
         version: 2.0.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -5737,9 +5734,6 @@ importers:
       delay:
         specifier: 'catalog:'
         version: 6.0.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       nock:
         specifier: 'catalog:'
         version: 13.3.4
@@ -7384,9 +7378,6 @@ importers:
       encode-registry:
         specifier: 'catalog:'
         version: 3.0.1
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       lru-cache:
         specifier: 'catalog:'
         version: 11.1.0
@@ -7448,6 +7439,9 @@ importers:
       '@types/ssri':
         specifier: 'catalog:'
         version: 7.1.5
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
       nock:
         specifier: 'catalog:'
         version: 13.3.4
@@ -7586,9 +7580,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       p-limit:
         specifier: 'catalog:'
         version: 7.1.0
@@ -8123,9 +8114,6 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -8275,9 +8263,6 @@ importers:
       dint:
         specifier: 'catalog:'
         version: 5.1.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       p-filter:
         specifier: 'catalog:'
         version: 4.1.0
@@ -8375,9 +8360,6 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -8449,9 +8431,6 @@ importers:
       is-port-reachable:
         specifier: 'catalog:'
         version: 4.0.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       node-fetch:
         specifier: 'catalog:'
         version: 3.3.2
@@ -8713,9 +8692,6 @@ importers:
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       p-limit:
         specifier: 'catalog:'
         version: 7.1.0

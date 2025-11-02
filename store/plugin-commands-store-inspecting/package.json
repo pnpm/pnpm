@@ -43,7 +43,6 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "catalog:",
-    "load-json-file": "catalog:",
     "render-help": "catalog:"
   },
   "devDependencies": {
