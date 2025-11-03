@@ -52,6 +52,8 @@ export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concu
 
 export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
 
+export { isSupportedNpmConfig } from './auth.js'
+
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
   : S
