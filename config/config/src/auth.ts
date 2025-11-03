@@ -100,6 +100,8 @@ const isNpmCompatConfig = (key: string): false | 'compat' =>
  * Returns `true` if the config key is supported by the rc file but not because of compatibility reason.
  *
  * Returns `'compat'` if the config key is supported by the rc file for compatibility reason.
+ *
+ * @param key - A config key in kebab-case.
  */
 export const isSupportedNpmConfig = (key: string): boolean | 'compat' =>
   key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key) || isNpmCompatConfig(key)
