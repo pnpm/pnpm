@@ -49,7 +49,6 @@ const PNPM_COMPAT_SETTINGS = [
 
 const NPM_AUTH_SETTINGS = [
   ...RAW_AUTH_CFG_KEYS,
-  ...PNPM_COMPAT_SETTINGS,
   '_auth',
   '_authToken',
   '_password',
@@ -92,8 +91,11 @@ export function inheritAuthConfig (targetCfg: InheritableConfig, authSrcCfg: Inh
   inheritPickedConfig(targetCfg, authSrcCfg, pickAuthConfig, pickRawAuthConfig)
 }
 
-export const isSupportedNpmConfig = (key: string): boolean =>
-  key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key)
+const isNpmCompatConfig = (key: string): false | 'compat' =>
+  (PNPM_COMPAT_SETTINGS as string[]).includes(key) && 'compat'
+
+export const isSupportedNpmConfig = (key: string): boolean | 'compat' =>
+  key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key) || isNpmCompatConfig(key)
 
 export function pickNpmAuthConfig<RawConfig extends Record<string, unknown>> (rawConfig: RawConfig): Partial<RawConfig> {
   const result: Partial<RawConfig> = {}
