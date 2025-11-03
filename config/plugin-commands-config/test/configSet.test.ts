@@ -526,6 +526,8 @@ test('config set scoped registry with --location=project should create .npmrc', 
   expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBeFalsy()
 })
 
+// NOTE: this test gives false positive since <https://github.com/pnpm/pnpm/pull/10145>.
+// TODO: fix this test.
 test('config set when both pnpm-workspace.yaml and .npmrc exist, pnpm-workspace.yaml has priority', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
@@ -550,6 +552,8 @@ test('config set when both pnpm-workspace.yaml and .npmrc exist, pnpm-workspace.
   })
 })
 
+// NOTE: this test gives false positive since <https://github.com/pnpm/pnpm/pull/10145>.
+// TODO: fix this test.
 test('config set when only pnpm-workspace.yaml exists, writes to it', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')

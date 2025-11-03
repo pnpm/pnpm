@@ -1,6 +1,7 @@
 import path from 'path'
 import util from 'util'
 import { types } from '@pnpm/config'
+import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
 import { parsePropertyPath } from '@pnpm/object.property-path'
@@ -51,16 +52,23 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
     }
   }
 
-  const { configPath, isWorkspaceYaml } = getConfigFilePath(opts)
+  const { configPath, configFileName } = getConfigFilePath(key, opts)
 
-  if (isWorkspaceYaml) {
+  switch (configFileName) {
+  case GLOBAL_CONFIG_YAML_FILENAME:
+  case WORKSPACE_MANIFEST_FILENAME: {
     key = validateWorkspaceKey(key)
     await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+      fileName: configFileName,
       updatedFields: ({
         [key]: castField(value, kebabCase(key)),
       }),
     })
-  } else {
+    break
+  }
+
+  case 'rc':
+  case '.npmrc': {
     const settings = await safeReadIniFile(configPath)
     key = validateRcKey(key)
     if (value == null) {
@@ -70,6 +78,13 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       settings[key] = value
     }
     await writeIniFile(configPath, settings)
+    break
+  }
+
+  default: {
+    const _typeGuard: never = configFileName
+    throw new Error(`Unhandled case: ${JSON.stringify(_typeGuard)}`)
+  }
   }
 }
 

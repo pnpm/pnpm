@@ -25,6 +25,9 @@
       "path": "../../object/property-path"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/error"
     },
     {
