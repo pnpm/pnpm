@@ -94,6 +94,13 @@ export function inheritAuthConfig (targetCfg: InheritableConfig, authSrcCfg: Inh
 const isNpmCompatConfig = (key: string): false | 'compat' =>
   (PNPM_COMPAT_SETTINGS as string[]).includes(key) && 'compat'
 
+/**
+ * Returns `false` if the config key is not supported by the rc file.
+ *
+ * Returns `true` if the config key is supported by the rc file but not because of compatibility reason.
+ *
+ * Returns `'compat'` if the config key is supported by the rc file for compatibility reason.
+ */
 export const isSupportedNpmConfig = (key: string): boolean | 'compat' =>
   key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key) || isNpmCompatConfig(key)
 
