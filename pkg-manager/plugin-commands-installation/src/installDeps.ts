@@ -272,6 +272,8 @@ when running add/update with the --workspace option')
   }
 
   let updateMatch: UpdateDepsMatcher | null
+  let updatePackageManifest = opts.updatePackageManifest
+  let updateMatching: ((pkgName: string) => boolean) | undefined
   if (opts.update) {
     if (params.length === 0) {
       const ignoreDeps = opts.updateConfig?.ignoreDependencies
@@ -291,6 +293,10 @@ when running add/update with the --workspace option')
         throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
           'None of the specified packages were found in the dependencies.')
       }
+      // No direct dependencies matched, so we're updating indirect dependencies only
+      // Don't update package.json in this case, and limit updates to only matching dependencies
+      updatePackageManifest = false
+      updateMatching = (pkgName: string) => updateMatch!(pkgName) != null
     }
   }
 
@@ -343,7 +349,11 @@ when running add/update with the --workspace option')
     return
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
+  const { updatedCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, {
+    ...installOpts,
+    updatePackageManifest,
+    updateMatching,
+  })
   if (opts.update === true && opts.save !== false) {
     await Promise.all([
       writeProjectManifest(updatedManifest),
