@@ -657,6 +657,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
     // Q: Why `types` instead of `rcOptionTypes`?
     // A: `rcOptionTypes` includes options that would matter to the `npm` cli which wouldn't care about `pnpm-workspace.yaml`.
     const targetKey = kebabKey in types ? kebabKey : key
+    pnpmConfig.rawConfig ??= {}
     pnpmConfig.rawConfig[targetKey] = value
   }
   // All the pnpm_config_ env variables should override the settings from pnpm-workspace.yaml,
