@@ -1,6 +1,6 @@
 import path from 'path'
 import util from 'util'
-import { isSupportedNpmConfig, types } from '@pnpm/config'
+import { types } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
 import { parsePropertyPath } from '@pnpm/object.property-path'
