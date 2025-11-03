@@ -4,7 +4,7 @@ import {
   type ResolverFactoryOptions,
 } from '@pnpm/default-resolver'
 import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
-import { type SslConfig } from '@pnpm/types'
+import { type SslConfig, type ResolverPlugin } from '@pnpm/types'
 import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
 import type { CustomFetchers, GitFetcher, DirectoryFetcher, BinaryFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
@@ -19,6 +19,7 @@ export type { ResolveFunction }
 export type ClientOptions = {
   authConfig: Record<string, string>
   customFetchers?: CustomFetchers
+  customResolvers?: ResolverPlugin[]
   ignoreScripts?: boolean
   rawConfig: Record<string, string>
   sslConfigs?: Record<string, SslConfig>
@@ -43,7 +44,10 @@ export interface Client {
 export function createClient (opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
-  const { resolve, clearCache: clearResolutionCache } = _createResolver(fetchFromRegistry, getAuthHeader, opts)
+  const { resolve, clearCache: clearResolutionCache } = _createResolver(fetchFromRegistry, getAuthHeader, {
+    ...opts,
+    customResolvers: opts.customResolvers,
+  })
   return {
     fetchers: createFetchers(fetchFromRegistry, getAuthHeader, opts, opts.customFetchers),
     resolve,
@@ -54,7 +58,10 @@ export function createClient (opts: ClientOptions): Client {
 export function createResolver (opts: ClientOptions): { resolve: ResolveFunction, clearCache: () => void } {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
-  return _createResolver(fetchFromRegistry, getAuthHeader, opts)
+  return _createResolver(fetchFromRegistry, getAuthHeader, {
+    ...opts,
+    customResolvers: opts.customResolvers,
+  })
 }
 
 type Fetchers = {

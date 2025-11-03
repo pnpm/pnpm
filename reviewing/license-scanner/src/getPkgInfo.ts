@@ -261,7 +261,7 @@ export async function readPackageIndexFile (
       packageResolution.integrity as string,
       parsedId.nonSemverVersion ?? `${parsedId.name}@${parsedId.version}`
     )
-  } else if (!packageResolution.type && packageResolution.tarball) {
+  } else if (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) {
     const packageDirInStore = depPathToFilename(parse(id).nonSemverVersion ?? id, opts.virtualStoreDirMaxLength)
     pkgIndexFilePath = path.join(
       opts.storeDir,

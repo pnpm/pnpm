@@ -13,6 +13,9 @@
       "path": "../../env/node.resolver"
     },
     {
+      "path": "../../hooks/types"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
@@ -20,6 +23,9 @@
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
     },
     {
       "path": "../bun-resolver"

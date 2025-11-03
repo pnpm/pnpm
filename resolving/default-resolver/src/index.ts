@@ -21,6 +21,7 @@ import {
   type WantedDependency,
 } from '@pnpm/resolver-base'
 import { type TarballResolveResult, resolveFromTarball } from '@pnpm/tarball-resolver'
+import { type ResolverPlugin, type PackageDescriptor } from '@pnpm/hooks.types'
 
 export type {
   PackageMeta,
@@ -47,6 +48,7 @@ export function createResolver (
   getAuthHeader: GetAuthHeader,
   pnpmOpts: ResolverFactoryOptions & {
     rawConfig: Record<string, string>
+    customResolvers?: ResolverPlugin[]
   }
 ): { resolve: DefaultResolver, clearCache: () => void } {
   const { resolveFromNpm, resolveFromJsr, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
@@ -59,6 +61,33 @@ export function createResolver (
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
   return {
     resolve: async (wantedDependency, opts) => {
+      // Try custom resolvers first
+      if (pnpmOpts.customResolvers && pnpmOpts.customResolvers.length > 0) {
+        const descriptor: PackageDescriptor = {
+          name: wantedDependency.alias ?? '',
+          range: wantedDependency.bareSpecifier ?? '',
+        }
+
+        for (const resolver of pnpmOpts.customResolvers) {
+          // Skip resolvers that don't support descriptor resolution
+          if (!resolver.supportsDescriptor || !resolver.resolve) continue
+
+          const supportsResult = resolver.supportsDescriptor(descriptor)
+          // eslint-disable-next-line no-await-in-loop
+          const supports = supportsResult instanceof Promise ? await supportsResult : supportsResult
+          if (supports) {
+            const resolveResult = resolver.resolve(descriptor, {
+              lockfileDir: opts.lockfileDir,
+              projectDir: opts.projectDir,
+              preferredVersions: (opts.preferredVersions ?? {}) as unknown as Record<string, string>,
+            })
+            // eslint-disable-next-line no-await-in-loop
+            const result = resolveResult instanceof Promise ? await resolveResult : resolveResult
+            return result as DefaultResolveResult
+          }
+        }
+      }
+
       const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (

@@ -227,6 +227,7 @@ export interface ResolvedPackage {
   id: PkgResolutionId
   isLeaf: boolean
   resolution: Resolution
+  getLockfileResolution?: (resolution: any) => any // eslint-disable-line @typescript-eslint/no-explicit-any
   prod: boolean
   dev: boolean
   optional: boolean

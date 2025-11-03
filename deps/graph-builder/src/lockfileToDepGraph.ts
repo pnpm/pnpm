@@ -6,14 +6,14 @@ import {
 import { type LockfileResolution, type LockfileObject } from '@pnpm/lockfile.fs'
 import {
   packageIdFromSnapshot,
-  pkgSnapshotToResolution,
+  pkgSnapshotToResolutionWithResolvers,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
 import { type PatchInfo } from '@pnpm/patching.types'
-import { type DepPath, type SupportedArchitectures, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
+import { type DepPath, type SupportedArchitectures, type Registries, type PkgIdWithPatchHash, type ProjectId, type ResolverPlugin } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
   type FetchResponse,
@@ -57,6 +57,9 @@ export interface LockfileToDepGraphOptions {
   enableGlobalVirtualStore?: boolean
   engineStrict: boolean
   force: boolean
+  hooks?: {
+    resolvers?: ResolverPlugin[]
+  }
   importerIds: ProjectId[]
   include: IncludedDependencies
   includeUnchangedDeps?: boolean
@@ -225,7 +228,11 @@ async function buildGraphFromPackages (
       }
 
       if (!fetchResponse) {
-        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
+        const resolution = await pkgSnapshotToResolutionWithResolvers(depPath, pkgSnapshot, opts.registries, {
+          customResolvers: opts.hooks?.resolvers,
+          lockfileDir: opts.lockfileDir,
+          projectDir: opts.lockfileDir,
+        })
         progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
 
         try {

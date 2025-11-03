@@ -303,10 +303,11 @@ export async function mutateModules (
     }
   }
 
+  let forceResolutionFromHook = false
   if (opts.hooks.preResolution) {
     for (const preResolution of opts.hooks.preResolution) {
       // eslint-disable-next-line no-await-in-loop
-      await preResolution({
+      const result = await preResolution({
         currentLockfile: ctx.currentLockfile,
         wantedLockfile: ctx.wantedLockfile,
         existsCurrentLockfile: ctx.existsCurrentLockfile,
@@ -315,6 +316,9 @@ export async function mutateModules (
         storeDir: ctx.storeDir,
         registries: ctx.registries,
       })
+      if (result?.forceFullResolution) {
+        forceResolutionFromHook = true
+      }
     }
   }
 
@@ -429,7 +433,8 @@ export async function mutateModules (
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
       !upToDateLockfileMajorVersion ||
-      opts.forceFullResolution
+      opts.forceFullResolution ||
+      forceResolutionFromHook
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,

@@ -2,7 +2,7 @@ import type { AtomicResolution } from '@pnpm/resolver-base'
 import type { Fetchers, FetchFunction, DirectoryFetcher, GitFetcher, BinaryFetcher } from '@pnpm/fetcher-base'
 
 export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution: AtomicResolution): FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher {
-  let fetcherType: keyof Fetchers | undefined = resolution.type
+  let fetcherType: keyof Fetchers | undefined = resolution.type as keyof Fetchers | undefined
 
   if (resolution.type == null) {
     if (resolution.tarball.startsWith('file:')) {

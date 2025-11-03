@@ -70,13 +70,18 @@ Remove unreferenced packages from the store.
 
 ## Hooks
 
-Hooks are functions that can step into the installation process.
+Hooks are functions that can step into the installation process. All hooks can be provided as arrays to register multiple hook functions.
 
-### `readPackage(pkg: Manifest): Manifest | Promise<Manifest>`
+### `readPackage(pkg: Manifest, context): Manifest | Promise<Manifest>`
 
 This hook is called with every dependency's manifest information.
 The modified manifest returned by this hook is then used by `@pnpm/core` during installation.
 An async function is supported.
+
+**Arguments:**
+
+* `pkg` - The dependency's package manifest.
+* `context.log(message)` - A function to log debug messages.
 
 **Example:**
 
@@ -84,11 +89,14 @@ An async function is supported.
 const { installPkgs } = require('@pnpm/core')
 
 installPkgs({
-  hooks: {readPackage}
+  hooks: {
+    readPackage: [readPackageHook]
+  }
 })
 
-function readPackage (pkg) {
+function readPackageHook (pkg, context) {
   if (pkg.name === 'foo') {
+    context.log('Modifying foo dependencies')
     pkg.dependencies = {
       bar: '^2.0.0',
     }
@@ -97,10 +105,33 @@ function readPackage (pkg) {
 }
 ```
 
+### `preResolution(context, logger): Promise<result>`
+
+This hook is called after reading lockfiles but before resolving dependencies. It can modify lockfile objects and force a full resolution by returning `{ forceFullResolution: true }`.
+
+**Arguments:**
+
+* `context.wantedLockfile` - The lockfile from `pnpm-lock.yaml`.
+* `context.currentLockfile` - The lockfile from `node_modules/.pnpm/lock.yaml`.
+* `context.existsCurrentLockfile` - Boolean indicating if current lockfile exists.
+* `context.existsNonEmptyWantedLockfile` - Boolean indicating if wanted lockfile exists and is not empty.
+* `context.lockfileDir` - Directory containing the lockfile.
+* `context.storeDir` - Location of the store directory.
+* `context.registries` - Map of registry URLs.
+* `logger.info(message)` - Log an informational message.
+* `logger.warn(message)` - Log a warning message.
+
+**Returns:** A promise resolving to `undefined` or an object with:
+* `forceFullResolution` - When `true`, forces pnpm to re-resolve all dependencies.
+
 ### `afterAllResolved(lockfile: Lockfile): Lockfile | Promise<Lockfile>`
 
 This hook is called after all dependencies are resolved. It receives and returns the resolved lockfile object.
 An async function is supported.
+
+**Arguments:**
+
+* `lockfile` - The resolved lockfile object that will be written to `pnpm-lock.yaml`.
 
 ## License
 

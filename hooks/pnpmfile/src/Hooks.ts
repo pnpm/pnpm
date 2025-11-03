@@ -1,21 +1,26 @@
-import { type PreResolutionHook } from '@pnpm/hooks.types'
+import {
+  type PreResolutionHook,
+  type ResolverPlugin,
+} from '@pnpm/hooks.types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
+import { type BaseManifest, type HookContext } from '@pnpm/types'
 import { type Log } from '@pnpm/core-loggers'
 import { type CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
 
-export interface HookContext {
-  log: (message: string) => void
-}
+export type ReadPackageHookFunction = <Pkg extends BaseManifest>(pkg: Pkg, context: HookContext) => Pkg | Promise<Pkg>
 
 export interface Hooks {
-  // eslint-disable-next-line
-  readPackage?: (pkg: any, context: HookContext) => any;
+  readPackage?: ReadPackageHookFunction
   preResolution?: PreResolutionHook
   afterAllResolved?: (lockfile: LockfileObject, context: HookContext) => LockfileObject | Promise<LockfileObject>
   filterLog?: (log: Log) => boolean
   importPackage?: ImportIndexedPackageAsync
   fetchers?: CustomFetchers
-  // eslint-disable-next-line
-  updateConfig?: (config: any) => any
+  resolvers?: ResolverPlugin[]
+  /**
+   * Note: For a complete list of config keys, see the Config type in @pnpm/config.
+   * We use { [key: string]: any } here to avoid circular dependencies.
+   */
+  updateConfig?: (config: { [key: string]: unknown }) => { [key: string]: unknown }
 }

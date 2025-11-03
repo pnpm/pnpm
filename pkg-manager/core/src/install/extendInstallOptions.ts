@@ -89,7 +89,7 @@ export interface StrictInstallOptions {
   pruneLockfileImporters: boolean
   hooks: {
     readPackage?: ReadPackageHook[]
-    preResolution?: Array<(ctx: PreResolutionHookContext) => Promise<void>>
+    preResolution?: Array<(ctx: PreResolutionHookContext) => Promise<{ forceFullResolution?: boolean } | undefined>>
     afterAllResolved?: Array<(lockfile: LockfileObject) => LockfileObject | Promise<LockfileObject>>
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }

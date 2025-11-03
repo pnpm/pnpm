@@ -175,24 +175,29 @@ function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOp
   let outputResolution: LockfileResolution
   if ('integrity' in inputResolution) {
     outputResolution = inputResolution
-  } else if ('tarball' in inputResolution) {
+  } else if ('tarball' in inputResolution && typeof inputResolution.tarball === 'string') {
     outputResolution = { ...inputResolution }
     if (inputResolution.tarball.startsWith('file:')) {
       const inputPath = inputResolution.tarball.slice('file:'.length)
       const resolvedPath = path.resolve(opts.lockfileDir, inputPath)
       const outputPath = normalizePath(path.relative(opts.deployDir, resolvedPath))
       outputResolution.tarball = `file:${outputPath}`
-      if (inputResolution.path) outputResolution.path = outputPath
+      if ('path' in inputResolution && typeof inputResolution.path === 'string') {
+        outputResolution.path = outputPath
+      }
     }
   } else if (inputResolution.type === 'directory') {
-    const resolvedPath = path.resolve(opts.lockfileDir, inputResolution.directory)
+    const dirResolution = inputResolution as DirectoryResolution
+    const resolvedPath = path.resolve(opts.lockfileDir, dirResolution.directory)
     const directory = normalizePath(path.relative(opts.deployDir, resolvedPath))
-    outputResolution = { ...inputResolution, directory }
+    outputResolution = { ...dirResolution, directory }
   } else if (inputResolution.type === 'git' || inputResolution.type === 'variations') {
     outputResolution = inputResolution
+  } else if (inputResolution.type && typeof inputResolution.type === 'string') {
+    // Custom resolution type - pass through as-is
+    outputResolution = inputResolution
   } else {
-    const resolution: never = inputResolution // `never` is the type guard to force fixing this code when adding new type of resolution
-    throw new Error(`Unknown resolution type: ${JSON.stringify(resolution)}`)
+    throw new Error(`Unknown resolution type: ${JSON.stringify(inputResolution)}`)
   }
 
   return {
