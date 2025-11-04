@@ -200,7 +200,17 @@ test('config set using the location=global option', async () => {
 test('config set pnpm-specific setting using the location=project option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
-  fs.mkdirSync(configDir, { recursive: true })
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: undefined,
+    localRc: {
+      '@jsr:registry': 'https://alternate-jsr.example.com/',
+    },
+    localYaml: {
+      storeDir: '~/store',
+    },
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
 
   await config.handler({
     dir: process.cwd(),
@@ -210,8 +220,12 @@ test('config set pnpm-specific setting using the location=project option', async
     rawConfig: {},
   }, ['set', 'virtual-store-dir', '.pnpm'])
 
-  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
-    virtualStoreDir: '.pnpm',
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    localYaml: {
+      ...initConfig.localYaml,
+      virtualStoreDir: '.pnpm',
+    },
   })
 })
 
