@@ -7,7 +7,7 @@ import { readIniFileSync } from 'read-ini-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
-test('config set using the global option', async () => {
+test('config set pnpm-specific key using the global option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
