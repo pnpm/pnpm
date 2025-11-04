@@ -29,20 +29,12 @@ export function getConfigFilePath (key: string, opts: Pick<ConfigCommandOptions,
   }
 
   case true: {
-    let rcName: 'rc' | '.npmrc'
-    let yamlName: typeof GLOBAL_CONFIG_YAML_FILENAME | typeof WORKSPACE_MANIFEST_FILENAME
-
-    if (opts.global) {
-      rcName = 'rc'
-      yamlName = GLOBAL_CONFIG_YAML_FILENAME
-    } else {
-      rcName = '.npmrc'
-      yamlName = WORKSPACE_MANIFEST_FILENAME
-    }
-
-    return fs.existsSync(path.join(configDir, yamlName))
-      ? { configDir, configFileName: yamlName }
-      : { configDir, configFileName: rcName }
+    // NOTE: The following code no longer does what the merged PR at <https://github.com/pnpm/pnpm/pull/10073> wants to do,
+    //       but considering the settings are now clearly divided into 2 separate categories, it should no longer be relevant.
+    // TODO: Maybe pnpm should not load npm-compatible settings from the yaml file?
+    // TODO: Alternatively, only set npm-compatible settings to the yaml file if the setting is found there.
+    const configFileName = opts.global ? 'rc' : '.npmrc'
+    return { configDir, configFileName }
   }
   }
 }

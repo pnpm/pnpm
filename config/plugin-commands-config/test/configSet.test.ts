@@ -101,15 +101,13 @@ test('config set registry setting using the global option', async () => {
   })
 })
 
-// TODO: currently bugged, details below
-test.skip('config set npm-compatible setting using the global option', async () => {
+test('config set npm-compatible setting using the global option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   const initConfig = {
     globalRc: {
       '@jsr:registry': 'https://alternate-jsr.example.com/',
     },
-    // TODO: global rc.yaml existing leads the program astray, fix this
     globalYaml: {
       storeDir: '~/store',
     },
