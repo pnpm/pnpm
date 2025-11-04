@@ -261,10 +261,17 @@ test('config set registry setting using the location=project option', async () =
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(tmp, '.npmrc'), '@jsr:registry=https://alternate-jsr.example.com/')
-  writeYamlFile(path.join(tmp, 'pnpm-workspace.yaml'), {
-    storeDir: '~/store',
-  })
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: undefined,
+    localRc: {
+      '@jsr:registry': 'https://alternate-jsr.example.com/',
+    },
+    localYaml: {
+      storeDir: '~/store',
+    },
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
 
   await config.handler({
     dir: process.cwd(),
@@ -274,12 +281,12 @@ test('config set registry setting using the location=project option', async () =
     rawConfig: {},
   }, ['set', 'registry', 'https://npm-registry.example.com/'])
 
-  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
-    '@jsr:registry': 'https://alternate-jsr.example.com/',
-    registry: 'https://npm-registry.example.com/',
-  })
-  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toStrictEqual({
-    storeDir: '~/store',
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    localRc: {
+      ...initConfig.localRc,
+      registry: 'https://npm-registry.example.com/',
+    },
   })
 })
 
