@@ -38,7 +38,8 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   cleanupUnusedCatalogs?: boolean
   allProjects?: Project[]
 }): Promise<void> {
-  const manifest = await readWorkspaceManifest(dir) ?? {} as WorkspaceManifest
+  const fileName = opts.fileName ?? DEFAULT_FILENAME
+  const manifest = await readWorkspaceManifest(dir, fileName) ?? {} as WorkspaceManifest
   let shouldBeUpdated = opts.updatedCatalogs != null && addCatalogs(manifest, opts.updatedCatalogs)
   if (opts.cleanupUnusedCatalogs) {
     shouldBeUpdated = removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? []) || shouldBeUpdated
@@ -58,7 +59,6 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   if (!shouldBeUpdated) {
     return
   }
-  const fileName = opts.fileName ?? DEFAULT_FILENAME
   if (Object.keys(manifest).length === 0) {
     await fs.promises.rm(path.join(dir, fileName))
     return
