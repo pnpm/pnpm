@@ -290,6 +290,39 @@ test('config set registry setting using the location=project option', async () =
   })
 })
 
+test('config set npm-compatible setting using the location=project option', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: undefined,
+    localRc: {
+      '@jsr:registry': 'https://alternate-jsr.example.com/',
+    },
+    localYaml: {
+      storeDir: '~/store',
+    },
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', 'cafile', 'some-cafile'])
+
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    localRc: {
+      ...initConfig.localRc,
+      cafile: 'some-cafile',
+    },
+  })
+})
+
 test('config set pnpm-specific setting using the location=project option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
