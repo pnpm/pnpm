@@ -477,8 +477,21 @@ test('config set pnpm-specific setting in project pnpm-workspace.yaml file', asy
 test('config set key=value', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
-  fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
+  const initConfig = {
+    globalRc: {
+      '@my-company:registry': 'https://registry.my-company.example.com/',
+    },
+    globalYaml: {
+      onlyBuiltDependencies: ['foo', 'bar'],
+    },
+    localRc: {
+      '@local:registry': 'https://localhost:7777/',
+    },
+    localYaml: {
+      storeDir: '~/store',
+    },
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
 
   await config.handler({
     dir: process.cwd(),
@@ -488,17 +501,33 @@ test('config set key=value', async () => {
     rawConfig: {},
   }, ['set', 'fetch-retries=1'])
 
-  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
-    'store-dir': '~/store',
-    'fetch-retries': '1',
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    localYaml: {
+      ...initConfig.localYaml,
+      fetchRetries: 1,
+    },
   })
 })
 
 test('config set key=value, when value contains a "="', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
-  fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
+  const initConfig = {
+    globalRc: {
+      '@my-company:registry': 'https://registry.my-company.example.com/',
+    },
+    globalYaml: {
+      onlyBuiltDependencies: ['foo', 'bar'],
+    },
+    localRc: {
+      '@local:registry': 'https://localhost:7777/',
+    },
+    localYaml: {
+      storeDir: '~/store',
+    },
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
 
   await config.handler({
     dir: process.cwd(),
@@ -508,9 +537,12 @@ test('config set key=value, when value contains a "="', async () => {
     rawConfig: {},
   }, ['set', 'lockfile-dir=foo=bar'])
 
-  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
-    'store-dir': '~/store',
-    'lockfile-dir': 'foo=bar',
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    localYaml: {
+      ...initConfig.localYaml,
+      lockfileDir: 'foo=bar',
+    },
   })
 })
 
