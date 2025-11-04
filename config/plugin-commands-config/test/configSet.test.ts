@@ -109,7 +109,7 @@ test('config set pnpm-specific setting using the location=project option', async
   })
 })
 
-test('config delete using the location=project option. The setting in pnpm-workspace.yaml will be deleted, when .npmrc is not present', async () => {
+test('config delete with location=project, when delete the last setting from pnpm-workspace.yaml, would delete the file itself', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
