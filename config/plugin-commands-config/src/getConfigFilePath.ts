@@ -19,10 +19,11 @@ export interface ConfigFilePathInfo {
 export function getConfigFilePath (key: string, opts: Pick<ConfigCommandOptions, 'global' | 'configDir' | 'dir'>): ConfigFilePathInfo {
   key = kebabCase(key)
 
+  const configDir = opts.global ? opts.configDir : opts.dir
+
   switch (isSupportedNpmConfig(key)) {
   case false:
   case 'compat': {
-    const { configDir } = opts
     const configFileName = opts.global ? GLOBAL_CONFIG_YAML_FILENAME : WORKSPACE_MANIFEST_FILENAME
     return { configDir, configFileName }
   }
@@ -30,16 +31,13 @@ export function getConfigFilePath (key: string, opts: Pick<ConfigCommandOptions,
   case true: {
     let rcName: 'rc' | '.npmrc'
     let yamlName: typeof GLOBAL_CONFIG_YAML_FILENAME | typeof WORKSPACE_MANIFEST_FILENAME
-    let configDir: string
 
     if (opts.global) {
       rcName = 'rc'
       yamlName = GLOBAL_CONFIG_YAML_FILENAME
-      configDir = opts.configDir
     } else {
       rcName = '.npmrc'
       yamlName = WORKSPACE_MANIFEST_FILENAME
-      configDir = opts.dir
     }
 
     return fs.existsSync(path.join(configDir, yamlName))

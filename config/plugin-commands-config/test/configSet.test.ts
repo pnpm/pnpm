@@ -91,7 +91,7 @@ test('config set using the location=global option', async () => {
   })
 })
 
-test('config set using the location=project option. The setting is written to pnpm-workspace.yaml, when .npmrc is not present', async () => {
+test('config set pnpm-specific setting using the location=project option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
