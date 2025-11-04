@@ -137,11 +137,13 @@ test('config delete with location=project, when delete the last setting from pnp
   expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBeFalsy()
 })
 
-test('config set using the location=project option', async () => {
+test('config set pnpm-specific setting using the location=project option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
+  writeYamlFile(path.join(tmp, 'pnpm-workspace.yaml'), {
+    storeDir: '~/store',
+  })
 
   await config.handler({
     dir: process.cwd(),
@@ -151,9 +153,9 @@ test('config set using the location=project option', async () => {
     rawConfig: {},
   }, ['set', 'fetch-retries', '1'])
 
-  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
-    'store-dir': '~/store',
-    'fetch-retries': '1',
+  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toStrictEqual({
+    fetchRetries: 1,
+    storeDir: '~/store',
   })
 })
 
