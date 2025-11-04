@@ -686,8 +686,15 @@ test('config set with location=project and json=true', async () => {
 test('config set refuses writing workspace-specific settings to the global config', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
-  fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(configDir, 'rc'), 'store-dir=~/store')
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: {
+      storeDir: '~/store',
+    },
+    localRc: undefined,
+    localYaml: undefined,
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
 
   await expect(config.handler({
     dir: process.cwd(),
@@ -697,7 +704,7 @@ test('config set refuses writing workspace-specific settings to the global confi
     json: true,
     rawConfig: {},
   }, ['set', 'catalog', '{ "react": "19" }'])).rejects.toMatchObject({
-    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_CONFIG_KEY',
     key: 'catalog',
   })
 
@@ -720,7 +727,7 @@ test('config set refuses writing workspace-specific settings to the global confi
       },
     },
   })])).rejects.toMatchObject({
-    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_CONFIG_KEY',
     key: 'packageExtensions',
   })
 
@@ -743,37 +750,42 @@ test('config set refuses writing workspace-specific settings to the global confi
       },
     },
   })])).rejects.toMatchObject({
-    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_CONFIG_KEY',
     key: 'package-extensions',
   })
 })
 
-test('config set refuses writing workspace-specific settings to .npmrc', async () => {
+test('config set writes workspace-specific settings to pnpm-workspace.yaml', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
-  fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: undefined,
+    localRc: undefined,
+    localYaml: {
+      storeDir: '~/store',
+    },
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
 
-  await expect(config.handler({
+  const catalog = { react: '19' }
+  await config.handler({
     dir: process.cwd(),
     cliOptions: {},
     configDir,
     location: 'project',
     json: true,
     rawConfig: {},
-  }, ['set', 'catalog', '{ "react": "19" }'])).rejects.toMatchObject({
-    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
-    key: 'catalog',
+  }, ['set', 'catalog', JSON.stringify(catalog)])
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    localYaml: {
+      ...initConfig.localYaml,
+      catalog,
+    },
   })
 
-  await expect(config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir,
-    location: 'project',
-    json: true,
-    rawConfig: {},
-  }, ['set', 'packageExtensions', JSON.stringify({
+  const packageExtensions = {
     '@babel/parser': {
       peerDependencies: {
         '@babel/types': '*',
@@ -784,32 +796,22 @@ test('config set refuses writing workspace-specific settings to .npmrc', async (
         slash: '3',
       },
     },
-  })])).rejects.toMatchObject({
-    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
-    key: 'packageExtensions',
-  })
-
-  await expect(config.handler({
+  }
+  await config.handler({
     dir: process.cwd(),
     cliOptions: {},
     configDir,
     location: 'project',
     json: true,
     rawConfig: {},
-  }, ['set', 'package-extensions', JSON.stringify({
-    '@babel/parser': {
-      peerDependencies: {
-        '@babel/types': '*',
-      },
+  }, ['set', 'packageExtensions', JSON.stringify(packageExtensions)])
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    localYaml: {
+      ...initConfig.localYaml,
+      catalog,
+      packageExtensions,
     },
-    'jest-circus': {
-      dependencies: {
-        slash: '3',
-      },
-    },
-  })])).rejects.toMatchObject({
-    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
-    key: 'package-extensions',
   })
 })
 

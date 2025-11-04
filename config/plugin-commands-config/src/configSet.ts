@@ -63,6 +63,9 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   switch (configFileName) {
   case GLOBAL_CONFIG_YAML_FILENAME:
   case WORKSPACE_MANIFEST_FILENAME: {
+    if (configFileName === GLOBAL_CONFIG_YAML_FILENAME) {
+      key = validateConfigKey(key)
+    }
     key = validateWorkspaceKey(key)
     await updateWorkspaceManifest(configDir, {
       fileName: configFileName,
@@ -76,7 +79,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   case 'rc':
   case '.npmrc': {
     const settings = await safeReadIniFile(configPath)
-    key = validateRcKey(key)
+    key = validateConfigKey(key)
     if (value == null) {
       if (settings[key] == null) return
       delete settings[key]
@@ -161,10 +164,10 @@ function validateSimpleKey (key: string): string {
   return first.value.toString()
 }
 
-export class ConfigSetUnsupportedRcKeyError extends PnpmError {
+export class ConfigSetUnsupportedConfigKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
-    super('CONFIG_SET_UNSUPPORTED_RC_KEY', `Key ${JSON.stringify(key)} isn't supported by rc files`, {
+    super('CONFIG_SET_UNSUPPORTED_CONFIG_KEY', `Key ${JSON.stringify(key)} isn't supported by rc files`, {
       hint: `Add ${JSON.stringify(camelCase(key))} to the project workspace manifest instead`,
     })
     this.key = key
@@ -175,13 +178,25 @@ export class ConfigSetUnsupportedRcKeyError extends PnpmError {
  * Validate if the kebab-case of {@link key} is supported by rc files.
  *
  * Return the kebab-case if it is, throw an error otherwise.
+ *
+ * "rc files" includes:
+ * * The global INI config file named `rc`.
+ * * The global YAML config file named `rc.yaml`.
+ * * The local INI config file named `.npmrc`.
+ *
+ * The only exception is the local YAML file named `pnpm-workspace.yaml`
+ * because it can contain workspace-specific settings.
+ *
+ * **NOTE:**
+ * Although non-auth/non-registry settings are not stored in INI files,
+ * the logic of this function remains applicable to them.
  */
-function validateRcKey (key: string): string {
+function validateConfigKey (key: string): string {
   const kebabKey = kebabCase(key)
   if (kebabKey in types) {
     return kebabKey
   }
-  throw new ConfigSetUnsupportedRcKeyError(key)
+  throw new ConfigSetUnsupportedConfigKeyError(key)
 }
 
 export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
