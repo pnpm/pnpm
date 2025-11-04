@@ -572,8 +572,15 @@ test('config set or delete throws missing params error', async () => {
 test('config set with dot leading key', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
-  fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(configDir, 'rc'), 'store-dir=~/store')
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: {
+      storeDir: '~/store',
+    },
+    localRc: undefined,
+    localYaml: undefined,
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
 
   await config.handler({
     dir: process.cwd(),
@@ -583,17 +590,27 @@ test('config set with dot leading key', async () => {
     rawConfig: {},
   }, ['set', '.fetchRetries', '1'])
 
-  expect(readIniFileSync(path.join(configDir, 'rc'))).toEqual({
-    'store-dir': '~/store',
-    'fetch-retries': '1',
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    globalYaml: {
+      ...initConfig.globalYaml,
+      fetchRetries: 1,
+    },
   })
 })
 
 test('config set with subscripted key', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
-  fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(configDir, 'rc'), 'store-dir=~/store')
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: {
+      storeDir: '~/store',
+    },
+    localRc: undefined,
+    localYaml: undefined,
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
 
   await config.handler({
     dir: process.cwd(),
@@ -603,9 +620,12 @@ test('config set with subscripted key', async () => {
     rawConfig: {},
   }, ['set', '["fetch-retries"]', '1'])
 
-  expect(readIniFileSync(path.join(configDir, 'rc'))).toEqual({
-    'store-dir': '~/store',
-    'fetch-retries': '1',
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    globalYaml: {
+      ...initConfig.globalYaml,
+      fetchRetries: 1,
+    },
   })
 })
 
