@@ -363,10 +363,98 @@ test('config set saves the setting in the right format to pnpm-workspace.yaml', 
   })
 })
 
-test('config set in project .npmrc file', async () => {
+test('config set registry setting in project .npmrc file', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
-  fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
+  const initConfig = {
+    globalRc: {
+      '@my-company:registry': 'https://registry.my-company.example.com/',
+    },
+    globalYaml: {
+      onlyBuiltDependencies: ['foo', 'bar'],
+    },
+    localRc: {
+      '@local:registry': 'https://localhost:7777/',
+    },
+    localYaml: {
+      storeDir: '~/store',
+    },
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: false,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', 'registry', 'https://npm-registry.example.com/'])
+
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    localRc: {
+      ...initConfig.localRc,
+      registry: 'https://npm-registry.example.com/',
+    },
+  })
+})
+
+test('config set npm-compatible setting in project .npmrc file', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  const initConfig = {
+    globalRc: {
+      '@my-company:registry': 'https://registry.my-company.example.com/',
+    },
+    globalYaml: {
+      onlyBuiltDependencies: ['foo', 'bar'],
+    },
+    localRc: {
+      '@local:registry': 'https://localhost:7777/',
+    },
+    localYaml: {
+      storeDir: '~/store',
+    },
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: false,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', 'cafile', 'some-cafile'])
+
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    localRc: {
+      ...initConfig.localRc,
+      cafile: 'some-cafile',
+    },
+  })
+})
+
+test('config set pnpm-specific setting in project pnpm-workspace.yaml file', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  const initConfig = {
+    globalRc: {
+      '@my-company:registry': 'https://registry.my-company.example.com/',
+    },
+    globalYaml: {
+      onlyBuiltDependencies: ['foo', 'bar'],
+    },
+    localRc: {
+      '@local:registry': 'https://localhost:7777/',
+    },
+    localYaml: {
+      storeDir: '~/store',
+    },
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
 
   await config.handler({
     dir: process.cwd(),
@@ -377,9 +465,12 @@ test('config set in project .npmrc file', async () => {
     rawConfig: {},
   }, ['set', 'fetch-retries', '1'])
 
-  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
-    'store-dir': '~/store',
-    'fetch-retries': '1',
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    localYaml: {
+      ...initConfig.localYaml,
+      fetchRetries: 1,
+    },
   })
 })
 
