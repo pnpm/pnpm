@@ -60,11 +60,11 @@ function writeConfigFiles (globalConfigDir: string | undefined, localDir: string
     fs.mkdirSync(localDir, { recursive: true })
 
     if (data.localRc) {
-      writeIniFileSync(path.join(localDir, 'rc'), data.localRc)
+      writeIniFileSync(path.join(localDir, '.npmrc'), data.localRc)
     }
 
     if (data.localYaml) {
-      writeYamlFile(path.join(localDir, 'rc.yaml'), data.localYaml)
+      writeYamlFile(path.join(localDir, 'pnpm-workspace.yaml'), data.localYaml)
     }
   }
 }
