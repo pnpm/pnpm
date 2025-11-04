@@ -1,5 +1,3 @@
-import fs from 'fs'
-import path from 'path'
 import kebabCase from 'lodash.kebabcase'
 import { isSupportedNpmConfig } from '@pnpm/config'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
