@@ -136,10 +136,17 @@ test('config set npm-compatible setting using the global option', async () => {
 test('config set pnpm-specific key using the global option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
-  fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(configDir, 'rc.yaml'), {
-    storeDir: '~/store',
-  })
+  const initConfig = {
+    globalRc: {
+      '@jsr:registry': 'https://alternate-jsr.example.com/',
+    },
+    globalYaml: {
+      storeDir: '~/store',
+    },
+    localRc: undefined,
+    localYaml: undefined,
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
 
   await config.handler({
     dir: process.cwd(),
@@ -149,19 +156,29 @@ test('config set pnpm-specific key using the global option', async () => {
     rawConfig: {},
   }, ['set', 'fetch-retries', '1'])
 
-  expect(readYamlFile(path.join(configDir, 'rc.yaml'))).toStrictEqual({
-    fetchRetries: 1,
-    storeDir: '~/store',
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    globalYaml: {
+      ...initConfig.globalYaml,
+      fetchRetries: 1,
+    },
   })
 })
 
 test('config set using the location=global option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
-  fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(configDir, 'rc.yaml'), {
-    storeDir: '~/store',
-  })
+  const initConfig = {
+    globalRc: {
+      '@jsr:registry': 'https://alternate-jsr.example.com/',
+    },
+    globalYaml: {
+      storeDir: '~/store',
+    },
+    localRc: undefined,
+    localYaml: undefined,
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
 
   await config.handler({
     dir: process.cwd(),
@@ -171,9 +188,12 @@ test('config set using the location=global option', async () => {
     rawConfig: {},
   }, ['set', 'fetchRetries', '1'])
 
-  expect(readYamlFile(path.join(configDir, 'rc.yaml'))).toStrictEqual({
-    fetchRetries: 1,
-    storeDir: '~/store',
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    globalYaml: {
+      ...initConfig.globalYaml,
+      fetchRetries: 1,
+    },
   })
 })
 
