@@ -12,8 +12,8 @@ export type ConfigFileName =
   | typeof WORKSPACE_MANIFEST_FILENAME
 
 export interface ConfigFilePathInfo {
+  configDir: string
   configFileName: ConfigFileName
-  configPath: string
 }
 
 /**
@@ -25,31 +25,29 @@ export function getConfigFilePath (key: string, opts: Pick<ConfigCommandOptions,
   switch (isSupportedNpmConfig(key)) {
   case false:
   case 'compat': {
+    const { configDir } = opts
     const configFileName = opts.global ? GLOBAL_CONFIG_YAML_FILENAME : WORKSPACE_MANIFEST_FILENAME
-    const configPath = path.join(opts.configDir, configFileName)
-    return { configFileName, configPath }
+    return { configDir, configFileName }
   }
 
   case true: {
     let rcName: 'rc' | '.npmrc'
     let yamlName: typeof GLOBAL_CONFIG_YAML_FILENAME | typeof WORKSPACE_MANIFEST_FILENAME
-    let dir: string
+    let configDir: string
 
     if (opts.global) {
       rcName = 'rc'
       yamlName = GLOBAL_CONFIG_YAML_FILENAME
-      dir = opts.configDir
+      configDir = opts.configDir
     } else {
       rcName = '.npmrc'
       yamlName = WORKSPACE_MANIFEST_FILENAME
-      dir = opts.dir
+      configDir = opts.dir
     }
 
-    const rcPath = path.join(dir, rcName)
-    const yamlPath = path.join(dir, yamlName)
-    return fs.existsSync(yamlPath)
-      ? { configFileName: yamlName, configPath: yamlPath }
-      : { configFileName: rcName, configPath: rcPath }
+    return fs.existsSync(path.join(configDir, yamlName))
+      ? { configDir, configFileName: yamlName }
+      : { configDir, configFileName: rcName }
   }
   }
 }

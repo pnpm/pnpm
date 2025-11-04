@@ -52,13 +52,14 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
     }
   }
 
-  const { configPath, configFileName } = getConfigFilePath(key, opts)
+  const { configDir, configFileName } = getConfigFilePath(key, opts)
+  const configPath = path.join(configDir, configFileName)
 
   switch (configFileName) {
   case GLOBAL_CONFIG_YAML_FILENAME:
   case WORKSPACE_MANIFEST_FILENAME: {
     key = validateWorkspaceKey(key)
-    await updateWorkspaceManifest(path.dirname(configPath), {
+    await updateWorkspaceManifest(configDir, {
       fileName: configFileName,
       updatedFields: ({
         [key]: castField(value, kebabCase(key)),
