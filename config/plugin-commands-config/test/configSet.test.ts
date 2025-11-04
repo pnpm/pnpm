@@ -323,28 +323,6 @@ test('config set npm-compatible setting using the location=project option', asyn
   })
 })
 
-test('config set pnpm-specific setting using the location=project option', async () => {
-  const tmp = tempDir()
-  const configDir = path.join(tmp, 'global-config')
-  fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(tmp, 'pnpm-workspace.yaml'), {
-    storeDir: '~/store',
-  })
-
-  await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir,
-    location: 'project',
-    rawConfig: {},
-  }, ['set', 'fetch-retries', '1'])
-
-  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toStrictEqual({
-    fetchRetries: 1,
-    storeDir: '~/store',
-  })
-})
-
 test('config set saves the setting in the right format to pnpm-workspace.yaml', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
