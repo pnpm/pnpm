@@ -58,7 +58,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   case GLOBAL_CONFIG_YAML_FILENAME:
   case WORKSPACE_MANIFEST_FILENAME: {
     key = validateWorkspaceKey(key)
-    await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+    await updateWorkspaceManifest(path.dirname(configPath), {
       fileName: configFileName,
       updatedFields: ({
         [key]: castField(value, kebabCase(key)),
