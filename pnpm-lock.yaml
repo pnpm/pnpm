@@ -1980,6 +1980,9 @@ importers:
       write-ini-file:
         specifier: 'catalog:'
         version: 4.0.1
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

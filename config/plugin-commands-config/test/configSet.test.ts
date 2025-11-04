@@ -5,12 +5,15 @@ import { tempDir } from '@pnpm/prepare'
 import { config } from '@pnpm/plugin-commands-config'
 import { readIniFileSync } from 'read-ini-file'
 import { sync as readYamlFile } from 'read-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 
 test('config set using the global option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(configDir, 'rc'), 'store-dir=~/store')
+  writeYamlFile(path.join(configDir, 'rc.yaml'), {
+    storeDir: '~/store',
+  })
 
   await config.handler({
     dir: process.cwd(),
@@ -20,9 +23,9 @@ test('config set using the global option', async () => {
     rawConfig: {},
   }, ['set', 'fetch-retries', '1'])
 
-  expect(readIniFileSync(path.join(configDir, 'rc'))).toEqual({
-    'store-dir': '~/store',
-    'fetch-retries': '1',
+  expect(readYamlFile(path.join(configDir, 'rc.yaml'))).toStrictEqual({
+    fetchRetries: 1,
+    storeDir: '~/store',
   })
 })
 

@@ -46,7 +46,8 @@
     "lodash.kebabcase": "catalog:",
     "read-ini-file": "catalog:",
     "render-help": "catalog:",
-    "write-ini-file": "catalog:"
+    "write-ini-file": "catalog:",
+    "write-yaml-file": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
