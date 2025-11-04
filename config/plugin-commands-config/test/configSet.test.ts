@@ -7,6 +7,26 @@ import { readIniFileSync } from 'read-ini-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
+test('config set registry setting using the global option', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(configDir, 'rc'), '@jsr:registry=https://alternate-jsr.example.com/')
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    rawConfig: {},
+  }, ['set', 'registry', 'https://npm-registry.example.com/'])
+
+  expect(readIniFileSync(path.join(configDir, 'rc'))).toEqual({
+    '@jsr:registry': 'https://alternate-jsr.example.com/',
+    registry: 'https://npm-registry.example.com/',
+  })
+})
+
 test('config set pnpm-specific key using the global option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
