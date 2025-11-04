@@ -137,6 +137,32 @@ test('config delete with location=project, when delete the last setting from pnp
   expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBeFalsy()
 })
 
+test('config set registry setting using the location=project option', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, '.npmrc'), '@jsr:registry=https://alternate-jsr.example.com/')
+  writeYamlFile(path.join(tmp, 'pnpm-workspace.yaml'), {
+    storeDir: '~/store',
+  })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', 'registry', 'https://npm-registry.example.com/'])
+
+  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
+    '@jsr:registry': 'https://alternate-jsr.example.com/',
+    registry: 'https://npm-registry.example.com/',
+  })
+  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toStrictEqual({
+    storeDir: '~/store',
+  })
+})
+
 test('config set pnpm-specific setting using the location=project option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
