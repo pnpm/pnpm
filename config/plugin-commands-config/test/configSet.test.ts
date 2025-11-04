@@ -27,6 +27,26 @@ test('config set registry setting using the global option', async () => {
   })
 })
 
+test('config set npm-compatible setting using the global option', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(configDir, 'rc'), '@jsr:registry=https://alternate-jsr.example.com/')
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    rawConfig: {},
+  }, ['set', 'cafile', 'some-cafile'])
+
+  expect(readIniFileSync(path.join(configDir, 'rc'))).toEqual({
+    '@jsr:registry': 'https://alternate-jsr.example.com/',
+    cafile: 'some-cafile',
+  })
+})
+
 test('config set pnpm-specific key using the global option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
