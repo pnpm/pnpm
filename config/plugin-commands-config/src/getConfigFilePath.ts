@@ -33,6 +33,8 @@ export function getConfigFilePath (key: string, opts: Pick<ConfigCommandOptions,
     //       but considering the settings are now clearly divided into 2 separate categories, it should no longer be relevant.
     // TODO: Maybe pnpm should not load npm-compatible settings from the yaml file?
     // TODO: Alternatively, only set npm-compatible settings to the yaml file if the setting is found there.
+    // TODO: Alternatively, if global, remove the npm-compatible settings from rc.yaml and set the new one in rc.
+    //       And if local, set to pnpm-workspace.yaml if it is found, and .npmrc otherwise.
     const configFileName = opts.global ? 'rc' : '.npmrc'
     return { configDir, configFileName }
   }
