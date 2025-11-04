@@ -16,9 +16,6 @@ export interface ConfigFilePathInfo {
   configFileName: ConfigFileName
 }
 
-/**
- * Priority: pnpm-workspace.yaml > .npmrc > default to pnpm-workspace.yaml
- */
 export function getConfigFilePath (key: string, opts: Pick<ConfigCommandOptions, 'global' | 'configDir' | 'dir'>): ConfigFilePathInfo {
   key = kebabCase(key)
 
