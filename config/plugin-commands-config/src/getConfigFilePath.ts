@@ -11,17 +11,6 @@ export type ConfigFileName =
   | typeof GLOBAL_CONFIG_YAML_FILENAME
   | typeof WORKSPACE_MANIFEST_FILENAME
 
-// export function getConfigFileName (key: string, opts: Pick<ConfigCommandOptions, 'global'>): ConfigFileName {
-//   key = kebabCase(key)
-//   switch (isSupportedNpmConfig(key)) {
-//     case false:
-//     case 'compat':
-//       return opts.global ? GLOBAL_CONFIG_YAML_FILENAME : WORKSPACE_MANIFEST_FILENAME
-//     case true:
-//       return opts.global ? 'rc' : '.npmrc'
-//   }
-// }
-
 export interface ConfigFilePathInfo {
   configFileName: ConfigFileName
   configPath: string
