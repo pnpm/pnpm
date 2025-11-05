@@ -73,7 +73,7 @@ function createEnv (
   }
 
   if (opts.userConfigPath) {
-    env.npm_config_userconfig = env.NPM_CONFIG_USERCONFIG = opts.userConfigPath
+    env.npm_config_userconfig = opts.userConfigPath
   }
 
   return env
