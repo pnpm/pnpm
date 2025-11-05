@@ -232,3 +232,108 @@ test('preferredVersions are passed to custom resolver', async () => {
 
   expect(resolve).toHaveBeenCalledWith({ name: 'any', range: '1.0.0' }, { lockfileDir: '/test', projectDir: '/test', preferredVersions: { any: { '1.0.0': 'version' } } })
 })
+
+test('custom resolver can intercept any protocol', async () => {
+  const customResolver: ResolverPlugin = {
+    supportsDescriptor: (descriptor: PackageDescriptor) => {
+      return descriptor.name.startsWith('custom-')
+    },
+    resolve: (descriptor: PackageDescriptor) => ({
+      id: `custom-handled:${descriptor.name}@${descriptor.range}`,
+      resolution: {
+        type: 'directory',
+        directory: `/custom/${descriptor.name}`,
+      },
+      resolvedVia: 'custom-resolver',
+      manifest: {
+        name: descriptor.name,
+        version: '1.0.0',
+      },
+    }),
+  }
+
+  const { resolve } = createResolver(async () => new Response(''), () => undefined, {
+    customResolvers: [customResolver],
+    rawConfig: {},
+    cacheDir: '/tmp/test-cache',
+    offline: false,
+    preferOffline: false,
+    retry: {},
+    timeout: 60000,
+    registries: { default: 'https://registry.npmjs.org/' },
+  })
+
+  const result = await resolve(
+    { alias: 'custom-package', bareSpecifier: 'file:../some-path' },
+    { lockfileDir: '/test', projectDir: '/test', preferredVersions: {} }
+  )
+
+  expect(result.resolvedVia).toBe('custom-resolver')
+  expect(result.id).toBe('custom-handled:custom-package@file:../some-path')
+})
+
+test('custom resolver falls through when not supported', async () => {
+  const customResolver: ResolverPlugin = {
+    supportsDescriptor: (descriptor: PackageDescriptor) => {
+      return descriptor.name.startsWith('custom-')
+    },
+    resolve: (descriptor: PackageDescriptor) => ({
+      id: `custom:${descriptor.name}@${descriptor.range}`,
+      resolution: { directory: '/custom' },
+      resolvedVia: 'custom-resolver',
+    }),
+  }
+
+  const { resolve } = createResolver(async () => new Response(''), () => undefined, {
+    customResolvers: [customResolver],
+    rawConfig: {},
+    cacheDir: '/tmp/test-cache',
+    offline: false,
+    preferOffline: false,
+    retry: {},
+    timeout: 60000,
+    registries: { default: 'https://registry.npmjs.org/' },
+  })
+
+  await expect(
+    resolve(
+      { alias: 'regular-package', bareSpecifier: 'file:../nonexistent' },
+      { lockfileDir: '/test', projectDir: '/test', preferredVersions: {} }
+    )
+  ).rejects.toThrow()
+})
+
+test('custom resolver can override npm registry resolution', async () => {
+  const npmStyleResolver: ResolverPlugin = {
+    supportsDescriptor: (descriptor) => {
+      return !descriptor.range.includes(':')
+    },
+    resolve: (descriptor) => ({
+      id: `custom-registry:${descriptor.name}@${descriptor.range}`,
+      resolution: {
+        tarball: `https://custom-registry.com/${descriptor.name}/-/${descriptor.name}-${descriptor.range}.tgz`,
+        integrity: 'sha512-custom',
+      },
+      resolvedVia: 'custom-npm-resolver',
+    }),
+  }
+
+  const { resolve } = createResolver(async () => new Response(''), () => undefined, {
+    customResolvers: [npmStyleResolver],
+    rawConfig: {},
+    cacheDir: '/tmp/test-cache',
+    offline: false,
+    preferOffline: false,
+    retry: {},
+    timeout: 60000,
+    registries: { default: 'https://registry.npmjs.org/' },
+  })
+
+  const result = await resolve(
+    { alias: 'express', bareSpecifier: '^4.0.0' },
+    { lockfileDir: '/test', projectDir: '/test', preferredVersions: {} }
+  )
+
+  expect(result.resolvedVia).toBe('custom-npm-resolver')
+  expect('tarball' in result.resolution && result.resolution.tarball).toContain('custom-registry.com')
+})
