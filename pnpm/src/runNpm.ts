@@ -16,6 +16,7 @@ export async function runNpm (args: string[]): Promise<SpawnSyncReturns<Buffer>>
     },
   })
   return _runNpm(config.npmPath, args, {
+    // This code is only used in `passThruToNpm`, so it is safe to specify `userConfigPath` here.
     userConfigPath: path.join(config.configDir, 'rc'),
   })
 }

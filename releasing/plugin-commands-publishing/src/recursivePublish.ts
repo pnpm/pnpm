@@ -26,7 +26,6 @@ Partial<Pick<Config,
 | 'ca'
 | 'catalogs'
 | 'cert'
-| 'configDir'
 | 'fetchTimeout'
 | 'force'
 | 'dryRun'
