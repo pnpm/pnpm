@@ -28,18 +28,13 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
 
   if (shouldFallbackToNpm) {
     if (opts.global) {
-      const configPath = path.join(opts.configDir, 'rc')
-      const runNpmOpts = [
-        '--location=user',
-        `--userconfig=${configPath}`,
-      ] as const
       const _runNpm = runNpm.bind(null, opts.npmPath)
       if (value == null) {
-        _runNpm(['config', 'delete', key, ...runNpmOpts])
+        _runNpm(['config', 'delete', key])
         return
       }
       if (typeof value === 'string') {
-        _runNpm(['config', 'set', `${key}=${value}`, ...runNpmOpts])
+        _runNpm(['config', 'set', `${key}=${value}`])
         return
       }
       throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
