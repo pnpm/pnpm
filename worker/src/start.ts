@@ -354,9 +354,9 @@ function writeV8File (filePath: string, data: unknown): void {
   // There is actually no need to create the directory in 99% of cases.
   // So by using cafs API, we'll improve performance.
   fs.mkdirSync(targetDir, { recursive: true })
-  // We remove the "-index.json" from the end of the temp file name
+  // We remove the "-index.v8" from the end of the temp file name
   // in order to avoid ENAMETOOLONG errors
-  const temp = `${filePath.slice(0, -11)}${process.pid}`
+  const temp = `${filePath.slice(0, -9)}${process.pid}`
   gfs.writeFileSync(temp, v8.serialize(data))
   optimisticRenameOverwrite(temp, filePath)
 }
