@@ -27,11 +27,17 @@ describe.each(
     }
     it(`should set ${key}`, async () => {
       await config.handler(configOpts, ['set', `${key}=123`])
-      expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'set', `${key}=123`])
+      expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'set', `${key}=123`], expect.objectContaining({
+        location: 'user',
+        userConfigPath: expect.any(String),
+      }))
     })
     it(`should delete ${key}`, async () => {
       await config.handler(configOpts, ['delete', key])
-      expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'delete', key])
+      expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'delete', key], expect.objectContaining({
+        location: 'user',
+        userConfigPath: expect.any(String),
+      }))
     })
   })
 
@@ -45,11 +51,17 @@ describe.each(
     }
     it(`should set ${key}`, async () => {
       await config.handler(configOpts, ['set', key, '"123"'])
-      expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'set', `${key}=123`])
+      expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'set', `${key}=123`], expect.objectContaining({
+        location: 'user',
+        userConfigPath: expect.any(String),
+      }))
     })
     it(`should delete ${key}`, async () => {
       await config.handler(configOpts, ['delete', key])
-      expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'delete', key])
+      expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'delete', key], expect.objectContaining({
+        location: 'user',
+        userConfigPath: expect.any(String),
+      }))
     })
   })
 })
@@ -93,10 +105,16 @@ describe.each(
   }
   it('should set _auth', async () => {
     await config.handler(configOpts, ['set', propertyPath, '123'])
-    expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'set', '_auth=123'])
+    expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'set', '_auth=123'], expect.objectContaining({
+      location: 'user',
+      userConfigPath: expect.any(String),
+    }))
   })
   it('should delete _auth', async () => {
     await config.handler(configOpts, ['delete', propertyPath])
-    expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'delete', '_auth'])
+    expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'delete', '_auth'], expect.objectContaining({
+      location: 'user',
+      userConfigPath: expect.any(String),
+    }))
   })
 })

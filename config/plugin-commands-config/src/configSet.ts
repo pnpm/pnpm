@@ -4,7 +4,7 @@ import { types } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
 import { parsePropertyPath } from '@pnpm/object.property-path'
-import { runNpm } from '@pnpm/run-npm'
+import { type RunNPMOptions, runNpm } from '@pnpm/run-npm'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import camelCase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
@@ -27,13 +27,18 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
 
   if (shouldFallbackToNpm) {
     if (opts.global) {
+      const configPath = path.join(opts.configDir, 'rc')
+      const runNpmOpts: RunNPMOptions = {
+        location: 'user',
+        userConfigPath: configPath,
+      }
       const _runNpm = runNpm.bind(null, opts.npmPath)
       if (value == null) {
-        _runNpm(['config', 'delete', key])
+        _runNpm(['config', 'delete', key], runNpmOpts)
         return
       }
       if (typeof value === 'string') {
-        _runNpm(['config', 'set', `${key}=${value}`])
+        _runNpm(['config', 'set', `${key}=${value}`], runNpmOpts)
         return
       }
       throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
