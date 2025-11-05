@@ -3,9 +3,13 @@ import path from 'path'
 import spawn from 'cross-spawn'
 import PATH from 'path-name'
 
+export type NPMLocation = 'global' | 'user' | 'project'
+
 export interface RunNPMOptions {
   cwd?: string
   env?: Record<string, string>
+  location?: NPMLocation
+  userConfigPath?: string
 }
 
 export function runNpm (npmPath: string | undefined, args: string[], options?: RunNPMOptions): childProcess.SpawnSyncReturns<Buffer> {
@@ -15,6 +19,8 @@ export function runNpm (npmPath: string | undefined, args: string[], options?: R
     stdio: 'inherit',
     userAgent: undefined,
     env: { ...options?.env, COREPACK_ENABLE_STRICT: '0' },
+    location: options?.location,
+    userConfigPath: options?.userConfigPath,
   })
 }
 
@@ -23,8 +29,10 @@ export function runScriptSync (
   args: string[],
   opts: {
     cwd: string
+    location?: NPMLocation
     stdio: childProcess.StdioOptions
     userAgent?: string
+    userConfigPath?: string
     env: Record<string, string>
   }
 ): childProcess.SpawnSyncReturns<Buffer> {
@@ -43,7 +51,9 @@ export function runScriptSync (
 function createEnv (
   opts: {
     cwd: string
+    location?: NPMLocation
     userAgent?: string
+    userConfigPath?: string
   }
 ): NodeJS.ProcessEnv {
   const env = { ...process.env }
@@ -56,6 +66,14 @@ function createEnv (
 
   if (opts.userAgent) {
     env.npm_config_user_agent = opts.userAgent
+  }
+
+  if (opts.location) {
+    env.npm_config_location = opts.location
+  }
+
+  if (opts.userConfigPath) {
+    env.npm_config_userconfig = opts.userConfigPath
   }
 
   return env
