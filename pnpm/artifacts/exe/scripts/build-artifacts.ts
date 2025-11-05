@@ -12,7 +12,7 @@ function build (target: string) {
   try {
     fs.unlinkSync(artifactFile)
   } catch {}
-  execa.sync('pkg', ['../../pnpm.mjs', `--config=../../package-${target}.json`, '--sea'], {
+  execa.sync('pkg', ['../../dist/pnpm.mjs', `--config=../../package-${target}.json`, '--sea'], {
     cwd: path.join(import.meta.dirname, '..'),
     stdio: 'inherit',
   })
