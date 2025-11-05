@@ -5,7 +5,7 @@ import { FILTERING } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
-import { runNpm } from '@pnpm/run-npm'
+import { type RunNPMOptions, runNpm } from '@pnpm/run-npm'
 import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import { loadToken } from '@pnpm/network.auth-header'
@@ -157,6 +157,7 @@ export async function handler (
     argv: {
       original: string[]
     }
+    configDir?: string
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
@@ -178,6 +179,7 @@ export async function publish (
     argv: {
       original: string[]
     }
+    configDir?: string
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
@@ -237,8 +239,14 @@ Do you want to continue?`,
   }
   args = removePnpmSpecificOptions(args)
 
+  const runNpmOpts: RunNPMOptions = {
+    userConfigPath: opts.configDir
+      ? path.join(opts.configDir, 'rc')
+      : undefined,
+  }
+
   if (dirInParams != null && (dirInParams.endsWith('.tgz') || dirInParams?.endsWith('.tar.gz'))) {
-    const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args])
+    const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args], runNpmOpts)
     return { exitCode: status ?? 0 }
   }
   const dir = dirInParams ?? opts.dir ?? process.cwd()
@@ -275,6 +283,7 @@ Do you want to continue?`,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballPath), ...args], {
+    ...runNpmOpts,
     cwd: packDestination,
     env: getEnvWithTokens(opts),
   })

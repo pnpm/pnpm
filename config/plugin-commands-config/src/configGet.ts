@@ -1,3 +1,4 @@
+import path from 'path'
 import kebabCase from 'lodash.kebabcase'
 import { types } from '@pnpm/config'
 import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
@@ -13,7 +14,10 @@ export function configGet (opts: ConfigCommandOptions, key: string): { output: s
   // Exclude scoped keys from npm fallback because they are pnpm-native config
   // that can be read directly from rawConfig (e.g., '@scope:registry')
   if (opts.global && settingShouldFallBackToNpm(key) && !isScopedKey) {
-    const { status: exitCode } = runNpm(opts.npmPath, ['config', 'get', key])
+    const { status: exitCode } = runNpm(opts.npmPath, ['config', 'get', key], {
+      location: 'user',
+      userConfigPath: path.join(opts.configDir, 'rc'),
+    })
     return { output: '', exitCode: exitCode ?? 0 }
   }
   const configResult = getRcConfig(opts.rawConfig, key, isScopedKey) ?? getConfigByPropertyPath(opts.rawConfig, key)
