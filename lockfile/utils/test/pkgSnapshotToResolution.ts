@@ -1,7 +1,7 @@
 import { pkgSnapshotToResolutionWithResolvers } from '../lib/pkgSnapshotToResolution.js'
 import { type PackageSnapshot } from '@pnpm/lockfile.types'
 
-test('throws error for unsupported custom resolution type', async () => {
+test('custom resolution type without resolver falls through to standard resolution', async () => {
   const pkgSnapshot: PackageSnapshot = {
     resolution: {
       type: 'custom-type',
@@ -9,22 +9,21 @@ test('throws error for unsupported custom resolution type', async () => {
     },
   }
 
-  try {
-    await pkgSnapshotToResolutionWithResolvers(
-      'pkg@1.0.0',
-      pkgSnapshot,
-      { default: 'https://registry.npmjs.org/' },
-      {
-        lockfileDir: '/test',
-        projectDir: '/test',
-      }
-    )
-    fail('Should have thrown an error')
-  } catch (err: unknown) {
-    expect((err as { code: string }).code).toBe('ERR_PNPM_UNSUPPORTED_LOCKFILE_RESOLUTION')
-    expect((err as { message: string }).message).toContain('custom-type')
-    expect((err as { message: string }).message).toContain('No custom resolver plugin is available')
-  }
+  const result = await pkgSnapshotToResolutionWithResolvers(
+    'pkg@1.0.0',
+    pkgSnapshot,
+    { default: 'https://registry.npmjs.org/' },
+    {
+      lockfileDir: '/test',
+      projectDir: '/test',
+    }
+  )
+
+  // Standard resolution returns typed resolutions as-is
+  expect(result).toEqual({
+    type: 'custom-type',
+    customField: 'value',
+  })
 })
 
 test('custom resolver handles custom resolution type', async () => {
@@ -216,4 +215,33 @@ test('does not throw for standard resolution types', async () => {
     type: 'directory',
     directory: '/path/to/pkg',
   })
+})
+
+test('propagates errors from fromLockfileResolution', async () => {
+  const pkgSnapshot: PackageSnapshot = {
+    resolution: {
+      type: 'error-type',
+      data: 'test',
+    },
+  }
+
+  const customResolver = {
+    supportsLockfileResolution: () => true,
+    fromLockfileResolution: () => {
+      throw new Error('Failed to resolve from lockfile')
+    },
+  }
+
+  await expect(
+    pkgSnapshotToResolutionWithResolvers(
+      'pkg@error:test',
+      pkgSnapshot,
+      { default: 'https://registry.npmjs.org/' },
+      {
+        customResolvers: [customResolver],
+        lockfileDir: '/test',
+        projectDir: '/test',
+      }
+    )
+  ).rejects.toThrow('Failed to resolve from lockfile')
 })
