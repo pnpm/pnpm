@@ -157,7 +157,6 @@ export async function handler (
     argv: {
       original: string[]
     }
-    configDir?: string
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
@@ -179,7 +178,6 @@ export async function publish (
     argv: {
       original: string[]
     }
-    configDir?: string
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
@@ -239,14 +237,8 @@ Do you want to continue?`,
   }
   args = removePnpmSpecificOptions(args)
 
-  const runNpmOpts: RunNPMOptions = {
-    userConfigPath: opts.configDir
-      ? path.join(opts.configDir, 'rc')
-      : undefined,
-  }
-
   if (dirInParams != null && (dirInParams.endsWith('.tgz') || dirInParams?.endsWith('.tar.gz'))) {
-    const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args], runNpmOpts)
+    const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args])
     return { exitCode: status ?? 0 }
   }
   const dir = dirInParams ?? opts.dir ?? process.cwd()
@@ -283,7 +275,6 @@ Do you want to continue?`,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballPath), ...args], {
-    ...runNpmOpts,
     cwd: packDestination,
     env: getEnvWithTokens(opts),
   })

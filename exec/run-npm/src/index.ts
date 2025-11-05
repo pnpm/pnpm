@@ -9,10 +9,6 @@ export interface RunNPMOptions {
   cwd?: string
   env?: Record<string, string>
   location?: NPMLocation
-
-  // NOTE: This option should really be mandatory instead of optional, but doing so would require changing `plugin-commands-publishing`
-  //       to include mandatory `opts.configDir`, which, whilst always defined during actual run, would also require fixing the tests there.
-  // TODO: Change this to mandatory later, and fix the aforementioned tests.
   userConfigPath?: string
 }
 
