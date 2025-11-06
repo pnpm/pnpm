@@ -316,11 +316,34 @@ function importPackage ({
   return { status: 'success', value: { isBuilt, importMethod } }
 }
 
-function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success' } {
+export function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success' } {
   for (const dep of opts.deps) {
     for (const [alias, pkgDir] of Object.entries(dep.children)) {
       if (alias !== dep.name) {
-        symlinkDependencySync(pkgDir, dep.modules, alias)
+        try {
+          symlinkDependencySync(pkgDir, dep.modules, alias)
+        } catch (err: any) { // eslint-disable-line
+          if (err.code !== 'EEXIST' && err.code !== 'EISDIR') {
+            throw err
+          }
+          // Check if existing symlink points to the same target
+          const linkPath = path.join(dep.modules, alias)
+          try {
+            const existingTarget = fs.readlinkSync(linkPath)
+            const expectedTarget = path.resolve(pkgDir)
+            // Normalize paths for comparison
+            const resolvedExisting = path.resolve(path.dirname(linkPath), existingTarget)
+            if (resolvedExisting !== expectedTarget) {
+              // Symlink points to different target, throw error
+              throw err
+            }
+            // Symlink already points to correct target, ignore error
+          } catch (readErr: any) { // eslint-disable-line
+            // If we can't read the symlink, it might be a directory or other issue
+            // Re-throw the original error
+            throw err
+          }
+        }
       }
     }
   }

@@ -8675,6 +8675,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../packages/logger
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../__utils__/prepare
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
