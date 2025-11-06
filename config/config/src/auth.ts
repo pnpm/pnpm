@@ -91,26 +91,32 @@ export function inheritAuthConfig (targetCfg: InheritableConfig, authSrcCfg: Inh
   inheritPickedConfig(targetCfg, authSrcCfg, pickAuthConfig, pickRawAuthConfig)
 }
 
-const isNpmCompatConfig = (key: string): false | 'compat' =>
-  (PNPM_COMPAT_SETTINGS as string[]).includes(key) && 'compat'
+/**
+ * Whether the config key is supported by `npm`.
+ */
+export const isNpmConfigKey = (key: string): boolean =>
+  key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key)
 
 /**
- * Returns `false` if the config key is not supported by the rc file.
- *
- * Returns `true` if the config key is supported by the rc file but not because of compatibility reason.
- *
- * Returns `'compat'` if the config key is supported by the rc file for compatibility reason.
- *
- * @param key - A config key in kebab-case.
+ * Whether the config key is kept in the INI file for compatibility reason.
  */
-export const isSupportedNpmConfig = (key: string): boolean | 'compat' =>
-  key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key) || isNpmCompatConfig(key)
+export const isCompatConfigKey = (key: string): boolean =>
+  (PNPM_COMPAT_SETTINGS as string[]).includes(key)
 
-export function pickNpmAuthConfig<RawConfig extends Record<string, unknown>> (rawConfig: RawConfig): Partial<RawConfig> {
+/**
+ * Whether the config key would be read from an INI config file.
+ */
+export const isIniConfigKey = (key: string): boolean =>
+  isNpmConfigKey(key) || isCompatConfigKey(key)
+
+/**
+ * Filter keys that are allowed to be read from an INI config file.
+ */
+export function pickIniConfig<RawConfig extends Record<string, unknown>> (rawConfig: RawConfig): Partial<RawConfig> {
   const result: Partial<RawConfig> = {}
 
   for (const key in rawConfig) {
-    if (isSupportedNpmConfig(key)) {
+    if (isIniConfigKey(key)) {
       result[key] = rawConfig[key]
     }
   }

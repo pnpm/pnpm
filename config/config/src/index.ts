@@ -21,7 +21,7 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
-import { inheritAuthConfig, isSupportedNpmConfig, pickNpmAuthConfig } from './auth.js'
+import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
@@ -52,7 +52,7 @@ export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concu
 
 export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
 
-export { isSupportedNpmConfig } from './auth.js'
+export { isNpmConfigKey } from './auth.js'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
@@ -248,7 +248,7 @@ export async function getConfig (opts: {
     rcOptions
       .map((configKey) => [
         camelcase(configKey, { locale: 'en-US' }),
-        isSupportedNpmConfig(configKey) ? npmConfig.get(configKey) : (defaultOptions as Record<string, unknown>)[configKey],
+        isIniConfigKey(configKey) ? npmConfig.get(configKey) : (defaultOptions as Record<string, unknown>)[configKey],
       ])
   ) as ConfigWithDeprecatedSettings
 
@@ -286,8 +286,8 @@ export async function getConfig (opts: {
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.rawConfig = Object.assign.apply(Object, [
     {},
-    ...npmConfig.list.map(pickNpmAuthConfig).reverse(),
-    pickNpmAuthConfig(cliOptions),
+    ...npmConfig.list.map(pickIniConfig).reverse(),
+    pickIniConfig(cliOptions),
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
