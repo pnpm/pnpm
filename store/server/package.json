@@ -44,15 +44,16 @@
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
+    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/server": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@types/uuid": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "get-port": "catalog:",
     "is-port-reachable": "catalog:",
-    "load-json-file": "catalog:",
     "node-fetch": "catalog:",
     "tempy": "catalog:"
   },

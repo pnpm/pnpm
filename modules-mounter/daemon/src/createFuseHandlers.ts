@@ -1,5 +1,6 @@
 // cspell:ignore ents
 import fs from 'fs'
+import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
@@ -7,7 +8,6 @@ import {
 } from '@pnpm/lockfile.utils'
 import { type DepPath } from '@pnpm/types'
 import schemas from 'hyperdrive-schemas'
-import { loadJsonFileSync } from 'load-json-file'
 import Fuse from 'fuse-native'
 import * as cafsExplorer from './cafsExplorer.js'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
@@ -185,7 +185,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       pkgSnapshotCache.set(depPath, {
         ...nameVer,
         pkgSnapshot,
-        index: loadJsonFileSync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
+        index: readV8FileStrictSync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
       })
     }
     return pkgSnapshotCache.get(depPath)

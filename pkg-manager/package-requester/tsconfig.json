@@ -25,6 +25,9 @@
       "path": "../../fs/graceful-fs"
     },
     {
+      "path": "../../fs/v8-file"
+    },
+    {
       "path": "../../packages/core-loggers"
     },
     {

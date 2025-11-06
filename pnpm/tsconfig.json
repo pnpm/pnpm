@@ -75,6 +75,9 @@
       "path": "../exec/run-npm"
     },
     {
+      "path": "../fs/v8-file"
+    },
+    {
       "path": "../lockfile/plugin-commands-audit"
     },
     {
