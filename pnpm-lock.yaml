@@ -85,8 +85,8 @@ catalogs:
       specifier: 0.0.1
       version: 0.0.1
     '@pnpm/registry-mock':
-      specifier: 5.0.0
-      version: 5.0.0
+      specifier: 5.1.0
+      version: 5.1.0
     '@pnpm/semver-diff':
       specifier: ^1.1.0
       version: 1.1.0
@@ -998,7 +998,7 @@ importers:
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1032,7 +1032,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1110,7 +1110,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -1254,6 +1254,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
@@ -1312,7 +1315,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -1821,7 +1824,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/testing.temp-store':
         specifier: workspace:*
         version: link:../../testing/temp-store
@@ -2531,7 +2534,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2806,6 +2809,9 @@ importers:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -2817,7 +2823,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2974,7 +2980,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -3465,6 +3471,12 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/symlink-dependency':
+        specifier: workspace:*
+        version: 'link:'
+
+  fs/v8-file:
+    devDependencies:
+      '@pnpm/fs.v8-file':
         specifier: workspace:*
         version: 'link:'
 
@@ -4162,6 +4174,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -4183,9 +4198,6 @@ importers:
       hyperdrive-schemas:
         specifier: 'catalog:'
         version: 2.0.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -4768,7 +4780,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5047,6 +5059,9 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
@@ -5064,7 +5079,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -5326,6 +5341,9 @@ importers:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/headless':
         specifier: workspace:*
         version: 'link:'
@@ -5340,7 +5358,7 @@ importers:
         version: link:../read-projects-context
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -5692,6 +5710,9 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -5700,7 +5721,7 @@ importers:
         version: 'link:'
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5719,9 +5740,6 @@ importers:
       delay:
         specifier: 'catalog:'
         version: 6.0.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       nock:
         specifier: 'catalog:'
         version: 13.3.4
@@ -5929,7 +5947,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -6287,6 +6305,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: 'link:'
@@ -6324,6 +6345,9 @@ importers:
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.0
+      '@pnpm/manifest-utils':
+        specifier: workspace:*
+        version: link:../manifest-utils
       '@pnpm/text.comments-parser':
         specifier: workspace:*
         version: link:../../text/comments-parser
@@ -6465,6 +6489,9 @@ importers:
       '@pnpm/find-workspace-dir':
         specifier: workspace:*
         version: link:../workspace/find-workspace-dir
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../fs/v8-file
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../lockfile/types
@@ -6548,7 +6575,7 @@ importers:
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -6899,7 +6926,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -7029,7 +7056,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -7321,6 +7348,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -7354,9 +7384,6 @@ importers:
       encode-registry:
         specifier: 'catalog:'
         version: 3.0.1
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       lru-cache:
         specifier: 'catalog:'
         version: 11.1.0
@@ -7418,6 +7445,9 @@ importers:
       '@types/ssri':
         specifier: 'catalog:'
         version: 7.1.5
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
       nock:
         specifier: 'catalog:'
         version: 13.3.4
@@ -7526,6 +7556,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../lockfile/detect-dep-types
@@ -7553,9 +7586,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       p-limit:
         specifier: 'catalog:'
         version: 7.1.0
@@ -7766,7 +7796,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -7833,7 +7863,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
@@ -7918,7 +7948,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -8066,6 +8096,9 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../../pkg-manager/package-requester
@@ -8087,9 +8120,6 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -8203,6 +8233,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
@@ -8236,9 +8269,6 @@ importers:
       dint:
         specifier: 'catalog:'
         version: 5.1.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       p-filter:
         specifier: 'catalog:'
         version: 4.1.0
@@ -8275,7 +8305,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.33
@@ -8309,6 +8339,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -8333,9 +8366,6 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -8377,6 +8407,9 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../../pkg-manager/client
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -8389,6 +8422,9 @@ importers:
       '@pnpm/server':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../cafs
       '@types/uuid':
         specifier: 'catalog:'
         version: 8.3.4
@@ -8401,9 +8437,6 @@ importers:
       is-port-reachable:
         specifier: 'catalog:'
         version: 4.0.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       node-fetch:
         specifier: 'catalog:'
         version: 3.3.2
@@ -8532,7 +8565,7 @@ importers:
         version: link:../../store/package-store
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -8647,6 +8680,9 @@ importers:
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../fs/hard-link-dir
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../fs/v8-file
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../fs/graceful-fs
@@ -8662,9 +8698,6 @@ importers:
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       p-limit:
         specifier: 'catalog:'
         version: 7.1.0
@@ -10470,8 +10503,8 @@ packages:
     resolution: {integrity: sha512-UY5ZFl8jTgWpPMp3qwVt1z455gDLGh4aAna7ufqsJP9qhI6lr9scFpnEamjpA51Y3MJMBtnML8KATmH6RY+NHQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/registry-mock@5.0.0':
-    resolution: {integrity: sha512-ZARk5IXPQumdF6K+TYZABuFZSruYvRy2W5+iyFqP9lbQOYfGNry4W64zNnHIs7RHfvponlFS88tZnAGmU/7Kow==}
+  '@pnpm/registry-mock@5.1.0':
+    resolution: {integrity: sha512-XHJmKZG296Nk86WCnmz1hBHcj8Yp8EWNsSz+iY9Ludm5L8S2l0xRYmz8TzyIxpsb5o9q8jahZ781bpW7NAuQFQ==}
     engines: {node: '>=18.12'}
     hasBin: true
     peerDependencies:
@@ -14014,9 +14047,11 @@ packages:
 
   lodash.clone@4.3.2:
     resolution: {integrity: sha512-Yc/0UmZvWkFsbx7NB4feSX5bSX03SR0ft8CTkI8RCb3w/TzT71HXew2iNDm0aml93P49tIR/NJHOIoE+XEKz9A==}
+    deprecated: This package is deprecated. Use structuredClone instead.
 
   lodash.clone@4.5.0:
     resolution: {integrity: sha512-GhrVeweiTD6uTmmn5hV/lzgCQhccwReIVRLHp7LT4SopOjqEZ5BbX8b5WWEtAKasjmy8hR7ZPwsYlxRCku5odg==}
+    deprecated: This package is deprecated. Use structuredClone instead.
 
   lodash.deburr@4.1.0:
     resolution: {integrity: sha512-m/M1U1f3ddMCs6Hq2tAsYThTBDaAKFDX3dwDo97GEYzamXi9SqUpjWi/Rrj/gf3X2n8ktwgZrlP1z6E3v/IExQ==}
@@ -18698,7 +18733,7 @@ snapshots:
       read-yaml-file: 2.1.0
       strip-bom: 4.0.0
 
-  '@pnpm/registry-mock@5.0.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))':
+  '@pnpm/registry-mock@5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))':
     dependencies:
       anonymous-npm-registry-client: 0.3.2
       execa: 5.1.1

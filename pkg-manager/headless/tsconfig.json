@@ -43,6 +43,9 @@
       "path": "../../fs/symlink-dependency"
     },
     {
+      "path": "../../fs/v8-file"
+    },
+    {
       "path": "../../lockfile/filtering"
     },
     {
