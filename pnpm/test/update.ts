@@ -684,6 +684,44 @@ test('update with tag @latest will downgrade prerelease', async function () {
   expect(lockfile2).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
 })
 
+test('update indirect dependency should not update package.json', async function () {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    },
+  })
+
+  // Ensure the initial versions
+  await addDistTag('@pnpm.e2e/pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  await execPnpm(['install'])
+
+  const pkg1 = await readPackageJsonFromDir(process.cwd())
+  expect(pkg1.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('^100.0.0')
+
+  const lockfile1 = project.readLockfile()
+  expect(lockfile1.importers['.'].dependencies?.['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
+
+  // Now publish a new version of the direct dependency and update the indirect dependency
+  await addDistTag('@pnpm.e2e/pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  // Update the indirect dependency only
+  await execPnpm(['update', '@pnpm.e2e/dep-of-pkg-with-1-dep@latest'])
+
+  // The direct dependency in package.json should remain unchanged at ^100.0.0
+  const pkg2 = await readPackageJsonFromDir(process.cwd())
+  expect(pkg2.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('^100.0.0')
+
+  // But the lockfile should have the updated indirect dependency
+  const lockfile2 = project.readLockfile()
+  expect(Object.keys(lockfile2.packages ?? {})).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+
+  // The direct dependency should remain at 100.0.0 in the lockfile (not upgraded to 100.1.0)
+  expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
+})
+
 test('update to latest recursive workspace (outdated, updated, prerelease, outdated)', async function () {
   await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
 
