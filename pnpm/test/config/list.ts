@@ -152,6 +152,9 @@ test('pnpm config list shows settings from global rc.yaml', () => {
   writeYamlFile(path.join(configDir, 'rc.yaml'), {
     dangerouslyAllowAllBuilds: true,
     dlxCacheMaxAge: 1234,
+    catalog: {
+      react: '^19.0.0',
+    },
     packages: ['baz', 'qux'],
     packageExtensions: {
       '@babel/parser': {
@@ -178,9 +181,11 @@ test('pnpm config list shows settings from global rc.yaml', () => {
     dlxCacheMaxAge: 1234,
   }))
 
-  // // doesn't list workspace-specific settings
-  // expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packages'])
-  // expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packageExtensions'])
+  // doesn't list workspace-specific settings
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['catalog'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['catalogs'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packages'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packageExtensions'])
 
   // doesn't list the kebab-case versions
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])

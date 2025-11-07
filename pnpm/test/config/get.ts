@@ -239,6 +239,9 @@ test('pnpm config get shows settings from global rc.yaml', () => {
   writeYamlFile(path.join(configDir, 'rc.yaml'), {
     dangerouslyAllowAllBuilds: true,
     dlxCacheMaxAge: 1234,
+    catalog: {
+      react: '^19.0.0',
+    },
     packages: ['baz', 'qux'],
     packageExtensions: {
       '@babel/parser': {
@@ -267,8 +270,10 @@ test('pnpm config get shows settings from global rc.yaml', () => {
   expect(configGet('dlxCacheMaxAge')).toBe('1234')
   expect(configGet('dlx-cache-max-age')).toBe('1234')
 
-  // // doesn't list workspace-specific keys
-  // expect(configGet('packages')).toBe('undefined')
-  // expect(configGet('packageExtensions')).toBe('undefined')
-  // expect(configGet('package-extensions')).toBe('undefined')
+  // doesn't list workspace-specific keys
+  expect(configGet('catalog')).toBe('undefined')
+  expect(configGet('catalogs')).toBe('undefined')
+  expect(configGet('packages')).toBe('undefined')
+  expect(configGet('packageExtensions')).toBe('undefined')
+  expect(configGet('package-extensions')).toBe('undefined')
 })
