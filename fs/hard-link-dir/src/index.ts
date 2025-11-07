@@ -62,7 +62,14 @@ function linkOrCopyFile (srcFile: string, destFile: string): void {
     assert(util.types.isNativeError(err))
     if ('code' in err && err.code === 'ENOENT') {
       gfs.mkdirSync(path.dirname(destFile), { recursive: true })
-      linkOrCopy(srcFile, destFile)
+      try {
+        linkOrCopy(srcFile, destFile)
+      } catch (retryErr: unknown) {
+        if (!(util.types.isNativeError(retryErr) && 'code' in retryErr && retryErr.code === 'EEXIST')) {
+        // Ignore EEXIST - source file was created by concurrent worker
+          throw retryErr
+        }
+      }
       return
     }
     if (!('code' in err && err.code === 'EEXIST')) {
