@@ -1,4 +1,5 @@
 import fs from 'fs'
+import path from 'path'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { prepare } from '@pnpm/prepare'
@@ -227,4 +228,47 @@ test('pnpm config get "" gives exactly the same result as pnpm config list', () 
     const listResult = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
     expect(getResult.stdout.toString()).toBe(listResult.stdout.toString())
   }
+})
+
+test('pnpm config get shows settings from global rc.yaml', () => {
+  prepare()
+
+  const XDG_CONFIG_HOME = path.resolve('.config')
+  const configDir = path.join(XDG_CONFIG_HOME, 'pnpm')
+  fs.mkdirSync(configDir, { recursive: true })
+  writeYamlFile(path.join(configDir, 'rc.yaml'), {
+    dangerouslyAllowAllBuilds: true,
+    dlxCacheMaxAge: 1234,
+    packages: ['baz', 'qux'],
+    packageExtensions: {
+      '@babel/parser': {
+        peerDependencies: {
+          '@babel/types': '*',
+        },
+      },
+      'jest-circus': {
+        dependencies: {
+          slash: '3',
+        },
+      },
+    },
+  })
+
+  const configGet = (key: string) => execPnpmSync(['config', 'get', key], {
+    expectSuccess: true,
+    env: {
+      XDG_CONFIG_HOME,
+    },
+  }).stdout.toString().trim()
+
+  // lists keys that belong to global
+  expect(configGet('dangerouslyAllowAllBuilds')).toBe('true')
+  expect(configGet('dangerously-allow-all-builds')).toBe('true')
+  expect(configGet('dlxCacheMaxAge')).toBe('1234')
+  expect(configGet('dlx-cache-max-age')).toBe('1234')
+
+  // // doesn't list workspace-specific keys
+  // expect(configGet('packages')).toBe('undefined')
+  // expect(configGet('packageExtensions')).toBe('undefined')
+  // expect(configGet('package-extensions')).toBe('undefined')
 })

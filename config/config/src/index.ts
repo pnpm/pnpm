@@ -252,16 +252,6 @@ export async function getConfig (opts: {
       ])
   ) as ConfigWithDeprecatedSettings
 
-  const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
-  if (globalYamlConfig) {
-    addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
-      configFromCliOpts,
-      projectManifest: undefined,
-      workspaceDir: undefined,
-      workspaceManifest: globalYamlConfig,
-    })
-  }
-
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
   Object.assign(pnpmConfig, configFromCliOpts)
@@ -290,6 +280,17 @@ export async function getConfig (opts: {
     pickIniConfig(cliOptions),
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  if (globalYamlConfig) {
+    addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+      configFromCliOpts,
+      projectManifest: undefined,
+      workspaceDir: undefined,
+      workspaceManifest: globalYamlConfig,
+    })
+  }
+
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
@@ -659,7 +660,6 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
     // Q: Why `types` instead of `rcOptionTypes`?
     // A: `rcOptionTypes` includes options that would matter to the `npm` cli which wouldn't care about `pnpm-workspace.yaml`.
     const targetKey = kebabKey in types ? kebabKey : key
-    pnpmConfig.rawConfig ??= {}
     pnpmConfig.rawConfig[targetKey] = value
   }
   // All the pnpm_config_ env variables should override the settings from pnpm-workspace.yaml,

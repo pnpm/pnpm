@@ -1379,5 +1379,10 @@ describe('global rc.yaml', () => {
     })
 
     expect(config.onlyBuiltDependencies).toStrictEqual(['foo', 'bar'])
+
+    // NOTE: the field may appear kebab-case here, but only internally,
+    //       `pnpm config list` would convert them to camelCase.
+    // TODO: switch to camelCase entirely later.
+    expect(config.rawConfig).toHaveProperty(['only-built-dependencies'])
   })
 })

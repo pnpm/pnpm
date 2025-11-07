@@ -1,4 +1,5 @@
 import fs from 'fs'
+import path from 'path'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { type Config } from '@pnpm/config'
 import { prepare } from '@pnpm/prepare'
@@ -137,6 +138,52 @@ test('pnpm config list --json shows all keys in camelCase', () => {
 
   const { stdout } = execPnpmSync(['config', 'list'], { expectSuccess: true })
   expect(JSON.parse(stdout.toString())).toStrictEqual(expect.objectContaining(workspaceManifest))
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
+})
+
+test('pnpm config list shows settings from global rc.yaml', () => {
+  prepare()
+
+  const XDG_CONFIG_HOME = path.resolve('.config')
+  const configDir = path.join(XDG_CONFIG_HOME, 'pnpm')
+  fs.mkdirSync(configDir, { recursive: true })
+  writeYamlFile(path.join(configDir, 'rc.yaml'), {
+    dangerouslyAllowAllBuilds: true,
+    dlxCacheMaxAge: 1234,
+    packages: ['baz', 'qux'],
+    packageExtensions: {
+      '@babel/parser': {
+        peerDependencies: {
+          '@babel/types': '*',
+        },
+      },
+      'jest-circus': {
+        dependencies: {
+          slash: '3',
+        },
+      },
+    },
+  })
+
+  const { stdout } = execPnpmSync(['config', 'list'], {
+    expectSuccess: true,
+    env: {
+      XDG_CONFIG_HOME,
+    },
+  })
+  expect(JSON.parse(stdout.toString())).toStrictEqual(expect.objectContaining({
+    dangerouslyAllowAllBuilds: true,
+    dlxCacheMaxAge: 1234,
+  }))
+
+  // // doesn't list workspace-specific settings
+  // expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packages'])
+  // expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packageExtensions'])
+
+  // doesn't list the kebab-case versions
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
