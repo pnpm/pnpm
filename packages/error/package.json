@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/error",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/error#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/packages/error",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/packages/error#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

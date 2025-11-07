@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "1007.0.0",
+  "version": "1008.0.0",
   "description": "Concurrent downloader of npm-compatible packages",
   "keywords": [
     "pnpm",
@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-requester",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-requester#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/package-requester",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/package-requester#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

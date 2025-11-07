@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/git-resolver",
-  "version": "1001.1.4",
+  "version": "1001.1.5",
   "description": "Resolver for git-hosted packages",
   "keywords": [
     "pnpm",
@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/git-resolver",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/git-resolver#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/resolving/git-resolver",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/resolving/git-resolver#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

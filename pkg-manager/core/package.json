@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/core",
-  "version": "1011.0.1",
+  "version": "1012.0.0",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -28,8 +28,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/core",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/core#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -57,7 +57,7 @@
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
-    "@pnpm/builder.policy": "catalog:",
+    "@pnpm/builder.policy": "workspace:*",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/catalogs.protocol-parser": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",

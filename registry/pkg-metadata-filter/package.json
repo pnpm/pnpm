@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/registry.pkg-metadata-filter",
-  "version": "1000.0.0",
+  "version": "1000.1.0",
   "description": "Filters the package metadata from the registry",
   "keywords": [
     "pnpm",
@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/registry/pkg-metadata-filter",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/registry/pkg-metadata-filter#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/registry/pkg-metadata-filter",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/registry/pkg-metadata-filter#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

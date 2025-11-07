@@ -1,5 +1,29 @@
 # @pnpm/package-requester
 
+## 1008.0.0
+
+### Minor Changes
+
+- 7c1382f: The npm resolver supports `publishedByExclude` now.
+
+### Patch Changes
+
+- Updated dependencies [8993f68]
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/worker@1000.3.0
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/store-controller-types@1004.1.0
+  - @pnpm/package-is-installable@1000.0.15
+  - @pnpm/fetcher-base@1001.0.2
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/dependency-path@1001.1.3
+  - @pnpm/read-package-json@1000.1.2
+  - @pnpm/store.cafs@1000.0.19
+  - @pnpm/pick-fetcher@1001.0.0
+
 ## 1007.0.0
 
 ### Patch Changes

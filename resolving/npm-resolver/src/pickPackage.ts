@@ -4,7 +4,6 @@ import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import gfs from '@pnpm/graceful-fs'
-import { type VersionSelectors } from '@pnpm/resolver-base'
 import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import getRegistryName from 'encode-registry'
 import loadJsonFile from 'load-json-file'
@@ -14,7 +13,12 @@ import pick from 'ramda/src/pick'
 import semver from 'semver'
 import renameOverwrite from 'rename-overwrite'
 import { toRaw } from './toRaw.js'
-import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta.js'
+import {
+  pickPackageFromMeta,
+  pickVersionByVersionRange,
+  pickLowestVersionByVersionRange,
+  type PickPackageFromMetaOptions,
+} from './pickPackageFromMeta.js'
 import { type RegistryPackageSpec } from './parseBareSpecifier.js'
 
 export interface PackageMetaCache {
@@ -56,34 +60,26 @@ async function runLimited<T> (pkgMirror: string, fn: (limit: pLimit.Limit) => Pr
   }
 }
 
-export interface PickPackageOptions {
+export interface PickPackageOptions extends PickPackageFromMetaOptions {
   authHeaderValue?: string
-  publishedBy?: Date
-  preferredVersionSelectors: VersionSelectors | undefined
   pickLowestVersion?: boolean
   registry: string
   dryRun: boolean
   updateToLatest?: boolean
 }
 
-function pickPackageFromMetaUsingTimeStrict (
-  spec: RegistryPackageSpec,
-  preferredVersionSelectors: VersionSelectors | undefined,
-  meta: PackageMeta,
-  publishedBy?: Date
-): PackageInRegistry | null {
-  return pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
-}
+const pickPackageFromMetaUsingTimeStrict = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
 
 function pickPackageFromMetaUsingTime (
+  opts: PickPackageFromMetaOptions,
   spec: RegistryPackageSpec,
-  preferredVersionSelectors: VersionSelectors | undefined,
-  meta: PackageMeta,
-  publishedBy?: Date
+  meta: PackageMeta
 ): PackageInRegistry | null {
-  const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
+  const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, opts, spec, meta)
   if (pickedPackage) return pickedPackage
-  return pickPackageFromMeta(pickLowestVersionByVersionRange, spec, preferredVersionSelectors, meta)
+  return pickPackageFromMeta(pickLowestVersionByVersionRange, {
+    preferredVersionSelectors: opts.preferredVersionSelectors,
+  }, spec, meta)
 }
 
 export async function pickPackage (
@@ -101,23 +97,30 @@ export async function pickPackage (
   opts: PickPackageOptions
 ): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
   opts = opts || {}
-  let _pickPackageFromMeta =
+  const pickPackageFromMetaBySpec = (
     opts.publishedBy
       ? (ctx.strictPublishedByCheck ? pickPackageFromMetaUsingTimeStrict : pickPackageFromMetaUsingTime)
       : (pickPackageFromMeta.bind(null, opts.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange))
+  ).bind(null, {
+    preferredVersionSelectors: opts.preferredVersionSelectors,
+    publishedBy: opts.publishedBy,
+    publishedByExclude: opts.publishedByExclude,
+  })
 
+  let _pickPackageFromMeta!: (meta: PackageMeta) => PackageInRegistry | null
   if (opts.updateToLatest) {
-    const _pickPackageBase = _pickPackageFromMeta
-    _pickPackageFromMeta = (spec, ...rest) => {
+    _pickPackageFromMeta = (meta) => {
       const latestStableSpec: RegistryPackageSpec = { ...spec, type: 'tag', fetchSpec: 'latest' }
-      const latestStable = _pickPackageBase(latestStableSpec, ...rest)
-      const current = _pickPackageBase(spec, ...rest)
+      const latestStable = pickPackageFromMetaBySpec(latestStableSpec, meta)
+      const current = pickPackageFromMetaBySpec(spec, meta)
 
       if (!latestStable) return current
       if (!current) return latestStable
       if (semver.lt(latestStable.version, current.version)) return current
       return latestStable
     }
+  } else {
+    _pickPackageFromMeta = pickPackageFromMetaBySpec.bind(null, spec)
   }
 
   validatePackageName(spec.name)
@@ -126,7 +129,7 @@ export async function pickPackage (
   if (cachedMeta != null) {
     return {
       meta: cachedMeta,
-      pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, cachedMeta, opts.publishedBy),
+      pickedPackage: _pickPackageFromMeta(cachedMeta),
     }
   }
 
@@ -141,14 +144,14 @@ export async function pickPackage (
       if (ctx.offline) {
         if (metaCachedInStore != null) return {
           meta: metaCachedInStore,
-          pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy),
+          pickedPackage: _pickPackageFromMeta(metaCachedInStore),
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
       if (metaCachedInStore != null) {
-        const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
+        const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
         if (pickedPackage) {
           return {
             meta: metaCachedInStore,
@@ -164,7 +167,7 @@ export async function pickPackage (
       // otherwise it is probably out of date
       if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
         try {
-          const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
+          const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
           if (pickedPackage) {
             return {
               meta: metaCachedInStore,
@@ -182,7 +185,7 @@ export async function pickPackage (
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
         try {
-          const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
+          const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
           if (pickedPackage) {
             return {
               meta: metaCachedInStore,
@@ -219,7 +222,7 @@ export async function pickPackage (
       }
       return {
         meta,
-        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
+        pickedPackage: _pickPackageFromMeta(meta),
       }
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
@@ -229,7 +232,7 @@ export async function pickPackage (
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
       return {
         meta,
-        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
+        pickedPackage: _pickPackageFromMeta(meta),
       }
     }
   })

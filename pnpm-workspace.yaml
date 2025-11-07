@@ -4,6 +4,7 @@ packages:
   - __typings__
   - __utils__/*
   - '!__utils__/build-artifacts'
+  - builder/*
   - cache/*
   - catalogs/*
   - cli/*
@@ -62,7 +63,6 @@ catalog:
   '@eslint/js': 9.9.1
   '@gwhitney/detect-indent': 7.0.1
   '@jest/globals': 29.7.0
-  '@pnpm/builder.policy': 3.0.1
   '@pnpm/byline': ^1.0.0
   '@pnpm/colorize-semver-diff': ^1.0.1
   '@pnpm/config.env-replace': ^3.0.2
@@ -329,10 +329,11 @@ ignoredBuiltDependencies:
 
 managePackageManagerVersions: true
 
-minimumReleaseAge: 0
+minimumReleaseAge: 1440 # At least a day
 
 minimumReleaseAgeExclude:
   - pnpm
+  - '@pnpm/*'
 
 nodeVersion: 18.18.0
 

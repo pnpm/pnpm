@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "1000.2.5",
+  "version": "1000.2.6",
   "description": "Link bins to node_modules/.bin",
   "keywords": [
     "pnpm",
@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/link-bins",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/link-bins#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/link-bins",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/link-bins#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

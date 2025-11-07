@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-controller-types",
-  "version": "1004.0.2",
+  "version": "1004.1.0",
   "description": "Types for the store controller",
   "keywords": [
     "pnpm",
@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/store/store-controller-types",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/store/store-controller-types#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/store/store-controller-types",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/store/store-controller-types#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "1004.4.1",
+  "version": "1004.4.2",
   "description": "Gets configuration options for pnpm",
   "keywords": [
     "pnpm",
@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/config/config",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/config/config#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/config/config",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/config/config#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
