@@ -222,7 +222,6 @@ async function resolveAndFetch (
       injectWorkspacePackages: options.injectWorkspacePackages,
       calcSpecifier: options.calcSpecifier,
       pinnedVersion: options.pinnedVersion,
-      currentVersion: options.currentPkg?.version,
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest
