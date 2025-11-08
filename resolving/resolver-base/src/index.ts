@@ -121,7 +121,6 @@ export interface ResolveOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
-  currentVersion?: string
 }
 
 export type WantedDependency = {
