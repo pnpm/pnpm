@@ -3,7 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { globalWarn } from '@pnpm/logger'
 import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
-import { prompt } from 'enquirer'
+import enquirer from 'enquirer'
 
 export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions {
   dir: string
@@ -27,7 +27,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
     install()
     break
   case 'prompt': {
-    const confirmed = await prompt<{ runInstall: boolean }>({
+    const confirmed = await enquirer.prompt<{ runInstall: boolean }>({
       type: 'confirm',
       name: 'runInstall',
       message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.

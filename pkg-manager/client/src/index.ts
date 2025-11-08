@@ -12,7 +12,7 @@ import { createGitFetcher } from '@pnpm/git-fetcher'
 import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createBinaryFetcher } from '@pnpm/fetching.binary-fetcher'
-import mapValues from 'ramda/src/map'
+import { map as mapValues } from 'ramda'
 
 export type { ResolveFunction }
 

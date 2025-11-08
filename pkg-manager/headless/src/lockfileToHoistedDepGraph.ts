@@ -1,4 +1,4 @@
-import pathExists from 'path-exists'
+import { pathExists } from 'path-exists'
 import path from 'path'
 import {
   type LockfileObject,
@@ -249,6 +249,7 @@ async function fetchDeps (
       hasBundledDependencies: pkgSnapshot.bundledDependencies != null,
       modules,
       name: pkgName,
+      version: pkgVersion,
       optional: !!pkgSnapshot.optional,
       optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
       patch: getPatchInfo(opts.patchedDependencies, pkgName, pkgVersion),

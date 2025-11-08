@@ -34,14 +34,11 @@ test('sync bin links after build script', async () => {
 
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['*'],
+    reporter: 'append-only',
+    injectWorkspacePackages: true,
+    dedupeInjectedDeps: false,
+    syncInjectedDepsAfterScripts: ['build'],
   })
-
-  fs.writeFileSync('.npmrc', [
-    'reporter=append-only',
-    'inject-workspace-packages=true',
-    'dedupe-injected-deps=false',
-    'sync-injected-deps-after-scripts[]=build',
-  ].join('\n'))
 
   // Install - bin won't be created because bin/cli.js doesn't exist yet
   await execPnpm(['install'])

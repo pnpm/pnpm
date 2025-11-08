@@ -1,5 +1,5 @@
 import { type LockfileObject, type PatchFile } from '@pnpm/lockfile.types'
-import equals from 'ramda/src/equals'
+import { equals } from 'ramda'
 
 export type ChangedField =
   | 'patchedDependencies'

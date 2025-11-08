@@ -59,6 +59,7 @@ import {
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
+  type AllowBuild,
   type DepPath,
   type DependencyManifest,
   type HoistedDependencies,
@@ -73,13 +74,7 @@ import * as dp from '@pnpm/dependency-path'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
-import equals from 'ramda/src/equals'
-import isEmpty from 'ramda/src/isEmpty'
-import omit from 'ramda/src/omit'
-import pick from 'ramda/src/pick'
-import pickBy from 'ramda/src/pickBy'
-import props from 'ramda/src/props'
-import union from 'ramda/src/union'
+import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'
 import realpathMissing from 'realpath-missing'
 import { linkHoistedModules } from './linkHoistedModules.js'
 import {
@@ -853,7 +848,7 @@ async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
-    allowBuild?: (pkgName: string) => boolean
+    allowBuild?: AllowBuild
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
@@ -877,7 +872,7 @@ async function linkAllPkgs (
       depNode.requiresBuild = filesResponse.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        if (opts?.allowBuild?.(depNode.name) !== false) {
+        if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
             patchFileHash: depNode.patch?.file.hash,

@@ -11,5 +11,5 @@ test('createResolver()', () => {
     },
     rawConfig: {},
   })
-  expect(typeof resolve).toEqual('function')
+  expect(typeof resolve).toBe('function')
 })

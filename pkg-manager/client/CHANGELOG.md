@@ -1,5 +1,28 @@
 # @pnpm/client
 
+## 1001.1.4
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.2.12
+
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/fetching.binary-fetcher@1002.0.0
+  - @pnpm/git-fetcher@1003.0.0
+  - @pnpm/tarball-fetcher@1003.0.0
+  - @pnpm/directory-fetcher@1000.1.14
+  - @pnpm/fetch@1000.2.6
+  - @pnpm/default-resolver@1002.2.11
+  - @pnpm/node.fetcher@1001.0.8
+
 ## 1001.1.2
 
 ### Patch Changes

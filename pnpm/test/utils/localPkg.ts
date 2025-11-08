@@ -1,7 +1,7 @@
 import path from 'path'
 
 export function pathToLocalPkg (pkgName: string): string {
-  return path.join(__dirname, '../../../../fixtures', pkgName)
+  return path.join(import.meta.dirname, '../../../../fixtures', pkgName)
 }
 
 export function local (pkgName: string): string {

@@ -1,4 +1,3 @@
-const path = require('path')
-const baseConfig = require('./config')
+import baseConfig from './config.js'
 
-module.exports = baseConfig
+export default baseConfig

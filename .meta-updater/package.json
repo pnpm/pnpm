@@ -1,6 +1,6 @@
 {
   "name": "@pnpm-private/updater",
-  "version": "1000.0.4",
+  "version": "1000.0.5",
   "private": true,
   "type": "module",
   "scripts": {

@@ -436,7 +436,7 @@ test('createVersionsOverrider() overrides dependencies with file with relative p
 })
 
 test('createVersionsOverrider() overrides dependencies with file specified with absolute path', () => {
-  const absolutePath = path.join(__dirname, 'qar')
+  const absolutePath = path.join(import.meta.dirname, 'qar')
   const overrider = createVersionsOverrider([
     {
       targetPkg: {

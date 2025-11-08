@@ -9,9 +9,7 @@ import {
   type ProjectManifest,
   type PnpmSettings,
 } from '@pnpm/types'
-import mapValues from 'ramda/src/map'
-import omit from 'ramda/src/omit'
-import pick from 'ramda/src/pick'
+import { map as mapValues, omit, pick } from 'ramda'
 import { globalWarn } from '@pnpm/logger'
 
 export type OptionsFromRootManifest = {

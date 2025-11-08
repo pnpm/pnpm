@@ -1,7 +1,7 @@
 import { type AuditAdvisory, type AuditReport } from '@pnpm/audit'
 import { type ProjectManifest, type AuditConfig } from '@pnpm/types'
 import { writeSettings } from '@pnpm/config.config-writer'
-import difference from 'ramda/src/difference'
+import { difference } from 'ramda'
 
 export interface IgnoreVulnerabilitiesOptions {
   dir: string

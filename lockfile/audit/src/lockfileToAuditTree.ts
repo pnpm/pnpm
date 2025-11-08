@@ -5,7 +5,7 @@ import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm
 import { detectDepTypes, type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
 import { type DependenciesField, type ProjectId } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import mapValues from 'ramda/src/map'
+import { map as mapValues } from 'ramda'
 
 export interface AuditNode {
   version?: string

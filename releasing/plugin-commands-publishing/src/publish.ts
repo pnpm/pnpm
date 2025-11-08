@@ -11,12 +11,12 @@ import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean }
 import { loadToken } from '@pnpm/network.auth-header'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { resolveNpmVersion } from '@pnpm/tools.npm-manager'
-import { prompt } from 'enquirer'
+import enquirer from 'enquirer'
 import rimraf from '@zkochan/rimraf'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import * as pack from './pack.js'
 import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish.js'
 
@@ -203,7 +203,7 @@ export async function publish (
       )
     }
     if (!branches.includes(currentBranch)) {
-      const { confirm } = await prompt({
+      const { confirm } = await enquirer.prompt({
         message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". \
 Do you want to continue?`,
         name: 'confirm',
@@ -276,7 +276,7 @@ Do you want to continue?`,
   // Otherwise, npm would publish the package with the package.json file
   // from the current working directory, ignoring the package.json file
   // that was generated and packed to the tarball.
-  const packDestination = tempy.directory()
+  const packDestination = temporaryDirectory()
   const { tarballPath } = await pack.api({
     ...opts,
     dir,
