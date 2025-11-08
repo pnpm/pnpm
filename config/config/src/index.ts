@@ -160,7 +160,6 @@ export async function getConfig (opts: {
       'bitbucket.com',
       'bitbucket.org',
     ],
-    globalconfig: npmDefaults.globalconfig,
     'git-branch-lockfile': false,
     hoist: true,
     'hoist-pattern': ['*'],
@@ -275,6 +274,8 @@ export async function getConfig (opts: {
     ...npmConfig.list.map(pickNpmAuthConfig).reverse(),
     pickNpmAuthConfig(cliOptions),
     { 'user-agent': pnpmConfig.userAgent },
+    { globalconfig: path.join(configDir, 'rc') },
+    { 'npm-globalconfig': npmDefaults.globalconfig },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {
