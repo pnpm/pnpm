@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from './utils/index.js'
 
@@ -82,5 +82,5 @@ test.skip('legacy deploy creates only necessary directories when the root manife
     ].sort(),
   })
   expect(fs.readdirSync('services/foo/pnpm.out').sort()).toStrictEqual(['node_modules', 'package.json'])
-  expect(loadJsonFile('services/foo/pnpm.out/package.json')).toStrictEqual(loadJsonFile('services/foo/package.json'))
+  expect(loadJsonFileSync('services/foo/pnpm.out/package.json')).toStrictEqual(loadJsonFileSync('services/foo/package.json'))
 })

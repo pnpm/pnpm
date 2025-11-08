@@ -3,6 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
 } from '@pnpm/core'
+import { jest } from '@jest/globals'
 import { testDefaults } from '../utils/index.js'
 
 // TODO: use a smaller package for testing deprecation

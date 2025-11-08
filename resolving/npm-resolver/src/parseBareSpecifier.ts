@@ -38,7 +38,7 @@ export function parseBareSpecifier (
     }
   }
   if (bareSpecifier.startsWith(registry)) {
-    const pkg = parseNpmTarballUrl(bareSpecifier)
+    const pkg = parseNpmTarballUrl.default(bareSpecifier)
     if (pkg != null) {
       return {
         fetchSpec: pkg.version,

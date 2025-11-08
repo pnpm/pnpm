@@ -7,15 +7,15 @@ import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
 import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import normalizePath from 'normalize-path'
-import writeJsonFile from 'write-json-file'
+import { writeJsonFile } from 'write-json-file'
 
 const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => { // eslint-disable-line
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)!
-  const pnpmManifest = loadJsonFile.sync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
+  const pnpmManifest = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
   const pnpmVersion = pnpmManifest!.version!
   const pnpmMajorNumber = pnpmVersion.split('.')[0]
   const pnpmMajorKeyword = `pnpm${pnpmMajorNumber}`
@@ -183,8 +183,9 @@ async function updateTSConfig (
       extends: '../tsconfig.json',
       compilerOptions: {
         noEmit: false,
-        outDir: '../test.lib',
-        rootDir: '.',
+        outDir: '../node_modules/.test.lib',
+        rootDir: '..',
+        isolatedModules: true,
       },
       include: [
         '**/*.ts',
@@ -277,9 +278,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (manifest.name === '@pnpm/core') {
       // @pnpm/core tests currently works only with port 7769 due to the usage of
       // the next package: pkg-with-tarball-dep-from-registry
-      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} jest`
+      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS=--experimental-vm-modules jest`
     } else {
-      scripts._test = 'jest'
+      scripts._test = 'cross-env NODE_OPTIONS=--experimental-vm-modules jest'
     }
     break
   }
@@ -287,7 +288,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (fs.existsSync(path.join(dir, 'test'))) {
       scripts = {
         ...(manifest.scripts as Record<string, string>),
-        _test: 'jest',
+        _test: 'cross-env NODE_OPTIONS=--experimental-vm-modules jest',
         test: 'pnpm run compile && pnpm run _test',
       }
     } else {
@@ -330,8 +331,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
 && shx cp pnpmrc dist/pnpmrc'
   } else {
     scripts.prepublishOnly = 'pnpm run compile'
-    homepage = `https://github.com/pnpm/pnpm/blob/main/${relative}#readme`
-    repository = `https://github.com/pnpm/pnpm/blob/main/${relative}`
+    homepage = `https://github.com/pnpm/pnpm/tree/main/${relative}#readme`
+    repository = `https://github.com/pnpm/pnpm/tree/main/${relative}`
   }
   if (scripts.lint) {
     if (fs.existsSync(path.join(dir, 'test'))) {
@@ -368,13 +369,13 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     })
   }
   return sortKeysInManifest({
-    type: 'commonjs',
     ...manifest,
+    type: 'module',
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',
     },
     engines: {
-      node: '>=18.12',
+      node: '>=20.19',
     },
     files,
     funding: 'https://opencollective.com/pnpm',
@@ -383,6 +384,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     repository,
     scripts,
     exports: {
+      ...manifest.exports,
       '.': manifest.name === 'pnpm' ? './package.json' : './lib/index.js',
     },
   })

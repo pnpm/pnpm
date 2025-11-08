@@ -3,7 +3,7 @@ import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
-import { createPackageVersionPolicy } from '@pnpm/matcher'
+import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -19,8 +19,7 @@ import {
   type ProjectRootDir,
   type PackageVersionPolicy,
 } from '@pnpm/types'
-import partition from 'ramda/src/partition'
-import zipObj from 'ramda/src/zipObj'
+import { partition, zipObj } from 'ramda'
 import { type WantedDependency } from './getNonDevWantedDependencies.js'
 import { type NodeId, nextNodeId } from './nextNodeId.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'

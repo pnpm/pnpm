@@ -1,10 +1,58 @@
+import path from 'path'
 import { STORE_VERSION } from '@pnpm/constants'
-import { getStorePath } from '@pnpm/store-path'
 import { jest } from '@jest/globals'
 import isWindows from 'is-windows'
 
-jest.mock('os')
-jest.mock('fs')
+jest.unstable_mockModule('touch', () => {
+  return {
+    default: jest.fn(),
+  }
+})
+jest.unstable_mockModule('root-link-target', () => {
+  const MAPPINGS: Record<string, string> = {
+    '/src/workspace/project/tmp': '/',
+    '/mnt/project/tmp': '/mnt/project',
+  }
+
+  return {
+    default: async function (file: string): Promise<string> {
+      return MAPPINGS[file]
+    },
+  }
+})
+jest.unstable_mockModule('path-temp', () => {
+  return {
+    default: function (dir: string): string {
+      return path.join(dir, 'tmp')
+    },
+  }
+})
+jest.unstable_mockModule('os', () => ({
+  default: {
+    homedir: () => '/home/user',
+  },
+}))
+jest.unstable_mockModule('fs', () => ({
+  promises: {
+    mkdir: () => {},
+    unlink: () => {},
+    rmdir: () => {},
+  },
+}))
+jest.unstable_mockModule('can-link', () => {
+  const CAN_LINK = new Set([
+    '/can-link-to-homedir/tmp=>/home/user/tmp',
+    '/mnt/project/tmp=>/mnt/tmp/tmp',
+  ])
+
+  return {
+    default: function (existingPath: string, newPath: string): boolean {
+      return CAN_LINK.has(`${existingPath}=>${newPath}`)
+    },
+  }
+})
+
+const { getStorePath } = await import('@pnpm/store-path')
 
 const skipOnWindows = isWindows() ? test.skip : test
 

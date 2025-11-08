@@ -6,33 +6,33 @@ test('getDependencyTypeFromManifest()', () => {
       dependencies: {
         foo: '1.0.0',
       },
-    }, 'foo')).toEqual('dependencies')
+    }, 'foo')).toBe('dependencies')
 
   expect(
     getDependencyTypeFromManifest({
       devDependencies: {
         foo: '1.0.0',
       },
-    }, 'foo')).toEqual('devDependencies')
+    }, 'foo')).toBe('devDependencies')
 
   expect(
     getDependencyTypeFromManifest({
       optionalDependencies: {
         foo: '1.0.0',
       },
-    }, 'foo')).toEqual('optionalDependencies')
+    }, 'foo')).toBe('optionalDependencies')
 
   expect(
     getDependencyTypeFromManifest({
       peerDependencies: {
         foo: '1.0.0',
       },
-    }, 'foo')).toEqual('peerDependencies')
+    }, 'foo')).toBe('peerDependencies')
 
   expect(
     getDependencyTypeFromManifest({
       peerDependencies: {
         foo: '1.0.0',
       },
-    }, 'bar')).toEqual(null)
+    }, 'bar')).toBeNull()
 })

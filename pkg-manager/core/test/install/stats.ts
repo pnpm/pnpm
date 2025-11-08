@@ -32,16 +32,16 @@ test('spec not specified in package.json.dependencies', async () => {
   ]
   {
     const { stats } = await mutateModules(importers, testDefaults({ allProjects }))
-    expect(stats.added).toEqual(1)
-    expect(stats.removed).toEqual(0)
-    expect(stats.linkedToRoot).toEqual(1)
+    expect(stats.added).toBe(1)
+    expect(stats.removed).toBe(0)
+    expect(stats.linkedToRoot).toBe(1)
   }
   rimraf('node_modules')
   {
     const { stats } = await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))
-    expect(stats.added).toEqual(1)
-    expect(stats.removed).toEqual(0)
-    expect(stats.linkedToRoot).toEqual(1)
+    expect(stats.added).toBe(1)
+    expect(stats.removed).toBe(0)
+    expect(stats.linkedToRoot).toBe(1)
   }
   {
     const { stats } = await mutateModules([
@@ -51,8 +51,8 @@ test('spec not specified in package.json.dependencies', async () => {
         rootDir: process.cwd() as ProjectRootDir,
       },
     ], testDefaults({ allProjects, frozenLockfile: true }))
-    expect(stats.added).toEqual(0)
-    expect(stats.removed).toEqual(1)
-    expect(stats.linkedToRoot).toEqual(0)
+    expect(stats.added).toBe(0)
+    expect(stats.removed).toBe(1)
+    expect(stats.linkedToRoot).toBe(0)
   }
 })

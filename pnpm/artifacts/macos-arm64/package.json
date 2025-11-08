@@ -1,14 +1,15 @@
 {
   "name": "@pnpm/macos-arm64",
-  "version": "10.18.3",
+  "version": "10.20.0",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm10",
+    "pnpm-artifact"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/macos-arm64",
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/macos-arm64#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/macos-arm64",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/macos-arm64#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

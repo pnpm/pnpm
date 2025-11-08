@@ -20,7 +20,7 @@ import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
 import path from 'path'
-import isEmpty from 'ramda/src/isEmpty'
+import { isEmpty } from 'ramda'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import { checkForUpdates } from './checkForUpdates.js'
 import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
@@ -104,7 +104,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
-    const isDlxCommand = cmd === 'dlx'
+    const isDlxOrCreateCommand = cmd === 'dlx' || cmd === 'create'
     if (cmd === 'link' && cliParams.length === 0) {
       cliOptions.global = true
     }
@@ -114,7 +114,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
-      ignoreNonAuthSettingsFromLocal: isDlxCommand,
+      ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
     }) as typeof config
     if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
       if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm' && cmd !== 'self-update') {
@@ -123,7 +123,7 @@ export async function main (inputArgv: string[]): Promise<void> {
         checkPackageManager(config.wantedPackageManager, config)
       }
     }
-    if (isDlxCommand) {
+    if (isDlxOrCreateCommand) {
       config.useStderr = true
     }
     config.argv = argv

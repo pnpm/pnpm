@@ -4,10 +4,10 @@ import path from 'path'
 import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
 import { sync as readYamlFile } from 'read-yaml-file'
 import isWindows from 'is-windows'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 test('writeModulesManifest() and readModulesManifest()', async () => {
-  const modulesDir = tempy.directory()
+  const modulesDir = temporaryDirectory()
   const modulesYaml = {
     hoistedDependencies: {},
     included: {
@@ -39,7 +39,7 @@ test('writeModulesManifest() and readModulesManifest()', async () => {
 })
 
 test('backward compatible read of .modules.yaml created with shamefully-hoist=true', async () => {
-  const modulesYaml = await readModulesManifest(path.join(__dirname, 'fixtures/old-shamefully-hoist'))
+  const modulesYaml = await readModulesManifest(path.join(import.meta.dirname, 'fixtures/old-shamefully-hoist'))
   if (modulesYaml == null) {
     fail('modulesYaml was nullish')
   }
@@ -52,7 +52,7 @@ test('backward compatible read of .modules.yaml created with shamefully-hoist=tr
 })
 
 test('backward compatible read of .modules.yaml created with shamefully-hoist=false', async () => {
-  const modulesYaml = await readModulesManifest(path.join(__dirname, 'fixtures/old-no-shamefully-hoist'))
+  const modulesYaml = await readModulesManifest(path.join(import.meta.dirname, 'fixtures/old-no-shamefully-hoist'))
   if (modulesYaml == null) {
     fail('modulesYaml was nullish')
   }
@@ -65,7 +65,7 @@ test('backward compatible read of .modules.yaml created with shamefully-hoist=fa
 })
 
 test('readModulesManifest() should not create a node_modules directory if it does not exist', async () => {
-  const modulesDir = path.join(tempy.directory(), 'node_modules')
+  const modulesDir = path.join(temporaryDirectory(), 'node_modules')
   const modulesYaml = {
     hoistedDependencies: {},
     included: {
@@ -93,7 +93,7 @@ test('readModulesManifest() should not create a node_modules directory if it doe
 })
 
 test('readModulesManifest() should create a node_modules directory if makeModuleDir is set to true', async () => {
-  const modulesDir = path.join(tempy.directory(), 'node_modules')
+  const modulesDir = path.join(temporaryDirectory(), 'node_modules')
   const modulesYaml = {
     hoistedDependencies: {},
     included: {
@@ -121,6 +121,6 @@ test('readModulesManifest() should create a node_modules directory if makeModule
 })
 
 test('readModulesManifest does not fail on empty file', async () => {
-  const modulesYaml = await readModulesManifest(path.join(__dirname, 'fixtures/empty-modules-yaml'))
+  const modulesYaml = await readModulesManifest(path.join(import.meta.dirname, 'fixtures/empty-modules-yaml'))
   expect(modulesYaml).toBeUndefined()
 })

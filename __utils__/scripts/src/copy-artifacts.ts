@@ -3,7 +3,7 @@ import * as execa from 'execa'
 import path from 'path'
 import makeEmptyDir from 'make-empty-dir'
 
-const repoRoot = path.join(__dirname, '../../..')
+const repoRoot = path.join(import.meta.dirname, '../../..')
 const dest = path.join(repoRoot, 'dist')
 const artifactsDir = path.join(repoRoot, 'pnpm/artifacts')
 

@@ -2,11 +2,13 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import { isCI } from 'ci-info'
+import { omit } from 'ramda'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { isCamelCase } from '@pnpm/naming-cases'
 import loadNpmConf from '@pnpm/npm-conf'
-import type npmTypes from '@pnpm/npm-conf/lib/types'
+import type npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { createMatcher } from '@pnpm/matcher'
@@ -18,7 +20,7 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
-import { inheritAuthConfig } from './auth.js'
+import { inheritAuthConfig, isSupportedNpmConfig, pickNpmAuthConfig } from './auth.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
@@ -32,6 +34,7 @@ import {
   type WantedPackageManager,
 } from './Config.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
+import { parseEnvVars } from './env.js'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { types } from './types.js'
@@ -165,8 +168,9 @@ export async function getConfig (opts: {
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
     'optimistic-repeat-install': false,
+    optional: true,
     'init-package-manager': true,
-    'init-type': 'commonjs',
+    'init-type': 'module',
     'inject-workspace-packages': false,
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
@@ -222,7 +226,7 @@ export async function getConfig (opts: {
     '@jsr:registry': 'https://npm.jsr.io/',
   }, 'pnpm-builtin')
   {
-    const warn = npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
+    const warn = npmConfig.addFile(path.resolve(path.join(import.meta.dirname, 'pnpmrc')), 'pnpm-builtin')
     if (warn) warnings.push(warn)
   }
 
@@ -238,7 +242,11 @@ export async function getConfig (opts: {
   )
 
   const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries(
-    rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)])
+    rcOptions
+      .map((configKey) => [
+        camelcase(configKey, { locale: 'en-US' }),
+        isSupportedNpmConfig(configKey) ? npmConfig.get(configKey) : (defaultOptions as Record<string, unknown>)[configKey],
+      ])
   ) as ConfigWithDeprecatedSettings
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
@@ -264,8 +272,8 @@ export async function getConfig (opts: {
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.rawConfig = Object.assign.apply(Object, [
     {},
-    ...[...npmConfig.list].reverse(),
-    cliOptions,
+    ...npmConfig.list.map(pickNpmAuthConfig).reverse(),
+    pickNpmAuthConfig(cliOptions),
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
@@ -278,21 +286,6 @@ export async function getConfig (opts: {
     if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
     if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
     return false
-  })()
-  pnpmConfig.useGitBranchLockfile = (() => {
-    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
-    return false
-  })()
-  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
-    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') return pnpmConfig.mergeGitBranchLockfiles
-    if (pnpmConfig.mergeGitBranchLockfilesBranchPattern != null && pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0) {
-      const branch = await getCurrentBranch()
-      if (branch) {
-        const branchMatcher = createMatcher(pnpmConfig.mergeGitBranchLockfilesBranchPattern)
-        return branchMatcher(branch)
-      }
-    }
-    return undefined
   })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)
   let globalDirRoot
@@ -374,13 +367,20 @@ export async function getConfig (opts: {
     if (pnpmConfig.workspaceDir != null) {
       const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
 
-      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
+      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages
       if (workspaceManifest) {
         const newSettings = Object.assign(getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
         for (const [key, value] of Object.entries(newSettings)) {
+          if (!isCamelCase(key)) continue
+
           // @ts-expect-error
           pnpmConfig[key] = value
-          pnpmConfig.rawConfig[kebabCase(key)] = value
+
+          const kebabKey = kebabCase(key)
+          // Q: Why `types` instead of `rcOptionTypes`?
+          // A: `rcOptionTypes` includes options that would matter to the `npm` cli which wouldn't care about `pnpm-workspace.yaml`.
+          const targetKey = kebabKey in types ? kebabKey : key
+          pnpmConfig.rawConfig[targetKey] = value
         }
         // All the pnpm_config_ env variables should override the settings from pnpm-workspace.yaml,
         // as it happens with .npmrc.
@@ -393,6 +393,48 @@ export async function getConfig (opts: {
         }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
       }
+    }
+  }
+
+  pnpmConfig.useGitBranchLockfile = (() => {
+    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
+    return false
+  })()
+  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
+    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') return pnpmConfig.mergeGitBranchLockfiles
+    if (pnpmConfig.mergeGitBranchLockfilesBranchPattern != null && pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0) {
+      const branch = await getCurrentBranch()
+      if (branch) {
+        const branchMatcher = createMatcher(pnpmConfig.mergeGitBranchLockfilesBranchPattern)
+        return branchMatcher(branch)
+      }
+    }
+    return undefined
+  })()
+
+  // omit some schema that the custom parser can't yet handle
+  const envPnpmTypes = omit([
+    'init-version', // the type is a private function named 'semver'
+    'node-version', // the type is a private function named 'semver'
+    'umask', // the type is a private function named 'Umask'
+    'logstream', // the custom parser doesn't have logic to handle 'Stream' yet
+  ], types)
+
+  for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
+    // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
+    // TODO: should we throw some error or print some warning here?
+    if (value === undefined) continue
+
+    if (key in cliOptions || kebabCase(key) in cliOptions) continue
+
+    // @ts-expect-error
+    pnpmConfig[key] = value
+
+    if (key === 'registry') {
+      if (typeof value !== 'string') {
+        throw new TypeError(`Unexpected type of registry, expecting a string but received ${JSON.stringify(value)}`)
+      }
+      pnpmConfig.registries.default = normalizeRegistryUrl(value)
     }
   }
 
@@ -523,6 +565,7 @@ export async function getConfig (opts: {
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
 
+  // TODO: consider removing checkUnknownSetting entirely
   if (opts.checkUnknownSetting) {
     const settingKeys = Object.keys({
       ...npmConfig?.sources?.workspace?.data,

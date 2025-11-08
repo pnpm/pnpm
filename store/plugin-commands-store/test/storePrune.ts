@@ -7,10 +7,11 @@ import { store } from '@pnpm/plugin-commands-store'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
+import { jest } from '@jest/globals'
 import execa from 'execa'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
   packages,

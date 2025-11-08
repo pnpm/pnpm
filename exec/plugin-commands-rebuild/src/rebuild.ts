@@ -7,7 +7,7 @@ import {
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import { type ProjectRootDir } from '@pnpm/types'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import {
   rebuildProjects,

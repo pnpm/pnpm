@@ -5,8 +5,7 @@ import {
   type ProjectManifest,
   type ReadPackageHook,
 } from '@pnpm/types'
-import isEmpty from 'ramda/src/isEmpty'
-import pipeWith from 'ramda/src/pipeWith'
+import { isEmpty, pipeWith } from 'ramda'
 import { createOptionalDependenciesRemover } from './createOptionalDependenciesRemover.js'
 import { createPackageExtender } from './createPackageExtender.js'
 import { createVersionsOverrider, type VersionOverrideWithoutRawSelector } from './createVersionsOverrider.js'

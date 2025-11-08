@@ -1,15 +1,16 @@
+import v8 from 'v8'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
+import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
 import gfs from '@pnpm/graceful-fs'
 import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import getRegistryName from 'encode-registry'
-import loadJsonFile from 'load-json-file'
-import pLimit from 'p-limit'
+import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import semver from 'semver'
 import renameOverwrite from 'rename-overwrite'
 import { toRaw } from './toRaw.js'
@@ -29,7 +30,7 @@ export interface PackageMetaCache {
 
 interface RefCountedLimiter {
   count: number
-  limit: pLimit.Limit
+  limit: LimitFunction
 }
 
 /**
@@ -46,7 +47,7 @@ const metafileOperationLimits = {} as {
  * once they are no longer needed. Callers of this function should ensure
  * that the limiter is no longer referenced once fn's Promise has resolved.
  */
-async function runLimited<T> (pkgMirror: string, fn: (limit: pLimit.Limit) => Promise<T>): Promise<T> {
+async function runLimited<T> (pkgMirror: string, fn: (limit: LimitFunction) => Promise<T>): Promise<T> {
   let entry!: RefCountedLimiter
   try {
     entry = metafileOperationLimits[pkgMirror] ??= { count: 0, limit: pLimit(1) }
@@ -134,7 +135,7 @@ export async function pickPackage (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.cacheDir, ctx.metaDir, registryName, `${encodePkgName(spec.name)}.json`)
+  const pkgMirror = path.join(ctx.cacheDir, ctx.metaDir, registryName, `${encodePkgName(spec.name)}.v8`)
 
   return runLimited(pkgMirror, async (limit) => {
     let metaCachedInStore: PackageMeta | null | undefined
@@ -210,7 +211,7 @@ export async function pickPackage (
       ctx.metaCache.set(spec.name, meta)
       if (!opts.dryRun) {
         // We stringify this meta here to avoid saving any mutations that could happen to the meta object.
-        const stringifiedMeta = JSON.stringify(meta)
+        const stringifiedMeta = v8.serialize(meta)
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
@@ -283,15 +284,15 @@ function encodePkgName (pkgName: string): string {
 
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
-    return await loadJsonFile<PackageMeta>(pkgMirror)
-  } catch (err: any) { // eslint-disable-line
+    return await readV8FileStrictAsync<PackageMeta>(pkgMirror)
+  } catch {
     return null
   }
 }
 
 const createdDirs = new Set<string>()
 
-async function saveMeta (pkgMirror: string, meta: string): Promise<void> {
+async function saveMeta (pkgMirror: string, meta: Buffer): Promise<void> {
   const dir = path.dirname(pkgMirror)
   if (!createdDirs.has(dir)) {
     await fs.mkdir(dir, { recursive: true })

@@ -9,7 +9,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 const has2OutdatedDepsFixture = f.find('has-2-outdated-deps')
 const hasOutdatedDepsFixtureAndExternalLockfile = path.join(f.find('has-outdated-deps-and-external-shrinkwrap'), 'pkg')

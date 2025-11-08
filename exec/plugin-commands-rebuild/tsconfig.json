@@ -22,6 +22,9 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../builder/policy"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -38,6 +41,9 @@
     },
     {
       "path": "../../deps/graph-sequencer"
+    },
+    {
+      "path": "../../fs/v8-file"
     },
     {
       "path": "../../lockfile/types"

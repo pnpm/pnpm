@@ -1,14 +1,14 @@
 /// <reference lib="esnext.disposable" />
-import execa from 'execa'
 import fs from 'fs'
 import net from 'net'
 import path from 'path'
+import execa from 'execa'
 import { setTimeout } from 'timers/promises'
 import { promisify } from 'util'
 import { prepare } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 describe('TestEchoServer', () => {
   describe('lifecycle', () => {
@@ -41,7 +41,7 @@ describe('TestEchoServer', () => {
 
       // Wait a short amount of time for the server to handle incoming messages.
       await setTimeout(50)
-      expect(server.getBuffer()).toStrictEqual('hello\nworld\n')
+      expect(server.getBuffer()).toBe('hello\nworld\n')
       expect(server.getLines()).toStrictEqual(['hello', 'world'])
     })
 

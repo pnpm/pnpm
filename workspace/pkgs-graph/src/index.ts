@@ -3,7 +3,7 @@ import npa from '@pnpm/npm-package-arg'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import { parseBareSpecifier, workspacePrefToNpm } from '@pnpm/npm-resolver'
 import { type ProjectRootDir, type BaseManifest } from '@pnpm/types'
-import mapValues from 'ramda/src/map'
+import { map as mapValues } from 'ramda'
 
 export interface Package {
   manifest: BaseManifest

@@ -78,7 +78,7 @@ test('a dependency has an aliased subdependency', async () => {
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-aliased-dep'], testDefaults({ fastUnpack: false }))
 
-  expect(project.requireModule('@pnpm.e2e/pkg-with-1-aliased-dep')().name).toEqual('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  expect(project.requireModule('@pnpm.e2e/pkg-with-1-aliased-dep')().name).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   expect(project.readLockfile()).toStrictEqual({
     settings: {
@@ -125,6 +125,6 @@ test('installing the same package via an alias and directly', async () => {
 
   expect(manifest.dependencies).toStrictEqual({ negative: 'npm:is-negative@^1.0.1', 'is-negative': '^1.0.1' })
 
-  expect(typeof project.requireModule('negative')).toEqual('function')
-  expect(typeof project.requireModule('is-negative')).toEqual('function')
+  expect(typeof project.requireModule('negative')).toBe('function')
+  expect(typeof project.requireModule('is-negative')).toBe('function')
 })

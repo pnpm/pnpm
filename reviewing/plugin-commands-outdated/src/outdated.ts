@@ -17,8 +17,7 @@ import semverDiff from '@pnpm/semver-diff'
 import { type DependenciesField, type PackageManifest, type ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
-import pick from 'ramda/src/pick'
-import sortWith from 'ramda/src/sortWith'
+import { pick, sortWith } from 'ramda'
 import renderHelp from 'render-help'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import {
@@ -351,7 +350,7 @@ export function toOutdatedWithVersionDiff<Pkg extends OutdatedPackage> (outdated
   if (outdated.latestManifest != null) {
     return {
       ...outdated,
-      ...semverDiff(outdated.wanted, outdated.latestManifest.version),
+      ...semverDiff.default(outdated.wanted, outdated.latestManifest.version),
     }
   }
   return {
@@ -383,7 +382,7 @@ export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
       : latestManifest.version
   }
 
-  return colorizeSemverDiff({ change, diff })
+  return colorizeSemverDiff.default({ change, diff })
 }
 
 export function renderDetails ({ latestManifest }: OutdatedPackage): string {

@@ -8,7 +8,7 @@ import {
 import { firstValueFrom } from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import normalizeNewline from 'normalize-newline'
 import StackTracey from 'stacktracey'
 
@@ -68,7 +68,7 @@ test('prints no matching version error when many dist-tags exist', async () => {
   expect.assertions(1)
 
   const err = Object.assign(new PnpmError('NO_MATCHING_VERSION', 'No matching version found for pnpm@1000.0.0'), {
-    packageMeta: loadJsonFile.sync(path.join(__dirname, 'pnpm-meta.json')),
+    packageMeta: loadJsonFileSync(path.join(import.meta.dirname, 'pnpm-meta.json')),
   })
   logger.error(err, err)
 
@@ -94,7 +94,7 @@ test('prints no matching version error when only the latest dist-tag exists', as
   expect.assertions(1)
 
   const err = Object.assign(new PnpmError('NO_MATCHING_VERSION', 'No matching version found for is-positive@1000.0.0'), {
-    packageMeta: loadJsonFile.sync(path.join(__dirname, 'is-positive-meta.json')),
+    packageMeta: loadJsonFileSync(path.join(import.meta.dirname, 'is-positive-meta.json')),
   })
   logger.error(err, err)
 
