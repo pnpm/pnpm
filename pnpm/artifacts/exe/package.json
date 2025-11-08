@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "10.19.1-oidc-test.3",
+  "version": "10.20.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -14,6 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",

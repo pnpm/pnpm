@@ -1,5 +1,13 @@
 # @pnpm/npm-resolver
 
+## 1004.4.1
+
+### Patch Changes
+
+- 6c3dcb8: Skip time field validation for packages excluded by `minimumReleaseAgeExclude` (allows packages that would otherwise throw `ERR_PNPM_MISSING_TIME`).
+- Updated dependencies [0152a51]
+  - @pnpm/registry.pkg-metadata-filter@1000.1.1
+
 ## 1004.4.0
 
 ### Minor Changes

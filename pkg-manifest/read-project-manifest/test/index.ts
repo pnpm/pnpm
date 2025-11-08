@@ -3,10 +3,10 @@ import fs from 'fs'
 import path from 'path'
 import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import { type ProjectManifest } from '@pnpm/types'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('readProjectManifest()', async () => {
   expect(
@@ -28,8 +28,8 @@ test('readProjectManifest()', async () => {
   )
 
   expect(
-    (await tryReadProjectManifest(__dirname)).manifest
-  ).toStrictEqual(null)
+    (await tryReadProjectManifest(import.meta.dirname)).manifest
+  ).toBeNull()
 })
 
 test('readProjectManifest() converts devEngines runtime to devDependencies', async () => {
@@ -174,7 +174,7 @@ test.each([
 })
 
 test('preserve tab indentation in json file', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   fs.writeFileSync('package.json', '{\n\t"name": "foo"\n}\n', 'utf8')
 
@@ -187,7 +187,7 @@ test('preserve tab indentation in json file', async () => {
 })
 
 test('preserve space indentation in json file', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   fs.writeFileSync('package.json', '{\n  "name": "foo"\n}\n', 'utf8')
 
@@ -200,7 +200,7 @@ test('preserve space indentation in json file', async () => {
 })
 
 test('preserve tab indentation in json5 file', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   fs.writeFileSync('package.json5', "{\n\tname: 'foo',\n}\n", 'utf8')
 
@@ -213,7 +213,7 @@ test('preserve tab indentation in json5 file', async () => {
 })
 
 test('preserve space indentation in json5 file', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   fs.writeFileSync('package.json5', "{\n  name: 'foo'\n}\n", 'utf8')
 
@@ -231,7 +231,7 @@ test('preserve comments in json5 file', async () => {
   const modifiedManifest = fs.readFileSync(
     f.find('commented-package-json5/modified.json5'), 'utf8')
 
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
   fs.writeFileSync('package.json5', originalManifest, 'utf8')
 
   const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
@@ -246,7 +246,7 @@ test('preserve comments in json5 file', async () => {
 })
 
 test('do not save manifest if it had no changes', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   fs.writeFileSync(
     'package.json5',
@@ -281,15 +281,7 @@ test('fail on invalid JSON', async () => {
 
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_JSON_PARSE')
-
-  const nodeMajorVersion = parseInt(process.version.slice(1).split('.')[0])
-  if (nodeMajorVersion >= 21) {
-    expect(err.message).toContain('Expected \',\' or \'}\' after property value in JSON at position 20 (line 3 column 3) while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in')
-  } else if (nodeMajorVersion >= 19) {
-    expect(err.message).toContain('Expected \',\' or \'}\' after property value in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in')
-  } else {
-    expect(err.message).toContain('Unexpected string in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in ')
-  }
+  expect(err.message).toContain('Expected \',\' or \'}\' after property value in JSON at position 20 ')
 })
 
 test('fail on invalid JSON5', async () => {
@@ -319,7 +311,7 @@ test('fail on invalid YAML', async () => {
 })
 
 test('preserve trailing new line at the end of package.json', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   fs.writeFileSync('package.json', '{}', 'utf8')
 
@@ -332,7 +324,7 @@ test('preserve trailing new line at the end of package.json', async () => {
 })
 
 test('preserve trailing new line at the end of package.json5', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   fs.writeFileSync('package.json5', '{}', 'utf8')
 
@@ -345,7 +337,7 @@ test('preserve trailing new line at the end of package.json5', async () => {
 })
 
 test('canceling changes to a manifest', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   fs.writeFileSync('package.json', JSON.stringify({ name: 'foo' }), 'utf8')
 

@@ -13,8 +13,7 @@ import {
 } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { type ProjectId, type ProjectRootDir } from '@pnpm/types'
-import clone from 'ramda/src/clone'
-import equals from 'ramda/src/equals'
+import { clone, equals } from 'ramda'
 
 export interface PnpmContext {
   currentLockfile: LockfileObject

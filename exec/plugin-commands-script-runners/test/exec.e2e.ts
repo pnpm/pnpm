@@ -9,7 +9,7 @@ import { type ProjectRootDirRealPath, type ProjectRootDir } from '@pnpm/types'
 import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const testOnPosixOnly = process.platform === 'win32' ? test.skip : test
 
 test('pnpm recursive exec', async () => {

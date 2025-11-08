@@ -19,8 +19,7 @@ import {
   type ProjectRootDir,
   type PackageVersionPolicy,
 } from '@pnpm/types'
-import partition from 'ramda/src/partition'
-import zipObj from 'ramda/src/zipObj'
+import { partition, zipObj } from 'ramda'
 import { type WantedDependency } from './getNonDevWantedDependencies.js'
 import { type NodeId, nextNodeId } from './nextNodeId.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'

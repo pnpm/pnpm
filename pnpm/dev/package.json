@@ -1,8 +1,9 @@
 {
   "name": "pd",
-  "version": "1000.0.10",
+  "version": "1000.0.11",
   "bin": "pd.js",
   "private": true,
+  "type": "module",
   "scripts": {
     "test": "pnpm run _test",
     "_test": "node pd.js --version"

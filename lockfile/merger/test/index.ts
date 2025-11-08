@@ -272,7 +272,7 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
   })
 })
 
-test('prefers our lockfile resolutions when it has newer packages', () => {
+test('prefers our lockfile resolutions when it has newer packages #2', () => {
   const mergedLockfile = mergeLockfileChanges(
     {
       ...simpleLockfile,

@@ -32,13 +32,8 @@ import {
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
-import pathExists from 'path-exists'
-import equals from 'ramda/src/equals'
-import isEmpty from 'ramda/src/isEmpty'
-import difference from 'ramda/src/difference'
-import pick from 'ramda/src/pick'
-import pickBy from 'ramda/src/pickBy'
-import props from 'ramda/src/props'
+import { pathExists } from 'path-exists'
+import { equals, isEmpty, difference, pick, pickBy, props } from 'ramda'
 import { type ImporterToUpdate } from './index.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')

@@ -1,5 +1,12 @@
 # @pnpm/resolving.bun-resolver
 
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [6c3dcb8]
+  - @pnpm/npm-resolver@1004.4.1
+
 ## 1002.0.0
 
 ### Patch Changes

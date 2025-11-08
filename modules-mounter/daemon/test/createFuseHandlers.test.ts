@@ -1,18 +1,17 @@
 import { STORE_VERSION } from '@pnpm/constants'
 import { jest } from '@jest/globals'
 import path from 'path'
+import { type FuseHandlers } from '../src/createFuseHandlers.js'
 
-jest.mock('fuse-native', () => ({ ENOENT: -2 }))
+jest.unstable_mockModule('fuse-native', () => ({ default: { ENOENT: -2 } }))
 
-// eslint-disable-next-line
-import { type FuseHandlers, createFuseHandlers } from '../src/createFuseHandlers.js'
-// eslint-disable-next-line
-import Fuse from 'fuse-native'
+const { default: Fuse } = await import('fuse-native')
+const { createFuseHandlers } = await import('../src/createFuseHandlers.js')
 
 describe('FUSE handlers', () => {
   let handlers: FuseHandlers
   beforeAll(async () => {
-    const fixture = path.join(__dirname, '__fixtures__/simple')
+    const fixture = path.join(import.meta.dirname, '__fixtures__/simple')
     handlers = await createFuseHandlers(fixture, path.join(fixture, 'store', STORE_VERSION))
   })
 

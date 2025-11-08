@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-connection-manager",
-  "version": "1002.2.3",
+  "version": "1002.2.4",
   "description": "Create a direct pnpm store controller or connect to a running store server",
   "keywords": [
     "pnpm",
@@ -13,7 +13,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -50,7 +50,7 @@
     "@pnpm/store-connection-manager": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cache.api",
-  "version": "1000.0.35",
+  "version": "1000.0.36",
   "description": "API for controlling the cache",
   "keywords": [
     "pnpm",
@@ -14,7 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -33,6 +33,7 @@
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "encode-registry": "catalog:",
@@ -46,7 +47,7 @@
     "@pnpm/logger": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

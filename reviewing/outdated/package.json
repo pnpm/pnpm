@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "1001.1.0",
+  "version": "1001.1.1",
   "description": "Check for outdated packages",
   "keywords": [
     "pnpm",
@@ -14,7 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -28,7 +28,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
@@ -55,6 +55,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
     "@pnpm/outdated": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
@@ -62,7 +63,7 @@
     "@types/semver": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

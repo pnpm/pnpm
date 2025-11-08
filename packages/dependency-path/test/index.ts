@@ -70,18 +70,18 @@ test('parse()', () => {
 })
 
 test('refToRelative()', () => {
-  expect(refToRelative('1.3.0', '@most/multicast')).toEqual('@most/multicast@1.3.0')
-  expect(refToRelative('1.3.0', 'most')).toEqual('most@1.3.0')
-  expect(refToRelative('m@1.3.0', 'most')).toEqual('m@1.3.0')
-  expect(refToRelative('@most/multicast@1.3.0', 'most')).toEqual('@most/multicast@1.3.0')
-  expect(refToRelative('@most/multicast@1.3.0', '@most/multicast')).toEqual('@most/multicast@1.3.0')
-  expect(refToRelative('@most/multicast@1.3.0(@foo/bar@1.0.0)', '@most/multicast')).toEqual('@most/multicast@1.3.0(@foo/bar@1.0.0)')
-  expect(refToRelative('@most/multicast@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@most/multicast')).toEqual('@most/multicast@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
+  expect(refToRelative('1.3.0', '@most/multicast')).toBe('@most/multicast@1.3.0')
+  expect(refToRelative('1.3.0', 'most')).toBe('most@1.3.0')
+  expect(refToRelative('m@1.3.0', 'most')).toBe('m@1.3.0')
+  expect(refToRelative('@most/multicast@1.3.0', 'most')).toBe('@most/multicast@1.3.0')
+  expect(refToRelative('@most/multicast@1.3.0', '@most/multicast')).toBe('@most/multicast@1.3.0')
+  expect(refToRelative('@most/multicast@1.3.0(@foo/bar@1.0.0)', '@most/multicast')).toBe('@most/multicast@1.3.0(@foo/bar@1.0.0)')
+  expect(refToRelative('@most/multicast@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@most/multicast')).toBe('@most/multicast@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
   // linked dependencies don't have a relative path
   expect(refToRelative('link:../foo', 'foo')).toBeNull()
-  expect(refToRelative('file:../tarball.tgz', 'foo')).toEqual('foo@file:../tarball.tgz')
-  expect(refToRelative('1.3.0(@foo/bar@1.0.0)', '@qar/bar')).toEqual('@qar/bar@1.3.0(@foo/bar@1.0.0)')
-  expect(refToRelative('1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@qar/bar')).toEqual('@qar/bar@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
+  expect(refToRelative('file:../tarball.tgz', 'foo')).toBe('foo@file:../tarball.tgz')
+  expect(refToRelative('1.3.0(@foo/bar@1.0.0)', '@qar/bar')).toBe('@qar/bar@1.3.0(@foo/bar@1.0.0)')
+  expect(refToRelative('1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@qar/bar')).toBe('@qar/bar@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
 })
 
 test('depPathToFilename()', () => {
@@ -104,8 +104,8 @@ test('depPathToFilename()', () => {
 })
 
 test('tryGetPackageId', () => {
-  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toEqual('/foo@1.0.0')
-  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))' as DepPath)).toEqual('/foo@1.0.0')
-  expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toEqual('/@(-.-)/foo@1.0.0')
-  expect(tryGetPackageId('foo@1.0.0(patch_hash=xxxx)(@types/babel__core@7.1.14)' as DepPath)).toEqual('foo@1.0.0')
+  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toBe('/foo@1.0.0')
+  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))' as DepPath)).toBe('/foo@1.0.0')
+  expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toBe('/@(-.-)/foo@1.0.0')
+  expect(tryGetPackageId('foo@1.0.0(patch_hash=xxxx)(@types/babel__core@7.1.14)' as DepPath)).toBe('foo@1.0.0')
 })

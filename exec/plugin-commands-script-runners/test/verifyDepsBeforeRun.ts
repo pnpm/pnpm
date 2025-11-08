@@ -1,24 +1,27 @@
 import path from 'path'
 import fs from 'fs'
-import { globalWarn } from '@pnpm/logger'
 import { type VerifyDepsBeforeRun } from '@pnpm/config'
-import { run } from '@pnpm/plugin-commands-script-runners'
 import { prepare } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
-import { prompt } from 'enquirer'
 import { DEFAULT_OPTS } from './utils/index.js'
 
-jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual<object>('@pnpm/logger')
+const originalModule = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => {
   return {
     ...originalModule,
     globalWarn: jest.fn(),
   }
 })
 
-jest.mock('enquirer', () => ({
-  prompt: jest.fn(),
+jest.unstable_mockModule('enquirer', () => ({
+  default: {
+    prompt: jest.fn(),
+  },
 }))
+
+const { run } = await import('@pnpm/plugin-commands-script-runners')
+const { default: enquirer } = await import('enquirer')
+const { globalWarn } = await import('@pnpm/logger')
 
 const rootProjectManifest = {
   name: 'root',
@@ -81,11 +84,11 @@ test('prompt the user if verifyDepsBeforeRun is set to prompt', async () => {
   prepare(rootProjectManifest)
 
   // Mock the user confirming the prompt
-  jest.mocked(prompt).mockResolvedValue({ runInstall: true })
+  jest.mocked(enquirer.prompt).mockResolvedValue({ runInstall: true })
 
   await runTest('prompt')
 
-  expect(prompt).toHaveBeenCalledWith({
+  expect(enquirer.prompt).toHaveBeenCalledWith({
     type: 'confirm',
     name: 'runInstall',
     message: expect.stringContaining(

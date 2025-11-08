@@ -14,7 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -34,16 +34,15 @@
   "dependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
-    "@pnpm/crypto.polyfill": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pkg-requires-build": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
+    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
     "@rushstack/worker-pool": "catalog:",
     "is-windows": "catalog:",
-    "load-json-file": "catalog:",
     "p-limit": "catalog:",
     "shlex": "catalog:"
   },
@@ -57,7 +56,7 @@
     "@types/is-windows": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

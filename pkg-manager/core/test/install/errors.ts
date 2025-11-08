@@ -4,11 +4,11 @@ import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/co
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectRootDir } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('fail if none of the available resolvers support a version spec', async () => {
   prepareEmpty()
@@ -46,10 +46,10 @@ test('fail if a package cannot be fetched', async () => {
   /* eslint-disable @typescript-eslint/no-explicit-any */
   nock(`http://localhost:${REGISTRY_MOCK_PORT}/`)
     .get('/@pnpm.e2e%2Fpkg-with-1-dep') // cspell:disable-line
-    .reply(200, loadJsonFile.sync<any>(f.find('pkg-with-1-dep.json')))
+    .reply(200, loadJsonFileSync<any>(f.find('pkg-with-1-dep.json')))
   nock(`http://localhost:${REGISTRY_MOCK_PORT}/`)
     .get('/@pnpm.e2e%2Fdep-of-pkg-with-1-dep') // cspell:disable-line
-    .reply(200, loadJsonFile.sync<any>(f.find('dep-of-pkg-with-1-dep.json')))
+    .reply(200, loadJsonFileSync<any>(f.find('dep-of-pkg-with-1-dep.json')))
   /* eslint-enable @typescript-eslint/no-explicit-any */
   nock(`http://localhost:${REGISTRY_MOCK_PORT}/`)
     .get('/@pnpm.e2e/pkg-with-1-dep/-/@pnpm.e2e/pkg-with-1-dep-100.0.0.tgz')

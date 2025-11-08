@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.deno-resolver",
-  "version": "1002.0.0",
+  "version": "1002.0.1",
   "description": "Resolves the Deno runtime",
   "keywords": [
     "pnpm",
@@ -15,7 +15,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -53,7 +53,7 @@
     "@types/semver": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

@@ -9,9 +9,7 @@ import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type DepPath, type SupportedArchitectures, type DependenciesField, type ProjectId } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
-import mapValues from 'ramda/src/map'
-import pickBy from 'ramda/src/pickBy'
-import unnest from 'ramda/src/unnest'
+import { map as mapValues, pickBy, unnest } from 'ramda'
 import { filterImporter } from './filterImporter.js'
 
 const lockfileLogger = logger('lockfile')

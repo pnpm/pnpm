@@ -8,7 +8,7 @@ import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type PackageManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import preferredPM from 'preferred-pm'
-import omit from 'ramda/src/omit'
+import { omit } from 'ramda'
 
 // We don't run prepublishOnly to prepare the dependency.
 // This might be counterintuitive as prepublishOnly is where a lot of packages put their build scripts.

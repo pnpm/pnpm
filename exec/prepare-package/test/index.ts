@@ -4,7 +4,7 @@ import { tempDir } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { fixtures } from '@pnpm/test-fixtures'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('prepare package runs the prepublish script', async () => {
   const tmp = tempDir()

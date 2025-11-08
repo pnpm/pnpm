@@ -1,4 +1,4 @@
-import pathExists from 'path-exists'
+import { pathExists } from 'path-exists'
 import path from 'path'
 import {
   type LockfileObject,

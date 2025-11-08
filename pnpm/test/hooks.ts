@@ -4,7 +4,7 @@ import { createHash } from '@pnpm/crypto.hash'
 import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT, getIntegrity } from '@pnpm/registry-mock'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
@@ -23,19 +23,19 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
   `
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
   await execPnpm(['add', 'is-positive@1.0.0'])
-  let pkg: PackageManifest = loadJsonFile.sync(path.resolve('package.json'))
+  let pkg: PackageManifest = loadJsonFileSync(path.resolve('package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '1.0.0' }) // add dependency & readPackage hook work
 
   await execPnpm(['update', 'is-positive@2.0.0'])
-  pkg = loadJsonFile.sync(path.resolve('package.json'))
+  pkg = loadJsonFileSync(path.resolve('package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '2.0.0' }) // update dependency & readPackage hook work
 
   await execPnpm(['install'])
-  pkg = loadJsonFile.sync(path.resolve('package.json'))
+  pkg = loadJsonFileSync(path.resolve('package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '2.0.0' }) // install & readPackage hook work
 
   await execPnpm(['remove', 'is-positive'])
-  pkg = loadJsonFile.sync(path.resolve('package.json'))
+  pkg = loadJsonFileSync(path.resolve('package.json'))
   expect(pkg.dependencies).toBeFalsy() // remove & readPackage hook work
   project.hasNot('is-positive')
 
@@ -43,12 +43,12 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
   fs.unlinkSync('pnpm-lock.yaml')
 
   await execPnpm(['install', '--lockfile-only'])
-  pkg = loadJsonFile.sync(path.resolve('package.json'))
+  pkg = loadJsonFileSync(path.resolve('package.json'))
   expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, without pnpm-lock.yaml
 
   // runs with pnpm-lock.yaml should not mutate local projects
   await execPnpm(['install', '--lockfile-only'])
-  pkg = loadJsonFile.sync(path.resolve('package.json'))
+  pkg = loadJsonFileSync(path.resolve('package.json'))
   expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, with pnpm-lock.yaml
 })
 
@@ -78,31 +78,31 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['add', 'is-positive@1.0.0', '--filter', 'project-a'])
-  let pkg: PackageManifest = loadJsonFile.sync(path.resolve('project-a/package.json'))
+  let pkg: PackageManifest = loadJsonFileSync(path.resolve('project-a/package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '1.0.0' }) // add dependency & readPackage hook work
 
   await execPnpm(['update', 'is-positive@2.0.0', '--filter', 'project-a'])
-  pkg = loadJsonFile.sync(path.resolve('project-a/package.json'))
+  pkg = loadJsonFileSync(path.resolve('project-a/package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '2.0.0' }) // update dependency & readPackage hook work
 
   await execPnpm(['install', '--filter', 'project-a'])
-  pkg = loadJsonFile.sync(path.resolve('project-a/package.json'))
+  pkg = loadJsonFileSync(path.resolve('project-a/package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '2.0.0' }) // install & readPackage hook work
 
   await execPnpm(['remove', 'is-positive', '--filter', 'project-a'])
-  pkg = loadJsonFile.sync(path.resolve('project-a/package.json'))
+  pkg = loadJsonFileSync(path.resolve('project-a/package.json'))
   expect(pkg.dependencies).toBeFalsy() // remove & readPackage hook work
 
   // Reset for --lockfile-only checks
   fs.unlinkSync('pnpm-lock.yaml')
 
   await execPnpm(['install', '--lockfile-only'])
-  pkg = loadJsonFile.sync(path.resolve('project-a/package.json'))
+  pkg = loadJsonFileSync(path.resolve('project-a/package.json'))
   expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, without pnpm-lock.yaml
 
   // runs with pnpm-lock.yaml should not mutate local projects
   await execPnpm(['install', '--lockfile-only'])
-  pkg = loadJsonFile.sync(path.resolve('project-a/package.json'))
+  pkg = loadJsonFileSync(path.resolve('project-a/package.json'))
   expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, with pnpm-lock.yaml
 })
 
@@ -139,16 +139,15 @@ test('importPackage hooks', async () => {
     }
   `
 
-  const npmrc = `
-    global-pnpmfile=.pnpmfile.cjs
-  `
+  writeYamlFile('pnpm-workspace.yaml', {
+    globalPnpmfile: '.pnpmfile.cjs',
+  })
 
-  fs.writeFileSync('.npmrc', npmrc, 'utf8')
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])
 
-  const [to, opts] = loadJsonFile.sync<any>('args.json') // eslint-disable-line
+  const [to, opts] = loadJsonFileSync<any>('args.json') // eslint-disable-line
 
   expect(typeof to).toBe('string')
   expect(Object.keys(opts.filesMap).sort()).toStrictEqual([
@@ -172,11 +171,10 @@ test('should use default fetchers if no custom fetchers are defined', async () =
     }
   `
 
-  const npmrc = `
-    global-pnpmfile=.pnpmfile.cjs
-  `
+  writeYamlFile('pnpm-workspace.yaml', {
+    globalPnpmfile: '.pnpmfile.cjs',
+  })
 
-  fs.writeFileSync('.npmrc', npmrc, 'utf8')
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])
@@ -204,18 +202,17 @@ test('custom fetcher can call default fetcher', async () => {
     }
   `
 
-  const npmrc = `
-    global-pnpmfile=.pnpmfile.cjs
-  `
+  writeYamlFile('pnpm-workspace.yaml', {
+    globalPnpmfile: '.pnpmfile.cjs',
+  })
 
-  fs.writeFileSync('.npmrc', npmrc, 'utf8')
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])
 
   project.cafsHas('is-positive', '1.0.0')
 
-  const args = loadJsonFile.sync<any>('args.json') // eslint-disable-line
+  const args = loadJsonFileSync<any>('args.json') // eslint-disable-line
 
   expect(args.resolution).toEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
@@ -327,6 +324,25 @@ module.exports = {
 }`
 
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
+
+  await execPnpm(['add', 'is-odd@1.0.0'])
+
+  const nodeModulesFiles = fs.readdirSync('node_modules')
+  expect(nodeModulesFiles).toContain('kind-of')
+  expect(nodeModulesFiles).toContain('is-number')
+})
+
+test('loading an ESM pnpmfile', async () => {
+  prepare()
+
+  fs.writeFileSync('.pnpmfile.mjs', `
+export const hooks = {
+  updateConfig: (config) => ({
+    ...config,
+    nodeLinker: 'hoisted',
+  }),
+}`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { pnpmfile: ['.pnpmfile.mjs'] })
 
   await execPnpm(['add', 'is-odd@1.0.0'])
 

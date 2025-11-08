@@ -9,8 +9,8 @@ import execa from 'execa'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
 import path from 'path'
-import omit from 'ramda/src/omit'
-import tempy from 'tempy'
+import { omit } from 'ramda'
+import { temporaryDirectory } from 'tempy'
 import touchCB from 'touch'
 
 const touch = promisify(touchCB)
@@ -348,7 +348,7 @@ test('select changed packages', async () => {
     return
   }
 
-  const workspaceDir = tempy.directory() as ProjectRootDir
+  const workspaceDir = temporaryDirectory() as ProjectRootDir
   await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
   await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
   await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
@@ -482,8 +482,8 @@ test('selection should fail when diffing to a branch that does not exist', async
     err = _err
   }
   expect(err).toBeDefined()
-  expect(err.code).toEqual('ERR_PNPM_FILTER_CHANGED')
-  expect(err.message).toEqual("Filtering by changed packages failed. fatal: bad revision 'branch-does-no-exist'")
+  expect(err.code).toBe('ERR_PNPM_FILTER_CHANGED')
+  expect(err.message).toBe("Filtering by changed packages failed. fatal: bad revision 'branch-does-no-exist'")
 })
 
 test('should return unmatched filters', async () => {

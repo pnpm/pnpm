@@ -9,7 +9,7 @@ import execa from 'execa'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY } from './utils/index.js'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('pnpm recursive rebuild', async () => {
   const projects = preparePackages([
@@ -41,6 +41,7 @@ test('pnpm recursive rebuild', async () => {
     `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
     '--ignore-scripts',
     '--reporter=append-only',
+    '--config.enableGlobalVirtualStore=false',
   ], { stdout: 'inherit' })
 
   projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
@@ -113,6 +114,7 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
     '--ignore-scripts',
     '--reporter=append-only',
     '--config.node-linker=hoisted',
+    '--config.enableGlobalVirtualStore=false',
   ], { stdout: 'inherit' })
 
   const rootProject = assertProject(process.cwd())
@@ -203,6 +205,7 @@ test('rebuild multiple packages in correct order', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
     '--ignore-scripts',
+    '--config.enableGlobalVirtualStore=false',
   ])
 
   await rebuild.handler({
@@ -255,6 +258,7 @@ test('never build neverBuiltDependencies', async () => {
       `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
       '--ignore-scripts',
       '--reporter=append-only',
+      '--config.enableGlobalVirtualStore=false',
     ],
     { stdout: 'inherit' }
   )
@@ -349,6 +353,7 @@ test('only build onlyBuiltDependencies', async () => {
       `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
       '--ignore-scripts',
       '--reporter=append-only',
+      '--config.enableGlobalVirtualStore=false',
     ],
     { stdout: 'inherit' }
   )

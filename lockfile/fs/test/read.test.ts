@@ -1,26 +1,27 @@
 import path from 'path'
-import { getCurrentBranch } from '@pnpm/git-utils'
-import {
+import { type DepPath, type ProjectId } from '@pnpm/types'
+import { jest } from '@jest/globals'
+import { temporaryDirectory } from 'tempy'
+
+jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+
+const { getCurrentBranch } = await import('@pnpm/git-utils')
+const {
   existsNonEmptyWantedLockfile,
   readCurrentLockfile,
   readWantedLockfile,
   writeCurrentLockfile,
   writeWantedLockfile,
-} from '@pnpm/lockfile.fs'
-import { type DepPath, type ProjectId } from '@pnpm/types'
-import { jest } from '@jest/globals'
-import tempy from 'tempy'
+} = await import('@pnpm/lockfile.fs')
 
-jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
-
-process.chdir(__dirname)
+process.chdir(import.meta.dirname)
 
 test('readWantedLockfile()', async () => {
   {
     const lockfile = await readWantedLockfile(path.join('fixtures', '2'), {
       ignoreIncompatible: false,
     })
-    expect(lockfile?.lockfileVersion).toEqual('9.0')
+    expect(lockfile?.lockfileVersion).toBe('9.0')
     expect(lockfile?.importers).toStrictEqual({
       '.': {
         dependencies: {
@@ -45,7 +46,7 @@ test('readWantedLockfile()', async () => {
     })
     fail()
   } catch (err: any) { // eslint-disable-line
-    expect(err.code).toEqual('ERR_PNPM_LOCKFILE_BREAKING_CHANGE')
+    expect(err.code).toBe('ERR_PNPM_LOCKFILE_BREAKING_CHANGE')
   }
 })
 
@@ -55,7 +56,7 @@ test('readWantedLockfile() when lockfileVersion is a string', async () => {
       ignoreIncompatible: false,
       wantedVersions: ['3'],
     })
-    expect(lockfile!.lockfileVersion).toEqual('v3')
+    expect(lockfile!.lockfileVersion).toBe('v3')
   }
 
   {
@@ -63,7 +64,7 @@ test('readWantedLockfile() when lockfileVersion is a string', async () => {
       ignoreIncompatible: false,
       wantedVersions: ['3'],
     })
-    expect(lockfile!.lockfileVersion).toEqual('3')
+    expect(lockfile!.lockfileVersion).toBe('3')
   }
 })
 
@@ -71,11 +72,11 @@ test('readCurrentLockfile()', async () => {
   const lockfile = await readCurrentLockfile('fixtures/2/node_modules/.pnpm', {
     ignoreIncompatible: false,
   })
-  expect(lockfile!.lockfileVersion).toEqual('6.0')
+  expect(lockfile!.lockfileVersion).toBe('6.0')
 })
 
 test('writeWantedLockfile()', async () => {
-  const projectPath = tempy.directory()
+  const projectPath = temporaryDirectory()
   const wantedLockfile = {
     importers: {
       '.': {
@@ -118,7 +119,7 @@ test('writeWantedLockfile()', async () => {
 })
 
 test('writeCurrentLockfile()', async () => {
-  const projectPath = tempy.directory()
+  const projectPath = temporaryDirectory()
   const wantedLockfile = {
     importers: {
       '.': {
@@ -161,7 +162,7 @@ test('writeCurrentLockfile()', async () => {
 })
 
 test('existsNonEmptyWantedLockfile()', async () => {
-  const projectPath = tempy.directory()
+  const projectPath = temporaryDirectory()
   expect(await existsNonEmptyWantedLockfile(projectPath)).toBe(false)
   await writeWantedLockfile(projectPath, {
     importers: {

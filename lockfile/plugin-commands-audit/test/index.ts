@@ -7,7 +7,7 @@ import nock from 'nock'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import * as responses from './utils/responses/index.js'
 
-const f = fixtures(path.join(__dirname, 'fixtures'))
+const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
 const registries = {
   default: 'https://registry.npmjs.org/',
 }

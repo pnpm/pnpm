@@ -5,19 +5,19 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
 import { type Registries } from '@pnpm/types'
 import { fixtures } from '@pnpm/test-fixtures'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 const registries: Registries = {
   default: 'https://registry.npmjs.org/',
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const badDatesMeta = loadJsonFile.sync<any>(f.find('bad-dates.json'))
-const isPositiveMeta = loadJsonFile.sync<any>(f.find('is-positive-full.json'))
+const badDatesMeta = loadJsonFileSync<any>(f.find('bad-dates.json'))
+const isPositiveMeta = loadJsonFileSync<any>(f.find('is-positive-full.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const fetch = createFetchFromRegistry({})
@@ -38,7 +38,7 @@ test('fall back to a newer version if there is no version published by the given
     .get('/bad-dates')
     .reply(200, badDatesMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     filterMetadata: true,
@@ -54,7 +54,7 @@ test('fall back to a newer version if there is no version published by the given
 })
 
 test('request metadata when the one in cache does not have a version satisfying the range', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const cachedMeta = {
     'dist-tags': {},
     versions: {},
@@ -83,7 +83,7 @@ test('request metadata when the one in cache does not have a version satisfying 
 })
 
 test('do not pick version that does not satisfy the date requirement even if it is loaded from cache and requested by exact version', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const fooMeta = {
     'dist-tags': {},
     versions: {
@@ -120,7 +120,7 @@ test('do not pick version that does not satisfy the date requirement even if it 
 })
 
 test('should skip time field validation for excluded packages', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { time: _time, ...metaWithoutTime } = isPositiveMeta
 
   fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })

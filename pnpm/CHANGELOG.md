@@ -1,5 +1,17 @@
 # pnpm
 
+## 10.20.0
+
+### Minor Changes
+
+- Support `--all` option in `pnpm --help` to list all commands [#8628](https://github.com/pnpm/pnpm/pull/8628).
+
+### Patch Changes
+
+- When the `latest` version doesn't satisfy the maturity requirement configured by `minimumReleaseAge`, pick the highest version that is mature enough, even if it has a different major version [#10100](https://github.com/pnpm/pnpm/issues/10100).
+- `create` command should not verify patch info.
+- Set `managePackageManagerVersions` to `false`, when switching to a different version of pnpm CLI, in order to avoid subsequent switches [#10063](https://github.com/pnpm/pnpm/issues/10063).
+
 ## 10.19.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # @pnpm/config.deps-installer
 
+## 1000.0.19
+
+### Patch Changes
+
+- Updated dependencies [6c3dcb8]
+  - @pnpm/npm-resolver@1004.4.1
+  - @pnpm/package-store@1004.0.0
+
 ## 1000.0.18
 
 ### Patch Changes

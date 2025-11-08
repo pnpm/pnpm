@@ -1,4 +1,4 @@
-import * as crypto from '@pnpm/crypto.polyfill'
+import crypto from 'crypto'
 import { type DependenciesHierarchy, type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { type PackageDependencyHierarchy } from './types.js'
 

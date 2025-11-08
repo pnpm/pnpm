@@ -1,0 +1,13 @@
+diff --git a/index.js b/index.js
+index 8506b4c43670dd8ddb490001f2c2a5649b11f326..af35d94765e23a4e9b46b0e332ffd37061e05968 100644
+--- a/index.js
++++ b/index.js
+@@ -87,7 +87,7 @@ function lifecycle (pkg, stage, wd, opts) {
+           // Instead, we use the path to the exe file.
+           env.npm_execpath = process.execPath
+         } else {
+-          env.npm_execpath = require.main ? require.main.filename : process.cwd()
++          env.npm_execpath = process.argv[1] ?? process.cwd()
+         }
+         env.INIT_CWD = process.cwd()
+         env.npm_config_node_gyp = env.npm_config_node_gyp || DEFAULT_NODE_GYP_PATH

@@ -15,5 +15,5 @@ test('extract and insert JSON5 comments', () => {
     name: 'foo',
     version: '1.0.0',
     type: 'commonjs',
-}`, comments!))
+}`, comments!)).toBe(json5WithComments)
 })

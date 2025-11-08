@@ -3,17 +3,10 @@ import path from 'path'
 import fs from 'fs'
 import { Readable } from 'stream'
 import tar from 'tar-stream'
-import { globalWarn } from '@pnpm/logger'
 import { jest } from '@jest/globals'
 import { ZipFile } from 'yazl'
-import {
-  getNodeDir,
-  getNodeBinDir,
-  getNodeVersionsBaseDir,
-  type NvmNodeCommandOptions,
-  prepareExecutionEnv,
-} from '../lib/node.js'
 import { tempDir } from '@pnpm/prepare'
+import { type NvmNodeCommandOptions } from '../lib/node.js'
 
 const fetchMock = jest.fn(async (url: string) => {
   if (url.endsWith('SHASUMS256.txt')) {
@@ -50,17 +43,25 @@ a08f3386090e6511772b949d41970b75a6b71d28abb551dff9854ceb1929dae1  node-v16.4.0-w
   return new Response(Readable.from(Buffer.alloc(0)))
 })
 
-jest.mock('@pnpm/fetch', () => ({
+jest.unstable_mockModule('@pnpm/fetch', () => ({
   createFetchFromRegistry: () => fetchMock,
 }))
 
-jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual<object>('@pnpm/logger')
+const originalModule = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => {
   return {
     ...originalModule,
     globalWarn: jest.fn(),
   }
 })
+
+const { globalWarn } = await import('@pnpm/logger')
+const {
+  getNodeDir,
+  getNodeBinDir,
+  getNodeVersionsBaseDir,
+  prepareExecutionEnv,
+} = await import('../lib/node.js')
 
 beforeEach(() => {
   fetchMock.mockClear()

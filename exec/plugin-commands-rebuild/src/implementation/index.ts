@@ -32,7 +32,7 @@ import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { hardLinkDir } from '@pnpm/worker'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import runGroups from 'run-groups'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import npa from '@pnpm/npm-package-arg'
@@ -433,7 +433,7 @@ async function _rebuild (
     }
   ))
 
-  await runGroups(opts.childConcurrency || 5, groups)
+  await runGroups.default(opts.childConcurrency || 5, groups)
 
   if (builtDepPaths.size > 0) {
     // It may be optimized because some bins were already linked before running lifecycle scripts

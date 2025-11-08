@@ -32,7 +32,7 @@ it('should not allow patterns in onlyBuiltDependencies', () => {
 
 it('should onlyBuiltDependencies set via a file', () => {
   const allowBuild = createAllowBuildFunction({
-    onlyBuiltDependenciesFile: path.join(__dirname, 'onlyBuild.json'),
+    onlyBuiltDependenciesFile: path.join(import.meta.dirname, 'onlyBuild.json'),
   })
   expect(typeof allowBuild).toBe('function')
   expect(allowBuild!('zoo', '1.0.0')).toBeTruthy()
@@ -43,7 +43,7 @@ it('should onlyBuiltDependencies set via a file', () => {
 it('should onlyBuiltDependencies set via a file and config', () => {
   const allowBuild = createAllowBuildFunction({
     onlyBuiltDependencies: ['bar'],
-    onlyBuiltDependenciesFile: path.join(__dirname, 'onlyBuild.json'),
+    onlyBuiltDependenciesFile: path.join(import.meta.dirname, 'onlyBuild.json'),
   })
   expect(typeof allowBuild).toBe('function')
   expect(allowBuild!('zoo', '1.0.0')).toBeTruthy()

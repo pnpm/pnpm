@@ -36,7 +36,7 @@ test('patch from configuration dependency is applied via updateConfig hook', asy
   expect(fs.existsSync('node_modules/@pnpm.e2e/foo/index.js')).toBeTruthy()
 
   const lockfile = project.readLockfile()
-  expect(lockfile.patchedDependencies['@pnpm.e2e/foo'].path).toEqual('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo/@pnpm.e2e__foo@100.0.0.patch')
+  expect(lockfile.patchedDependencies['@pnpm.e2e/foo'].path).toBe('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo/@pnpm.e2e__foo@100.0.0.patch')
 })
 
 test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFile', async () => {
