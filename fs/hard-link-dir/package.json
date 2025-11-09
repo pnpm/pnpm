@@ -33,7 +33,9 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/graceful-fs": "workspace:*"
+    "@pnpm/graceful-fs": "workspace:*",
+    "path-temp": "catalog:",
+    "rename-overwrite": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
