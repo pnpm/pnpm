@@ -1310,7 +1310,6 @@ async function resolveDependency (
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
-      trustPolicy: ctx.trustPolicy,
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
         ? {
@@ -1337,6 +1336,7 @@ async function resolveDependency (
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
       skipFetch: ctx.dryRun,
+      trustPolicy: ctx.trustPolicy,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,

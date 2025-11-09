@@ -1,12 +1,12 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
-  type TrustPolicy,
   type Finder,
   type Project,
   type ProjectManifest,
   type ProjectsGraph,
   type Registries,
   type SslConfig,
+  type TrustPolicy,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
 import { type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'

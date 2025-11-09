@@ -1,5 +1,4 @@
 import path from 'path'
-
 import { FULL_META_DIR, FULL_FILTERED_META_DIR, ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -8,7 +7,7 @@ import {
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { type PackageMeta, type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
+import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
   type DirectoryResolution,
@@ -49,7 +48,7 @@ import {
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
-import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { pickVersionByVersionRange, assertMetaHasTime } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 
 export interface NoMatchingVersionErrorOptions {
@@ -184,11 +183,11 @@ export interface ResolveFromNpmContext {
 
 export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
-  trustPolicy?: TrustPolicy
   defaultTag?: string
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
   pickLowestVersion?: boolean
+  trustPolicy?: TrustPolicy
   dryRun?: boolean
   lockfileDir?: string
   preferredVersions?: PreferredVersions
@@ -272,17 +271,6 @@ async function resolveNpm (
   }
   const pickedPackage = pickResult.pickedPackage
   const meta = pickResult.meta
-
-  if (opts.trustPolicy === 'no-downgrade' && pickedPackage) {
-    if (!meta.time) {
-      throw new PnpmError(
-        'TRUST_CHECK_FAILED',
-        `Missing time field for trust check: ${spec.name}`
-      )
-    }
-    failIfTrustDowngraded(meta as PackageMetaWithTime, pickedPackage.version)
-  }
-
   if (pickedPackage == null) {
     if ((workspacePackages != null) && opts.projectDir) {
       try {
@@ -318,6 +306,9 @@ async function resolveNpm (
       }
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
+  } else if (opts.trustPolicy === 'no-downgrade') {
+    assertMetaHasTime(meta)
+    failIfTrustDowngraded(meta, pickedPackage.version)
   }
 
   const workspacePkgsMatchingName = workspacePackages?.get(pickedPackage.name)
