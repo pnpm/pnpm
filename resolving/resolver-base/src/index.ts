@@ -75,7 +75,6 @@ export interface ResolveResult {
   resolvedVia: string
   normalizedBareSpecifier?: string
   alias?: string
-  provenanceDowngraded?: boolean
 }
 
 export interface WorkspacePackage {

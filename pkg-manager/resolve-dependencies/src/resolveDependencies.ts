@@ -1378,17 +1378,6 @@ async function resolveDependency (
     },
   })
 
-  if (ctx.attestationCheck && pkgResponse.body.provenanceDowngraded) {
-    const pkgName = wantedDependency.alias ?? pkgResponse.body.manifest?.name ?? 'unknown'
-    const newVersion = pkgResponse.body.manifest?.version ?? 'unknown'
-
-    throw new PnpmError(
-      'ATTESTATION_DOWNGRADE',
-      `Provenance downgrade detected for package "${pkgName}@${newVersion}". ` +
-      'This version has weaker attestation than previously published versions.'
-    )
-  }
-
   if (ctx.allPreferredVersions && pkgResponse.body.manifest?.version) {
     if (!ctx.allPreferredVersions[pkgResponse.body.manifest.name]) {
       ctx.allPreferredVersions[pkgResponse.body.manifest.name] = {}

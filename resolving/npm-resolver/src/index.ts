@@ -102,7 +102,6 @@ export interface NpmResolveResult extends ResolveResult {
   manifest: DependencyManifest
   resolution: TarballResolution
   resolvedVia: 'npm-registry'
-  provenanceDowngraded?: boolean
 }
 
 export interface JsrResolveResult extends ResolveResult {
@@ -267,7 +266,6 @@ async function resolveNpm (
   const pickedPackage = pickResult.pickedPackage
   const meta = pickResult.meta
 
-  let provenanceDowngraded: boolean | undefined
   if (opts.attestationCheck && pickedPackage) {
     if (!meta.time) {
       throw new PnpmError(
@@ -275,7 +273,14 @@ async function resolveNpm (
         `Missing time field for attestation check: ${spec.name}`
       )
     }
-    provenanceDowngraded = isProvenanceDowngraded(meta as PackageMetaWithTime, pickedPackage.version)
+    const provenanceDowngraded = isProvenanceDowngraded(meta as PackageMetaWithTime, pickedPackage.version)
+    if (provenanceDowngraded) {
+      throw new PnpmError(
+        'ATTESTATION_DOWNGRADE',
+        `Provenance downgrade detected for package "${spec.name}@${pickedPackage.version}". ` +
+        'This version has weaker attestation than previously published versions.'
+      )
+    }
   }
 
   if (pickedPackage == null) {
@@ -371,7 +376,6 @@ async function resolveNpm (
     resolvedVia: 'npm-registry',
     publishedAt: meta.time?.[pickedPackage.version],
     normalizedBareSpecifier,
-    provenanceDowngraded,
   }
 }
 
