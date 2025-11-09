@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.read-manifest",
-  "version": "1000.2.5",
+  "version": "1000.2.6",
   "description": "Reads a workspace manifest file",
   "keywords": [
     "pnpm",

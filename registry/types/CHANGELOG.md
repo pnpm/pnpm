@@ -1,5 +1,18 @@
 # @pnpm/registry.types
 
+## 1000.1.0
+
+### Minor Changes
+
+- 68ad086: Added a new setting: `trustPolicy`.
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/types@1001.0.0
+
 ## 1000.0.1
 
 ### Patch Changes

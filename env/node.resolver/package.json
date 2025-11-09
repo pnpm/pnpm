@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.resolver",
-  "version": "1001.0.5",
+  "version": "1001.0.6",
   "description": "Resolves a Node.js version specifier to an exact Node.js version",
   "keywords": [
     "pnpm",

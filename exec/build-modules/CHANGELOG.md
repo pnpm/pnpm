@@ -1,5 +1,31 @@
 # @pnpm/build-modules
 
+## 1003.0.0
+
+### Major Changes
+
+- 5847af4: Replaced fetchingBundledManifest with fetching.
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [7b19077]
+- Updated dependencies [68ad086]
+- Updated dependencies [a7cf087]
+- Updated dependencies [5847af4]
+- Updated dependencies [36eb104]
+  - @pnpm/types@1001.0.0
+  - @pnpm/config@1004.5.0
+  - @pnpm/store-controller-types@1004.2.0
+  - @pnpm/fs.hard-link-dir@1000.0.3
+  - @pnpm/link-bins@1000.3.0
+  - @pnpm/lifecycle@1001.0.26
+  - @pnpm/calc-dep-state@1002.0.9
+  - @pnpm/core-loggers@1001.0.5
+  - @pnpm/read-package-json@1000.1.3
+  - @pnpm/worker@1000.3.1
+  - @pnpm/patching.apply-patch@1000.0.7
+
 ## 1002.0.0
 
 ### Minor Changes

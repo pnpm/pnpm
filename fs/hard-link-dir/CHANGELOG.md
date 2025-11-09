@@ -1,5 +1,11 @@
 # @pnpm/fs.hard-link-dir
 
+## 1000.0.3
+
+### Patch Changes
+
+- a7cf087: Don't crash when two processes of pnpm are hardlinking the contents of a directory to the same destination simultaneously [#10160](https://github.com/pnpm/pnpm/pull/10160).
+
 ## 1000.0.2
 
 ### Patch Changes

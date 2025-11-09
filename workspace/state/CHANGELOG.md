@@ -1,5 +1,17 @@
 # @pnpm/workspace.state
 
+## 1002.0.8
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [7b19077]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+- Updated dependencies [36eb104]
+  - @pnpm/types@1001.0.0
+  - @pnpm/config@1004.5.0
+
 ## 1002.0.7
 
 ### Patch Changes

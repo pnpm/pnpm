@@ -1,5 +1,28 @@
 # @pnpm/package-requester
 
+## 1008.1.0
+
+### Minor Changes
+
+- 68ad086: Added a new setting: `trustPolicy`.
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/types@1001.0.0
+  - @pnpm/store-controller-types@1004.2.0
+  - @pnpm/resolver-base@1005.2.0
+  - @pnpm/package-is-installable@1000.0.16
+  - @pnpm/fetcher-base@1001.0.3
+  - @pnpm/core-loggers@1001.0.5
+  - @pnpm/dependency-path@1001.1.4
+  - @pnpm/read-package-json@1000.1.3
+  - @pnpm/store.cafs@1000.0.20
+  - @pnpm/worker@1000.3.1
+  - @pnpm/pick-fetcher@1001.0.0
+
 ## 1008.0.0
 
 ### Minor Changes

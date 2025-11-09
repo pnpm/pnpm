@@ -1,5 +1,40 @@
 # @pnpm/headless
 
+## 1006.0.1
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/build-modules@1003.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/package-requester@1008.1.0
+  - @pnpm/store-controller-types@1004.2.0
+  - @pnpm/read-project-manifest@1001.2.0
+  - @pnpm/link-bins@1000.3.0
+  - @pnpm/builder.policy@1000.0.1
+  - @pnpm/package-is-installable@1000.0.16
+  - @pnpm/deps.graph-builder@1002.3.1
+  - @pnpm/lifecycle@1001.0.26
+  - @pnpm/symlink-dependency@1000.0.13
+  - @pnpm/lockfile.filtering@1001.0.22
+  - @pnpm/lockfile.fs@1001.1.22
+  - @pnpm/lockfile-to-pnp@1001.0.24
+  - @pnpm/lockfile.utils@1003.0.4
+  - @pnpm/calc-dep-state@1002.0.9
+  - @pnpm/core-loggers@1001.0.5
+  - @pnpm/dependency-path@1001.1.4
+  - @pnpm/hoist@1002.0.9
+  - @pnpm/modules-cleaner@1001.0.24
+  - @pnpm/modules-yaml@1000.3.7
+  - @pnpm/real-hoist@1001.0.21
+  - @pnpm/read-package-json@1000.1.3
+  - @pnpm/worker@1000.3.1
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.13
+  - @pnpm/patching.config@1001.0.12
+
 ## 1006.0.0
 
 ### Minor Changes

@@ -1,5 +1,19 @@
 # @pnpm/workspace.injected-deps-syncer
 
+## 1000.0.18
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/types@1001.0.0
+  - @pnpm/link-bins@1000.3.0
+  - @pnpm/directory-fetcher@1000.1.15
+  - @pnpm/modules-yaml@1000.3.7
+  - @pnpm/read-package-json@1000.1.3
+  - @pnpm/workspace.find-packages@1000.0.44
+
 ## 1000.0.17
 
 ### Patch Changes

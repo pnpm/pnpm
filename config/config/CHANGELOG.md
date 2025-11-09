@@ -1,5 +1,24 @@
 # @pnpm/config
 
+## 1004.5.0
+
+### Minor Changes
+
+- 7b19077: Added support for `pnpm config get globalconfig` to retrieve the global config file path [#9977](https://github.com/pnpm/pnpm/issues/9977).
+- 68ad086: Added a new setting: `trustPolicy`.
+
+### Patch Changes
+
+- 36eb104: Setting `gitBranchLockfile` and related settings via `pnpm-workspace.yaml` should work [#9651](https://github.com/pnpm/pnpm/issues/9651).
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/types@1001.0.0
+  - @pnpm/read-project-manifest@1001.2.0
+  - @pnpm/pnpmfile@1002.1.4
+  - @pnpm/workspace.read-manifest@1000.2.6
+  - @pnpm/catalogs.config@1000.0.5
+
 ## 1004.4.2
 
 ### Patch Changes

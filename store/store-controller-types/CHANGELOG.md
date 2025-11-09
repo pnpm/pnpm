@@ -1,5 +1,20 @@
 # @pnpm/store-controller-types
 
+## 1004.2.0
+
+### Minor Changes
+
+- 68ad086: Added a new setting: `trustPolicy`.
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/types@1001.0.0
+  - @pnpm/resolver-base@1005.2.0
+  - @pnpm/fetcher-base@1001.0.3
+
 ## 1004.1.0
 
 ### Minor Changes

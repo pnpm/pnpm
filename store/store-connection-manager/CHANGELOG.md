@@ -1,5 +1,22 @@
 # @pnpm/store-connection-manager
 
+## 1002.3.0
+
+### Minor Changes
+
+- 68ad086: Added a new setting: `trustPolicy`.
+
+### Patch Changes
+
+- Updated dependencies [7b19077]
+- Updated dependencies [68ad086]
+- Updated dependencies [36eb104]
+  - @pnpm/config@1004.5.0
+  - @pnpm/cli-meta@1000.0.12
+  - @pnpm/client@1001.1.5
+  - @pnpm/package-store@1004.0.1
+  - @pnpm/server@1001.0.12
+
 ## 1002.2.4
 
 ### Patch Changes

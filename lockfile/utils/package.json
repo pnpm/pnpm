@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.utils",
-  "version": "1003.0.3",
+  "version": "1003.0.4",
   "description": "Utils for dealing with pnpm-lock.yaml",
   "keywords": [
     "pnpm",

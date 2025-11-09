@@ -1,5 +1,18 @@
 # @pnpm/resolver-base
 
+## 1005.2.0
+
+### Minor Changes
+
+- 68ad086: Added a new setting: `trustPolicy`.
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/types@1001.0.0
+
 ## 1005.1.0
 
 ### Minor Changes

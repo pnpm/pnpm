@@ -1,5 +1,50 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.7.0
+
+### Minor Changes
+
+- 68ad086: Added a new setting: `trustPolicy`.
+
+### Patch Changes
+
+- 17344ca: When a user runs `pnpm update` on a dependency that is not directly listed in `package.json`, none of the direct dependencies should be updated [#10155](https://github.com/pnpm/pnpm/pull/10155).
+- Updated dependencies [5847af4]
+- Updated dependencies [5847af4]
+- Updated dependencies [7b19077]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+- Updated dependencies [5847af4]
+- Updated dependencies [36eb104]
+  - @pnpm/manifest-utils@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/config@1004.5.0
+  - @pnpm/store-connection-manager@1002.3.0
+  - @pnpm/resolver-base@1005.2.0
+  - @pnpm/core@1012.1.0
+  - @pnpm/read-project-manifest@1001.2.0
+  - @pnpm/cli-utils@1001.2.9
+  - @pnpm/outdated@1001.1.2
+  - @pnpm/config.config-writer@1000.0.15
+  - @pnpm/config.deps-installer@1000.0.20
+  - @pnpm/pick-registry-for-package@1000.0.12
+  - @pnpm/dedupe.check@1001.0.14
+  - @pnpm/deps.status@1003.0.16
+  - @pnpm/plugin-commands-env@1000.0.45
+  - @pnpm/plugin-commands-rebuild@1004.0.2
+  - @pnpm/pnpmfile@1002.1.4
+  - @pnpm/lockfile.types@1002.0.3
+  - @pnpm/get-context@1001.1.9
+  - @pnpm/read-package-json@1000.1.3
+  - @pnpm/write-project-manifest@1000.0.12
+  - @pnpm/package-store@1004.0.1
+  - @pnpm/filter-workspace-packages@1000.0.44
+  - @pnpm/workspace.find-packages@1000.0.44
+  - @pnpm/workspace.manifest-writer@1001.0.4
+  - @pnpm/workspace.pkgs-graph@1000.0.26
+  - @pnpm/sort-packages@1000.0.12
+  - @pnpm/workspace.state@1002.0.8
+
 ## 1004.6.10
 
 ### Patch Changes

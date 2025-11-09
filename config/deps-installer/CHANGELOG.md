@@ -1,5 +1,21 @@
 # @pnpm/config.deps-installer
 
+## 1000.0.20
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/types@1001.0.0
+  - @pnpm/npm-resolver@1004.5.0
+  - @pnpm/config.config-writer@1000.0.15
+  - @pnpm/pick-registry-for-package@1000.0.12
+  - @pnpm/fetch@1000.2.7
+  - @pnpm/core-loggers@1001.0.5
+  - @pnpm/read-package-json@1000.1.3
+  - @pnpm/package-store@1004.0.1
+
 ## 1000.0.19
 
 ### Patch Changes

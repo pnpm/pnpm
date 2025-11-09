@@ -1,5 +1,15 @@
 # @pnpm/hooks.types
 
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.types@1002.0.3
+
 ## 1001.0.12
 
 ### Patch Changes

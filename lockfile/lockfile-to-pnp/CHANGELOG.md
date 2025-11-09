@@ -1,5 +1,17 @@
 # @pnpm/lockfile-to-pnp
 
+## 1001.0.24
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1001.1.22
+  - @pnpm/lockfile.utils@1003.0.4
+  - @pnpm/dependency-path@1001.1.4
+
 ## 1001.0.23
 
 ### Patch Changes

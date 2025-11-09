@@ -1,5 +1,23 @@
 # @pnpm/manifest-utils
 
+## 1002.0.0
+
+### Major Changes
+
+- 5847af4: Added `@pnpm/logger` to peer dependencies.
+
+### Minor Changes
+
+- 5847af4: Added convertEnginesRuntimeToDependencies.
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/types@1001.0.0
+  - @pnpm/core-loggers@1001.0.5
+
 ## 1001.0.6
 
 ### Patch Changes

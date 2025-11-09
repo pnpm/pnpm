@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/builder.policy",
-  "version": "1000.0.0",
+  "version": "1000.0.1",
   "description": "Create a function for filtering out dependencies that are not allowed to be built",
   "keywords": [
     "pnpm",

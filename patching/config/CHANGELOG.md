@@ -1,5 +1,11 @@
 # @pnpm/patching.config
 
+## 1001.0.12
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.1.4
+
 ## 1001.0.11
 
 ### Patch Changes

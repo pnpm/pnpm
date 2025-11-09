@@ -1,5 +1,54 @@
 # @pnpm/resolve-dependencies
 
+## 1008.4.0
+
+### Minor Changes
+
+- 68ad086: Added a new setting: `trustPolicy`.
+- 5847af4: **Node.js Runtime Installation for Dependencies.** Added support for automatic Node.js runtime installation for dependencies. pnpm will now install the Node.js version required by a dependency if that dependency declares a Node.js runtime in the "engines" field. For example:
+
+  ```json
+  {
+    "engines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.11.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  If the package with the Node.js runtime dependency is a CLI app, pnpm will bind the CLI app to the required Node.js version. This ensures that, regardless of the globally installed Node.js instance, the CLI will use the compatible version of Node.js.
+
+  If the package has a `postinstall` script, that script will be executed using the specified Node.js version.
+
+  Related PR: [#10141](https://github.com/pnpm/pnpm/pull/10141)
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+- Updated dependencies [5847af4]
+  - @pnpm/manifest-utils@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/store-controller-types@1004.2.0
+  - @pnpm/resolver-base@1005.2.0
+  - @pnpm/npm-resolver@1004.5.0
+  - @pnpm/lockfile.preferred-versions@1000.0.23
+  - @pnpm/config.version-policy@1000.0.1
+  - @pnpm/lockfile.pruner@1001.0.18
+  - @pnpm/lockfile.types@1002.0.3
+  - @pnpm/lockfile.utils@1003.0.4
+  - @pnpm/calc-dep-state@1002.0.9
+  - @pnpm/core-loggers@1001.0.5
+  - @pnpm/dependency-path@1001.1.4
+  - @pnpm/read-package-json@1000.1.3
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/patching.config@1001.0.12
+
 ## 1008.3.1
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/hoist
 
+## 1002.0.9
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/types@1001.0.0
+  - @pnpm/link-bins@1000.3.0
+  - @pnpm/core-loggers@1001.0.5
+
 ## 1002.0.8
 
 ### Patch Changes

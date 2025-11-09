@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetch",
-  "version": "1000.2.6",
+  "version": "1000.2.7",
   "description": "node-fetch with retries",
   "keywords": [
     "pnpm",

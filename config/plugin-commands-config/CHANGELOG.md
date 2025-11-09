@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-config
 
+## 1000.3.0
+
+### Minor Changes
+
+- 7b19077: Added support for `pnpm config get globalconfig` to retrieve the global config file path [#9977](https://github.com/pnpm/pnpm/issues/9977).
+
+### Patch Changes
+
+- Updated dependencies [7b19077]
+- Updated dependencies [68ad086]
+- Updated dependencies [36eb104]
+  - @pnpm/config@1004.5.0
+  - @pnpm/cli-utils@1001.2.9
+  - @pnpm/workspace.manifest-writer@1001.0.4
+
 ## 1000.2.10
 
 ### Patch Changes

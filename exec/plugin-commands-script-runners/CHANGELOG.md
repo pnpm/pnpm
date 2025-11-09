@@ -1,5 +1,35 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.1.0
+
+### Minor Changes
+
+- 68ad086: Added a new setting: `trustPolicy`.
+
+### Patch Changes
+
+- Updated dependencies [17344ca]
+- Updated dependencies [5847af4]
+- Updated dependencies [7b19077]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+- Updated dependencies [36eb104]
+  - @pnpm/plugin-commands-installation@1004.7.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/config@1004.5.0
+  - @pnpm/read-project-manifest@1001.2.0
+  - @pnpm/cli-utils@1001.2.9
+  - @pnpm/deps.status@1003.0.16
+  - @pnpm/plugin-commands-env@1000.0.45
+  - @pnpm/lifecycle@1001.0.26
+  - @pnpm/core-loggers@1001.0.5
+  - @pnpm/client@1001.1.5
+  - @pnpm/package-bins@1000.0.12
+  - @pnpm/read-package-json@1000.1.3
+  - @pnpm/workspace.injected-deps-syncer@1000.0.18
+  - @pnpm/sort-packages@1000.0.12
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1001.0.15
 
 ### Patch Changes

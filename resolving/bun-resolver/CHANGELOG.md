@@ -1,5 +1,20 @@
 # @pnpm/resolving.bun-resolver
 
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [5847af4]
+- Updated dependencies [68ad086]
+- Updated dependencies [5847af4]
+  - @pnpm/types@1001.0.0
+  - @pnpm/resolver-base@1005.2.0
+  - @pnpm/npm-resolver@1004.5.0
+  - @pnpm/fetcher-base@1001.0.3
+  - @pnpm/worker@1000.3.1
+  - @pnpm/node.fetcher@1001.0.9
+  - @pnpm/fetching.binary-fetcher@1002.0.1
+
 ## 1002.0.1
 
 ### Patch Changes

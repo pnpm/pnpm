@@ -1,5 +1,43 @@
 # pnpm
 
+## 10.21.0
+
+### Minor Changes
+
+- **Node.js Runtime Installation for Dependencies.** Added support for automatic Node.js runtime installation for dependencies. pnpm will now install the Node.js version required by a dependency if that dependency declares a Node.js runtime in the "engines" field. For example:
+
+  ```json
+  {
+    "engines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.11.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  If the package with the Node.js runtime dependency is a CLI app, pnpm will bind the CLI app to the required Node.js version. This ensures that, regardless of the globally installed Node.js instance, the CLI will use the compatible version of Node.js.
+
+  If the package has a `postinstall` script, that script will be executed using the specified Node.js version.
+
+  Related PR: [#10141](https://github.com/pnpm/pnpm/pull/10141)
+
+- Added a new setting: `trustPolicy`.
+
+  When set to `no-downgrade`, pnpm will fail installation if a package’s trust level has decreased compared to previous releases — for example, if it was previously published by a trusted publisher but now only has provenance or no trust evidence.
+  This helps prevent installing potentially compromised versions of a package.
+
+  Related issue: [#8889](https://github.com/pnpm/pnpm/issues/8889).
+- Added support for `pnpm config get globalconfig` to retrieve the global config file path [#9977](https://github.com/pnpm/pnpm/issues/9977).
+
+### Patch Changes
+
+- When a user runs `pnpm update` on a dependency that is not directly listed in `package.json`, none of the direct dependencies should be updated [#10155](https://github.com/pnpm/pnpm/pull/10155).
+- Don't crash when two processes of pnpm are hardlinking the contents of a directory to the same destination simultaneously [#10160](https://github.com/pnpm/pnpm/pull/10160).
+- Setting `gitBranchLockfile` and related settings via `pnpm-workspace.yaml` should work [#9651](https://github.com/pnpm/pnpm/issues/9651).
+
 ## 10.20.0
 
 ### Minor Changes

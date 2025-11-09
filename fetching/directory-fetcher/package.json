@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/directory-fetcher",
-  "version": "1000.1.14",
+  "version": "1000.1.15",
   "description": "A fetcher for local directory packages",
   "keywords": [
     "pnpm",
