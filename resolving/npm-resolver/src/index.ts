@@ -21,7 +21,13 @@ import {
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
-import { type DependencyManifest, type Registries, type PinnedVersion, type PackageVersionPolicy } from '@pnpm/types'
+import {
+  type DependencyManifest,
+  type PackageVersionPolicy,
+  type PinnedVersion,
+  type Registries,
+  type TrustPolicy,
+} from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
@@ -178,7 +184,7 @@ export interface ResolveFromNpmContext {
 
 export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
-  attestationCheck?: boolean
+  trustPolicy?: TrustPolicy
   defaultTag?: string
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
@@ -267,11 +273,11 @@ async function resolveNpm (
   const pickedPackage = pickResult.pickedPackage
   const meta = pickResult.meta
 
-  if (opts.attestationCheck && pickedPackage) {
+  if (opts.trustPolicy === 'no-downgrade' && pickedPackage) {
     if (!meta.time) {
       throw new PnpmError(
-        'ATTESTATION_CHECK_FAILED',
-        `Missing time field for attestation check: ${spec.name}`
+        'TRUST_CHECK_FAILED',
+        `Missing time field for trust check: ${spec.name}`
       )
     }
     failIfTrustDowngraded(meta as PackageMetaWithTime, pickedPackage.version)

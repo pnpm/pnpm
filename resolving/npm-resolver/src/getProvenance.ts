@@ -8,41 +8,6 @@ const TRUST_RANK = {
   provenance: 1,
 } as const satisfies Record<TrustEvidence, number>
 
-export function getTrustEvidence (manifest: PackageInRegistry): TrustEvidence | undefined {
-  if (manifest._npmUser?.trustedPublisher) {
-    return 'trustedPublisher'
-  }
-  if (manifest.dist?.attestations?.provenance) {
-    return 'provenance'
-  }
-  return undefined
-}
-
-function detectStrongestTrustEvidenceBeforeDate (
-  meta: PackageMetaWithTime,
-  beforeDate: Date
-): TrustEvidence | undefined {
-  let best: TrustEvidence | undefined
-
-  for (const [version, manifest] of Object.entries(meta.versions)) {
-    const ts = meta.time[version]
-    if (!ts) continue
-
-    const publishedAt = new Date(ts)
-    if (!(publishedAt < beforeDate)) continue
-
-    const trustEvidence = getTrustEvidence(manifest)
-    if (!trustEvidence) continue
-
-    if (trustEvidence === 'trustedPublisher') {
-      return 'trustedPublisher'
-    }
-    best ||= 'provenance'
-  }
-
-  return best
-}
-
 export function failIfTrustDowngraded (
   meta: PackageMetaWithTime,
   version: string
@@ -89,4 +54,39 @@ function prettyPrintTrustEvidence (trustEvidence: TrustEvidence | undefined): st
   case 'provenance': return 'provenance attestation'
   default: return 'no trust evidence'
   }
+}
+
+function detectStrongestTrustEvidenceBeforeDate (
+  meta: PackageMetaWithTime,
+  beforeDate: Date
+): TrustEvidence | undefined {
+  let best: TrustEvidence | undefined
+
+  for (const [version, manifest] of Object.entries(meta.versions)) {
+    const ts = meta.time[version]
+    if (!ts) continue
+
+    const publishedAt = new Date(ts)
+    if (!(publishedAt < beforeDate)) continue
+
+    const trustEvidence = getTrustEvidence(manifest)
+    if (!trustEvidence) continue
+
+    if (trustEvidence === 'trustedPublisher') {
+      return 'trustedPublisher'
+    }
+    best ||= 'provenance'
+  }
+
+  return best
+}
+
+export function getTrustEvidence (manifest: PackageInRegistry): TrustEvidence | undefined {
+  if (manifest._npmUser?.trustedPublisher) {
+    return 'trustedPublisher'
+  }
+  if (manifest.dist?.attestations?.provenance) {
+    return 'provenance'
+  }
+  return undefined
 }

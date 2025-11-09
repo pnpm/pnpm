@@ -40,6 +40,7 @@ import {
   type PkgIdWithPatchHash,
   type PinnedVersion,
   type PackageVersionPolicy,
+  type TrustPolicy,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
@@ -180,7 +181,7 @@ export interface ResolutionContext {
   hoistPeers?: boolean
   maximumPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
-  attestationCheck?: boolean
+  trustPolicy?: TrustPolicy
 }
 
 export interface MissingPeerInfo {
@@ -1309,7 +1310,7 @@ async function resolveDependency (
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
-      attestationCheck: ctx.attestationCheck,
+      trustPolicy: ctx.trustPolicy,
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
         ? {

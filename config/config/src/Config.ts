@@ -1,5 +1,6 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
+  type TrustPolicy,
   type Finder,
   type Project,
   type ProjectManifest,
@@ -233,7 +234,7 @@ export interface Config extends OptionsFromRootManifest {
   minimumReleaseAgeExclude?: string[]
   fetchWarnTimeoutMs?: number
   fetchMinSpeedKiBps?: number
-  attestationCheck?: boolean
+  trustPolicy?: TrustPolicy
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
