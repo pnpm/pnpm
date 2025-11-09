@@ -388,6 +388,6 @@ describe('isProvenanceDowngraded', () => {
         '1.0.0': '2025-01-01T00:00:00.000Z',
       },
     }
-    expect(isProvenanceDowngraded(meta, '2.0.0')).toBe(false)
+    expect(isProvenanceDowngraded(meta, '2.0.0')).toBeUndefined()
   })
 })

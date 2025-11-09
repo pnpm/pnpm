@@ -47,16 +47,16 @@ function getHighestProvenanceBeforeDate (
 export function isProvenanceDowngraded (
   meta: PackageMeta,
   version: string
-): boolean {
+): boolean | undefined {
   const versionPublishedAt = meta.time?.[version]
   if (!versionPublishedAt) {
-    return false
+    return undefined
   }
 
   const versionDate = new Date(versionPublishedAt)
   const manifest = meta.versions[version]
   if (!manifest) {
-    return false
+    return undefined
   }
 
   const highestBefore = getHighestProvenanceBeforeDate(meta, versionDate)
