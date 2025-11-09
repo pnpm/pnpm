@@ -107,6 +107,7 @@ export interface PreferredVersions {
 
 export interface ResolveOptions {
   alwaysTryWorkspacePackages?: boolean
+  attestationCheck?: boolean
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date

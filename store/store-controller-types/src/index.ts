@@ -106,6 +106,7 @@ export type RequestPackageFunction = (
 
 export interface RequestPackageOptions {
   alwaysTryWorkspacePackages?: boolean
+  attestationCheck?: boolean
   currentPkg?: {
     id?: PkgResolutionId
     name?: string

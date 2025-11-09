@@ -209,6 +209,7 @@ async function resolveAndFetch (
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
+      attestationCheck: options.attestationCheck,
       publishedBy: options.publishedBy,
       publishedByExclude: options.publishedByExclude,
       pickLowestVersion: options.pickLowestVersion,
