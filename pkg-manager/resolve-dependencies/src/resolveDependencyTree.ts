@@ -18,6 +18,7 @@ import {
   type Registries,
   type ProjectRootDir,
   type PackageVersionPolicy,
+  type TrustPolicy,
 } from '@pnpm/types'
 import partition from 'ramda/src/partition'
 import zipObj from 'ramda/src/zipObj'
@@ -138,6 +139,7 @@ export interface ResolveDependenciesOptions {
   peersSuffixMaxLength: number
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  trustPolicy?: TrustPolicy
 }
 
 export interface ResolveDependencyTreeResult {
@@ -200,6 +202,7 @@ export async function resolveDependencyTree<T> (
     allPeerDepNames: new Set(),
     maximumPublishedBy: opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined,
     publishedByExclude: opts.minimumReleaseAgeExclude ? createPublishedByExclude(opts.minimumReleaseAgeExclude) : undefined,
+    trustPolicy: opts.trustPolicy,
   }
 
   function createPublishedByExclude (patterns: string[]): PackageVersionPolicy {

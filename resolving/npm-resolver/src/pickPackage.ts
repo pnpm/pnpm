@@ -262,6 +262,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
       'bundleDependencies',
       'bundledDependencies',
       'hasInstallScript',
+      '_npmUser',
     ], info)
   }
 
