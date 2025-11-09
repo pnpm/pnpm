@@ -1,5 +1,5 @@
 import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
-import { getTrustEvidence, failIfTrustDowngraded } from '../src/getProvenance.js'
+import { getTrustEvidence, failIfTrustDowngraded } from '../src/trustChecks.js'
 
 describe('getTrustEvidence', () => {
   test('returns "trustedPublisher" when _npmUser.trustedPublisher exists', () => {

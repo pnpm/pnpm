@@ -50,7 +50,7 @@ import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOption
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
-import { failIfTrustDowngraded } from './getProvenance.js'
+import { failIfTrustDowngraded } from './trustChecks.js'
 
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
