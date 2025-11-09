@@ -1,4 +1,4 @@
-import { type PackageInRegistry, type PackageMeta } from '@pnpm/registry.types'
+import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
 import { getProvenance, isProvenanceDowngraded } from '../src/getProvenance.js'
 
 describe('getProvenance', () => {
@@ -95,7 +95,7 @@ describe('getProvenance', () => {
 
 describe('isProvenanceDowngraded', () => {
   test('returns false when no versions have attestation', () => {
-    const meta: PackageMeta = {
+    const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '2.0.0' },
       versions: {
@@ -125,7 +125,7 @@ describe('isProvenanceDowngraded', () => {
   })
 
   test('returns false for versions published before first attested version', () => {
-    const meta: PackageMeta = {
+    const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '2.0.0' },
       versions: {
@@ -160,7 +160,7 @@ describe('isProvenanceDowngraded', () => {
   })
 
   test('returns true when downgrading from provenance to none', () => {
-    const meta: PackageMeta = {
+    const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '3.0.0' },
       versions: {
@@ -204,7 +204,7 @@ describe('isProvenanceDowngraded', () => {
   })
 
   test('returns true when downgrading from trustedPublisher to provenance', () => {
-    const meta: PackageMeta = {
+    const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '3.0.0' },
       versions: {
@@ -256,7 +256,7 @@ describe('isProvenanceDowngraded', () => {
   })
 
   test('returns true when downgrading from trustedPublisher to none', () => {
-    const meta: PackageMeta = {
+    const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '3.0.0' },
       versions: {
@@ -303,7 +303,7 @@ describe('isProvenanceDowngraded', () => {
   })
 
   test('returns false when maintaining same provenance level', () => {
-    const meta: PackageMeta = {
+    const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '3.0.0' },
       versions: {
@@ -358,7 +358,7 @@ describe('isProvenanceDowngraded', () => {
   })
 
   test('returns false when version time is missing', () => {
-    const meta: PackageMeta = {
+    const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '2.0.0' },
       versions: {
