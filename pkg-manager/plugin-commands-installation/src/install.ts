@@ -205,7 +205,7 @@ by any dependencies, so it is an emulation of a flat node_modules',
             name: '--strict-peer-dependencies',
           },
           {
-            description: 'Fail when package provenance is downgraded (e.g., from trusted publisher to standard provenance or no provenance)',
+            description: "Fail when a package's trust level is downgraded (e.g., from a trusted publisher to provenance only or no trust evidence)",
             name: '--trust-policy no-downgrade',
           },
           {

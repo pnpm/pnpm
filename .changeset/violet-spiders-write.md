@@ -1,14 +1,10 @@
 ---
-"@pnpm/plugin-commands-installation": minor
-"@pnpm/resolve-dependencies": minor
-"@pnpm/package-requester": minor
-"@pnpm/store-controller-types": minor
-"@pnpm/resolver-base": minor
-"@pnpm/npm-resolver": minor
-"@pnpm/core": minor
-"@pnpm/registry.types": minor
-"@pnpm/config": minor
 "pnpm": minor
 ---
 
-Added support for npm package attestation check [#8889](https://github.com/pnpm/pnpm/issues/8889).
+Added a new setting: `trustPolicy`.
+
+When set to `no-downgrade`, pnpm will fail installation if a package’s trust level has decreased compared to previous releases — for example, if it was previously published by a trusted publisher but now only has provenance or no trust evidence.
+This helps prevent installing potentially compromised versions of a package.
+
+Related issue: [#8889](https://github.com/pnpm/pnpm/issues/8889).
