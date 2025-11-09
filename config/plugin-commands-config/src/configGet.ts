@@ -40,7 +40,8 @@ function getRcConfig (rawConfig: Record<string, unknown>, key: string, isScopedK
     return { value }
   }
   if (isStrictlyKebabCase(key)) {
-    return { value: undefined }
+    const value = rawConfig[key]
+    return { value }
   }
   return undefined
 }
