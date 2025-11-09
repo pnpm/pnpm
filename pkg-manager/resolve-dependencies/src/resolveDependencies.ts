@@ -40,6 +40,7 @@ import {
   type PkgIdWithPatchHash,
   type PinnedVersion,
   type PackageVersionPolicy,
+  type TrustPolicy,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
@@ -180,6 +181,7 @@ export interface ResolutionContext {
   hoistPeers?: boolean
   maximumPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
+  trustPolicy?: TrustPolicy
 }
 
 export interface MissingPeerInfo {
@@ -1334,6 +1336,7 @@ async function resolveDependency (
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
       skipFetch: ctx.dryRun,
+      trustPolicy: ctx.trustPolicy,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,

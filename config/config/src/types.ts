@@ -1,4 +1,5 @@
 import npmTypes from '@pnpm/npm-conf/lib/types.js'
+import { type TrustPolicy } from '@pnpm/types'
 
 export const types = Object.assign({
   'auto-install-peers': Boolean,
@@ -113,6 +114,7 @@ export const types = Object.assign({
   'strict-dep-builds': Boolean,
   'strict-store-pkg-content-check': Boolean,
   'strict-peer-dependencies': Boolean,
+  'trust-policy': ['off', 'no-downgrade'] satisfies TrustPolicy[],
   'use-beta-cli': Boolean,
   'use-node-version': String,
   'use-running-store-server': Boolean,

@@ -93,7 +93,7 @@ export function pickPackageFromMeta (
   }
 }
 
-function assertMetaHasTime (meta: PackageMeta): asserts meta is PackageMetaWithTime {
+export function assertMetaHasTime (meta: PackageMeta): asserts meta is PackageMetaWithTime {
   if (meta.time == null) {
     throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
   }
