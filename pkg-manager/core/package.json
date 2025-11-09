@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/core",
-  "version": "1011.0.0",
+  "version": "1012.0.1",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -28,12 +28,12 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/core",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/core#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -50,14 +50,14 @@
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test-with-preview": "preview && pnpm run test:e2e",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 jest",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
-    "@pnpm/builder.policy": "catalog:",
+    "@pnpm/builder.policy": "workspace:*",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/catalogs.protocol-parser": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
@@ -126,6 +126,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/core": "workspace:*",
+    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
@@ -159,7 +160,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

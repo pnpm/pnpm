@@ -20,7 +20,7 @@ const CREDENTIALS = [
   `--//localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}`,
   `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
 ]
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('publish: package with package.json', async () => {
   prepare({
@@ -230,7 +230,7 @@ test('publish: package with all possible fields in publishConfig', async () => {
   }, [])
 
   const { default: originalManifests } = await import(path.resolve('package.json'))
-  expect(originalManifests).toStrictEqual({
+  expect(originalManifests).toEqual({
     name: 'test-publish-config',
     version: '1.0.0',
 
@@ -259,7 +259,7 @@ test('publish: package with all possible fields in publishConfig', async () => {
   crossSpawn.sync(pnpmBin, ['add', 'test-publish-config', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   const { default: publishedManifest } = await import(path.resolve('node_modules/test-publish-config/package.json'))
-  expect(publishedManifest).toStrictEqual({
+  expect(publishedManifest).toEqual({
     name: 'test-publish-config',
     version: '1.0.0',
 
@@ -325,7 +325,7 @@ test('publish: package with publishConfig.directory', async () => {
   crossSpawn.sync(pnpmBin, ['add', 'publish_config_directory_dist_package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   expect(JSON.parse(fs.readFileSync('node_modules/publish_config_directory_dist_package/package.json', { encoding: 'utf-8' })))
-    .toStrictEqual({
+    .toEqual({
       name: 'publish_config_directory_dist_package',
       version: '1.0.0',
     })
@@ -504,7 +504,7 @@ test.skip('convert specs with workspace protocols to regular version ranges', as
   crossSpawn.sync(pnpmBin, ['add', '--store-dir=store', 'workspace-protocol-package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   const { default: publishedManifest } = await import(path.resolve('node_modules/workspace-protocol-package/package.json'))
-  expect(publishedManifest.dependencies).toStrictEqual({
+  expect(publishedManifest.dependencies).toEqual({
     'file-type': '12.0.1',
     'is-negative': '1.0.0',
     'is-positive': '1.0.0',
@@ -514,15 +514,15 @@ test.skip('convert specs with workspace protocols to regular version ranges', as
     rd: 'npm:ramda@^0.1.0',
     'word-wrap': '~0.1.0',
   })
-  expect(publishedManifest.devDependencies).toStrictEqual({
+  expect(publishedManifest.devDependencies).toEqual({
     'random-package': '^1.2.3',
     through: '^0.0.1',
   })
-  expect(publishedManifest.optionalDependencies).toStrictEqual({
+  expect(publishedManifest.optionalDependencies).toEqual({
     'lodash.deburr': '^4.1.0',
     ww: 'npm:wordwrap@~0.0.1',
   })
-  expect(publishedManifest.peerDependencies).toStrictEqual({
+  expect(publishedManifest.peerDependencies).toEqual({
     'random-package': '1.2.3',
   })
 })
@@ -597,19 +597,19 @@ test.skip('convert specs with relative workspace protocols to regular version ra
   ])
 
   const { default: publishedManifest } = await import(path.resolve('node_modules/relative-workspace-protocol-package/package.json'))
-  expect(publishedManifest.dependencies).toStrictEqual({
+  expect(publishedManifest.dependencies).toEqual({
     'file-type': '12.0.1',
     'is-neg': 'npm:is-negative@1.0.0',
     'is-positive': '1.0.0',
     'lodash.delay': '~4.1.0',
   })
-  expect(publishedManifest.devDependencies).toStrictEqual({
+  expect(publishedManifest.devDependencies).toEqual({
     'random-package': '1.2.3',
   })
-  expect(publishedManifest.optionalDependencies).toStrictEqual({
+  expect(publishedManifest.optionalDependencies).toEqual({
     'lodash.deburr': '4.1.0',
   })
-  expect(publishedManifest.peerDependencies).toStrictEqual({
+  expect(publishedManifest.peerDependencies).toEqual({
     'random-package': '1.2.3',
   })
 })
@@ -666,10 +666,10 @@ describe('catalog protocol converted when publishing', () => {
     ])
 
     const { default: publishedManifest } = await import(path.resolve(`node_modules/${testPackageName}/package.json`))
-    expect(publishedManifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
-    expect(publishedManifest.devDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
-    expect(publishedManifest.optionalDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
-    expect(publishedManifest.peerDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.dependencies).toEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.devDependencies).toEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.optionalDependencies).toEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.peerDependencies).toEqual({ 'is-positive': '1.0.0' })
   })
 
   test('named catalog', async () => {
@@ -728,10 +728,10 @@ describe('catalog protocol converted when publishing', () => {
     ])
 
     const { default: publishedManifest } = await import(path.resolve(`node_modules/${testPackageName}/package.json`))
-    expect(publishedManifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
-    expect(publishedManifest.devDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
-    expect(publishedManifest.optionalDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
-    expect(publishedManifest.peerDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.dependencies).toEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.devDependencies).toEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.optionalDependencies).toEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.peerDependencies).toEqual({ 'is-positive': '1.0.0' })
   })
 })
 
@@ -867,7 +867,7 @@ test('publish: use basic token helper for authentication', async () => {
     ? 'tokenHelperBasic.bat'
     : 'tokenHelperBasic.js'
 
-  const tokenHelper = path.join(__dirname, 'utils', file)
+  const tokenHelper = path.join(import.meta.dirname, 'utils', file)
 
   fs.chmodSync(tokenHelper, 0o755)
 
@@ -895,7 +895,7 @@ test('publish: use bearer token helper for authentication', async () => {
   const file = os === 'win32'
     ? 'tokenHelperBearer.bat'
     : 'tokenHelperBearer.js'
-  const tokenHelper = path.join(__dirname, 'utils', file)
+  const tokenHelper = path.join(import.meta.dirname, 'utils', file)
 
   fs.chmodSync(tokenHelper, 0o755)
 

@@ -21,7 +21,7 @@ const UNSAVED_DEPENDENCIES = chalk.cyanBright('not saved (you should add these d
 const highlighted = chalk.bold
 const boldHighlighted = highlighted.underline
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const fixture = f.find('fixture')
 const fixtureWithNoPkgNameAndNoVersion = f.find('fixture-with-no-pkg-name-and-no-version')
 const fixtureWithNoPkgVersion = f.find('fixture-with-no-pkg-version')

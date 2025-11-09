@@ -54,11 +54,11 @@ export function help (): string {
             shortAlias: '-g',
           },
           {
-            description: 'When set to "project", the .npmrc file at the nearest package.json will be used. If no .npmrc file is present in the directory, the setting will be written to a pnpm-workspace.yaml file.',
+            description: 'When set to "project", the pnpm-workspace.yaml file will be used if it exists. If only .npmrc exists, it will be used. If neither exists, a pnpm-workspace.yaml file will be created.',
             name: '--location <project|global>',
           },
           {
-            description: 'Show all the config settings in JSON format',
+            description: 'Show all types of values in JSON format (not just objects and arrays)',
             name: '--json',
           },
         ],
@@ -68,9 +68,9 @@ export function help (): string {
     usages: [
       'pnpm config set <key> <value>',
       'pnpm config get <key>',
+      'pnpm config get --json <key>',
       'pnpm config delete <key>',
       'pnpm config list',
-      'pnpm config list --json',
     ],
   })
 }

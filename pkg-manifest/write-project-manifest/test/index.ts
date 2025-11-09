@@ -3,12 +3,12 @@ import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 const readFile = promisify(fs.readFile)
 
 test('writeProjectManifest()', async () => {
-  const dir = tempy.directory()
+  const dir = temporaryDirectory()
 
   await writeProjectManifest(path.join(dir, 'package.json'), { name: 'foo', version: '1.0.0' })
   expect(await readFile(path.join(dir, 'package.json'), 'utf8')).toBe('{\n\t"name": "foo",\n\t"version": "1.0.0"\n}\n')

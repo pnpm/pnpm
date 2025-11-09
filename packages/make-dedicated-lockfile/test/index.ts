@@ -1,18 +1,18 @@
-import fs from 'fs'
 import path from 'path'
 import execa from 'execa'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { makeDedicatedLockfile } from '../lib/index.js'
 
-const f = fixtures(__dirname)
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const f = fixtures(import.meta.dirname)
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('makeDedicatedLockfile()', async () => {
   const tmp = f.prepare('fixture')
-  fs.writeFileSync('.npmrc', 'store-dir=store\ncache-dir=cache', 'utf8')
   await execa('node', [
     pnpmBin,
+    '--config.store-dir=store',
+    '--config.cache-dir=cache',
     'install',
     '--no-frozen-lockfile',
     '--no-prefer-frozen-lockfile',

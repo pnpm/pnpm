@@ -18,6 +18,7 @@ import {
   type DependencyManifest,
   type PackageManifest,
   type PinnedVersion,
+  type PackageVersionPolicy,
 } from '@pnpm/types'
 
 export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync }
@@ -118,6 +119,7 @@ export interface RequestPackageOptions {
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
   downloadPriority: number
   ignoreScripts?: boolean
   projectDir: string

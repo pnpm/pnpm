@@ -15,7 +15,7 @@ import {
 } from '@pnpm/store-controller-types'
 import memoize from 'mem'
 import pathTemp from 'path-temp'
-import mapValues from 'ramda/src/map'
+import { map as mapValues } from 'ramda'
 
 export { type CafsLocker }
 

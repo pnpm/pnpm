@@ -10,7 +10,7 @@ import {
   type ProjectManifest,
   type ProjectRootDir,
 } from '@pnpm/types'
-import unnest from 'ramda/src/unnest'
+import { unnest } from 'ramda'
 import { createManifestGetter, type ManifestGetterOptions } from './createManifestGetter.js'
 import { outdated, type OutdatedPackage } from './outdated.js'
 

@@ -5,7 +5,7 @@ import { type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import writeYamlFile from 'write-yaml-file'
-import equals from 'ramda/src/equals'
+import { equals } from 'ramda'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import {
   type Project,

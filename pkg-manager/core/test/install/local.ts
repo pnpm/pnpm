@@ -20,7 +20,7 @@ import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('scoped modules from a directory', async () => {
   const project = prepareEmpty()
@@ -237,7 +237,7 @@ test('update tarball local package when its integrity changes', async () => {
   const lockfile2 = project.readLockfile()
   expect(lockfile2.snapshots['tar-pkg-with-dep@file:../tar.tgz'].dependencies!['is-positive']).toBe('2.0.0')
 
-  const manifestOfTarballDep = await import(path.resolve('node_modules/tar-pkg-with-dep/package.json'))
+  const { default: manifestOfTarballDep } = await import(path.resolve('node_modules/tar-pkg-with-dep/package.json'))
   expect(manifestOfTarballDep.dependencies['is-positive']).toBe('^2.0.0')
 })
 

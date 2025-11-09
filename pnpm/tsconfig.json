@@ -4,7 +4,6 @@
     "composite": true,
     "outDir": "lib",
     "rootDir": "src",
-    "suppressImplicitAnyIndexErrors": true,
     "ignoreDeprecations": "5.0"
   },
   "include": [
@@ -74,6 +73,9 @@
     },
     {
       "path": "../exec/run-npm"
+    },
+    {
+      "path": "../fs/v8-file"
     },
     {
       "path": "../lockfile/plugin-commands-audit"

@@ -43,6 +43,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
     env: {
       ...process.env,
       [pnpmEnv.name]: pnpmEnv.value,
+      npm_config_manage_package_manager_versions: 'false',
     },
   })
 

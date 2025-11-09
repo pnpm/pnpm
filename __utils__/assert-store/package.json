@@ -1,11 +1,12 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "1000.0.2",
+  "version": "1000.0.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "main": "lib/index.js",
+  "type": "module",
   "types": "lib/index.d.ts",
   "files": [
     "lib/"

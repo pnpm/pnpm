@@ -1,5 +1,6 @@
-const path = require('path')
-const fs = require('fs')
+import { fileURLToPath } from 'url'
+import path from 'path'
+import fs from 'fs'
 
 const platform = process.platform === 'win32'
   ? 'win'
@@ -9,7 +10,7 @@ const platform = process.platform === 'win32'
 const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
 
 const pkgName = `@pnpm/${platform}-${arch}`
-const pkgJson = require.resolve(`${pkgName}/package.json`)
+const pkgJson = fileURLToPath(import.meta.resolve(`${pkgName}/package.json`))
 const subpkg = JSON.parse(fs.readFileSync(pkgJson, 'utf8'))
 
 if (subpkg.bin != null) {

@@ -7,8 +7,8 @@ import {
 } from '@pnpm/lockfile.walker'
 import { type DepTypes, DepType, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { type SupportedArchitectures, type DependenciesField, type ProjectId, type Registries } from '@pnpm/types'
+import { map as mapValues } from 'ramda'
 import { getPkgInfo } from './getPkgInfo.js'
-import mapValues from 'ramda/src/map'
 
 export interface LicenseNode {
   name?: string

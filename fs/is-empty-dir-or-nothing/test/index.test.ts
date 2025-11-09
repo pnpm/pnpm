@@ -6,7 +6,7 @@ import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 describe('isEmptyDirOrNothing', () => {
   it('should return true on a non-existent path', () => {
     const nonExistentPath = path.resolve(
-      __dirname,
+      import.meta.dirname,
       './__fixtures__/not-exists'
     )
     const result = isEmptyDirOrNothing(nonExistentPath)
@@ -21,7 +21,7 @@ describe('isEmptyDirOrNothing', () => {
 
   it('should return false on a directory with a file in it', () => {
     const dirWithFilesPath = path.resolve(
-      __dirname,
+      import.meta.dirname,
       './__fixtures__/dir-with-files'
     )
     const result = isEmptyDirOrNothing(dirWithFilesPath)
@@ -30,7 +30,7 @@ describe('isEmptyDirOrNothing', () => {
 
   it('should return false on a directory with a directory', () => {
     const dirWithFilesPath = path.resolve(
-      __dirname,
+      import.meta.dirname,
       './__fixtures__/dir-with-dirs'
     )
     const result = isEmptyDirOrNothing(dirWithFilesPath)

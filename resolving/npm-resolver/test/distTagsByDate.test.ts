@@ -2,7 +2,7 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
 import { type Registries } from '@pnpm/types'
 import nock from 'nock'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 const registries: Registries = {
   default: 'https://registry.npmjs.org/',
@@ -65,7 +65,7 @@ test('repopulate dist-tag to highest same-major version within the date cutoff',
     .get(`/${name}`)
     .reply(200, meta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
@@ -124,7 +124,7 @@ test('repopulate dist-tag to highest same-major version within the date cutoff. 
     .get(`/${name}`)
     .reply(200, meta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
@@ -182,7 +182,7 @@ test('repopulate dist-tag to highest non-prerelease same-major version within th
     .get(`/${name}`)
     .reply(200, meta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
@@ -246,7 +246,7 @@ test('repopulate dist-tag to highest prerelease same-major version within the da
     .get(`/${name}`)
     .reply(200, meta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
@@ -281,7 +281,7 @@ test('keep dist-tag if original version is within the date cutoff', async () => 
     .get(`/${name}`)
     .reply(200, meta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,

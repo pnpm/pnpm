@@ -11,9 +11,9 @@ import { hardLinkDir } from '@pnpm/worker'
 import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import { type DependencyManifest } from '@pnpm/types'
+import { type AllowBuild, type DependencyManifest } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
-import pickBy from 'ramda/src/pickBy'
+import { pickBy } from 'ramda'
 import runGroups from 'run-groups'
 import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence.js'
 
@@ -23,7 +23,7 @@ export async function buildModules<T extends string> (
   depGraph: DependenciesGraph<T>,
   rootDepPaths: T[],
   opts: {
-    allowBuild?: (pkgName: string) => boolean
+    allowBuild?: AllowBuild
     ignorePatchFailures?: boolean
     ignoredBuiltDependencies?: string[]
     childConcurrency?: number
@@ -76,7 +76,7 @@ export async function buildModules<T extends string> (
       () => {
         let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
         if (!ignoreScripts) {
-          if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name)) {
+          if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name, depGraph[depPath].version)) {
             ignoredPkgs.add(depGraph[depPath].name)
             ignoreScripts = true
           }
@@ -88,7 +88,7 @@ export async function buildModules<T extends string> (
       }
     )
   })
-  await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)
+  await runGroups.default(getWorkspaceConcurrency(opts.childConcurrency), groups)
   if (opts.ignoredBuiltDependencies?.length) {
     for (const ignoredBuild of opts.ignoredBuiltDependencies) {
       // We already ignore the build of this dependency.
@@ -252,7 +252,7 @@ export async function linkBinsOfDependencies<T extends string> (
   const pkgs = await Promise.all(pkgNodes
     .map(async (dep) => ({
       location: dep.dir,
-      manifest: await dep.fetchingBundledManifest?.() ?? (await safeReadPackageJsonFromDir(dep.dir) as DependencyManifest) ?? {},
+      manifest: (await dep.fetching?.())?.bundledManifest ?? (await safeReadPackageJsonFromDir(dep.dir) as DependencyManifest) ?? {},
     }))
   )
 

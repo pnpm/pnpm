@@ -1,7 +1,7 @@
 import escapeStringRegexp from 'escape-string-regexp'
 
-type Matcher = (input: string) => boolean
-type MatcherWithIndex = (input: string) => number
+export type Matcher = (input: string) => boolean
+export type MatcherWithIndex = (input: string) => number
 
 export function createMatcher (patterns: string[] | string): Matcher {
   const m = createMatcherWithIndex(Array.isArray(patterns) ? patterns : [patterns])

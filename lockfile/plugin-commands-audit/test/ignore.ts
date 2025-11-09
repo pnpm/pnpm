@@ -5,7 +5,7 @@ import nock from 'nock'
 import { sync as readYamlFile } from 'read-yaml-file'
 import * as responses from './utils/responses/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const registries = {
   default: 'https://registry.npmjs.org/',
 }

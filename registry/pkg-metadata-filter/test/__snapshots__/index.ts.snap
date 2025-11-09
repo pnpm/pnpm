@@ -41,3 +41,26 @@ exports[`filterPkgMetadataByPublishDate 1`] = `
   },
 }
 `;
+
+exports[`filterPkgMetadataByPublishDate 2`] = `
+{
+  "dist-tags": {
+    "latest": "2.9.9",
+  },
+  "name": "dist-tag-date",
+  "time": {
+    "2.9.9": "2020-03-01T00:00:00.000Z",
+    "3.0.0": "2020-05-01T00:00:00.000Z",
+  },
+  "versions": {
+    "2.9.9": {
+      "dist": {
+        "shasum": "",
+        "tarball": "https://registry.npmjs.org/dist-tag-date/-/dist-tag-date-2.9.9.tgz",
+      },
+      "name": "dist-tag-date",
+      "version": "2.9.9",
+    },
+  },
+}
+`;

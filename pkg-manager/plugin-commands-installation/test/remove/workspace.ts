@@ -51,16 +51,16 @@ test('remove --filter only changes the specified dependency, when run with link-
 
   // project-1 should be unchanged
   {
-    const pkg = await import(path.resolve('project-1/package.json'))
-    expect(pkg?.dependencies).toStrictEqual({
+    const { default: pkg } = await import(path.resolve('project-1/package.json'))
+    expect(pkg?.dependencies).toEqual({
       'is-negative': '1.0.0',
     })
   }
 
   // project-2 has the is-negative dependency removed
   {
-    const pkg = await import(path.resolve('project-2/package.json'))
-    expect(pkg?.dependencies).toStrictEqual({
+    const { default: pkg } = await import(path.resolve('project-2/package.json'))
+    expect(pkg?.dependencies).toEqual({
       'project-1': '1.0.0',
     })
   }
@@ -131,16 +131,16 @@ test('remove from within a workspace package dir only affects the specified depe
 
   // project-1 should be unchanged
   {
-    const pkg = await import(path.resolve('project-1/package.json'))
-    expect(pkg?.dependencies).toStrictEqual({
+    const { default: pkg } = await import(path.resolve('project-1/package.json'))
+    expect(pkg?.dependencies).toEqual({
       'is-negative': '1.0.0',
     })
   }
 
   // project-2 has the is-negative dependency removed
   {
-    const pkg = await import(path.resolve('project-2/package.json'))
-    expect(pkg?.dependencies).toStrictEqual({
+    const { default: pkg } = await import(path.resolve('project-2/package.json'))
+    expect(pkg?.dependencies).toEqual({
       'project-1': '1.0.0',
     })
   }

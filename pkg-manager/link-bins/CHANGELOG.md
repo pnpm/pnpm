@@ -1,5 +1,23 @@
 # @pnpm/link-bins
 
+## 1000.2.6
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/package-bins@1000.0.11
+  - @pnpm/manifest-utils@1001.0.6
+  - @pnpm/read-package-json@1000.1.2
+  - @pnpm/read-project-manifest@1001.1.4
+
+## 1000.2.5
+
+### Patch Changes
+
+- a8797c4: Fixed EISDIR error when bin field points to a directory [#9441](https://github.com/pnpm/pnpm/issues/9441).
+
 ## 1000.2.4
 
 ### Patch Changes

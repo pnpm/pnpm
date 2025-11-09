@@ -9,7 +9,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 const has2OutdatedDepsFixture = f.find('has-2-outdated-deps')
 const hasOutdatedDepsFixtureAndExternalLockfile = path.join(f.find('has-outdated-deps-and-external-shrinkwrap'), 'pkg')
@@ -19,6 +19,7 @@ const hasNoLockfileFixture = f.find('has-no-lockfile')
 const withPnpmUpdateIgnore = f.find('with-pnpm-update-ignore')
 const hasOutdatedDepsUsingCatalogProtocol = f.find('has-outdated-deps-using-catalog-protocol')
 const hasOutdatedDepsUsingNpmAlias = f.find('has-outdated-deps-using-npm-alias')
+const hasOnlyDeprecatedDepsFixture = f.find('has-only-deprecated-deps')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -457,5 +458,31 @@ test('pnpm outdated: support --sortField option', async () => {
 ├──────────────────────┼──────────────────────┼────────────┤
 │ is-positive (dev)    │ 1.0.0 (wanted 3.1.0) │ 3.1.0      │
 └──────────────────────┴──────────────────────┴────────────┘
+`)
+})
+
+test('pnpm outdated --long with only deprecated packages', async () => {
+  tempDir()
+
+  fs.mkdirSync(path.resolve('node_modules/.pnpm'), { recursive: true })
+  fs.copyFileSync(path.join(hasOnlyDeprecatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  fs.copyFileSync(path.join(hasOnlyDeprecatedDepsFixture, 'package.json'), path.resolve('package.json'))
+
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+    long: true,
+  })
+
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
+┌──────────────────────┬─────────┬────────────┬──────────────────────────────────────────┐
+│ Package              │ Current │ Latest     │ Details                                  │
+├──────────────────────┼─────────┼────────────┼──────────────────────────────────────────┤
+│ @pnpm.e2e/deprecated │ 1.0.0   │ Deprecated │ This package is deprecated. Lorem ipsum  │
+│                      │         │            │ dolor sit amet, consectetur adipiscing   │
+│                      │         │            │ elit.                                    │
+│                      │         │            │ https://foo.bar/qar                      │
+└──────────────────────┴─────────┴────────────┴──────────────────────────────────────────┘
 `)
 })

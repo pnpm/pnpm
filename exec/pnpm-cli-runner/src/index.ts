@@ -9,7 +9,7 @@ export function runPnpmCli (command: string[], { cwd }: { cwd: string }): void {
   const execFileName = path.basename(process.execPath).toLowerCase()
   if (execFileName === 'pnpm' || execFileName === 'pnpm.exe') {
     execSync(process.execPath, command, execOpts)
-  } else if (path.basename(process.argv[1]) === 'pnpm.cjs') {
+  } else if (path.basename(process.argv[1]) === 'pnpm.mjs') {
     execSync(process.execPath, [process.argv[1], ...command], execOpts)
   } else {
     execSync('pnpm', command, execOpts)

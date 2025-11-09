@@ -1,12 +1,12 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { globalWarn } from '@pnpm/logger'
-import { type ProjectManifest, type DevEngineDependency } from '@pnpm/types'
+import { type ProjectManifest, type EngineDependency } from '@pnpm/types'
+import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
 import { extractComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
-import detectIndent from '@gwhitney/detect-indent'
+import detectIndent from 'detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
 import {
@@ -188,7 +188,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
 
 async function readPackageYaml (filePath: string): Promise<ProjectManifest> {
   try {
-    return await readYamlFile<ProjectManifest>(filePath)
+    return await readYamlFile.default<ProjectManifest>(filePath)
   } catch (err: any) { // eslint-disable-line
     if (err.name !== 'YAMLException') throw err
     err.message = `${err.message as string}\nin ${filePath}`
@@ -223,20 +223,8 @@ function createManifestWriter (
 }
 
 function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
-  for (const runtimeName of ['node', 'deno', 'bun']) {
-    if (manifest.devEngines?.runtime && !manifest.devDependencies?.[runtimeName]) {
-      const runtimes = Array.isArray(manifest.devEngines.runtime) ? manifest.devEngines.runtime : [manifest.devEngines.runtime]
-      const runtime = runtimes.find((runtime) => runtime.name === runtimeName)
-      if (runtime && runtime.onFail === 'download') {
-        if ('webcontainer' in process.versions) {
-          globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
-        } else {
-          manifest.devDependencies ??= {}
-          manifest.devDependencies[runtimeName] = `runtime:${runtime.version}`
-        }
-      }
-    }
-  }
+  convertEnginesRuntimeToDependencies(manifest, 'devEngines', 'devDependencies')
+  convertEnginesRuntimeToDependencies(manifest, 'engines', 'dependencies')
   return manifest
 }
 
@@ -247,7 +235,7 @@ function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest
       const version = nodeDep.replace(/^runtime:/, '')
       manifest.devEngines ??= {}
 
-      const nodeRuntimeEntry: DevEngineDependency = {
+      const nodeRuntimeEntry: EngineDependency = {
         name: runtimeName,
         version,
         onFail: 'download',
