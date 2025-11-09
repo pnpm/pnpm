@@ -1380,12 +1380,12 @@ async function resolveDependency (
 
   if (ctx.attestationCheck && pkgResponse.body.provenanceDowngraded) {
     const pkgName = wantedDependency.alias ?? pkgResponse.body.manifest?.name ?? 'unknown'
-    const currentVersion = options.currentPkg?.version ?? 'unknown'
-    const targetVersion = pkgResponse.body.manifest?.version ?? 'unknown'
+    const newVersion = pkgResponse.body.manifest?.version ?? 'unknown'
 
     throw new PnpmError(
       'ATTESTATION_DOWNGRADE',
-      `Provenance downgrade detected for "${pkgName}": ${currentVersion} → ${targetVersion}`
+      `Provenance downgrade detected for package "${pkgName}@${newVersion}". ` +
+      'This version has weaker attestation than previously published versions.'
     )
   }
 
