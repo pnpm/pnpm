@@ -25,7 +25,7 @@ export function failIfTrustDowngraded (
   if (!manifest) {
     throw new PnpmError(
       'TRUST_CHECK_FAIL',
-      `Missing version object time for version ${version} of ${meta.name} in metadata`
+      `Missing version object for version ${version} of ${meta.name} in metadata`
     )
   }
 

@@ -401,7 +401,7 @@ describe('failIfTrustDowngraded', () => {
       },
     }
     expect(() => {
-      failIfTrustDowngraded(meta, '3.0.0')
+      failIfTrustDowngraded(meta, '2.0.0')
     }).toThrow('Missing time')
   })
 })
