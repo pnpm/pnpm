@@ -44,7 +44,7 @@ import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOption
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
-import { isProvenanceDowngraded } from './getProvenance.js'
+import { failIfTrustDowngraded } from './getProvenance.js'
 
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
@@ -274,14 +274,7 @@ async function resolveNpm (
         `Missing time field for attestation check: ${spec.name}`
       )
     }
-    const provenanceDowngraded = isProvenanceDowngraded(meta as PackageMetaWithTime, pickedPackage.version)
-    if (provenanceDowngraded) {
-      throw new PnpmError(
-        'ATTESTATION_DOWNGRADE',
-        `Provenance downgrade detected for package "${spec.name}@${pickedPackage.version}". ` +
-        'This version has weaker attestation than previously published versions.'
-      )
-    }
+    failIfTrustDowngraded(meta as PackageMetaWithTime, pickedPackage.version)
   }
 
   if (pickedPackage == null) {

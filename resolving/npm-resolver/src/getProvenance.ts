@@ -1,3 +1,4 @@
+import { PnpmError } from '@pnpm/error'
 import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
 
 type TrustEvidence = 'provenance' | 'trustedPublisher'
@@ -42,29 +43,50 @@ function detectStrongestTrustEvidenceBeforeDate (
   return best
 }
 
-export function isProvenanceDowngraded (
+export function failIfTrustDowngraded (
   meta: PackageMetaWithTime,
   version: string
-): boolean | undefined {
+): void {
   const versionPublishedAt = meta.time[version]
   if (!versionPublishedAt) {
-    return undefined
+    throw new PnpmError(
+      'TRUST_CHECK_FAIL',
+      `Missing time for version ${version} of ${meta.name} in metadata`
+    )
   }
 
   const versionDate = new Date(versionPublishedAt)
   const manifest = meta.versions[version]
   if (!manifest) {
-    return undefined
+    throw new PnpmError(
+      'TRUST_CHECK_FAIL',
+      `Missing version object time for version ${version} of ${meta.name} in metadata`
+    )
   }
 
   const strongestEvidencePriorToRequestedVersion = detectStrongestTrustEvidenceBeforeDate(meta, versionDate)
   if (strongestEvidencePriorToRequestedVersion == null) {
-    return false
+    return
   }
 
   const currentTrustEvidence = getTrustEvidence(manifest)
-  if (currentTrustEvidence == null) {
-    return true
+  if (currentTrustEvidence == null || TRUST_RANK[strongestEvidencePriorToRequestedVersion] > TRUST_RANK[currentTrustEvidence]) {
+    throw new PnpmError(
+      'TRUST_DOWNGRADE',
+      `High-risk trust downgrade for "${meta.name}@${version}" (possible package takeover)`,
+      {
+        hint: `Earlier versions had ${prettyPrintTrustEvidence(strongestEvidencePriorToRequestedVersion)}, ` +
+          `but this version has ${prettyPrintTrustEvidence(currentTrustEvidence)}. ` +
+          'A trust downgrade may indicate a supply chain incident.',
+      }
+    )
   }
-  return TRUST_RANK[strongestEvidencePriorToRequestedVersion] > TRUST_RANK[currentTrustEvidence]
+}
+
+function prettyPrintTrustEvidence (trustEvidence: TrustEvidence | undefined): string {
+  switch (trustEvidence) {
+  case 'trustedPublisher': return 'trusted publisher'
+  case 'provenance': return 'provenance attestation'
+  default: return 'no trust evidence'
+  }
 }

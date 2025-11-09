@@ -1,5 +1,5 @@
 import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
-import { getTrustEvidence, isProvenanceDowngraded } from '../src/getProvenance.js'
+import { getTrustEvidence, failIfTrustDowngraded } from '../src/getProvenance.js'
 
 describe('getTrustEvidence', () => {
   test('returns "trustedPublisher" when _npmUser.trustedPublisher exists', () => {
@@ -93,8 +93,8 @@ describe('getTrustEvidence', () => {
   })
 })
 
-describe('isProvenanceDowngraded', () => {
-  test('returns false when no versions have attestation', () => {
+describe('failIfTrustDowngraded', () => {
+  test('succeeds when no versions have attestation', () => {
     const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '2.0.0' },
@@ -121,10 +121,12 @@ describe('isProvenanceDowngraded', () => {
         '2.0.0': '2025-02-01T00:00:00.000Z',
       },
     }
-    expect(isProvenanceDowngraded(meta, '2.0.0')).toBe(false)
+    expect(() => {
+      failIfTrustDowngraded(meta, '2.0.0')
+    }).not.toThrow()
   })
 
-  test('returns false for versions published before first attested version', () => {
+  test('succeeds for version published before first attested version', () => {
     const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '2.0.0' },
@@ -156,10 +158,12 @@ describe('isProvenanceDowngraded', () => {
         '2.0.0': '2025-02-01T00:00:00.000Z',
       },
     }
-    expect(isProvenanceDowngraded(meta, '1.0.0')).toBe(false)
+    expect(() => {
+      failIfTrustDowngraded(meta, '1.0.0')
+    }).not.toThrow()
   })
 
-  test('returns true when downgrading from provenance to none', () => {
+  test('throws an error when downgrading from provenance to none', () => {
     const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '3.0.0' },
@@ -200,10 +204,12 @@ describe('isProvenanceDowngraded', () => {
         '3.0.0': '2025-03-01T00:00:00.000Z',
       },
     }
-    expect(isProvenanceDowngraded(meta, '3.0.0')).toBe(true)
+    expect(() => {
+      failIfTrustDowngraded(meta, '3.0.0')
+    }).toThrow('High-risk trust downgrade')
   })
 
-  test('returns true when downgrading from trustedPublisher to provenance', () => {
+  test('throws an error when downgrading from trustedPublisher to provenance', () => {
     const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '3.0.0' },
@@ -252,10 +258,12 @@ describe('isProvenanceDowngraded', () => {
         '3.0.0': '2025-03-01T00:00:00.000Z',
       },
     }
-    expect(isProvenanceDowngraded(meta, '3.0.0')).toBe(true)
+    expect(() => {
+      failIfTrustDowngraded(meta, '3.0.0')
+    }).toThrow('High-risk trust downgrade')
   })
 
-  test('returns true when downgrading from trustedPublisher to none', () => {
+  test('throws an error when downgrading from trustedPublisher to none', () => {
     const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '3.0.0' },
@@ -299,10 +307,12 @@ describe('isProvenanceDowngraded', () => {
         '3.0.0': '2025-03-01T00:00:00.000Z',
       },
     }
-    expect(isProvenanceDowngraded(meta, '3.0.0')).toBe(true)
+    expect(() => {
+      failIfTrustDowngraded(meta, '3.0.0')
+    }).toThrow('High-risk trust downgrade')
   })
 
-  test('returns false when maintaining same provenance level', () => {
+  test('succeeds when maintaining same trust level', () => {
     const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '3.0.0' },
@@ -354,10 +364,12 @@ describe('isProvenanceDowngraded', () => {
         '3.0.0': '2025-03-01T00:00:00.000Z',
       },
     }
-    expect(isProvenanceDowngraded(meta, '3.0.0')).toBe(false)
+    expect(() => {
+      failIfTrustDowngraded(meta, '3.0.0')
+    }).not.toThrow()
   })
 
-  test('returns false when version time is missing', () => {
+  test('throws an error when version time is missing', () => {
     const meta: PackageMetaWithTime = {
       name: 'foo',
       'dist-tags': { latest: '2.0.0' },
@@ -388,6 +400,8 @@ describe('isProvenanceDowngraded', () => {
         '1.0.0': '2025-01-01T00:00:00.000Z',
       },
     }
-    expect(isProvenanceDowngraded(meta, '2.0.0')).toBeUndefined()
+    expect(() => {
+      failIfTrustDowngraded(meta, '3.0.0')
+    }).toThrow('Missing time')
   })
 })
