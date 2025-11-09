@@ -21,5 +21,6 @@
   "keywords": [
     "pnpm",
     "pnpm10"
-  ]
+  ],
+  "repository": "https://github.com/pnpm/pnpm/tree/main/__utils__/test-ipc-server"
 }
