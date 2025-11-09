@@ -261,22 +261,22 @@ export async function getConfig (opts: {
   pnpmConfig.configDir = configDir
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
-  pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
+  pnpmConfig.rawLocalConfig = Object.assign(
     {},
     ...npmConfig.list.slice(3, pnpmConfig.workspaceDir && pnpmConfig.workspaceDir !== cwd ? 5 : 4).reverse(),
-    cliOptions,
-  ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    cliOptions
+  )
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  pnpmConfig.rawConfig = Object.assign.apply(Object, [
+  pnpmConfig.rawConfig = Object.assign(
     {},
     ...npmConfig.list.map(pickNpmAuthConfig).reverse(),
     pickNpmAuthConfig(cliOptions),
     { 'user-agent': pnpmConfig.userAgent },
     { globalconfig: path.join(configDir, 'rc') },
-    { 'npm-globalconfig': npmDefaults.globalconfig },
-  ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    { 'npm-globalconfig': npmDefaults.globalconfig }
+  )
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
