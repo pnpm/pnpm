@@ -7,7 +7,7 @@ import {
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
+import { type PackageMeta, type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
   type DirectoryResolution,
@@ -178,6 +178,7 @@ export interface ResolveFromNpmContext {
 
 export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
+  attestationCheck?: boolean
   defaultTag?: string
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
@@ -267,8 +268,14 @@ async function resolveNpm (
   const meta = pickResult.meta
 
   let provenanceDowngraded: boolean | undefined
-  if (pickedPackage) {
-    provenanceDowngraded = isProvenanceDowngraded(meta, pickedPackage.version)
+  if (opts.attestationCheck && pickedPackage) {
+    if (!meta.time) {
+      throw new PnpmError(
+        'ATTESTATION_CHECK_FAILED',
+        `Missing time field for attestation check: ${spec.name}`
+      )
+    }
+    provenanceDowngraded = isProvenanceDowngraded(meta as PackageMetaWithTime, pickedPackage.version)
   }
 
   if (pickedPackage == null) {

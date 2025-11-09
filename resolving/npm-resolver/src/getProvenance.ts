@@ -1,4 +1,4 @@
-import { type PackageInRegistry, type PackageMeta } from '@pnpm/registry.types'
+import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
 
 type Provenance = boolean | 'trustedPublisher'
 
@@ -10,16 +10,14 @@ export function getProvenance (manifest: PackageInRegistry): Provenance | undefi
 }
 
 function getHighestProvenanceBeforeDate (
-  meta: PackageMeta,
+  meta: PackageMetaWithTime,
   beforeDate: Date
 ): Provenance | undefined {
-  if (!meta.time) return undefined
-
   const versionsWithDates = Object.entries(meta.versions)
     .map(([version, manifest]) => ({
       version,
       manifest,
-      publishedAt: meta.time![version] ? new Date(meta.time![version]) : undefined,
+      publishedAt: meta.time[version] ? new Date(meta.time[version]) : undefined,
     }))
     .filter((entry): entry is { version: string, manifest: PackageInRegistry, publishedAt: Date } =>
       entry.publishedAt != null &&
@@ -45,10 +43,10 @@ function getHighestProvenanceBeforeDate (
 }
 
 export function isProvenanceDowngraded (
-  meta: PackageMeta,
+  meta: PackageMetaWithTime,
   version: string
 ): boolean | undefined {
-  const versionPublishedAt = meta.time?.[version]
+  const versionPublishedAt = meta.time[version]
   if (!versionPublishedAt) {
     return undefined
   }
