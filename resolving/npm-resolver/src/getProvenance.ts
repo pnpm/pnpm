@@ -1,45 +1,45 @@
 import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
 
-type Provenance = boolean | 'trustedPublisher'
+type TrustEvidence = 'provenance' | 'trustedPublisher'
 
-export function getProvenance (manifest: PackageInRegistry): Provenance | undefined {
-  const provenance = manifest._npmUser?.trustedPublisher
-    ? 'trustedPublisher'
-    : !!manifest.dist?.attestations?.provenance
-  return provenance || undefined
+const TRUST_RANK = {
+  trustedPublisher: 2,
+  provenance: 1,
+} as const satisfies Record<TrustEvidence, number>
+
+export function getTrustEvidence (manifest: PackageInRegistry): TrustEvidence | undefined {
+  if (manifest._npmUser?.trustedPublisher) {
+    return 'trustedPublisher'
+  }
+  if (manifest.dist?.attestations?.provenance) {
+    return 'provenance'
+  }
+  return undefined
 }
 
-function getHighestProvenanceBeforeDate (
+function detectStrongestTrustEvidenceBeforeDate (
   meta: PackageMetaWithTime,
   beforeDate: Date
-): Provenance | undefined {
-  const versionsWithDates = Object.entries(meta.versions)
-    .map(([version, manifest]) => ({
-      version,
-      manifest,
-      publishedAt: meta.time[version] ? new Date(meta.time[version]) : undefined,
-    }))
-    .filter((entry): entry is { version: string, manifest: PackageInRegistry, publishedAt: Date } =>
-      entry.publishedAt != null &&
-      !isNaN(entry.publishedAt.getTime()) &&
-      entry.publishedAt <= beforeDate
-    )
-    .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime()) // Newest first
+): TrustEvidence | undefined {
+  let best: TrustEvidence | undefined
 
-  let highestProvenance: Provenance | undefined
+  for (const [version, manifest] of Object.entries(meta.versions)) {
+    const ts = meta.time[version]
+    if (!ts) continue
 
-  for (const { manifest } of versionsWithDates) {
-    const provenance = getProvenance(manifest)
-    if (!provenance) continue
+    const publishedAt = new Date(ts)
+    if (!(publishedAt < beforeDate)) continue
 
-    if (provenance === 'trustedPublisher') {
+    const trustEvidence = getTrustEvidence(manifest)
+    if (!trustEvidence) continue
+
+    if (trustEvidence === 'trustedPublisher') {
       return 'trustedPublisher'
-    } else if (!highestProvenance) {
-      highestProvenance = provenance
     }
+    best ||= 'provenance'
   }
 
-  return highestProvenance
+  return best
 }
 
 export function isProvenanceDowngraded (
@@ -57,18 +57,14 @@ export function isProvenanceDowngraded (
     return undefined
   }
 
-  const highestBefore = getHighestProvenanceBeforeDate(meta, versionDate)
-  if (!highestBefore) {
+  const strongestEvidencePriorToRequestedVersion = detectStrongestTrustEvidenceBeforeDate(meta, versionDate)
+  if (strongestEvidencePriorToRequestedVersion == null) {
     return false
   }
 
-  const currentProvenance = getProvenance(manifest)
-  if (highestBefore === 'trustedPublisher' && currentProvenance !== 'trustedPublisher') {
+  const currentTrustEvidence = getTrustEvidence(manifest)
+  if (currentTrustEvidence == null) {
     return true
   }
-  if (highestBefore === true && !currentProvenance) {
-    return true
-  }
-
-  return false
+  return TRUST_RANK[strongestEvidencePriorToRequestedVersion] > TRUST_RANK[currentTrustEvidence]
 }

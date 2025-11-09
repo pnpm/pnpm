@@ -1,7 +1,7 @@
 import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
-import { getProvenance, isProvenanceDowngraded } from '../src/getProvenance.js'
+import { getTrustEvidence, isProvenanceDowngraded } from '../src/getProvenance.js'
 
-describe('getProvenance', () => {
+describe('getTrustEvidence', () => {
   test('returns "trustedPublisher" when _npmUser.trustedPublisher exists', () => {
     const manifest: PackageInRegistry = {
       name: 'foo',
@@ -19,7 +19,7 @@ describe('getProvenance', () => {
         tarball: 'https://registry.example.com/foo/-/foo-1.0.0.tgz',
       },
     }
-    expect(getProvenance(manifest)).toBe('trustedPublisher')
+    expect(getTrustEvidence(manifest)).toBe('trustedPublisher')
   })
 
   test('returns "trustedPublisher" even when attestations.provenance exists', () => {
@@ -44,7 +44,7 @@ describe('getProvenance', () => {
         },
       },
     }
-    expect(getProvenance(manifest)).toBe('trustedPublisher')
+    expect(getTrustEvidence(manifest)).toBe('trustedPublisher')
   })
 
   test('returns true when provenance exists', () => {
@@ -61,7 +61,7 @@ describe('getProvenance', () => {
         },
       },
     }
-    expect(getProvenance(manifest)).toBe(true)
+    expect(getTrustEvidence(manifest)).toBe('provenance')
   })
 
   test('returns undefined when provenance and attestations are undefined', () => {
@@ -73,7 +73,7 @@ describe('getProvenance', () => {
         tarball: 'https://registry.example.com/foo/-/foo-1.0.0.tgz',
       },
     }
-    expect(getProvenance(manifest)).toBeUndefined()
+    expect(getTrustEvidence(manifest)).toBeUndefined()
   })
 
   test('returns undefined when _npmUser exists but trustedPublisher is undefined', () => {
@@ -89,7 +89,7 @@ describe('getProvenance', () => {
         tarball: 'https://registry.example.com/foo/-/foo-1.0.0.tgz',
       },
     }
-    expect(getProvenance(manifest)).toBeUndefined()
+    expect(getTrustEvidence(manifest)).toBeUndefined()
   })
 })
 
