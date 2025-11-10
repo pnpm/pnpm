@@ -676,5 +676,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
     pnpmConfig.rawConfig['verify-deps-before-run'] = pnpmConfig.verifyDepsBeforeRun
   }
-  pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+  if (!globalSettingsOnly) {
+    pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+  }
 }
