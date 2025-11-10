@@ -47,9 +47,9 @@ import { depPathToFilename } from '@pnpm/dependency-path'
 import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
 import { familySync } from 'detect-libc'
 import PQueue from 'p-queue'
-import pDefer from 'p-defer'
+import pDefer, { type DeferredPromise } from 'p-defer'
 import pShare from 'promise-share'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import semver from 'semver'
 import ssri from 'ssri'
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
@@ -209,7 +209,9 @@ async function resolveAndFetch (
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
+      trustPolicy: options.trustPolicy,
       publishedBy: options.publishedBy,
+      publishedByExclude: options.publishedByExclude,
       pickLowestVersion: options.pickLowestVersion,
       lockfileDir: options.lockfileDir,
       preferredVersions,
@@ -538,7 +540,7 @@ function fetchToStore (
 
   async function doFetchToStore (
     filesIndexFile: string,
-    fetching: pDefer.DeferredPromise<PkgRequestFetchResult>,
+    fetching: DeferredPromise<PkgRequestFetchResult>,
     target: string,
     resolution: AtomicResolution
   ) {

@@ -5,7 +5,7 @@ import { connectStoreController } from '@pnpm/server'
 import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connection-manager'
 import { getStorePath } from '@pnpm/store-path'
 import delay from 'delay'
-import processExists from 'process-exists'
+import { processExists } from 'process-exists'
 import killcb from 'tree-kill'
 
 const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>

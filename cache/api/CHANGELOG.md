@@ -1,5 +1,73 @@
 # @pnpm/cache.api
 
+## 1000.0.36
+
+### Patch Changes
+
+- Updated dependencies [6c3dcb8]
+  - @pnpm/npm-resolver@1004.4.1
+
+## 1000.0.35
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+  - @pnpm/npm-resolver@1004.4.0
+  - @pnpm/config@1004.4.2
+  - @pnpm/store.cafs@1000.0.19
+
+## 1000.0.34
+
+### Patch Changes
+
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+
+## 1000.0.33
+
+### Patch Changes
+
+- Updated dependencies [9b9faa5]
+- Updated dependencies [fb4da0c]
+  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/npm-resolver@1004.3.0
+  - @pnpm/config@1004.4.0
+
+## 1000.0.32
+
+### Patch Changes
+
+- Updated dependencies [baf8bf6]
+- Updated dependencies [702ddb9]
+  - @pnpm/npm-resolver@1004.2.3
+
+## 1000.0.31
+
+### Patch Changes
+
+- Updated dependencies [121b44e]
+- Updated dependencies [02f8b69]
+  - @pnpm/npm-resolver@1004.2.2
+
+## 1000.0.30
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/config@1004.3.1
+  - @pnpm/npm-resolver@1004.2.1
+
+## 1000.0.29
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/npm-resolver@1004.2.0
+  - @pnpm/config@1004.3.0
+  - @pnpm/store.cafs@1000.0.17
+
 ## 1000.0.28
 
 ### Patch Changes

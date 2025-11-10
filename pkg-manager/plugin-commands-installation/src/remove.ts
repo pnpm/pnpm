@@ -12,10 +12,9 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type DependenciesField, type ProjectRootDir } from '@pnpm/types'
+import { type DependenciesField, type ProjectRootDir, type Project } from '@pnpm/types'
 import { mutateModulesInSingleProject } from '@pnpm/core'
-import pick from 'ramda/src/pick'
-import without from 'ramda/src/without'
+import { pick, without } from 'ramda'
 import renderHelp from 'render-help'
 import { getSaveType } from './getSaveType.js'
 import { recursive } from './recursive.js'
@@ -183,9 +182,14 @@ export async function handler (
     storeDir: store.dir,
     include,
   })
+  const allProjects = opts.allProjects ?? (
+    opts.workspaceDir
+      ? await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
+      : undefined
+  )
   // @ts-expect-error
-  removeOpts['workspacePackages'] = opts.workspaceDir
-    ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns }))
+  removeOpts['workspacePackages'] = allProjects
+    ? arrayOfWorkspacePackagesToMap(allProjects)
     : undefined
   const targetDependenciesField = getSaveType(opts)
   const {
@@ -217,8 +221,22 @@ export async function handler (
     removeOpts
   )
   await writeProjectManifest(mutationResult.updatedProject.manifest)
+
+  const updatedProjects: Project[] = []
+  if (allProjects != null) {
+    for (const project of allProjects) {
+      if (project.rootDir === mutationResult.updatedProject.rootDir) {
+        updatedProjects.push({
+          ...project,
+          manifest: mutationResult.updatedProject.manifest,
+        })
+      } else {
+        updatedProjects.push(project)
+      }
+    }
+  }
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
     cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-    allProjects: opts.allProjects,
+    allProjects: updatedProjects,
   })
 }

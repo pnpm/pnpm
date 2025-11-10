@@ -1,7 +1,7 @@
 // cspell:ignore checkin
 import path from 'path'
 import os from 'os'
-import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
+import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool.js'
 import { PnpmError } from '@pnpm/error'
 import { execSync } from 'child_process'
 import isWindows from 'is-windows'
@@ -34,7 +34,7 @@ function createTarballWorkerPool (): WorkerPool {
   const workerPool = new WorkerPool({
     id: 'pnpm',
     maxWorkers,
-    workerScriptPath: path.join(__dirname, 'worker.js'),
+    workerScriptPath: path.join(import.meta.dirname, 'worker.js'),
   })
   // @ts-expect-error
   if (global.finishWorkers) {
@@ -53,6 +53,9 @@ function createTarballWorkerPool (): WorkerPool {
 }
 
 function calcMaxWorkers () {
+  if (process.env.PNPM_MAX_WORKERS) {
+    return parseInt(process.env.PNPM_MAX_WORKERS)
+  }
   if (process.env.PNPM_WORKERS) {
     const idleCPUs = Math.abs(parseInt(process.env.PNPM_WORKERS))
     return Math.max(2, availableParallelism() - idleCPUs) - 1

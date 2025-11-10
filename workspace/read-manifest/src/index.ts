@@ -36,7 +36,7 @@ export async function readWorkspaceManifest (dir: string): Promise<WorkspaceMani
 
 async function readManifestRaw (dir: string): Promise<unknown> {
   try {
-    return await readYamlFile<WorkspaceManifest>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
+    return await readYamlFile.default<WorkspaceManifest>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
   } catch (err: unknown) {
     // File not exists is the same as empty file (undefined)
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {

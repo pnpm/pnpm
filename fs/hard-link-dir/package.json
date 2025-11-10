@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.hard-link-dir",
-  "version": "1000.0.1",
+  "version": "1000.0.2",
   "description": "Hard link (or copy if linking fails) all files from a directory to several target directories.",
   "keywords": [
     "pnpm",
@@ -10,12 +10,12 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/hard-link-dir",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/hard-link-dir#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/fs/hard-link-dir",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/fs/hard-link-dir#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -27,10 +27,15 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/graceful-fs": "workspace:*",
+    "path-temp": "catalog:",
+    "rename-overwrite": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -41,7 +46,7 @@
     "@pnpm/prepare": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

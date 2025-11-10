@@ -1,5 +1,92 @@
 # @pnpm/plugin-commands-env
 
+## 1000.0.44
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.8
+
+## 1000.0.43
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/cli-utils@1001.2.7
+  - @pnpm/config@1004.4.2
+  - @pnpm/node.resolver@1001.0.5
+  - @pnpm/fetch@1000.2.6
+  - @pnpm/remove-bins@1000.0.15
+  - @pnpm/node.fetcher@1001.0.8
+  - @pnpm/env.system-node-version@1000.0.11
+
+## 1000.0.42
+
+### Patch Changes
+
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/cli-utils@1001.2.6
+  - @pnpm/node.resolver@1001.0.4
+  - @pnpm/node.fetcher@1001.0.7
+
+## 1000.0.41
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1001.0.6
+- @pnpm/cli-utils@1001.2.5
+
+## 1000.0.40
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/node.fetcher@1001.0.5
+  - @pnpm/node.resolver@1001.0.3
+
+## 1000.0.39
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.3
+
+## 1000.0.38
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.2
+
+## 1000.0.37
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/node.resolver@1001.0.2
+- @pnpm/error@1000.0.5
+- @pnpm/store-path@1000.0.5
+- @pnpm/cli-utils@1001.2.1
+- @pnpm/node.fetcher@1001.0.4
+- @pnpm/remove-bins@1000.0.14
+
+## 1000.0.36
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/cli-utils@1001.2.0
+  - @pnpm/remove-bins@1000.0.13
+  - @pnpm/node.resolver@1001.0.1
+  - @pnpm/fetch@1000.2.5
+  - @pnpm/node.fetcher@1001.0.3
+  - @pnpm/env.system-node-version@1000.0.10
+
 ## 1000.0.35
 
 ### Patch Changes

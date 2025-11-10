@@ -1,5 +1,26 @@
 # @pnpm/types
 
+## 1000.9.0
+
+### Minor Changes
+
+- 7c1382f: Add `PackageVersionPolicy` function type.
+- dee39ec: You can now allow specific versions of dependencies to run postinstall scripts. `onlyBuiltDependencies` now accepts package names with lists of trusted versions. For example:
+
+  ```yaml
+  onlyBuiltDependencies:
+    - nx@21.6.4 || 21.6.5
+    - esbuild@0.25.1
+  ```
+
+  Related PR: [#10104](https://github.com/pnpm/pnpm/pull/10104).
+
+## 1000.8.0
+
+### Minor Changes
+
+- e792927: Added support for `finders` [#9946](https://github.com/pnpm/pnpm/pull/9946).
+
 ## 1000.7.0
 
 ### Minor Changes

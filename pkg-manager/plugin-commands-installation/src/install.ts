@@ -4,7 +4,7 @@ import { type Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 import { installDeps, type InstallDepsOptions } from './installDeps.js'
@@ -63,6 +63,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache',
     'store-dir',
     'strict-peer-dependencies',
+    'trust-policy',
     'offline',
     'only',
     'optional',
@@ -202,6 +203,10 @@ by any dependencies, so it is an emulation of a flat node_modules',
           {
             description: 'Fail on missing or invalid peer dependencies',
             name: '--strict-peer-dependencies',
+          },
+          {
+            description: "Fail when a package's trust level is downgraded (e.g., from a trusted publisher to provenance only or no trust evidence)",
+            name: '--trust-policy no-downgrade',
           },
           {
             description: 'Starts a store server in the background. The store server will keep running after installation is done. To stop the store server, run `pnpm server stop`',

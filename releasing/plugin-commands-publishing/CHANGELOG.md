@@ -1,5 +1,114 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.2.19
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.8
+- @pnpm/client@1001.1.4
+- @pnpm/plugin-commands-env@1000.0.44
+
+## 1000.2.18
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/cli-utils@1001.2.7
+  - @pnpm/config@1004.4.2
+  - @pnpm/pick-registry-for-package@1000.0.11
+  - @pnpm/plugin-commands-env@1000.0.43
+  - @pnpm/lifecycle@1001.0.25
+  - @pnpm/client@1001.1.3
+  - @pnpm/package-bins@1000.0.11
+  - @pnpm/exportable-manifest@1000.1.7
+  - @pnpm/sort-packages@1000.0.11
+
+## 1000.2.17
+
+### Patch Changes
+
+- 3abd394: Remove pnpm-specific CLI options before passing to npm publish to prevent "Unknown cli config" warnings [#9646](https://github.com/pnpm/pnpm/issues/9646).
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/cli-utils@1001.2.6
+  - @pnpm/plugin-commands-env@1000.0.42
+  - @pnpm/lifecycle@1001.0.24
+  - @pnpm/client@1001.1.2
+
+## 1000.2.16
+
+### Patch Changes
+
+- @pnpm/client@1001.1.1
+- @pnpm/plugin-commands-env@1000.0.41
+- @pnpm/cli-utils@1001.2.5
+
+## 1000.2.15
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+- Updated dependencies [a514bc0]
+  - @pnpm/client@1001.1.0
+  - @pnpm/config@1004.4.0
+  - @pnpm/lifecycle@1001.0.23
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/plugin-commands-env@1000.0.40
+  - @pnpm/exportable-manifest@1000.1.6
+
+## 1000.2.14
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.3
+- @pnpm/client@1001.0.7
+- @pnpm/plugin-commands-env@1000.0.39
+
+## 1000.2.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.2
+- @pnpm/client@1001.0.6
+- @pnpm/plugin-commands-env@1000.0.38
+
+## 1000.2.12
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/error@1000.0.5
+- @pnpm/cli-utils@1001.2.1
+- @pnpm/plugin-commands-env@1000.0.37
+- @pnpm/lifecycle@1001.0.22
+- @pnpm/network.auth-header@1000.0.6
+- @pnpm/exportable-manifest@1000.1.5
+- @pnpm/client@1001.0.5
+
+## 1000.2.11
+
+### Patch Changes
+
+- d021669: `pnpm publish` should be able to publish a `.tar.gz` file [#9927](https://github.com/pnpm/pnpm/pull/9927).
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+- Updated dependencies [a6856fd]
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/cli-utils@1001.2.0
+  - @pnpm/lifecycle@1001.0.21
+  - @pnpm/plugin-commands-env@1000.0.36
+  - @pnpm/pick-registry-for-package@1000.0.10
+  - @pnpm/client@1001.0.4
+  - @pnpm/package-bins@1000.0.10
+  - @pnpm/exportable-manifest@1000.1.4
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/sort-packages@1000.0.10
+
 ## 1000.2.10
 
 ### Patch Changes

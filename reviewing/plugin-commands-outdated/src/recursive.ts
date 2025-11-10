@@ -12,8 +12,7 @@ import {
 } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
-import isEmpty from 'ramda/src/isEmpty'
-import sortWith from 'ramda/src/sortWith'
+import { isEmpty, sortWith } from 'ramda'
 import {
   getCellWidth,
   type OutdatedCommandOptions,
@@ -57,6 +56,8 @@ export async function outdatedRecursive (
     ...opts,
     fullMetadata: opts.long,
     ignoreDependencies: opts.updateConfig?.ignoreDependencies,
+    minimumReleaseAge: opts.minimumReleaseAge,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

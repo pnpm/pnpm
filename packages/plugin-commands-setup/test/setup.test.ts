@@ -1,24 +1,30 @@
 import { PnpmError } from '@pnpm/error'
-import { setup } from '@pnpm/plugin-commands-setup'
-import { addDirToEnvPath, type PathExtenderReport } from '@pnpm/os.env.path-extender'
 import { jest } from '@jest/globals'
+import { type PathExtenderReport } from '@pnpm/os.env.path-extender'
 
-jest.mock('@pnpm/os.env.path-extender', () => ({
+jest.unstable_mockModule('@pnpm/os.env.path-extender', () => ({
   addDirToEnvPath: jest.fn(),
 }))
 
-jest.mock('fs', () => {
-  const actualFs = jest.createMockFromModule('fs')
+const actualFs = await import('fs')
+jest.unstable_mockModule('fs', () => {
   return {
-    // @ts-expect-error
     ...actualFs,
     promises: {
-      // @ts-expect-error
       ...actualFs.promises,
+      readFile: jest.fn(),
       writeFile: jest.fn(),
     },
   }
 })
+
+jest.mock('@zkochan/cmd-shim', () => ({
+  __esModule: true,
+  default: jest.fn(),
+}))
+
+const { addDirToEnvPath } = await import('@pnpm/os.env.path-extender')
+const { setup } = await import('@pnpm/plugin-commands-setup')
 
 test('setup makes no changes', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({

@@ -1,5 +1,47 @@
 # @pnpm/prepare-package
 
+## 1000.0.26
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/lifecycle@1001.0.25
+  - @pnpm/read-package-json@1000.1.2
+
+## 1000.0.25
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.24
+
+## 1000.0.24
+
+### Patch Changes
+
+- Updated dependencies [a514bc0]
+  - @pnpm/lifecycle@1001.0.23
+
+## 1000.0.23
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/lifecycle@1001.0.22
+- @pnpm/read-package-json@1000.1.1
+
+## 1000.0.22
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [e792927]
+- Updated dependencies [a6856fd]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/lifecycle@1001.0.21
+
 ## 1000.0.21
 
 ### Patch Changes

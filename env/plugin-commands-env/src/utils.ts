@@ -9,6 +9,9 @@ export async function getNodeExecPathAndTargetDir (pnpmHomeDir: string): Promise
   let nodeCurrentDir: string | undefined
   try {
     nodeCurrentDir = await fs.readlink(nodeCurrentDirLink)
+    if (!path.isAbsolute(nodeCurrentDir)) {
+      nodeCurrentDir = path.resolve(path.dirname(nodeCurrentDirLink), nodeCurrentDir)
+    }
   } catch {
     nodeCurrentDir = undefined
   }

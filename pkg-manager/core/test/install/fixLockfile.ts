@@ -50,7 +50,7 @@ test('fix broken lockfile with --fix-lockfile', async () => {
   }, testDefaults({ fixLockfile: true }))
 
   const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
-  expect(Object.keys(lockfile.packages as PackageSnapshots).length).toBe(2)
+  expect(Object.keys(lockfile.packages as PackageSnapshots)).toHaveLength(2)
   expect(lockfile.packages?.['@types/semver@5.3.31']).toBeTruthy()
   expect(lockfile.packages?.['@types/semver@5.3.31']?.resolution).toEqual({
     integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
@@ -205,7 +205,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
 
   const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
 
-  expect(Object.keys(lockfile.packages as PackageSnapshots).length).toBe(5)
+  expect(Object.keys(lockfile.packages as PackageSnapshots)).toHaveLength(5)
 
   expect(lockfile.packages?.['@babel/runtime-corejs3@7.15.3']).toBeTruthy()
   expect(lockfile.packages?.['@babel/runtime-corejs3@7.15.3']?.resolution).toEqual({

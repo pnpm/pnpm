@@ -16,6 +16,9 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../config/version-policy"
+    },
+    {
       "path": "../../fetching/pick-fetcher"
     },
     {

@@ -1,5 +1,5 @@
 import nopt from '@pnpm/nopt'
-import omit from 'ramda/src/omit'
+import { omit } from 'ramda'
 
 export interface CompletionCtx {
   last: string

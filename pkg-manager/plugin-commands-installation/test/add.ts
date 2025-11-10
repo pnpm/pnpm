@@ -5,11 +5,11 @@ import { add, remove } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
-import tempy from 'tempy'
+import { loadJsonFile } from 'load-json-file'
+import { temporaryDirectory } from 'tempy'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
-const tmp = tempy.directory()
+const tmp = temporaryDirectory()
 
 const DEFAULT_OPTIONS = {
   argv: {
@@ -66,9 +66,9 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     workspaceDir: process.cwd(),
   }, ['project-2@workspace:*'])
 
-  const pkg = await import(path.resolve('project-1/package.json'))
+  const { default: pkg } = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -93,9 +93,9 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     workspaceDir: process.cwd(),
   }, ['project-2@workspace:*'])
 
-  const pkg = await import(path.resolve('project-1/package.json'))
+  const { default: pkg } = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:*' })
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:*' })
 
   projects['project-1'].has('project-2')
 })
@@ -121,9 +121,9 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     workspaceDir: process.cwd(),
   }, ['project-2'])
 
-  const pkg = await import(path.resolve('project-1/package.json'))
+  const { default: pkg } = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -210,9 +210,9 @@ test('installing with "workspace=true" with linkWorkspacePackages on and saveWor
     workspaceDir: process.cwd(),
   }, ['project-2'])
 
-  const pkg = await import(path.resolve('project-1/package.json'))
+  const { default: pkg } = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -319,7 +319,7 @@ test('pnpm add - should add prefix when set in .npmrc when a range is not specif
   }, ['is-positive'])
 
   {
-    const manifest = (await import(path.resolve('package.json')))
+    const { default: manifest } = (await import(path.resolve('package.json')))
 
     expect(
       manifest.dependencies['is-positive']
@@ -337,7 +337,7 @@ test('pnpm add automatically installs missing peer dependencies', async () => {
   }, ['@pnpm.e2e/abc@1.0.0'])
 
   const lockfile = project.readLockfile()
-  expect(Object.keys(lockfile.packages).length).toBe(5)
+  expect(Object.keys(lockfile.packages)).toHaveLength(5)
 })
 
 test('add: fail when global bin directory is not found', async () => {
@@ -412,7 +412,7 @@ test('minimumReleaseAge makes install fail if there is no version that was publi
     dir: path.resolve('project'),
     minimumReleaseAge,
     linkWorkspacePackages: false,
-  }, ['is-odd@0.1.1'])).rejects.toThrow('No matching version found')
+  }, ['is-odd@0.1.1'])).rejects.toThrow(/No matching version found for is-odd@0\.1\.1.*satisfies the specs but/)
 })
 
 describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchitectures.libc', () => {

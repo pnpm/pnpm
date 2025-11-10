@@ -1,5 +1,30 @@
 # @pnpm/read-package-json
 
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+
+## 1000.1.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+
+## 1000.1.0
+
+### Minor Changes
+
+- e792927: Implemented `readPackageJsonSync`.
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+
 ## 1000.0.11
 
 ### Patch Changes

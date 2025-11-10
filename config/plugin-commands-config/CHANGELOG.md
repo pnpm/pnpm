@@ -1,5 +1,77 @@
 # @pnpm/plugin-commands-config
 
+## 1000.2.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.8
+
+## 1000.2.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.7
+- @pnpm/config@1004.4.2
+- @pnpm/workspace.manifest-writer@1001.0.3
+
+## 1000.2.8
+
+### Patch Changes
+
+- 47295e2: Fixed scoped registry keys (e.g., `@scope:registry`) being parsed as property paths in `pnpm config get` when `--location=project` is used [#9362](https://github.com/pnpm/pnpm/issues/9362).
+- 587424f: Fixed `pnpm config set --location=project` incorrectly handling keys with slashes (auth tokens, registry settings) [#9884](https://github.com/pnpm/pnpm/issues/9884).
+- eaaf8cb: When both `pnpm-workspace.yaml` and `.npmrc` exist, `pnpm config set --location=project` now writes to `pnpm-workspace.yaml` (matching read priority) [#10072](https://github.com/pnpm/pnpm/issues/10072).
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/cli-utils@1001.2.6
+
+## 1000.2.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.5
+
+## 1000.2.6
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/workspace.manifest-writer@1001.0.2
+
+## 1000.2.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.3
+
+## 1000.2.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.2
+
+## 1000.2.3
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/error@1000.0.5
+- @pnpm/workspace.manifest-writer@1001.0.2
+- @pnpm/cli-utils@1001.2.1
+- @pnpm/object.property-path@1000.0.1
+
+## 1000.2.2
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/config@1004.3.0
+  - @pnpm/cli-utils@1001.2.0
+  - @pnpm/workspace.manifest-writer@1001.0.1
+
 ## 1000.2.1
 
 ### Patch Changes

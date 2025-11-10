@@ -1,4 +1,5 @@
-import npmTypes from '@pnpm/npm-conf/lib/types'
+import npmTypes from '@pnpm/npm-conf/lib/types.js'
+import { type TrustPolicy } from '@pnpm/types'
 
 export const types = Object.assign({
   'auto-install-peers': Boolean,
@@ -25,6 +26,8 @@ export const types = Object.assign({
   'exclude-links-from-lockfile': Boolean,
   'extend-node-path': Boolean,
   'fetch-timeout': Number,
+  'fetch-warn-timeout-ms': Number,
+  'fetch-min-speed-ki-bps': Number,
   'fetching-concurrency': Number,
   filter: [String, Array],
   'filter-prod': [String, Array],
@@ -71,7 +74,7 @@ export const types = Object.assign({
   noproxy: String,
   'npm-path': String,
   offline: Boolean,
-  'only-built-dependencies': [String],
+  'only-built-dependencies': [String, Array],
   'pack-destination': String,
   'pack-gzip-level': Number,
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
@@ -111,6 +114,7 @@ export const types = Object.assign({
   'strict-dep-builds': Boolean,
   'strict-store-pkg-content-check': Boolean,
   'strict-peer-dependencies': Boolean,
+  'trust-policy': ['off', 'no-downgrade'] satisfies TrustPolicy[],
   'use-beta-cli': Boolean,
   'use-node-version': String,
   'use-running-store-server': Boolean,

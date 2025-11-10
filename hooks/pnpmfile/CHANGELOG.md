@@ -1,5 +1,48 @@
 # @pnpm/pnpmfile
 
+## 1002.1.3
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/store-controller-types@1004.1.0
+  - @pnpm/hooks.types@1001.0.12
+  - @pnpm/lockfile.types@1002.0.2
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/crypto.hash@1000.2.1
+
+## 1002.1.2
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.2.1
+
+## 1002.1.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/crypto.hash@1000.2.0
+
+## 1002.1.0
+
+### Minor Changes
+
+- e792927: Added support for `finders` [#9946](https://github.com/pnpm/pnpm/pull/9946).
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/hooks.types@1001.0.11
+  - @pnpm/lockfile.types@1002.0.1
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/store-controller-types@1004.0.2
+  - @pnpm/crypto.hash@1000.2.0
+
 ## 1002.0.2
 
 ### Patch Changes

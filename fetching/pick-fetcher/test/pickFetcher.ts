@@ -1,13 +1,15 @@
 import { pickFetcher } from '@pnpm/pick-fetcher'
+import { jest } from '@jest/globals'
+import { type FetchFunction } from '@pnpm/fetcher-base'
 
 test('should pick localTarball fetcher', () => {
-  const localTarball = jest.fn()
+  const localTarball = jest.fn() as FetchFunction
   const fetcher = pickFetcher({ localTarball }, { tarball: 'file:is-positive-1.0.0.tgz' })
   expect(fetcher).toBe(localTarball)
 })
 
 test('should pick remoteTarball fetcher', () => {
-  const remoteTarball = jest.fn()
+  const remoteTarball = jest.fn() as FetchFunction
   const fetcher = pickFetcher({ remoteTarball }, { tarball: 'is-positive-1.0.0.tgz' })
   expect(fetcher).toBe(remoteTarball)
 })
@@ -17,7 +19,7 @@ test.each([
   'https://bitbucket.org/pnpmjs/git-resolver/get/87cf6a67064d2ce56e8cd20624769a5512b83ff9.tar.gz',
   'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz',
 ])('should pick gitHostedTarball fetcher', (tarball) => {
-  const gitHostedTarball = jest.fn()
+  const gitHostedTarball = jest.fn() as FetchFunction
   const fetcher = pickFetcher({ gitHostedTarball }, { tarball })
   expect(fetcher).toBe(gitHostedTarball)
 })

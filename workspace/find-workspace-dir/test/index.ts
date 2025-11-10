@@ -22,13 +22,13 @@ const testOnCaseInSensitiveSystems = isFileSystemCaseSensitive() ? test.skip : t
 test('finds actual workspace dir', async () => {
   const workspaceDir = await findWorkspaceDir(process.cwd())
 
-  expect(workspaceDir).toBe(path.resolve(__dirname, '..', '..', '..'))
+  expect(workspaceDir).toBe(path.resolve(import.meta.dirname, '..', '..', '..'))
 })
 
 testOnCaseInSensitiveSystems('finds workspace dir with wrong case from cwd', async () => {
   const workspaceDir = await findWorkspaceDir(process.cwd().toUpperCase())
 
-  expect(workspaceDir).toBe(path.resolve(__dirname, '..', '..', '..'))
+  expect(workspaceDir).toBe(path.resolve(import.meta.dirname, '..', '..', '..'))
 })
 
 test('finds overridden workspace dir', async () => {

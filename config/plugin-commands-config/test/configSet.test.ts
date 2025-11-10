@@ -182,11 +182,11 @@ test('config set key=value, when value contains a "="', async () => {
     configDir,
     location: 'project',
     rawConfig: {},
-  }, ['set', 'foo=bar=qar'])
+  }, ['set', 'lockfile-dir=foo=bar'])
 
   expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
     'store-dir': '~/store',
-    foo: 'bar=qar',
+    'lockfile-dir': 'foo=bar',
   })
 })
 
@@ -289,4 +289,284 @@ test('config set with location=project and json=true', async () => {
       react: '19',
     },
   })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    json: true,
+    rawConfig: {},
+  }, ['set', 'packageExtensions', JSON.stringify({
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
+  })])
+
+  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toStrictEqual({
+    catalog: {
+      react: '19',
+    },
+    packageExtensions: {
+      '@babel/parser': {
+        peerDependencies: {
+          '@babel/types': '*',
+        },
+      },
+      'jest-circus': {
+        dependencies: {
+          slash: '3',
+        },
+      },
+    },
+  })
+})
+
+test('config set refuses writing workspace-specific settings to the global config', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(configDir, 'rc'), 'store-dir=~/store')
+
+  await expect(config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'global',
+    json: true,
+    rawConfig: {},
+  }, ['set', 'catalog', '{ "react": "19" }'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
+    key: 'catalog',
+  })
+
+  await expect(config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'global',
+    json: true,
+    rawConfig: {},
+  }, ['set', 'packageExtensions', JSON.stringify({
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
+  })])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
+    key: 'packageExtensions',
+  })
+
+  await expect(config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'global',
+    json: true,
+    rawConfig: {},
+  }, ['set', 'package-extensions', JSON.stringify({
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
+  })])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
+    key: 'package-extensions',
+  })
+})
+
+test('config set refuses writing workspace-specific settings to .npmrc', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
+
+  await expect(config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    json: true,
+    rawConfig: {},
+  }, ['set', 'catalog', '{ "react": "19" }'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
+    key: 'catalog',
+  })
+
+  await expect(config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    json: true,
+    rawConfig: {},
+  }, ['set', 'packageExtensions', JSON.stringify({
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
+  })])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
+    key: 'packageExtensions',
+  })
+
+  await expect(config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    json: true,
+    rawConfig: {},
+  }, ['set', 'package-extensions', JSON.stringify({
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
+  })])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
+    key: 'package-extensions',
+  })
+})
+
+test('config set refuses kebab-case workspace-specific settings', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await expect(config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    json: true,
+    rawConfig: {},
+  }, ['set', 'package-extensions', JSON.stringify({
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
+  })])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY',
+    key: 'package-extensions',
+  })
+})
+
+test('config set registry-specific setting with --location=project should create .npmrc', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', '//registry.example.com/:_auth', 'test-auth-value'])
+
+  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
+    '//registry.example.com/:_auth': 'test-auth-value',
+  })
+  expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBeFalsy()
+})
+
+test('config set scoped registry with --location=project should create .npmrc', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', '@myorg:registry', 'https://test-registry.example.com/'])
+
+  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
+    '@myorg:registry': 'https://test-registry.example.com/',
+  })
+  expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBeFalsy()
+})
+
+test('config set when both pnpm-workspace.yaml and .npmrc exist, pnpm-workspace.yaml has priority', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
+  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'fetchRetries: 5')
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', 'fetch-timeout', '2000'])
+
+  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
+    fetchRetries: 5,
+    fetchTimeout: 2000,
+  })
+  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
+    'store-dir': '~/store',
+  })
+})
+
+test('config set when only pnpm-workspace.yaml exists, writes to it', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'fetchRetries: 5')
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', 'fetch-timeout', '3000'])
+
+  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
+    fetchRetries: 5,
+    fetchTimeout: 3000,
+  })
+  expect(fs.existsSync(path.join(tmp, '.npmrc'))).toBeFalsy()
 })

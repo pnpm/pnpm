@@ -12,8 +12,7 @@ import { getStorePath } from '@pnpm/store-path'
 import { type ProjectRootDir } from '@pnpm/types'
 import { glob } from 'tinyglobby'
 import normalizePath from 'normalize-path'
-import pick from 'ramda/src/pick'
-import equals from 'ramda/src/equals'
+import { pick, equals } from 'ramda'
 import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
 import makeEmptyDir from 'make-empty-dir'
@@ -60,7 +59,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const editDir = path.resolve(opts.dir, userDir)
   const stateValue = readEditDirState({
     editDir,
-    modulesDir: path.join(opts.dir, opts.modulesDir ?? 'node_modules'),
+    modulesDir: path.join(lockfileDir, opts.modulesDir ?? 'node_modules'),
   })
   if (!stateValue) {
     throw new PnpmError('INVALID_PATCH_DIR', `${userDir} is not a valid patch directory`, {
@@ -151,7 +150,7 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
   let stderr!: string
 
   try {
-    const result = await execa('git', ['-c', 'core.safecrlf=false', 'diff', '--src-prefix=a/', '--dst-prefix=b/', '--ignore-cr-at-eol', '--irreversible-delete', '--full-index', '--no-index', '--text', '--no-ext-diff', folderAN, folderBN], {
+    const result = await execa('git', ['-c', 'core.safecrlf=false', 'diff', '--src-prefix=a/', '--dst-prefix=b/', '--ignore-cr-at-eol', '--irreversible-delete', '--full-index', '--no-index', '--text', '--no-ext-diff', '--no-color', folderAN, folderBN], {
       cwd: process.cwd(),
       env: {
         ...process.env,

@@ -1,6 +1,6 @@
 import fs from 'fs'
 import util from 'util'
-import { copySync } from 'fs-extra'
+import fsx from 'fs-extra'
 import path from 'path'
 import { globalWarn, logger } from '@pnpm/logger'
 import { sync as rimraf } from '@zkochan/rimraf'
@@ -8,6 +8,7 @@ import { sync as makeEmptyDir } from 'make-empty-dir'
 import sanitizeFilename from 'sanitize-filename'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import renameOverwrite from 'rename-overwrite'
+import gfs from '@pnpm/graceful-fs'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
 
@@ -143,10 +144,10 @@ function moveOrMergeModulesDirs (src: string, dest: string): void {
 
 function renameEvenAcrossDevices (src: string, dest: string): void {
   try {
-    fs.renameSync(src, dest)
+    gfs.renameSync(src, dest)
   } catch (err: unknown) {
     if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EXDEV')) throw err
-    copySync(src, dest)
+    fsx.copySync(src, dest)
   }
 }
 

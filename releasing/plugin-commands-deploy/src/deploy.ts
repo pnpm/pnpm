@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as configTypes } from '@pnpm/config'
 import { fetchFromDir } from '@pnpm/directory-fetcher'

@@ -7,6 +7,7 @@ import {
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
   type DirectoryResolution,
@@ -19,17 +20,21 @@ import {
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
-import { type DependencyManifest, type Registries, type PinnedVersion } from '@pnpm/types'
+import {
+  type DependencyManifest,
+  type PackageVersionPolicy,
+  type PinnedVersion,
+  type Registries,
+  type TrustPolicy,
+} from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
-import clone from 'ramda/src/clone'
+import { clone } from 'ramda'
 import semver from 'semver'
 import ssri from 'ssri'
 import versionSelectorType from 'version-selector-type'
 import {
-  type PackageInRegistry,
-  type PackageMeta,
   type PackageMetaCache,
   type PickPackageOptions,
   pickPackage,
@@ -40,18 +45,37 @@ import {
   type JsrRegistryPackageSpec,
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
-import { fromRegistry, RegistryResponseError } from './fetch.js'
+import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
+import { pickVersionByVersionRange, assertMetaHasTime } from './pickPackageFromMeta.js'
+import { failIfTrustDowngraded } from './trustChecks.js'
+
+export interface NoMatchingVersionErrorOptions {
+  wantedDependency: WantedDependency
+  packageMeta: PackageMeta
+  registry: string
+  immatureVersion?: string
+  publishedBy?: Date
+}
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
-  constructor (opts: { wantedDependency: WantedDependency, packageMeta: PackageMeta, registry: string }) {
+  public readonly immatureVersion?: string
+  constructor (opts: NoMatchingVersionErrorOptions) {
     const dep = opts.wantedDependency.alias
       ? `${opts.wantedDependency.alias}@${opts.wantedDependency.bareSpecifier ?? ''}`
       : opts.wantedDependency.bareSpecifier!
-    super('NO_MATCHING_VERSION', `No matching version found for ${dep} while fetching it from ${opts.registry}`)
+    let errorMessage: string
+    if (opts.publishedBy && opts.immatureVersion && opts.packageMeta.time) {
+      const time = new Date(opts.packageMeta.time[opts.immatureVersion])
+      errorMessage = `No matching version found for ${dep} published by ${opts.publishedBy.toString()} while fetching it from ${opts.registry}. Version ${opts.immatureVersion} satisfies the specs but was released at ${time.toString()}`
+    } else {
+      errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
+    }
+    super('NO_MATCHING_VERSION', errorMessage)
     this.packageMeta = opts.packageMeta
+    this.immatureVersion = opts.immatureVersion
   }
 }
 
@@ -76,6 +100,7 @@ export interface ResolverFactoryOptions {
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean
   strictPublishedByCheck?: boolean
+  fetchWarnTimeoutMs?: number
 }
 
 export interface NpmResolveResult extends ResolveResult {
@@ -111,11 +136,13 @@ export function createNpmResolver (
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
-  const fetchOpts = {
+  const fetchOpts: FetchMetadataFromFromRegistryOptions = {
+    fetch: fetchFromRegistry,
     retry: opts.retry ?? {},
     timeout: opts.timeout ?? 60000,
+    fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs ?? 10 * 1000, // 10 sec
   }
-  const fetch = pMemoize(fromRegistry.bind(null, fetchFromRegistry, fetchOpts), {
+  const fetch = pMemoize(fetchMetadataFromFromRegistry.bind(null, fetchOpts), {
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })
@@ -158,7 +185,9 @@ export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
   publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
   pickLowestVersion?: boolean
+  trustPolicy?: TrustPolicy
   dryRun?: boolean
   lockfileDir?: string
   preferredVersions?: PreferredVersions
@@ -214,6 +243,7 @@ async function resolveNpm (
     pickResult = await ctx.pickPackage(spec, {
       pickLowestVersion: opts.pickLowestVersion,
       publishedBy: opts.publishedBy,
+      publishedByExclude: opts.publishedByExclude,
       authHeaderValue,
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
@@ -258,7 +288,27 @@ async function resolveNpm (
         // ignore
       }
     }
+
+    if (opts.publishedBy) {
+      const immatureVersion = pickVersionByVersionRange({
+        meta,
+        versionRange: spec.fetchSpec,
+        preferredVersionSelectors: opts.preferredVersions?.[spec.name],
+      })
+      if (immatureVersion) {
+        throw new NoMatchingVersionError({
+          wantedDependency,
+          packageMeta: meta,
+          registry,
+          immatureVersion,
+          publishedBy: opts.publishedBy,
+        })
+      }
+    }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
+  } else if (opts.trustPolicy === 'no-downgrade') {
+    assertMetaHasTime(meta)
+    failIfTrustDowngraded(meta, pickedPackage.version)
   }
 
   const workspacePkgsMatchingName = workspacePackages?.get(pickedPackage.name)

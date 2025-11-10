@@ -21,6 +21,8 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'force'
 | 'nodeVersion'
 | 'fetchTimeout'
+| 'fetchWarnTimeoutMs'
+| 'fetchMinSpeedKiBps'
 | 'gitShallowHosts'
 | 'ignoreScripts'
 | 'hooks'
@@ -41,6 +43,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'resolutionMode'
 | 'saveWorkspaceProtocol'
 | 'strictSsl'
+| 'trustPolicy'
 | 'unsafePerm'
 | 'userAgent'
 | 'verifyStoreIntegrity'
@@ -54,7 +57,13 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
 ): Promise<{ ctrl: StoreController, dir: string }> {
-  const fullMetadata = opts.fetchFullMetadata ?? ((opts.resolutionMode === 'time-based' || Boolean(opts.minimumReleaseAge)) && !opts.registrySupportsTimeField)
+  const fullMetadata = opts.fetchFullMetadata ?? (
+    (
+      opts.resolutionMode === 'time-based' ||
+      Boolean(opts.minimumReleaseAge) ||
+      opts.trustPolicy === 'no-downgrade'
+    ) && !opts.registrySupportsTimeField
+  )
   const { resolve, fetchers, clearResolutionCache } = createClient({
     customFetchers: opts.hooks?.fetchers,
     userConfig: opts.userConfig,
@@ -63,6 +72,8 @@ export async function createNewStoreController (
     ca: opts.ca,
     cacheDir: opts.cacheDir,
     cert: opts.cert,
+    fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs,
+    fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
     fullMetadata,
     filterMetadata: fullMetadata,
     httpProxy: opts.httpProxy,

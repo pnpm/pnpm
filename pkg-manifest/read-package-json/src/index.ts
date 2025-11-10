@@ -1,8 +1,19 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { type PackageManifest } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile, loadJsonFileSync } from 'load-json-file'
 import normalizePackageData from 'normalize-package-data'
+
+export function readPackageJsonSync (pkgPath: string): PackageManifest {
+  try {
+    const manifest = loadJsonFileSync<PackageManifest>(pkgPath)
+    normalizePackageData(manifest)
+    return manifest
+  } catch (err: any) { // eslint-disable-line
+    if (err.code) throw err
+    throw new PnpmError('BAD_PACKAGE_JSON', `${pkgPath}: ${err.message as string}`)
+  }
+}
 
 export async function readPackageJson (pkgPath: string): Promise<PackageManifest> {
   try {
@@ -13,6 +24,10 @@ export async function readPackageJson (pkgPath: string): Promise<PackageManifest
     if (err.code) throw err
     throw new PnpmError('BAD_PACKAGE_JSON', `${pkgPath}: ${err.message as string}`)
   }
+}
+
+export function readPackageJsonFromDirSync (pkgPath: string): PackageManifest {
+  return readPackageJsonSync(path.join(pkgPath, 'package.json'))
 }
 
 export async function readPackageJsonFromDir (pkgPath: string): Promise<PackageManifest> {

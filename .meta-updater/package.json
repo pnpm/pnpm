@@ -1,6 +1,6 @@
 {
   "name": "@pnpm-private/updater",
-  "version": "1000.0.0",
+  "version": "1000.0.5",
   "private": true,
   "type": "module",
   "scripts": {
@@ -27,5 +27,6 @@
   "keywords": [
     "pnpm",
     "pnpm10"
-  ]
+  ],
+  "repository": "https://github.com/pnpm/pnpm/tree/main/.meta-updater"
 }

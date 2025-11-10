@@ -2,6 +2,7 @@
 import fs from 'fs'
 import { getConfig } from '@pnpm/cli-utils'
 import { prepare } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 
 beforeEach(() => {
   jest.spyOn(console, 'warn')
@@ -14,7 +15,7 @@ afterEach(() => {
 test('console a warning when the .npmrc has an env variable that does not exist', async () => {
   prepare()
 
-  fs.writeFileSync('.npmrc', 'foo=${ENV_VAR_123}', 'utf8') // eslint-disable-line
+  fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8') // eslint-disable-line
 
   await getConfig({
     json: false,

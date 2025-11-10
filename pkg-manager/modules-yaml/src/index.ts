@@ -1,7 +1,7 @@
 import path from 'path'
 import { type DepPath, type DependenciesField, type HoistedDependencies, type Registries } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
-import mapValues from 'ramda/src/map'
+import { map as mapValues } from 'ramda'
 import isWindows from 'is-windows'
 import writeYamlFile from 'write-yaml-file'
 
@@ -39,7 +39,7 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   let modules!: Modules
   try {
-    modules = await readYamlFile<Modules>(modulesYamlPath)
+    modules = await readYamlFile.default<Modules>(modulesYamlPath)
     if (!modules) return modules
   } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
@@ -59,7 +59,7 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
     }
     if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
       modules.hoistedDependencies = mapValues(
-        (aliases) => Object.fromEntries(aliases.map((alias) => [alias, 'public'])),
+        (aliases) => Object.fromEntries(aliases.map((alias) => [alias, 'public' as const])),
         modules.hoistedAliases
       )
     }

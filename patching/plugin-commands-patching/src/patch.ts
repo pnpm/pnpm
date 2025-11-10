@@ -7,7 +7,7 @@ import { type LogBase } from '@pnpm/logger'
 import {
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import chalk from 'chalk'
 import terminalLink from 'terminal-link'
@@ -101,7 +101,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
 
   writeEditDirState({
     editDir,
-    modulesDir: path.join(opts.dir, opts.modulesDir ?? 'node_modules'),
+    modulesDir,
     patchedPkg: params[0],
     applyToAll: patchedDep.applyToAll,
   })

@@ -12,7 +12,7 @@ import { createGitFetcher } from '@pnpm/git-fetcher'
 import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createBinaryFetcher } from '@pnpm/fetching.binary-fetcher'
-import mapValues from 'ramda/src/map'
+import { map as mapValues } from 'ramda'
 
 export type { ResolveFunction }
 
@@ -31,6 +31,7 @@ export type ClientOptions = {
   resolveSymlinksInInjectedDirs?: boolean
   includeOnlyPackageFiles?: boolean
   preserveAbsolutePaths?: boolean
+  fetchMinSpeedKiBps?: number
 } & ResolverFactoryOptions & AgentOptions
 
 export interface Client {
@@ -65,7 +66,7 @@ type Fetchers = {
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
-  opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles' | 'offline'>,
+  opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles' | 'offline' | 'fetchMinSpeedKiBps'>,
   customFetchers?: CustomFetchers
 ): Fetchers {
   const tarballFetchers = createTarballFetcher(fetchFromRegistry, getAuthHeader, opts)

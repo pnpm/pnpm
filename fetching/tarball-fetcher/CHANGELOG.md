@@ -1,5 +1,63 @@
 # @pnpm/tarball-fetcher
 
+## 1003.0.0
+
+### Patch Changes
+
+- Updated dependencies [8993f68]
+  - @pnpm/worker@1000.3.0
+  - @pnpm/prepare-package@1000.0.26
+  - @pnpm/fetcher-base@1001.0.2
+  - @pnpm/core-loggers@1001.0.4
+
+## 1002.0.1
+
+### Patch Changes
+
+- @pnpm/prepare-package@1000.0.25
+
+## 1002.0.0
+
+### Patch Changes
+
+- Updated dependencies [06d2160]
+  - @pnpm/worker@1000.2.0
+
+## 1001.1.0
+
+### Minor Changes
+
+- fb4da0c: Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- Updated dependencies [9b9faa5]
+  - @pnpm/graceful-fs@1000.0.1
+  - @pnpm/worker@1000.1.14
+  - @pnpm/prepare-package@1000.0.24
+
+## 1001.0.15
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/prepare-package@1000.0.23
+- @pnpm/worker@1000.1.13
+
+## 1001.0.14
+
+### Patch Changes
+
+- @pnpm/prepare-package@1000.0.22
+- @pnpm/fetcher-base@1001.0.1
+- @pnpm/core-loggers@1001.0.3
+- @pnpm/worker@1000.1.12
+
 ## 1001.0.13
 
 ### Patch Changes

@@ -1,5 +1,257 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.6.10
+
+### Patch Changes
+
+- @pnpm/config.deps-installer@1000.0.19
+- @pnpm/outdated@1001.1.1
+- @pnpm/workspace.pkgs-graph@1000.0.25
+- @pnpm/cli-utils@1001.2.8
+- @pnpm/core@1012.0.1
+- @pnpm/filter-workspace-packages@1000.0.43
+- @pnpm/plugin-commands-env@1000.0.44
+- @pnpm/plugin-commands-rebuild@1004.0.1
+- @pnpm/workspace.find-packages@1000.0.43
+- @pnpm/package-store@1004.0.0
+- @pnpm/store-connection-manager@1002.2.4
+- @pnpm/deps.status@1003.0.15
+
+## 1004.6.9
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/plugin-commands-rebuild@1004.0.0
+  - @pnpm/core@1012.0.0
+  - @pnpm/outdated@1001.1.0
+  - @pnpm/matcher@1000.1.0
+  - @pnpm/package-store@1004.0.0
+  - @pnpm/cli-utils@1001.2.7
+  - @pnpm/config@1004.4.2
+  - @pnpm/config.config-writer@1000.0.14
+  - @pnpm/config.deps-installer@1000.0.18
+  - @pnpm/pick-registry-for-package@1000.0.11
+  - @pnpm/dedupe.check@1001.0.13
+  - @pnpm/deps.status@1003.0.14
+  - @pnpm/plugin-commands-env@1000.0.43
+  - @pnpm/pnpmfile@1002.1.3
+  - @pnpm/lockfile.types@1002.0.2
+  - @pnpm/get-context@1001.1.8
+  - @pnpm/manifest-utils@1001.0.6
+  - @pnpm/read-package-json@1000.1.2
+  - @pnpm/read-project-manifest@1001.1.4
+  - @pnpm/write-project-manifest@1000.0.11
+  - @pnpm/filter-workspace-packages@1000.0.42
+  - @pnpm/workspace.find-packages@1000.0.42
+  - @pnpm/workspace.manifest-writer@1001.0.3
+  - @pnpm/workspace.pkgs-graph@1000.0.24
+  - @pnpm/sort-packages@1000.0.11
+  - @pnpm/workspace.state@1002.0.7
+  - @pnpm/store-connection-manager@1002.2.3
+
+## 1004.6.8
+
+### Patch Changes
+
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/cli-utils@1001.2.6
+  - @pnpm/deps.status@1003.0.13
+  - @pnpm/plugin-commands-env@1000.0.42
+  - @pnpm/plugin-commands-rebuild@1003.0.1
+  - @pnpm/store-connection-manager@1002.2.2
+  - @pnpm/workspace.state@1002.0.6
+  - @pnpm/core@1011.0.1
+  - @pnpm/workspace.find-packages@1000.0.41
+  - @pnpm/filter-workspace-packages@1000.0.41
+  - @pnpm/outdated@1001.0.36
+  - @pnpm/package-store@1003.0.0
+  - @pnpm/config.deps-installer@1000.0.17
+
+## 1004.6.7
+
+### Patch Changes
+
+- Updated dependencies [39b728a]
+  - @pnpm/outdated@1001.0.35
+  - @pnpm/plugin-commands-rebuild@1003.0.0
+  - @pnpm/core@1011.0.0
+  - @pnpm/package-store@1003.0.0
+  - @pnpm/config.deps-installer@1000.0.17
+  - @pnpm/store-connection-manager@1002.2.1
+  - @pnpm/plugin-commands-env@1000.0.41
+  - @pnpm/cli-utils@1001.2.5
+  - @pnpm/workspace.find-packages@1000.0.40
+  - @pnpm/deps.status@1003.0.12
+  - @pnpm/filter-workspace-packages@1000.0.40
+
+## 1004.6.6
+
+### Patch Changes
+
+- Updated dependencies [c5e895f]
+  - @pnpm/core@1010.1.5
+
+## 1004.6.5
+
+### Patch Changes
+
+- Updated dependencies [2e07c4f]
+  - @pnpm/outdated@1001.0.34
+
+## 1004.6.4
+
+### Patch Changes
+
+- 93fdc73: Correctly apply the `cleanupUnusedCatalogs` configuration when removing dependent packages.
+- Updated dependencies [9b9faa5]
+- Updated dependencies [fb4da0c]
+  - @pnpm/graceful-fs@1000.0.1
+  - @pnpm/store-connection-manager@1002.2.0
+  - @pnpm/config@1004.4.0
+  - @pnpm/read-project-manifest@1001.1.3
+  - @pnpm/plugin-commands-rebuild@1002.0.29
+  - @pnpm/core@1010.1.4
+  - @pnpm/package-store@1002.0.12
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/config.deps-installer@1000.0.16
+  - @pnpm/outdated@1001.0.33
+  - @pnpm/workspace.pkgs-graph@1000.0.23
+  - @pnpm/deps.status@1003.0.11
+  - @pnpm/plugin-commands-env@1000.0.40
+  - @pnpm/workspace.state@1002.0.5
+  - @pnpm/pnpmfile@1002.1.2
+  - @pnpm/config.config-writer@1000.0.13
+  - @pnpm/workspace.find-packages@1000.0.39
+  - @pnpm/filter-workspace-packages@1000.0.39
+  - @pnpm/workspace.manifest-writer@1001.0.2
+  - @pnpm/get-context@1001.1.7
+
+## 1004.6.3
+
+### Patch Changes
+
+- @pnpm/config.deps-installer@1000.0.15
+- @pnpm/outdated@1001.0.32
+- @pnpm/workspace.pkgs-graph@1000.0.22
+- @pnpm/cli-utils@1001.2.3
+- @pnpm/core@1010.1.3
+- @pnpm/filter-workspace-packages@1000.0.38
+- @pnpm/plugin-commands-env@1000.0.39
+- @pnpm/plugin-commands-rebuild@1002.0.28
+- @pnpm/workspace.find-packages@1000.0.38
+- @pnpm/package-store@1002.0.11
+- @pnpm/store-connection-manager@1002.1.3
+- @pnpm/deps.status@1003.0.10
+
+## 1004.6.2
+
+### Patch Changes
+
+- @pnpm/config.deps-installer@1000.0.14
+- @pnpm/outdated@1001.0.31
+- @pnpm/workspace.pkgs-graph@1000.0.21
+- @pnpm/core@1010.1.2
+- @pnpm/cli-utils@1001.2.2
+- @pnpm/filter-workspace-packages@1000.0.37
+- @pnpm/plugin-commands-env@1000.0.38
+- @pnpm/plugin-commands-rebuild@1002.0.27
+- @pnpm/workspace.find-packages@1000.0.37
+- @pnpm/package-store@1002.0.11
+- @pnpm/store-connection-manager@1002.1.2
+- @pnpm/deps.status@1003.0.9
+
+## 1004.6.1
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/config@1004.3.1
+  - @pnpm/deps.status@1003.0.8
+  - @pnpm/plugin-commands-rebuild@1002.0.26
+  - @pnpm/error@1000.0.5
+  - @pnpm/core@1010.1.1
+  - @pnpm/get-context@1001.1.6
+  - @pnpm/outdated@1001.0.30
+  - @pnpm/workspace.find-packages@1000.0.36
+  - @pnpm/workspace.manifest-writer@1001.0.2
+  - @pnpm/cli-utils@1001.2.1
+  - @pnpm/plugin-commands-env@1000.0.37
+  - @pnpm/store-connection-manager@1002.1.1
+  - @pnpm/workspace.state@1002.0.4
+  - @pnpm/config.deps-installer@1000.0.13
+  - @pnpm/dedupe.check@1001.0.12
+  - @pnpm/pnpmfile@1002.1.1
+  - @pnpm/manifest-utils@1001.0.5
+  - @pnpm/read-package-json@1000.1.1
+  - @pnpm/read-project-manifest@1001.1.2
+  - @pnpm/filter-workspace-packages@1000.0.36
+  - @pnpm/find-workspace-dir@1000.1.3
+  - @pnpm/workspace.pkgs-graph@1000.0.20
+  - @pnpm/config.config-writer@1000.0.12
+  - @pnpm/package-store@1002.0.11
+
+## 1004.6.0
+
+### Minor Changes
+
+- 38e2599: There have been several incidents recently where popular packages were successfully attacked. To reduce the risk of installing a compromised version, we are introducing a new setting that delays the installation of newly released dependencies. In most cases, such attacks are discovered quickly and the malicious versions are removed from the registry within an hour.
+
+  The new setting is called `minimumReleaseAge`. It specifies the number of minutes that must pass after a version is published before pnpm will install it. For example, setting `minimumReleaseAge: 1440` ensures that only packages released at least one day ago can be installed.
+
+  If you set `minimumReleaseAge` but need to disable this restriction for certain dependencies, you can list them under the `minimumReleaseAgeExclude` setting. For instance, with the following configuration pnpm will always install the latest version of webpack, regardless of its release time:
+
+  ```yaml
+  minimumReleaseAgeExclude:
+    - webpack
+  ```
+
+  Related issue: [#9921](https://github.com/pnpm/pnpm/issues/9921).
+
+### Patch Changes
+
+- c182b2d: `cleanupUnusedCatalogs` configuration should be applied when removing a dependency package.
+- Updated dependencies [e792927]
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+- Updated dependencies [2ebd45a]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/store-connection-manager@1002.1.0
+  - @pnpm/core@1010.1.0
+  - @pnpm/config@1004.3.0
+  - @pnpm/pnpmfile@1002.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/cli-utils@1001.2.0
+  - @pnpm/config.deps-installer@1000.0.12
+  - @pnpm/plugin-commands-rebuild@1002.0.25
+  - @pnpm/outdated@1001.0.29
+  - @pnpm/workspace.pkgs-graph@1000.0.19
+  - @pnpm/deps.status@1003.0.7
+  - @pnpm/plugin-commands-env@1000.0.36
+  - @pnpm/workspace.state@1002.0.3
+  - @pnpm/config.config-writer@1000.0.11
+  - @pnpm/pick-registry-for-package@1000.0.10
+  - @pnpm/dedupe.check@1001.0.11
+  - @pnpm/lockfile.types@1002.0.1
+  - @pnpm/get-context@1001.1.5
+  - @pnpm/manifest-utils@1001.0.4
+  - @pnpm/read-project-manifest@1001.1.1
+  - @pnpm/write-project-manifest@1000.0.10
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/package-store@1002.0.10
+  - @pnpm/filter-workspace-packages@1000.0.35
+  - @pnpm/workspace.find-packages@1000.0.35
+  - @pnpm/workspace.manifest-writer@1001.0.1
+  - @pnpm/sort-packages@1000.0.10
+
 ## 1004.5.1
 
 ### Patch Changes

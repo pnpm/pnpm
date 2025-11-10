@@ -39,17 +39,18 @@ import {
   type Registries,
   type PkgIdWithPatchHash,
   type PinnedVersion,
+  type PackageVersionPolicy,
+  type TrustPolicy,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
+import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
 import { type PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
-import exists from 'path-exists'
+import { pathExists } from 'path-exists'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
-import pickBy from 'ramda/src/pickBy'
-import omit from 'ramda/src/omit'
-import zipWith from 'ramda/src/zipWith'
+import { pickBy, omit, zipWith } from 'ramda'
 import semver from 'semver'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies.js'
 import { safeIntersect } from './mergePeers.js'
@@ -59,6 +60,8 @@ import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers.js'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable.js'
 import { type CatalogLookupMetadata } from './resolveDependencyTree.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
+
+export type { WantedDependency }
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
@@ -177,7 +180,8 @@ export interface ResolutionContext {
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
   maximumPublishedBy?: Date
-  minimumReleaseAgeExclude?: string[]
+  publishedByExclude?: PackageVersionPolicy
+  trustPolicy?: TrustPolicy
 }
 
 export interface MissingPeerInfo {
@@ -1275,7 +1279,7 @@ async function resolveDependency (
     currentPkg.depPath &&
     currentPkg.dependencyLockfile &&
     currentPkg.name &&
-    await exists(
+    await pathExists(
       path.join(
         ctx.virtualStoreDir,
         dp.depPathToFilename(currentPkg.depPath, ctx.virtualStoreDirMaxLength),
@@ -1305,17 +1309,6 @@ async function resolveDependency (
     if (!options.updateRequested && options.preferredVersion != null) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
-    let publishedBy: Date | undefined
-    if (
-      options.publishedBy &&
-      (
-        ctx.minimumReleaseAgeExclude == null ||
-        wantedDependency.alias == null ||
-        !ctx.minimumReleaseAgeExclude.includes(wantedDependency.alias)
-      )
-    ) {
-      publishedBy = options.publishedBy
-    }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
@@ -1329,7 +1322,8 @@ async function resolveDependency (
       expectedPkg: currentPkg,
       defaultTag: ctx.defaultTag,
       ignoreScripts: ctx.ignoreScripts,
-      publishedBy,
+      publishedBy: options.publishedBy,
+      publishedByExclude: ctx.publishedByExclude,
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
@@ -1342,6 +1336,7 @@ async function resolveDependency (
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
       skipFetch: ctx.dryRun,
+      trustPolicy: ctx.trustPolicy,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
@@ -1422,7 +1417,7 @@ async function resolveDependency (
 
   let prepare!: boolean
   let hasBin!: boolean
-  let pkg: PackageManifest = getManifestFromResponse(pkgResponse, wantedDependency)
+  let pkg: PackageManifest = getManifestFromResponse(pkgResponse, wantedDependency, currentPkg)
   if (!pkg.dependencies) {
     pkg.dependencies = {}
   }
@@ -1444,6 +1439,9 @@ async function resolveDependency (
         ),
       }
     }
+  }
+  if (pkg.engines?.runtime != null) {
+    convertEnginesRuntimeToDependencies(pkg, 'engines', 'dependencies')
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.bareSpecifier}: Missing package name`)
@@ -1506,7 +1504,9 @@ async function resolveDependency (
     ) {
       pkg.deprecated = currentPkg.dependencyLockfile.deprecated
     }
-    hasBin = Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
+    hasBin = (currentPkg.dependencyLockfile?.hasBin != null && !pkg.bin)
+      ? currentPkg.dependencyLockfile.hasBin
+      : Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest
@@ -1649,11 +1649,19 @@ async function resolveDependency (
   }
 }
 
-function getManifestFromResponse (
+export function getManifestFromResponse (
   pkgResponse: PackageResponse,
-  wantedDependency: WantedDependency
+  wantedDependency: WantedDependency,
+  currentPkg?: Partial<InfoFromLockfile>
 ): PackageManifest {
   if (pkgResponse.body.manifest) return pkgResponse.body.manifest
+
+  if (currentPkg?.name && currentPkg?.version) {
+    return {
+      name: currentPkg.name,
+      version: currentPkg.version,
+    }
+  }
   return {
     name: wantedDependency.alias ? wantedDependency.alias : wantedDependency.bareSpecifier.split('/').pop()!,
     version: '0.0.0',

@@ -1,5 +1,35 @@
 # @pnpm/read-project-manifest
 
+## 1001.1.4
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/write-project-manifest@1000.0.11
+
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [9b9faa5]
+  - @pnpm/graceful-fs@1000.0.1
+
+## 1001.1.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+
+## 1001.1.1
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/write-project-manifest@1000.0.10
+
 ## 1001.1.0
 
 ### Minor Changes

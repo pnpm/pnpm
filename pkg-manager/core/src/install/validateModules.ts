@@ -13,7 +13,7 @@ import {
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import enquirer from 'enquirer'
-import equals from 'ramda/src/equals'
+import { equals } from 'ramda'
 import { checkCompatibility } from './checkCompatibility/index.js'
 
 interface ImporterToPurge {
@@ -149,6 +149,11 @@ async function purgeModulesDirsOfImporters (
   importers: ImporterToPurge[]
 ): Promise<void> {
   if (opts.confirmModulesPurge ?? true) {
+    if (!process.stdin.isTTY) {
+      throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_NO_TTY', 'Aborted removal of modules directory due to no TTY', {
+        hint: 'If you are running pnpm in CI, set the CI environment variable to "true".',
+      })
+    }
     const confirmed = await enquirer.prompt<{ question: boolean }>({
       type: 'confirm',
       name: 'question',

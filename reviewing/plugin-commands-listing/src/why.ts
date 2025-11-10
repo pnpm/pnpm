@@ -2,7 +2,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { handler as list, type ListCommandOptions, EXCLUDE_PEERS_HELP } from './list.js'
 
@@ -25,6 +25,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   'exclude-peers': Boolean,
   recursive: Boolean,
+  'find-by': [String, Array],
 })
 
 export const shorthands: Record<string, string> = {
@@ -103,8 +104,8 @@ export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ): Promise<string> {
-  if (params.length === 0) {
-    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
+  if (params.length === 0 && opts.findBy == null) {
+    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name or --find-by=<finder-name>')
   }
   return list({
     ...opts,

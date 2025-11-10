@@ -1,5 +1,60 @@
 # @pnpm/workspace.pkgs-graph
 
+## 1000.0.25
+
+### Patch Changes
+
+- Updated dependencies [6c3dcb8]
+  - @pnpm/npm-resolver@1004.4.1
+
+## 1000.0.24
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/npm-resolver@1004.4.0
+
+## 1000.0.23
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/npm-resolver@1004.3.0
+
+## 1000.0.22
+
+### Patch Changes
+
+- Updated dependencies [baf8bf6]
+- Updated dependencies [702ddb9]
+  - @pnpm/npm-resolver@1004.2.3
+
+## 1000.0.21
+
+### Patch Changes
+
+- Updated dependencies [121b44e]
+- Updated dependencies [02f8b69]
+  - @pnpm/npm-resolver@1004.2.2
+
+## 1000.0.20
+
+### Patch Changes
+
+- @pnpm/npm-resolver@1004.2.1
+
+## 1000.0.19
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/npm-resolver@1004.2.0
+  - @pnpm/types@1000.8.0
+
 ## 1000.0.18
 
 ### Patch Changes

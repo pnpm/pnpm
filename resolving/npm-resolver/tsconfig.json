@@ -22,6 +22,9 @@
       "path": "../../fs/graceful-fs"
     },
     {
+      "path": "../../fs/v8-file"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
@@ -41,6 +44,12 @@
     },
     {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../registry/pkg-metadata-filter"
+    },
+    {
+      "path": "../../registry/types"
     },
     {
       "path": "../../workspace/resolve-workspace-range"

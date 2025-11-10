@@ -1,7 +1,7 @@
 import path from 'path'
 import { getGitBranchLockfileNames } from '../lib/gitBranchLockfile.js'
 
-process.chdir(__dirname)
+process.chdir(import.meta.dirname)
 
 test('getGitBranchLockfileNames()', async () => {
   const lockfileDir: string = path.join('fixtures', '6')

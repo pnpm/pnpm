@@ -1,10 +1,10 @@
 import { type Dirent, promises as fs } from 'fs'
 import util from 'util'
 import path from 'path'
+import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
 import ssri from 'ssri'
 
 const BIG_ONE = BigInt(1) as unknown
@@ -35,7 +35,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
     const subdir = path.join(indexDir, dir)
     await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
       const filePath = path.join(subdir, fileName)
-      if (fileName.endsWith('.json')) {
+      if (fileName.endsWith('.v8')) {
         pkgIndexFiles.push(filePath)
       }
     }))
@@ -47,7 +47,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
     const subdir = path.join(cafsDir, dir)
     await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
       const filePath = path.join(subdir, fileName)
-      if (fileName.endsWith('.json')) {
+      if (fileName.endsWith('.v8')) {
         pkgIndexFiles.push(filePath)
         return
       }
@@ -74,7 +74,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
 
   let pkgCounter = 0
   await Promise.all(pkgIndexFiles.map(async (pkgIndexFilePath) => {
-    const { files: pkgFilesIndex } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
+    const { files: pkgFilesIndex } = await readV8FileStrictAsync<PackageFilesIndex>(pkgIndexFilePath)
     if (removedHashes.has(pkgFilesIndex['package.json'].integrity)) {
       await fs.unlink(pkgIndexFilePath)
       pkgCounter++

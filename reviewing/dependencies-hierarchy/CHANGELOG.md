@@ -1,5 +1,57 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [7c1382f]
+  - @pnpm/types@1000.9.0
+  - @pnpm/matcher@1000.1.0
+  - @pnpm/normalize-registries@1000.1.4
+  - @pnpm/lockfile.detect-dep-types@1001.0.16
+  - @pnpm/lockfile.fs@1001.1.21
+  - @pnpm/lockfile.utils@1003.0.3
+  - @pnpm/dependency-path@1001.1.3
+  - @pnpm/modules-yaml@1000.3.6
+  - @pnpm/read-package-json@1000.1.2
+
+## 1001.1.2
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.1.2
+- @pnpm/lockfile.detect-dep-types@1001.0.15
+- @pnpm/lockfile.fs@1001.1.20
+- @pnpm/lockfile.utils@1003.0.2
+
+## 1001.1.1
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.19
+- @pnpm/read-package-json@1000.1.1
+
+## 1001.1.0
+
+### Minor Changes
+
+- e792927: Added support for `finders` [#9946](https://github.com/pnpm/pnpm/pull/9946).
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [e792927]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/normalize-registries@1000.1.3
+  - @pnpm/lockfile.detect-dep-types@1001.0.14
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/dependency-path@1001.1.1
+  - @pnpm/modules-yaml@1000.3.5
+
 ## 1001.0.19
 
 ### Patch Changes

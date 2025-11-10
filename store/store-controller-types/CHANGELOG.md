@@ -1,5 +1,29 @@
 # @pnpm/store-controller-types
 
+## 1004.1.0
+
+### Minor Changes
+
+- 7c1382f: The npm resolver supports `publishedByExclude` now.
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/fetcher-base@1001.0.2
+
+## 1004.0.2
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/fetcher-base@1001.0.1
+  - @pnpm/resolver-base@1005.0.1
+
 ## 1004.0.1
 
 ### Patch Changes

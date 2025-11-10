@@ -1,5 +1,106 @@
 # @pnpm/client
 
+## 1001.1.4
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.2.12
+
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/fetching.binary-fetcher@1002.0.0
+  - @pnpm/git-fetcher@1003.0.0
+  - @pnpm/tarball-fetcher@1003.0.0
+  - @pnpm/directory-fetcher@1000.1.14
+  - @pnpm/fetch@1000.2.6
+  - @pnpm/default-resolver@1002.2.11
+  - @pnpm/node.fetcher@1001.0.8
+
+## 1001.1.2
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1001.0.7
+- @pnpm/default-resolver@1002.2.10
+- @pnpm/git-fetcher@1002.0.1
+- @pnpm/tarball-fetcher@1002.0.1
+
+## 1001.1.1
+
+### Patch Changes
+
+- @pnpm/fetching.binary-fetcher@1001.0.0
+- @pnpm/git-fetcher@1002.0.0
+- @pnpm/tarball-fetcher@1002.0.0
+- @pnpm/node.fetcher@1001.0.6
+- @pnpm/default-resolver@1002.2.9
+
+## 1001.1.0
+
+### Minor Changes
+
+- fb4da0c: Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/tarball-fetcher@1001.1.0
+  - @pnpm/git-fetcher@1001.0.16
+  - @pnpm/node.fetcher@1001.0.5
+  - @pnpm/default-resolver@1002.2.8
+  - @pnpm/directory-fetcher@1000.1.13
+
+## 1001.0.7
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.2.7
+
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.2.6
+
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1001.0.4
+- @pnpm/default-resolver@1002.2.5
+- @pnpm/fetching.binary-fetcher@1000.0.3
+- @pnpm/tarball-fetcher@1001.0.15
+- @pnpm/network.auth-header@1000.0.6
+- @pnpm/git-fetcher@1001.0.15
+- @pnpm/directory-fetcher@1000.1.12
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/default-resolver@1002.2.4
+  - @pnpm/directory-fetcher@1000.1.11
+  - @pnpm/git-fetcher@1001.0.14
+  - @pnpm/tarball-fetcher@1001.0.14
+  - @pnpm/fetch@1000.2.5
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/node.fetcher@1001.0.3
+  - @pnpm/fetching.binary-fetcher@1000.0.2
+
 ## 1001.0.3
 
 ### Patch Changes

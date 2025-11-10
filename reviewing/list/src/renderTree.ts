@@ -4,8 +4,7 @@ import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
-import sortBy from 'ramda/src/sortBy'
-import ramdaPath from 'ramda/src/path'
+import { sortBy, path as ramdaPath } from 'ramda'
 import { type Ord } from 'ramda'
 import { getPkgInfo } from './getPkgInfo.js'
 import { type PackageDependencyHierarchy } from './types.js'
@@ -114,12 +113,17 @@ export async function toArchyTree (
   return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
       const nodes = await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
+      const labelLines: string[] = [
+        printLabel(getPkgColor, node),
+      ]
+      if (node.searchMessage) {
+        labelLines.push(node.searchMessage)
+      }
       if (opts.long) {
         const pkg = await getPkgInfo(node)
-        const labelLines = [
-          printLabel(getPkgColor, node),
-          pkg.description,
-        ]
+        if (pkg.description) {
+          labelLines.push(pkg.description)
+        }
         if (pkg.repository) {
           labelLines.push(pkg.repository)
         }
@@ -129,14 +133,9 @@ export async function toArchyTree (
         if (pkg.path) {
           labelLines.push(pkg.path)
         }
-
-        return {
-          label: labelLines.join('\n'),
-          nodes,
-        }
       }
       return {
-        label: printLabel(getPkgColor, node),
+        label: labelLines.join('\n'),
         nodes,
       }
     })

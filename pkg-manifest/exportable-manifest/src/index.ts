@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
-import omit from 'ramda/src/omit'
+import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig.js'
 
@@ -95,7 +95,7 @@ async function makePublishDependencies (
   { modulesDir, convertDependencyForPublish }: MakePublishDependenciesOpts
 ): Promise<Dependencies | undefined> {
   if (dependencies == null) return dependencies
-  const publishDependencies = await pMapValues(
+  const publishDependencies = await pMapValues.default(
     async (depSpec, depName) => convertDependencyForPublish(depName, depSpec, dir, modulesDir),
     dependencies
   )

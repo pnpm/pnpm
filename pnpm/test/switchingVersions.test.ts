@@ -2,7 +2,8 @@ import path from 'path'
 import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
 import { getToolDirPath } from '@pnpm/tools.path'
-import { sync as writeJsonFile } from 'write-json-file'
+import { writeJsonFileSync } from 'write-json-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpmSync } from './utils/index.js'
 import isWindows from 'is-windows'
 
@@ -10,7 +11,7 @@ test('switch to the pnpm version specified in the packageManager field of packag
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
-  writeJsonFile('package.json', {
+  writeJsonFileSync('package.json', {
     packageManager: 'pnpm@9.3.0',
   })
 
@@ -19,12 +20,28 @@ test('switch to the pnpm version specified in the packageManager field of packag
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
-test('do not switch to the pnpm version specified in the packageManager field of package.json, if manage-package-manager-versions is set to false', async () => {
+test('do not switch to the pnpm version specified in the packageManager field of package.json, if manage-package-manager-versions is set to false (backward-compatibility)', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
   fs.writeFileSync('.npmrc', 'manage-package-manager-versions=false')
-  writeJsonFile('package.json', {
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).not.toContain('Version 9.3.0')
+})
+
+test('do not switch to the pnpm version specified in the packageManager field of package.json, if managePackageManagerVersions is set to false', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeYamlFile('pnpm-workspace.yaml', {
+    managePackageManagerVersions: false,
+  })
+  writeJsonFileSync('package.json', {
     packageManager: 'pnpm@9.3.0',
   })
 
@@ -37,7 +54,7 @@ test('do not switch to pnpm version that is specified not with a semver version'
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
-  writeJsonFile('package.json', {
+  writeJsonFileSync('package.json', {
     packageManager: 'pnpm@kevva/is-positive',
   })
 
@@ -50,7 +67,7 @@ test('do not switch to pnpm version that is specified starting with v', async ()
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
-  writeJsonFile('package.json', {
+  writeJsonFileSync('package.json', {
     packageManager: 'pnpm@v9.15.5',
   })
 
@@ -63,7 +80,7 @@ test('do not switch to pnpm version when a range is specified', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
-  writeJsonFile('package.json', {
+  writeJsonFileSync('package.json', {
     packageManager: 'pnpm@^9.3.0',
   })
 
@@ -77,8 +94,11 @@ test('throws error if pnpm tools dir is corrupt', () => {
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
   const version = '9.3.0'
+
+  // NOTE: replace this .npmrc file with an equivalent pnpm-workspace.yaml would cause the test to hang indefinitely.
   fs.writeFileSync('.npmrc', 'manage-package-manager-versions=true')
-  writeJsonFile('package.json', {
+
+  writeJsonFileSync('package.json', {
     packageManager: `pnpm@${version}`,
   })
 

@@ -1,6 +1,5 @@
 import { jest } from '@jest/globals'
 import type * as DetectLibc from 'detect-libc'
-import { checkPlatform } from '../lib/checkPlatform.js'
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -11,6 +10,8 @@ jest.mock('detect-libc', () => {
     familySync: () => 'musl',
   }
 })
+
+const { checkPlatform } = await import('../lib/checkPlatform.js')
 
 test('target cpu wrong', () => {
   const target = {
@@ -106,7 +107,7 @@ test('os wrong (negation)', () => {
 })
 
 test('nothing wrong (negation)', () => {
-  expect(checkPlatform(packageId, { cpu: '!enten-cpu', os: '!enten-os', libc: '!enten-libc' })).toBe(null)
+  expect(checkPlatform(packageId, { cpu: '!enten-cpu', os: '!enten-os', libc: '!enten-libc' })).toBeNull()
 })
 
 test('override OS', () => {
@@ -114,7 +115,7 @@ test('override OS', () => {
     os: ['win32'],
     cpu: ['current'],
     libc: ['current'],
-  })).toBe(null)
+  })).toBeNull()
 })
 
 test('accept another CPU', () => {
@@ -122,7 +123,7 @@ test('accept another CPU', () => {
     os: ['current'],
     cpu: ['current', 'x64'],
     libc: ['current'],
-  })).toBe(null)
+  })).toBeNull()
 })
 
 test('fail when CPU is different', () => {
@@ -140,7 +141,7 @@ test('override libc', () => {
     os: ['current'],
     cpu: ['current'],
     libc: ['glibc'],
-  })).toBe(null)
+  })).toBeNull()
 })
 
 test('accept another libc', () => {
@@ -148,5 +149,5 @@ test('accept another libc', () => {
     os: ['current'],
     cpu: ['current'],
     libc: ['current', 'glibc'],
-  })).toBe(null)
+  })).toBeNull()
 })

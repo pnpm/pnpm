@@ -1,5 +1,125 @@
 # @pnpm/outdated
 
+## 1001.1.1
+
+### Patch Changes
+
+- Updated dependencies [6c3dcb8]
+  - @pnpm/npm-resolver@1004.4.1
+  - @pnpm/client@1001.1.4
+
+## 1001.1.0
+
+### Minor Changes
+
+- 7c1382f: Added support for exact versions in `minimumReleaseAgeExclude` [#9985](https://github.com/pnpm/pnpm/issues/9985).
+
+  You can now list one or more specific versions that pnpm should allow to install, even if those versions don’t satisfy the maturity requirement set by `minimumReleaseAge`. For example:
+
+  ```yaml
+  minimumReleaseAge: 1440
+  minimumReleaseAgeExclude:
+    - nx@21.6.5
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [dee39ec]
+- Updated dependencies [7c1382f]
+  - @pnpm/types@1000.9.0
+  - @pnpm/npm-resolver@1004.4.0
+  - @pnpm/config.version-policy@1000.0.0
+  - @pnpm/matcher@1000.1.0
+  - @pnpm/pick-registry-for-package@1000.0.11
+  - @pnpm/hooks.read-package-hook@1000.0.15
+  - @pnpm/lockfile.fs@1001.1.21
+  - @pnpm/lockfile.utils@1003.0.3
+  - @pnpm/dependency-path@1001.1.3
+  - @pnpm/client@1001.1.3
+  - @pnpm/manifest-utils@1001.0.6
+
+## 1001.0.36
+
+### Patch Changes
+
+- @pnpm/client@1001.1.2
+
+## 1001.0.35
+
+### Patch Changes
+
+- 39b728a: `pnpm outdated --long` should work [#10040](https://github.com/pnpm/pnpm/issues/10040).
+  - @pnpm/client@1001.1.1
+
+## 1001.0.34
+
+### Patch Changes
+
+- 2e07c4f: Outdated command respects `minimumReleaseAge` configuration [#10030](https://github.com/pnpm/pnpm/pull/10030).
+
+## 1001.0.33
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/npm-resolver@1004.3.0
+  - @pnpm/client@1001.1.0
+  - @pnpm/dependency-path@1001.1.2
+  - @pnpm/lockfile.fs@1001.1.20
+  - @pnpm/lockfile.utils@1003.0.2
+
+## 1001.0.32
+
+### Patch Changes
+
+- Updated dependencies [baf8bf6]
+- Updated dependencies [702ddb9]
+  - @pnpm/npm-resolver@1004.2.3
+  - @pnpm/client@1001.0.7
+
+## 1001.0.31
+
+### Patch Changes
+
+- Updated dependencies [121b44e]
+- Updated dependencies [02f8b69]
+  - @pnpm/npm-resolver@1004.2.2
+  - @pnpm/client@1001.0.6
+
+## 1001.0.30
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/error@1000.0.5
+  - @pnpm/npm-resolver@1004.2.1
+  - @pnpm/parse-overrides@1001.0.3
+  - @pnpm/hooks.read-package-hook@1000.0.14
+  - @pnpm/manifest-utils@1001.0.5
+  - @pnpm/client@1001.0.5
+
+## 1001.0.29
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/npm-resolver@1004.2.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/pick-registry-for-package@1000.0.10
+  - @pnpm/hooks.read-package-hook@1000.0.13
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/dependency-path@1001.1.1
+  - @pnpm/client@1001.0.4
+  - @pnpm/manifest-utils@1001.0.4
+
 ## 1001.0.28
 
 ### Patch Changes

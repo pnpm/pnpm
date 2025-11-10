@@ -1,5 +1,47 @@
 # @pnpm/get-context
 
+## 1001.1.8
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/lockfile.fs@1001.1.21
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/modules-yaml@1000.3.6
+  - @pnpm/read-projects-context@1000.0.24
+
+## 1001.1.7
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.20
+- @pnpm/read-projects-context@1000.0.23
+
+## 1001.1.6
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/read-projects-context@1000.0.22
+
+## 1001.1.5
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/modules-yaml@1000.3.5
+  - @pnpm/read-projects-context@1000.0.21
+  - @pnpm/resolver-base@1005.0.1
+
 ## 1001.1.4
 
 ### Patch Changes

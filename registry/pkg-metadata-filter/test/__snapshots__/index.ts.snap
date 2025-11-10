@@ -1,0 +1,66 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`filterPkgMetadataByPublishDate 1`] = `
+{
+  "dist-tags": {
+    "latest": "3.0.0",
+  },
+  "name": "dist-tag-date",
+  "time": {
+    "2.9.9": "2020-01-01T00:00:00.000Z",
+    "3.0.0": "2020-02-01T00:00:00.000Z",
+    "3.1.0": "2020-03-01T00:00:00.000Z",
+    "3.2.0": "2020-05-01T00:00:00.000Z",
+  },
+  "versions": {
+    "2.9.9": {
+      "dist": {
+        "shasum": "",
+        "tarball": "https://registry.npmjs.org/dist-tag-date/-/dist-tag-date-2.9.9.tgz",
+      },
+      "name": "dist-tag-date",
+      "version": "2.9.9",
+    },
+    "3.0.0": {
+      "dist": {
+        "shasum": "",
+        "tarball": "https://registry.npmjs.org/dist-tag-date/-/dist-tag-date-3.0.0.tgz",
+      },
+      "name": "dist-tag-date",
+      "version": "3.0.0",
+    },
+    "3.1.0": {
+      "deprecated": "This version is deprecated",
+      "dist": {
+        "shasum": "",
+        "tarball": "https://registry.npmjs.org/dist-tag-date/-/dist-tag-date-3.1.0.tgz",
+      },
+      "name": "dist-tag-date",
+      "version": "3.1.0",
+    },
+  },
+}
+`;
+
+exports[`filterPkgMetadataByPublishDate 2`] = `
+{
+  "dist-tags": {
+    "latest": "2.9.9",
+  },
+  "name": "dist-tag-date",
+  "time": {
+    "2.9.9": "2020-03-01T00:00:00.000Z",
+    "3.0.0": "2020-05-01T00:00:00.000Z",
+  },
+  "versions": {
+    "2.9.9": {
+      "dist": {
+        "shasum": "",
+        "tarball": "https://registry.npmjs.org/dist-tag-date/-/dist-tag-date-2.9.9.tgz",
+      },
+      "name": "dist-tag-date",
+      "version": "2.9.9",
+    },
+  },
+}
+`;

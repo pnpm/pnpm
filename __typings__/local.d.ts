@@ -4,7 +4,7 @@ declare module 'bole' {
   export = anything
 }
 
-declare module 'ndjson' {
+declare module 'split2' {
   const anything: any
   export = anything
 }
@@ -29,8 +29,13 @@ declare module '@pnpm/npm-conf' {
   export = anything
 }
 
-declare module '@pnpm/npm-conf/lib/util' {
+declare module '@pnpm/npm-conf/lib/util.js' {
   export function parseField (types: any, field: string, value: any): unknown
+}
+
+declare module '@pnpm/npm-conf/lib/conf' {
+  const anything: any
+  export = anything
 }
 
 declare module '@pnpm/npm-lifecycle' {
@@ -89,19 +94,13 @@ declare module 'is-inner-link' {
   export = anything
 }
 
-declare module 'is-port-reachable' {
-  const anything: any
-  export = anything
-}
-
-declare module 'process-exists' {
-  const anything: any
-  export = anything
-}
-
 declare module 'read-package-json' {
   const anything: any
   export = anything
+}
+
+declare module 'split-cmd/index.modern.mjs' {
+  export function split (command: string): string[]
 }
 
 declare module 'stacktracey' {
