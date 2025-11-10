@@ -230,13 +230,13 @@ test('pnpm config get "" gives exactly the same result as pnpm config list', () 
   }
 })
 
-test('pnpm config get shows settings from global rc.yaml', () => {
+test('pnpm config get shows settings from global config.yaml', () => {
   prepare()
 
   const XDG_CONFIG_HOME = path.resolve('.config')
   const configDir = path.join(XDG_CONFIG_HOME, 'pnpm')
   fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(configDir, 'rc.yaml'), {
+  writeYamlFile(path.join(configDir, 'config.yaml'), {
     dangerouslyAllowAllBuilds: true,
     dlxCacheMaxAge: 1234,
     catalog: {

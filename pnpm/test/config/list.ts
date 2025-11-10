@@ -143,13 +143,13 @@ test('pnpm config list --json shows all keys in camelCase', () => {
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
 })
 
-test('pnpm config list shows settings from global rc.yaml', () => {
+test('pnpm config list shows settings from global config.yaml', () => {
   prepare()
 
   const XDG_CONFIG_HOME = path.resolve('.config')
   const configDir = path.join(XDG_CONFIG_HOME, 'pnpm')
   fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(configDir, 'rc.yaml'), {
+  writeYamlFile(path.join(configDir, 'config.yaml'), {
     dangerouslyAllowAllBuilds: true,
     dlxCacheMaxAge: 1234,
     catalog: {

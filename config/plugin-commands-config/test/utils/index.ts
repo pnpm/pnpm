@@ -38,7 +38,7 @@ export function readConfigFiles (globalConfigDir: string | undefined, localDir: 
       ? tryRead(() => readIniFileSync(path.join(globalConfigDir, 'rc')) as Record<string, unknown>)
       : undefined,
     globalYaml: globalConfigDir
-      ? tryRead(() => readYamlFile(path.join(globalConfigDir, 'rc.yaml')))
+      ? tryRead(() => readYamlFile(path.join(globalConfigDir, 'config.yaml')))
       : undefined,
     localRc: localDir
       ? tryRead(() => readIniFileSync(path.join(localDir, '.npmrc')) as Record<string, unknown>)
@@ -58,7 +58,7 @@ export function writeConfigFiles (globalConfigDir: string | undefined, localDir:
     }
 
     if (data.globalYaml) {
-      writeYamlFile(path.join(globalConfigDir, 'rc.yaml'), data.globalYaml)
+      writeYamlFile(path.join(globalConfigDir, 'config.yaml'), data.globalYaml)
     }
   }
 

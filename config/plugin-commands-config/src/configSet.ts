@@ -181,7 +181,7 @@ export class ConfigSetUnsupportedConfigKeyError extends PnpmError {
  *
  * "rc files" includes:
  * * The global INI config file named `rc`.
- * * The global YAML config file named `rc.yaml`.
+ * * The global YAML config file named `config.yaml`.
  * * The local INI config file named `.npmrc`.
  *
  * The only exception is the local YAML file named `pnpm-workspace.yaml`

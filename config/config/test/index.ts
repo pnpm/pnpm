@@ -1359,7 +1359,7 @@ test('CLI should override environment variable pnpm_config_*', async () => {
   })).toBe('22.0.0')
 })
 
-describe('global rc.yaml', () => {
+describe('global config.yaml', () => {
   let XDG_CONFIG_HOME: string | undefined
 
   beforeEach(() => {
@@ -1370,11 +1370,11 @@ describe('global rc.yaml', () => {
     process.env.XDG_CONFIG_HOME = XDG_CONFIG_HOME
   })
 
-  test('reads config from global rc.yaml', async () => {
+  test('reads config from global config.yaml', async () => {
     prepareEmpty()
 
     fs.mkdirSync('.config/pnpm', { recursive: true })
-    writeYamlFile('.config/pnpm/rc.yaml', {
+    writeYamlFile('.config/pnpm/config.yaml', {
       onlyBuiltDependencies: ['foo', 'bar'],
     })
 

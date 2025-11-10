@@ -84,7 +84,7 @@ test('config delete on pnpm-specific key not set', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(configDir, 'rc.yaml'), {
+  writeYamlFile(path.join(configDir, 'config.yaml'), {
     cacheDir: '~/cache',
   })
 
@@ -96,7 +96,7 @@ test('config delete on pnpm-specific key not set', async () => {
     rawConfig: {},
   }, ['delete', 'store-dir'])
 
-  expect(readYamlFile(path.join(configDir, 'rc.yaml'))).toStrictEqual({
+  expect(readYamlFile(path.join(configDir, 'config.yaml'))).toStrictEqual({
     cacheDir: '~/cache',
   })
 })
@@ -105,7 +105,7 @@ test('config delete on pnpm-specific key set', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(configDir, 'rc.yaml'), {
+  writeYamlFile(path.join(configDir, 'config.yaml'), {
     cacheDir: '~/cache',
   })
 
@@ -117,5 +117,5 @@ test('config delete on pnpm-specific key set', async () => {
     rawConfig: {},
   }, ['delete', 'cache-dir'])
 
-  expect(fs.readdirSync(configDir)).not.toContain('rc.yaml')
+  expect(fs.readdirSync(configDir)).not.toContain('config.yaml')
 })
