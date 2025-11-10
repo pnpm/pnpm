@@ -167,38 +167,6 @@ test('config set pnpm-specific setting using the location=project option', async
   })
 })
 
-test('config set compat setting using the location=project option', async () => {
-  const tmp = tempDir()
-  const configDir = path.join(tmp, 'global-config')
-  const initConfig = {
-    globalRc: undefined,
-    globalYaml: undefined,
-    localRc: {
-      '@jsr:registry': 'https://alternate-jsr.example.com/',
-    },
-    localYaml: {
-      storeDir: '~/store',
-    },
-  } satisfies ConfigFilesData
-  writeConfigFiles(configDir, tmp, initConfig)
-
-  await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir,
-    location: 'project',
-    rawConfig: {},
-  }, ['set', 'manage-package-manager-versions', 'false'])
-
-  expect(readConfigFiles(configDir, tmp)).toEqual({
-    ...initConfig,
-    localYaml: {
-      ...initConfig.localYaml,
-      managePackageManagerVersions: false,
-    },
-  })
-})
-
 test('config delete with location=project, when delete the last setting from pnpm-workspace.yaml, would delete the file itself', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')

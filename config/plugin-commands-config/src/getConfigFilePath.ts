@@ -1,5 +1,5 @@
 import kebabCase from 'lodash.kebabcase'
-import { isNpmConfigKey } from '@pnpm/config'
+import { isIniConfigKey } from '@pnpm/config'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
 
@@ -19,7 +19,7 @@ export function getConfigFilePath (key: string, opts: Pick<ConfigCommandOptions,
 
   const configDir = opts.global ? opts.configDir : opts.dir
 
-  if (isNpmConfigKey(key)) {
+  if (isIniConfigKey(key)) {
     // NOTE: The following code no longer does what the merged PR at <https://github.com/pnpm/pnpm/pull/10073> wants to do,
     //       but considering the settings are now clearly divided into 2 separate categories, it should no longer be relevant.
     // TODO: Maybe pnpm should not load npm-compatible settings from the yaml file?

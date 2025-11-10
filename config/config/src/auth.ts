@@ -40,13 +40,6 @@ const AUTH_CFG_KEYS = [
   'strictSsl',
 ] satisfies Array<keyof Config>
 
-const PNPM_COMPAT_SETTINGS = [
-  // NOTE: This field is kept in .npmrc because `managePackageManagerVersions: true`
-  //       in pnpm-workspace.yaml currently causes pnpm to be unresponsive (probably
-  //       due to an infinite loop of some kind).
-  'manage-package-manager-versions',
-] satisfies Array<keyof typeof types>
-
 const NPM_AUTH_SETTINGS = [
   ...RAW_AUTH_CFG_KEYS,
   '_auth',
@@ -92,22 +85,10 @@ export function inheritAuthConfig (targetCfg: InheritableConfig, authSrcCfg: Inh
 }
 
 /**
- * Whether the config key is supported by `npm`.
- */
-export const isNpmConfigKey = (key: string): boolean =>
-  key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key)
-
-/**
- * Whether the config key is kept in the INI file for compatibility reason.
- */
-export const isCompatConfigKey = (key: string): boolean =>
-  (PNPM_COMPAT_SETTINGS as string[]).includes(key)
-
-/**
  * Whether the config key would be read from an INI config file.
  */
 export const isIniConfigKey = (key: string): boolean =>
-  isNpmConfigKey(key) || isCompatConfigKey(key)
+  key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key)
 
 /**
  * Filter keys that are allowed to be read from an INI config file.
