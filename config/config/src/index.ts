@@ -285,8 +285,8 @@ export async function getConfig (opts: {
   const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
   if (globalYamlConfig) {
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
-      acceptNonRc: false,
       configFromCliOpts,
+      globalSettingsOnly: true,
       projectManifest: undefined,
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
@@ -386,8 +386,8 @@ export async function getConfig (opts: {
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages
       if (workspaceManifest) {
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
-          acceptNonRc: true,
           configFromCliOpts,
+          globalSettingsOnly: false,
           projectManifest: pnpmConfig.rootProjectManifest,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
@@ -639,14 +639,14 @@ function parsePackageManager (packageManager: string): { name: string, version: 
 }
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
-  acceptNonRc,
   configFromCliOpts,
+  globalSettingsOnly,
   projectManifest,
   workspaceManifest,
   workspaceDir,
 }: {
-  acceptNonRc: boolean
   configFromCliOpts: Record<string, unknown>
+  globalSettingsOnly: boolean
   projectManifest: ProjectManifest | undefined
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
@@ -662,7 +662,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
     // Q: Why `types` instead of `rcOptionTypes`?
     // A: `rcOptionTypes` includes options that would matter to the `npm` cli which wouldn't care about `pnpm-workspace.yaml`.
     const isRc = kebabKey in types
-    if (isRc || acceptNonRc) {
+    if (isRc || !globalSettingsOnly) {
       const targetKey = isRc ? kebabKey : key
       pnpmConfig.rawConfig[targetKey] = value
     }
