@@ -54,7 +54,6 @@ export function reporterForClient (
     skippedOptionalDependency: Rx.Observable<logs.SkippedOptionalDependencyLog>
     packageImportMethod: Rx.Observable<logs.PackageImportMethodLog>
     updateCheck: Rx.Observable<logs.UpdateCheckLog>
-    packageProvenance: Rx.Observable<logs.ProvenanceLog>
   },
   opts: {
     appendOnly?: boolean

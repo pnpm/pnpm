@@ -31,7 +31,6 @@ export interface StrictInstallOptions {
   catalogs: Catalogs
   catalogMode: 'strict' | 'prefer' | 'manual'
   cleanupUnusedCatalogs: boolean
-  checkProvenance: 'strict' | 'warn' | 'ignore'
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enableGlobalVirtualStore: boolean
@@ -251,7 +250,6 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       process.getuid?.() !== 0,
     catalogMode: 'manual',
     cleanupUnusedCatalogs: false,
-    checkProvenance: 'ignore',
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,

@@ -127,16 +127,6 @@ export interface BaseManifest {
   license?: string
   exports?: Record<string, string>
   imports?: Record<string, unknown>
-  dist?: {
-    attestations?: {
-      provenance?: {
-        predicateType?: string
-      }
-    }
-    integrity?: string
-    shasum: string
-    tarball: string
-  }
 }
 
 export interface DependencyManifest extends BaseManifest {

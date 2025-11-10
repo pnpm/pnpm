@@ -5,7 +5,6 @@ import {
   type PackageManifestLog,
   type RootLog,
   type SummaryLog,
-  type ProvenanceLog,
 } from '@pnpm/core-loggers'
 import { type Config } from '@pnpm/config'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -42,7 +41,6 @@ export function reportSummary (
     root: Rx.Observable<RootLog>
     packageManifest: Rx.Observable<PackageManifestLog>
     ignoredScripts: Rx.Observable<IgnoredScriptsLog>
-    packageProvenance: Rx.Observable<ProvenanceLog>
   },
   opts: {
     cmd: string
@@ -60,12 +58,11 @@ export function reportSummary (
   return Rx.combineLatest(
     pkgsDiff$,
     log$.ignoredScripts.pipe(Rx.startWith({ packageNames: undefined })),
-    log$.packageProvenance.pipe(Rx.startWith({ pkgs: [] })),
     summaryLog$
   )
     .pipe(
       take(1),
-      map(([pkgsDiff, ignoredScripts, packageProvenance]) => {
+      map(([pkgsDiff, ignoredScripts]) => {
         let msg = ''
         for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly'] as const) {
           let diffs: PackageDiff[] = Object.values(pkgsDiff[depType as keyof typeof pkgsDiff])
@@ -100,14 +97,6 @@ Run "pnpm approve-builds${opts.pnpmConfig?.cliOptions?.global ? ' -g' : ''}" to 
             borderStyle: 'round',
             borderColor: 'yellow',
           })
-          msg += EOL
-        }
-        if (packageProvenance.pkgs.length) {
-          msg += EOL
-          msg += `Package provenance:${EOL}${packageProvenance.pkgs.map(pkg => {
-            const line = `${chalk.cyan(pkg.name)}@${pkg.version} - ${chalk.red('the current version has no provenance, please upgrade with caution.')}`
-            return line
-          }).join(EOL)}`
           msg += EOL
         }
         return Rx.of({ msg })

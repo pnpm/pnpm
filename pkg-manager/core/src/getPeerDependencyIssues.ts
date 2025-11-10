@@ -23,7 +23,6 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 | 'storeController'
 | 'useGitBranchLockfile'
 | 'peersSuffixMaxLength'
-| 'checkProvenance'
 >
 & Partial<Pick<InstallOptions, 'supportedArchitectures'>>
 & Pick<GetContextOptions, 'autoInstallPeers' | 'excludeLinksFromLockfile' | 'storeDir'>
@@ -97,7 +96,6 @@ export async function getPeerDependencyIssues (
       workspacePackages: ctx.workspacePackages ?? new Map(),
       supportedArchitectures: opts.supportedArchitectures,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
-      checkProvenance: opts.checkProvenance ?? 'ignore',
     }
   )
 

@@ -156,7 +156,6 @@ export interface Config extends OptionsFromRootManifest {
   catalogs?: Catalogs
   catalogMode?: 'strict' | 'prefer' | 'manual'
   cleanupUnusedCatalogs?: boolean
-  checkProvenance?: 'strict' | 'warn' | 'ignore'
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
