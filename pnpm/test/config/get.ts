@@ -239,6 +239,8 @@ test('pnpm config get shows settings from global config.yaml', () => {
   writeYamlFile(path.join(configDir, 'config.yaml'), {
     dangerouslyAllowAllBuilds: true,
     dlxCacheMaxAge: 1234,
+    dev: true,
+    frozenLockfile: true,
     catalog: {
       react: '^19.0.0',
     },
@@ -269,6 +271,11 @@ test('pnpm config get shows settings from global config.yaml', () => {
   expect(configGet('dangerously-allow-all-builds')).toBe('true')
   expect(configGet('dlxCacheMaxAge')).toBe('1234')
   expect(configGet('dlx-cache-max-age')).toBe('1234')
+
+  // doesn't list CLI options
+  expect(configGet('dev')).toBe('undefined')
+  expect(configGet('frozenLockfile')).toBe('undefined')
+  expect(configGet('frozen-lockfile')).toBe('undefined')
 
   // doesn't list workspace-specific keys
   expect(configGet('catalog')).toBe('undefined')

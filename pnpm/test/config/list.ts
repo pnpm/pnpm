@@ -152,6 +152,8 @@ test('pnpm config list shows settings from global config.yaml', () => {
   writeYamlFile(path.join(configDir, 'config.yaml'), {
     dangerouslyAllowAllBuilds: true,
     dlxCacheMaxAge: 1234,
+    dev: true,
+    frozenLockfile: true,
     catalog: {
       react: '^19.0.0',
     },
@@ -181,6 +183,10 @@ test('pnpm config list shows settings from global config.yaml', () => {
     dlxCacheMaxAge: 1234,
   }))
 
+  // doesn't list CLI options
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dev'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['frozenLockfile'])
+
   // doesn't list workspace-specific settings
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['catalog'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['catalogs'])
@@ -188,6 +194,7 @@ test('pnpm config list shows settings from global config.yaml', () => {
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packageExtensions'])
 
   // doesn't list the kebab-case versions
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['frozen-lockfile'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])

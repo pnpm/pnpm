@@ -22,6 +22,7 @@ import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
 import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
+import { isConfigFileKey } from './configFileKey.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
@@ -284,8 +285,7 @@ export async function getConfig (opts: {
 
   const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
   for (const key in globalYamlConfig) {
-    const isRc = kebabCase(key) in types
-    if (!isRc) {
+    if (!isConfigFileKey(kebabCase(key))) {
       delete globalYamlConfig[key as keyof typeof globalYamlConfig]
     }
   }

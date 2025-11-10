@@ -1,7 +1,7 @@
 import npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { type TrustPolicy } from '@pnpm/types'
 
-export const types = Object.assign({
+export const pnpmTypes = {
   'auto-install-peers': Boolean,
   bail: Boolean,
   ci: Boolean,
@@ -139,4 +139,9 @@ export const types = Object.assign({
   cpu: [String, Array],
   libc: [String, Array],
   os: [String, Array],
-}, npmTypes.types)
+}
+
+export const types = {
+  ...npmTypes.types,
+  ...pnpmTypes,
+}
