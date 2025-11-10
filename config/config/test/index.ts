@@ -1375,7 +1375,7 @@ describe('global config.yaml', () => {
 
     fs.mkdirSync('.config/pnpm', { recursive: true })
     writeYamlFile('.config/pnpm/config.yaml', {
-      onlyBuiltDependencies: ['foo', 'bar'],
+      dangerouslyAllowAllBuilds: true,
     })
 
     // TODO: `getConfigDir`, `getHomeDir`, etc. (from dirs.ts) should allow customizing env or process.
@@ -1391,11 +1391,11 @@ describe('global config.yaml', () => {
       workspaceDir: process.cwd(),
     })
 
-    expect(config.onlyBuiltDependencies).toStrictEqual(['foo', 'bar'])
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
 
     // NOTE: the field may appear kebab-case here, but only internally,
     //       `pnpm config list` would convert them to camelCase.
     // TODO: switch to camelCase entirely later.
-    expect(config.rawConfig).toHaveProperty(['only-built-dependencies'])
+    expect(config.rawConfig).toHaveProperty(['dangerously-allow-all-builds'])
   })
 })
