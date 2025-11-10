@@ -63,7 +63,6 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
       disabled: true,
     })
     const renderedTable = alignColumns(pluck('raw', rawChoices)).filter(Boolean)
-    debugger
     const choices = rawChoices.map((outdatedPkg, i) => {
       if (i === 0) {
         return {

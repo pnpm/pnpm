@@ -297,6 +297,7 @@ export async function resolveDependencyTree<T> (
   }
 
   const resolvedImporters: ResolvedImporters = {}
+
   for (const { id, wantedDependencies } of importers) {
     const directDeps = dedupeSameAliasDirectDeps(directDepsByImporterId[id], wantedDependencies)
     const [linkedDependencies, directNonLinkedDeps] = partition((dep) => dep.isLinkedDependency === true, directDeps) as [LinkedDependency[], PkgAddress[]]
@@ -307,7 +308,6 @@ export async function resolveDependencyTree<T> (
             return dep
           }
           const resolvedPackage = ctx.dependenciesTree.get(dep.nodeId)!.resolvedPackage as ResolvedPackage
-
           return {
             alias: dep.alias,
             catalogLookup: dep.catalogLookup,
