@@ -38,6 +38,7 @@ export interface OutdatedPackage {
   alias: string
   belongsTo: DependenciesField
   current?: string // not defined means the package is not installed
+  currentManifest?: PackageManifest | null
   latestManifest?: PackageManifest
   packageName: string
   wanted: string
@@ -60,6 +61,7 @@ export async function outdated (
     prefix: string
     registries: Registries
     wantedLockfile: LockfileObject | null
+    trustPolicy?: 'no-downgrade' | 'off'
   }
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
@@ -184,7 +186,7 @@ export async function outdated (
               packageName,
               wanted,
               workspace: opts.manifest.name,
-
+              currentManifest: current && opts.trustPolicy === 'no-downgrade' ? await opts.getLatestManifest(name, current) : undefined,
             })
           }
         })
