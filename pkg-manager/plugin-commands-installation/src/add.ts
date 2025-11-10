@@ -75,6 +75,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'store-dir',
     'strict-peer-dependencies',
     'trust-policy',
+    'trust-policy-exclude',
     'unsafe-perm',
     'offline',
     'only',

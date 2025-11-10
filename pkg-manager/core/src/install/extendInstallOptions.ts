@@ -169,6 +169,7 @@ export interface StrictInstallOptions {
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   trustPolicy?: TrustPolicy
+  trustPolicyExclude?: string[]
 }
 
 export type InstallOptions =

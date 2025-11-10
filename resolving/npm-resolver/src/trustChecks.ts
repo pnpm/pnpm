@@ -1,5 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
+import { type PackageVersionPolicy } from '@pnpm/types'
 
 type TrustEvidence = 'provenance' | 'trustedPublisher'
 
@@ -10,8 +11,19 @@ const TRUST_RANK = {
 
 export function failIfTrustDowngraded (
   meta: PackageMetaWithTime,
-  version: string
+  version: string,
+  trustPolicyExclude?: PackageVersionPolicy
 ): void {
+  if (trustPolicyExclude) {
+    const excludeResult = trustPolicyExclude(meta.name)
+    if (excludeResult === true) {
+      return
+    }
+    if (Array.isArray(excludeResult) && excludeResult.includes(version)) {
+      return
+    }
+  }
+
   const versionPublishedAt = meta.time[version]
   if (!versionPublishedAt) {
     throw new PnpmError(
