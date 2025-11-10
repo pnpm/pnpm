@@ -12,7 +12,7 @@ import kebabCase from 'lodash.kebabcase'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
-import { getConfigFilePath } from './getConfigFilePath.js'
+import { getConfigFileInfo } from './getConfigFileInfo.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, valueParam: string | null): Promise<void> {
@@ -57,7 +57,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
     }
   }
 
-  const { configDir, configFileName } = getConfigFilePath(key, opts)
+  const { configDir, configFileName } = getConfigFileInfo(key, opts)
   const configPath = path.join(configDir, configFileName)
 
   switch (configFileName) {

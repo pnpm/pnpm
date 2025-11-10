@@ -14,7 +14,7 @@ export interface ConfigFilePathInfo {
   configFileName: ConfigFileName
 }
 
-export function getConfigFilePath (key: string, opts: Pick<ConfigCommandOptions, 'global' | 'configDir' | 'dir'>): ConfigFilePathInfo {
+export function getConfigFileInfo (key: string, opts: Pick<ConfigCommandOptions, 'global' | 'configDir' | 'dir'>): ConfigFilePathInfo {
   key = kebabCase(key)
 
   const configDir = opts.global ? opts.configDir : opts.dir
