@@ -283,10 +283,15 @@ export async function getConfig (opts: {
   )
 
   const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  for (const key in globalYamlConfig) {
+    const isRc = kebabCase(key) in types
+    if (!isRc) {
+      delete globalYamlConfig[key as keyof typeof globalYamlConfig]
+    }
+  }
   if (globalYamlConfig) {
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
-      globalSettingsOnly: true,
       projectManifest: undefined,
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
@@ -387,7 +392,6 @@ export async function getConfig (opts: {
       if (workspaceManifest) {
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
-          globalSettingsOnly: false,
           projectManifest: pnpmConfig.rootProjectManifest,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
@@ -640,13 +644,11 @@ function parsePackageManager (packageManager: string): { name: string, version: 
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
   configFromCliOpts,
-  globalSettingsOnly,
   projectManifest,
   workspaceManifest,
   workspaceDir,
 }: {
   configFromCliOpts: Record<string, unknown>
-  globalSettingsOnly: boolean
   projectManifest: ProjectManifest | undefined
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
@@ -662,10 +664,8 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
     // Q: Why `types` instead of `rcOptionTypes`?
     // A: `rcOptionTypes` includes options that would matter to the `npm` cli which wouldn't care about `pnpm-workspace.yaml`.
     const isRc = kebabKey in types
-    if (isRc || !globalSettingsOnly) {
-      const targetKey = isRc ? kebabKey : key
-      pnpmConfig.rawConfig[targetKey] = value
-    }
+    const targetKey = isRc ? kebabKey : key
+    pnpmConfig.rawConfig[targetKey] = value
   }
   // All the pnpm_config_ env variables should override the settings from pnpm-workspace.yaml,
   // as it happens with .npmrc.
@@ -676,7 +676,5 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
     pnpmConfig.rawConfig['verify-deps-before-run'] = pnpmConfig.verifyDepsBeforeRun
   }
-  if (!globalSettingsOnly) {
-    pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
-  }
+  pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
 }
