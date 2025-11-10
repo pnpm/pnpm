@@ -114,7 +114,11 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         }
         return sortKeysInManifest(manifest)
       }
-      if (manifest.private === true || isUtil) return manifest
+      if (manifest.private === true || isUtil) {
+        const relative = normalizePath(path.relative(workspaceDir, dir))
+        manifest.repository = `https://github.com/pnpm/pnpm/tree/main/${relative}`
+        return manifest
+      }
       return updateManifest(workspaceDir, manifest, dir, nextTag)
     },
     'tsconfig.json': updateTSConfig.bind(null, {
@@ -374,9 +378,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',
     },
-    engines: {
-      node: '>=20.19',
-    },
+    engines: manifest.engines?.runtime != null
+      ? manifest.engines
+      : { node: '>=20.19' },
     files,
     funding: 'https://opencollective.com/pnpm',
     homepage,

@@ -6,7 +6,7 @@
       "dist/scripts/*",
       "dist/templates/*"
     ],
-    "targets": ["node22-linuxstatic-x64"],
+    "targets": ["node24-linuxstatic-x64"],
     "outputPath": "../linuxstatic-x64"
   }
 }

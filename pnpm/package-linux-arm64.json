@@ -6,7 +6,7 @@
       "dist/scripts/*",
       "dist/templates/*"
     ],
-    "targets": ["node22-linux-arm64"],
+    "targets": ["node24-linux-arm64"],
     "outputPath": "../linux-arm64"
   }
 }

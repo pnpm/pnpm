@@ -163,7 +163,6 @@ export async function getConfig (opts: {
       'bitbucket.com',
       'bitbucket.org',
     ],
-    globalconfig: npmDefaults.globalconfig,
     'git-branch-lockfile': false,
     hoist: true,
     'hoist-pattern': ['*'],
@@ -266,20 +265,22 @@ export async function getConfig (opts: {
   pnpmConfig.configDir = configDir
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
-  pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
+  pnpmConfig.rawLocalConfig = Object.assign(
     {},
     ...npmConfig.list.slice(3, pnpmConfig.workspaceDir && pnpmConfig.workspaceDir !== cwd ? 5 : 4).reverse(),
-    cliOptions,
-  ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    cliOptions
+  )
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  pnpmConfig.rawConfig = Object.assign.apply(Object, [
+  pnpmConfig.rawConfig = Object.assign(
     {},
     ...npmConfig.list.map(pickIniConfig).reverse(),
     pickIniConfig(cliOptions),
     { 'user-agent': pnpmConfig.userAgent },
-  ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    { globalconfig: path.join(configDir, 'rc') },
+    { 'npm-globalconfig': npmDefaults.globalconfig }
+  )
 
   const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
   if (globalYamlConfig) {
@@ -291,7 +292,6 @@ export async function getConfig (opts: {
       workspaceManifest: globalYamlConfig,
     })
   }
-
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
@@ -302,24 +302,6 @@ export async function getConfig (opts: {
     if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
     if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
     return false
-  })()
-  // NOTE: this block of code in this location is pointless.
-  // TODO: move this block of code to after the code that loads pnpm-workspace.yaml.
-  // TODO: unskip test `getConfig() sets mergeGiBranchLockfiles when branch matches mergeGitBranchLockfilesBranchPattern`.
-  pnpmConfig.useGitBranchLockfile = (() => {
-    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
-    return false
-  })()
-  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
-    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') return pnpmConfig.mergeGitBranchLockfiles
-    if (pnpmConfig.mergeGitBranchLockfilesBranchPattern != null && pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0) {
-      const branch = await getCurrentBranch()
-      if (branch) {
-        const branchMatcher = createMatcher(pnpmConfig.mergeGitBranchLockfilesBranchPattern)
-        return branchMatcher(branch)
-      }
-    }
-    return undefined
   })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)
   let globalDirRoot
@@ -413,6 +395,22 @@ export async function getConfig (opts: {
       }
     }
   }
+
+  pnpmConfig.useGitBranchLockfile = (() => {
+    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
+    return false
+  })()
+  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
+    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') return pnpmConfig.mergeGitBranchLockfiles
+    if (pnpmConfig.mergeGitBranchLockfilesBranchPattern != null && pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0) {
+      const branch = await getCurrentBranch()
+      if (branch) {
+        const branchMatcher = createMatcher(pnpmConfig.mergeGitBranchLockfilesBranchPattern)
+        return branchMatcher(branch)
+      }
+    }
+    return undefined
+  })()
 
   // omit some schema that the custom parser can't yet handle
   const envPnpmTypes = omit([

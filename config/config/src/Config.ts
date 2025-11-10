@@ -6,6 +6,7 @@ import {
   type ProjectsGraph,
   type Registries,
   type SslConfig,
+  type TrustPolicy,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
 import { type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
@@ -201,7 +202,6 @@ export interface Config extends OptionsFromRootManifest {
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
 
-  globalconfig: string
   hoist: boolean
   packageLock: boolean
   pending: boolean
@@ -233,6 +233,7 @@ export interface Config extends OptionsFromRootManifest {
   minimumReleaseAgeExclude?: string[]
   fetchWarnTimeoutMs?: number
   fetchMinSpeedKiBps?: number
+  trustPolicy?: TrustPolicy
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

@@ -18,6 +18,7 @@ import {
   type ReadPackageHook,
   type Registries,
   type PrepareExecutionEnv,
+  type TrustPolicy,
 } from '@pnpm/types'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
@@ -167,6 +168,7 @@ export interface StrictInstallOptions {
   ci?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  trustPolicy?: TrustPolicy
 }
 
 export type InstallOptions =

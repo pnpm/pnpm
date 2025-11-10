@@ -85,7 +85,13 @@ export async function handler (
   [command, ...args]: string[]
 ): Promise<{ exitCode: number }> {
   const pkgs = opts.package ?? [command]
-  const fullMetadata = ((opts.resolutionMode === 'time-based' || Boolean(opts.minimumReleaseAge)) && !opts.registrySupportsTimeField)
+  const fullMetadata = (
+    (
+      opts.resolutionMode === 'time-based' ||
+      Boolean(opts.minimumReleaseAge) ||
+      opts.trustPolicy === 'no-downgrade'
+    ) && !opts.registrySupportsTimeField
+  )
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
