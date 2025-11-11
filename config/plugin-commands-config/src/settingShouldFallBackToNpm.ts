@@ -1,4 +1,4 @@
-// NOTE: The logic may be duplicated with `isSupportedNpmConfig` from `@pnpm/config`,
+// NOTE: The logic may be duplicated with `isIniConfigKey` from `@pnpm/config`,
 //       but we have not the time to refactor it right now.
 // TODO: Refactor it when we have the time.
 export function settingShouldFallBackToNpm (key: string): boolean {
