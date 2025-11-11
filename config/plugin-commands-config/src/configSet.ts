@@ -1,6 +1,6 @@
 import path from 'path'
 import util from 'util'
-import { types } from '@pnpm/config'
+import { type ConfigFileKey, types, isConfigFileKey } from '@pnpm/config'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
@@ -64,7 +64,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   case GLOBAL_CONFIG_YAML_FILENAME:
   case WORKSPACE_MANIFEST_FILENAME: {
     if (configFileName === GLOBAL_CONFIG_YAML_FILENAME) {
-      key = validateConfigKey(key)
+      key = validateYamlConfigKey(key)
     }
     key = validateWorkspaceKey(key)
     await updateWorkspaceManifest(configDir, {
@@ -79,7 +79,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   case 'rc':
   case '.npmrc': {
     const settings = await safeReadIniFile(configPath)
-    key = validateConfigKey(key)
+    key = validateIniConfigKey(key)
     if (value == null) {
       if (settings[key] == null) return
       delete settings[key]
@@ -164,10 +164,10 @@ function validateSimpleKey (key: string): string {
   return first.value.toString()
 }
 
-export class ConfigSetUnsupportedConfigKeyError extends PnpmError {
+export class ConfigSetUnsupportedIniConfigKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
-    super('CONFIG_SET_UNSUPPORTED_CONFIG_KEY', `Key ${JSON.stringify(key)} isn't supported by rc files`, {
+    super('CONFIG_SET_UNSUPPORTED_INI_CONFIG_KEY', `Key ${JSON.stringify(key)} isn't supported by INI config files`, {
       hint: `Add ${JSON.stringify(camelCase(key))} to the project workspace manifest instead`,
     })
     this.key = key
@@ -175,28 +175,20 @@ export class ConfigSetUnsupportedConfigKeyError extends PnpmError {
 }
 
 /**
- * Validate if the kebab-case of {@link key} is supported by rc files.
+ * Validate whether the kebab-case of {@link key} is supported by INI config files.
  *
  * Return the kebab-case if it is, throw an error otherwise.
  *
- * "rc files" includes:
+ * "INI config files" includes:
  * * The global INI config file named `rc`.
- * * The global YAML config file named `config.yaml`.
  * * The local INI config file named `.npmrc`.
- *
- * The only exception is the local YAML file named `pnpm-workspace.yaml`
- * because it can contain workspace-specific settings.
- *
- * **NOTE:**
- * Although non-auth/non-registry settings are not stored in INI files,
- * the logic of this function remains applicable to them.
  */
-function validateConfigKey (key: string): string {
+function validateIniConfigKey (key: string): string {
   const kebabKey = kebabCase(key)
   if (kebabKey in types) {
     return kebabKey
   }
-  throw new ConfigSetUnsupportedConfigKeyError(key)
+  throw new ConfigSetUnsupportedIniConfigKeyError(key)
 }
 
 export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
@@ -227,4 +219,27 @@ async function safeReadIniFile (configPath: string): Promise<Record<string, unkn
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
     throw err
   }
+}
+
+export class ConfigSetUnsupportedYamlConfigKeyError extends PnpmError {
+  readonly key: string
+  constructor (key: string) {
+    super('CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY', `The key ${JSON.stringify(key)} isn't supported by the global config.yaml file`, {
+      hint: 'Try setting them instead to the local pnpm-workspace.yaml file',
+    })
+    this.key = key
+  }
+}
+
+/**
+ * Validate whether the {@link key} is allowed in the global config.yaml file.
+ *
+ * Return the kebab-case if it is, throw an error otherwise.
+ */
+function validateYamlConfigKey (key: string): ConfigFileKey {
+  const kebabKey = kebabCase(key)
+  if (!isConfigFileKey(kebabKey)) {
+    throw new ConfigSetUnsupportedYamlConfigKeyError(key)
+  }
+  return kebabKey
 }

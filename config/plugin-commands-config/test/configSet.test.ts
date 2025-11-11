@@ -642,7 +642,7 @@ test('config set refuses writing workspace-specific settings to the global confi
     json: true,
     rawConfig: {},
   }, ['set', 'catalog', '{ "react": "19" }'])).rejects.toMatchObject({
-    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_CONFIG_KEY',
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY',
     key: 'catalog',
   })
 
@@ -665,7 +665,7 @@ test('config set refuses writing workspace-specific settings to the global confi
       },
     },
   })])).rejects.toMatchObject({
-    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_CONFIG_KEY',
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY',
     key: 'packageExtensions',
   })
 
@@ -688,7 +688,7 @@ test('config set refuses writing workspace-specific settings to the global confi
       },
     },
   })])).rejects.toMatchObject({
-    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_CONFIG_KEY',
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY',
     key: 'package-extensions',
   })
 })
