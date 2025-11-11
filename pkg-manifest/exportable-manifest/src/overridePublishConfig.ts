@@ -5,6 +5,7 @@ import isEmpty from 'ramda/src/isEmpty'
 const PUBLISH_CONFIG_WHITELIST = new Set([
   // manifest fields that may make sense to overwrite
   'bin',
+  'engines',
   'type',
   'imports',
   // https://github.com/stereobooster/package.json#package-bundlers
