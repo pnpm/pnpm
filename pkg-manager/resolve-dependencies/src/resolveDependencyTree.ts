@@ -139,6 +139,7 @@ export interface ResolveDependenciesOptions {
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   trustPolicy?: TrustPolicy
+  trustPolicyExclude?: string[]
 }
 
 export interface ResolveDependencyTreeResult {
@@ -202,6 +203,7 @@ export async function resolveDependencyTree<T> (
     maximumPublishedBy: opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined,
     publishedByExclude: opts.minimumReleaseAgeExclude ? createPublishedByExclude(opts.minimumReleaseAgeExclude) : undefined,
     trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude ? createTrustPolicyExclude(opts.trustPolicyExclude) : undefined,
   }
 
   function createPublishedByExclude (patterns: string[]): PackageVersionPolicy {
@@ -210,6 +212,15 @@ export async function resolveDependencyTree<T> (
     } catch (err) {
       if (!err || typeof err !== 'object' || !('message' in err)) throw err
       throw new PnpmError('INVALID_MIN_RELEASE_AGE_EXCLUDE', `Invalid value in minimumReleaseAgeExclude: ${err.message as string}`)
+    }
+  }
+
+  function createTrustPolicyExclude (patterns: string[]): PackageVersionPolicy {
+    try {
+      return createPackageVersionPolicy(patterns)
+    } catch (err) {
+      if (!err || typeof err !== 'object' || !('message' in err)) throw err
+      throw new PnpmError('INVALID_TRUST_POLICY_EXCLUDE', `Invalid value in trustPolicyExclude: ${err.message as string}`)
     }
   }
 

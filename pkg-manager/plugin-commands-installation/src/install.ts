@@ -64,6 +64,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'store-dir',
     'strict-peer-dependencies',
     'trust-policy',
+    'trust-policy-exclude',
     'offline',
     'only',
     'optional',
@@ -207,6 +208,10 @@ by any dependencies, so it is an emulation of a flat node_modules',
           {
             description: "Fail when a package's trust level is downgraded (e.g., from a trusted publisher to provenance only or no trust evidence)",
             name: '--trust-policy no-downgrade',
+          },
+          {
+            description: 'Exclude specific packages from trust policy checks',
+            name: '--trust-policy-exclude <package-spec>',
           },
           {
             description: 'Starts a store server in the background. The store server will keep running after installation is done. To stop the store server, run `pnpm server stop`',

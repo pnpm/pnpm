@@ -1,4 +1,5 @@
 import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
+import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { getTrustEvidence, failIfTrustDowngraded } from '../src/trustChecks.js'
 
 describe('getTrustEvidence', () => {
@@ -403,5 +404,90 @@ describe('failIfTrustDowngraded', () => {
     expect(() => {
       failIfTrustDowngraded(meta, '2.0.0')
     }).toThrow('Missing time')
+  })
+})
+
+describe('failIfTrustDowngraded with trustPolicyExclude', () => {
+  test('allows downgrade when package@version is in exclude list', () => {
+    const meta: PackageMetaWithTime = {
+      name: 'foo',
+      'dist-tags': { latest: '3.0.0' },
+      versions: {
+        '2.0.0': {
+          name: 'foo',
+          version: '2.0.0',
+          dist: {
+            shasum: 'def456',
+            tarball: 'https://registry.example.com/foo/-/foo-2.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
+          },
+        },
+        '3.0.0': {
+          name: 'foo',
+          version: '3.0.0',
+          dist: {
+            shasum: 'ghi789',
+            tarball: 'https://registry.example.com/foo/-/foo-3.0.0.tgz',
+          },
+        },
+      },
+      time: {
+        '2.0.0': '2025-02-01T00:00:00.000Z',
+        '3.0.0': '2025-03-01T00:00:00.000Z',
+      },
+    }
+
+    expect(() => {
+      failIfTrustDowngraded(meta, '3.0.0', createPackageVersionPolicy(['foo@3.0.0']))
+    }).not.toThrow()
+
+    expect(() => {
+      failIfTrustDowngraded(meta, '3.0.0')
+    }).toThrow('High-risk trust downgrade')
+  })
+
+  test('allows downgrade when package name is in exclude list (all versions)', () => {
+    const meta: PackageMetaWithTime = {
+      name: 'bar',
+      'dist-tags': { latest: '3.0.0' },
+      versions: {
+        '2.0.0': {
+          name: 'bar',
+          version: '2.0.0',
+          _npmUser: {
+            name: 'test-publisher',
+            email: 'publisher@example.com',
+            trustedPublisher: {
+              id: 'test-provider',
+              oidcConfigId: 'oidc:test-config-123',
+            },
+          },
+          dist: {
+            shasum: 'def456',
+            tarball: 'https://registry.example.com/bar/-/bar-2.0.0.tgz',
+          },
+        },
+        '3.0.0': {
+          name: 'bar',
+          version: '3.0.0',
+          dist: {
+            shasum: 'ghi789',
+            tarball: 'https://registry.example.com/bar/-/bar-3.0.0.tgz',
+          },
+        },
+      },
+      time: {
+        '2.0.0': '2025-02-01T00:00:00.000Z',
+        '3.0.0': '2025-03-01T00:00:00.000Z',
+      },
+    }
+
+    expect(() => {
+      failIfTrustDowngraded(meta, '3.0.0', createPackageVersionPolicy(['bar']))
+    }).not.toThrow()
   })
 })

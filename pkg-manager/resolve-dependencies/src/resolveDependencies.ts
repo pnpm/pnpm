@@ -182,6 +182,7 @@ export interface ResolutionContext {
   maximumPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
   trustPolicy?: TrustPolicy
+  trustPolicyExclude?: PackageVersionPolicy
 }
 
 export interface MissingPeerInfo {
@@ -1337,6 +1338,7 @@ async function resolveDependency (
         : options.parentPkg.rootDir,
       skipFetch: ctx.dryRun,
       trustPolicy: ctx.trustPolicy,
+      trustPolicyExclude: ctx.trustPolicyExclude,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
