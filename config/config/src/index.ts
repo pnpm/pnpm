@@ -393,6 +393,9 @@ export async function getConfig (opts: {
           pnpmConfig.rawConfig['verify-deps-before-run'] = pnpmConfig.verifyDepsBeforeRun
         }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+        if (workspaceManifest.npmVersion) {
+          pnpmConfig.wantedNpmVersion = workspaceManifest.npmVersion
+        }
       }
     }
   }
