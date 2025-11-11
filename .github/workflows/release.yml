@@ -22,6 +22,7 @@ jobs:
           cd /tmp
           git clone https://gitlab.com/opensource-saurik/ldid.git
           cd ldid
+          git checkout c2f8abf013b22c335f44241a6a552a7767e73419
           git submodule update --init
           gcc -I. -c -o lookup2.o lookup2.c
           g++ -std=c++11 -o ldid lookup2.o ldid.cpp -I. -lcrypto $(pkg-config --cflags --libs libplist-2.0) -lxml2
