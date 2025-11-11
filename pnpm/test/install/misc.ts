@@ -524,3 +524,27 @@ test('install does not fail when the trust evidence of a package is downgraded b
   expect(result.status).toBe(0)
   project.has('@pnpm/e2e.test-provenance')
 })
+
+test('install does not fail when the trust evidence of a package is downgraded but it is in trust-policy-exclude', async () => {
+  const project = prepare()
+  const result = execPnpmSync([
+    'add',
+    '@pnpm/e2e.test-provenance@0.0.5',
+    '--trust-policy=no-downgrade',
+    '--trust-policy-exclude=@pnpm/e2e.test-provenance@0.0.5',
+  ])
+  expect(result.status).toBe(0)
+  project.has('@pnpm/e2e.test-provenance')
+})
+
+test('install does not fail when the trust evidence of a package is downgraded but the package name is in trust-policy-exclude', async () => {
+  const project = prepare()
+  const result = execPnpmSync([
+    'add',
+    '@pnpm/e2e.test-provenance@0.0.5',
+    '--trust-policy=no-downgrade',
+    '--trust-policy-exclude=@pnpm/e2e.test-provenance',
+  ])
+  expect(result.status).toBe(0)
+  project.has('@pnpm/e2e.test-provenance')
+})

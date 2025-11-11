@@ -67,6 +67,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",

@@ -115,6 +115,7 @@ export const types = Object.assign({
   'strict-store-pkg-content-check': Boolean,
   'strict-peer-dependencies': Boolean,
   'trust-policy': ['off', 'no-downgrade'] satisfies TrustPolicy[],
+  'trust-policy-exclude': [String, Array],
   'use-beta-cli': Boolean,
   'use-node-version': String,
   'use-running-store-server': Boolean,

@@ -188,6 +188,7 @@ export type ResolveFromNpmOptions = {
   publishedByExclude?: PackageVersionPolicy
   pickLowestVersion?: boolean
   trustPolicy?: TrustPolicy
+  trustPolicyExclude?: PackageVersionPolicy
   dryRun?: boolean
   lockfileDir?: string
   preferredVersions?: PreferredVersions
@@ -308,7 +309,7 @@ async function resolveNpm (
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   } else if (opts.trustPolicy === 'no-downgrade') {
     assertMetaHasTime(meta)
-    failIfTrustDowngraded(meta, pickedPackage.version)
+    failIfTrustDowngraded(meta, pickedPackage.version, opts.trustPolicyExclude)
   }
 
   const workspacePkgsMatchingName = workspacePackages?.get(pickedPackage.name)

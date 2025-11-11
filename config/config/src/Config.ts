@@ -234,6 +234,7 @@ export interface Config extends OptionsFromRootManifest {
   fetchWarnTimeoutMs?: number
   fetchMinSpeedKiBps?: number
   trustPolicy?: TrustPolicy
+  trustPolicyExclude?: string[]
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

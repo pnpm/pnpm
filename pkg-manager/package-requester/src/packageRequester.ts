@@ -210,6 +210,7 @@ async function resolveAndFetch (
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
       trustPolicy: options.trustPolicy,
+      trustPolicyExclude: options.trustPolicyExclude,
       publishedBy: options.publishedBy,
       publishedByExclude: options.publishedByExclude,
       pickLowestVersion: options.pickLowestVersion,
