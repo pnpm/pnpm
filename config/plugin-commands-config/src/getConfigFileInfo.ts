@@ -22,10 +22,8 @@ export function getConfigFileInfo (key: string, opts: Pick<ConfigCommandOptions,
   if (isIniConfigKey(key)) {
     // NOTE: The following code no longer does what the merged PR at <https://github.com/pnpm/pnpm/pull/10073> wants to do,
     //       but considering the settings are now clearly divided into 2 separate categories, it should no longer be relevant.
-    // TODO: Maybe pnpm should not load npm-compatible settings from the yaml file?
-    // TODO: Alternatively, only set npm-compatible settings to the yaml file if the setting is found there.
-    // TODO: Alternatively, if global, remove the npm-compatible settings from config.yaml and set the new one in rc.
-    //       And if local, set to pnpm-workspace.yaml if it is found, and .npmrc otherwise.
+    // TODO: Auth, network, and proxy settings should belong only to INI files.
+    //       Add more settings to `isIniConfigKey` to make it complete.
     const configFileName = opts.global ? 'rc' : '.npmrc'
     return { configDir, configFileName }
   } else {
