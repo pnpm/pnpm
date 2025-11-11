@@ -61,7 +61,7 @@ function trustPolicyChange (outdatedPkg: OutdatedPackage): string {
   } else if (latestLevel > currentLevel) {
     return chalk.green(latestTrustEvidence)
   } else {
-    return latestLevel > 0 ? chalk.yellow(latestTrustEvidence) : latestTrustEvidence
+    return latestLevel > 0 ? chalk.green(latestTrustEvidence) : latestTrustEvidence
   }
 }
 

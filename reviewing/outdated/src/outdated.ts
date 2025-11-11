@@ -178,7 +178,7 @@ export async function outdated (
           }
 
           if (current !== wanted || semver.lt(current, latestManifest.version) || latestManifest.deprecated) {
-            outdated.push({
+            const outdatedPks = {
               alias,
               belongsTo: depType,
               current,
@@ -186,8 +186,11 @@ export async function outdated (
               packageName,
               wanted,
               workspace: opts.manifest.name,
-              currentManifest: opts.trustPolicy === 'no-downgrade' ? await opts.getLatestManifest(name, current) : undefined,
-            })
+            } as OutdatedPackage
+            if (opts.trustPolicy === 'no-downgrade') {
+              outdatedPks.currentManifest = await opts.getLatestManifest(name, current)
+            }
+            outdated.push(outdatedPks)
           }
         })
       )
