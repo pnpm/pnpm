@@ -61,7 +61,7 @@ test('interactively update', async () => {
   const storeDir = path.resolve('pnpm-store')
 
   const headerChoice = {
-    name: 'Package                                                    Current   Target            URL   Provenance ',
+    name: 'Package                                                    Current   Target            URL ',
     disabled: true,
     hint: '',
     value: '',
@@ -327,7 +327,7 @@ test('interactively update should ignore dependencies from the ignoreDependencie
           {
             disabled: true,
             hint: '',
-            name: 'Package                                                    Current   Target            URL   Provenance ',
+            name: 'Package                                                    Current   Target            URL ',
             value: '',
           },
           {

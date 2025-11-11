@@ -186,7 +186,7 @@ export async function outdated (
               packageName,
               wanted,
               workspace: opts.manifest.name,
-              currentManifest: current && opts.trustPolicy === 'no-downgrade' ? await opts.getLatestManifest(name, current) : undefined,
+              currentManifest: opts.trustPolicy === 'no-downgrade' ? await opts.getLatestManifest(name, current) : undefined,
             })
           }
         })

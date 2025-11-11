@@ -81,7 +81,7 @@ test('getUpdateChoices()', () => {
         message: 'dependencies',
         choices: [
           {
-            name: 'Package                                                    Current   Target            URL                Provenance ',
+            name: 'Package                                                    Current   Target            URL              ',
             disabled: true,
             hint: '',
             value: '',
@@ -98,7 +98,7 @@ test('getUpdateChoices()', () => {
         message: 'devDependencies',
         choices: [
           {
-            name: 'Package                                                    Current   Target            URL   Provenance ',
+            name: 'Package                                                    Current   Target            URL ',
             disabled: true,
             hint: '',
             value: '',
@@ -125,7 +125,7 @@ test('getUpdateChoices()', () => {
         message: 'optionalDependencies',
         choices: [
           {
-            name: 'Package                                                    Current   Target            URL   Provenance ',
+            name: 'Package                                                    Current   Target            URL ',
             disabled: true,
             hint: '',
             value: '',
