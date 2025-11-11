@@ -197,6 +197,5 @@ test('pnpm config list shows settings from global config.yaml', () => {
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['frozen-lockfile'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
 })
