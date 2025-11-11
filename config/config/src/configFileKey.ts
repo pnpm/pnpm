@@ -132,6 +132,7 @@ export const excludedPnpmKeys = [
   'strict-store-pkg-content-check',
   'strict-peer-dependencies',
   'trust-policy',
+  'trust-policy-exclude',
   'use-node-version',
   'use-stderr',
   'verify-deps-before-run',
