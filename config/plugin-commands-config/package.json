@@ -34,6 +34,7 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/naming-cases": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
@@ -45,7 +46,8 @@
     "lodash.kebabcase": "catalog:",
     "read-ini-file": "catalog:",
     "render-help": "catalog:",
-    "write-ini-file": "catalog:"
+    "write-ini-file": "catalog:",
+    "write-yaml-file": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

@@ -1944,6 +1944,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -1980,6 +1983,9 @@ importers:
       write-ini-file:
         specifier: 'catalog:'
         version: 4.0.1
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

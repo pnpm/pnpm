@@ -4,7 +4,7 @@ import os from 'os'
 import { isCI } from 'ci-info'
 import { omit } from 'ramda'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
-import { LAYOUT_VERSION } from '@pnpm/constants'
+import { GLOBAL_CONFIG_YAML_FILENAME, LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { isCamelCase } from '@pnpm/naming-cases'
 import loadNpmConf from '@pnpm/npm-conf'
@@ -12,6 +12,7 @@ import type npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { createMatcher } from '@pnpm/matcher'
+import { type ProjectManifest } from '@pnpm/types'
 import betterPathResolve from 'better-path-resolve'
 import camelcase from 'camelcase'
 import isWindows from 'is-windows'
@@ -20,7 +21,8 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
-import { inheritAuthConfig, isSupportedNpmConfig, pickNpmAuthConfig } from './auth.js'
+import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
+import { isConfigFileKey } from './configFileKey.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
@@ -35,7 +37,7 @@ import {
 } from './Config.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import { parseEnvVars } from './env.js'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { type WorkspaceManifest, readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { types } from './types.js'
 import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
@@ -50,6 +52,9 @@ export * from './readLocalConfig.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 
 export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
+
+export { isIniConfigKey } from './auth.js'
+export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
@@ -244,9 +249,10 @@ export async function getConfig (opts: {
     rcOptions
       .map((configKey) => [
         camelcase(configKey, { locale: 'en-US' }),
-        isSupportedNpmConfig(configKey) ? npmConfig.get(configKey) : (defaultOptions as Record<string, unknown>)[configKey],
+        isIniConfigKey(configKey) ? npmConfig.get(configKey) : (defaultOptions as Record<string, unknown>)[configKey],
       ])
   ) as ConfigWithDeprecatedSettings
+
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
   Object.assign(pnpmConfig, configFromCliOpts)
@@ -271,12 +277,27 @@ export async function getConfig (opts: {
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.rawConfig = Object.assign(
     {},
-    ...npmConfig.list.map(pickNpmAuthConfig).reverse(),
-    pickNpmAuthConfig(cliOptions),
+    ...npmConfig.list.map(pickIniConfig).reverse(),
+    pickIniConfig(cliOptions),
     { 'user-agent': pnpmConfig.userAgent },
     { globalconfig: path.join(configDir, 'rc') },
     { 'npm-globalconfig': npmDefaults.globalconfig }
   )
+
+  const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  for (const key in globalYamlConfig) {
+    if (!isConfigFileKey(kebabCase(key))) {
+      delete globalYamlConfig[key as keyof typeof globalYamlConfig]
+    }
+  }
+  if (globalYamlConfig) {
+    addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+      configFromCliOpts,
+      projectManifest: undefined,
+      workspaceDir: undefined,
+      workspaceManifest: globalYamlConfig,
+    })
+  }
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
@@ -370,29 +391,12 @@ export async function getConfig (opts: {
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages
       if (workspaceManifest) {
-        const newSettings = Object.assign(getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
-        for (const [key, value] of Object.entries(newSettings)) {
-          if (!isCamelCase(key)) continue
-
-          // @ts-expect-error
-          pnpmConfig[key] = value
-
-          const kebabKey = kebabCase(key)
-          // Q: Why `types` instead of `rcOptionTypes`?
-          // A: `rcOptionTypes` includes options that would matter to the `npm` cli which wouldn't care about `pnpm-workspace.yaml`.
-          const targetKey = kebabKey in types ? kebabKey : key
-          pnpmConfig.rawConfig[targetKey] = value
-        }
-        // All the pnpm_config_ env variables should override the settings from pnpm-workspace.yaml,
-        // as it happens with .npmrc.
-        // Until that is fixed, we should at the very least keep the right priority for verifyDepsBeforeRun,
-        // or else, we'll get infinite recursion.
-        // Related issue: https://github.com/pnpm/pnpm/issues/10060
-        if (process.env.pnpm_config_verify_deps_before_run != null) {
-          pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
-          pnpmConfig.rawConfig['verify-deps-before-run'] = pnpmConfig.verifyDepsBeforeRun
-        }
-        pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+        addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+          configFromCliOpts,
+          projectManifest: pnpmConfig.rootProjectManifest,
+          workspaceDir: pnpmConfig.workspaceDir,
+          workspaceManifest,
+        })
       }
     }
   }
@@ -637,4 +641,41 @@ function parsePackageManager (packageManager: string): { name: string, version: 
     name,
     version,
   }
+}
+
+function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
+  configFromCliOpts,
+  projectManifest,
+  workspaceManifest,
+  workspaceDir,
+}: {
+  configFromCliOpts: Record<string, unknown>
+  projectManifest: ProjectManifest | undefined
+  workspaceDir: string | undefined
+  workspaceManifest: WorkspaceManifest
+}): void {
+  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, projectManifest), configFromCliOpts)
+  for (const [key, value] of Object.entries(newSettings)) {
+    if (!isCamelCase(key)) continue
+
+    // @ts-expect-error
+    pnpmConfig[key] = value
+
+    const kebabKey = kebabCase(key)
+    // Q: Why `types` instead of `rcOptionTypes`?
+    // A: `rcOptionTypes` includes options that would matter to the `npm` cli which wouldn't care about `pnpm-workspace.yaml`.
+    const isRc = kebabKey in types
+    const targetKey = isRc ? kebabKey : key
+    pnpmConfig.rawConfig[targetKey] = value
+  }
+  // All the pnpm_config_ env variables should override the settings from pnpm-workspace.yaml,
+  // as it happens with .npmrc.
+  // Until that is fixed, we should at the very least keep the right priority for verifyDepsBeforeRun,
+  // or else, we'll get infinite recursion.
+  // Related issue: https://github.com/pnpm/pnpm/issues/10060
+  if (process.env.pnpm_config_verify_deps_before_run != null) {
+    pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
+    pnpmConfig.rawConfig['verify-deps-before-run'] = pnpmConfig.verifyDepsBeforeRun
+  }
+  pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
 }

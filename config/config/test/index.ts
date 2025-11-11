@@ -1358,3 +1358,44 @@ test('CLI should override environment variable pnpm_config_*', async () => {
     'use-node-version': '22.0.0',
   })).toBe('22.0.0')
 })
+
+describe('global config.yaml', () => {
+  let XDG_CONFIG_HOME: string | undefined
+
+  beforeEach(() => {
+    XDG_CONFIG_HOME = process.env.XDG_CONFIG_HOME
+  })
+
+  afterEach(() => {
+    process.env.XDG_CONFIG_HOME = XDG_CONFIG_HOME
+  })
+
+  test('reads config from global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFile('.config/pnpm/config.yaml', {
+      dangerouslyAllowAllBuilds: true,
+    })
+
+    // TODO: `getConfigDir`, `getHomeDir`, etc. (from dirs.ts) should allow customizing env or process.
+    // TODO: after that, remove this `describe` wrapper.
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
+
+    // NOTE: the field may appear kebab-case here, but only internally,
+    //       `pnpm config list` would convert them to camelCase.
+    // TODO: switch to camelCase entirely later.
+    expect(config.rawConfig).toHaveProperty(['dangerously-allow-all-builds'])
+  })
+})

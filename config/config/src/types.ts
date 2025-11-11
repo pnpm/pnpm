@@ -1,7 +1,7 @@
 import npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { type TrustPolicy } from '@pnpm/types'
 
-export const types = Object.assign({
+export const pnpmTypes = {
   'auto-install-peers': Boolean,
   bail: Boolean,
   ci: Boolean,
@@ -139,4 +139,14 @@ export const types = Object.assign({
   cpu: [String, Array],
   libc: [String, Array],
   os: [String, Array],
-}, npmTypes.types)
+}
+
+// NOTE: There is an oversight I just now notice thanks to a test failure: pnpmTypes (which used to be the object literal inside `Object.assign`)
+//       contains some field that overlaps with that of `npmTypes.types`. The definitions of such fields are pointless as they are overwritten by
+//       `npmTypes.types` anyway.
+// TODO: Fix this overlap later.
+// TODO: After that, move `...pnpmTypes` down, `...npmTypes.types` up.
+export const types = {
+  ...pnpmTypes,
+  ...npmTypes.types,
+}
