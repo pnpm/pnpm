@@ -18,7 +18,7 @@ pnpm add @pnpm/fs.find-packages
 const path = require('path')
 const findPkgs = require('@pnpm/fs.find-packages')
 
-findPkgs(path.join(__dirname, 'test', 'fixture'))
+findPkgs(path.join(import.meta.dirname, 'test', 'fixture'))
   .then(pkgs => console.log(pkgs))
   .catch(err => console.error(err))
   //> [ { path: '/home/zkochan/src/find-packages/test/fixture/pkg',

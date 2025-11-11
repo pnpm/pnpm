@@ -1,8 +1,9 @@
 {
   "name": "@pnpm/prepare",
-  "version": "1000.0.3",
+  "version": "1000.0.4",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "type": "module",
   "dependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
@@ -24,5 +25,6 @@
   "keywords": [
     "pnpm",
     "pnpm10"
-  ]
+  ],
+  "repository": "https://github.com/pnpm/pnpm/tree/main/__utils__/prepare"
 }

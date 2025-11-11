@@ -2,6 +2,7 @@
   "name": "@pnpm/prepare-temp-dir",
   "version": "1000.0.0",
   "main": "lib/index.js",
+  "type": "module",
   "types": "lib/index.d.ts",
   "devDependencies": {
     "@pnpm/prepare-temp-dir": "workspace:*",
@@ -16,5 +17,6 @@
   "keywords": [
     "pnpm",
     "pnpm10"
-  ]
+  ],
+  "repository": "https://github.com/pnpm/pnpm/tree/main/__utils__/prepare-temp-dir"
 }

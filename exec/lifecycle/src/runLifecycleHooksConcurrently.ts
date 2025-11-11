@@ -98,7 +98,7 @@ export async function runLifecycleHooksConcurrently (
       }
     )
   })
-  await runGroups(childConcurrency, groups)
+  await runGroups.default(childConcurrency, groups)
 }
 
 async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Record<string, string>): Promise<void> {

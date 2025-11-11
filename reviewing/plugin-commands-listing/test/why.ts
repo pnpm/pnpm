@@ -6,7 +6,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import execa from 'execa'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('`pnpm why` should fail if no package name was provided', async () => {
   prepare()

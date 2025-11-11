@@ -5,7 +5,7 @@ import { resolveConfigDeps } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 import { type InstallCommandOptions } from './install.js'
@@ -74,6 +74,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache',
     'store-dir',
     'strict-peer-dependencies',
+    'trust-policy',
+    'trust-policy-exclude',
     'unsafe-perm',
     'offline',
     'only',

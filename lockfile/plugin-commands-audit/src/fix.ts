@@ -1,6 +1,6 @@
 import { type AuditReport, type AuditAdvisory } from '@pnpm/audit'
 import { writeSettings } from '@pnpm/config.config-writer'
-import difference from 'ramda/src/difference'
+import { difference } from 'ramda'
 import { type AuditOptions } from './audit.js'
 
 export async function fix (auditReport: AuditReport, opts: AuditOptions): Promise<Record<string, string>> {

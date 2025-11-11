@@ -1,4 +1,4 @@
-import isEmpty from 'ramda/src/isEmpty'
+import { isEmpty } from 'ramda'
 
 // We use object-hash even though node-object-hash is faster.
 // Unlike node-object-hash, object-hash is streaming the hash updates,

@@ -73,11 +73,7 @@ import {
 } from '@pnpm/types'
 import isSubdir from 'is-subdir'
 import pLimit from 'p-limit'
-import mapValues from 'ramda/src/map'
-import clone from 'ramda/src/clone'
-import isEmpty from 'ramda/src/isEmpty'
-import pipeWith from 'ramda/src/pipeWith'
-import props from 'ramda/src/props'
+import { map as mapValues, clone, isEmpty, pipeWith, props } from 'ramda'
 import { parseWantedDependencies } from '../parseWantedDependencies.js'
 import { removeDeps } from '../uninstall/removeDeps.js'
 import {
@@ -1181,6 +1177,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       injectWorkspacePackages: opts.injectWorkspacePackages,
       minimumReleaseAge: opts.minimumReleaseAge,
       minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+      trustPolicy: opts.trustPolicy,
+      trustPolicyExclude: opts.trustPolicyExclude,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {

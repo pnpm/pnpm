@@ -6,7 +6,7 @@ import {
 import { type WorkspacePackages } from '@pnpm/resolver-base'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import pEvery from 'p-every'
-import isEmpty from 'ramda/src/isEmpty'
+import { isEmpty } from 'ramda'
 import { allCatalogsAreUpToDate } from './allCatalogsAreUpToDate.js'
 import { getWorkspacePackagesByDirectory } from './getWorkspacePackagesByDirectory.js'
 import { linkedPackagesAreUpToDate } from './linkedPackagesAreUpToDate.js'
@@ -49,7 +49,7 @@ export async function allProjectsAreUpToDate (
     lockfilePackages: opts.wantedLockfile.packages,
     lockfileDir: opts.lockfileDir,
   })
-  return pEvery(projects, async (project) => {
+  return pEvery.default(projects, async (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
     if (importer == null) {
       return DEPENDENCIES_FIELDS.every((depType) => project.manifest[depType] == null || isEmpty(project.manifest[depType]))

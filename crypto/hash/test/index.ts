@@ -6,7 +6,7 @@ import { pipeline } from 'node:stream/promises'
 import tar from 'tar-stream'
 
 test('createShortHash()', () => {
-  expect(createShortHash('AAA')).toEqual('cb1ad2119d8fafb69566510ee712661f')
+  expect(createShortHash('AAA')).toBe('cb1ad2119d8fafb69566510ee712661f')
 })
 
 test('createHashFromFile normalizes line endings before calculating the hash', async () => {
@@ -30,5 +30,5 @@ test('getTarballIntegrity creates integrity hash for tarball', async () => {
   await pipeline(pack, fs.createWriteStream('./local-tarball.tar'))
 
   await expect(getTarballIntegrity('./local-tarball.tar'))
-    .resolves.toEqual('sha512-nQP7gWOhNQ/5HoM/rJmzOgzZt6Wg6k56CyvO/0sMmiS3UkLSmzY5mW8mMrnbspgqpmOW8q/FHyb0YIr4n2A8VQ==')
+    .resolves.toBe('sha512-nQP7gWOhNQ/5HoM/rJmzOgzZt6Wg6k56CyvO/0sMmiS3UkLSmzY5mW8mMrnbspgqpmOW8q/FHyb0YIr4n2A8VQ==')
 })

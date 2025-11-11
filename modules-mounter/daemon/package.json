@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/mount-modules",
-  "version": "1001.0.32",
+  "version": "1001.0.34",
   "description": "Mounts a node_modules directory with FUSE",
   "keywords": [
     "pnpm",
@@ -10,12 +10,12 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/modules-mounter/daemon",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/modules-mounter/daemon#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/modules-mounter/daemon",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/modules-mounter/daemon#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -31,13 +31,14 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "pretest": "node ../../pnpm/dist/pnpm.cjs install --dir=test/__fixtures__/simple",
-    "_test": "pnpm pretest && jest",
+    "pretest": "node ../../pnpm/dist/pnpm.mjs install --dir=test/__fixtures__/simple --config.enableGlobalVirtualStore=false",
+    "_test": "pnpm pretest && cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/logger": "workspace:*",
@@ -45,7 +46,6 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "hyperdrive-schemas": "catalog:",
-    "load-json-file": "catalog:",
     "normalize-path": "catalog:"
   },
   "peerDependencies": {
@@ -63,7 +63,7 @@
     "rimraf": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

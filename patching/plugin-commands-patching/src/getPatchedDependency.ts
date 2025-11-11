@@ -1,6 +1,6 @@
 import path from 'path'
 import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
-import { prompt } from 'enquirer'
+import enquirer from 'enquirer'
 import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { PnpmError } from '@pnpm/error'
@@ -29,7 +29,7 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
 
   dep.alias = dep.alias ?? rawDependency
   if (preferredVersions.length > 1) {
-    const { version, applyToAll } = await prompt<{
+    const { version, applyToAll } = await enquirer.prompt<{
       version: string
       applyToAll: boolean
     }>([{

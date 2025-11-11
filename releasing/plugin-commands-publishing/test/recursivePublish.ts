@@ -6,9 +6,10 @@ import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
+import { jest } from '@jest/globals'
 import execa from 'execa'
 import crossSpawn from 'cross-spawn'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { DEFAULT_OPTS, checkPkgExists } from './utils/index.js'
 
 const CREDENTIALS = `\
@@ -194,7 +195,7 @@ test('packages are released even if their current version is published, when for
     recursive: true,
   }, [])
 
-  const manifest = loadJsonFile.sync<ProjectManifest>('is-positive/package.json')
+  const manifest = loadJsonFileSync<ProjectManifest>('is-positive/package.json')
   expect(manifest.version).toBe('4.0.0')
 })
 
@@ -258,7 +259,7 @@ test('recursive publish writes publish summary', async () => {
   }, [])
 
   {
-    const publishSummary = loadJsonFile.sync('pnpm-publish-summary.json')
+    const publishSummary = loadJsonFileSync('pnpm-publish-summary.json')
     expect(publishSummary).toMatchSnapshot()
     fs.unlinkSync('pnpm-publish-summary.json')
   }
@@ -272,7 +273,7 @@ test('recursive publish writes publish summary', async () => {
   }, [])
 
   {
-    const publishSummary = loadJsonFile.sync('pnpm-publish-summary.json')
+    const publishSummary = loadJsonFileSync('pnpm-publish-summary.json')
     expect(publishSummary).toStrictEqual({
       publishedPackages: [],
     })

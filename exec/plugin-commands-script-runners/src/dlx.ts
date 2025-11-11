@@ -14,7 +14,7 @@ import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { type PackageManifest, type PnpmSettings, type SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import execa from 'execa'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import symlinkDir from 'symlink-dir'
 import { makeEnv } from './makeEnv.js'
@@ -85,7 +85,13 @@ export async function handler (
   [command, ...args]: string[]
 ): Promise<{ exitCode: number }> {
   const pkgs = opts.package ?? [command]
-  const fullMetadata = ((opts.resolutionMode === 'time-based' || Boolean(opts.minimumReleaseAge)) && !opts.registrySupportsTimeField)
+  const fullMetadata = (
+    (
+      opts.resolutionMode === 'time-based' ||
+      Boolean(opts.minimumReleaseAge) ||
+      opts.trustPolicy === 'no-downgrade'
+    ) && !opts.registrySupportsTimeField
+  )
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,

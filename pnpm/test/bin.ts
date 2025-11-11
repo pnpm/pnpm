@@ -10,7 +10,7 @@ test('pnpm bin', async () => {
 
   const result = execPnpmSync(['bin'])
 
-  expect(result.status).toStrictEqual(0)
+  expect(result.status).toBe(0)
   expect(result.stdout.toString().trim()).toBe(path.resolve('node_modules/.bin'))
 })
 
@@ -24,6 +24,6 @@ test('pnpm bin -g', async () => {
 
   const result = execPnpmSync(['bin', '-g'], { env })
 
-  expect(result.status).toStrictEqual(0)
+  expect(result.status).toBe(0)
   expect(result.stdout.toString().trim()).toEqual(env.PNPM_HOME)
 })

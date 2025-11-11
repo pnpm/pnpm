@@ -3,7 +3,7 @@ import path from 'path'
 
 // The testing folder should be outside of the project to avoid lookup in the project's node_modules
 // Not using the OS temp directory due to issues on Windows CI.
-const tmpBaseDir = path.join(__dirname, '../../../../pnpm_tmp')
+const tmpBaseDir = path.join(import.meta.dirname, '../../../../pnpm_tmp')
 
 const tmpPath = path.join(tmpBaseDir, `${getFilesCountInDir(tmpBaseDir).toString()}_${process.pid.toString()}`)
 

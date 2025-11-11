@@ -20,11 +20,17 @@ import {
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
-import { type DependencyManifest, type Registries, type PinnedVersion } from '@pnpm/types'
+import {
+  type DependencyManifest,
+  type PackageVersionPolicy,
+  type PinnedVersion,
+  type Registries,
+  type TrustPolicy,
+} from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
-import clone from 'ramda/src/clone'
+import { clone } from 'ramda'
 import semver from 'semver'
 import ssri from 'ssri'
 import versionSelectorType from 'version-selector-type'
@@ -42,7 +48,8 @@ import {
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
-import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { pickVersionByVersionRange, assertMetaHasTime } from './pickPackageFromMeta.js'
+import { failIfTrustDowngraded } from './trustChecks.js'
 
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
@@ -178,7 +185,10 @@ export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
   publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
   pickLowestVersion?: boolean
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: PackageVersionPolicy
   dryRun?: boolean
   lockfileDir?: string
   preferredVersions?: PreferredVersions
@@ -234,6 +244,7 @@ async function resolveNpm (
     pickResult = await ctx.pickPackage(spec, {
       pickLowestVersion: opts.pickLowestVersion,
       publishedBy: opts.publishedBy,
+      publishedByExclude: opts.publishedByExclude,
       authHeaderValue,
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
@@ -296,6 +307,9 @@ async function resolveNpm (
       }
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
+  } else if (opts.trustPolicy === 'no-downgrade') {
+    assertMetaHasTime(meta)
+    failIfTrustDowngraded(meta, pickedPackage.version, opts.trustPolicyExclude)
   }
 
   const workspacePkgsMatchingName = workspacePackages?.get(pickedPackage.name)

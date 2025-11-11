@@ -6,7 +6,7 @@ test('parses named catalog', () => {
 })
 
 test('returns null for specifier not using catalog protocol', () => {
-  expect(parseCatalogProtocol('^1.0.0')).toBe(null)
+  expect(parseCatalogProtocol('^1.0.0')).toBeNull()
 })
 
 describe('default catalog', () => {

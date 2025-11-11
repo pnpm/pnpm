@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
@@ -121,7 +122,7 @@ test('install-test: install dependencies and runs tests', async () => {
   await execPnpm(['install-test'])
 
   const scriptsRan = (fs.readFileSync('output.txt')).toString()
-  expect(scriptsRan.trim()).toStrictEqual('test')
+  expect(scriptsRan.trim()).toBe('test')
 })
 
 test('silent run only prints the output of the child process', async () => {
@@ -143,11 +144,9 @@ testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
     },
   })
 
-  const npmrc = `
-    prefer-symlinked-executables=true=true
-  `
-
-  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    preferSymlinkedExecutables: true,
+  })
 
   const result = execPnpmSync(['run', 'build'])
 
@@ -161,12 +160,10 @@ testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir
     },
   })
 
-  const npmrc = `
-    virtual-store-dir=/foo/bar
-    prefer-symlinked-executables=true=true
-  `
-
-  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    virtualStoreDir: '/foo/bar',
+    preferSymlinkedExecutables: true,
+  })
 
   const result = execPnpmSync(['run', 'build'])
 

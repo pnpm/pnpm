@@ -1,5 +1,4 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/plugin-commands-listing'
@@ -9,7 +8,7 @@ import execa from 'execa'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('listing packages', async () => {
   prepare({
@@ -85,8 +84,10 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    sharedWorkspaceLockfile: true,
+    packages: ['**', '!store/**'],
+  })
 
   await execa('node', [pnpmBin, 'recursive', 'install'])
 

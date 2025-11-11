@@ -7,10 +7,8 @@ import { PnpmError } from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { type Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
-import chalk from 'chalk'
-import difference from 'ramda/src/difference'
-import pick from 'ramda/src/pick'
-import pickBy from 'ramda/src/pickBy'
+import chalk, { type ChalkInstance } from 'chalk'
+import { difference, pick, pickBy } from 'ramda'
 import renderHelp from 'render-help'
 import { fix } from './fix.js'
 import { ignore } from './ignore.js'
@@ -28,7 +26,7 @@ const AUDIT_COLOR = {
   moderate: chalk.bold.yellow,
   high: chalk.bold.red,
   critical: chalk.bold.red,
-} satisfies Record<AuditLevelString, chalk.Chalk>
+} satisfies Record<AuditLevelString, ChalkInstance>
 
 const AUDIT_TABLE_OPTIONS = {
   ...TABLE_OPTIONS,
