@@ -5,7 +5,7 @@ import fs from 'fs'
 import { globalWarn } from '@pnpm/logger'
 import gfs from '@pnpm/graceful-fs'
 import { sync as renameOverwrite } from 'rename-overwrite'
-import { fastPathTemp as pathTemp } from 'path-temp'
+import pathTemp from 'path-temp'
 
 export function hardLinkDir (src: string, destDirs: string[]): void {
   if (destDirs.length === 0) return
