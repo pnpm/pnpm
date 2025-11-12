@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-config",
-  "version": "1000.3.0",
+  "version": "1000.3.1",
   "description": "Commands for reading and writing settings to/from config files",
   "keywords": [
     "pnpm",

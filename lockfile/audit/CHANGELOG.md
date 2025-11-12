@@ -1,5 +1,14 @@
 # @pnpm/audit
 
+## 1002.0.16
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1002.0.4
+- @pnpm/lockfile.utils@1003.0.5
+- @pnpm/lockfile.detect-dep-types@1001.0.18
+- @pnpm/lockfile.walker@1001.0.18
+
 ## 1002.0.15
 
 ### Patch Changes

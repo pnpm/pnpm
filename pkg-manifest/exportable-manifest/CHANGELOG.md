@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 1000.2.0
+
+### Minor Changes
+
+- ce7af11: Allow to override the `engines` field on publish by the `publishConfig.engines` field.
+
 ## 1000.1.8
 
 ### Patch Changes

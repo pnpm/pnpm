@@ -1,5 +1,47 @@
 # @pnpm/core
 
+## 1012.2.0
+
+### Minor Changes
+
+- 93d4954: Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+
+  You can now list one or more specific packages or versions that pnpm should allow to install, even if those packages don't satisfy the trust policy requirement. For example:
+
+  ```yaml
+  trustPolicy: no-downgrade
+  trustPolicyExclude:
+    - chokidar@4.0.3
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+### Patch Changes
+
+- Updated dependencies [93d4954]
+  - @pnpm/resolve-dependencies@1008.5.0
+  - @pnpm/package-requester@1008.2.0
+  - @pnpm/store-controller-types@1004.3.0
+  - @pnpm/resolver-base@1005.3.0
+  - @pnpm/build-modules@1003.0.1
+  - @pnpm/worker@1000.3.2
+  - @pnpm/headless@1006.0.2
+  - @pnpm/lifecycle@1001.0.27
+  - @pnpm/modules-cleaner@1001.0.25
+  - @pnpm/lockfile.preferred-versions@1000.0.24
+  - @pnpm/lockfile.utils@1003.0.5
+  - @pnpm/lockfile.verification@1001.2.11
+  - @pnpm/get-context@1001.1.10
+  - @pnpm/hooks.types@1001.0.14
+  - @pnpm/lockfile.filtering@1001.0.23
+  - @pnpm/lockfile.fs@1001.1.23
+  - @pnpm/lockfile.pruner@1001.0.19
+  - @pnpm/lockfile.settings-checker@1001.0.18
+  - @pnpm/lockfile.walker@1001.0.18
+  - @pnpm/calc-dep-state@1002.0.10
+  - @pnpm/lockfile-to-pnp@1001.0.25
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/symlink-dependency@1000.0.13
+
 ## 1012.1.0
 
 ### Minor Changes

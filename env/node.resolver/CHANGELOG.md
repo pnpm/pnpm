@@ -1,5 +1,13 @@
 # @pnpm/node.resolver
 
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [93d4954]
+  - @pnpm/resolver-base@1005.3.0
+  - @pnpm/config@1004.6.0
+
 ## 1001.0.6
 
 ### Patch Changes

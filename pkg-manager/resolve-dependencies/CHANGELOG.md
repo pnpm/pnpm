@@ -1,5 +1,34 @@
 # @pnpm/resolve-dependencies
 
+## 1008.5.0
+
+### Minor Changes
+
+- 93d4954: Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+
+  You can now list one or more specific packages or versions that pnpm should allow to install, even if those packages don't satisfy the trust policy requirement. For example:
+
+  ```yaml
+  trustPolicy: no-downgrade
+  trustPolicyExclude:
+    - chokidar@4.0.3
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+### Patch Changes
+
+- Updated dependencies [2b81704]
+- Updated dependencies [93d4954]
+  - @pnpm/npm-resolver@1004.6.0
+  - @pnpm/store-controller-types@1004.3.0
+  - @pnpm/resolver-base@1005.3.0
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.24
+  - @pnpm/lockfile.types@1002.0.4
+  - @pnpm/lockfile.utils@1003.0.5
+  - @pnpm/lockfile.pruner@1001.0.19
+  - @pnpm/calc-dep-state@1002.0.10
+
 ## 1008.4.0
 
 ### Minor Changes

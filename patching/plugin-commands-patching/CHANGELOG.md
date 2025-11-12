@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.23
+
+### Patch Changes
+
+- Updated dependencies [93d4954]
+  - @pnpm/plugin-commands-installation@1004.8.0
+  - @pnpm/config@1004.6.0
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/lockfile.utils@1003.0.5
+  - @pnpm/cli-utils@1001.2.10
+  - @pnpm/store-connection-manager@1002.3.1
+  - @pnpm/lockfile.fs@1001.1.23
+  - @pnpm/config.config-writer@1000.0.16
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/patching.apply-patch@1000.0.7
+
 ## 1000.3.22
 
 ### Patch Changes

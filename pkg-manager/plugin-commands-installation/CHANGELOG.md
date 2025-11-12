@@ -1,5 +1,45 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.8.0
+
+### Minor Changes
+
+- 93d4954: Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+
+  You can now list one or more specific packages or versions that pnpm should allow to install, even if those packages don't satisfy the trust policy requirement. For example:
+
+  ```yaml
+  trustPolicy: no-downgrade
+  trustPolicyExclude:
+    - chokidar@4.0.3
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+### Patch Changes
+
+- Updated dependencies [93d4954]
+  - @pnpm/resolver-base@1005.3.0
+  - @pnpm/core@1012.2.0
+  - @pnpm/config@1004.6.0
+  - @pnpm/config.deps-installer@1000.0.21
+  - @pnpm/outdated@1001.1.3
+  - @pnpm/workspace.pkgs-graph@1000.0.27
+  - @pnpm/package-store@1004.0.2
+  - @pnpm/plugin-commands-rebuild@1004.0.3
+  - @pnpm/pnpmfile@1002.1.5
+  - @pnpm/deps.status@1003.0.17
+  - @pnpm/lockfile.types@1002.0.4
+  - @pnpm/get-context@1001.1.10
+  - @pnpm/cli-utils@1001.2.10
+  - @pnpm/plugin-commands-env@1000.0.46
+  - @pnpm/store-connection-manager@1002.3.1
+  - @pnpm/workspace.state@1002.0.9
+  - @pnpm/filter-workspace-packages@1000.0.45
+  - @pnpm/dedupe.check@1001.0.15
+  - @pnpm/workspace.manifest-writer@1001.0.5
+  - @pnpm/workspace.find-packages@1000.0.45
+  - @pnpm/config.config-writer@1000.0.16
+
 ## 1004.7.0
 
 ### Minor Changes

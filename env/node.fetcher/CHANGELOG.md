@@ -1,5 +1,14 @@
 # @pnpm/node.fetcher
 
+## 1001.0.10
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.22
+- @pnpm/node.resolver@1001.0.7
+- @pnpm/tarball-fetcher@1003.0.2
+- @pnpm/fetching.binary-fetcher@1002.0.2
+
 ## 1001.0.9
 
 ### Patch Changes

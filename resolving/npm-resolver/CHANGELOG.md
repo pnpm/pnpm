@@ -1,5 +1,27 @@
 # @pnpm/npm-resolver
 
+## 1004.6.0
+
+### Minor Changes
+
+- 93d4954: Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+
+  You can now list one or more specific packages or versions that pnpm should allow to install, even if those packages don't satisfy the trust policy requirement. For example:
+
+  ```yaml
+  trustPolicy: no-downgrade
+  trustPolicyExclude:
+    - chokidar@4.0.3
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+### Patch Changes
+
+- 2b81704: Update parse-npm-tarball-url to fix deprecation warnings on Node.js 24.
+- Updated dependencies [93d4954]
+  - @pnpm/resolver-base@1005.3.0
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1004.5.0
 
 ### Minor Changes

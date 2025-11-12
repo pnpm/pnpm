@@ -1,5 +1,11 @@
 # @pnpm/workspace.manifest-writer
 
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1002.0.4
+
 ## 1001.0.4
 
 ### Patch Changes

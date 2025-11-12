@@ -1,5 +1,11 @@
 # @pnpm/prune-lockfile
 
+## 1001.0.19
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1002.0.4
+
 ## 1001.0.18
 
 ### Patch Changes

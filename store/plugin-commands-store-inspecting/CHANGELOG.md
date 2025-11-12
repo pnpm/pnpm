@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 1000.0.43
+
+### Patch Changes
+
+- Updated dependencies [93d4954]
+  - @pnpm/config@1004.6.0
+  - @pnpm/store.cafs@1000.0.21
+  - @pnpm/lockfile.types@1002.0.4
+  - @pnpm/client@1001.1.6
+
 ## 1000.0.42
 
 ### Patch Changes

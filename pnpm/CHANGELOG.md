@@ -1,5 +1,26 @@
 # pnpm
 
+## 10.22.0
+
+### Minor Changes
+
+- Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+
+  You can now list one or more specific packages or versions that pnpm should allow to install, even if those packages don't satisfy the trust policy requirement. For example:
+
+  ```yaml
+  trustPolicy: no-downgrade
+  trustPolicyExclude:
+    - chokidar@4.0.3
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+- Allow to override the `engines` field on publish by the `publishConfig.engines` field.
+
+### Patch Changes
+
+- Don't crash when two processes of pnpm are hardlinking the contents of a directory to the same destination simultaneously [#10179](https://github.com/pnpm/pnpm/issues/10179).
+
 ## 10.21.0
 
 ### Minor Changes
@@ -30,6 +51,7 @@
   This helps prevent installing potentially compromised versions of a package.
 
   Related issue: [#8889](https://github.com/pnpm/pnpm/issues/8889).
+
 - Added support for `pnpm config get globalconfig` to retrieve the global config file path [#9977](https://github.com/pnpm/pnpm/issues/9977).
 
 ### Patch Changes

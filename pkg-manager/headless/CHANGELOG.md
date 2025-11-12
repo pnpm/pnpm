@@ -1,5 +1,25 @@
 # @pnpm/headless
 
+## 1006.0.2
+
+### Patch Changes
+
+- Updated dependencies [93d4954]
+  - @pnpm/package-requester@1008.2.0
+  - @pnpm/store-controller-types@1004.3.0
+  - @pnpm/build-modules@1003.0.1
+  - @pnpm/worker@1000.3.2
+  - @pnpm/deps.graph-builder@1002.3.2
+  - @pnpm/lifecycle@1001.0.27
+  - @pnpm/modules-cleaner@1001.0.25
+  - @pnpm/lockfile.utils@1003.0.5
+  - @pnpm/lockfile.filtering@1001.0.23
+  - @pnpm/lockfile.fs@1001.1.23
+  - @pnpm/calc-dep-state@1002.0.10
+  - @pnpm/lockfile-to-pnp@1001.0.25
+  - @pnpm/real-hoist@1001.0.22
+  - @pnpm/symlink-dependency@1000.0.13
+
 ## 1006.0.1
 
 ### Patch Changes

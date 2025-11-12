@@ -1,5 +1,30 @@
 # @pnpm/package-requester
 
+## 1008.2.0
+
+### Minor Changes
+
+- 93d4954: Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+
+  You can now list one or more specific packages or versions that pnpm should allow to install, even if those packages don't satisfy the trust policy requirement. For example:
+
+  ```yaml
+  trustPolicy: no-downgrade
+  trustPolicyExclude:
+    - chokidar@4.0.3
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+### Patch Changes
+
+- Updated dependencies [93d4954]
+  - @pnpm/store-controller-types@1004.3.0
+  - @pnpm/resolver-base@1005.3.0
+  - @pnpm/worker@1000.3.2
+  - @pnpm/store.cafs@1000.0.21
+  - @pnpm/fetcher-base@1001.0.4
+  - @pnpm/pick-fetcher@1001.0.0
+
 ## 1008.1.0
 
 ### Minor Changes

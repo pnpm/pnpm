@@ -1,5 +1,12 @@
 # @pnpm/lockfile-types
 
+## 1002.0.4
+
+### Patch Changes
+
+- Updated dependencies [93d4954]
+  - @pnpm/resolver-base@1005.3.0
+
 ## 1002.0.3
 
 ### Patch Changes
