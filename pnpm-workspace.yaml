@@ -235,7 +235,7 @@ catalog:
   p-memoize: 4.0.1
   p-queue: ^6.6.2
   parse-json: ^5.2.0
-  parse-npm-tarball-url: ^3.0.0
+  parse-npm-tarball-url: ^4.0.0
   path-absolute: ^1.0.1
   path-exists: ^4.0.0
   path-name: ^1.0.0
@@ -334,6 +334,7 @@ minimumReleaseAge: 1440 # At least a day
 minimumReleaseAgeExclude:
   - pnpm
   - '@pnpm/*'
+  - parse-npm-tarball-url@4.0.0
 
 nodeVersion: 18.18.0
 
