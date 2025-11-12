@@ -24,27 +24,11 @@ const trustLevels = {
   trustedPublisher: 2,
 }
 
-function getTrustEvidence (manifest: OutdatedPackage['latestManifest'] & {
-  _npmUser?: {
-    name?: string
-    email?: string
-    trustedPublisher?: {
-      id: string
-      oidcConfigId: string
-    }
-  }
-  dist?: {
-    attestations?: {
-      provenance?: {
-        predicateType: string
-      }
-    }
-  }
-}): 'trustedPublisher' | 'provenance' | 'none' {
-  if (manifest._npmUser?.trustedPublisher) {
+function getTrustEvidence (manifest: OutdatedPackage['latestManifest']): 'trustedPublisher' | 'provenance' | 'none' {
+  if (manifest?._npmUser?.trustedPublisher) {
     return 'trustedPublisher'
   }
-  if (manifest.dist?.attestations?.provenance) {
+  if (manifest?.dist?.attestations?.provenance) {
     return 'provenance'
   }
   return 'none'
