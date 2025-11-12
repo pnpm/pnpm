@@ -17,7 +17,7 @@ export function hardLinkDir (src: string, destDirs: string[]): void {
       continue
     }
     filteredDestDirs.push(destDir)
-    tempDestDirs.push(pathTemp(destDir))
+    tempDestDirs.push(pathTemp(path.dirname(destDir)))
   }
   _hardLinkDir(src, tempDestDirs, true)
   for (let i = 0; i < filteredDestDirs.length; i++) {
