@@ -236,7 +236,7 @@ catalog:
   p-memoize: 8.0.0
   p-queue: ^8.1.0
   parse-json: ^8.3.0
-  parse-npm-tarball-url: ^3.0.0
+  parse-npm-tarball-url: ^4.0.0
   path-absolute: ^1.0.1
   path-exists: ^5.0.0
   path-name: ^1.0.0
@@ -335,6 +335,7 @@ minimumReleaseAge: 1440 # At least a day
 minimumReleaseAgeExclude:
   - pnpm
   - '@pnpm/*'
+  - parse-npm-tarball-url@4.0.0
 
 nodeVersion: 20.19.4
 
