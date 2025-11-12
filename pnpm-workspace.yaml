@@ -409,4 +409,19 @@ savePrefix: ''
 
 sharedWorkspaceLockfile: true
 
+trustPolicy: no-downgrade
+
+trustPolicyExclude:
+  - '@typescript-eslint/eslint-plugin@6.18.1'
+  - '@typescript-eslint/parser@6.18.1'
+  - '@typescript-eslint/scope-manager@6.18.1'
+  - '@typescript-eslint/type-utils@6.18.1'
+  - '@typescript-eslint/types@6.18.1'
+  - '@typescript-eslint/typescript-estree@6.18.1'
+  - '@typescript-eslint/utils@6.18.1'
+  - '@typescript-eslint/visitor-keys@6.18.1'
+  - '@yarnpkg/libzip@3.2.2'
+  - rxjs@7.8.2
+  - undici-types@6.21.0
+
 verifyDepsBeforeRun: install

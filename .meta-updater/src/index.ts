@@ -378,9 +378,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',
     },
-    engines: manifest.engines?.runtime != null
-      ? manifest.engines
-      : { node: '>=20.19' },
+    engines: { node: '>=20.19' },
     files,
     funding: 'https://opencollective.com/pnpm',
     homepage,
