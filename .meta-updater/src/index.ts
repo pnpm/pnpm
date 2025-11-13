@@ -32,7 +32,9 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         return manifest
       }
       if (manifest.name === 'monorepo-root') {
-        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${nextTag} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${nextTag} --access=public`
+        // NOTE: For some reason if we build the pnpm artifacts with pkg in the prepublishOnly script of @pnpm/exe
+        // and it is executed automatically before publish, the generated artifacts are broken. They are just running Node.js.
+        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe run build && pnpm --filter=@pnpm/exe publish --tag=${nextTag} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${nextTag} --access=public`
         return sortKeysInManifest(manifest)
       }
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
