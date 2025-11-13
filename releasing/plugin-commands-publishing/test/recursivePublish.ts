@@ -306,7 +306,7 @@ test('when publish some package throws an error, exit code should be non-zero', 
   expect(result?.exitCode).toBe(1)
 })
 
-test('recursive publish runs script with Node.js version specified by pnpm.executionEnv.nodeVersion', async () => {
+test('recursive publish runs script with Node.js version specified by devEngines.runtime', async () => {
   preparePackages([
     {
       name: 'test-publish-node-version-unset',
@@ -321,9 +321,11 @@ test('recursive publish runs script with Node.js version specified by pnpm.execu
       scripts: {
         prepublishOnly: 'node -v > node-version.txt',
       },
-      pnpm: {
-        executionEnv: {
-          nodeVersion: '18.0.0',
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '18.0.0',
+          onFail: 'download',
         },
       },
     },
@@ -333,9 +335,11 @@ test('recursive publish runs script with Node.js version specified by pnpm.execu
       scripts: {
         prepublishOnly: 'node -v > node-version.txt',
       },
-      pnpm: {
-        executionEnv: {
-          nodeVersion: '20.0.0',
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '20.0.0',
+          onFail: 'download',
         },
       },
     },

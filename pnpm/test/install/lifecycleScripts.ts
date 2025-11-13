@@ -5,7 +5,7 @@ import { type PackageManifest, type ProjectManifest } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
 import { loadJsonFileSync } from 'load-json-file'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
@@ -218,7 +218,7 @@ test('selectively allow scripts in some dependencies by --allow-build flag overl
   expect(result.stdout.toString()).toContain('The following dependencies are ignored by the root project, but are allowed to be built by the current command: @pnpm.e2e/install-script-example')
 })
 
-test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace packages', async () => {
+test('use node versions specified by devEngines.runtime in workspace packages', async () => {
   const projects = preparePackages([
     {
       location: '.',
@@ -241,9 +241,11 @@ test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace 
       scripts: {
         test: 'node -v > node-version.txt',
       },
-      pnpm: {
-        executionEnv: {
-          nodeVersion: '18.0.0',
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '18.0.0',
+          onFail: 'download',
         },
       },
     },
@@ -253,16 +255,19 @@ test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace 
       scripts: {
         test: 'node -v > node-version.txt',
       },
-      pnpm: {
-        executionEnv: {
-          nodeVersion: '20.0.0',
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '20.0.0',
+          onFail: 'download',
         },
       },
     },
   ])
 
-  await writeYamlFile(path.resolve('pnpm-workspace.yaml'), {
+  writeYamlFile(path.resolve('pnpm-workspace.yaml'), {
     packages: ['*'],
+    verifyDepsBeforeRun: 'install',
   })
 
   execPnpmSync(['-r', 'test'])
@@ -346,7 +351,7 @@ test('preinstall and postinstall scripts do not trigger verify-deps-before-run w
     },
   })
 
-  await writeYamlFile('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'install' })
+  writeYamlFile('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'install' })
 
   // 20s timeout because if it fails it will run for 3 minutes instead
   const output = execPnpmSync(['install'], { expectSuccess: true, timeout: 20_000 })
