@@ -4,7 +4,7 @@
   "description": "The default reporter of pnpm",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "pnpm-reporter"
   ],
   "license": "MIT",

@@ -4,7 +4,7 @@
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "dependencies",
     "dependency manager",
     "efficient",

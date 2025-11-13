@@ -1,10 +1,10 @@
 {
   "name": "pnpm",
-  "version": "10.20.0",
+  "version": "11.0.0-alpha.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "dependencies",
     "dependency manager",
     "efficient",
@@ -218,7 +218,7 @@
   },
   "preferGlobal": true,
   "publishConfig": {
-    "tag": "next-10",
+    "tag": "next-11",
     "executableFiles": [
       "./dist/node-gyp-bin/node-gyp",
       "./dist/node-gyp-bin/node-gyp.cmd",

@@ -4,7 +4,7 @@
   "description": "Filters the package metadata from the registry",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "npm",
     "pkg-doc"
   ],

@@ -4,7 +4,7 @@
   "description": "Validates peer ranges",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "peer",
     "semver"
   ],

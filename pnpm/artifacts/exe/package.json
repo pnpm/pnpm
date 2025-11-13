@@ -1,10 +1,10 @@
 {
   "name": "@pnpm/exe",
-  "version": "10.20.0",
+  "version": "11.0.0-alpha.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "pnpm-artifact"
   ],
   "license": "MIT",

@@ -4,7 +4,7 @@
   "description": "Checks if a package is installable on the current system",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",

@@ -4,7 +4,7 @@
   "description": "List installed packages in a symlinked `node_modules`",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "list",
     "ls"
   ],

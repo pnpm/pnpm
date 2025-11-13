@@ -4,7 +4,7 @@
   "description": "A temporary store for testing purposes",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "store"
   ],
   "license": "MIT",

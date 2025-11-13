@@ -4,7 +4,7 @@
   "description": "Types for pnpm-compatible fetchers",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "fetcher"
   ],
   "license": "MIT",

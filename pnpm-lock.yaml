@@ -959,6 +959,9 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.2
       write-json-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -966,6 +969,9 @@ importers:
       '@pnpm-private/updater':
         specifier: workspace:*
         version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
 
   __typecheck__:
     devDependencies:

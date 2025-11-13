@@ -21,7 +21,7 @@
   },
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "jest": {
     "preset": "@pnpm/jest-config"

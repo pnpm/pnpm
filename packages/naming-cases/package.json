@@ -1,10 +1,10 @@
 {
   "name": "@pnpm/naming-cases",
-  "version": "1000.0.0-0",
+  "version": "1100.0.0-0",
   "description": "manipulate and check naming cases",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "naming-cases"
   ],
   "license": "MIT",

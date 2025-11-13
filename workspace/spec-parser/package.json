@@ -4,7 +4,7 @@
   "description": "Parse and stringify workspace specifier",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",

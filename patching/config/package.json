@@ -4,7 +4,7 @@
   "description": "Functions related to patching configurations",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "patch"
   ],
   "license": "MIT",

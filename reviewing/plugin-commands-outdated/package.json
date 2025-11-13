@@ -4,7 +4,7 @@
   "description": "The outdated command of pnpm",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "outdated"
   ],
   "license": "MIT",

@@ -4,7 +4,7 @@
   "description": "Check for licenses packages",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "licenses"
   ],
   "license": "MIT",

@@ -4,7 +4,7 @@
   "description": "Read/write pnpm-lock.yaml files",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "lockfile",
     "shrinkwrap"
   ],

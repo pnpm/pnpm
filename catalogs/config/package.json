@@ -4,7 +4,7 @@
   "description": "Create a normalized catalogs config from pnpm-workspace.yaml contents.",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "types"
   ],
   "license": "MIT",

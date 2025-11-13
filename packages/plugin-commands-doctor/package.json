@@ -4,7 +4,7 @@
   "description": "Commands for checks of known common issues ",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "doctor"
   ],
   "license": "MIT",

@@ -4,7 +4,7 @@
   "description": "Utilities to check if lockfile settings are out-of-date",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "base32",
     "crypto",
     "hash"

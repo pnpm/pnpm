@@ -4,7 +4,7 @@
   "description": "Resolves the Deno runtime",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "deno",
     "runtime"
   ],
