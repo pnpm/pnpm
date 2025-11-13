@@ -344,6 +344,7 @@ onlyBuiltDependencies:
   - esbuild
   - fuse-native
   - ghooks
+  - unrs-resolver
 
 optimisticRepeatInstall: true
 
