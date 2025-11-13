@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import type { PackageManifest, ProjectManifest } from '@pnpm/types'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { loadJsonFileSync } from 'load-json-file'
@@ -210,7 +210,7 @@ test('preinstall and postinstall scripts do not trigger verify-deps-before-run w
     },
   })
 
-  await writeYamlFile('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'install' })
+  writeYamlFile('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'install' })
 
   // 20s timeout because if it fails it will run for 3 minutes instead
   const output = execPnpmSync(['install'], { expectSuccess: true, timeout: 20_000 })
