@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.0.0-alpha.1",
+  "version": "11.0.0-dev.1001",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -58,7 +58,7 @@
   },
   "unpkg": "dist/pnpm.mjs",
   "scripts": {
-    "bundle": "pnpm --config.useNodeVersion=24.6.0 exec ts-node bundle.ts",
+    "bundle": "ts-node bundle.ts",
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",

@@ -1,6 +1,6 @@
 # pnpm
 
-## 11.0.0-alpha.1
+## 11.0.0-dev.1001
 
 ### Major Changes
 

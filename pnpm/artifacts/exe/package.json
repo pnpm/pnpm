@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "11.0.0-alpha.1",
+  "version": "11.0.0-dev.1001",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -35,7 +35,7 @@
   },
   "preferGlobal": true,
   "publishConfig": {
-    "tag": "next-10",
+    "tag": "next-11",
     "bin": {
       "pnpm": "pnpm"
     }
