@@ -24,6 +24,8 @@ export interface AddBuiltInRegistryOptions {
 }
 
 const SOURCE_NAMES_TO_SKIP = [
+  'cli',
+  'env',
   'builtin',
   'pnpm-builtin',
 ]
