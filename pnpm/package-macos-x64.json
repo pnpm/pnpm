@@ -8,6 +8,6 @@
       "dist/templates/*"
     ],
     "targets": ["node24-macos-x64"],
-    "outputPath": "../macos-x64"
+    "outputPath": "artifacts/macos-x64"
   }
 }

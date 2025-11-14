@@ -8,6 +8,6 @@
       "dist/templates/*"
     ],
     "targets": ["node24-win-x64"],
-    "outputPath": "../win-x64"
+    "outputPath": "artifacts/win-x64"
   }
 }

@@ -902,6 +902,9 @@ importers:
       lcov-result-merger:
         specifier: 'catalog:'
         version: 3.3.0
+      pkg:
+        specifier: 'catalog:'
+        version: '@yao-pkg/pkg@6.10.1(patch_hash=5f033014cc9e4c2375f37c71718d2583871bb177ad0734a85c726d4295b32b30)(encoding@0.1.13)'
       publish-packed:
         specifier: 'catalog:'
         version: 5.0.0
@@ -6757,9 +6760,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
-      pkg:
-        specifier: 'catalog:'
-        version: '@yao-pkg/pkg@6.10.1(patch_hash=5f033014cc9e4c2375f37c71718d2583871bb177ad0734a85c726d4295b32b30)(encoding@0.1.13)'
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -18255,7 +18255,7 @@ snapshots:
       '@pnpm/store-controller-types': 1003.0.2
       '@reflink/reflink': 0.1.19
       '@zkochan/rimraf': 3.0.2
-      fs-extra: 11.3.1
+      fs-extra: 11.3.2
       make-empty-dir: 3.0.2
       p-limit: 3.1.0
       path-temp: 2.1.0

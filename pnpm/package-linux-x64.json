@@ -7,6 +7,6 @@
       "dist/templates/*"
     ],
     "targets": ["node24-linux-x64"],
-    "outputPath": "../linux-x64"
+    "outputPath": "artifacts/linux-x64"
   }
 }

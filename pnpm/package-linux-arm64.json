@@ -7,6 +7,6 @@
       "dist/templates/*"
     ],
     "targets": ["node24-linux-arm64"],
-    "outputPath": "../linux-arm64"
+    "outputPath": "artifacts/linux-arm64"
   }
 }

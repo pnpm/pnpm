@@ -39,6 +39,25 @@ jobs:
       - name: pnpm install
         # We use --force because we want all artifacts of @reflink/reflink to be installed.
         run: pnpm install --force
+      - name: Compile pnpm CLI
+        run: pnpm --filter=pnpm run compile
+      - name: Build pnpm executables
+        run: |
+          cd pnpm
+          # Build all platform-specific executables using pkg
+          pnpm exec pkg pnpm.cjs --config=package-win-x64.json --sea
+          pnpm exec pkg pnpm.cjs --config=package-linux-x64.json --sea
+          pnpm exec pkg pnpm.cjs --config=package-macos-x64.json --sea
+          pnpm exec pkg pnpm.cjs --config=package-macos-arm64.json --sea
+          pnpm exec pkg pnpm.cjs --config=package-linux-arm64.json --sea
+          pnpm exec pkg pnpm.cjs --config=package-win-arm64.json --sea
+      - name: Verify pnpm executable works
+        run: |
+          # Test that the built executable contains pnpm, not just Node.js
+          chmod +x artifacts/linux-x64/pnpm
+          artifacts/linux-x64/pnpm --version
+          artifacts/linux-x64/pnpm help | head -n 5
+          cd ..
       - name: Publish Packages
         continue-on-error: true
         env:

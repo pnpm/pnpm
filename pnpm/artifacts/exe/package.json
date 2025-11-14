@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "11.0.0-dev.1003",
+  "version": "11.0.0-dev.1005",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -17,8 +17,7 @@
   "type": "module",
   "scripts": {
     "preinstall": "node setup.js",
-    "prepare": "node prepare.js",
-    "prepublishOnly": "pnpm --filter=pnpm run compile && ts-node ./scripts/build-artifacts.ts"
+    "prepare": "node prepare.js"
   },
   "optionalDependencies": {
     "@pnpm/linux-arm64": "workspace:*",
@@ -30,8 +29,7 @@
   },
   "devDependencies": {
     "@pnpm/exe": "workspace:*",
-    "execa": "catalog:",
-    "pkg": "catalog:"
+    "execa": "catalog:"
   },
   "preferGlobal": true,
   "publishConfig": {
