@@ -43,9 +43,9 @@
     "@zkochan/rimraf": "catalog:",
     "path-temp": "catalog:",
     "ramda": "catalog:",
-    "rename-overwrite": "catalog:",
     "render-help": "catalog:",
-    "semver": "catalog:"
+    "semver": "catalog:",
+    "symlink-dir": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

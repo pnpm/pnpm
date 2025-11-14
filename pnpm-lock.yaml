@@ -8646,15 +8646,15 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
-      rename-overwrite:
-        specifier: 'catalog:'
-        version: 6.0.2
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
       semver:
         specifier: 'catalog:'
         version: 7.7.2
+      symlink-dir:
+        specifier: 'catalog:'
+        version: 7.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
