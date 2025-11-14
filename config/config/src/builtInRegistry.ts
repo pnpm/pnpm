@@ -39,7 +39,7 @@ export function addBuiltInRegistry (conf: Conf, opts: AddBuiltInRegistryOptions)
       const sourceDescriptor = source.path
         ? `Config at ${source.path}`
         : `Config source ${sourceName}`
-      warnings.add(`${sourceDescriptor} has overridden the 'registry' key without overriding the '@jsr:registry' key, it could leave a security exploit`)
+      warnings.add(`${sourceDescriptor} has overridden the 'registry' key without overriding the '@jsr:registry' key, it could leave a security vulnerability`)
     }
   }
   for (const warning of warnings) {

@@ -21,7 +21,7 @@ test('addBuiltInRegistry prints warnings when npm registry was overridden but js
     '@jsr:registry': 'https://npm.jsr.io/',
   }, 'pnpm-builtin')
   expect(warn).toHaveBeenCalledWith(
-    "Config at /home/username/projects/my-project has overridden the 'registry' key without overriding the '@jsr:registry' key, it could leave a security exploit"
+    "Config at /home/username/projects/my-project has overridden the 'registry' key without overriding the '@jsr:registry' key, it could leave a security vulnerability"
   )
 })
 
