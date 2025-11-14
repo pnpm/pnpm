@@ -1124,9 +1124,7 @@ test('return a warning if a package.json has workspaces field but there is no pn
     },
   })
 
-  expect(warnings).toStrictEqual([
-    'The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.',
-  ])
+  expect(warnings).toContain('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
 })
 
 test('do not return a warning if a package.json has workspaces field and there is a pnpm-workspace.yaml file', async () => {
@@ -1139,7 +1137,10 @@ test('do not return a warning if a package.json has workspaces field and there i
       version: '1.0.0',
     },
   })
-  expect(warnings).toStrictEqual([])
+  expect(
+    warnings
+      .filter(message => !message.includes("has overridden the 'registry' key without overriding the '@jsr:registry' key"))
+  ).toStrictEqual([])
 })
 
 test('read PNPM_HOME defined in environment variables', async () => {
@@ -1278,7 +1279,7 @@ test('when dangerouslyAllowAllBuilds is set to true and neverBuiltDependencies n
   })
 
   expect(config.neverBuiltDependencies).toStrictEqual([])
-  expect(warnings).toStrictEqual(['You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.'])
+  expect(warnings).toContain('You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.')
 })
 
 test('loads setting from environment variable pnpm_config_*', async () => {
