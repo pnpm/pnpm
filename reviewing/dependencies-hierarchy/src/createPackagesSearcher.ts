@@ -35,9 +35,10 @@ function search (
     matchName: MatchFunction
     matchVersion?: MatchFunction
   },
-  { name, version }: FinderContext
+  { name, version, alias }: FinderContext
 ): boolean {
-  if (!packageSelector.matchName(name)) {
+  const nameMatches = packageSelector.matchName(name) || (!!alias && packageSelector.matchName(alias))
+  if (!nameMatches) {
     return false
   }
   if (packageSelector.matchVersion == null) {

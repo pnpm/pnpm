@@ -19,6 +19,7 @@ export interface FinderContext {
   name: string
   version: string
   readManifest: () => DependencyManifest
+  alias?: string
 }
 
 export type Finder = (ctx: FinderContext) => boolean | string
