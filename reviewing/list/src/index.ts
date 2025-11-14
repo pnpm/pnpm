@@ -61,6 +61,7 @@ export async function searchForPackages (
     depth: number
     excludePeerDependencies?: boolean
     lockfileDir: string
+    lockfileOnly?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
     registries?: Registries
@@ -77,6 +78,7 @@ export async function searchForPackages (
       excludePeerDependencies: opts.excludePeerDependencies,
       include: opts.include,
       lockfileDir: opts.lockfileDir,
+      lockfileOnly: opts.lockfileOnly,
       onlyProjects: opts.onlyProjects,
       registries: opts.registries,
       search,
@@ -104,6 +106,7 @@ export async function listForPackages (
     alwaysPrintRootPackage?: boolean
     depth?: number
     lockfileDir: string
+    lockfileOnly?: boolean
     long?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
@@ -137,6 +140,7 @@ export async function list (
     depth?: number
     excludePeerDependencies?: boolean
     lockfileDir: string
+    lockfileOnly?: boolean
     long?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
@@ -162,6 +166,7 @@ export async function list (
           excludePeerDependencies: maybeOpts?.excludePeerDependencies,
           include: maybeOpts?.include,
           lockfileDir: maybeOpts?.lockfileDir,
+          lockfileOnly: maybeOpts?.lockfileOnly,
           onlyProjects: maybeOpts?.onlyProjects,
           registries: opts.registries,
           modulesDir: opts.modulesDir,
