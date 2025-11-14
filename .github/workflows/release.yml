@@ -54,7 +54,7 @@ jobs:
       - name: Verify pnpm executable works
         run: |
           # Test that the built executable contains pnpm, not just Node.js
-          chmod +x pnpm-artifacts/linux-x64/pnpm
+          chmod +x pnpm/artifacts/linux-x64/pnpm
           pnpm/artifacts/linux-x64/pnpm --version
           pnpm/artifacts/linux-x64/pnpm help | head -n 5
       - name: Publish Packages
