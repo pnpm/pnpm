@@ -66,6 +66,12 @@ jobs:
         run: |
           npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}" # pnpm config set is broken
           pnpm release
+      - name: Verify pnpm executable works
+        run: |
+          # Test that the built executable contains pnpm, not just Node.js
+          chmod +x pnpm/artifacts/linux-x64/pnpm
+          pnpm/artifacts/linux-x64/pnpm --version
+          pnpm/artifacts/linux-x64/pnpm help | head -n 5
       - name: Copy Artifacts
         run: pnpm run copy-artifacts
       - name: Generate release description
