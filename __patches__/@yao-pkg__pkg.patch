@@ -1,23 +1,22 @@
 diff --git a/prelude/bootstrap.js b/prelude/bootstrap.js
-index 8627ea5..4be2de0 100644
+index 89232cfbdda8a9c1c7fc6fa0ad0388ca19d69234..0d5cba0834021f7faf57d2fc3585d703e8c64fa5 100644
 --- a/prelude/bootstrap.js
 +++ b/prelude/bootstrap.js
-@@ -58,7 +58,6 @@ const NODE_VERSION_MINOR = process.version.match(/^v\d+.(\d+)/)[1] | 0;
- 
- // set ENTRYPOINT and ARGV0 here because
- // they can be altered during process run
--const ARGV0 = process.argv[0];
+@@ -62,10 +62,6 @@ const ARGV0 = process.argv[0];
  const EXECPATH = process.execPath;
  let ENTRYPOINT = process.argv[1];
  
-@@ -2006,111 +2005,41 @@ function payloadFileSync(pointer) {
-     }
-     const opts = args[pos];
-     if (!opts.env) opts.env = _extend({}, process.env);
--    if (opts.env.PKG_EXECPATH === 'PKG_INVOKE_NODEJS') return;
--    opts.env.PKG_EXECPATH = EXECPATH;
--  }
+-if (process.env.PKG_EXECPATH === 'PKG_INVOKE_NODEJS') {
+-  return { undoPatch: true };
+-}
 -
+ if (NODE_VERSION_MAJOR < 12 || require('worker_threads').isMainThread) {
+   if (process.argv[1] !== 'PKG_DUMMY_ENTRYPOINT') {
+     // expand once patchless is introduced, that
+@@ -2006,107 +2002,39 @@ function payloadFileSync(pointer) {
+     opts.env.PKG_EXECPATH = EXECPATH;
+   }
+ 
 -  function startsWith2(args, index, name, impostor) {
 -    const qsName = `"${name} `;
 -    if (args[index].slice(0, qsName.length) === qsName) {
@@ -78,8 +77,8 @@ index 8627ea5..4be2de0 100644
 -        }
 -      }
 -    }
-   }
- 
+-  }
+-
    childProcess.spawn = function spawn() {
      const args = cloneArgs(arguments);
      setOptsEnv(args);
