@@ -123,11 +123,17 @@ export interface PlatformAssetResolution {
   targets: PlatformAssetTarget[]
 }
 
+export interface CustomResolution {
+  type: string // Any custom type name (not 'directory', 'git', 'binary', 'variations')
+  [key: string]: unknown
+}
+
 export type Resolution =
   TarballResolution |
   GitRepositoryResolution |
   DirectoryResolution |
-  BinaryResolution
+  BinaryResolution |
+  CustomResolution
 
 export interface VariationsResolution {
   type: 'variations'

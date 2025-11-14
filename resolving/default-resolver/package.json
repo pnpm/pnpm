@@ -36,20 +36,23 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/git-resolver": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/local-resolver": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/resolving.bun-resolver": "workspace:*",
     "@pnpm/resolving.deno-resolver": "workspace:*",
-    "@pnpm/tarball-resolver": "workspace:*"
+    "@pnpm/tarball-resolver": "workspace:*",
+    "@pnpm/types": "workspace:*"
   },
-  "devDependencies": {
-    "@pnpm/default-resolver": "workspace:*",
-    "@pnpm/fetch": "workspace:*"
-  },
-  "engines": {
-    "node": ">=20.19"
+     "devDependencies": {
+       "@jest/globals": "catalog:",
+       "@pnpm/default-resolver": "workspace:*",
+       "@pnpm/fetch": "workspace:*",
+       "node-fetch": "catalog:"
+     },
+     "engines": {    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

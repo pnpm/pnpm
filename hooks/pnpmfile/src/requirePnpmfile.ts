@@ -6,7 +6,7 @@ import { pathToFileURL } from 'url'
 import { createRequire } from 'module'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import { type PackageManifest, type Finder } from '@pnpm/types'
+import { type Finder, type BaseManifest } from '@pnpm/types'
 import chalk from 'chalk'
 import { type Hooks } from './Hooks.js'
 
@@ -62,18 +62,20 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
     }
     if (pnpmfile?.hooks?.readPackage) {
       const readPackage = pnpmfile.hooks.readPackage as Function // eslint-disable-line
-      pnpmfile.hooks.readPackage = async function (pkg: PackageManifest, ...args: any[]) { // eslint-disable-line
-        pkg.dependencies = pkg.dependencies ?? {}
-        pkg.devDependencies = pkg.devDependencies ?? {}
-        pkg.optionalDependencies = pkg.optionalDependencies ?? {}
-        pkg.peerDependencies = pkg.peerDependencies ?? {}
-        const newPkg = await readPackage(pkg, ...args)
+      pnpmfile.hooks.readPackage = async function <Pkg extends BaseManifest>(pkg: Pkg, ...args: any[]): Promise<Pkg> { // eslint-disable-line
+        // Add default empty objects for dependency fields
+        const pkgAny = pkg as any // eslint-disable-line
+        pkgAny.dependencies = pkgAny.dependencies ?? {}
+        pkgAny.devDependencies = pkgAny.devDependencies ?? {}
+        pkgAny.optionalDependencies = pkgAny.optionalDependencies ?? {}
+        pkgAny.peerDependencies = pkgAny.peerDependencies ?? {}
+        const newPkg = await readPackage(pkg, ...args) as Pkg
         if (!newPkg) {
           throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook did not return a package manifest object.')
         }
         const dependencies = ['dependencies', 'optionalDependencies', 'peerDependencies']
         for (const dep of dependencies) {
-          if (newPkg[dep] && typeof newPkg[dep] !== 'object') {
+          if ((newPkg as any)[dep] && typeof (newPkg as any)[dep] !== 'object') { // eslint-disable-line
             throw new BadReadPackageHookError(pnpmFilePath, `readPackage hook returned package manifest object's property '${dep}' must be an object.`)
           }
         }

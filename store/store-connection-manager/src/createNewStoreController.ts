@@ -66,6 +66,7 @@ export async function createNewStoreController (
   )
   const { resolve, fetchers, clearResolutionCache } = createClient({
     customFetchers: opts.hooks?.fetchers,
+    customResolvers: opts.hooks?.resolvers,
     userConfig: opts.userConfig,
     unsafePerm: opts.unsafePerm,
     authConfig: opts.rawConfig,

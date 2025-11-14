@@ -14,7 +14,7 @@ import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 import { deployHook } from './deployHook.js'
 import { logger, globalWarn } from '@pnpm/logger'
-import { type Project } from '@pnpm/types'
+import { type BaseManifest, type Project, type ProjectManifest } from '@pnpm/types'
 import { createDeployFiles } from './createDeployFiles.js'
 
 const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes
@@ -173,7 +173,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
       ...opts.hooks,
       readPackage: [
         ...(opts.hooks?.readPackage ?? []),
-        deployHook,
+        <Pkg extends BaseManifest>(pkg: Pkg, dir?: string) => deployHook(pkg as ProjectManifest) as Pkg,
       ],
     },
     frozenLockfile: false,
@@ -270,7 +270,7 @@ async function deployFromSharedLockfile (
         ...opts.hooks,
         readPackage: [
           ...(opts.hooks?.readPackage ?? []),
-          deployHook,
+          <Pkg extends BaseManifest>(pkg: Pkg, dir?: string) => deployHook(pkg as ProjectManifest) as Pkg,
         ],
         calculatePnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
       },

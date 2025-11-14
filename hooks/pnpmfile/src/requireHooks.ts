@@ -5,14 +5,17 @@ import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
+import { type ReadPackageHook, type ResolverPlugin, type HookContext, type BaseManifest } from '@pnpm/types'
 import { requirePnpmfile, type Pnpmfile, type Finders } from './requirePnpmfile.js'
-import { type HookContext, type Hooks } from './Hooks.js'
+import { type Hooks } from './Hooks.js'
+import { type LockfileObject } from '@pnpm/lockfile.types'
+import { type Log } from '@pnpm/core-loggers'
 
 // eslint-disable-next-line
-type Cook<T extends (...args: any[]) => any> = (
+type Cook<T extends (...args: unknown[]) => unknown> = (
   arg: Parameters<T>[0],
-  // eslint-disable-next-line
-  ...otherArgs: any[]
+
+  ...otherArgs: unknown[]
 ) => ReturnType<T>
 
 interface PnpmfileEntry {
@@ -29,13 +32,14 @@ interface PnpmfileEntryLoaded {
 }
 
 export interface CookedHooks {
-  readPackage?: Array<Cook<Required<Hooks>['readPackage']>>
-  preResolution?: Array<Cook<Required<Hooks>['preResolution']>>
-  afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>>
-  filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
-  updateConfig?: Array<Cook<Required<Hooks>['updateConfig']>>
+  readPackage?: ReadPackageHook[]
+  preResolution?: Array<(ctx: PreResolutionHookContext) => Promise<{ forceFullResolution?: boolean } | undefined>>
+  afterAllResolved?: Array<(lockfile: LockfileObject) => LockfileObject | Promise<LockfileObject>>
+  filterLog?: Array<(log: Log) => boolean>
+  updateConfig?: Array<(config: { [key: string]: unknown }) => { [key: string]: unknown }>
   importPackage?: ImportIndexedPackageAsync
   fetchers?: CustomFetchers
+  resolvers?: ResolverPlugin[]
   calculatePnpmfileChecksum?: () => Promise<string>
 }
 
@@ -139,21 +143,24 @@ export async function requireHooks (
     }
     const fileHooks: Hooks = hooks ?? {}
 
-    // readPackage & afterAllResolved
-    for (const hookName of ['readPackage', 'afterAllResolved'] as const) {
-      const fn = fileHooks[hookName]
-      if (fn) {
-        const context = createReadPackageHookContext(file, prefix, hookName)
-        cookedHooks[hookName].push((pkg: object) => fn(pkg as any, context)) // eslint-disable-line @typescript-eslint/no-explicit-any
-      }
+    if (fileHooks.readPackage) {
+      const originalReadPackageHookFunction = fileHooks.readPackage
+      const context = createReadPackageHookContext(file, prefix, 'readPackage')
+      cookedHooks.readPackage.push(<Pkg extends BaseManifest>(pkg: Pkg, dir?: string) => {
+        return originalReadPackageHookFunction(pkg, context)
+      })
     }
 
-    // filterLog
+    if (fileHooks.afterAllResolved) {
+      const originalHook = fileHooks.afterAllResolved
+      const context = createReadPackageHookContext(file, prefix, 'afterAllResolved')
+      cookedHooks.afterAllResolved.push((lockfile: LockfileObject) => originalHook(lockfile, context))
+    }
+
     if (fileHooks.filterLog) {
       cookedHooks.filterLog.push(fileHooks.filterLog)
     }
 
-    // updateConfig
     if (fileHooks.updateConfig) {
       const updateConfig = fileHooks.updateConfig
       cookedHooks.updateConfig.push((config: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -165,7 +172,6 @@ export async function requireHooks (
       })
     }
 
-    // preResolution
     if (fileHooks.preResolution) {
       const preRes = fileHooks.preResolution
       cookedHooks.preResolution.push((ctx: PreResolutionHookContext) => preRes(ctx, createPreResolutionHookLogger(prefix)))
@@ -194,6 +200,12 @@ export async function requireHooks (
       fetchersProvider = file
       cookedHooks.fetchers = fileHooks.fetchers
     }
+
+    // resolvers: merge all
+    if (fileHooks.resolvers) {
+      cookedHooks.resolvers = cookedHooks.resolvers ?? []
+      cookedHooks.resolvers.push(...fileHooks.resolvers)
+    }
   }
 
   return {
@@ -212,13 +224,12 @@ function createReadPackageHookContext (calledFrom: string, prefix: string, hook:
 }
 
 function createPreResolutionHookLogger (prefix: string): PreResolutionHookLogger {
-  const hook = 'preResolution'
   return {
     info: (message: string) => {
-      hookLogger.info({ message, prefix, hook } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      hookLogger.info({ message, prefix })
     },
     warn: (message: string) => {
-      hookLogger.warn({ message, prefix, hook } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      hookLogger.warn({ message, prefix })
     },
   }
 }

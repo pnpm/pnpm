@@ -1,7 +1,7 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
 import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
-import { hashObjectWithoutSorting, hashObject } from '@pnpm/crypto.object-hasher'
+import { hashObject } from '@pnpm/crypto.object-hasher'
 import { type LockfileResolution, type LockfileObject } from '@pnpm/lockfile.types'
 
 export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
@@ -98,7 +98,7 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
       engine: ENGINE_NAME,
       deps: _calcDepGraphHash(new Set(), depPath),
     }
-    const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
+    const hexDigest = hashObject(state)
     yield {
       hash: `${name}/${version}/${hexDigest}`,
       pkgMeta,
@@ -135,6 +135,6 @@ function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<stri
 }
 
 function createFullPkgId (pkgIdWithPatchHash: PkgIdWithPatchHash, resolution: LockfileResolution): string {
-  const res = 'integrity' in resolution ? resolution.integrity : JSON.stringify(resolution)
+  const res = 'integrity' in resolution ? String(resolution.integrity) : JSON.stringify(resolution)
   return `${pkgIdWithPatchHash}:${res}`
 }

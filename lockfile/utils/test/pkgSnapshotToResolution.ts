@@ -1,40 +1,247 @@
-import { pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
+import { pkgSnapshotToResolutionWithResolvers } from '../lib/pkgSnapshotToResolution.js'
+import { type PackageSnapshot } from '@pnpm/lockfile.types'
 
-test('pkgSnapshotToResolution()', () => {
-  expect(pkgSnapshotToResolution('foo@1.0.0', {
+test('custom resolution type without resolver falls through to standard resolution', async () => {
+  const pkgSnapshot: PackageSnapshot = {
     resolution: {
-      integrity: 'AAAA',
+      type: 'custom-type',
+      customField: 'value',
     },
-  }, { default: 'https://registry.npmjs.org/' })).toEqual({
-    integrity: 'AAAA',
-    tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
-  })
+  }
 
-  expect(pkgSnapshotToResolution('@mycompany/mypackage@2.0.0', {
-    resolution: {
-      integrity: 'AAAA',
-      tarball: '@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
-    },
-  }, { default: 'https://registry.npmjs.org/', '@mycompany': 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local/' })).toEqual({
-    integrity: 'AAAA',
-    tarball: 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local/@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
-  })
+  const result = await pkgSnapshotToResolutionWithResolvers(
+    'pkg@1.0.0',
+    pkgSnapshot,
+    { default: 'https://registry.npmjs.org/' },
+    {
+      lockfileDir: '/test',
+      projectDir: '/test',
+    }
+  )
 
-  expect(pkgSnapshotToResolution('@mycompany/mypackage@2.0.0', {
-    resolution: {
-      integrity: 'AAAA',
-      tarball: '@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
-    },
-  }, { default: 'https://registry.npmjs.org/', '@mycompany': 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local' })).toEqual({
-    integrity: 'AAAA',
-    tarball: 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local/@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
+  // Standard resolution returns typed resolutions as-is
+  expect(result).toEqual({
+    type: 'custom-type',
+    customField: 'value',
   })
+})
 
-  expect(pkgSnapshotToResolution('@cdn.sheetjs.com/xlsx-0.18.9/xlsx-0.18.9.tgz', {
+test('custom resolver handles custom resolution type', async () => {
+  const pkgSnapshot: PackageSnapshot = {
     resolution: {
-      tarball: 'https://cdn.sheetjs.com/xlsx-0.18.9/xlsx-0.18.9.tgz',
+      type: 'brazil',
+      hash: 'abc123',
+      integrity: 'sha512-test',
     },
-  }, { default: 'https://registry.npmjs.org/' })).toEqual({
-    tarball: 'https://cdn.sheetjs.com/xlsx-0.18.9/xlsx-0.18.9.tgz',
+  }
+
+  const customResolver = {
+    supportsLockfileResolution: (_pkgId: string, resolution: unknown) => {
+      return (resolution as { type?: string }).type === 'brazil'
+    },
+    fromLockfileResolution: (_pkgId: string, resolution: unknown) => {
+      const brazilRes = resolution as { hash: string, integrity: string }
+      return {
+        tarball: `file:/path/to/${brazilRes.hash}.tgz`,
+        integrity: brazilRes.integrity,
+      }
+    },
+  }
+
+  const result = await pkgSnapshotToResolutionWithResolvers(
+    'pkg@brazil:abc123',
+    pkgSnapshot,
+    { default: 'https://registry.npmjs.org/' },
+    {
+      customResolvers: [customResolver],
+      lockfileDir: '/test',
+      projectDir: '/test',
+    }
+  )
+
+  expect(result).toEqual({
+    tarball: 'file:/path/to/abc123.tgz',
+    integrity: 'sha512-test',
   })
+})
+
+test('custom resolver with async methods handles custom resolution type', async () => {
+  const pkgSnapshot: PackageSnapshot = {
+    resolution: {
+      type: 'async-custom',
+      data: 'test-data',
+    },
+  }
+
+  const customResolver = {
+    supportsLockfileResolution: async (_pkgId: string, resolution: unknown) => {
+      // Simulate async check (e.g., checking cache or remote source)
+      await new Promise(resolve => setTimeout(resolve, 1))
+      return (resolution as { type?: string }).type === 'async-custom'
+    },
+    fromLockfileResolution: async (_pkgId: string, resolution: unknown) => {
+      // Simulate async resolution (e.g., fetching from remote source)
+      await new Promise(resolve => setTimeout(resolve, 1))
+      const customRes = resolution as { data: string }
+      return {
+        tarball: `file://async-${customRes.data}.tgz`,
+        integrity: 'sha512-async',
+      }
+    },
+  }
+
+  const result = await pkgSnapshotToResolutionWithResolvers(
+    'pkg@async:test',
+    pkgSnapshot,
+    { default: 'https://registry.npmjs.org/' },
+    {
+      customResolvers: [customResolver],
+      lockfileDir: '/test',
+      projectDir: '/test',
+    }
+  )
+
+  expect(result).toEqual({
+    tarball: 'file://async-test-data.tgz',
+    integrity: 'sha512-async',
+  })
+})
+
+test('multiple custom resolvers - first matching wins for lockfile resolution', async () => {
+  const pkgSnapshot: PackageSnapshot = {
+    resolution: {
+      type: 'shared-custom',
+      value: '123',
+    },
+  }
+
+  const resolver1 = {
+    supportsLockfileResolution: (_pkgId: string, resolution: unknown) => {
+      return (resolution as { type?: string }).type === 'shared-custom'
+    },
+    fromLockfileResolution: () => ({
+      tarball: 'file://resolver1.tgz',
+      integrity: 'sha512-resolver1',
+    }),
+  }
+
+  const resolver2 = {
+    supportsLockfileResolution: (_pkgId: string, resolution: unknown) => {
+      return (resolution as { type?: string }).type === 'shared-custom'
+    },
+    fromLockfileResolution: () => ({
+      tarball: 'file://resolver2.tgz',
+      integrity: 'sha512-resolver2',
+    }),
+  }
+
+  const result = await pkgSnapshotToResolutionWithResolvers(
+    'pkg@shared:123',
+    pkgSnapshot,
+    { default: 'https://registry.npmjs.org/' },
+    {
+      customResolvers: [resolver1, resolver2],
+      lockfileDir: '/test',
+      projectDir: '/test',
+    }
+  )
+
+  // First resolver should win
+  expect(result).toEqual({
+    tarball: 'file://resolver1.tgz',
+    integrity: 'sha512-resolver1',
+  })
+})
+
+test('custom resolver can intercept standard resolution types', async () => {
+  const pkgSnapshot: PackageSnapshot = {
+    resolution: {
+      tarball: 'https://registry.npmjs.org/pkg/-/pkg-1.0.0.tgz',
+      integrity: 'sha512-original',
+    },
+  }
+
+  const customResolver = {
+    supportsLockfileResolution: (_pkgId: string, resolution: unknown) => {
+      // Intercept all tarball resolutions
+      return 'tarball' in (resolution as object)
+    },
+    fromLockfileResolution: (_pkgId: string, resolution: unknown) => {
+      // Redirect to local cache
+      const res = resolution as { integrity: string }
+      return {
+        tarball: 'file://local-cache/pkg-1.0.0.tgz',
+        integrity: res.integrity,
+      }
+    },
+  }
+
+  const result = await pkgSnapshotToResolutionWithResolvers(
+    'pkg@1.0.0',
+    pkgSnapshot,
+    { default: 'https://registry.npmjs.org/' },
+    {
+      customResolvers: [customResolver],
+      lockfileDir: '/test',
+      projectDir: '/test',
+    }
+  )
+
+  expect(result).toEqual({
+    tarball: 'file://local-cache/pkg-1.0.0.tgz',
+    integrity: 'sha512-original',
+  })
+})
+
+test('does not throw for standard resolution types', async () => {
+  const pkgSnapshot: PackageSnapshot = {
+    resolution: {
+      type: 'directory',
+      directory: '/path/to/pkg',
+    },
+  }
+
+  const result = await pkgSnapshotToResolutionWithResolvers(
+    'pkg@1.0.0',
+    pkgSnapshot,
+    { default: 'https://registry.npmjs.org/' },
+    {
+      lockfileDir: '/test',
+      projectDir: '/test',
+    }
+  )
+
+  expect(result).toEqual({
+    type: 'directory',
+    directory: '/path/to/pkg',
+  })
+})
+
+test('propagates errors from fromLockfileResolution', async () => {
+  const pkgSnapshot: PackageSnapshot = {
+    resolution: {
+      type: 'error-type',
+      data: 'test',
+    },
+  }
+
+  const customResolver = {
+    supportsLockfileResolution: () => true,
+    fromLockfileResolution: () => {
+      throw new Error('Failed to resolve from lockfile')
+    },
+  }
+
+  await expect(
+    pkgSnapshotToResolutionWithResolvers(
+      'pkg@error:test',
+      pkgSnapshot,
+      { default: 'https://registry.npmjs.org/' },
+      {
+        customResolvers: [customResolver],
+        lockfileDir: '/test',
+        projectDir: '/test',
+      }
+    )
+  ).rejects.toThrow('Failed to resolve from lockfile')
 })

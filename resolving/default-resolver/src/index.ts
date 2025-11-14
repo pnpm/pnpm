@@ -21,6 +21,7 @@ import {
   type WantedDependency,
 } from '@pnpm/resolver-base'
 import { type TarballResolveResult, resolveFromTarball } from '@pnpm/tarball-resolver'
+import { type ResolverPlugin } from '@pnpm/hooks.types'
 
 export type {
   PackageMeta,
@@ -42,11 +43,48 @@ export type DefaultResolveResult =
 
 export type DefaultResolver = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<DefaultResolveResult>
 
+async function resolveFromCustomResolvers (
+  customResolvers: ResolverPlugin[],
+  wantedDependency: WantedDependency,
+  opts: ResolveOptions
+): Promise<DefaultResolveResult | null> {
+  if (!customResolvers || customResolvers.length === 0) {
+    return null
+  }
+
+  const descriptor = {
+    name: wantedDependency.alias ?? '',
+    range: wantedDependency.bareSpecifier ?? '',
+  }
+
+  for (const resolver of customResolvers) {
+    // Skip resolvers that don't support descriptor resolution
+    if (!resolver.supportsDescriptor || !resolver.resolve) continue
+
+    const supportsResult = resolver.supportsDescriptor(descriptor)
+    // eslint-disable-next-line no-await-in-loop
+    const supports = supportsResult instanceof Promise ? await supportsResult : supportsResult
+    if (supports) {
+      const resolveResult = resolver.resolve(descriptor, {
+        lockfileDir: opts.lockfileDir,
+        projectDir: opts.projectDir,
+        preferredVersions: (opts.preferredVersions ?? {}) as unknown as Record<string, string>,
+      })
+      // eslint-disable-next-line no-await-in-loop
+      const result = resolveResult instanceof Promise ? await resolveResult : resolveResult
+      return result as DefaultResolveResult
+    }
+  }
+
+  return null
+}
+
 export function createResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   pnpmOpts: ResolverFactoryOptions & {
     rawConfig: Record<string, string>
+    customResolvers?: ResolverPlugin[]
   }
 ): { resolve: DefaultResolver, clearCache: () => void } {
   const { resolveFromNpm, resolveFromJsr, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
@@ -57,9 +95,13 @@ export function createResolver (
   const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig })
   const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
+  const _resolveFromCustomResolvers = pnpmOpts.customResolvers
+    ? resolveFromCustomResolvers.bind(null, pnpmOpts.customResolvers)
+    : null
   return {
     resolve: async (wantedDependency, opts) => {
-      const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
+      const resolution = (_resolveFromCustomResolvers && await _resolveFromCustomResolvers(wantedDependency, opts)) ??
+        await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??

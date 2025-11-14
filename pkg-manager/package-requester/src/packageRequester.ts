@@ -182,6 +182,7 @@ async function resolveAndFetch (
   let updated = false
   let resolvedVia: string | undefined
   let publishedAt: string | undefined
+  let getLockfileResolution: ((resolution: Resolution) => Resolution) | undefined
 
   // When fetching is skipped, resolution cannot be skipped.
   // We need the package's manifest when doing `lockfile-only` installs.
@@ -243,6 +244,7 @@ async function resolveAndFetch (
     pkgId = resolveResult.id
     normalizedBareSpecifier = resolveResult.normalizedBareSpecifier
     alias = resolveResult.alias
+    getLockfileResolution = resolveResult.getLockfileResolution
   }
 
   const id = pkgId!
@@ -333,6 +335,7 @@ async function resolveAndFetch (
       updated,
       publishedAt,
       alias,
+      getLockfileResolution,
     },
     fetching: fetchResult.fetching,
     filesIndexFile: fetchResult.filesIndexFile,
@@ -370,7 +373,7 @@ function getFilesIndexFilePath (
   }
   let resolution!: AtomicResolution
   if (opts.pkg.resolution.type === 'variations') {
-    resolution = findResolution(opts.pkg.resolution.variants, opts.supportedArchitectures)
+    resolution = findResolution(opts.pkg.resolution.variants as PlatformAssetResolution[], opts.supportedArchitectures)
     if ((resolution as TarballResolution).integrity) {
       return {
         target,
@@ -379,7 +382,7 @@ function getFilesIndexFilePath (
       }
     }
   } else {
-    resolution = opts.pkg.resolution
+    resolution = opts.pkg.resolution as AtomicResolution
   }
   const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
   return { filesIndexFile, target, resolution }

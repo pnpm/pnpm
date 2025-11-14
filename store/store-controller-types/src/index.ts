@@ -161,6 +161,8 @@ export interface PackageResponse {
     // resolved package, it is out-of-date.
     latest?: string
     alias?: string
+    getLockfileResolution?: (resolution: Resolution) => Resolution
+    lockfileResolution?: Resolution
   } & (
     {
       isLocal: true

@@ -1,6 +1,10 @@
 import { type DependenciesField } from './misc.js'
 import { type BaseManifest, type DependencyManifest } from './package.js'
 
+export interface HookContext {
+  log: (message: string) => void
+}
+
 export type LogBase = {
   level: 'debug' | 'error'
 } | {

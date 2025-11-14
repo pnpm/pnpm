@@ -34,6 +34,8 @@
   },
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
