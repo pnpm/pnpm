@@ -201,6 +201,43 @@ test('use command-specific shorthands', async () => {
   expect(options).toHaveProperty(['dev'])
 })
 
+test('command-specific shorthands override universal shorthands', async () => {
+  const { options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'add') {
+        return {
+          'save-dev': Boolean,
+          'save-prod': Boolean,
+          'save-optional': Boolean,
+          'save-exact': Boolean,
+          loglevel: String,
+          parseable: Boolean,
+        }
+      }
+      return {}
+    },
+    universalShorthands: {
+      d: '--loglevel',
+      p: '--parseable',
+    },
+    shorthandsByCommandName: {
+      add: {
+        d: '--save-dev',
+        p: '--save-prod',
+        o: '--save-optional',
+        e: '--save-exact',
+      },
+    },
+  }, ['add', '-d', '-p', '-o', '-e', 'package'])
+  expect(options['save-dev']).toBe(true)
+  expect(options['save-prod']).toBe(true)
+  expect(options['save-optional']).toBe(true)
+  expect(options['save-exact']).toBe(true)
+  expect(options.loglevel).toBeUndefined()
+  expect(options.parseable).toBeUndefined()
+})
+
 test('any unknown command is treated as a script', async () => {
   const { options, cmd, params, fallbackCommandUsed } = await parseCliArgs({
     ...DEFAULT_OPTS,
