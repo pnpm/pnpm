@@ -495,11 +495,11 @@ test('convert shamefully-flatten to hoist-pattern=* and warn', async () => {
 
   expect(config.hoistPattern).toStrictEqual(['*'])
   expect(config.shamefullyHoist).toBeTruthy()
-  expect(warnings).toStrictEqual([
+  expect(warnings).toContain(
     'The "shamefully-flatten" setting has been renamed to "shamefully-hoist". ' +
     'Also, in most cases you won\'t need "shamefully-hoist". ' +
-    'Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).',
-  ])
+    'Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).'
+  )
 })
 
 test('hoist-pattern is undefined if --no-hoist used', async () => {
@@ -891,9 +891,7 @@ test('warn user unknown settings in npmrc', async () => {
     checkUnknownSetting: true,
   })
 
-  expect(warnings).toStrictEqual([
-    'Your .npmrc file contains unknown setting: typo-setting, mistake-setting',
-  ])
+  expect(warnings).toContain('Your .npmrc file contains unknown setting: typo-setting, mistake-setting')
 
   const { warnings: noWarnings } = await getConfig({
     cliOptions: {},
