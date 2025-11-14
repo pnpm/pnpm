@@ -9,7 +9,7 @@ import {
   type ProjectManifest,
   type PnpmSettings,
 } from '@pnpm/types'
-import { map as mapValues, omit, pick } from 'ramda'
+import { map as mapValues, omit } from 'ramda'
 import { globalWarn } from '@pnpm/logger'
 
 export type OptionsFromRootManifest = {
@@ -27,42 +27,6 @@ export type OptionsFromRootManifest = {
   peerDependencyRules?: PeerDependencyRules
   supportedArchitectures?: SupportedArchitectures
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'executionEnv' | 'updateConfig'>
-
-export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
-  const settings: OptionsFromRootManifest = getOptionsFromPnpmSettings(manifestDir, {
-    ...pick([
-      'allowNonAppliedPatches',
-      'allowUnusedPatches',
-      'allowedDeprecatedVersions',
-      'auditConfig',
-      'auditConfig',
-      'auditConfig',
-      'configDependencies',
-      'executionEnv',
-      'executionEnv',
-      'ignorePatchFailures',
-      'ignoredBuiltDependencies',
-      'ignoredOptionalDependencies',
-      'neverBuiltDependencies',
-      'onlyBuiltDependencies',
-      'onlyBuiltDependenciesFile',
-      'overrides',
-      'packageExtensions',
-      'patchedDependencies',
-      'peerDependencyRules',
-      'supportedArchitectures',
-      'updateConfig',
-    ], manifest.pnpm ?? {}),
-    // We read Yarn's resolutions field for compatibility
-    // but we really replace the version specs to any other version spec, not only to exact versions,
-    // so we cannot call it resolutions
-    overrides: {
-      ...manifest.resolutions,
-      ...manifest.pnpm?.overrides,
-    },
-  }, manifest)
-  return settings
-}
 
 export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
   const renamedKeys = ['allowNonAppliedPatches'] as const satisfies Array<keyof PnpmSettings>
