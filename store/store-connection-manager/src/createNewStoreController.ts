@@ -66,6 +66,7 @@ export async function createNewStoreController (
   )
   const { resolve, fetchers, clearResolutionCache } = createClient({
     customFetchers: opts.hooks?.fetchers,
+    adapters: opts.hooks?.adapters,
     userConfig: opts.userConfig,
     unsafePerm: opts.unsafePerm,
     authConfig: opts.rawConfig,
@@ -128,6 +129,7 @@ export async function createNewStoreController (
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
       clearResolutionCache,
+      adapters: opts.hooks?.adapters,
     }),
     dir: opts.storeDir,
   }

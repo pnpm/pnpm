@@ -12,6 +12,9 @@ export function testDefaults<T> (
     storeDir?: string
     prefix?: string
     registries?: Registries
+    hooks?: {
+      adapters?: any[] // eslint-disable-line @typescript-eslint/no-explicit-any
+    }
   },
   resolveOpts?: any, // eslint-disable-line
   fetchOpts?: any, // eslint-disable-line
@@ -28,6 +31,7 @@ export function testDefaults<T> (
     ...opts,
     clientOptions: {
       ...(opts?.registries != null ? { registries: opts.registries } : {}),
+      ...(opts?.hooks?.adapters ? { adapters: opts.hooks.adapters } : {}),
       ...resolveOpts,
       ...fetchOpts,
     },

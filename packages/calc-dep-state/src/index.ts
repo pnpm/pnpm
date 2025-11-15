@@ -135,6 +135,6 @@ function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<stri
 }
 
 function createFullPkgId (pkgIdWithPatchHash: PkgIdWithPatchHash, resolution: LockfileResolution): string {
-  const res = 'integrity' in resolution ? resolution.integrity : JSON.stringify(resolution)
+  const res = 'integrity' in resolution ? String(resolution.integrity) : JSON.stringify(resolution)
   return `${pkgIdWithPatchHash}:${res}`
 }

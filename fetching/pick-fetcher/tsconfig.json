@@ -10,10 +10,28 @@
   ],
   "references": [
     {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../hooks/types"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {
+      "path": "../../store/cafs-types"
+    },
+    {
+      "path": "../../store/create-cafs-store"
+    },
+    {
       "path": "../fetcher-base"
+    },
+    {
+      "path": "../tarball-fetcher"
     }
   ]
 }

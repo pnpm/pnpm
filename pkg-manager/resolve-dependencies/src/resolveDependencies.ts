@@ -6,6 +6,7 @@ import {
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
+import { type Adapter } from '@pnpm/hooks.types'
 import {
   type LockfileObject,
   type PackageSnapshot,
@@ -169,6 +170,7 @@ export interface ResolutionContext {
   force: boolean
   preferWorkspacePackages?: boolean
   readPackageHook?: ReadPackageHook
+  adapters?: Adapter[]
   engineStrict: boolean
   nodeVersion?: string
   pnpmVersion: string
@@ -1311,6 +1313,7 @@ async function resolveDependency (
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
+      adapters: ctx.adapters,
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
         ? {

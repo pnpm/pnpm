@@ -43,6 +43,7 @@ import {
   type WantedDependency,
 } from '@pnpm/store-controller-types'
 import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
+import { type Adapter } from '@pnpm/hooks.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
 import { familySync } from 'detect-libc'
@@ -103,6 +104,7 @@ export function createPackageRequester (
     verifyStoreIntegrity: boolean
     virtualStoreDirMaxLength: number
     strictStorePkgContentCheck?: boolean
+    adapters?: Adapter[]
   }
 ): RequestPackageFunction & {
     fetchPackageToStore: FetchPackageToStoreFunction
@@ -120,7 +122,7 @@ export function createPackageRequester (
   })
 
   const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
-  const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
+  const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.adapters)
   const fetchPackageToStore = fetchToStore.bind(null, {
     readPkgFromCafs: _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity),
     fetch,
@@ -207,6 +209,7 @@ async function resolveAndFetch (
       : options.preferredVersions
 
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
+      adapters: options.adapters,
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
       trustPolicy: options.trustPolicy,
@@ -698,13 +701,20 @@ async function tarballIsUpToDate (
 async function fetcher (
   fetcherByHostingType: Fetchers,
   cafs: Cafs,
+  adapters: Adapter[] | undefined,
   packageId: string,
   resolution: AtomicResolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
-  const fetch = pickFetcher(fetcherByHostingType, resolution)
   try {
-    return await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+    // pickFetcher now handles adapter.fetch hooks internally
+    const fetch = await pickFetcher(fetcherByHostingType, resolution, {
+      adapters,
+      packageId,
+      lockfileDir: opts.lockfileDir,
+    })
+    const result = await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+    return result
   } catch (err: any) { // eslint-disable-line
     packageRequestLogger.warn({
       message: `Fetching ${packageId} failed!`,

@@ -13,6 +13,15 @@
       "path": "../../env/node.resolver"
     },
     {
+      "path": "../../fetching/fetcher-base"
+    },
+    {
+      "path": "../../fetching/tarball-fetcher"
+    },
+    {
+      "path": "../../hooks/types"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
@@ -20,6 +29,12 @@
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../store/cafs-types"
     },
     {
       "path": "../bun-resolver"

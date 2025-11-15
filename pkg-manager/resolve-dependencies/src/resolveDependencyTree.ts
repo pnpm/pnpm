@@ -1,6 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
+import { type Adapter } from '@pnpm/hooks.types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
@@ -116,6 +117,7 @@ export interface ResolveDependenciesOptions {
   ignoreScripts?: boolean
   hooks: {
     readPackage?: ReadPackageHook
+    adapters?: Adapter[]
   }
   nodeVersion?: string
   registries: Registries
@@ -185,6 +187,7 @@ export async function resolveDependencyTree<T> (
     pnpmVersion: opts.pnpmVersion,
     preferWorkspacePackages: opts.preferWorkspacePackages,
     readPackageHook: opts.hooks.readPackage,
+    adapters: opts.hooks.adapters,
     registries: opts.registries,
     resolvedPkgsById: {} as ResolvedPkgsById,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,

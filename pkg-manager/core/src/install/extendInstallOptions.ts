@@ -20,10 +20,10 @@ import {
   type PrepareExecutionEnv,
   type TrustPolicy,
 } from '@pnpm/types'
+import { type Adapter, type PreResolutionHookContext } from '@pnpm/hooks.types'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import { type ReporterFunction } from '../types.js'
-import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
@@ -92,6 +92,7 @@ export interface StrictInstallOptions {
     readPackage?: ReadPackageHook[]
     preResolution?: Array<(ctx: PreResolutionHookContext) => Promise<void>>
     afterAllResolved?: Array<(lockfile: LockfileObject) => LockfileObject | Promise<LockfileObject>>
+    adapters?: Adapter[]
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }
   sideEffectsCacheRead: boolean

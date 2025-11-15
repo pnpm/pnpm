@@ -107,6 +107,13 @@ export type RequestPackageFunction = (
 
 export interface RequestPackageOptions {
   alwaysTryWorkspacePackages?: boolean
+  adapters?: Array<{
+    canResolve?: (descriptor: { name: string, range: string }) => boolean | Promise<boolean>
+    resolve?: (...args: any[]) => any // eslint-disable-line @typescript-eslint/no-explicit-any
+    canFetch?: (...args: any[]) => any // eslint-disable-line @typescript-eslint/no-explicit-any
+    fetch?: (...args: any[]) => any // eslint-disable-line @typescript-eslint/no-explicit-any
+    shouldForceResolve?: (...args: any[]) => any // eslint-disable-line @typescript-eslint/no-explicit-any
+  }>
   currentPkg?: {
     id?: PkgResolutionId
     name?: string
@@ -161,6 +168,7 @@ export interface PackageResponse {
     // resolved package, it is out-of-date.
     latest?: string
     alias?: string
+    lockfileResolution?: Resolution
   } & (
     {
       isLocal: true

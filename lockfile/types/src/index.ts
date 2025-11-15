@@ -123,11 +123,23 @@ export interface PlatformAssetResolution {
   targets: PlatformAssetTarget[]
 }
 
+/**
+ * Custom resolution type for adapter-provided packages.
+ * Uses scoped naming convention (like npm packages) to avoid collisions.
+ *
+ * Example: { type: '@company/cdn', cdnUrl: '...' }
+ */
+export interface CustomResolution {
+  type: `@${string}/${string}` // Scoped name (e.g., '@company/cdn', '@acme/artifactory')
+  [key: string]: unknown
+}
+
 export type Resolution =
   TarballResolution |
   GitRepositoryResolution |
   DirectoryResolution |
-  BinaryResolution
+  BinaryResolution |
+  CustomResolution
 
 export interface VariationsResolution {
   type: 'variations'

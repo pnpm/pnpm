@@ -13,7 +13,13 @@
       "path": "../../fetching/pick-fetcher"
     },
     {
+      "path": "../../hooks/types"
+    },
+    {
       "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../packages/error"
     },
     {
       "path": "../../packages/types"
