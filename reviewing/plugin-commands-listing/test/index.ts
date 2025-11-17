@@ -7,7 +7,6 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import execa from 'execa'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { sync as rimraf } from '@zkochan/rimraf'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 

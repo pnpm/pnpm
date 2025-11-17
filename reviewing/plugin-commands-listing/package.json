@@ -54,7 +54,6 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@types/ramda": "catalog:",
-    "@zkochan/rimraf": "catalog:",
     "execa": "catalog:",
     "write-yaml-file": "catalog:"
   },
