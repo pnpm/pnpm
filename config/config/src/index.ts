@@ -356,7 +356,25 @@ export async function getConfig (opts: {
       if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
         warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
       }
-      if (pnpmConfig.rootProjectManifest.packageManager) {
+      if (pnpmConfig.rootProjectManifest.devEngines?.packageManager) {
+        const devEnginesPMs = Array.isArray(pnpmConfig.rootProjectManifest.devEngines.packageManager)
+          ? pnpmConfig.rootProjectManifest.devEngines.packageManager
+          : [pnpmConfig.rootProjectManifest.devEngines.packageManager]
+
+        const pnpmEntry = devEnginesPMs.find(pm => pm.name === 'pnpm')
+        if (pnpmEntry) {
+          pnpmConfig.wantedPackageManager = {
+            name: 'pnpm',
+            version: undefined,
+          }
+        } else if (devEnginesPMs.length > 0) {
+          const allowedNames = devEnginesPMs.map(pm => pm.name).join(', ')
+          pnpmConfig.wantedPackageManager = {
+            name: allowedNames.split(',')[0]?.trim() ?? 'unknown',
+            version: undefined,
+          }
+        }
+      } else if (pnpmConfig.rootProjectManifest.packageManager) {
         pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
       }
       if (pnpmConfig.rootProjectManifest) {
@@ -392,9 +410,6 @@ export async function getConfig (opts: {
           pnpmConfig.rawConfig['verify-deps-before-run'] = pnpmConfig.verifyDepsBeforeRun
         }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
-        if (workspaceManifest.npmVersion) {
-          pnpmConfig.wantedNpmVersion = workspaceManifest.npmVersion
-        }
       }
     }
   }

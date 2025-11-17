@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
       "path": "../installer"
     }
   ]

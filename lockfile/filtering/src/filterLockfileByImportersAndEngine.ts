@@ -138,6 +138,9 @@ function pkgAllDeps (
     if (ctx.pickedPackages[depPath]) continue
     const pkgSnapshot = ctx.lockfile.packages![depPath]
     if (!pkgSnapshot && !depPath.startsWith('link:')) {
+      if (depPath.includes('@packageManager:')) {
+        continue
+      }
       if (opts.failOnMissingDependencies) {
         throw new LockfileMissingDependencyError(depPath)
       }

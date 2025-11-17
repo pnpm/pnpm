@@ -36,6 +36,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'noProxy'
 | 'offline'
 | 'packageImportMethod'
+| 'pnpmHomeDir'
 | 'preferOffline'
 | 'preserveAbsolutePaths'
 | 'registries'
@@ -76,6 +77,7 @@ export async function createNewStoreController (
     localAddress: opts.localAddress,
     noProxy: opts.noProxy,
     offline: opts.offline,
+    pnpmHomeDir: opts.pnpmHomeDir,
     preferOffline: opts.preferOffline,
     rawConfig: opts.rawConfig,
     sslConfigs: opts.sslConfigs,

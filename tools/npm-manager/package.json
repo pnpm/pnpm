@@ -10,12 +10,12 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/tools/npm-manager",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/tools/npm-manager#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/tools/npm-manager",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/tools/npm-manager#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -30,17 +30,19 @@
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "tsc --build && pnpm run lint --fix",
-    "_test": "jest"
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "dependencies": {
-    "@pnpm/tools.installer": "workspace:*"
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/tools.installer": "workspace:*",
+    "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/tools.npm-manager": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

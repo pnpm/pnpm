@@ -1,0 +1,12 @@
+{
+  "name": "test-packagemanager-mismatch",
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.0.0",
+  "devEngines": {
+    "packageManager": {
+      "name": "yarn",
+      "version": "4.0.0",
+      "onFail": "download"
+    }
+  }
+}

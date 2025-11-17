@@ -6298,6 +6298,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.2
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -6305,6 +6308,9 @@ importers:
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
 
   pkg-manifest/read-package-json:
     dependencies:
@@ -7187,6 +7193,9 @@ importers:
       '@pnpm/tarball-resolver':
         specifier: workspace:*
         version: link:../tarball-resolver
+      '@pnpm/tools.npm-manager':
+        specifier: workspace:*
+        version: link:../../tools/npm-manager
     devDependencies:
       '@pnpm/default-resolver':
         specifier: workspace:*
@@ -8605,13 +8614,19 @@ importers:
 
   tools/npm-manager:
     dependencies:
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/tools.installer':
         specifier: workspace:*
         version: link:../installer
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 29.7.0
+        version: 30.0.5
       '@pnpm/tools.npm-manager':
         specifier: workspace:*
         version: 'link:'

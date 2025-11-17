@@ -59,6 +59,9 @@ function pkgAllDeps (
     pkgAllDeps(next(), pickedPackages, opts)
   }
   for (const depPath of step.missing) {
+    if (depPath.includes('@packageManager:')) {
+      continue
+    }
     if (opts.failOnMissingDependencies) {
       throw new LockfileMissingDependencyError(depPath)
     }

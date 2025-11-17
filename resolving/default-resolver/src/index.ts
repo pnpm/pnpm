@@ -5,6 +5,7 @@ import { type LocalResolveResult, resolveFromLocal } from '@pnpm/local-resolver'
 import { resolveNodeRuntime, type NodeRuntimeResolveResult } from '@pnpm/node.resolver'
 import { resolveDenoRuntime, type DenoRuntimeResolveResult } from '@pnpm/resolving.deno-resolver'
 import { resolveBunRuntime, type BunRuntimeResolveResult } from '@pnpm/resolving.bun-resolver'
+import { resolveNpmPackageManager, type NpmPackageManagerResolveResult } from '@pnpm/tools.npm-manager'
 import {
   createNpmResolver,
   type JsrResolveResult,
@@ -39,6 +40,7 @@ export type DefaultResolveResult =
   | NodeRuntimeResolveResult
   | DenoRuntimeResolveResult
   | BunRuntimeResolveResult
+  | NpmPackageManagerResolveResult
 
 export type DefaultResolver = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<DefaultResolveResult>
 
@@ -47,6 +49,7 @@ export function createResolver (
   getAuthHeader: GetAuthHeader,
   pnpmOpts: ResolverFactoryOptions & {
     rawConfig: Record<string, string>
+    pnpmHomeDir?: string
   }
 ): { resolve: DefaultResolver, clearCache: () => void } {
   const { resolveFromNpm, resolveFromJsr, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
@@ -57,6 +60,9 @@ export function createResolver (
   const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig })
   const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
+  const _resolveNpmPackageManager = pnpmOpts.pnpmHomeDir
+    ? resolveNpmPackageManager.bind(null, { pnpmHomeDir: pnpmOpts.pnpmHomeDir, offline: pnpmOpts.offline })
+    : async () => null
   return {
     resolve: async (wantedDependency, opts) => {
       const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
@@ -68,7 +74,8 @@ export function createResolver (
         )) ??
         await _resolveNodeRuntime(wantedDependency) ??
         await _resolveDenoRuntime(wantedDependency) ??
-        await _resolveBunRuntime(wantedDependency)
+        await _resolveBunRuntime(wantedDependency) ??
+        await _resolveNpmPackageManager(wantedDependency)
       if (!resolution) {
         throw new PnpmError(
           'SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER',

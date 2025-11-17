@@ -87,8 +87,6 @@ export interface Config extends OptionsFromRootManifest {
     version: string
   }
   wantedPackageManager?: WantedPackageManager
-  wantedNpmVersion?: string
-  resolvedNpmVersion?: string
   preferOffline?: boolean
   sideEffectsCache?: boolean // for backward compatibility
   sideEffectsCacheReadonly?: boolean // for backward compatibility

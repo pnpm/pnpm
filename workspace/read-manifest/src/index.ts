@@ -15,11 +15,6 @@ export interface WorkspaceManifest extends PnpmSettings {
   packages: string[]
 
   /**
-   * The npm version to use for publishing packages in this workspace.
-   */
-  npmVersion?: string
-
-  /**
    * The default catalog. Package manifests may refer to dependencies in this
    * definition through the `catalog:default` specifier or the `catalog:`
    * shorthand.

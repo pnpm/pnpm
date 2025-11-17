@@ -300,6 +300,8 @@ function getChildrenPaths (
       children[alias] = ctx.graph[childRelDepPath].dir
     } else if (ref.startsWith('file:')) {
       children[alias] = path.resolve(ctx.lockfileDir, ref.slice(5))
+    } else if (childRelDepPath.includes('@packageManager:')) {
+      continue
     } else if (!ctx.skipped.has(childRelDepPath) && ((peerDeps == null) || !peerDeps.has(alias))) {
       throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
     }

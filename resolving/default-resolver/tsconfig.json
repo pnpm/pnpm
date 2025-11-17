@@ -22,6 +22,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../tools/npm-manager"
+    },
+    {
       "path": "../bun-resolver"
     },
     {

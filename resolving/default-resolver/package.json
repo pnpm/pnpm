@@ -42,7 +42,8 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/resolving.bun-resolver": "workspace:*",
     "@pnpm/resolving.deno-resolver": "workspace:*",
-    "@pnpm/tarball-resolver": "workspace:*"
+    "@pnpm/tarball-resolver": "workspace:*",
+    "@pnpm/tools.npm-manager": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/default-resolver": "workspace:*",
