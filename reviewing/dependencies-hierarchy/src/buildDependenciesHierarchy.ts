@@ -39,7 +39,7 @@ export async function buildDependenciesHierarchy (
     onlyProjects?: boolean
     search?: Finder
     lockfileDir: string
-    lockfileOnly?: boolean
+    checkWantedLockfileOnly?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
   }
@@ -48,13 +48,13 @@ export async function buildDependenciesHierarchy (
     throw new TypeError('opts.lockfileDir is required')
   }
   const modulesDir = await realpathMissing(path.join(maybeOpts.lockfileDir, maybeOpts.modulesDir ?? 'node_modules'))
-  const modules = maybeOpts.lockfileOnly ? null : await readModulesManifest(modulesDir)
+  const modules = await readModulesManifest(modulesDir)
   const registries = normalizeRegistries({
     ...maybeOpts?.registries,
     ...modules?.registries,
   })
   const internalPnpmDir = path.join(modulesDir, '.pnpm')
-  const currentLockfile = maybeOpts.lockfileOnly ? null : (await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false }) ?? null)
+  const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
   if (projectPaths == null) {
     projectPaths = Object.keys(wantedLockfile?.importers ?? {})
@@ -63,7 +63,7 @@ export async function buildDependenciesHierarchy (
 
   const result = {} as { [projectDir: string]: DependenciesHierarchy }
 
-  const lockfileToUse = maybeOpts.lockfileOnly ? wantedLockfile : currentLockfile
+  const lockfileToUse = maybeOpts.checkWantedLockfileOnly ? wantedLockfile : currentLockfile
 
   if (!lockfileToUse) {
     for (const projectPath of projectPaths) {
@@ -81,7 +81,7 @@ export async function buildDependenciesHierarchy (
       optionalDependencies: true,
     },
     lockfileDir: maybeOpts.lockfileDir,
-    lockfileOnly: maybeOpts.lockfileOnly,
+    checkWantedLockfileOnly: maybeOpts.checkWantedLockfileOnly,
     onlyProjects: maybeOpts.onlyProjects,
     registries,
     search: maybeOpts.search,
@@ -115,7 +115,7 @@ async function dependenciesHierarchyForPackage (
     search?: Finder
     skipped: Set<string>
     lockfileDir: string
-    lockfileOnly?: boolean
+    checkWantedLockfileOnly?: boolean
     modulesDir?: string
     virtualStoreDir?: string
     virtualStoreDirMaxLength: number
@@ -128,7 +128,7 @@ async function dependenciesHierarchyForPackage (
   const modulesDir = path.join(projectPath, opts.modulesDir ?? 'node_modules')
 
   const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
-  const allDirectDeps = opts.lockfileOnly ? [] : (await readModulesDir(modulesDir) ?? [])
+  const allDirectDeps = await readModulesDir(modulesDir) ?? []
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
 
   const depTypes = detectDepTypes(currentLockfile)

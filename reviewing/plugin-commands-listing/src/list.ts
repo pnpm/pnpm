@@ -163,13 +163,14 @@ export async function handler (
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    return listRecursive(pkgs, params, { ...opts, depth, include })
+    return listRecursive(pkgs, params, { ...opts, depth, include, checkWantedLockfileOnly: opts.lockfileOnly })
   }
   return render([opts.dir], params, {
     ...opts,
     depth,
     include,
     lockfileDir: opts.lockfileDir ?? opts.dir,
+    checkWantedLockfileOnly: opts.lockfileOnly,
   })
 }
 
@@ -182,7 +183,7 @@ export async function render (
     excludePeers?: boolean
     include: IncludedDependencies
     lockfileDir: string
-    lockfileOnly?: boolean
+    checkWantedLockfileOnly?: boolean
     long?: boolean
     json?: boolean
     onlyProjects?: boolean
@@ -208,7 +209,7 @@ export async function render (
     excludePeerDependencies: opts.excludePeers,
     include: opts.include,
     lockfileDir: opts.lockfileDir,
-    lockfileOnly: opts.lockfileOnly,
+    checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
     long: opts.long,
     onlyProjects: opts.onlyProjects,
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
