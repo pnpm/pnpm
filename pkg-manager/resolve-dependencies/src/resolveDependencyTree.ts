@@ -202,26 +202,17 @@ export async function resolveDependencyTree<T> (
     hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
     allPeerDepNames: new Set(),
     maximumPublishedBy: opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined,
-    publishedByExclude: opts.minimumReleaseAgeExclude ? createPublishedByExclude(opts.minimumReleaseAgeExclude) : undefined,
+    publishedByExclude: opts.minimumReleaseAgeExclude ? createPackageVersionPolicyByExclude(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude') : undefined,
     trustPolicy: opts.trustPolicy,
-    trustPolicyExclude: opts.trustPolicyExclude ? createTrustPolicyExclude(opts.trustPolicyExclude) : undefined,
+    trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyByExclude(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
   }
 
-  function createPublishedByExclude (patterns: string[]): PackageVersionPolicy {
+  function createPackageVersionPolicyByExclude (patterns: string[], key: string): PackageVersionPolicy {
     try {
       return createPackageVersionPolicy(patterns)
     } catch (err) {
       if (!err || typeof err !== 'object' || !('message' in err)) throw err
-      throw new PnpmError('INVALID_MIN_RELEASE_AGE_EXCLUDE', `Invalid value in minimumReleaseAgeExclude: ${err.message as string}`)
-    }
-  }
-
-  function createTrustPolicyExclude (patterns: string[]): PackageVersionPolicy {
-    try {
-      return createPackageVersionPolicy(patterns)
-    } catch (err) {
-      if (!err || typeof err !== 'object' || !('message' in err)) throw err
-      throw new PnpmError('INVALID_TRUST_POLICY_EXCLUDE', `Invalid value in trustPolicyExclude: ${err.message as string}`)
+      throw new PnpmError(`INVALID_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`, `Invalid value in ${key}: ${err.message as string}`)
     }
   }
 
