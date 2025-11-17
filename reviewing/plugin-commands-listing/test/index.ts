@@ -7,6 +7,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import execa from 'execa'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import { sync as writeYamlFile } from 'write-yaml-file'
+import { sync as rimraf } from '@zkochan/rimraf'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
@@ -209,7 +210,7 @@ test('listing packages with --lockfile-only (without node_modules)', async () =>
   })
 
   await execa('node', [pnpmBin, 'install'])
-  await execa('rm', ['-rf', 'node_modules'])
+  rimraf('node_modules')
 
   {
     const output = await list.handler({
@@ -272,7 +273,7 @@ test('listing packages with --lockfile-only in JSON format', async () => {
   })
 
   await execa('node', [pnpmBin, 'install'])
-  await execa('rm', ['-rf', 'node_modules'])
+  rimraf('node_modules')
 
   const output = await list.handler({
     dir: process.cwd(),
@@ -297,7 +298,7 @@ test('listing specific package with --lockfile-only', async () => {
   })
 
   await execa('node', [pnpmBin, 'install'])
-  await execa('rm', ['-rf', 'node_modules'])
+  rimraf('node_modules')
 
   const output = await list.handler({
     dir: process.cwd(),

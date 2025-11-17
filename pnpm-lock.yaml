@@ -7879,6 +7879,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+      '@zkochan/rimraf':
+        specifier: 'catalog:'
+        version: 3.0.2
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
