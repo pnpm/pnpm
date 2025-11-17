@@ -1,9 +1,9 @@
 {
   "name": "@pnpm/linux-arm64",
-  "version": "10.20.0",
+  "version": "11.0.0-alpha.1",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "pnpm-artifact"
   ],
   "license": "MIT",

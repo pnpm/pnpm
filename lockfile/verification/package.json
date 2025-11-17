@@ -4,7 +4,7 @@
   "description": "Checks a lockfile",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "lockfile"
   ],
   "license": "MIT",

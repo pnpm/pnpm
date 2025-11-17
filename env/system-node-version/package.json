@@ -4,7 +4,7 @@
   "description": "Detects the current system node version",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "env"
   ],
   "license": "MIT",

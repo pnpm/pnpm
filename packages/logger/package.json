@@ -4,7 +4,7 @@
   "description": "Logger for pnpm",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "logger"
   ],
   "license": "MIT",

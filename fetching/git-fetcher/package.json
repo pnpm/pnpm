@@ -4,7 +4,7 @@
   "description": "A fetcher for git-hosted packages",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "fetcher"
   ],
   "license": "MIT",

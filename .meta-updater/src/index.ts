@@ -8,6 +8,7 @@ import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
 import { loadJsonFileSync } from 'load-json-file'
+import semver from 'semver'
 import normalizePath from 'normalize-path'
 import { writeJsonFile } from 'write-json-file'
 
@@ -50,7 +51,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
       const libMajorVersion = Number(manifest.version!.split('.')[0])
       if (manifest.name !== CLI_PKG_NAME) {
-        if (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100) {
+        if (!semver.prerelease(pnpmVersion) && (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100)) {
           manifest.version = `${smallestAllowedLibVersion}.0.0`
         }
         for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
@@ -378,9 +379,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',
     },
-    engines: manifest.engines?.runtime != null
-      ? manifest.engines
-      : { node: '>=20.19' },
+    engines: { node: '>=20.19' },
     files,
     funding: 'https://opencollective.com/pnpm',
     homepage,

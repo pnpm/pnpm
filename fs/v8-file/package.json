@@ -1,10 +1,10 @@
 {
   "name": "@pnpm/fs.v8-file",
-  "version": "1000.0.0-0",
+  "version": "1100.0.0-0",
   "description": "Reading/writing binary files serialized with v8",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
@@ -28,8 +28,6 @@
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "dependencies": {
   },
   "devDependencies": {
     "@pnpm/fs.v8-file": "workspace:*"

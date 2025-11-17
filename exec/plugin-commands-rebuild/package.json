@@ -4,7 +4,7 @@
   "description": "Commands for rebuilding dependencies",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "rebuild"
   ],
   "license": "MIT",

@@ -4,7 +4,7 @@
   "description": "Extracts and inserts comments from/to text",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",

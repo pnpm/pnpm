@@ -1,10 +1,10 @@
 {
   "name": "pnpm",
-  "version": "10.20.0",
+  "version": "11.0.0-alpha.1",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "dependencies",
     "dependency manager",
     "efficient",
@@ -179,11 +179,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "runtime": {
-      "name": "node",
-      "version": "24.11.0",
-      "onFail": "download"
-    }
+    "node": ">=20.19"
   },
   "pnpm": {
     "overrides": {
@@ -222,11 +218,18 @@
   },
   "preferGlobal": true,
   "publishConfig": {
-    "tag": "next-10",
+    "tag": "next-11",
     "executableFiles": [
       "./dist/node-gyp-bin/node-gyp",
       "./dist/node-gyp-bin/node-gyp.cmd",
       "./dist/node_modules/node-gyp/bin/node-gyp.js"
-    ]
+    ],
+    "engines": {
+      "runtime": {
+        "name": "node",
+        "version": "24.11.0",
+        "onFail": "download"
+      }
+    }
   }
 }

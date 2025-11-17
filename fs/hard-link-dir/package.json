@@ -4,7 +4,7 @@
   "description": "Hard link (or copy if linking fails) all files from a directory to several target directories.",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "find",
     "package"
   ],

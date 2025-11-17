@@ -4,7 +4,7 @@
   "description": "Parse catalog protocol specifiers and return the catalog name.",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "types"
   ],
   "license": "MIT",

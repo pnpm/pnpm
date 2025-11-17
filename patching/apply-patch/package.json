@@ -4,7 +4,7 @@
   "description": "Apply a patch to a directory",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "patch"
   ],
   "license": "MIT",

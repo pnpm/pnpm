@@ -4,7 +4,7 @@
   "description": "Creates a dedicated lockfile for a subset of workspace projects",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "make-dedicated-lockfile"
   ],
   "license": "MIT",

@@ -17,7 +17,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-store#readme",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "engines": {

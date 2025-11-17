@@ -4,7 +4,7 @@
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "dependencies",
     "hierarchy",
     "node_modules"

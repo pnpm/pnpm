@@ -4,7 +4,7 @@
   "description": "Utilities for git",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "git",
     "npm"
   ],

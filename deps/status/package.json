@@ -4,7 +4,7 @@
   "description": "Check dependencies status",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "scripts"
   ],
   "license": "MIT",

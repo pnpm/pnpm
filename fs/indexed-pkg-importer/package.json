@@ -4,7 +4,7 @@
   "description": "Replicates indexed directories using hard links, copies, or cloning",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "cache",
     "central storage",
     "global store",

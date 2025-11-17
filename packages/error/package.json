@@ -4,7 +4,7 @@
   "description": "An error class for pnpm errors",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "error"
   ],
   "license": "MIT",

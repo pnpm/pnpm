@@ -4,7 +4,7 @@
   "description": "Commands for creating patches",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "scripts"
   ],
   "license": "MIT",

@@ -4,7 +4,7 @@
   "description": "Read a package.json",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "outdated"
   ],
   "license": "MIT",

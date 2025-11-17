@@ -4,7 +4,7 @@
   "description": "Types for the store controller",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "types"
   ],
   "license": "MIT",

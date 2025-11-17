@@ -4,7 +4,7 @@
   "description": "Finds the root of a pnpm workspace",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",

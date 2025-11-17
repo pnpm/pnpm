@@ -4,7 +4,7 @@
   "description": "Utils for pnpm commands",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",

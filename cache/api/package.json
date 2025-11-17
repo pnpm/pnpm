@@ -4,7 +4,7 @@
   "description": "API for controlling the cache",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "cache"
   ],
   "license": "MIT",
