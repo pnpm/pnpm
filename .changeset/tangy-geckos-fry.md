@@ -6,8 +6,6 @@
 
 Support lowercase options in `pnpm add`: `-d`, `-p`, `-o`, `-e` [#9197](https://github.com/pnpm/pnpm/issues/9197).
 
-## Breaking Changes
-
 When using `pnpm add` command only:
 
 - `-p` is now an alias for `--save-prod` instead of `--parseable`
