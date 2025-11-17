@@ -34,16 +34,14 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "semver": "catalog:"
+    "@pnpm/types": "workspace:*"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",
-    "@pnpm/manifest-utils": "workspace:*",
-    "@types/semver": "catalog:"
+    "@pnpm/manifest-utils": "workspace:*"
   },
   "engines": {
     "node": ">=20.19"

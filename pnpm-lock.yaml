@@ -6298,9 +6298,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.2
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -6308,9 +6305,6 @@ importers:
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: 'link:'
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.5.3
 
   pkg-manifest/read-package-json:
     dependencies:

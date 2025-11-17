@@ -3,7 +3,6 @@ import { PnpmError } from '@pnpm/error'
 import {
   type ProjectManifest,
 } from '@pnpm/types'
-import semver from 'semver'
 
 export interface PackageManagerValidationResult {
   isValid: boolean
