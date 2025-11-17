@@ -295,8 +295,7 @@ test('listing specific package with --lockfile-only', async () => {
     },
   })
 
-  await execa('node', [pnpmBin, 'install'])
-  rimraf('node_modules')
+  await execa('node', [pnpmBin, 'install', '--lockfile-only'])
 
   const output = await list.handler({
     dir: process.cwd(),
