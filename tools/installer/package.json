@@ -4,7 +4,7 @@
   "description": "Generic tool installer for pnpm",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "installer"
   ],
   "license": "MIT",

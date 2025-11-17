@@ -19,6 +19,7 @@ import {
   type PackageManifest,
   type PinnedVersion,
   type PackageVersionPolicy,
+  type TrustPolicy,
 } from '@pnpm/types'
 
 export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync }
@@ -136,6 +137,8 @@ export interface RequestPackageOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: PackageVersionPolicy
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>

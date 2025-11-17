@@ -4,7 +4,7 @@
   "description": "Node.js artifacts fetcher",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "env",
     "node.js"
   ],

@@ -4,7 +4,7 @@
   "description": "Sort items in a graph using a topological sort",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "graph"
   ],
   "license": "MIT",

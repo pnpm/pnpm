@@ -4,7 +4,7 @@
   "description": "Dereferences catalog protocol specifiers into usable specifiers.",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "types"
   ],
   "license": "MIT",

@@ -4,7 +4,7 @@
   "description": "Functions for changing PATH env variable",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "env"
   ],
   "license": "MIT",

@@ -505,3 +505,49 @@ test('install success even though the url\'s hash contains slash', async () => {
   ])
   expect(result.status).toBe(0)
 })
+
+test('install fails when the trust evidence of a package is downgraded', async () => {
+  const project = prepare()
+  const result = execPnpmSync([
+    'add',
+    '@pnpm/e2e.test-provenance@0.0.5',
+    '--trust-policy=no-downgrade',
+  ])
+  expect(result.status).toBe(1)
+  project.hasNot('@pnpm/e2e.test-provenance')
+})
+
+test('install does not fail when the trust evidence of a package is downgraded but trust-policy is turned off', async () => {
+  const project = prepare()
+  const result = execPnpmSync([
+    'add',
+    '@pnpm/e2e.test-provenance@0.0.5',
+    '--trust-policy=off',
+  ])
+  expect(result.status).toBe(0)
+  project.has('@pnpm/e2e.test-provenance')
+})
+
+test('install does not fail when the trust evidence of a package is downgraded but it is in trust-policy-exclude', async () => {
+  const project = prepare()
+  const result = execPnpmSync([
+    'add',
+    '@pnpm/e2e.test-provenance@0.0.5',
+    '--trust-policy=no-downgrade',
+    '--trust-policy-exclude=@pnpm/e2e.test-provenance@0.0.5',
+  ])
+  expect(result.status).toBe(0)
+  project.has('@pnpm/e2e.test-provenance')
+})
+
+test('install does not fail when the trust evidence of a package is downgraded but the package name is in trust-policy-exclude', async () => {
+  const project = prepare()
+  const result = execPnpmSync([
+    'add',
+    '@pnpm/e2e.test-provenance@0.0.5',
+    '--trust-policy=no-downgrade',
+    '--trust-policy-exclude=@pnpm/e2e.test-provenance',
+  ])
+  expect(result.status).toBe(0)
+  project.has('@pnpm/e2e.test-provenance')
+})

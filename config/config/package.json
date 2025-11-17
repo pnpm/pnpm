@@ -4,7 +4,7 @@
   "description": "Gets configuration options for pnpm",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "config"
   ],
   "license": "MIT",

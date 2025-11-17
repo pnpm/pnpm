@@ -4,7 +4,7 @@
   "description": "A storage for packages",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "cache",
     "central storage",
     "global store",

@@ -4,7 +4,7 @@
   "description": "Walk over all the dependencies in a lockfile",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "lockfile",
     "shrinkwrap"
   ],

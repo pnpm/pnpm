@@ -28,13 +28,13 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-project#readme",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "engines": {
     "node": ">=10"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-project",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/__utils__/assert-project",
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "lint-test": "tslint -c tslint.json --project test",

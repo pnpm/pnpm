@@ -4,6 +4,7 @@ import {
   type PkgResolutionId,
   type PinnedVersion,
   type PackageVersionPolicy,
+  type TrustPolicy,
 } from '@pnpm/types'
 
 export { type PkgResolutionId }
@@ -107,6 +108,8 @@ export interface PreferredVersions {
 
 export interface ResolveOptions {
   alwaysTryWorkspacePackages?: boolean
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: PackageVersionPolicy
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date

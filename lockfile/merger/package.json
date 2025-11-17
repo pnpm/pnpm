@@ -4,7 +4,7 @@
   "description": "Merges lockfiles. Can automatically fix merge conflicts",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "lockfile",
     "shrinkwrap"
   ],

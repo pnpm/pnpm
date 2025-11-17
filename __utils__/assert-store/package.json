@@ -17,13 +17,13 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-store#readme",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "engines": {
     "node": ">=10"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-store",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/__utils__/assert-store",
   "scripts": {
     "compile": "tsc --build",
     "lint": "eslint src/**/*.ts test/**/*.ts",

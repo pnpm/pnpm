@@ -4,7 +4,7 @@
   "description": "A command for updating pnpm itself",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
@@ -44,8 +44,9 @@
     "@zkochan/rimraf": "catalog:",
     "path-temp": "catalog:",
     "ramda": "catalog:",
-    "rename-overwrite": "catalog:",
-    "render-help": "catalog:"
+    "render-help": "catalog:",
+    "semver": "catalog:",
+    "symlink-dir": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -57,6 +58,7 @@
     "@pnpm/tools.plugin-commands-self-updater": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
     "cross-spawn": "catalog:",
     "nock": "catalog:"
   },

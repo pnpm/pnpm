@@ -4,7 +4,7 @@
   "description": "Parser of jsr specifiers",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "jsr"
   ],
   "license": "MIT",

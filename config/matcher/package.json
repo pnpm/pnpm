@@ -4,7 +4,7 @@
   "description": "A simple pattern matcher for pnpm",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "match",
     "pattern",
     "wildcard"

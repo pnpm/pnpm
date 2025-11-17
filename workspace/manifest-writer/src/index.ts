@@ -3,7 +3,7 @@ import path from 'path'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
-import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import writeYamlFile from 'write-yaml-file'
 import { equals } from 'ramda'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
@@ -11,12 +11,18 @@ import {
   type Project,
 } from '@pnpm/types'
 
-async function writeManifestFile (dir: string, manifest: Partial<WorkspaceManifest>): Promise<void> {
+export type FileName =
+  | typeof GLOBAL_CONFIG_YAML_FILENAME
+  | typeof WORKSPACE_MANIFEST_FILENAME
+
+const DEFAULT_FILENAME: FileName = WORKSPACE_MANIFEST_FILENAME
+
+async function writeManifestFile (dir: string, fileName: FileName, manifest: Partial<WorkspaceManifest>): Promise<void> {
   manifest = sortKeysByPriority({
     priority: { packages: 0 },
     deep: true,
   }, manifest)
-  return writeYamlFile(path.join(dir, WORKSPACE_MANIFEST_FILENAME), manifest, {
+  return writeYamlFile(path.join(dir, fileName), manifest, {
     lineWidth: -1, // This is setting line width to never wrap
     blankLines: true,
     noCompatMode: true,
@@ -28,10 +34,12 @@ async function writeManifestFile (dir: string, manifest: Partial<WorkspaceManife
 export async function updateWorkspaceManifest (dir: string, opts: {
   updatedFields?: Partial<WorkspaceManifest>
   updatedCatalogs?: Catalogs
+  fileName?: FileName
   cleanupUnusedCatalogs?: boolean
   allProjects?: Project[]
 }): Promise<void> {
-  const manifest = await readWorkspaceManifest(dir) ?? {} as WorkspaceManifest
+  const fileName = opts.fileName ?? DEFAULT_FILENAME
+  const manifest = await readWorkspaceManifest(dir, fileName) ?? {} as WorkspaceManifest
   let shouldBeUpdated = opts.updatedCatalogs != null && addCatalogs(manifest, opts.updatedCatalogs)
   if (opts.cleanupUnusedCatalogs) {
     shouldBeUpdated = removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? []) || shouldBeUpdated
@@ -52,10 +60,10 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     return
   }
   if (Object.keys(manifest).length === 0) {
-    await fs.promises.rm(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
+    await fs.promises.rm(path.join(dir, fileName))
     return
   }
-  await writeManifestFile(dir, manifest)
+  await writeManifestFile(dir, fileName, manifest)
 }
 
 export interface NewCatalogs {

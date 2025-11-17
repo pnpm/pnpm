@@ -4,7 +4,7 @@
   "description": "Types for pnpm-compatible resolvers",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "resolver"
   ],
   "license": "MIT",

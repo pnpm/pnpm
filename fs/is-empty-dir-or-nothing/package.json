@@ -4,7 +4,7 @@
   "description": "Checks if a path is empty (Not a file or directory with content)",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",

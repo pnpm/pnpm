@@ -1177,6 +1177,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       injectWorkspacePackages: opts.injectWorkspacePackages,
       minimumReleaseAge: opts.minimumReleaseAge,
       minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+      trustPolicy: opts.trustPolicy,
+      trustPolicyExclude: opts.trustPolicyExclude,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {

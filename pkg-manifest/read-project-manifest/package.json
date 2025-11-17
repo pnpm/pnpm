@@ -4,7 +4,7 @@
   "description": "Read a project manifest (called package.json in most cases)",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",

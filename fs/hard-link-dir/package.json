@@ -4,7 +4,7 @@
   "description": "Hard link (or copy if linking fails) all files from a directory to several target directories.",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "find",
     "package"
   ],
@@ -33,7 +33,9 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/graceful-fs": "workspace:*"
+    "@pnpm/graceful-fs": "workspace:*",
+    "path-temp": "catalog:",
+    "rename-overwrite": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

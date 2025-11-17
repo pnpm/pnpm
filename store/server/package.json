@@ -4,7 +4,7 @@
   "description": "A pnpm installer server",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "server"
   ],
   "license": "MIT",
