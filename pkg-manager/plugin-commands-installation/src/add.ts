@@ -113,17 +113,17 @@ export function help (): string {
           {
             description: 'Save package to your `dependencies`. The default behavior',
             name: '--save-prod',
-            shortAlias: '-P, -p',
+            shortAlias: '-p',
           },
           {
             description: 'Save package to your `devDependencies`',
             name: '--save-dev',
-            shortAlias: '-D, -d',
+            shortAlias: '-d',
           },
           {
             description: 'Save package to your `optionalDependencies`',
             name: '--save-optional',
-            shortAlias: '-O, -o',
+            shortAlias: '-o',
           },
           {
             description: 'Save package to your `peerDependencies` and `devDependencies`',
@@ -140,7 +140,7 @@ export function help (): string {
           {
             description: 'Install exact version',
             name: '--[no-]save-exact',
-            shortAlias: '-E, -e',
+            shortAlias: '-e',
           },
           {
             description: 'Save packages from the workspace with a "workspace:" protocol. True by default',
