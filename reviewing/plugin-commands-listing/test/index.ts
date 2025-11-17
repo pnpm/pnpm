@@ -199,7 +199,7 @@ dependencies:
 dep file:../dep`)
 })
 
-test('listing packages with --lockfile-only (without node_modules)', async () => {
+test('listing packages with --lockfile-only', async () => {
   prepare({
     dependencies: {
       'is-positive': '1.0.0',
@@ -209,8 +209,7 @@ test('listing packages with --lockfile-only (without node_modules)', async () =>
     },
   })
 
-  await execa('node', [pnpmBin, 'install'])
-  rimraf('node_modules')
+  await execa('node', [pnpmBin, 'install', '--lockfile-only'])
 
   {
     const output = await list.handler({
