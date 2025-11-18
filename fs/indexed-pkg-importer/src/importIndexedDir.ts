@@ -1,6 +1,6 @@
 import fs from 'fs'
 import util from 'util'
-import { copySync } from 'fs-extra'
+import fsx from 'fs-extra'
 import path from 'path'
 import { globalWarn, logger } from '@pnpm/logger'
 import { sync as rimraf } from '@zkochan/rimraf'
@@ -147,7 +147,7 @@ function renameEvenAcrossDevices (src: string, dest: string): void {
     gfs.renameSync(src, dest)
   } catch (err: unknown) {
     if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EXDEV')) throw err
-    copySync(src, dest)
+    fsx.copySync(src, dest)
   }
 }
 

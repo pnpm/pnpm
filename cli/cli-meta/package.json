@@ -1,19 +1,19 @@
 {
   "name": "@pnpm/cli-meta",
-  "version": "1000.0.10",
+  "version": "1000.0.11",
   "description": "Reads the metainfo of the currently running pnpm instance",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/cli/cli-meta",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/cli-meta#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/cli/cli-meta",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/cli/cli-meta#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -28,7 +28,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
-    "_test": "jest"
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "dependencies": {
     "@pnpm/types": "workspace:*",
@@ -38,7 +38,7 @@
     "@pnpm/cli-meta": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

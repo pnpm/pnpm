@@ -90,7 +90,9 @@ test('run lifecycle events of global packages in correct working directory', asy
   expect(fs.existsSync(path.join(globalPkgDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm/created-by-postinstall'))).toBeTruthy()
 })
 
-test('dangerously-allow-all-builds=true in global config', async () => {
+// CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies
+// TODO: Maybe we should create a yaml config file specifically for `--global`? After all, this test is to serve such use-cases
+test.skip('dangerously-allow-all-builds=true in global config', async () => {
   // the directory structure below applies only to Linux
   if (process.platform !== 'linux') return
 
@@ -143,7 +145,9 @@ test('dangerously-allow-all-builds=true in global config', async () => {
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
 })
 
-test('dangerously-allow-all-builds=false in global config', async () => {
+// CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies
+// TODO: Maybe we should create a yaml config file specifically for `--global`? After all, this test is to serve such use-cases
+test.skip('dangerously-allow-all-builds=false in global config', async () => {
   // the directory structure below applies only to Linux
   if (process.platform !== 'linux') return
 

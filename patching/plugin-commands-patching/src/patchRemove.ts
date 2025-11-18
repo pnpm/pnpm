@@ -5,8 +5,8 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import renderHelp from 'render-help'
-import { prompt } from 'enquirer'
-import pick from 'ramda/src/pick'
+import enquirer from 'enquirer'
+import { pick } from 'ramda'
 import { updatePatchedDependencies } from './updatePatchedDependencies.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -36,7 +36,7 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
   if (!params.length) {
     const allPatches = Object.keys(patchedDependencies)
     if (allPatches.length) {
-      ({ patches: patchesToRemove } = await prompt<{
+      ({ patches: patchesToRemove } = await enquirer.prompt<{
         patches: string[]
       }>({
         type: 'multiselect',

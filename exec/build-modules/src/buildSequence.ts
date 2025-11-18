@@ -1,15 +1,17 @@
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { type PatchInfo } from '@pnpm/patching.types'
-import { type PkgIdWithPatchHash, type DepPath, type PackageManifest } from '@pnpm/types'
-import filter from 'ramda/src/filter'
+import { type PkgRequestFetchResult } from '@pnpm/store-controller-types'
+import { type PkgIdWithPatchHash, type DepPath } from '@pnpm/types'
+import { filter } from 'ramda'
 
 export interface DependenciesGraphNode<T extends string> {
   children: Record<string, T>
   depPath: DepPath
   pkgIdWithPatchHash: PkgIdWithPatchHash
   name: string
+  version: string
   dir: string
-  fetchingBundledManifest?: () => Promise<PackageManifest | undefined>
+  fetching?: () => Promise<PkgRequestFetchResult>
   filesIndexFile?: string
   hasBin: boolean
   hasBundledDependencies: boolean

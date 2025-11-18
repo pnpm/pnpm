@@ -39,7 +39,7 @@ export async function localTarballDepsAreUpToDate (
     snapshot: ProjectSnapshot
   }
 ): Promise<boolean> {
-  return pEvery(DEPENDENCIES_FIELDS, (depField) => {
+  return pEvery.default(DEPENDENCIES_FIELDS, (depField) => {
     const lockfileDeps = project.snapshot[depField]
 
     // If the lockfile is missing a snapshot for this project's dependencies, we
@@ -50,7 +50,7 @@ export async function localTarballDepsAreUpToDate (
       return true
     }
 
-    return pEvery(
+    return pEvery.default(
       Object.entries(lockfileDeps),
       async ([depName, ref]) => {
         if (!ref.startsWith('file:')) {

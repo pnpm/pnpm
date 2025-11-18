@@ -178,9 +178,9 @@ test('dlx creates cache and store prune cleans cache', async () => {
   // ensure that the dlx cache has certain structure
   const dlxBaseDir = path.resolve('cache', 'dlx')
   const dlxDirs = fs.readdirSync(dlxBaseDir)
-  expect(dlxDirs.length).toEqual(Object.keys(commands).length)
+  expect(dlxDirs).toHaveLength(Object.keys(commands).length)
   for (const dlxDir of dlxDirs) {
-    expect(fs.readdirSync(path.resolve(dlxBaseDir, dlxDir)).length).toBe(2)
+    expect(fs.readdirSync(path.resolve(dlxBaseDir, dlxDir))).toHaveLength(2)
   }
 
   // modify the dates of the cache items
@@ -205,7 +205,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
     fs.readdirSync(path.resolve('cache', 'dlx')).sort()
   ).toStrictEqual(keptDirs)
   for (const keptDir of keptDirs) {
-    expect(fs.readdirSync(path.resolve('cache', 'dlx', keptDir)).length).toBe(2)
+    expect(fs.readdirSync(path.resolve('cache', 'dlx', keptDir))).toHaveLength(2)
   }
 
   await execPnpm([

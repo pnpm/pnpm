@@ -1,4 +1,3 @@
-import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
@@ -68,7 +67,7 @@ dependencies:
 is-negative 1.0.0`)
 })
 
-test('recursive list with shared-workspace-lockfile', async () => {
+test('recursive list with sharedWorkspaceLockfile', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   preparePackages([
     {
@@ -93,8 +92,10 @@ test('recursive list with shared-workspace-lockfile', async () => {
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: true,
+  })
 
   const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({

@@ -1,19 +1,19 @@
 {
   "name": "@pnpm/exportable-manifest",
-  "version": "1000.1.6",
+  "version": "1000.1.7",
   "description": "Creates an exportable manifest",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/exportable-manifest",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/exportable-manifest#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pkg-manifest/exportable-manifest",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pkg-manifest/exportable-manifest#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -28,7 +28,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
-    "_test": "jest"
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",
@@ -50,7 +50,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

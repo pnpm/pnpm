@@ -1,0 +1,49 @@
+{
+  "name": "@pnpm/config.version-policy",
+  "version": "1000.0.0",
+  "description": "Parses and evaluates package version policy specs and produces package-version matchers",
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/config/version-policy",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/config/version-policy#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/error": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "semver": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/config.version-policy": "workspace:*",
+    "@types/semver": "catalog:"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

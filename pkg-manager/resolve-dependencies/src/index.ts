@@ -25,8 +25,7 @@ import {
   type ProjectRootDir,
   type DepPath,
 } from '@pnpm/types'
-import difference from 'ramda/src/difference'
-import zipWith from 'ramda/src/zipWith'
+import { difference, zipWith } from 'ramda'
 import isSubdir from 'is-subdir'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
 import { depPathToRef } from './depPathToRef.js'

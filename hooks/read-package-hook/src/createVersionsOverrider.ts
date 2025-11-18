@@ -1,6 +1,6 @@
 import path from 'path'
 import semver from 'semver'
-import partition from 'ramda/src/partition'
+import { partition } from 'ramda'
 import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
 import { type PackageSelector, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
 import { isValidPeerRange } from '@pnpm/semver.peer-range'

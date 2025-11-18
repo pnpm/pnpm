@@ -25,10 +25,16 @@
       "path": "../../object/property-path"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/error"
     },
     {
       "path": "../../packages/logger"
+    },
+    {
+      "path": "../../packages/naming-cases"
     },
     {
       "path": "../../workspace/manifest-writer"

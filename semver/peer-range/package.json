@@ -4,18 +4,18 @@
   "description": "Validates peer ranges",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "peer",
     "semver"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/semver/peer-range",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/semver/peer-range#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/semver/peer-range",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/semver/peer-range#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -39,7 +39,7 @@
     "@types/semver": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

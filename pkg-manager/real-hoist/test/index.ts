@@ -3,7 +3,7 @@ import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectId } from '@pnpm/types'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('hoist', async () => {
   const lockfile = await readWantedLockfile(f.find('fixture'), { ignoreIncompatible: true })

@@ -1,5 +1,35 @@
 # @pnpm/deps.graph-builder
 
+## 1002.3.0
+
+### Minor Changes
+
+- dee39ec: You can now allow specific versions of dependencies to run postinstall scripts. `onlyBuiltDependencies` now accepts package names with lists of trusted versions. For example:
+
+  ```yaml
+  onlyBuiltDependencies:
+    - nx@21.6.4 || 21.6.5
+    - esbuild@0.25.1
+  ```
+
+  Related PR: [#10104](https://github.com/pnpm/pnpm/pull/10104).
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/store-controller-types@1004.1.0
+  - @pnpm/package-is-installable@1000.0.15
+  - @pnpm/lockfile.fs@1001.1.21
+  - @pnpm/lockfile.utils@1003.0.3
+  - @pnpm/calc-dep-state@1002.0.8
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/dependency-path@1001.1.3
+  - @pnpm/modules-yaml@1000.3.6
+  - @pnpm/patching.config@1001.0.11
+
 ## 1002.2.6
 
 ### Patch Changes

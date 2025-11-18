@@ -1,19 +1,19 @@
 {
   "name": "@pnpm/hooks.read-package-hook",
-  "version": "1000.0.14",
+  "version": "1000.0.15",
   "description": "Creates the default package reader hook used by pnpm",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/hooks/read-package-hook",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/hooks/read-package-hook#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/hooks/read-package-hook",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/hooks/read-package-hook#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -25,7 +25,7 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
@@ -43,6 +43,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/hooks.read-package-hook": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
@@ -50,7 +51,7 @@
     "@yarnpkg/core": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

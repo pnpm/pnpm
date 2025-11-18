@@ -7,6 +7,7 @@
   },
   "keywords": [
     "pnpm",
-    "pnpm10"
-  ]
+    "pnpm11"
+  ],
+  "repository": "https://github.com/pnpm/pnpm/tree/main/__typings__"
 }

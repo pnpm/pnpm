@@ -6,7 +6,7 @@ import { execPnpmSync } from './utils/index.js'
 import { fixtures } from '@pnpm/test-fixtures'
 import { isPortInUse } from './utils/isPortInUse.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const multipleScriptsErrorExit = f.find('multiple-scripts-error-exit')
 const testOnPosix = isWindows() ? test.skip : test
 
@@ -37,7 +37,7 @@ test('should print json format error when add dependency on workspace root', asy
   ])
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  const { status, stdout } = execPnpmSync(['add', 'nanoid', '-p'])
+  const { status, stdout } = execPnpmSync(['add', 'nanoid', '--parseable'])
 
   expect(status).toBe(1)
   const { error } = JSON.parse(stdout.toString())

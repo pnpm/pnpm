@@ -50,7 +50,7 @@ function getExecPath (): string {
     // Instead, we use the path to the exe file.
     return process.execPath
   }
-  return (require.main != null) ? require.main.filename : process.cwd()
+  return process.argv[1] ?? process.cwd()
 }
 
 /**

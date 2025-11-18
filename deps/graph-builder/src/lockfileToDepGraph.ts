@@ -20,9 +20,8 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import * as dp from '@pnpm/dependency-path'
-import pathExists from 'path-exists'
-import equals from 'ramda/src/equals'
-import isEmpty from 'ramda/src/isEmpty'
+import { pathExists } from 'path-exists'
+import { equals, isEmpty } from 'ramda'
 import { iteratePkgsForVirtualStore } from './iteratePkgsForVirtualStore.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')
@@ -32,6 +31,7 @@ export interface DependenciesGraphNode {
   hasBundledDependencies: boolean
   modules: string
   name: string
+  version: string
   fetching?: () => Promise<PkgRequestFetchResult>
   forceImportPackage?: boolean // Used to force re-imports from the store of local tarballs that have changed.
   dir: string
@@ -255,6 +255,7 @@ async function buildGraphFromPackages (
         hasBundledDependencies: pkgSnapshot.bundledDependencies != null,
         modules,
         name: pkgName,
+        version: pkgVersion,
         optional: !!pkgSnapshot.optional,
         optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
         patch: _getPatchInfo(pkgName, pkgVersion),

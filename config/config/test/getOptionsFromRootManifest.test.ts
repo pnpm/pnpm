@@ -87,7 +87,7 @@ test('getOptionsFromRootManifest() throws an error if cannot resolve an override
 
 test('getOptionsFromRootManifest() should return onlyBuiltDependencies as undefined by default', () => {
   const options = getOptionsFromRootManifest(process.cwd(), {})
-  expect(options.onlyBuiltDependencies).toStrictEqual(undefined)
+  expect(options.onlyBuiltDependencies).toBeUndefined()
 })
 
 test('getOptionsFromRootManifest() should return the list from onlyBuiltDependencies', () => {
@@ -172,5 +172,5 @@ test('getOptionsFromPnpmSettings() replaces env variables in settings', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     '${PNPM_TEST_KEY}': '${PNPM_TEST_VALUE}', // eslint-disable-line
   } as any) as any // eslint-disable-line
-  expect(options.foo).toEqual('bar')
+  expect(options.foo).toBe('bar')
 })

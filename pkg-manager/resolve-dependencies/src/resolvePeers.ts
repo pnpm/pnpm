@@ -1,7 +1,7 @@
 import filenamify from 'filenamify'
 import { analyzeGraph, type Graph } from 'graph-cycles'
 import path from 'path'
-import pDefer from 'p-defer'
+import pDefer, { type DeferredPromise } from 'p-defer'
 import semver from 'semver'
 import * as semverUtils from '@yarnpkg/core/semverUtils'
 import {
@@ -13,8 +13,7 @@ import {
   type ProjectRootDir,
 } from '@pnpm/types'
 import { depPathToFilename, createPeerDepGraphHash, type PeerId } from '@pnpm/dependency-path'
-import partition from 'ramda/src/partition'
-import pick from 'ramda/src/pick'
+import { partition, pick } from 'ramda'
 import { type NodeId } from './nextNodeId.js'
 import {
   type ChildrenMap,
@@ -98,7 +97,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   }> {
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = new Map<NodeId, DepPath>()
-  const pathsByNodeIdPromises = new Map<NodeId, pDefer.DeferredPromise<DepPath>>()
+  const pathsByNodeIdPromises = new Map<NodeId, DeferredPromise<DepPath>>()
   const depPathsByPkgId = new Map<PkgIdWithPatchHash, Set<DepPath>>()
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
@@ -335,7 +334,7 @@ interface MissingPeerInfo {
 type MissingPeers = Map<string, MissingPeerInfo>
 
 interface PeersCacheItem {
-  depPath: pDefer.DeferredPromise<DepPath>
+  depPath: DeferredPromise<DepPath>
   resolvedPeers: Map<string, NodeId>
   missingPeers: MissingPeers
 }
@@ -349,7 +348,7 @@ interface PeersResolution {
 
 interface ResolvePeersContext {
   pathsByNodeId: Map<NodeId, DepPath>
-  pathsByNodeIdPromises: Map<NodeId, pDefer.DeferredPromise<DepPath>>
+  pathsByNodeIdPromises: Map<NodeId, DeferredPromise<DepPath>>
   depPathsByPkgId?: Map<PkgIdWithPatchHash, Set<DepPath>>
 }
 

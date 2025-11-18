@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals'
 import { type ResolveFunction } from '@pnpm/client'
 import { type PkgResolutionId, type TarballResolution } from '@pnpm/resolver-base'
 import { getManifest } from '../lib/createManifestGetter.js'
@@ -56,7 +57,7 @@ test('getManifest() with minimumReleaseAge filters latest when too new', async (
 
   const publishedBy = new Date(Date.now() - 10080 * 60 * 1000)
 
-  const resolve: ResolveFunction = jest.fn(async function (wantedPackage, resolveOpts) {
+  const resolve = jest.fn<ResolveFunction>(async (wantedPackage, resolveOpts) => {
     expect(wantedPackage.bareSpecifier).toBe('latest')
     expect(resolveOpts.publishedBy).toBeInstanceOf(Date)
 
@@ -79,7 +80,7 @@ test('getManifest() does not convert non-latest specifiers', async () => {
     rawConfig: {},
   }
 
-  const resolve: ResolveFunction = jest.fn(async function (wantedPackage, resolveOpts) {
+  const resolve = jest.fn<ResolveFunction>(async (wantedPackage) => {
     expect(wantedPackage.bareSpecifier).toBe('^1.0.0')
 
     return {
@@ -127,12 +128,9 @@ test('getManifest() with minimumReleaseAgeExclude', async () => {
   }
 
   const publishedBy = new Date(Date.now() - 10080 * 60 * 1000)
-  const isExcludedMatcher = (packageName: string) => packageName === 'excluded-package'
+  const publishedByExclude = (packageName: string) => packageName === 'excluded-package'
 
-  const resolve: ResolveFunction = jest.fn(async function (wantedPackage, resolveOpts) {
-    // Excluded package should not have publishedBy set
-    expect(resolveOpts.publishedBy).toBeUndefined()
-
+  const resolve = jest.fn<ResolveFunction>(async (wantedPackage, resolveOpts) => {
     return {
       id: 'excluded-package/2.0.0' as PkgResolutionId,
       latest: '2.0.0',
@@ -145,6 +143,6 @@ test('getManifest() with minimumReleaseAgeExclude', async () => {
     }
   })
 
-  await getManifest({ ...opts, resolve, isExcludedMatcher, publishedBy }, 'excluded-package', 'latest')
+  await getManifest({ ...opts, resolve, publishedByExclude, publishedBy }, 'excluded-package', 'latest')
   expect(resolve).toHaveBeenCalledTimes(1)
 })

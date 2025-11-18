@@ -1,10 +1,10 @@
 {
   "name": "pnpm",
-  "version": "10.18.2",
+  "version": "11.0.0-alpha.1",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "dependencies",
     "dependency manager",
     "efficient",
@@ -40,8 +40,8 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
-  "main": "bin/pnpm.cjs",
+  "type": "module",
+  "main": "bin/pnpm.mjs",
   "exports": {
     ".": "./package.json"
   },
@@ -50,19 +50,19 @@
     "bin"
   ],
   "bin": {
-    "pnpm": "bin/pnpm.cjs",
-    "pnpx": "bin/pnpx.cjs"
+    "pnpm": "bin/pnpm.mjs",
+    "pnpx": "bin/pnpx.mjs"
   },
   "directories": {
     "test": "test"
   },
-  "unpkg": "dist/pnpm.cjs",
+  "unpkg": "dist/pnpm.mjs",
   "scripts": {
-    "bundle": "ts-node bundle.ts",
+    "bundle": "pnpm --config.useNodeVersion=24.6.0 exec ts-node bundle.ts",
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && publish-packed --prune --npm-client=pnpm --dest=dist",
     "postpublish": "publish-packed",
@@ -96,6 +96,7 @@
     "@pnpm/exec.build-commands": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
+    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
@@ -139,6 +140,7 @@
     "@pnpm/workspace.state": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "@types/cross-spawn": "catalog:",
+    "@types/ini": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/pnpm__byline": "catalog:",
     "@types/ramda": "catalog:",
@@ -151,10 +153,11 @@
     "deep-require-cwd": "catalog:",
     "delay": "catalog:",
     "dir-is-case-sensitive": "catalog:",
-    "get-port": "catalog:",
     "esbuild": "catalog:",
     "execa": "catalog:",
     "exists-link": "catalog:",
+    "get-port": "catalog:",
+    "ini": "catalog:",
     "is-windows": "catalog:",
     "load-json-file": "catalog:",
     "loud-rejection": "catalog:",
@@ -176,7 +179,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "pnpm": {
     "overrides": {
@@ -189,10 +192,11 @@
       "express@<4.20.0": "^4.20.0",
       "follow-redirects@<=1.15.5": ">=1.15.6",
       "glob-parent@<5.1.2": ">=5.1.2",
+      "glob@>=10.3.7 <=11.0.3": "^11.1.0",
       "hosted-git-info@1": "npm:@pnpm/hosted-git-info@1.0.0",
       "http-proxy-middleware@<2.0.7": "^2.0.7",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
-      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.9",
+      "js-yaml": "npm:@zkochan/js-yaml@0.0.10",
       "json5@<2.2.2": "^2.2.3",
       "jsonwebtoken@<=8.5.1": ">=9.0.0",
       "nopt@5": "npm:@pnpm/nopt@^0.2.1",
@@ -201,7 +205,7 @@
       "path-to-regexp@>=4.0.0 <6.3.0": ">=6.3.0",
       "path-to-regexp@>=7.0.0 <8.0.0": ">=8.0.0",
       "request": "npm:postman-request@2.88.1-postman.40",
-      "semver@<7.5.2": "^7.7.1",
+      "semver@<7.5.2": "^7.7.2",
       "send@<0.19.0": "^0.19.0",
       "serve-static@<1.16.0": "^1.16.0",
       "socks@2": "^2.8.1",
@@ -215,11 +219,18 @@
   },
   "preferGlobal": true,
   "publishConfig": {
-    "tag": "next-10",
+    "tag": "next-11",
     "executableFiles": [
       "./dist/node-gyp-bin/node-gyp",
       "./dist/node-gyp-bin/node-gyp.cmd",
       "./dist/node_modules/node-gyp/bin/node-gyp.js"
-    ]
+    ],
+    "engines": {
+      "runtime": {
+        "name": "node",
+        "version": "24.11.0",
+        "onFail": "download"
+      }
+    }
   }
 }

@@ -14,7 +14,7 @@ import { isCI } from 'ci-info'
 import sinon from 'sinon'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const withGitProtocolDepFixture = f.find('with-git-protocol-dep')
 
 test('from a github repo', async () => {
@@ -63,7 +63,7 @@ test('from a github repo with different name via named installation', async () =
     name: 'pnpm:root',
   } as RootLog)).toBeTruthy()
 
-  expect(m).toEqual('Hi')
+  expect(m).toBe('Hi')
 
   expect(manifest.dependencies).toStrictEqual({ 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' })
 
@@ -129,7 +129,7 @@ test('a subdependency is from a github repo with different name', async () => {
 
   const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
 
-  expect(m).toEqual('Hi')
+  expect(m).toBe('Hi')
 
   const lockfile = project.readLockfile()
   expect(lockfile.snapshots['@pnpm.e2e/has-aliased-git-dependency@1.0.0'].dependencies).toStrictEqual({

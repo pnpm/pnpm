@@ -1,39 +1,71 @@
+import path from 'path'
 import kebabCase from 'lodash.kebabcase'
-import { encode } from 'ini'
-import { globalWarn } from '@pnpm/logger'
+import { types } from '@pnpm/config'
+import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { runNpm } from '@pnpm/run-npm'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
-import { isStrictlyKebabCase } from './isStrictlyKebabCase.js'
+import { processConfig } from './processConfig.js'
 import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
-  if (opts.global && settingShouldFallBackToNpm(key)) {
-    const { status: exitCode } = runNpm(opts.npmPath, ['config', 'get', key])
+  const isScopedKey = key.startsWith('@')
+  // Exclude scoped keys from npm fallback because they are pnpm-native config
+  // that can be read directly from rawConfig (e.g., '@scope:registry')
+  if (opts.global && settingShouldFallBackToNpm(key) && !isScopedKey) {
+    const { status: exitCode } = runNpm(opts.npmPath, ['config', 'get', key], {
+      location: 'user',
+      userConfigPath: path.join(opts.configDir, 'rc'),
+    })
     return { output: '', exitCode: exitCode ?? 0 }
   }
-  const config = isStrictlyKebabCase(key)
-    ? opts.rawConfig[kebabCase(key)] // we don't parse kebab-case keys as property paths because it's not a valid JS syntax
-    : getConfigByPropertyPath(opts.rawConfig, key)
-  const output = displayConfig(config, opts)
+  const configResult = getRcConfig(opts.rawConfig, key, isScopedKey) ?? getConfigByPropertyPath(opts.rawConfig, key)
+  const output = displayConfig(configResult?.value, opts)
   return { output, exitCode: 0 }
 }
 
-function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string): unknown {
-  return getObjectValueByPropertyPath(rawConfig, parseConfigPropertyPath(propertyPath))
+interface Found<Value> {
+  value: Value
+}
+
+function getRcConfig (rawConfig: Record<string, unknown>, key: string, isScopedKey: boolean): Found<unknown> | undefined {
+  if (isScopedKey) {
+    const value = rawConfig[key]
+    return { value }
+  }
+  const rcKey = isCamelCase(key) ? kebabCase(key) : key
+  if (rcKey in types) {
+    const value = rawConfig[rcKey]
+    return { value }
+  }
+  if (isStrictlyKebabCase(key)) {
+    const value = rawConfig[key]
+    return { value }
+  }
+  return undefined
+}
+
+function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string): Found<unknown> {
+  const parsedPropertyPath = Array.from(parseConfigPropertyPath(propertyPath))
+  if (parsedPropertyPath.length === 0) {
+    return {
+      value: processConfig(rawConfig),
+    }
+  }
+  return {
+    value: getObjectValueByPropertyPath(rawConfig, parsedPropertyPath),
+  }
 }
 
 type DisplayConfigOptions = Pick<ConfigCommandOptions, 'json'>
 
 function displayConfig (config: unknown, opts: DisplayConfigOptions): string {
-  if (opts.json) return JSON.stringify(config, undefined, 2)
-  if (Array.isArray(config)) {
-    globalWarn('`pnpm config get` would display an array as comma-separated list due to legacy implementation, use `--json` to print them as json')
-    return config.join(',') // TODO: change this in the next major version
+  if (Boolean(opts.json) || Array.isArray(config)) {
+    return JSON.stringify(config, undefined, 2)
   }
   if (typeof config === 'object' && config != null) {
-    return encode(config)
+    return JSON.stringify(config, undefined, 2)
   }
   return String(config)
 }

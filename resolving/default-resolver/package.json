@@ -1,21 +1,21 @@
 {
   "name": "@pnpm/default-resolver",
-  "version": "1002.2.9",
+  "version": "1002.2.12",
   "description": "pnpm's default package resolver",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "npm",
     "resolver"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/default-resolver",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/default-resolver#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/resolving/default-resolver",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/resolving/default-resolver#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -27,7 +27,7 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
@@ -49,7 +49,7 @@
     "@pnpm/fetch": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

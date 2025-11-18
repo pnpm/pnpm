@@ -2,8 +2,9 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
-    "outDir": "../test.lib",
-    "rootDir": "."
+    "outDir": "../node_modules/.test.lib",
+    "rootDir": "..",
+    "isolatedModules": true
   },
   "include": [
     "**/*.ts",
