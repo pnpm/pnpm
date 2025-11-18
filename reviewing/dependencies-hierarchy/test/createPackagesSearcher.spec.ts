@@ -39,6 +39,7 @@ function mockContext (manifest: DependencyManifest) {
   return {
     name: manifest.name,
     version: manifest.version,
+    alias: manifest.name,
     readManifest: () => manifest,
   }
 }

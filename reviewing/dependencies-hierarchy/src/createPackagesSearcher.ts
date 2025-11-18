@@ -37,7 +37,7 @@ function search (
   },
   { name, version, alias }: FinderContext
 ): boolean {
-  const nameMatches = packageSelector.matchName(name) || (!!alias && packageSelector.matchName(alias))
+  const nameMatches = packageSelector.matchName(name) || packageSelector.matchName(alias)
   if (!nameMatches) {
     return false
   }
