@@ -247,8 +247,8 @@ catalogs:
       specifier: 4.0.5
       version: 4.0.5
     '@yarnpkg/parsers':
-      specifier: 3.0.0
-      version: 3.0.0
+      specifier: 3.0.3
+      version: 3.0.3
     '@yarnpkg/pnp':
       specifier: ^4.0.8
       version: 4.0.8
@@ -471,6 +471,9 @@ catalogs:
     jest-diff:
       specifier: ^30.1.1
       version: 30.1.1
+    js-yaml:
+      specifier: npm:@zkochan/js-yaml@0.0.10
+      version: 0.0.10
     json5:
       specifier: ^2.2.3
       version: 2.2.3
@@ -789,7 +792,8 @@ overrides:
   hosted-git-info@1: npm:@pnpm/hosted-git-info@1.0.0
   http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
-  js-yaml: npm:@zkochan/js-yaml@0.0.10
+  js-yaml@<3.14.2: ^3.14.2
+  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.10
   json5@<2.2.2: ^2.2.3
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   nopt@5: npm:@pnpm/nopt@^0.2.1
@@ -3763,7 +3767,7 @@ importers:
         specifier: 'catalog:'
         version: 1.0.0
       js-yaml:
-        specifier: npm:@zkochan/js-yaml@0.0.10
+        specifier: 'catalog:'
         version: '@zkochan/js-yaml@0.0.10'
       normalize-path:
         specifier: 'catalog:'
@@ -5890,7 +5894,7 @@ importers:
         version: 1.1.0
       '@yarnpkg/parsers':
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 3.0.3
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -11326,10 +11330,6 @@ packages:
     resolution: {integrity: sha512-ZtZ8aPxsDcJmvJdnB+s0RO/uv543WptvaGIiuifCrAp0tn1mqR3WY25vQTzq3eE/HnH/prfcpb9C3wE4FtAWOA==}
     engines: {node: '>=18.12.0'}
 
-  '@yarnpkg/parsers@3.0.0':
-    resolution: {integrity: sha512-jVZa3njBv6tcOUw34nlUdUM/40wwtm/gnVF8rtk0tA6vNcokqYI8CFU1BZjlpFwUSZaXxYkrtuPE/f2MMFlTxQ==}
-    engines: {node: '>=18.12.0'}
-
   '@yarnpkg/parsers@3.0.3':
     resolution: {integrity: sha512-mQZgUSgFurUtA07ceMjxrWkYz8QtDuYkvPlu0ZqncgjopQ0t6CNEo/OSealkmnagSUx8ZD5ewvezUwUuMqutQg==}
     engines: {node: '>=18.12.0'}
@@ -11526,6 +11526,9 @@ packages:
 
   arg@4.1.3:
     resolution: {integrity: sha512-58S9QDqG0Xx27YwPSt9fJxivjYl432YCwfDMfZ+71RAqUrZef7LrKQZ3LHLOwCS4FLNBplP533Zx895SeOCHvA==}
+
+  argparse@1.0.10:
+    resolution: {integrity: sha512-o5Roy6tNG4SL/FOkCAN6RzjiakZS25RLYFrcMttJqbdd8BWrnA+fGz57iN5Pb06pvBGvl5gQ0B48dJlslXvoTg==}
 
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
@@ -13881,6 +13884,10 @@ packages:
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
+  js-yaml@3.14.2:
+    resolution: {integrity: sha512-PMSmkqxr106Xa156c2M265Z+FTrPl+oxd/rgOQy2tijQeK5TxQ43psO1ZCwhVOSdnn+RzkzlRz/eY4BgJBYVpg==}
+    hasBin: true
+
   jsbn@0.1.1:
     resolution: {integrity: sha512-UVU9dibq2JcFWxQPA6KCqj5O42VOmAY3zQUfEKxU0KpTGXwNoCjkX1e13eHNvw/xPynt6pU0rZ1htjWTNTSXsg==}
 
@@ -15663,6 +15670,9 @@ packages:
     resolution: {integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==}
     engines: {node: '>= 10.x'}
 
+  sprintf-js@1.0.3:
+    resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
+
   sprintf-js@1.1.3:
     resolution: {integrity: sha512-Oo+0REFV59/rz3gfJNKQiBlwfHaSESl1pcGyABQsnnIfWOFt6JNj5gCog2U6MLZ//IGYD+nA8nI+mTShREReaA==}
 
@@ -16941,7 +16951,7 @@ snapshots:
   '@changesets/parse@0.4.1':
     dependencies:
       '@changesets/types': 6.1.0
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: 3.14.2
 
   '@changesets/pre@2.0.2':
     dependencies:
@@ -17524,7 +17534,7 @@ snapshots:
       camelcase: 5.3.1
       find-up: 4.1.0
       get-package-type: 0.1.0
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: 3.14.2
       resolve-from: 5.0.0
 
   '@istanbuljs/schema@0.1.3': {}
@@ -19759,14 +19769,9 @@ snapshots:
     transitivePeerDependencies:
       - typanion
 
-  '@yarnpkg/parsers@3.0.0':
-    dependencies:
-      js-yaml: '@zkochan/js-yaml@0.0.10'
-      tslib: 2.8.1
-
   '@yarnpkg/parsers@3.0.3':
     dependencies:
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: 3.14.2
       tslib: 2.8.1
 
   '@yarnpkg/pnp@4.0.8':
@@ -19994,6 +19999,10 @@ snapshots:
     optional: true
 
   arg@4.1.3: {}
+
+  argparse@1.0.10:
+    dependencies:
+      sprintf-js: 1.0.3
 
   argparse@2.0.1: {}
 
@@ -22818,6 +22827,11 @@ snapshots:
 
   js-tokens@4.0.0: {}
 
+  js-yaml@3.14.2:
+    dependencies:
+      argparse: 1.0.10
+      esprima: 4.0.1
+
   jsbn@0.1.1: {}
 
   jsbn@1.1.0: {}
@@ -22937,7 +22951,7 @@ snapshots:
   load-yaml-file@0.2.0:
     dependencies:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: 3.14.2
       pify: 4.0.1
       strip-bom: 3.0.0
 
@@ -24153,7 +24167,7 @@ snapshots:
   read-yaml-file@1.1.0:
     dependencies:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: 3.14.2
       pify: 4.0.1
       strip-bom: 3.0.0
 
@@ -24676,6 +24690,8 @@ snapshots:
       readable-stream: 3.6.2
 
   split2@4.2.0: {}
+
+  sprintf-js@1.0.3: {}
 
   sprintf-js@1.1.3: {}
 
@@ -25703,7 +25719,7 @@ snapshots:
 
   yaml-tag@1.1.0:
     dependencies:
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: 3.14.2
 
   yaml@2.8.1: {}
 
