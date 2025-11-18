@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { applyPatch } from '@pnpm/patch-package/dist/applyPatches'
+import { applyPatch } from '@pnpm/patch-package/dist/applyPatches.js'
 import { globalWarn } from '@pnpm/logger'
 
 export interface ApplyPatchToDirOpts {

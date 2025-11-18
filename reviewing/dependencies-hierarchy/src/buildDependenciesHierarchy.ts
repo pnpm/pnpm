@@ -39,6 +39,7 @@ export async function buildDependenciesHierarchy (
     onlyProjects?: boolean
     search?: Finder
     lockfileDir: string
+    checkWantedLockfileOnly?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
   }
@@ -53,7 +54,7 @@ export async function buildDependenciesHierarchy (
     ...modules?.registries,
   })
   const internalPnpmDir = path.join(modulesDir, '.pnpm')
-  const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false }) ?? null
+  const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
   if (projectPaths == null) {
     projectPaths = Object.keys(wantedLockfile?.importers ?? {})
@@ -62,7 +63,9 @@ export async function buildDependenciesHierarchy (
 
   const result = {} as { [projectDir: string]: DependenciesHierarchy }
 
-  if (!currentLockfile) {
+  const lockfileToUse = maybeOpts.checkWantedLockfileOnly ? wantedLockfile : currentLockfile
+
+  if (!lockfileToUse) {
     for (const projectPath of projectPaths) {
       result[projectPath] = {}
     }
@@ -78,6 +81,7 @@ export async function buildDependenciesHierarchy (
       optionalDependencies: true,
     },
     lockfileDir: maybeOpts.lockfileDir,
+    checkWantedLockfileOnly: maybeOpts.checkWantedLockfileOnly,
     onlyProjects: maybeOpts.onlyProjects,
     registries,
     search: maybeOpts.search,
@@ -89,7 +93,7 @@ export async function buildDependenciesHierarchy (
   const pairs = await Promise.all(projectPaths.map(async (projectPath) => {
     return [
       projectPath,
-      await dependenciesHierarchyForPackage(projectPath, currentLockfile, wantedLockfile, opts),
+      await dependenciesHierarchyForPackage(projectPath, lockfileToUse, wantedLockfile, opts),
     ] as [string, DependenciesHierarchy]
   }))
   for (const [projectPath, dependenciesHierarchy] of pairs) {
@@ -111,6 +115,7 @@ async function dependenciesHierarchyForPackage (
     search?: Finder
     skipped: Set<string>
     lockfileDir: string
+    checkWantedLockfileOnly?: boolean
     modulesDir?: string
     virtualStoreDir?: string
     virtualStoreDirMaxLength: number
