@@ -4,12 +4,14 @@ import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { logger } from '@pnpm/logger'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { runNpm } from '@pnpm/run-npm'
 import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import { loadToken } from '@pnpm/network.auth-header'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import { resolveNpmVersion } from '@pnpm/tools.npm-manager'
 import enquirer from 'enquirer'
 import rimraf from '@zkochan/rimraf'
 import { pick } from 'ramda'
@@ -237,11 +239,53 @@ Do you want to continue?`,
   }
   args = removePnpmSpecificOptions(args)
 
+  // For tarball publishing, use default npm path (no devEngines support)
   if (dirInParams != null && (dirInParams.endsWith('.tgz') || dirInParams?.endsWith('.tar.gz'))) {
     const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args])
     return { exitCode: status ?? 0 }
   }
   const dir = dirInParams ?? opts.dir ?? process.cwd()
+
+  // Read manifest to check for devEngines.packageManager
+  const { manifest } = await readProjectManifest(dir, opts)
+
+  // Determine npm path to use
+  let npmPathToUse = opts.npmPath
+  const devEnginesPackageManager = manifest.devEngines?.packageManager
+  if (devEnginesPackageManager) {
+    const packageManagers = Array.isArray(devEnginesPackageManager)
+      ? devEnginesPackageManager
+      : [devEnginesPackageManager]
+    const npmPackageManager = packageManagers.find(pm => pm.name === 'npm')
+
+    if (npmPackageManager?.version) {
+      const onFailMode = npmPackageManager.onFail ?? 'error'
+
+      if (onFailMode === 'download') {
+        // Download and use the specified npm version
+        const { npmPath: resolvedNpmPath } = await resolveNpmVersion(npmPackageManager.version, {
+          pnpmHomeDir: opts.pnpmHomeDir,
+        })
+        npmPathToUse = resolvedNpmPath
+      } else if (onFailMode === 'warn') {
+        // Warn but continue with system npm
+        logger.warn({
+          message: `devEngines.packageManager specifies npm@${npmPackageManager.version}, but onFail is set to "warn". Using system npm instead.`,
+          prefix: dir,
+        })
+      } else if (onFailMode === 'error') {
+        // Error and exit
+        const errorMsg = [
+          `devEngines.packageManager requires npm@${npmPackageManager.version}`,
+          'Either:',
+          `  1. Install npm@${npmPackageManager.version} globally`,
+          '  2. Change onFail to "download" in package.json',
+          '  3. Remove the npm entry from devEngines.packageManager',
+        ].join('\n')
+        throw new PnpmError('NPM_VERSION_REQUIRED', errorMsg)
+      }
+    }
+  }
 
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: dir,
@@ -254,7 +298,6 @@ Do you want to continue?`,
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
     prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   })
-  const { manifest } = await readProjectManifest(dir, opts)
   // Unfortunately, we cannot support postpack at the moment
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent([
@@ -274,7 +317,7 @@ Do you want to continue?`,
     packDestination,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
-  const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballPath), ...args], {
+  const { status } = runNpm(npmPathToUse, ['publish', '--ignore-scripts', path.basename(tarballPath), ...args], {
     cwd: packDestination,
     env: getEnvWithTokens(opts),
   })

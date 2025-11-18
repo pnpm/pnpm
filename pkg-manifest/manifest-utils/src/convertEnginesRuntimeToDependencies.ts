@@ -27,4 +27,34 @@ export function convertEnginesRuntimeToDependencies (
       manifest[dependenciesFieldName]![runtimeName] = `runtime:${runtime.version}`
     }
   }
+
+  if (enginesFieldName === 'devEngines') {
+    const enginesFieldPackageManager = manifest.devEngines?.packageManager
+    if (enginesFieldPackageManager != null) {
+      const packageManagers: EngineDependency[] = Array.isArray(enginesFieldPackageManager)
+        ? enginesFieldPackageManager
+        : [enginesFieldPackageManager]
+
+      for (const packageManager of packageManagers) {
+        const packageManagerName = packageManager.name
+        if (packageManager.onFail !== 'download') {
+          continue
+        }
+        if (manifest[dependenciesFieldName]?.[packageManagerName]) {
+          continue
+        }
+
+        let versionToUse = packageManager.version
+        if (manifest.packageManager) {
+          const [pkgMgrName, pkgMgrVersion] = manifest.packageManager.split('@')
+          if (pkgMgrName === packageManagerName && pkgMgrVersion) {
+            versionToUse = pkgMgrVersion
+          }
+        }
+
+        manifest[dependenciesFieldName] ??= {}
+        manifest[dependenciesFieldName]![packageManagerName] = `packageManager:${versionToUse}`
+      }
+    }
+  }
 }

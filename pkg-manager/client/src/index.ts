@@ -20,6 +20,7 @@ export type ClientOptions = {
   authConfig: Record<string, string>
   customFetchers?: CustomFetchers
   ignoreScripts?: boolean
+  pnpmHomeDir?: string
   rawConfig: Record<string, string>
   sslConfigs?: Record<string, SslConfig>
   retry?: RetryTimeoutOptions

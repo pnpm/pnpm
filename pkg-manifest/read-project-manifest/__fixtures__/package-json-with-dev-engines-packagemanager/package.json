@@ -1,0 +1,9 @@
+{
+  "devEngines": {
+    "packageManager": {
+      "name": "npm",
+      "version": "10.2.3",
+      "onFail": "download"
+    }
+  }
+}

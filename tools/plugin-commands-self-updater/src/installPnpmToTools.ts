@@ -9,6 +9,8 @@ import semver from 'semver'
 import symlinkDir from 'symlink-dir'
 import { type SelfUpdateCommandOptions } from './selfUpdate.js'
 
+export type { SelfUpdateCommandOptions }
+
 export interface InstallPnpmToToolsResult {
   binDir: string
   baseDir: string

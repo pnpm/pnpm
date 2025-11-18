@@ -17,10 +17,12 @@ import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import { type EngineDependency } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
 import path from 'path'
 import { isEmpty } from 'ramda'
+import semver from 'semver'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import { checkForUpdates } from './checkForUpdates.js'
 import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
@@ -116,11 +118,17 @@ export async function main (inputArgv: string[]): Promise<void> {
       checkUnknownSetting: false,
       ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
     }) as typeof config
-    if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
-      if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm' && cmd !== 'self-update') {
-        await switchCliVersion(config)
-      } else if (!cmd || !skipPackageManagerCheckForCommand.has(cmd)) {
-        checkPackageManager(config.wantedPackageManager, config)
+    if (!isExecutedByCorepack() && cmd !== 'setup') {
+      // Check package manager requirements
+      // Priority: devEngines.packageManager > packageManager field
+      if ((!cmd || !skipPackageManagerCheckForCommand.has(cmd)) && config.rootProjectManifest?.devEngines?.packageManager) {
+        checkDevEnginesPackageManager(config.rootProjectManifest.devEngines.packageManager, config)
+      } else if (config.wantedPackageManager != null) {
+        if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm' && cmd !== 'self-update') {
+          await switchCliVersion(config)
+        } else if (!cmd || !skipPackageManagerCheckForCommand.has(cmd)) {
+          checkPackageManager(config.wantedPackageManager, config)
+        }
       }
     }
     if (isDlxOrCreateCommand) {
@@ -373,6 +381,66 @@ function checkPackageManager (pm: WantedPackageManager, config: Config): void {
       if (config.packageManagerStrict) {
         throw new PnpmError('BAD_PM_VERSION', msg, {
           hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
+        })
+      } else {
+        globalWarn(msg)
+      }
+    }
+  }
+}
+
+/**
+ * Check devEngines.packageManager requirements
+ * Supports multiple package managers - succeeds if any one of them matches
+ */
+function checkDevEnginesPackageManager (
+  packageManagerField: EngineDependency | EngineDependency[],
+  config: Config
+): void {
+  const packageManagers = Array.isArray(packageManagerField)
+    ? packageManagerField
+    : [packageManagerField]
+
+  // Find all package managers entries
+  const pnpmEntries = packageManagers.filter(pm => pm.name === 'pnpm')
+
+  if (pnpmEntries.length === 0 && packageManagers.length > 0) {
+    const allowedNames = packageManagers.map(pm => pm.name).join(', ')
+    const msg = `This project is configured to use ${allowedNames}, but you are using pnpm`
+    if (config.packageManagerStrict) {
+      throw new PnpmError('OTHER_PM_EXPECTED', msg, {
+        hint: `Switch to one of the allowed package managers: ${allowedNames}`,
+      })
+    }
+    globalWarn(msg)
+    return
+  }
+
+  if (pnpmEntries.length > 0) {
+    const currentPnpmVersion = packageManager.name === 'pnpm'
+      ? packageManager.version
+      : undefined
+
+    if (!currentPnpmVersion) return
+
+    // Check if current version satisfies any of the package managers entries
+    const satisfiesAny = pnpmEntries.some(entry => {
+      if (!entry.version) return true // No version requirement
+      if (semver.validRange(entry.version)) {
+        return semver.satisfies(currentPnpmVersion, entry.version)
+      }
+      return currentPnpmVersion === entry.version
+    })
+
+    if (!satisfiesAny && config.packageManagerStrictVersion) {
+      const versionRequirements = pnpmEntries
+        .map(entry => entry.version ?? '*')
+        .join(' or ')
+      const msg = `This project requires pnpm@${versionRequirements} but you have v${currentPnpmVersion}`
+
+      if (config.packageManagerStrict) {
+        throw new PnpmError('BAD_PM_VERSION', msg, {
+          hint: 'Specified in "devEngines.packageManager". Either install a compatible version or set "package-manager-strict" to false.',
         })
       } else {
         globalWarn(msg)

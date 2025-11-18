@@ -1,0 +1,16 @@
+{
+  "devEngines": {
+    "packageManager": [
+      {
+        "name": "npm",
+        "version": "^10.0.0",
+        "onFail": "download"
+      },
+      {
+        "name": "yarn",
+        "version": "^4.0.0",
+        "onFail": "download"
+      }
+    ]
+  }
+}

@@ -9,6 +9,7 @@ import { getSpecFromPackageManifest } from './getSpecFromPackageManifest.js'
 export * from './convertEnginesRuntimeToDependencies.js'
 export * from './updateProjectManifestObject.js'
 export * from './getDependencyTypeFromManifest.js'
+export * from './validatePackageManagerConsistency.js'
 
 export { getSpecFromPackageManifest, getAllUniqueSpecs }
 

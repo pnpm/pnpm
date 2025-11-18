@@ -179,7 +179,7 @@ function copyDependencySubGraph (
     if (!ctx.originalPackages[depPath]) {
       // local dependencies don't need to be resolved in pnpm-lock.yaml
       // except local tarball dependencies
-      if (depPath.startsWith('link:') || depPath.startsWith('file:') && !depPath.endsWith('.tar.gz')) continue
+      if (depPath.startsWith('link:') || depPath.startsWith('file:') && !depPath.endsWith('.tar.gz') || depPath.includes('@packageManager:')) continue
 
       ctx.warn(`Cannot find resolution of ${depPath} in lockfile`)
       continue

@@ -1147,6 +1147,9 @@ function referenceSatisfiesWantedSpec (
 ) {
   const depPath = dp.refToRelative(preferredRef, wantedDep.alias)
   if (depPath === null) return false
+  if (depPath.includes('@packageManager:')) {
+    return false
+  }
   const pkgSnapshot = opts.lockfile.packages?.[depPath]
   if (pkgSnapshot == null) {
     logger.warn({

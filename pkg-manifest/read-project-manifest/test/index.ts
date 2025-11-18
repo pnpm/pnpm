@@ -349,3 +349,231 @@ test('canceling changes to a manifest', async () => {
   await writeProjectManifest({ name: 'foo' })
   expect(fs.readFileSync('package.json', 'utf8')).toBe(JSON.stringify({ name: 'foo' }))
 })
+
+test('readProjectManifest() converts devEngines packageManager to devDependencies', async () => {
+  const dir = f.prepare('package-json-with-dev-engines-packagemanager')
+  const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
+  expect(manifest).toStrictEqual(
+    {
+      devDependencies: {
+        npm: 'packageManager:10.2.3',
+      },
+      devEngines: {
+        packageManager: {
+          name: 'npm',
+          version: '10.2.3',
+          onFail: 'download',
+        },
+      },
+    }
+  )
+  await writeProjectManifest(manifest!)
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+  // devDependencies should NOT be written to package.json (saved to lockfile instead)
+  expect(pkgJson).toStrictEqual({
+    devDependencies: {},
+    devEngines: {
+      packageManager: {
+        name: 'npm',
+        version: '10.2.3',
+        onFail: 'download',
+      },
+    },
+  })
+})
+
+test('readProjectManifest() converts multiple packageManagers (array form)', async () => {
+  const dir = f.prepare('package-json-with-dev-engines-multiple-packagemanagers')
+  const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
+  expect(manifest).toStrictEqual(
+    {
+      devDependencies: {
+        npm: 'packageManager:^10.0.0',
+        yarn: 'packageManager:^4.0.0',
+      },
+      devEngines: {
+        packageManager: [
+          {
+            name: 'npm',
+            version: '^10.0.0',
+            onFail: 'download',
+          },
+          {
+            name: 'yarn',
+            version: '^4.0.0',
+            onFail: 'download',
+          },
+        ],
+      },
+    }
+  )
+  await writeProjectManifest(manifest!)
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+  // devDependencies should NOT be written to package.json (saved to lockfile instead)
+  expect(pkgJson).toStrictEqual({
+    devDependencies: {},
+    devEngines: {
+      packageManager: [
+        {
+          name: 'npm',
+          version: '^10.0.0',
+          onFail: 'download',
+        },
+        {
+          name: 'yarn',
+          version: '^4.0.0',
+          onFail: 'download',
+        },
+      ],
+    },
+  })
+})
+
+test('readProjectManifest() uses packageManager field version when both fields exist', async () => {
+  const dir = f.prepare('package-json-with-packagemanager-and-devengines')
+  const { manifest } = await tryReadProjectManifest(dir)
+
+  // packageManager field (9.5.0) should take precedence over devEngines (^9.0.0)
+  expect(manifest).toStrictEqual(
+    {
+      packageManager: 'pnpm@9.5.0',
+      devDependencies: {
+        pnpm: 'packageManager:9.5.0', // Uses packageManager version, not devEngines version
+      },
+      devEngines: {
+        packageManager: {
+          name: 'pnpm',
+          version: '^9.0.0',
+          onFail: 'download',
+        },
+      },
+    }
+  )
+})
+
+test('readProjectManifest() throws error when packageManager and devEngines names mismatch', async () => {
+  const dir = f.prepare('package-json-with-packagemanager-mismatch')
+
+  let err!: Error & { code: string }
+  try {
+    await tryReadProjectManifest(dir)
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_PACKAGE_MANAGER_CONFLICT')
+  expect(err.message).toContain('does not match')
+  expect(err.message).toContain('yarn@4.0.0')
+  expect(err.message).toContain('pnpm')
+})
+
+test.each([
+  {
+    name: 'creates devEngines.packageManager when it is missing',
+    manifest: {
+      devDependencies: {
+        npm: 'packageManager:10.2.3',
+      },
+    },
+    expected: {
+      packageManager: {
+        name: 'npm',
+        version: '10.2.3',
+        onFail: 'download',
+      },
+    },
+  },
+  {
+    name: 'updates devEngines.packageManager when it is a single npm entry',
+    manifest: {
+      devEngines: {
+        packageManager: {
+          name: 'npm',
+          version: '9.0.0',
+        },
+      },
+      devDependencies: {
+        npm: 'packageManager:10.2.3',
+      },
+    },
+    expected: {
+      packageManager: {
+        name: 'npm',
+        version: '10.2.3',
+        onFail: 'download',
+      },
+    },
+  },
+  {
+    name: 'converts devEngines.packageManager to an array when it is a single non-npm entry',
+    manifest: {
+      devEngines: {
+        packageManager: {
+          name: 'yarn',
+          version: '4.0.0',
+        },
+      },
+      devDependencies: {
+        npm: 'packageManager:10.2.3',
+      },
+    },
+    expected: {
+      packageManager: [
+        {
+          name: 'yarn',
+          version: '4.0.0',
+        },
+        {
+          name: 'npm',
+          version: '10.2.3',
+          onFail: 'download',
+        },
+      ],
+    },
+  },
+  {
+    name: 'updates devEngines.packageManager when it is an array',
+    manifest: {
+      devEngines: {
+        packageManager: [
+          {
+            name: 'yarn',
+            version: '4.0.0',
+          },
+          {
+            name: 'npm',
+            version: '9.0.0',
+            onFail: 'download',
+          },
+        ],
+      },
+      devDependencies: {
+        npm: 'packageManager:10.2.3',
+      },
+    },
+    expected: {
+      packageManager: [
+        {
+          name: 'yarn',
+          version: '4.0.0',
+        },
+        {
+          name: 'npm',
+          version: '10.2.3',
+          onFail: 'download',
+        },
+      ],
+    },
+  },
+])('readProjectManifest() converts devDependencies to devEngines.packageManager: $name', async ({ manifest, expected }) => {
+  const dir = f.prepare('package-json')
+
+  const { writeProjectManifest } = await tryReadProjectManifest(dir)
+  await writeProjectManifest(manifest as ProjectManifest)
+
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+
+  expect(pkgJson.devEngines).toStrictEqual(expected)
+  expect(pkgJson.devDependencies).toStrictEqual({})
+})

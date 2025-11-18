@@ -110,6 +110,10 @@ function step (
         result.links.push(depPath)
         continue
       }
+      if (depPath.includes('@packageManager:')) {
+        result.links.push(depPath)
+        continue
+      }
       result.missing.push(depPath)
       continue
     }

@@ -2,7 +2,10 @@ import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { type ProjectManifest, type EngineDependency } from '@pnpm/types'
-import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
+import {
+  convertEnginesRuntimeToDependencies,
+  validateAndWarnPackageManagerConsistency,
+} from '@pnpm/manifest-utils'
 import { extractComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
@@ -223,6 +226,8 @@ function createManifestWriter (
 }
 
 function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
+  validateAndWarnPackageManagerConsistency(manifest)
+
   convertEnginesRuntimeToDependencies(manifest, 'devEngines', 'devDependencies')
   convertEnginesRuntimeToDependencies(manifest, 'engines', 'dependencies')
   return manifest
@@ -263,6 +268,42 @@ function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest
       }
     }
   }
+
+  for (const packageManagerName of ['pnpm', 'npm', 'yarn', 'bun']) {
+    const pmDep = manifest.devDependencies?.[packageManagerName]
+    if (typeof pmDep === 'string' && pmDep.startsWith('packageManager:')) {
+      const version = pmDep.replace(/^packageManager:/, '')
+      manifest.devEngines ??= {}
+
+      const pmEntry: EngineDependency = {
+        name: packageManagerName,
+        version,
+        onFail: 'download',
+      }
+
+      if (!manifest.devEngines.packageManager) {
+        manifest.devEngines.packageManager = pmEntry
+      } else if (Array.isArray(manifest.devEngines.packageManager)) {
+        const existing = manifest.devEngines.packageManager.find(({ name }) => name === packageManagerName)
+        if (existing) {
+          Object.assign(existing, pmEntry)
+        } else {
+          manifest.devEngines.packageManager.push(pmEntry)
+        }
+      } else if (manifest.devEngines.packageManager.name === packageManagerName) {
+        Object.assign(manifest.devEngines.packageManager, pmEntry)
+      } else {
+        manifest.devEngines.packageManager = [
+          manifest.devEngines.packageManager,
+          pmEntry,
+        ]
+      }
+      if (manifest.devDependencies) {
+        delete manifest.devDependencies[packageManagerName]
+      }
+    }
+  }
+
   return manifest
 }
 

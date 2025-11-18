@@ -1,0 +1,10 @@
+{
+  "packageManager": "pnpm@9.5.0",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^9.0.0",
+      "onFail": "download"
+    }
+  }
+}
