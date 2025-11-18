@@ -192,7 +192,7 @@
       "express@<4.20.0": "^4.20.0",
       "follow-redirects@<=1.15.5": ">=1.15.6",
       "glob-parent@<5.1.2": ">=5.1.2",
-      "glob@>=10.3.7 <=11.0.3": ">=11.1.0",
+      "glob@>=10.3.7 <=11.0.3": "^11.1.0",
       "hosted-git-info@1": "npm:@pnpm/hosted-git-info@1.0.0",
       "http-proxy-middleware@<2.0.7": "^2.0.7",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
