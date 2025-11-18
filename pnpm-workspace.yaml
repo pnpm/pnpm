@@ -134,7 +134,7 @@ catalog:
   '@yarnpkg/extensions': 2.0.3
   '@yarnpkg/lockfile': ^1.1.0
   '@yarnpkg/nm': 4.0.5
-  '@yarnpkg/parsers': 3.0.0
+  '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': 4.0.8
   '@zkochan/cmd-shim': ^7.0.0
   '@zkochan/diable': ^1.0.2
@@ -359,6 +359,7 @@ overrides:
   hosted-git-info@1: 'catalog:'
   http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
+  js-yaml@<3.14.2: '^3.14.2'
   js-yaml@^4.0.0: 'catalog:'
   json5@<2.2.2: 'catalog:'
   jsonwebtoken@<=8.5.1: '>=9.0.0'
