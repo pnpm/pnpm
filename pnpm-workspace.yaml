@@ -338,6 +338,7 @@ minimumReleaseAgeExclude:
   - '@pnpm/*'
   - parse-npm-tarball-url@4.0.0
   - publish-packed@5.0.0
+  - glob@>=11.1.0
 
 nodeVersion: 20.19.4
 
@@ -359,9 +360,11 @@ overrides:
   express@<4.20.0: ^4.20.0
   follow-redirects@<=1.15.5: '>=1.15.6'
   glob-parent@<5.1.2: '>=5.1.2'
+  glob@>=10.3.7 <=11.0.3: '>=11.1.0'
   hosted-git-info@1: 'catalog:'
   http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
+  js-yaml@<3.14.2: '>=3.14.2'
   js-yaml@^4.0.0: 'catalog:'
   json5@<2.2.2: 'catalog:'
   jsonwebtoken@<=8.5.1: '>=9.0.0'
