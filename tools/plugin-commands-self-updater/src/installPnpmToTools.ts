@@ -57,9 +57,8 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
     // This is important when the user has configured a custom registry (e.g., a mirror)
     // in their .npmrc file, as the temporary directory is outside the project and won't
     // automatically pick up the project's .npmrc configuration.
-    const registry = opts.registries?.default || opts.rawConfig?.registry
-    if (registry) {
-      command.push(`--config.registry=${registry}`)
+    if (opts.registries?.default) {
+      command.push(`--config.registry=${opts.registries.default}`)
     }
     runPnpmCli(command, { cwd: stage })
     // We need the operation of installing pnpm to be atomic.
