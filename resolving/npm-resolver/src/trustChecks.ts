@@ -1,4 +1,5 @@
 import { PnpmError } from '@pnpm/error'
+import semver from 'semver'
 import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
 import { type PackageVersionPolicy } from '@pnpm/types'
 
@@ -41,7 +42,7 @@ export function failIfTrustDowngraded (
     )
   }
 
-  const strongestEvidencePriorToRequestedVersion = detectStrongestTrustEvidenceBeforeDate(meta, versionDate)
+  const strongestEvidencePriorToRequestedVersion = detectStrongestTrustEvidenceBeforeDate(meta, versionDate, version)
   if (strongestEvidencePriorToRequestedVersion == null) {
     return
   }
@@ -70,7 +71,8 @@ function prettyPrintTrustEvidence (trustEvidence: TrustEvidence | undefined): st
 
 function detectStrongestTrustEvidenceBeforeDate (
   meta: PackageMetaWithTime,
-  beforeDate: Date
+  beforeDate: Date,
+  currentVersion: string
 ): TrustEvidence | undefined {
   let best: TrustEvidence | undefined
 
@@ -80,6 +82,8 @@ function detectStrongestTrustEvidenceBeforeDate (
 
     const publishedAt = new Date(ts)
     if (!(publishedAt < beforeDate)) continue
+    const majorDiff = semver.diff(version, currentVersion)
+    if (majorDiff === 'major') continue
 
     const trustEvidence = getTrustEvidence(manifest)
     if (!trustEvidence) continue
