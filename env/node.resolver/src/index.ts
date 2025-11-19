@@ -59,7 +59,7 @@ export async function resolveNodeRuntime (
 }
 
 async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<PlatformAssetResolution[]> {
-  const integritiesFileUrl = `${nodeMirrorBaseUrl}/v${version}/SHASUMS256.txt`
+  const integritiesFileUrl = `${nodeMirrorBaseUrl}v${version}/SHASUMS256.txt`
   const shasumsFileItems = await fetchShasumsFile(fetch, integritiesFileUrl)
   const escaped = version.replace(/\\/g, '\\\\').replace(/\./g, '\\.')
   const pattern = new RegExp(`^node-v${escaped}-([^-.]+)-([^.]+)\\.(?:tar\\.gz|zip)$`)
