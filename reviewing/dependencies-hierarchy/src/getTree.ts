@@ -142,10 +142,10 @@ function getTreeHelper (
     })
     let circular: boolean
     const matchedSearched = opts.search?.({
+      alias,
       name: packageInfo.name,
       version: packageInfo.version,
       readManifest,
-      alias,
     })
     let newEntry: PackageNode | null = null
     const nodeId = getTreeNodeChildId({

@@ -37,9 +37,9 @@ test('package searcher with 2 finders', () => {
 
 function mockContext (manifest: DependencyManifest) {
   return {
+    alias: manifest.name,
     name: manifest.name,
     version: manifest.version,
-    alias: manifest.name,
     readManifest: () => manifest,
   }
 }
