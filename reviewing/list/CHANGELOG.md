@@ -1,5 +1,22 @@
 # @pnpm/list
 
+## 1000.2.0
+
+### Minor Changes
+
+- 24dc871: Added `--lockfile-only` option to `pnpm list` [#10020](https://github.com/pnpm/pnpm/issues/10020).
+
+### Patch Changes
+
+- c206765: `pnpm list` and `pnpm why` now display npm: protocol for aliased packages (e.g., `foo npm:is-odd@3.0.1`) [#8660](https://github.com/pnpm/pnpm/issues/8660).
+- Updated dependencies [2fc23e4]
+- Updated dependencies [24dc871]
+- Updated dependencies [c206765]
+  - @pnpm/read-project-manifest@1001.2.1
+  - @pnpm/reviewing.dependencies-hierarchy@1001.2.0
+  - @pnpm/types@1001.0.1
+  - @pnpm/read-package-json@1000.1.4
+
 ## 1000.1.5
 
 ### Patch Changes

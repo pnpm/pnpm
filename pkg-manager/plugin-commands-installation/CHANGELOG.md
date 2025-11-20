@@ -1,5 +1,41 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.8.1
+
+### Patch Changes
+
+- Updated dependencies [2fc23e4]
+- Updated dependencies [c206765]
+- Updated dependencies [32dae02]
+  - @pnpm/read-project-manifest@1001.2.1
+  - @pnpm/types@1001.0.1
+  - @pnpm/package-store@1004.0.3
+  - @pnpm/cli-utils@1001.2.11
+  - @pnpm/config@1004.6.1
+  - @pnpm/config.config-writer@1000.0.17
+  - @pnpm/core@1012.2.1
+  - @pnpm/config.deps-installer@1000.0.22
+  - @pnpm/pick-registry-for-package@1000.0.13
+  - @pnpm/dedupe.check@1001.0.16
+  - @pnpm/deps.status@1003.0.18
+  - @pnpm/plugin-commands-env@1000.0.47
+  - @pnpm/plugin-commands-rebuild@1004.0.4
+  - @pnpm/pnpmfile@1002.1.6
+  - @pnpm/lockfile.types@1002.0.5
+  - @pnpm/get-context@1001.1.11
+  - @pnpm/manifest-utils@1002.0.1
+  - @pnpm/read-package-json@1000.1.4
+  - @pnpm/write-project-manifest@1000.0.13
+  - @pnpm/resolver-base@1005.3.1
+  - @pnpm/outdated@1001.1.4
+  - @pnpm/filter-workspace-packages@1000.0.46
+  - @pnpm/workspace.find-packages@1000.0.46
+  - @pnpm/workspace.manifest-writer@1001.0.6
+  - @pnpm/workspace.pkgs-graph@1000.0.28
+  - @pnpm/sort-packages@1000.0.13
+  - @pnpm/workspace.state@1002.0.10
+  - @pnpm/store-connection-manager@1002.3.2
+
 ## 1004.8.0
 
 ### Minor Changes

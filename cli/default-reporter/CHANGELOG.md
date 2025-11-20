@@ -1,5 +1,16 @@
 # @pnpm/default-reporter
 
+## 1002.0.14
+
+### Patch Changes
+
+- Updated dependencies [c206765]
+  - @pnpm/types@1001.0.1
+  - @pnpm/config@1004.6.1
+  - @pnpm/cli-meta@1000.0.13
+  - @pnpm/core-loggers@1001.0.6
+  - @pnpm/render-peer-issues@1002.0.7
+
 ## 1002.0.13
 
 ### Patch Changes

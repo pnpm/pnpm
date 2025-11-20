@@ -1,5 +1,15 @@
 # @pnpm/node.resolver
 
+## 1001.0.8
+
+### Patch Changes
+
+- f442897: Don't add an extra slash to the Node.js mirror URL [#10204](https://github.com/pnpm/pnpm/pull/10204).
+- Updated dependencies [c206765]
+  - @pnpm/types@1001.0.1
+  - @pnpm/config@1004.6.1
+  - @pnpm/resolver-base@1005.3.1
+
 ## 1001.0.7
 
 ### Patch Changes

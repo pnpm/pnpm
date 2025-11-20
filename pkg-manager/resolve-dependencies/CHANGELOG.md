@@ -1,5 +1,28 @@
 # @pnpm/resolve-dependencies
 
+## 1008.5.1
+
+### Patch Changes
+
+- 43c56d9: The installation should fail if an optional dependency cannot be installed due to a trust policy check failure [#10208](https://github.com/pnpm/pnpm/issues/10208).
+- Updated dependencies [c206765]
+  - @pnpm/types@1001.0.1
+  - @pnpm/config.version-policy@1000.0.2
+  - @pnpm/lockfile.preferred-versions@1000.0.25
+  - @pnpm/lockfile.pruner@1001.0.20
+  - @pnpm/lockfile.types@1002.0.5
+  - @pnpm/lockfile.utils@1003.0.6
+  - @pnpm/calc-dep-state@1002.0.11
+  - @pnpm/core-loggers@1001.0.6
+  - @pnpm/dependency-path@1001.1.5
+  - @pnpm/manifest-utils@1002.0.1
+  - @pnpm/read-package-json@1000.1.4
+  - @pnpm/npm-resolver@1004.6.1
+  - @pnpm/resolver-base@1005.3.1
+  - @pnpm/store-controller-types@1004.3.1
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/patching.config@1001.0.13
+
 ## 1008.5.0
 
 ### Minor Changes

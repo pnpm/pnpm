@@ -1,5 +1,50 @@
 # @pnpm/core
 
+## 1012.2.1
+
+### Patch Changes
+
+- Updated dependencies [2fc23e4]
+- Updated dependencies [43c56d9]
+- Updated dependencies [c206765]
+  - @pnpm/read-project-manifest@1001.2.1
+  - @pnpm/resolve-dependencies@1008.5.1
+  - @pnpm/types@1001.0.1
+  - @pnpm/headless@1006.0.3
+  - @pnpm/link-bins@1000.3.1
+  - @pnpm/builder.policy@1000.0.2
+  - @pnpm/normalize-registries@1000.1.6
+  - @pnpm/build-modules@1003.0.2
+  - @pnpm/lifecycle@1001.0.28
+  - @pnpm/symlink-dependency@1000.0.14
+  - @pnpm/hooks.read-package-hook@1000.0.17
+  - @pnpm/hooks.types@1001.0.15
+  - @pnpm/lockfile.filtering@1001.0.24
+  - @pnpm/lockfile.fs@1001.1.24
+  - @pnpm/lockfile-to-pnp@1001.0.26
+  - @pnpm/lockfile.preferred-versions@1000.0.25
+  - @pnpm/lockfile.pruner@1001.0.20
+  - @pnpm/lockfile.utils@1003.0.6
+  - @pnpm/lockfile.verification@1001.2.12
+  - @pnpm/lockfile.walker@1001.0.19
+  - @pnpm/calc-dep-state@1002.0.11
+  - @pnpm/core-loggers@1001.0.6
+  - @pnpm/dependency-path@1001.1.5
+  - @pnpm/get-context@1001.1.11
+  - @pnpm/hoist@1002.0.10
+  - @pnpm/modules-cleaner@1001.0.26
+  - @pnpm/modules-yaml@1000.3.8
+  - @pnpm/package-requester@1008.2.1
+  - @pnpm/remove-bins@1000.0.17
+  - @pnpm/manifest-utils@1002.0.1
+  - @pnpm/resolver-base@1005.3.1
+  - @pnpm/store-controller-types@1004.3.1
+  - @pnpm/worker@1000.3.3
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/lockfile.settings-checker@1001.0.19
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.14
+  - @pnpm/patching.config@1001.0.13
+
 ## 1012.2.0
 
 ### Minor Changes

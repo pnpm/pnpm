@@ -1,5 +1,19 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.34
+
+### Patch Changes
+
+- 2194432: `pnpm self-update` should download pnpm from the configured npm registry [#10205](https://github.com/pnpm/pnpm/pull/10205).
+- e75aaed: `pnpm self-update` should always install the non-executable pnpm package (pnpm in the registry) and never the `@pnpm/exe` package, when installing v11 or newer. We currently cannot ship `@pnpm/exe` as `pkg` doesn't work with ESM [#10190](https://github.com/pnpm/pnpm/pull/10190).
+- Updated dependencies [2fc23e4]
+  - @pnpm/read-project-manifest@1001.2.1
+  - @pnpm/cli-utils@1001.2.11
+  - @pnpm/config@1004.6.1
+  - @pnpm/link-bins@1000.3.1
+  - @pnpm/cli-meta@1000.0.13
+  - @pnpm/client@1001.1.7
+
 ## 1000.1.33
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 1001.0.1
+
+### Patch Changes
+
+- c206765: `pnpm list` and `pnpm why` now display npm: protocol for aliased packages (e.g., `foo npm:is-odd@3.0.1`) [#8660](https://github.com/pnpm/pnpm/issues/8660).
+
 ## 1001.0.0
 
 ### Major Changes

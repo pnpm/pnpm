@@ -1,5 +1,21 @@
 # pnpm
 
+## 10.23.0
+
+### Minor Changes
+
+- Added `--lockfile-only` option to `pnpm list` [#10020](https://github.com/pnpm/pnpm/issues/10020).
+
+### Patch Changes
+
+- `pnpm self-update` should download pnpm from the configured npm registry [#10205](https://github.com/pnpm/pnpm/pull/10205).
+- `pnpm self-update` should always install the non-executable pnpm package (pnpm in the registry) and never the `@pnpm/exe` package, when installing v11 or newer. We currently cannot ship `@pnpm/exe` as `pkg` doesn't work with ESM [#10190](https://github.com/pnpm/pnpm/pull/10190).
+- Node.js runtime is not added to "dependencies" on `pnpm add`, if there's a `engines.runtime` setting declared in `package.json` [#10209](https://github.com/pnpm/pnpm/issues/10209).
+- The installation should fail if an optional dependency cannot be installed due to a trust policy check failure [#10208](https://github.com/pnpm/pnpm/issues/10208).
+- `pnpm list` and `pnpm why` now display npm: protocol for aliased packages (e.g., `foo npm:is-odd@3.0.1`) [#8660](https://github.com/pnpm/pnpm/issues/8660).
+- Don't add an extra slash to the Node.js mirror URL [#10204](https://github.com/pnpm/pnpm/pull/10204).
+- `pnpm store prune` should not fail if the store contains Node.js packages [#10131](https://github.com/pnpm/pnpm/issues/10131).
+
 ## 10.22.0
 
 ### Minor Changes

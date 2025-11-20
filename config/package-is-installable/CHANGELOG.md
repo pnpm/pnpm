@@ -1,5 +1,15 @@
 # @pnpm/package-is-installable
 
+## 1000.0.17
+
+### Patch Changes
+
+- Updated dependencies [c206765]
+  - @pnpm/types@1001.0.1
+  - @pnpm/cli-meta@1000.0.13
+  - @pnpm/core-loggers@1001.0.6
+  - @pnpm/env.system-node-version@1000.0.13
+
 ## 1000.0.16
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/merge-lockfile-changes
 
+## 1001.0.15
+
+### Patch Changes
+
+- Updated dependencies [c206765]
+  - @pnpm/types@1001.0.1
+  - @pnpm/lockfile.types@1002.0.5
+
 ## 1001.0.14
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "1000.0.47",
+  "version": "1000.0.48",
   "description": "Commands for controlling the store",
   "keywords": [
     "pnpm",

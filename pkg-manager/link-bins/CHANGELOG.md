@@ -1,5 +1,17 @@
 # @pnpm/link-bins
 
+## 1000.3.1
+
+### Patch Changes
+
+- Updated dependencies [2fc23e4]
+- Updated dependencies [c206765]
+  - @pnpm/read-project-manifest@1001.2.1
+  - @pnpm/types@1001.0.1
+  - @pnpm/package-bins@1000.0.13
+  - @pnpm/manifest-utils@1002.0.1
+  - @pnpm/read-package-json@1000.1.4
+
 ## 1000.3.0
 
 ### Minor Changes

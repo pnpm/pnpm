@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.1.2
+
+### Patch Changes
+
+- Updated dependencies [2fc23e4]
+- Updated dependencies [c206765]
+  - @pnpm/read-project-manifest@1001.2.1
+  - @pnpm/types@1001.0.1
+  - @pnpm/cli-utils@1001.2.11
+  - @pnpm/config@1004.6.1
+  - @pnpm/plugin-commands-installation@1004.8.1
+  - @pnpm/deps.status@1003.0.18
+  - @pnpm/plugin-commands-env@1000.0.47
+  - @pnpm/lifecycle@1001.0.28
+  - @pnpm/core-loggers@1001.0.6
+  - @pnpm/client@1001.1.7
+  - @pnpm/package-bins@1000.0.13
+  - @pnpm/read-package-json@1000.1.4
+  - @pnpm/workspace.injected-deps-syncer@1000.0.20
+  - @pnpm/sort-packages@1000.0.13
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1001.1.1
 
 ### Patch Changes

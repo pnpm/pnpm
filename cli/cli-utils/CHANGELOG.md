@@ -1,5 +1,22 @@
 # @pnpm/cli-utils
 
+## 1001.2.11
+
+### Patch Changes
+
+- Updated dependencies [2fc23e4]
+- Updated dependencies [c206765]
+  - @pnpm/read-project-manifest@1001.2.1
+  - @pnpm/types@1001.0.1
+  - @pnpm/config@1004.6.1
+  - @pnpm/cli-meta@1000.0.13
+  - @pnpm/default-reporter@1002.0.14
+  - @pnpm/config.deps-installer@1000.0.22
+  - @pnpm/package-is-installable@1000.0.17
+  - @pnpm/pnpmfile@1002.1.6
+  - @pnpm/manifest-utils@1002.0.1
+  - @pnpm/store-connection-manager@1002.3.2
+
 ## 1001.2.10
 
 ### Patch Changes

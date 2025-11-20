@@ -1,5 +1,20 @@
 # @pnpm/package-store
 
+## 1004.0.3
+
+### Patch Changes
+
+- 32dae02: `pnpm store prune` should not fail if the store contains Node.js packages [#10131](https://github.com/pnpm/pnpm/issues/10131).
+- Updated dependencies [c206765]
+  - @pnpm/types@1001.0.1
+  - @pnpm/fetcher-base@1001.0.5
+  - @pnpm/package-requester@1008.2.1
+  - @pnpm/resolver-base@1005.3.1
+  - @pnpm/store.cafs@1000.0.22
+  - @pnpm/store-controller-types@1004.3.1
+  - @pnpm/worker@1000.3.3
+  - @pnpm/create-cafs-store@1000.0.23
+
 ## 1004.0.2
 
 ### Patch Changes

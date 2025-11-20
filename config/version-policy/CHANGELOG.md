@@ -1,5 +1,12 @@
 # @pnpm/config.version-policy
 
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [c206765]
+  - @pnpm/types@1001.0.1
+
 ## 1000.0.1
 
 ### Patch Changes

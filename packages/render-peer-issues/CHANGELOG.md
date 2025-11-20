@@ -1,5 +1,12 @@
 # @pnpm/render-peer-issues
 
+## 1002.0.7
+
+### Patch Changes
+
+- Updated dependencies [c206765]
+  - @pnpm/types@1001.0.1
+
 ## 1002.0.6
 
 ### Patch Changes

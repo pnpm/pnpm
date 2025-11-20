@@ -1,5 +1,12 @@
 # @pnpm/fetching.binary-fetcher
 
+## 1002.0.3
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1001.0.5
+- @pnpm/worker@1000.3.3
+
 ## 1002.0.2
 
 ### Patch Changes

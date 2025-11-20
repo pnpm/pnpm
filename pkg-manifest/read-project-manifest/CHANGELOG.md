@@ -1,5 +1,15 @@
 # @pnpm/read-project-manifest
 
+## 1001.2.1
+
+### Patch Changes
+
+- 2fc23e4: Node.js runtime is not added to "dependencies" on `pnpm add`, if there's a `engines.runtime` setting declared in `package.json` [#10209](https://github.com/pnpm/pnpm/issues/10209).
+- Updated dependencies [c206765]
+  - @pnpm/types@1001.0.1
+  - @pnpm/manifest-utils@1002.0.1
+  - @pnpm/write-project-manifest@1000.0.13
+
 ## 1001.2.0
 
 ### Minor Changes

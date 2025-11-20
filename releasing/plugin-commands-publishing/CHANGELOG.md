@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.2.22
+
+### Patch Changes
+
+- Updated dependencies [c206765]
+  - @pnpm/types@1001.0.1
+  - @pnpm/cli-utils@1001.2.11
+  - @pnpm/config@1004.6.1
+  - @pnpm/exportable-manifest@1000.2.1
+  - @pnpm/pick-registry-for-package@1000.0.13
+  - @pnpm/plugin-commands-env@1000.0.47
+  - @pnpm/lifecycle@1001.0.28
+  - @pnpm/client@1001.1.7
+  - @pnpm/package-bins@1000.0.13
+  - @pnpm/resolver-base@1005.3.1
+  - @pnpm/sort-packages@1000.0.13
+
 ## 1000.2.21
 
 ### Patch Changes
