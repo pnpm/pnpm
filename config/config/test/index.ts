@@ -981,6 +981,38 @@ test('getConfig() should read cafile', async () => {
 -----END CERTIFICATE-----`])
 })
 
+test('getConfig() should read inline SSL certificates from .npmrc', async () => {
+  prepareEmpty()
+
+  // These are written to .npmrc with literal \n strings
+  const inlineCa = '-----BEGIN CERTIFICATE-----\\nMIIFNzCCAx+gAwIBAgIQNB613yRzpKtDztlXiHmOGDANBgkqhkiG9w0BAQsFADAR\\n-----END CERTIFICATE-----'
+  const inlineCert = '-----BEGIN CERTIFICATE-----\\nMIIClientCert\\n-----END CERTIFICATE-----'
+  const inlineKey = '-----BEGIN PRIVATE KEY-----\\nMIIClientKey\\n-----END PRIVATE KEY-----'
+
+  const npmrc = [
+    '//registry.example.com/:ca=' + inlineCa,
+    '//registry.example.com/:cert=' + inlineCert,
+    '//registry.example.com/:key=' + inlineKey,
+  ].join('\n')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  // After processing, \n should be converted to actual newlines
+  expect(config.sslConfigs).toBeDefined()
+  expect(config.sslConfigs['//registry.example.com/']).toStrictEqual({
+    ca: inlineCa.replace(/\\n/g, '\n'),
+    cert: inlineCert.replace(/\\n/g, '\n'),
+    key: inlineKey.replace(/\\n/g, '\n'),
+  })
+})
+
 test('respect mergeGitBranchLockfilesBranchPattern', async () => {
   {
     prepareEmpty()
