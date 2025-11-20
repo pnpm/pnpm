@@ -1,5 +1,4 @@
 import { PnpmError } from '@pnpm/error'
-import semver from 'semver'
 import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
 import { type PackageVersionPolicy } from '@pnpm/types'
 
@@ -42,7 +41,7 @@ export function failIfTrustDowngraded (
     )
   }
 
-  const strongestEvidencePriorToRequestedVersion = detectStrongestTrustEvidenceBeforeDate(meta, versionDate, version)
+  const { strongestTrustEvidence: strongestEvidencePriorToRequestedVersion, strongestTrustEvidenceVersion } = detectStrongestTrustEvidenceBeforeDate(meta, versionDate)
   if (strongestEvidencePriorToRequestedVersion == null) {
     return
   }
@@ -53,7 +52,7 @@ export function failIfTrustDowngraded (
       'TRUST_DOWNGRADE',
       `High-risk trust downgrade for "${meta.name}@${version}" (possible package takeover)`,
       {
-        hint: `Earlier versions had ${prettyPrintTrustEvidence(strongestEvidencePriorToRequestedVersion)}, ` +
+        hint: `Earlier released version(${strongestTrustEvidenceVersion}) had ${prettyPrintTrustEvidence(strongestEvidencePriorToRequestedVersion)}, ` +
           `but this version has ${prettyPrintTrustEvidence(currentTrustEvidence)}. ` +
           'A trust downgrade may indicate a supply chain incident.',
       }
@@ -71,10 +70,10 @@ function prettyPrintTrustEvidence (trustEvidence: TrustEvidence | undefined): st
 
 function detectStrongestTrustEvidenceBeforeDate (
   meta: PackageMetaWithTime,
-  beforeDate: Date,
-  currentVersion: string
-): TrustEvidence | undefined {
-  let best: TrustEvidence | undefined
+  beforeDate: Date
+): { strongestTrustEvidence: TrustEvidence | undefined, strongestTrustEvidenceVersion: string | undefined } {
+  let strongestTrustEvidence: TrustEvidence | undefined
+  let strongestTrustEvidenceVersion: string | undefined
 
   for (const [version, manifest] of Object.entries(meta.versions)) {
     const ts = meta.time[version]
@@ -82,19 +81,24 @@ function detectStrongestTrustEvidenceBeforeDate (
 
     const publishedAt = new Date(ts)
     if (!(publishedAt < beforeDate)) continue
-    const majorDiff = semver.diff(version, currentVersion)
-    if (majorDiff === 'major') continue
 
     const trustEvidence = getTrustEvidence(manifest)
     if (!trustEvidence) continue
 
     if (trustEvidence === 'trustedPublisher') {
-      return 'trustedPublisher'
+      strongestTrustEvidenceVersion = version
+      strongestTrustEvidence = 'trustedPublisher'
+      break
+    } else {
+      strongestTrustEvidence ||= 'provenance'
+      strongestTrustEvidenceVersion ||= version
     }
-    best ||= 'provenance'
   }
 
-  return best
+  return {
+    strongestTrustEvidence,
+    strongestTrustEvidenceVersion,
+  }
 }
 
 export function getTrustEvidence (manifest: PackageInRegistry): TrustEvidence | undefined {
