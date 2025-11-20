@@ -63,6 +63,37 @@ test('readProjectManifest() converts devEngines runtime to devDependencies', asy
   })
 })
 
+test('readProjectManifest() converts engines runtime to dependencies', async () => {
+  const dir = f.prepare('package-json-with-engines')
+  const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
+  expect(manifest).toStrictEqual(
+    {
+      dependencies: {
+        node: 'runtime:24',
+      },
+      engines: {
+        runtime: {
+          name: 'node',
+          version: '24',
+          onFail: 'download',
+        },
+      },
+    }
+  )
+  await writeProjectManifest(manifest!)
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+  expect(pkgJson).toStrictEqual({
+    dependencies: {},
+    engines: {
+      runtime: {
+        name: 'node',
+        version: '24',
+        onFail: 'download',
+      },
+    },
+  })
+})
+
 test.each([
   {
     name: 'creates devEngines when it is missing',
