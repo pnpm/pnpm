@@ -171,6 +171,7 @@ async function dependenciesHierarchyForPackage (
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.({
+        alias,
         name: packageInfo.name,
         version: packageInfo.version,
         readManifest,
@@ -231,6 +232,7 @@ async function dependenciesHierarchyForPackage (
         version,
       }
       const matchedSearched = opts.search?.({
+        alias: pkg.alias,
         name: pkg.name,
         version: pkg.version,
         readManifest: () => readPackageJsonFromDirSync(pkgPath),

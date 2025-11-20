@@ -16,6 +16,7 @@ export type IncludedDependencies = {
 export type ReadPackageHook = <Pkg extends BaseManifest> (pkg: Pkg, dir?: string) => Pkg | Promise<Pkg>
 
 export interface FinderContext {
+  alias: string
   name: string
   version: string
   readManifest: () => DependencyManifest
