@@ -41,7 +41,7 @@ jobs:
     - name: Install pnpm
       uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
       with:
-        standalone: true
+        standalone: false
     - name: Setup Node
       run: pnpm env use -g ${{ join(matrix.node, '.') }}
       timeout-minutes: 1
@@ -72,6 +72,6 @@ jobs:
     - name: run tests (branch)
       timeout-minutes: 60
       if: github.ref_name != 'main'
-      run: pnpm run test-branch
+      run: pnpm run test-main
       env:
         PNPM_WORKERS: 3
