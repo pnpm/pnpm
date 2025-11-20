@@ -145,7 +145,18 @@ export async function toArchyTree (
 
 function printLabel (getPkgColor: GetPkgColor, node: PackageNode): string {
   const color = getPkgColor(node)
-  let txt = `${color(node.name)} ${chalk.gray(node.version)}`
+  let txt: string
+  if (node.alias !== node.name) {
+    // When using npm: protocol alias, display as "alias npm:name@version"
+    // Only add npm: prefix if version doesn't already contain @ (to avoid file:, link:, etc.)
+    if (!node.version.includes('@')) {
+      txt = `${color(node.alias)} ${chalk.gray(`npm:${node.name}@${node.version}`)}`
+    } else {
+      txt = `${color(node.alias)} ${chalk.gray(node.version)}`
+    }
+  } else {
+    txt = `${color(node.name)} ${chalk.gray(node.version)}`
+  }
   if (node.isPeer) {
     txt += ' peer'
   }
