@@ -85,8 +85,8 @@ catalogs:
       specifier: 0.0.1
       version: 0.0.1
     '@pnpm/registry-mock':
-      specifier: 5.1.0
-      version: 5.1.0
+      specifier: 5.2.0
+      version: 5.2.0
     '@pnpm/semver-diff':
       specifier: ^1.1.0
       version: 1.1.0
@@ -1006,7 +1006,7 @@ importers:
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1040,7 +1040,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1118,7 +1118,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -1323,7 +1323,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -1832,7 +1832,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/testing.temp-store':
         specifier: workspace:*
         version: link:../../testing/temp-store
@@ -2542,7 +2542,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2831,7 +2831,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2988,7 +2988,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -4794,7 +4794,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5093,7 +5093,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -5372,7 +5372,7 @@ importers:
         version: link:../read-projects-context
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -5735,7 +5735,7 @@ importers:
         version: 'link:'
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5961,7 +5961,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -6589,7 +6589,7 @@ importers:
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -6940,7 +6940,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -7070,7 +7070,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -7813,7 +7813,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -7880,7 +7880,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
@@ -7965,7 +7965,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -8322,7 +8322,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.33
@@ -8582,7 +8582,7 @@ importers:
         version: link:../../store/package-store
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -10522,8 +10522,8 @@ packages:
     resolution: {integrity: sha512-UY5ZFl8jTgWpPMp3qwVt1z455gDLGh4aAna7ufqsJP9qhI6lr9scFpnEamjpA51Y3MJMBtnML8KATmH6RY+NHQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/registry-mock@5.1.0':
-    resolution: {integrity: sha512-XHJmKZG296Nk86WCnmz1hBHcj8Yp8EWNsSz+iY9Ludm5L8S2l0xRYmz8TzyIxpsb5o9q8jahZ781bpW7NAuQFQ==}
+  '@pnpm/registry-mock@5.2.0':
+    resolution: {integrity: sha512-6zAH9cNXB1wh91CvOA92iZytHOebGOFTVt2k3VURhjRtoTuPiyEtpcu/3TdNkZW3ZkCLCwjw/Z1zNK3SvQ+J4w==}
     engines: {node: '>=18.12'}
     hasBin: true
     peerDependencies:
@@ -18208,7 +18208,7 @@ snapshots:
       '@pnpm/store-controller-types': 1003.0.2
       '@reflink/reflink': 0.1.19
       '@zkochan/rimraf': 3.0.2
-      fs-extra: 11.3.1
+      fs-extra: 11.3.2
       make-empty-dir: 3.0.2
       p-limit: 3.1.0
       path-temp: 2.1.0
@@ -18715,11 +18715,11 @@ snapshots:
       read-yaml-file: 2.1.0
       strip-bom: 4.0.0
 
-  '@pnpm/registry-mock@5.1.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))':
+  '@pnpm/registry-mock@5.2.0(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))':
     dependencies:
       anonymous-npm-registry-client: 0.3.2
       execa: 5.1.1
-      fs-extra: 11.3.1
+      fs-extra: 11.3.2
       read-yaml-file: 2.1.0
       rimraf: 3.0.2
       tempy: 1.0.1
@@ -25314,7 +25314,7 @@ snapshots:
     dependencies:
       bluebird: 3.7.2
       duplexer2: 0.1.4
-      fs-extra: 11.3.1
+      fs-extra: 11.3.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       node-int64: 0.4.0
 
