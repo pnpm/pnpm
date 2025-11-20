@@ -110,7 +110,7 @@ export function createPackageRequester (
   } {
   opts = opts || {}
 
-  const networkConcurrency = opts.networkConcurrency ?? Math.min(64, Math.max(calcMaxWorkers() * 4, 16))
+  const networkConcurrency = opts.networkConcurrency ?? Math.min(64, Math.max(calcMaxWorkers() * 3, 16))
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
