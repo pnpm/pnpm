@@ -52,7 +52,7 @@ function createTarballWorkerPool (): WorkerPool {
   return workerPool
 }
 
-function calcMaxWorkers () {
+export function calcMaxWorkers (): number {
   if (process.env.PNPM_MAX_WORKERS) {
     return parseInt(process.env.PNPM_MAX_WORKERS)
   }
