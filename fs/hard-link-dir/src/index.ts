@@ -92,7 +92,7 @@ function linkOrCopy (srcFile: string, destFile: string): void {
   try {
     gfs.linkSync(srcFile, destFile)
   } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EXDEV')) throw err
+    if (!(util.types.isNativeError(err) && 'code' in err && (err.code === 'EXDEV' || err.code === 'ENOENT'))) throw err
     gfs.copyFileSync(srcFile, destFile)
   }
 }
