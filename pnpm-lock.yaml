@@ -70,8 +70,8 @@ catalogs:
       specifier: ^0.3.1
       version: 0.3.1
     '@pnpm/npm-conf':
-      specifier: 3.0.0
-      version: 3.0.0
+      specifier: 3.0.1
+      version: 3.0.1
     '@pnpm/npm-lifecycle':
       specifier: ^1001.0.0
       version: 1001.0.0
@@ -1664,7 +1664,7 @@ importers:
         version: link:../../packages/naming-cases
       '@pnpm/npm-conf':
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 3.0.1
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -10390,6 +10390,10 @@ packages:
     resolution: {integrity: sha512-LdFkv/+4ONkQ9ZyE8ihC2L2RcPjvNcOTQq6pvvvZp8KeDYATCJeJX7gpHZF3Bx1XvUSU35dyF9Q9dS+JShtOFA==}
     engines: {node: '>=12'}
 
+  '@pnpm/npm-conf@3.0.1':
+    resolution: {integrity: sha512-Y3yZmbs0OqZcb2lB6eq7mFEtwvGG0xeMnhQeI+rkAUH0RHkoS69iXAIb2Q+DgsaFEryQH6hrcc+HFPsLzS/yIg==}
+    engines: {node: '>=12'}
+
   '@pnpm/npm-lifecycle@1000.0.4':
     resolution: {integrity: sha512-sN7dG1UV7jZvMgH2C/qtvriq4PsDkJQekuAHWO3DCw4n9Ef5Edv5nNoyg5I288FFzDsEV963HpyVOqB7x94DNw==}
     engines: {node: '>=18.12'}
@@ -18421,6 +18425,12 @@ snapshots:
       abbrev: 1.1.1
 
   '@pnpm/npm-conf@3.0.0':
+    dependencies:
+      '@pnpm/config.env-replace': 1.1.0
+      '@pnpm/network.ca-file': 1.0.2
+      config-chain: 1.1.13
+
+  '@pnpm/npm-conf@3.0.1':
     dependencies:
       '@pnpm/config.env-replace': 1.1.0
       '@pnpm/network.ca-file': 1.0.2
