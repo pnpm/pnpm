@@ -41,7 +41,7 @@ export function failIfTrustDowngraded (
     )
   }
 
-  const { strongestTrustEvidence: strongestEvidencePriorToRequestedVersion, strongestTrustEvidenceVersion } = detectStrongestTrustEvidenceBeforeDate(meta, versionDate)
+  const strongestEvidencePriorToRequestedVersion = detectStrongestTrustEvidenceBeforeDate(meta, versionDate)
   if (strongestEvidencePriorToRequestedVersion == null) {
     return
   }
@@ -52,7 +52,9 @@ export function failIfTrustDowngraded (
       'TRUST_DOWNGRADE',
       `High-risk trust downgrade for "${meta.name}@${version}" (possible package takeover)`,
       {
-        hint: `Earlier released version(${strongestTrustEvidenceVersion}) had ${prettyPrintTrustEvidence(strongestEvidencePriorToRequestedVersion)}, ` +
+        hint: 'Trust checks are based solely on publish date, not semver.' +
+          'A package cannot be installed if any earlier-published version had stronger trust evidence.' +
+          `Earlier versions had ${prettyPrintTrustEvidence(strongestEvidencePriorToRequestedVersion)}, ` +
           `but this version has ${prettyPrintTrustEvidence(currentTrustEvidence)}. ` +
           'A trust downgrade may indicate a supply chain incident.',
       }
@@ -71,9 +73,8 @@ function prettyPrintTrustEvidence (trustEvidence: TrustEvidence | undefined): st
 function detectStrongestTrustEvidenceBeforeDate (
   meta: PackageMetaWithTime,
   beforeDate: Date
-): { strongestTrustEvidence: TrustEvidence | undefined, strongestTrustEvidenceVersion: string | undefined } {
-  let strongestTrustEvidence: TrustEvidence | undefined
-  let strongestTrustEvidenceVersion: string | undefined
+): TrustEvidence | undefined {
+  let best: TrustEvidence | undefined
 
   for (const [version, manifest] of Object.entries(meta.versions)) {
     const ts = meta.time[version]
@@ -86,19 +87,12 @@ function detectStrongestTrustEvidenceBeforeDate (
     if (!trustEvidence) continue
 
     if (trustEvidence === 'trustedPublisher') {
-      strongestTrustEvidenceVersion = version
-      strongestTrustEvidence = 'trustedPublisher'
-      break
-    } else {
-      strongestTrustEvidence ||= 'provenance'
-      strongestTrustEvidenceVersion ||= version
+      return 'trustedPublisher'
     }
+    best ||= 'provenance'
   }
 
-  return {
-    strongestTrustEvidence,
-    strongestTrustEvidenceVersion,
-  }
+  return best
 }
 
 export function getTrustEvidence (manifest: PackageInRegistry): TrustEvidence | undefined {
