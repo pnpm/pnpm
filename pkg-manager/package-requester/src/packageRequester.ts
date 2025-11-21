@@ -1,5 +1,4 @@
 import { createReadStream, promises as fs } from 'fs'
-import os from 'os'
 import path from 'path'
 import {
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
@@ -44,7 +43,7 @@ import {
 } from '@pnpm/store-controller-types'
 import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
-import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
+import { calcMaxWorkers, readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
 import { familySync } from 'detect-libc'
 import PQueue from 'p-queue'
 import pDefer, { type DeferredPromise } from 'p-defer'
@@ -111,10 +110,7 @@ export function createPackageRequester (
   } {
   opts = opts || {}
 
-  // A lower bound of 16 is enforced to prevent performance degradation,
-  // especially in CI environments. Tests with a threshold lower than 16
-  // have shown consistent underperformance.
-  const networkConcurrency = opts.networkConcurrency ?? Math.max(os.availableParallelism?.() ?? os.cpus().length, 16)
+  const networkConcurrency = opts.networkConcurrency ?? Math.min(64, Math.max(calcMaxWorkers() * 3, 16))
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
