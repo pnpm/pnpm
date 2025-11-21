@@ -16,7 +16,7 @@ test.skip('custom adapter: metadata from resolve() is persisted to lockfile', as
   // Adapter that wraps @pnpm.e2e/dep-of-pkg-with-1-dep and adds custom metadata
   const timestampAdapter: Adapter = {
     canResolve: (descriptor) => {
-      return descriptor.name === '@pnpm.e2e/dep-of-pkg-with-1-dep'
+      return wantedDependency.alias === '@pnpm.e2e/dep-of-pkg-with-1-dep'
     },
 
     resolve: async (descriptor, opts) => {
@@ -100,7 +100,7 @@ test.skip('custom adapter: works for fresh resolve() and lockfile resolutions', 
   // Adapter that wraps standard resolution but tracks calls
   const trackingAdapter: Adapter = {
     canResolve: (descriptor) => {
-      return descriptor.name === '@pnpm.e2e/pkg-with-1-dep'
+      return wantedDependency.alias === '@pnpm.e2e/pkg-with-1-dep'
     },
 
     resolve: async (descriptor, _opts) => {
@@ -164,7 +164,7 @@ test.skip('custom adapter: shouldForceResolve=true triggers re-resolution', asyn
 
   const forceResolveAdapter: Adapter = {
     canResolve: (descriptor) => {
-      return descriptor.name === '@pnpm.e2e/foo'
+      return wantedDependency.alias === '@pnpm.e2e/foo'
     },
 
     resolve: async (descriptor, _opts) => {

@@ -108,7 +108,7 @@ export type RequestPackageFunction = (
 export interface RequestPackageOptions {
   alwaysTryWorkspacePackages?: boolean
   adapters?: Array<{
-    canResolve?: (descriptor: { name: string, range: string }) => boolean | Promise<boolean>
+    canResolve?: (wantedDependency: WantedDependency) => boolean | Promise<boolean>
     resolve?: (...args: any[]) => any // eslint-disable-line @typescript-eslint/no-explicit-any
     canFetch?: (...args: any[]) => any // eslint-disable-line @typescript-eslint/no-explicit-any
     fetch?: (...args: any[]) => any // eslint-disable-line @typescript-eslint/no-explicit-any

@@ -1,20 +1,20 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import { jest } from '@jest/globals'
 import { createResolver } from '@pnpm/default-resolver'
-import { type PackageDescriptor, type Adapter } from '@pnpm/hooks.types'
+import { type WantedDependency, type Adapter } from '@pnpm/hooks.types'
 import { type Cafs } from '@pnpm/cafs-types'
 import { type FetchOptions, type FetchResult, type Fetchers } from '@pnpm/fetcher-base'
 import { Response } from 'node-fetch'
 
 test('custom adapter intercepts matching packages', async () => {
   const customAdapter: Adapter = {
-    canResolve: (descriptor: PackageDescriptor) => {
-      return descriptor.name === 'test-package'
+    canResolve: (wantedDependency: WantedDependency) => {
+      return wantedDependency.alias === 'test-package'
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolve: async (descriptor: PackageDescriptor, _opts: any) => {
+    resolve: async (wantedDependency: WantedDependency, _opts: any) => {
       return {
-        id: `custom:${descriptor.name}@${descriptor.range}`,
+        id: `custom:${wantedDependency.alias}@${wantedDependency.bareSpecifier}`,
         resolution: {
           type: 'directory',
           directory: '/test/path',
@@ -53,15 +53,15 @@ test('custom adapter intercepts matching packages', async () => {
 test('custom adapter with synchronous methods', async () => {
   const customAdapter: Adapter = {
     // Synchronous support check
-    canResolve: (descriptor: PackageDescriptor) => {
-      return descriptor.name.startsWith('@sync/')
+    canResolve: (wantedDependency: WantedDependency) => {
+      return wantedDependency.alias.startsWith('@sync/')
     },
     // Synchronous resolution
-    resolve: (descriptor: PackageDescriptor) => {
+    resolve: (wantedDependency: WantedDependency) => {
       return {
-        id: `sync:${descriptor.name}@${descriptor.range}`,
+        id: `sync:${wantedDependency.alias}@${wantedDependency.bareSpecifier}`,
         resolution: {
-          tarball: `file://${descriptor.name}-${descriptor.range}.tgz`,
+          tarball: `file://${wantedDependency.alias}-${wantedDependency.bareSpecifier}.tgz`,
           integrity: 'sha512-test',
         },
       }
@@ -97,7 +97,7 @@ test('custom adapter with synchronous methods', async () => {
 
 test('multiple adapters - first matching wins', async () => {
   const adapter1: Adapter = {
-    canResolve: (descriptor) => descriptor.name === 'shared-package',
+    canResolve: (wantedDependency) => wantedDependency.alias === 'shared-package',
     resolve: () => ({
       id: 'adapter-1:shared-package',
       resolution: { tarball: 'file://adapter1.tgz', integrity: 'sha512-1' },
@@ -105,7 +105,7 @@ test('multiple adapters - first matching wins', async () => {
   }
 
   const adapter2: Adapter = {
-    canResolve: (descriptor) => descriptor.name === 'shared-package',
+    canResolve: (wantedDependency) => wantedDependency.alias === 'shared-package',
     resolve: () => ({
       id: 'adapter-2:shared-package',
       resolution: { tarball: 'file://adapter2.tgz', integrity: 'sha512-2' },
@@ -188,19 +188,19 @@ test('preferredVersions are passed to custom adapter', async () => {
     { lockfileDir: '/test', projectDir: '/test', preferredVersions: { any: { '1.0.0': 'version' } } as unknown as Record<string, Record<string, 'version' | 'range' | 'tag'>> }
   )
 
-  expect(resolve).toHaveBeenCalledWith({ name: 'any', range: '1.0.0' }, { lockfileDir: '/test', projectDir: '/test', preferredVersions: { any: { '1.0.0': 'version' } } })
+  expect(resolve).toHaveBeenCalledWith({ alias: 'any', bareSpecifier: '1.0.0' }, { lockfileDir: '/test', projectDir: '/test', preferredVersions: { any: { '1.0.0': 'version' } } })
 })
 
 test('custom adapter can intercept any protocol', async () => {
   const customAdapter: Adapter = {
-    canResolve: (descriptor: PackageDescriptor) => {
-      return descriptor.name.startsWith('custom-')
+    canResolve: (wantedDependency: WantedDependency) => {
+      return wantedDependency.alias.startsWith('custom-')
     },
-    resolve: (descriptor: PackageDescriptor) => ({
-      id: `custom-handled:${descriptor.name}@${descriptor.range}`,
+    resolve: (wantedDependency: WantedDependency) => ({
+      id: `custom-handled:${wantedDependency.alias}@${wantedDependency.bareSpecifier}`,
       resolution: {
         type: '@test/custom',
-        directory: `/custom/${descriptor.name}`,
+        directory: `/custom/${wantedDependency.alias}`,
       },
     }),
   }
@@ -227,11 +227,11 @@ test('custom adapter can intercept any protocol', async () => {
 
 test('custom adapter falls through when not supported', async () => {
   const customAdapter: Adapter = {
-    canResolve: (descriptor: PackageDescriptor) => {
-      return descriptor.name.startsWith('custom-')
+    canResolve: (wantedDependency: WantedDependency) => {
+      return wantedDependency.alias.startsWith('custom-')
     },
-    resolve: (descriptor: PackageDescriptor) => ({
-      id: `custom:${descriptor.name}@${descriptor.range}`,
+    resolve: (wantedDependency: WantedDependency) => ({
+      id: `custom:${wantedDependency.alias}@${wantedDependency.bareSpecifier}`,
       resolution: { type: '@test/custom', directory: '/custom' },
     }),
   }
@@ -257,13 +257,13 @@ test('custom adapter falls through when not supported', async () => {
 
 test('custom adapter can override npm registry resolution', async () => {
   const npmStyleAdapter: Adapter = {
-    canResolve: (descriptor) => {
-      return !descriptor.range.includes(':')
+    canResolve: (wantedDependency) => {
+      return !wantedDependency.bareSpecifier.includes(':')
     },
-    resolve: (descriptor) => ({
-      id: `custom-registry:${descriptor.name}@${descriptor.range}`,
+    resolve: (wantedDependency) => ({
+      id: `custom-registry:${wantedDependency.alias}@${wantedDependency.bareSpecifier}`,
       resolution: {
-        tarball: `https://custom-registry.com/${descriptor.name}/-/${descriptor.name}-${descriptor.range}.tgz`,
+        tarball: `https://custom-registry.com/${wantedDependency.alias}/-/${wantedDependency.alias}-${wantedDependency.bareSpecifier}.tgz`,
         integrity: 'sha512-custom',
       },
     }),
@@ -295,14 +295,14 @@ test('custom adapter.fetch: reuse local tarball fetcher', async () => {
   // This demonstrates how a custom adapter can reuse pnpm's local tarball fetcher
   // for a custom protocol like "company-local:package-name"
   const localTarballAdapter: Adapter = {
-    canResolve: (descriptor) => descriptor.name.startsWith('company-local:'),
-    resolve: (descriptor) => {
-      const actualName = descriptor.name.replace('company-local:', '')
+    canResolve: (wantedDependency) => wantedDependency.alias.startsWith('company-local:'),
+    resolve: (wantedDependency) => {
+      const actualName = wantedDependency.alias.replace('company-local:', '')
       return {
-        id: descriptor.name,
+        id: wantedDependency.alias,
         resolution: {
           type: '@company/local',
-          localPath: `/company/tarballs/${actualName}-${descriptor.range}.tgz`,
+          localPath: `/company/tarballs/${actualName}-${wantedDependency.bareSpecifier}.tgz`,
         },
       }
     },
@@ -342,14 +342,14 @@ test('custom adapter.fetch: reuse remote tarball downloader', async () => {
   // This demonstrates fetching from a custom CDN using pnpm's download utilities
   // for a custom protocol like "cdn:package-name"
   const cdnAdapter: Adapter = {
-    canResolve: (descriptor) => descriptor.name.startsWith('cdn:'),
-    resolve: (descriptor) => {
-      const actualName = descriptor.name.replace('cdn:', '')
+    canResolve: (wantedDependency) => wantedDependency.alias.startsWith('cdn:'),
+    resolve: (wantedDependency) => {
+      const actualName = wantedDependency.alias.replace('cdn:', '')
       return {
-        id: descriptor.name,
+        id: wantedDependency.alias,
         resolution: {
           type: '@company/cdn',
-          cdnUrl: `https://cdn.example.com/packages/${actualName}/${descriptor.range}/${actualName}-${descriptor.range}.tgz`,
+          cdnUrl: `https://cdn.example.com/packages/${actualName}/${wantedDependency.bareSpecifier}/${actualName}-${wantedDependency.bareSpecifier}.tgz`,
         },
       }
     },
@@ -389,16 +389,16 @@ test('custom adapter.fetch: wrap npm registry with custom logic', async () => {
   // This demonstrates wrapping/enhancing standard npm registry resolution and fetching
   // for a protocol like "private-npm:package-name" that uses private registry
   const privateNpmAdapter: Adapter = {
-    canResolve: (descriptor) => descriptor.name.startsWith('private-npm:'),
-    resolve: async (descriptor, opts) => {
-      const actualName = descriptor.name.replace('private-npm:', '')
+    canResolve: (wantedDependency) => wantedDependency.alias.startsWith('private-npm:'),
+    resolve: async (wantedDependency, opts) => {
+      const actualName = wantedDependency.alias.replace('private-npm:', '')
 
       // In a real implementation, you'd fetch from your private registry here
       // For this test, we mock the registry response
       return {
-        id: `private-npm:${actualName}@${descriptor.range}`,
+        id: `private-npm:${actualName}@${wantedDependency.bareSpecifier}`,
         resolution: {
-          tarball: `https://private-registry.company.com/${actualName}/-/${actualName}-${descriptor.range}.tgz`,
+          tarball: `https://private-registry.company.com/${actualName}/-/${actualName}-${wantedDependency.bareSpecifier}.tgz`,
           integrity: 'sha512-mock-integrity',
           registry: 'https://private-registry.company.com/',
         },

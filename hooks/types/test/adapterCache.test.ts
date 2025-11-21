@@ -9,18 +9,18 @@ import {
 describe('adapterCache', () => {
   describe('getAdapterCacheKey', () => {
     test('generates cache key from descriptor', () => {
-      const descriptor = { name: 'test-package', range: '1.0.0' }
-      expect(getAdapterCacheKey(descriptor)).toBe('test-package@1.0.0')
+      const wantedDependency = { alias: 'test-package', bareSpecifier: '1.0.0' }
+      expect(getAdapterCacheKey(wantedDependency)).toBe('test-package@1.0.0')
     })
 
     test('handles scoped packages', () => {
-      const descriptor = { name: '@org/package', range: '^2.0.0' }
-      expect(getAdapterCacheKey(descriptor)).toBe('@org/package@^2.0.0')
+      const wantedDependency = { alias: '@org/package', bareSpecifier: '^2.0.0' }
+      expect(getAdapterCacheKey(wantedDependency)).toBe('@org/package@^2.0.0')
     })
 
     test('handles version ranges', () => {
-      const descriptor = { name: 'lodash', range: '>=4.0.0 <5.0.0' }
-      expect(getAdapterCacheKey(descriptor)).toBe('lodash@>=4.0.0 <5.0.0')
+      const wantedDependency = { alias: 'lodash', bareSpecifier: '>=4.0.0 <5.0.0' }
+      expect(getAdapterCacheKey(wantedDependency)).toBe('lodash@>=4.0.0 <5.0.0')
     })
   })
 
@@ -107,9 +107,9 @@ describe('adapterCache', () => {
   describe('checkAdapterCanResolve', () => {
     test('returns false when adapter has no canResolve', async () => {
       const adapter: Adapter = {}
-      const descriptor = { name: 'test', range: '1.0.0' }
+      const wantedDependency = { alias: 'test', bareSpecifier: '1.0.0' }
 
-      const result = await checkAdapterCanResolve(adapter, descriptor)
+      const result = await checkAdapterCanResolve(adapter, wantedDependency)
 
       expect(result).toBe(false)
     })
@@ -122,10 +122,10 @@ describe('adapterCache', () => {
           return true
         },
       }
-      const descriptor = { name: 'test', range: '1.0.0' }
+      const wantedDependency = { alias: 'test', bareSpecifier: '1.0.0' }
 
-      const result1 = await checkAdapterCanResolve(adapter, descriptor)
-      const result2 = await checkAdapterCanResolve(adapter, descriptor)
+      const result1 = await checkAdapterCanResolve(adapter, wantedDependency)
+      const result2 = await checkAdapterCanResolve(adapter, wantedDependency)
 
       expect(result1).toBe(true)
       expect(result2).toBe(true)
@@ -140,10 +140,10 @@ describe('adapterCache', () => {
           return false
         },
       }
-      const descriptor = { name: 'test', range: '1.0.0' }
+      const wantedDependency = { alias: 'test', bareSpecifier: '1.0.0' }
 
-      const result1 = await checkAdapterCanResolve(adapter, descriptor)
-      const result2 = await checkAdapterCanResolve(adapter, descriptor)
+      const result1 = await checkAdapterCanResolve(adapter, wantedDependency)
+      const result2 = await checkAdapterCanResolve(adapter, wantedDependency)
 
       expect(result1).toBe(false)
       expect(result2).toBe(false)
@@ -159,10 +159,10 @@ describe('adapterCache', () => {
           return true
         },
       }
-      const descriptor = { name: 'test', range: '1.0.0' }
+      const wantedDependency = { alias: 'test', bareSpecifier: '1.0.0' }
 
-      const result1 = await checkAdapterCanResolve(adapter, descriptor)
-      const result2 = await checkAdapterCanResolve(adapter, descriptor)
+      const result1 = await checkAdapterCanResolve(adapter, wantedDependency)
+      const result2 = await checkAdapterCanResolve(adapter, wantedDependency)
 
       expect(result1).toBe(true)
       expect(result2).toBe(true)
@@ -174,13 +174,13 @@ describe('adapterCache', () => {
       const adapter: Adapter = {
         canResolve: (descriptor) => {
           callCount++
-          return descriptor.name === 'match'
+          return descriptor.alias === 'match'
         },
       }
 
-      const result1 = await checkAdapterCanResolve(adapter, { name: 'match', range: '1.0.0' })
-      const result2 = await checkAdapterCanResolve(adapter, { name: 'no-match', range: '1.0.0' })
-      const result3 = await checkAdapterCanResolve(adapter, { name: 'match', range: '1.0.0' })
+      const result1 = await checkAdapterCanResolve(adapter, { alias: 'match', bareSpecifier: '1.0.0' })
+      const result2 = await checkAdapterCanResolve(adapter, { alias: 'no-match', bareSpecifier: '1.0.0' })
+      const result3 = await checkAdapterCanResolve(adapter, { alias: 'match', bareSpecifier: '1.0.0' })
 
       expect(result1).toBe(true)
       expect(result2).toBe(false)
@@ -188,7 +188,7 @@ describe('adapterCache', () => {
       expect(callCount).toBe(2) // Called for 'match' and 'no-match', but cached for second 'match'
     })
 
-    test('uses cache key based on name and range', async () => {
+    test('uses cache key based on alias and bareSpecifier', async () => {
       let callCount = 0
       const adapter: Adapter = {
         canResolve: () => {
@@ -198,10 +198,10 @@ describe('adapterCache', () => {
       }
 
       // Same package, different versions
-      await checkAdapterCanResolve(adapter, { name: 'test', range: '1.0.0' })
-      await checkAdapterCanResolve(adapter, { name: 'test', range: '2.0.0' })
+      await checkAdapterCanResolve(adapter, { alias: 'test', bareSpecifier: '1.0.0' })
+      await checkAdapterCanResolve(adapter, { alias: 'test', bareSpecifier: '2.0.0' })
 
-      expect(callCount).toBe(2) // Different ranges mean different cache keys
+      expect(callCount).toBe(2) // Different bareSpecifiers mean different cache keys
     })
   })
 })

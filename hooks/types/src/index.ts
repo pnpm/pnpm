@@ -1,5 +1,5 @@
 import { type LockfileObject } from '@pnpm/lockfile.types'
-import { type Resolution } from '@pnpm/resolver-base'
+import { type Resolution, type WantedDependency } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
 import { type Cafs } from '@pnpm/cafs-types'
 import { type FetchOptions, type FetchResult, type Fetchers } from '@pnpm/fetcher-base'
@@ -26,11 +26,7 @@ export interface PreResolutionHookLogger {
 export type PreResolutionHook = (ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) => Promise<void>
 
 // Custom adapter hooks
-export interface PackageDescriptor {
-  name: string
-  range: string
-  type?: 'prod' | 'dev' | 'optional'
-}
+export type { WantedDependency }
 
 export interface ResolveOptions {
   lockfileDir: string
@@ -45,8 +41,8 @@ export interface ResolveResult {
 
 export interface Adapter {
   // Resolution phase: resolve package descriptors
-  canResolve?: (descriptor: PackageDescriptor) => boolean | Promise<boolean>
-  resolve?: (descriptor: PackageDescriptor, opts: ResolveOptions) => ResolveResult | Promise<ResolveResult>
+  canResolve?: (wantedDependency: WantedDependency) => boolean | Promise<boolean>
+  resolve?: (wantedDependency: WantedDependency, opts: ResolveOptions) => ResolveResult | Promise<ResolveResult>
 
   // Fetch phase: completely handle fetching for custom package types
   // This is a complete fetcher replacement, not just a resolution transformer
@@ -56,7 +52,7 @@ export interface Adapter {
 
   // Force resolution: called for each dependency an adapter can resolve to determine if re-resolution is needed
   // If this returns true for any dependency, full resolution will be performed for all packages
-  shouldForceResolve?: (descriptor: PackageDescriptor) => boolean | Promise<boolean>
+  shouldForceResolve?: (wantedDependency: WantedDependency) => boolean | Promise<boolean>
 }
 
 export {

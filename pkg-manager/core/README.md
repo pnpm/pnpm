@@ -142,21 +142,21 @@ Custom adapters allow you to implement custom package resolution and fetching lo
 ```typescript
 interface Adapter {
   // Resolution phase
-  canResolve?: (descriptor: PackageDescriptor) => boolean | Promise<boolean>
-  resolve?: (descriptor: PackageDescriptor, opts: ResolveOptions) => ResolveResult | Promise<ResolveResult>
+  canResolve?: (descriptor: WantedDependency) => boolean | Promise<boolean>
+  resolve?: (descriptor: WantedDependency, opts: ResolveOptions) => ResolveResult | Promise<ResolveResult>
 
   // Fetch phase - complete fetcher replacement
   canFetch?: (pkgId: string, resolution: Resolution) => boolean | Promise<boolean>
   fetch?: (cafs: Cafs, resolution: Resolution, opts: FetchOptions, fetchers: Fetchers) => FetchResult | Promise<FetchResult>
 
   // Force resolution check
-  shouldForceResolve?: (descriptor: PackageDescriptor, lockfileEntry?: PackageSnapshot) => boolean | Promise<boolean>
+  shouldForceResolve?: (descriptor: WantedDependency, lockfileEntry?: PackageSnapshot) => boolean | Promise<boolean>
 }
 ```
 
 **Resolution Phase:**
 
-* `canResolve(descriptor)` - Returns `true` if this adapter can resolve the given package descriptor
+* `canResolve(wantedDependency)` - Returns `true` if this adapter can resolve the given package descriptor
 * `resolve(descriptor, opts)` - Resolves a package descriptor to a resolution. Should return an object with `id` and `resolution`
 
 **Fetch Phase:**
@@ -174,13 +174,13 @@ interface Adapter {
 const { createLocalTarballFetcher, createDownloader } = require('@pnpm/tarball-fetcher')
 
 const customAdapter = {
-  canResolve: (descriptor) => {
-    return descriptor.name.startsWith('company-cdn:')
+  canResolve: (wantedDependency) => {
+    return wantedDependency.alias.startsWith('company-cdn:')
   },
 
   resolve: async (descriptor, opts) => {
-    const actualName = descriptor.name.replace('company-cdn:', '')
-    const version = await fetchVersionFromCompanyCDN(actualName, descriptor.range)
+    const actualName = wantedDependency.alias.replace('company-cdn:', '')
+    const version = await fetchVersionFromCompanyCDN(actualName, wantedDependency.bareSpecifier)
 
     return {
       id: `company-cdn:${actualName}@${version}`,

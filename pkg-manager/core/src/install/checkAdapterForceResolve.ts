@@ -1,6 +1,6 @@
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
-import { type Adapter, type PackageDescriptor, checkAdapterCanResolve } from '@pnpm/hooks.types'
+import { type Adapter, type WantedDependency, checkAdapterCanResolve } from '@pnpm/hooks.types'
 
 export interface ProjectWithManifest {
   id: ProjectId
@@ -24,19 +24,19 @@ export async function checkAdapterForceResolve (
   for (const project of projects) {
     const allDeps = getAllDependenciesFromManifest(project.manifest)
 
-    for (const [depName, range] of Object.entries(allDeps)) {
-      const descriptor: PackageDescriptor = {
-        name: depName,
-        range,
+    for (const [depName, bareSpec] of Object.entries(allDeps)) {
+      const wantedDependency: WantedDependency = {
+        alias: depName,
+        bareSpecifier: bareSpec,
       }
 
       for (const adapter of adapters) {
         // eslint-disable-next-line no-await-in-loop
-        const canResolve = await checkAdapterCanResolve(adapter, descriptor)
+        const canResolve = await checkAdapterCanResolve(adapter, wantedDependency)
 
         if (canResolve && adapter.shouldForceResolve) {
           // eslint-disable-next-line no-await-in-loop
-          const shouldForce = await adapter.shouldForceResolve(descriptor)
+          const shouldForce = await adapter.shouldForceResolve(wantedDependency)
 
           if (shouldForce) {
             return true

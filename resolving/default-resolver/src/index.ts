@@ -58,21 +58,16 @@ async function resolveFromAdapters (
     return null
   }
 
-  const descriptor = {
-    name: wantedDependency.alias ?? '',
-    range: wantedDependency.bareSpecifier ?? '',
-  }
-
   for (const adapter of adapters) {
     // Skip adapters that don't support both canResolve and resolve
     if (!adapter.canResolve || !adapter.resolve) continue
 
     // eslint-disable-next-line no-await-in-loop
-    const canResolve = await checkAdapterCanResolve(adapter, descriptor)
+    const canResolve = await checkAdapterCanResolve(adapter, wantedDependency)
 
     if (canResolve) {
       // eslint-disable-next-line no-await-in-loop
-      const result = await adapter.resolve(descriptor, {
+      const result = await adapter.resolve(wantedDependency, {
         lockfileDir: opts.lockfileDir,
         projectDir: opts.projectDir,
         preferredVersions: (opts.preferredVersions ?? {}) as unknown as Record<string, string>,

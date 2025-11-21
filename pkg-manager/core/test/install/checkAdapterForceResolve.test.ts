@@ -141,7 +141,7 @@ describe('checkAdapterForceResolve', () => {
 
   test('returns true when shouldForceResolve returns true', async () => {
     const adapter: Adapter = {
-      canResolve: (descriptor) => descriptor.name === 'test-pkg',
+      canResolve: (wantedDependency) => wantedDependency.alias === 'test-pkg',
       shouldForceResolve: () => true,
     }
     const lockfile: LockfileObject = {
@@ -177,7 +177,7 @@ describe('checkAdapterForceResolve', () => {
 
   test('checks devDependencies', async () => {
     const adapter: Adapter = {
-      canResolve: (descriptor) => descriptor.name === 'dev-pkg',
+      canResolve: (wantedDependency) => wantedDependency.alias === 'dev-pkg',
       shouldForceResolve: () => true,
     }
     const lockfile: LockfileObject = {
@@ -213,7 +213,7 @@ describe('checkAdapterForceResolve', () => {
 
   test('checks optionalDependencies', async () => {
     const adapter: Adapter = {
-      canResolve: (descriptor) => descriptor.name === 'opt-pkg',
+      canResolve: (wantedDependency) => wantedDependency.alias === 'opt-pkg',
       shouldForceResolve: () => true,
     }
     const lockfile: LockfileObject = {
@@ -249,7 +249,7 @@ describe('checkAdapterForceResolve', () => {
 
   test('checks peerDependencies', async () => {
     const adapter: Adapter = {
-      canResolve: (descriptor) => descriptor.name === 'peer-pkg',
+      canResolve: (wantedDependency) => wantedDependency.alias === 'peer-pkg',
       shouldForceResolve: () => true,
     }
     const lockfile: LockfileObject = {
@@ -286,7 +286,7 @@ describe('checkAdapterForceResolve', () => {
   test('checks all dependency types together', async () => {
     const adapter: Adapter = {
       canResolve: () => true,
-      shouldForceResolve: (descriptor) => descriptor.name === 'peer-pkg',
+      shouldForceResolve: (wantedDependency) => wantedDependency.alias === 'peer-pkg',
     }
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
@@ -348,7 +348,7 @@ describe('checkAdapterForceResolve', () => {
 
   test('handles multiple projects', async () => {
     const adapter: Adapter = {
-      canResolve: (descriptor) => descriptor.name === 'pkg-b',
+      canResolve: (wantedDependency) => wantedDependency.alias === 'pkg-b',
       shouldForceResolve: () => true,
     }
     const lockfile: LockfileObject = {
