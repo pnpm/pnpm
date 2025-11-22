@@ -52,8 +52,8 @@ export function failIfTrustDowngraded (
       'TRUST_DOWNGRADE',
       `High-risk trust downgrade for "${meta.name}@${version}" (possible package takeover)`,
       {
-        hint: 'Trust checks are based solely on publish date, not semver.' +
-          'A package cannot be installed if any earlier-published version had stronger trust evidence.' +
+        hint: 'Trust checks are based solely on publish date, not semver. ' +
+          'A package cannot be installed if any earlier-published version had stronger trust evidence. ' +
           `Earlier versions had ${prettyPrintTrustEvidence(strongestEvidencePriorToRequestedVersion)}, ` +
           `but this version has ${prettyPrintTrustEvidence(currentTrustEvidence)}. ` +
           'A trust downgrade may indicate a supply chain incident.',
