@@ -92,7 +92,12 @@ function linkOrCopy (srcFile: string, destFile: string): void {
   try {
     gfs.linkSync(srcFile, destFile)
   } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && (err.code === 'EXDEV' || err.code === 'ENOENT'))) throw err
-    gfs.copyFileSync(srcFile, destFile)
+    // In some container environments (OverlayFS), linkSync throws ENOENT
+    // instead of EXDEV when linking across layers. We must fallback to copy in this case too.
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EXDEV' || err.code === 'ENOENT')) {
+      gfs.copyFileSync(srcFile, destFile)
+    } else {
+      throw err
+    }
   }
 }
