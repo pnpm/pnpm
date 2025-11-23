@@ -273,7 +273,7 @@ function isDriveExFat (drive: string): boolean {
     // cspell:disable-next-line
     const output = execSync(`powershell -Command "Get-Volume -DriveLetter ${shellQuote([drive.replace(':', '')])} | Select-Object -ExpandProperty FileSystem"`).toString()
     const lines = output.trim().split('\n')
-    const name = lines.length > 1 ? lines[1].trim() : ''
+    const name = lines[0].trim()
     return name === 'exFAT'
   } catch {
     return false
