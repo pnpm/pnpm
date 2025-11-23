@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/resolver-base": "workspace:*"

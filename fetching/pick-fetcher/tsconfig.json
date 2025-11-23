@@ -19,6 +19,9 @@
       "path": "../../network/fetch"
     },
     {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {

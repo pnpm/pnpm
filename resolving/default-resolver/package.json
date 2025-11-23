@@ -46,16 +46,17 @@
     "@pnpm/tarball-resolver": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
-     "devDependencies": {
-       "@jest/globals": "catalog:",
-       "@pnpm/cafs-types": "workspace:*",
-       "@pnpm/default-resolver": "workspace:*",
-       "@pnpm/fetch": "workspace:*",
-       "@pnpm/fetcher-base": "workspace:*",
-       "@pnpm/tarball-fetcher": "workspace:*",
-       "node-fetch": "catalog:"
-     },
-     "engines": {    "node": ">=20.19"
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/default-resolver": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/tarball-fetcher": "workspace:*",
+    "node-fetch": "catalog:"
+  },
+  "engines": {
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

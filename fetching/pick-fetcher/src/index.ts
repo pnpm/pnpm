@@ -1,6 +1,7 @@
 import type { AtomicResolution } from '@pnpm/resolver-base'
 import type { Fetchers, FetchFunction, DirectoryFetcher, GitFetcher, BinaryFetcher, FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
+import { PnpmError } from '@pnpm/error'
 import { type Adapter } from '@pnpm/hooks.types'
 
 export async function pickFetcher (
@@ -9,7 +10,6 @@ export async function pickFetcher (
   opts?: {
     adapters?: Adapter[]
     packageId?: string
-    lockfileDir?: string
   }
 ): Promise<FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher> {
   // Try adapter.fetch hooks first if available
@@ -23,7 +23,7 @@ export async function pickFetcher (
         if (canFetch) {
           // Return a wrapper FetchFunction that calls the adapter's fetch method
           // The adapter.fetch receives cafs, resolution, opts, and the standard fetchers for delegation
-          return async (cafs: Cafs, _resolution: AtomicResolution, fetchOpts: FetchOptions) => {
+          return async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions) => {
             return adapter.fetch!(cafs, resolution, fetchOpts, fetcherByHostingType)
           }
         }
@@ -51,7 +51,8 @@ export async function pickFetcher (
     fetcherType = resolution.type
   } else {
     // Custom resolution type that wasn't handled by any adapter
-    throw new Error(
+    throw new PnpmError(
+      'UNSUPPORTED_RESOLUTION_TYPE',
       `Cannot fetch dependency with custom resolution type "${resolution.type}". ` +
       'Custom resolutions must be handled by adapter.fetch hooks.'
     )

@@ -3227,6 +3227,9 @@ importers:
       '@pnpm/cafs-types':
         specifier: workspace:*
         version: link:../../store/cafs-types
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base

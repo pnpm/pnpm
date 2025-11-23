@@ -103,7 +103,7 @@ export function createResolver (
     : null
   return {
     resolve: async (wantedDependency, opts) => {
-      const resolution = (_resolveFromAdapters && await _resolveFromAdapters(wantedDependency, opts)) ??
+      const resolution = await _resolveFromAdapters?.(wantedDependency, opts) ??
         await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (
