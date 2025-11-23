@@ -1,7 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
+import { writeSettings, type WriteSettingsOptions } from '@pnpm/config.config-writer'
 import renderHelp from 'render-help'
-import { createProjectManifestWriter } from './createProjectManifestWriter.js'
 import * as install from './install.js'
 
 export const cliOptionsTypes = install.cliOptionsTypes
@@ -42,23 +42,28 @@ export async function handler (
   opts: install.InstallCommandOptions,
   params: string[]
 ): Promise<undefined | string> {
-  if (!opts.rootProjectManifest?.pnpm?.overrides) return 'Nothing to unlink'
+  if (!opts.overrides) return 'Nothing to unlink'
 
   if (!params || (params.length === 0)) {
-    for (const selector in opts.rootProjectManifest.pnpm.overrides) {
-      if (opts.rootProjectManifest.pnpm.overrides[selector].startsWith('link:')) {
-        delete opts.rootProjectManifest.pnpm.overrides[selector]
+    for (const selector in opts.overrides) {
+      if (opts.overrides[selector].startsWith('link:')) {
+        delete opts.overrides[selector]
       }
     }
   } else {
-    for (const selector in opts.rootProjectManifest.pnpm.overrides) {
-      if (opts.rootProjectManifest.pnpm.overrides[selector].startsWith('link:') && params.includes(selector)) {
-        delete opts.rootProjectManifest.pnpm.overrides[selector]
+    for (const selector in opts.overrides) {
+      if (opts.overrides[selector].startsWith('link:') && params.includes(selector)) {
+        delete opts.overrides[selector]
       }
     }
   }
-  const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
-  await writeProjectManifest(opts.rootProjectManifest)
+  await writeSettings({
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    rootProjectManifestDir: opts.rootProjectManifestDir,
+    updatedSettings: {
+      overrides: opts.overrides,
+    },
+  })
   await install.handler(opts)
   return undefined
 }
