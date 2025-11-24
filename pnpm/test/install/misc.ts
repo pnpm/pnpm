@@ -437,6 +437,58 @@ test('installing in a CI environment', async () => {
   await execPnpm(['install', '--no-prefer-frozen-lockfile'], { env: { CI: 'true' } })
 })
 
+// Tests for issue #9861: frozen-lockfile should be overridable via env vars and updateConfig hook
+test('CI mode: frozen-lockfile can be overridden via environment variable', async () => {
+  const project = prepare({
+    dependencies: { rimraf: '2.5.1' },
+  })
+
+  // Initial install in CI mode
+  await execPnpm(['install'], { env: { CI: 'true' } })
+
+  // Change dependencies
+  project.writePackageJson({
+    dependencies: { rimraf: '1' },
+  })
+
+  // Should not fail when pnpm_config_frozen_lockfile is set to false
+  await execPnpm(['install'], {
+    env: {
+      CI: 'true',
+      pnpm_config_frozen_lockfile: 'false',
+    },
+  })
+})
+
+test('CI mode: frozen-lockfile can be overridden via updateConfig hook', async () => {
+  const project = prepare({
+    dependencies: { rimraf: '2.5.1' },
+  })
+
+  const pnpmfile = `
+    module.exports = {
+      hooks: {
+        updateConfig(config) {
+          config.frozenLockfile = false
+          return config
+        }
+      }
+    }
+  `
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
+
+  // Initial install in CI mode
+  await execPnpm(['install'], { env: { CI: 'true' } })
+
+  // Change dependencies
+  project.writePackageJson({
+    dependencies: { rimraf: '1' },
+  })
+
+  // Should not fail due to updateConfig hook setting frozenLockfile to false
+  await execPnpm(['install'], { env: { CI: 'true' } })
+})
+
 test('installation fails with a timeout error', async () => {
   prepare()
 
