@@ -85,6 +85,7 @@ export const excludedPnpmKeys = [
   'ignore-workspace-root-check',
   'include-workspace-root',
   'init-package-manager',
+  'init-preset',
   'init-type',
   'inject-workspace-packages',
   'legacy-dir-filtering',

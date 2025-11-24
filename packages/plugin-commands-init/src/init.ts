@@ -14,10 +14,20 @@ import { parseRawConfig } from './utils.js'
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes (): Record<string, unknown> {
-  return pick(['init-type', 'init-package-manager'], allTypes)
+  return pick([
+    'init-package-manager',
+    'init-preset',
+    'init-type',
+  ], allTypes)
 }
 
 export const commandNames = ['init']
+
+export const shorthands: Record<string, string> = {
+  application: '--init-preset application',
+  package: '--init-preset package',
+  A: '--init-preset application',
+}
 
 export function help (): string {
   return renderHelp({
@@ -34,6 +44,10 @@ export function help (): string {
             description: 'Pin the project to the current pnpm version by adding a "packageManager" field to package.json',
             name: '--init-package-manager',
           },
+          {
+            description: 'Preset of fields to set',
+            name: '--init-preset <application|package>',
+          },
         ],
       },
     ],
@@ -42,10 +56,16 @@ export function help (): string {
   })
 }
 
-export async function handler (
-  opts: Pick<UniversalOptions, 'rawConfig'> & Pick<Config, 'cliOptions'> & Partial<Pick<Config, 'initPackageManager' | 'initType'>>,
-  params?: string[]
-): Promise<string> {
+export type InitOptions =
+  & Pick<UniversalOptions, 'rawConfig'>
+  & Pick<Config, 'cliOptions'>
+  & Partial<Pick<Config,
+  | 'initPackageManager'
+  | 'initPreset'
+  | 'initType'
+  >>
+
+export async function handler (opts: InitOptions, params?: string[]): Promise<string> {
   if (params?.length) {
     throw new PnpmError('INIT_ARG', 'init command does not accept any arguments', {
       hint: `Maybe you wanted to run "pnpm create ${params.join(' ')}"`,
@@ -80,9 +100,11 @@ export async function handler (
   if (opts.initPackageManager) {
     packageJson.packageManager = `pnpm@${packageManager.version}`
   }
+  handleInitPreset(packageJson, opts)
   const priority = Object.fromEntries([
     'name',
     'version',
+    'private',
     'description',
     'main',
     'scripts',
@@ -98,4 +120,26 @@ export async function handler (
   return `Wrote to ${manifestPath}
 
 ${JSON.stringify(sortedPackageJson, null, 2)}`
+}
+
+function handleInitPreset (manifest: ProjectManifest, opts: Pick<InitOptions, 'initPreset'>): void {
+  switch (opts.initPreset) {
+  case undefined:
+  case 'package':
+    return
+  case 'application':
+    manifest.private = true
+    delete manifest.name
+    delete manifest.version
+    delete manifest.description
+    delete manifest.main
+    delete manifest.keywords
+    delete manifest.author
+    delete manifest.license
+    return
+  default: {
+    const _typeGuard: never = opts.initPreset
+    throw new Error(`Unknown preset: ${JSON.stringify(_typeGuard)}`)
+  }
+  }
 }

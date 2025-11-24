@@ -52,6 +52,7 @@ export const pnpmTypes = {
   'optimistic-repeat-install': Boolean,
   'include-workspace-root': Boolean,
   'init-package-manager': Boolean,
+  'init-preset': ['application', 'package'],
   'init-type': ['commonjs', 'module'],
   'inject-workspace-packages': Boolean,
   'legacy-dir-filtering': Boolean,

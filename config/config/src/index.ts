@@ -174,6 +174,7 @@ export async function getConfig (opts: {
     'optimistic-repeat-install': false,
     optional: true,
     'init-package-manager': true,
+    'init-preset': 'package',
     'init-type': 'module',
     'inject-workspace-packages': false,
     'link-workspace-packages': false,
