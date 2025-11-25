@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import {
   depPathToFilename,
+  getPkgIdWithPatchHash,
   isAbsolute,
   parse,
   refToRelative,
@@ -108,4 +109,8 @@ test('tryGetPackageId', () => {
   expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))' as DepPath)).toBe('/foo@1.0.0')
   expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toBe('/@(-.-)/foo@1.0.0')
   expect(tryGetPackageId('foo@1.0.0(patch_hash=xxxx)(@types/babel__core@7.1.14)' as DepPath)).toBe('foo@1.0.0')
+})
+
+test('getPkgIdWithPatchHash', () => {
+  expect(getPkgIdWithPatchHash('node@runtime:24.11.1' as DepPath)).toBe('node@runtime:24.11.1')
 })

@@ -66,9 +66,6 @@ export function getPkgIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {
   if (sepIndex !== -1) {
     pkgId = pkgId.substring(0, sepIndex)
   }
-  if (pkgId.includes(':')) {
-    pkgId = pkgId.substring(pkgId.indexOf('@', 1) + 1)
-  }
   return pkgId as PkgIdWithPatchHash
 }
 
