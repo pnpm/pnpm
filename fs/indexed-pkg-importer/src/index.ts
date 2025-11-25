@@ -127,8 +127,14 @@ function clonePkg (
 }
 
 function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap) {
-  const fileToCheck = (filesMap['package.json']) ? 'package.json' : Object.keys(filesMap)[0]
-  return existsSync(path.join(targetDir, fileToCheck))
+  return existsSync(path.join(targetDir, pickFileFromPkg(filesMap)))
+}
+
+function pickFileFromPkg (filesMap: FilesMap) {
+  // A package might not have a package.json file.
+  // For instance, the Node.js package.
+  // Or injected packages in a Bit workspace.
+  return filesMap['package.json'] ?? Object.keys(filesMap)[0]
 }
 
 function createCloneFunction (): CloneFunction {
@@ -181,7 +187,7 @@ function shouldRelinkPkg (
       return true
     }
   }
-  return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(opts.filesMap, to)
+  return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(to, opts.filesMap)
 }
 
 function linkOrCopy (existingPath: string, newPath: string): void {
@@ -198,24 +204,8 @@ function linkOrCopy (existingPath: string, newPath: string): void {
   }
 }
 
-function pkgLinkedToStore (
-  filesMap: FilesMap,
-  to: string
-): boolean {
-  if (filesMap['package.json']) {
-    if (isSameFile('package.json', to, filesMap)) {
-      return true
-    }
-  } else {
-    // An injected package might not have a package.json.
-    // This will probably only even happen in a Bit workspace.
-    const [anyFile] = Object.keys(filesMap)
-    if (isSameFile(anyFile, to, filesMap)) return true
-  }
-  return false
-}
-
-function isSameFile (filename: string, linkedPkgDir: string, filesMap: FilesMap): boolean {
+function pkgLinkedToStore (linkedPkgDir: string, filesMap: FilesMap): boolean {
+  const filename = pickFileFromPkg(filesMap)
   const linkedFile = path.join(linkedPkgDir, filename)
   let stats0!: Stats
   try {
