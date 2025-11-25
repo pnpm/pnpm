@@ -126,15 +126,22 @@ function clonePkg (
   return undefined
 }
 
-function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap) {
+function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap): boolean {
   return existsSync(path.join(targetDir, pickFileFromFilesMap(filesMap)))
 }
 
-function pickFileFromFilesMap (filesMap: FilesMap) {
+function pickFileFromFilesMap (filesMap: FilesMap): string {
   // A package might not have a package.json file.
   // For instance, the Node.js package.
   // Or injected packages in a Bit workspace.
-  return filesMap['package.json'] ? 'package.json' : Object.keys(filesMap)[0]
+  if (filesMap['package.json']) {
+    return 'package.json'
+  }
+  const files = Object.keys(filesMap)
+  if (files.length === 0) {
+    throw new Error('pickFileFromFilesMap cannot pick a file from an empty FilesMap')
+  }
+  return files[0]
 }
 
 function createCloneFunction (): CloneFunction {
