@@ -52,7 +52,10 @@ function calcDepGraphHash<T extends string> (
     if (!node.pkgIdWithPatchHash) {
       throw new Error(`pkgIdWithPatchHash is not defined for ${depPath} in depsGraph`)
     }
-    node.fullPkgId = createFullPkgId(node.pkgIdWithPatchHash, node.resolution!)
+    if (!node.resolution) {
+      throw new Error(`resolution is not defined for ${depPath} in depsGraph`)
+    }
+    node.fullPkgId = createFullPkgId(node.pkgIdWithPatchHash, node.resolution)
   }
   const deps: Record<string, string> = {}
   if (Object.keys(node.children).length && !parents.has(node.fullPkgId)) {
