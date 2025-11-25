@@ -119,13 +119,16 @@ function clonePkg (
   to: string,
   opts: ImportOptions
 ): 'clone' | undefined {
-  const pkgJsonPath = path.join(to, 'package.json')
-
-  if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
+  if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
     importIndexedDir(clone, to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
+}
+
+function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap) {
+  const fileToCheck = (filesMap['package.json']) ? 'package.json' : Object.keys(filesMap)[0]
+  return existsSync(path.join(targetDir, fileToCheck))
 }
 
 function createCloneFunction (): CloneFunction {
@@ -230,9 +233,7 @@ export function copyPkg (
   to: string,
   opts: ImportOptions
 ): 'copy' | undefined {
-  const pkgJsonPath = path.join(to, 'package.json')
-
-  if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
+  if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
     importIndexedDir(fs.copyFileSync, to, opts.filesMap, opts)
     return 'copy'
   }
