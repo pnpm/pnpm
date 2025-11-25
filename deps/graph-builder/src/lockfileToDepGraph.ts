@@ -70,6 +70,7 @@ export interface LockfileToDepGraphOptions {
   skipped: Set<DepPath>
   storeController: StoreController
   storeDir: string
+  globalVirtualStoreDir: string
   virtualStoreDir: string
   supportedArchitectures?: SupportedArchitectures
   virtualStoreDirMaxLength: number
@@ -166,7 +167,7 @@ async function buildGraphFromPackages (
   const promises: Array<Promise<void>> = []
   const pkgSnapshotsWithLocations = iteratePkgsForVirtualStore(lockfile, opts)
 
-  for (const { dirNameInVirtualStore, pkgMeta } of pkgSnapshotsWithLocations) {
+  for (const { dirInVirtualStore, pkgMeta } of pkgSnapshotsWithLocations) {
     promises.push((async () => {
       const { pkgIdWithPatchHash, name: pkgName, version: pkgVersion, depPath, pkgSnapshot } = pkgMeta
       if (opts.skipped.has(depPath)) return
@@ -198,7 +199,7 @@ async function buildGraphFromPackages (
 
       const depIntegrityIsUnchanged = isIntegrityEqual(pkgSnapshot.resolution, currentPackages[depPath]?.resolution)
 
-      const modules = path.join(opts.virtualStoreDir, dirNameInVirtualStore, 'node_modules')
+      const modules = path.join(dirInVirtualStore, 'node_modules')
       const dir = path.join(modules, pkgName)
       locationByDepPath[depPath] = dir
 

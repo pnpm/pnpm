@@ -131,6 +131,7 @@ export interface ResolveDependenciesOptions {
   storeController: StoreController
   tag: string
   virtualStoreDir: string
+  globalVirtualStoreDir: string
   virtualStoreDirMaxLength: number
   wantedLockfile: LockfileObject
   workspacePackages: WorkspacePackages
