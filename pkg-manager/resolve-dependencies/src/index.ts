@@ -460,7 +460,7 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
 function extendGraph (graph: DependenciesGraph, virtualStoreDir: string, enableGlobalVirtualStore?: boolean): DependenciesGraph {
   const pkgMetaIter = (function * () {
     for (const depPath in graph) {
-      if ((enableGlobalVirtualStore || depPath.includes('@runtime')) && Object.hasOwn(graph, depPath)) {
+      if ((enableGlobalVirtualStore === true || depPath.includes('@runtime:')) && Object.hasOwn(graph, depPath)) {
         const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
         yield {
           name,
