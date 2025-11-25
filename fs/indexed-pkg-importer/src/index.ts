@@ -127,14 +127,14 @@ function clonePkg (
 }
 
 function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap) {
-  return existsSync(path.join(targetDir, pickFileFromPkg(filesMap)))
+  return existsSync(path.join(targetDir, pickFileFromFilesMap(filesMap)))
 }
 
-function pickFileFromPkg (filesMap: FilesMap) {
+function pickFileFromFilesMap (filesMap: FilesMap) {
   // A package might not have a package.json file.
   // For instance, the Node.js package.
   // Or injected packages in a Bit workspace.
-  return filesMap['package.json'] ?? Object.keys(filesMap)[0]
+  return filesMap['package.json'] ? 'package.json' : Object.keys(filesMap)[0]
 }
 
 function createCloneFunction (): CloneFunction {
@@ -205,7 +205,7 @@ function linkOrCopy (existingPath: string, newPath: string): void {
 }
 
 function pkgLinkedToStore (linkedPkgDir: string, filesMap: FilesMap): boolean {
-  const filename = pickFileFromPkg(filesMap)
+  const filename = pickFileFromFilesMap(filesMap)
   const linkedFile = path.join(linkedPkgDir, filename)
   let stats0!: Stats
   try {
