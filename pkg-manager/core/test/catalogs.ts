@@ -256,6 +256,49 @@ test('lockfile is updated if catalog config changes', async () => {
   })
 })
 
+test('frozen lockfile error is thrown if catalog config changes', async () => {
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs: {
+      default: {
+        'is-positive': '=1.0.0',
+      },
+    },
+  })
+
+  expect(readLockfile().importers['project1' as ProjectId]).toEqual({
+    dependencies: {
+      'is-positive': {
+        specifier: 'catalog:',
+        version: '1.0.0',
+      },
+    },
+  })
+
+  const frozenLockfileMutation = mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    frozenLockfile: true,
+    catalogs: {
+      default: {
+        'is-positive': '=3.1.0',
+      },
+    },
+  })
+
+  await expect(frozenLockfileMutation).rejects.toThrow('Cannot proceed with the frozen installation. The current "catalogs" configuration doesn\'t match the value found in the lockfile')
+})
+
 test('lockfile catalog snapshots retain existing entries on --filter', async () => {
   const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
     {
