@@ -50,7 +50,7 @@ function calcDepGraphHash<T extends string> (
   if (!node) return ''
   if (!node.fullPkgId) {
     if (!node.pkgIdWithPatchHash) {
-      throw Error('node.pkgIdWithPatchHash is not defined')
+      throw new Error(`pkgIdWithPatchHash is not defined for ${depPath} in depsGraph`)
     }
     node.fullPkgId = createFullPkgId(node.pkgIdWithPatchHash, node.resolution!)
   }
