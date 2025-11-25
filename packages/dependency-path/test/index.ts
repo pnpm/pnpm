@@ -112,5 +112,30 @@ test('tryGetPackageId', () => {
 })
 
 test('getPkgIdWithPatchHash', () => {
+  // Runtime dependency
   expect(getPkgIdWithPatchHash('node@runtime:24.11.1' as DepPath)).toBe('node@runtime:24.11.1')
+
+  // Regular packages
+  expect(getPkgIdWithPatchHash('foo@1.0.0' as DepPath)).toBe('foo@1.0.0')
+
+  // Packages with patch hash
+  expect(getPkgIdWithPatchHash('foo@1.0.0(patch_hash=xxxx)' as DepPath)).toBe('foo@1.0.0(patch_hash=xxxx)')
+
+  // Packages with peer dependencies (should remove peer dependencies)
+  expect(getPkgIdWithPatchHash('foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toBe('foo@1.0.0')
+
+  // Packages with both patch hash and peer dependencies (should keep patch hash, remove peer dependencies)
+  expect(getPkgIdWithPatchHash('foo@1.0.0(patch_hash=xxxx)(@types/babel__core@7.1.14)' as DepPath)).toBe('foo@1.0.0(patch_hash=xxxx)')
+
+  // Scoped packages
+  expect(getPkgIdWithPatchHash('/@foo/bar@1.0.0' as DepPath)).toBe('/@foo/bar@1.0.0')
+
+  // Scoped packages with patch hash
+  expect(getPkgIdWithPatchHash('/@foo/bar@1.0.0(patch_hash=yyyy)' as DepPath)).toBe('/@foo/bar@1.0.0(patch_hash=yyyy)')
+
+  // Scoped packages with peer dependencies
+  expect(getPkgIdWithPatchHash('/@foo/bar@1.0.0(@types/node@18.0.0)' as DepPath)).toBe('/@foo/bar@1.0.0')
+
+  // Scoped packages with both patch hash and peer dependencies
+  expect(getPkgIdWithPatchHash('/@foo/bar@1.0.0(patch_hash=zzzz)(@types/node@18.0.0)' as DepPath)).toBe('/@foo/bar@1.0.0(patch_hash=zzzz)')
 })
