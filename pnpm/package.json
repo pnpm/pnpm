@@ -184,7 +184,7 @@
   "pnpm": {
     "overrides": {
       "@yarnpkg/fslib@2": "3",
-      "body-parser@<1.20.3": "^1.20.3",
+      "body-parser@<2.2.1": "^2.2.1",
       "clipanion": "3.2.0-rc.6",
       "cookie@<0.7.0": ">=0.7.0",
       "cross-spawn@<7.0.5": ">=7.0.5",
