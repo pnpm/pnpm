@@ -194,7 +194,7 @@ function shouldRelinkPkg (
       return true
     }
   }
-  return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(to, opts.filesMap)
+  return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(opts.filesMap, to)
 }
 
 function linkOrCopy (existingPath: string, newPath: string): void {
@@ -211,7 +211,7 @@ function linkOrCopy (existingPath: string, newPath: string): void {
   }
 }
 
-function pkgLinkedToStore (linkedPkgDir: string, filesMap: FilesMap): boolean {
+function pkgLinkedToStore (filesMap: FilesMap, linkedPkgDir: string): boolean {
   const filename = pickFileFromFilesMap(filesMap)
   const linkedFile = path.join(linkedPkgDir, filename)
   let stats0!: Stats
