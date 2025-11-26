@@ -119,13 +119,29 @@ function clonePkg (
   to: string,
   opts: ImportOptions
 ): 'clone' | undefined {
-  const pkgJsonPath = path.join(to, 'package.json')
-
-  if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
+  if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
     importIndexedDir(clone, to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
+}
+
+function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap): boolean {
+  return existsSync(path.join(targetDir, pickFileFromFilesMap(filesMap)))
+}
+
+function pickFileFromFilesMap (filesMap: FilesMap): string {
+  // A package might not have a package.json file.
+  // For instance, the Node.js package.
+  // Or injected packages in a Bit workspace.
+  if (filesMap['package.json']) {
+    return 'package.json'
+  }
+  const files = Object.keys(filesMap)
+  if (files.length === 0) {
+    throw new Error('pickFileFromFilesMap cannot pick a file from an empty FilesMap')
+  }
+  return files[0]
 }
 
 function createCloneFunction (): CloneFunction {
@@ -195,24 +211,8 @@ function linkOrCopy (existingPath: string, newPath: string): void {
   }
 }
 
-function pkgLinkedToStore (
-  filesMap: FilesMap,
-  to: string
-): boolean {
-  if (filesMap['package.json']) {
-    if (isSameFile('package.json', to, filesMap)) {
-      return true
-    }
-  } else {
-    // An injected package might not have a package.json.
-    // This will probably only even happen in a Bit workspace.
-    const [anyFile] = Object.keys(filesMap)
-    if (isSameFile(anyFile, to, filesMap)) return true
-  }
-  return false
-}
-
-function isSameFile (filename: string, linkedPkgDir: string, filesMap: FilesMap): boolean {
+function pkgLinkedToStore (filesMap: FilesMap, linkedPkgDir: string): boolean {
+  const filename = pickFileFromFilesMap(filesMap)
   const linkedFile = path.join(linkedPkgDir, filename)
   let stats0!: Stats
   try {
@@ -230,9 +230,7 @@ export function copyPkg (
   to: string,
   opts: ImportOptions
 ): 'copy' | undefined {
-  const pkgJsonPath = path.join(to, 'package.json')
-
-  if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
+  if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
     importIndexedDir(fs.copyFileSync, to, opts.filesMap, opts)
     return 'copy'
   }
