@@ -488,6 +488,7 @@ async function assertWantedLockfileUpToDate (
   ])
 
   const outdatedLockfileSettingName = getOutdatedLockfileSetting(wantedLockfile, {
+    catalogs: config.catalogs,
     autoInstallPeers: config.autoInstallPeers,
     injectWorkspacePackages: config.injectWorkspacePackages,
     excludeLinksFromLockfile: config.excludeLinksFromLockfile,

@@ -4012,12 +4012,18 @@ importers:
 
   lockfile/settings-checker:
     dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
+      '@pnpm/lockfile.verification':
+        specifier: workspace:*
+        version: link:../verification
       '@pnpm/parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
