@@ -1,5 +1,15 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.35
+
+### Patch Changes
+
+- Reverted: `pnpm self-update` should download pnpm from the configured npm registry [#10205](https://github.com/pnpm/pnpm/pull/10205).
+- Updated dependencies [615c066]
+  - @pnpm/config@1004.6.2
+  - @pnpm/cli-utils@1001.2.12
+  - @pnpm/client@1001.1.8
+
 ## 1000.1.34
 
 ### Patch Changes

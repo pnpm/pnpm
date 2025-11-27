@@ -1,5 +1,16 @@
 # @pnpm/deps.graph-builder
 
+## 1002.3.4
+
+### Patch Changes
+
+- Updated dependencies [6552272]
+  - @pnpm/dependency-path@1001.1.6
+  - @pnpm/calc-dep-state@1002.0.12
+  - @pnpm/lockfile.fs@1001.1.25
+  - @pnpm/lockfile.utils@1003.0.7
+  - @pnpm/patching.config@1001.0.14
+
 ## 1002.3.3
 
 ### Patch Changes

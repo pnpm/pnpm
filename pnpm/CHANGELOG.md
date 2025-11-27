@@ -1,5 +1,19 @@
 # pnpm
 
+## 10.24.0
+
+### Minor Changes
+
+- Increased network concurrency on machines with many CPU cores. pnpm now automatically selects a network concurrency between 16 and 64, based on the number of pnpm workers (calculated as workers × 3). This improves performance on high-core systems [#10068](https://github.com/pnpm/pnpm/issues/10068).
+
+### Patch Changes
+
+- `trustPolicy` should ignore the trust evidences of prerelease versions, when installing a non-prerelease version.
+- Handle ENOENT errors thrown by `fs.linkSync()`, which can occur in containerized environments (OverlayFS) instead of EXDEV. The operation now gracefully falls back to `fs.copyFileSync()` in these cases [#10217](https://github.com/pnpm/pnpm/issues/10217).
+- Reverted: `pnpm self-update` should download pnpm from the configured npm registry [#10205](https://github.com/pnpm/pnpm/pull/10205).
+- Packages that don't have a `package.json` file (like Node.js) should not be reimported from the store on every install. Another file from the package should be checked in order to verify its presence in `node_modules`.
+- Correctly read auth tokens for URLs that contain underscores [#17](https://github.com/pnpm/npm-conf/pull/17).
+
 ## 10.23.0
 
 ### Minor Changes

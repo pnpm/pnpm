@@ -1,5 +1,19 @@
 # @pnpm/build-modules
 
+## 1004.0.0
+
+### Patch Changes
+
+- Updated dependencies [d42558f]
+- Updated dependencies [66b2c58]
+- Updated dependencies [463f30c]
+- Updated dependencies [6552272]
+- Updated dependencies [615c066]
+  - @pnpm/worker@1000.4.0
+  - @pnpm/fs.hard-link-dir@1000.0.5
+  - @pnpm/calc-dep-state@1002.0.12
+  - @pnpm/config@1004.6.2
+
 ## 1003.0.2
 
 ### Patch Changes

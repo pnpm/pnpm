@@ -1,5 +1,12 @@
 # @pnpm/prune-lockfile
 
+## 1001.0.21
+
+### Patch Changes
+
+- Updated dependencies [6552272]
+  - @pnpm/dependency-path@1001.1.6
+
 ## 1001.0.20
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/worker
 
+## 1000.4.0
+
+### Minor Changes
+
+- 463f30c: Increase the network concurrency on machines with many CPU cores. We pick a network concurrency that is not less than 16 and not more than 64 and it is calculated by the number of pnpm workers multiplied by 3 [#10068](https://github.com/pnpm/pnpm/issues/10068).
+
+### Patch Changes
+
+- d42558f: `WMIC` has been deprecated and replaced by PowerShell commands.
+- Updated dependencies [66b2c58]
+  - @pnpm/fs.hard-link-dir@1000.0.5
+  - @pnpm/create-cafs-store@1000.0.24
+
 ## 1000.3.3
 
 ### Patch Changes

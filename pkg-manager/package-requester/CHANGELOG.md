@@ -1,5 +1,19 @@
 # @pnpm/package-requester
 
+## 1009.0.0
+
+### Minor Changes
+
+- 463f30c: Increase the network concurrency on machines with many CPU cores. We pick a network concurrency that is not less than 16 and not more than 64 and it is calculated by the number of pnpm workers multiplied by 3 [#10068](https://github.com/pnpm/pnpm/issues/10068).
+
+### Patch Changes
+
+- Updated dependencies [d42558f]
+- Updated dependencies [463f30c]
+- Updated dependencies [6552272]
+  - @pnpm/worker@1000.4.0
+  - @pnpm/dependency-path@1001.1.6
+
 ## 1008.2.1
 
 ### Patch Changes

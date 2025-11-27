@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1004.6.2
+
+### Patch Changes
+
+- 615c066: Correctly read auth tokens for URLs that contain underscores [#17](https://github.com/pnpm/npm-conf/pull/17).
+
 ## 1004.6.1
 
 ### Patch Changes

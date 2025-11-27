@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "1001.1.4",
+  "version": "1001.1.5",
   "description": "Check for outdated packages",
   "keywords": [
     "pnpm",

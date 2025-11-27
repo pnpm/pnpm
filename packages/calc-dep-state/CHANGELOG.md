@@ -1,5 +1,14 @@
 # @pnpm/calc-dep-state
 
+## 1002.0.12
+
+### Patch Changes
+
+- 6552272: Fix dependency graph hash calculation for runtime dependencies (like Node.js, Deno).
+- Updated dependencies [6552272]
+  - @pnpm/dependency-path@1001.1.6
+  - @pnpm/lockfile.utils@1003.0.7
+
 ## 1002.0.11
 
 ### Patch Changes

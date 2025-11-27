@@ -1,5 +1,15 @@
 # @pnpm/lockfile.verification
 
+## 1001.2.13
+
+### Patch Changes
+
+- 3631b01: Properly throw a frozen lockfile error when changing catalogs defined in `pnpm-workspace.yaml` and running `pnpm install --frozen-lockfile`. This previously passed silently as reported in [#9369](https://github.com/pnpm/pnpm/issues/9369).
+- Updated dependencies [6552272]
+  - @pnpm/dependency-path@1001.1.6
+  - @pnpm/lockfile.utils@1003.0.7
+  - @pnpm/get-context@1001.1.12
+
 ## 1001.2.12
 
 ### Patch Changes

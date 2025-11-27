@@ -1,5 +1,16 @@
 # @pnpm/default-resolver
 
+## 1002.2.16
+
+### Patch Changes
+
+- Updated dependencies [2c0cbe7]
+- Updated dependencies [287712d]
+  - @pnpm/npm-resolver@1004.6.2
+  - @pnpm/resolving.bun-resolver@1003.0.0
+  - @pnpm/resolving.deno-resolver@1003.0.0
+  - @pnpm/node.resolver@1001.0.9
+
 ## 1002.2.15
 
 ### Patch Changes

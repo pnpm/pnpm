@@ -1,5 +1,11 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 1000.1.18
+
+### Patch Changes
+
+- 4efa1c3: Packages that don't have a `package.json` file (like Node.js) should not be reimported from the store on every install. Another file from the package should be checked in order to verify its presence in `node_modules`.
+
 ## 1000.1.17
 
 ### Patch Changes

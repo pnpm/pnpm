@@ -1,5 +1,11 @@
 # @pnpm/dependency-path
 
+## 1001.1.6
+
+### Patch Changes
+
+- 6552272: Fix dependency graph hash calculation for runtime dependencies (like Node.js, Deno).
+
 ## 1001.1.5
 
 ### Patch Changes

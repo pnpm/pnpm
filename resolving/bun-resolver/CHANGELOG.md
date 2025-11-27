@@ -1,5 +1,18 @@
 # @pnpm/resolving.bun-resolver
 
+## 1003.0.0
+
+### Patch Changes
+
+- Updated dependencies [d42558f]
+- Updated dependencies [2c0cbe7]
+- Updated dependencies [287712d]
+- Updated dependencies [463f30c]
+  - @pnpm/worker@1000.4.0
+  - @pnpm/npm-resolver@1004.6.2
+  - @pnpm/fetching.binary-fetcher@1003.0.0
+  - @pnpm/node.fetcher@1001.0.12
+
 ## 1002.0.4
 
 ### Patch Changes

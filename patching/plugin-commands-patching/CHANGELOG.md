@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.25
+
+### Patch Changes
+
+- Updated dependencies [615c066]
+  - @pnpm/config@1004.6.2
+  - @pnpm/plugin-commands-installation@1004.8.2
+  - @pnpm/lockfile.fs@1001.1.25
+  - @pnpm/lockfile.utils@1003.0.7
+  - @pnpm/cli-utils@1001.2.12
+  - @pnpm/store-connection-manager@1002.3.3
+
 ## 1000.3.24
 
 ### Patch Changes

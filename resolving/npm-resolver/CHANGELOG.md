@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 1004.6.2
+
+### Patch Changes
+
+- 2c0cbe7: `trustPolicy` should ignore the trust evidences of prerelease versions, when installing a non-prerelease version.
+- 287712d: Improve the error messages related to `trustPolicy` mismatch.
+
 ## 1004.6.1
 
 ### Patch Changes

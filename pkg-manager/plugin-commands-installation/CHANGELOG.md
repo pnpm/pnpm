@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.8.2
+
+### Patch Changes
+
+- Updated dependencies [3631b01]
+- Updated dependencies [615c066]
+  - @pnpm/core@1013.0.0
+  - @pnpm/deps.status@1003.0.19
+  - @pnpm/config@1004.6.2
+  - @pnpm/plugin-commands-rebuild@1005.0.0
+  - @pnpm/package-store@1005.0.0
+  - @pnpm/config.deps-installer@1000.0.23
+  - @pnpm/outdated@1001.1.5
+  - @pnpm/workspace.pkgs-graph@1000.0.29
+  - @pnpm/cli-utils@1001.2.12
+  - @pnpm/plugin-commands-env@1000.0.48
+  - @pnpm/store-connection-manager@1002.3.3
+  - @pnpm/workspace.state@1002.0.11
+  - @pnpm/filter-workspace-packages@1000.0.47
+  - @pnpm/get-context@1001.1.12
+  - @pnpm/workspace.find-packages@1000.0.47
+
 ## 1004.8.1
 
 ### Patch Changes
