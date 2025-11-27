@@ -30,11 +30,22 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
+  "dependencies": {
+    "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*"
+  },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*"
+    "@pnpm/tarball-fetcher": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "nock": "catalog:",
+    "tempy": "catalog:"
   },
   "engines": {
     "node": ">=20.19"

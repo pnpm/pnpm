@@ -10,10 +10,19 @@
   ],
   "references": [
     {
+      "path": "../../fetching/fetcher-base"
+    },
+    {
       "path": "../../lockfile/types"
     },
     {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../store/cafs-types"
     }
   ]
 }

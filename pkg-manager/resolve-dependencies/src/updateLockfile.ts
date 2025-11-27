@@ -66,6 +66,7 @@ function toLockfileDependency (
     opts.registry,
     opts.lockfileIncludeTarballUrl
   )
+
   const newResolvedDeps = updateResolvedDeps(
     opts.updatedDeps,
     opts.depGraph

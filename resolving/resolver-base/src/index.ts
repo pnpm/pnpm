@@ -43,6 +43,11 @@ export interface GitResolution {
   type: 'git'
 }
 
+export interface CustomResolution {
+  type: `@${string}/${string}` // Scoped name (e.g., '@company/cdn', '@acme/artifactory')
+  [key: string]: unknown
+}
+
 export interface PlatformAssetTarget {
   os: string
   cpu: string
@@ -59,6 +64,7 @@ export type AtomicResolution =
   | DirectoryResolution
   | GitResolution
   | BinaryResolution
+  | CustomResolution
 
 export interface VariationsResolution {
   type: 'variations'
@@ -76,6 +82,7 @@ export interface ResolveResult {
   resolvedVia: string
   normalizedBareSpecifier?: string
   alias?: string
+  lockfileResolution?: Resolution
 }
 
 export interface WorkspacePackage {

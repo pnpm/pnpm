@@ -42,6 +42,7 @@ import {
   type WantedDependency,
 } from '@pnpm/store-controller-types'
 import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
+import { type CustomFetcher } from '@pnpm/hooks.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { calcMaxWorkers, readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
 import { familySync } from 'detect-libc'
@@ -102,6 +103,7 @@ export function createPackageRequester (
     verifyStoreIntegrity: boolean
     virtualStoreDirMaxLength: number
     strictStorePkgContentCheck?: boolean
+    customFetchers?: CustomFetcher[]
   }
 ): RequestPackageFunction & {
     fetchPackageToStore: FetchPackageToStoreFunction
@@ -116,7 +118,7 @@ export function createPackageRequester (
   })
 
   const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
-  const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
+  const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
   const fetchPackageToStore = fetchToStore.bind(null, {
     readPkgFromCafs: _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity),
     fetch,
@@ -694,13 +696,19 @@ async function tarballIsUpToDate (
 async function fetcher (
   fetcherByHostingType: Fetchers,
   cafs: Cafs,
+  customFetchers: CustomFetcher[] | undefined,
   packageId: string,
   resolution: AtomicResolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
-  const fetch = pickFetcher(fetcherByHostingType, resolution)
   try {
-    return await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+    // pickFetcher now handles custom fetcher hooks internally
+    const fetch = await pickFetcher(fetcherByHostingType, resolution, {
+      customFetchers,
+      packageId,
+    })
+    const result = await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+    return result
   } catch (err: any) { // eslint-disable-line
     packageRequestLogger.warn({
       message: `Fetching ${packageId} failed!`,
