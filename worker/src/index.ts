@@ -8,7 +8,6 @@ import isWindows from 'is-windows'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
-import { join as shellQuote } from 'shlex'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
@@ -271,7 +270,7 @@ function createErrorHint (err: Error, checkedDir: string): string | undefined {
 function isDriveExFat (drive: string): boolean {
   try {
     // cspell:disable-next-line
-    const output = execSync(`powershell -Command "Get-Volume -DriveLetter ${shellQuote([drive.replace(':', '')])} | Select-Object -ExpandProperty FileSystem"`).toString()
+    const output = execSync(`powershell -Command "Get-Volume -DriveLetter ${drive.replace(':', '')} | Select-Object -ExpandProperty FileSystem"`).toString()
     const lines = output.trim().split('\n')
     const name = lines[0].trim()
     return name === 'exFAT'
