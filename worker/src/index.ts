@@ -8,7 +8,6 @@ import isWindows from 'is-windows'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
-import { join as shellQuote } from 'shlex'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
@@ -269,11 +268,14 @@ function createErrorHint (err: Error, checkedDir: string): string | undefined {
 
 // In Windows system exFAT drive, symlink will result in error.
 function isDriveExFat (drive: string): boolean {
+  if (!/^[a-z]:$/i.test(drive)) {
+    throw new Error(`${drive} is not a valid disk on Windows`)
+  }
   try {
     // cspell:disable-next-line
-    const output = execSync(`wmic logicaldisk where ${shellQuote([`DeviceID='${drive}'`])} get FileSystem`).toString()
+    const output = execSync(`powershell -Command "Get-Volume -DriveLetter ${drive.replace(':', '')} | Select-Object -ExpandProperty FileSystem"`).toString()
     const lines = output.trim().split('\n')
-    const name = lines.length > 1 ? lines[1].trim() : ''
+    const name = lines[0].trim()
     return name === 'exFAT'
   } catch {
     return false

@@ -8730,9 +8730,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 7.1.0
-      shlex:
-        specifier: 'catalog:'
-        version: 3.0.0
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
