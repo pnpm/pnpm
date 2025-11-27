@@ -42,7 +42,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
   try {
     // The reason we don't just run add.handler is that at this point we might have settings from local config files
     // that we don't want to use while installing the pnpm CLI.
-    const command = [
+    runPnpmCli([
       'add',
       `${currentPkgName}@${pnpmVersion}`,
       '--loglevel=error',
@@ -52,15 +52,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
       // which breaks the junctions on Windows.
       '--config.node-linker=hoisted',
       '--config.bin=bin',
-    ]
-    // Respect user's registry configuration when installing pnpm itself.
-    // This is important when the user has configured a custom registry (e.g., a mirror)
-    // in their .npmrc file, as the temporary directory is outside the project and won't
-    // automatically pick up the project's .npmrc configuration.
-    if (opts.registries?.default) {
-      command.push(`--config.registry=${opts.registries.default}`)
-    }
-    runPnpmCli(command, { cwd: stage })
+    ], { cwd: stage })
     // We need the operation of installing pnpm to be atomic.
     // However, we cannot use a rename as that breaks the command shim created for pnpm.
     // Hence, we use a symlink.
