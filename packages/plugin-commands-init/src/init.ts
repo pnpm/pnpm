@@ -13,10 +13,20 @@ import { parseRawConfig } from './utils.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 
+const NOT_BARE_KEYS = [
+  'name',
+  'version',
+  'description',
+  'main',
+  'keywords',
+  'author',
+  'license',
+] as const satisfies Array<keyof ProjectManifest>
+
 export function cliOptionsTypes (): Record<string, unknown> {
   return pick([
+    'init-bare',
     'init-package-manager',
-    'init-preset',
     'init-type',
   ], allTypes)
 }
@@ -24,9 +34,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
 export const commandNames = ['init']
 
 export const shorthands: Record<string, string> = {
-  application: '--init-preset application',
-  package: '--init-preset package',
-  A: '--init-preset application',
+  bare: '--init-bare',
+  B: '--init-bare',
 }
 
 export function help (): string {
@@ -45,8 +54,8 @@ export function help (): string {
             name: '--init-package-manager',
           },
           {
-            description: 'Preset of fields to set',
-            name: '--init-preset <application|package>',
+            description: `Set private to true and do not set ${NOT_BARE_KEYS.join(', ')}`,
+            name: '--init-bare',
           },
         ],
       },
@@ -60,8 +69,8 @@ export type InitOptions =
   & Pick<UniversalOptions, 'rawConfig'>
   & Pick<Config, 'cliOptions'>
   & Partial<Pick<Config,
+  | 'initBare'
   | 'initPackageManager'
-  | 'initPreset'
   | 'initType'
   >>
 
@@ -100,7 +109,7 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
   if (opts.initPackageManager) {
     packageJson.packageManager = `pnpm@${packageManager.version}`
   }
-  handleInitPreset(packageJson, opts)
+  handleInitBare(packageJson, opts)
   const priority = Object.fromEntries([
     'name',
     'version',
@@ -122,24 +131,11 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
 ${JSON.stringify(sortedPackageJson, null, 2)}`
 }
 
-function handleInitPreset (manifest: ProjectManifest, opts: Pick<InitOptions, 'initPreset'>): void {
-  switch (opts.initPreset) {
-  case undefined:
-  case 'package':
-    return
-  case 'application':
+function handleInitBare (manifest: ProjectManifest, opts: Pick<InitOptions, 'initBare'>): void {
+  if (opts.initBare) {
+    for (const key of NOT_BARE_KEYS) {
+      delete manifest[key]
+    }
     manifest.private = true
-    delete manifest.name
-    delete manifest.version
-    delete manifest.description
-    delete manifest.main
-    delete manifest.keywords
-    delete manifest.author
-    delete manifest.license
-    return
-  default: {
-    const _typeGuard: never = opts.initPreset
-    throw new Error(`Unknown preset: ${JSON.stringify(_typeGuard)}`)
-  }
   }
 }

@@ -92,9 +92,9 @@ test('init a new package.json with init-type=module', async () => {
   expect(manifest.type).toBe('module')
 })
 
-test('init a new package.json with init-preset=application', async () => {
+test('init a new package.json with init-bare=true', async () => {
   prepareEmpty()
-  await init.handler({ rawConfig: { 'init-preset': 'application' }, cliOptions: {}, initPreset: 'application' })
+  await init.handler({ rawConfig: { 'init-bare': 'true' }, cliOptions: {}, initBare: true })
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest.private).toBe(true)
   expect(manifest).not.toHaveProperty(['name'])
@@ -106,9 +106,9 @@ test('init a new package.json with init-preset=application', async () => {
   expect(manifest).not.toHaveProperty(['license'])
 })
 
-test('init a new package.json with init-preset=package', async () => {
+test('init a new package.json with init-bare=false', async () => {
   prepareEmpty()
-  await init.handler({ rawConfig: { 'init-preset': 'package' }, cliOptions: {}, initPreset: 'package' })
+  await init.handler({ rawConfig: { 'init-bare': 'false' }, cliOptions: {}, initBare: false })
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).not.toHaveProperty(['private'])
   expect(manifest).toHaveProperty(['name'])

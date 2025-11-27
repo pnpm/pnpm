@@ -224,8 +224,8 @@ export interface Config extends OptionsFromRootManifest {
   managePackageManagerVersions: boolean
   strictDepBuilds: boolean
   syncInjectedDepsAfterScripts?: string[]
+  initBare: boolean
   initPackageManager: boolean
-  initPreset: 'application' | 'package'
   initType: 'commonjs' | 'module'
   dangerouslyAllowAllBuilds: boolean
   ci: boolean
