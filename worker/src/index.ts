@@ -268,7 +268,7 @@ function createErrorHint (err: Error, checkedDir: string): string | undefined {
 
 // In Windows system exFAT drive, symlink will result in error.
 function isDriveExFat (drive: string): boolean {
-  if (!/^[A-Za-z]:$/i.test(drive)) {
+  if (!/^[a-z]:$/i.test(drive)) {
     throw new Error(`${drive} is not a valid disk on Windows`)
   }
   try {
