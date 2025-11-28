@@ -235,6 +235,7 @@ export interface Config extends OptionsFromRootManifest {
   fetchMinSpeedKiBps?: number
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
+  requiredScripts?: string[]
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
