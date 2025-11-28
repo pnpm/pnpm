@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import {
@@ -47,6 +48,10 @@ export async function validateModules (
     publicHoistPattern?: string[] | undefined
     forcePublicHoistPattern?: boolean
     global?: boolean
+
+    onlyBuiltDependencies?: string[]
+    onlyBuiltDependenciesFile?: string
+    neverBuiltDependencies?: string[]
   }
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
@@ -78,6 +83,38 @@ export async function validateModules (
   }
 
   const importersToPurge: ImporterToPurge[] = []
+
+  // Normalize build settings: treat undefined and [] as equivalent
+  const normalizeArraySetting = (value: string[] | undefined): string[] | undefined => {
+    if (value === undefined || (Array.isArray(value) && value.length === 0)) {
+      return undefined
+    }
+    return value
+  }
+
+  if (rootProject != null) {
+    try {
+      // Only check dependency build settings if the layout version is current.
+      // Otherwise, let checkCompatibility throw MODULES_BREAKING_CHANGE.
+      if (
+        modules.layoutVersion === LAYOUT_VERSION &&
+        (
+          !equals(normalizeArraySetting(modules.onlyBuiltDependencies), normalizeArraySetting(opts.onlyBuiltDependencies)) ||
+          !equals(modules.onlyBuiltDependenciesFile, opts.onlyBuiltDependenciesFile) ||
+          !equals(normalizeArraySetting(modules.neverBuiltDependencies), normalizeArraySetting(opts.neverBuiltDependencies))
+        )
+      ) {
+        throw new PnpmError(
+          'DEP_BUILD_SETTINGS_DIFF',
+          'This modules directory was created using different dependency build settings (onlyBuiltDependencies, onlyBuiltDependenciesFile, or neverBuiltDependencies).' +
+          ' Run "pnpm install" to recreate the modules directory.'
+        )
+      }
+    } catch (err: any) { // eslint-disable-line
+      if (!opts.forceNewModules) throw err
+      importersToPurge.push(rootProject)
+    }
+  }
 
   if (opts.forceHoistPattern && (rootProject != null)) {
     try {
