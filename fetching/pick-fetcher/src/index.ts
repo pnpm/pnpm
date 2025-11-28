@@ -9,12 +9,12 @@ export async function pickFetcher (
   resolution: AtomicResolution,
   opts?: {
     customFetchers?: CustomFetcher[]
-    packageId?: string
+    packageId: string
   }
 ): Promise<FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher> {
   // Try custom fetcher hooks first if available
   // Custom fetchers act as complete fetcher replacements
-  if (opts?.customFetchers && opts.customFetchers.length > 0 && opts.packageId) {
+  if (opts?.customFetchers && opts.customFetchers.length > 0) {
     for (const customFetcher of opts.customFetchers) {
       if (customFetcher.canFetch && customFetcher.fetch) {
         // eslint-disable-next-line no-await-in-loop

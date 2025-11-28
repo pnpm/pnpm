@@ -183,27 +183,6 @@ describe('custom fetcher support', () => {
     expect(fetcher2.fetch).not.toHaveBeenCalled()
   })
 
-  test('should require packageId for custom fetcher', async () => {
-    const remoteTarball = jest.fn() as FetchFunction
-
-    const customFetcher: Partial<CustomFetcher> = {
-      canFetch: () => true,
-      fetch: jest.fn() as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    }
-
-    const fetcher = await pickFetcher(
-      createMockFetchers({ remoteTarball }),
-      { tarball: 'http://example.com/package.tgz' },
-      {
-        customFetchers: [customFetcher as CustomFetcher],
-        // No packageId
-      }
-    )
-
-    // Should fall back to standard fetcher without packageId
-    expect(fetcher).toBe(remoteTarball)
-  })
-
   test('should handle custom resolution types', async () => {
     const mockFetchResult = { filesIndex: {}, manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }
     const customFetch = jest.fn(async () => mockFetchResult)
