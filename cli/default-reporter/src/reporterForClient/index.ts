@@ -73,6 +73,8 @@ export function reporterForClient (
     hideProgressPrefix?: boolean
     hideLifecycleOutput?: boolean
     hideLifecyclePrefix?: boolean
+    // This is used by Bit CLI
+    approveBuildsInstructionText?: string
   }
 ): Array<Rx.Observable<Rx.Observable<{ msg: string }>>> {
   const width = opts.width ?? process.stdout.columns ?? 80
@@ -154,6 +156,7 @@ export function reporterForClient (
         env: opts.env,
         filterPkgsDiff: opts.filterPkgsDiff,
         pnpmConfig: opts.pnpmConfig,
+        approveBuildsInstructionText: opts.approveBuildsInstructionText,
       }))
     }
   }
