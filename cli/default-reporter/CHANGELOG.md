@@ -1,5 +1,9 @@
 # @pnpm/default-reporter
 
+## 1002.1.0
+
+- using custom instruction for builds approval [a58d510]
+
 ## 1002.0.15
 
 ### Patch Changes
