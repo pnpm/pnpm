@@ -44,8 +44,9 @@
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
-         "@pnpm/types": "workspace:*",
-         "@types/normalize-path": "catalog:",    "@zkochan/rimraf": "catalog:",
+    "@pnpm/types": "workspace:*",
+    "@types/normalize-path": "catalog:",
+    "@zkochan/rimraf": "catalog:",
     "normalize-path": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"
