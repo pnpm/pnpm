@@ -1,6 +1,6 @@
 ---
-"@pnpm/config": patch
-"pnpm": patch
+"@pnpm/config": minor
+"pnpm": minor
 ---
 
 Allow loading certificates from `cert`, `ca`, and `key` for specific registry URLs. E.g., `//registry.example.com/:ca=-----BEGIN CERTIFICATE-----...`. Previously this was only working via `certfile`, `cafile`, and `keyfile`.
