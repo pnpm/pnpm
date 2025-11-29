@@ -13,30 +13,17 @@ import { parseRawConfig } from './utils.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 
-const NOT_BARE_KEYS = [
-  'name',
-  'version',
-  'description',
-  'main',
-  'keywords',
-  'author',
-  'license',
-] as const satisfies Array<keyof ProjectManifest>
-
 export function cliOptionsTypes (): Record<string, unknown> {
-  return pick([
-    'init-bare',
-    'init-package-manager',
-    'init-type',
-  ], allTypes)
+  return {
+    ...pick([
+      'init-package-manager',
+      'init-type',
+    ], allTypes),
+    bare: Boolean,
+  }
 }
 
 export const commandNames = ['init']
-
-export const shorthands: Record<string, string> = {
-  bare: '--init-bare',
-  B: '--init-bare',
-}
 
 export function help (): string {
   return renderHelp({
@@ -54,8 +41,8 @@ export function help (): string {
             name: '--init-package-manager',
           },
           {
-            description: `Set private to true and do not set ${NOT_BARE_KEYS.join(', ')}`,
-            name: '--init-bare',
+            description: 'Create a package.json file with the bare minimum of required fields',
+            name: '--bare',
           },
         ],
       },
@@ -69,10 +56,11 @@ export type InitOptions =
   & Pick<UniversalOptions, 'rawConfig'>
   & Pick<Config, 'cliOptions'>
   & Partial<Pick<Config,
-  | 'initBare'
   | 'initPackageManager'
   | 'initType'
-  >>
+  >> & {
+    bare?: boolean
+  }
 
 export async function handler (opts: InitOptions, params?: string[]): Promise<string> {
   if (params?.length) {
@@ -87,18 +75,20 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
   if (fs.existsSync(manifestPath)) {
     throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
   }
-  const manifest: ProjectManifest = {
-    name: path.basename(process.cwd()),
-    version: '1.0.0',
-    description: '',
-    main: 'index.js',
-    scripts: {
-      test: 'echo "Error: no test specified" && exit 1',
-    },
-    keywords: [],
-    author: '',
-    license: 'ISC',
-  }
+  const manifest: ProjectManifest = opts.bare
+    ? {}
+    : {
+      name: path.basename(process.cwd()),
+      version: '1.0.0',
+      description: '',
+      main: 'index.js',
+      scripts: {
+        test: 'echo "Error: no test specified" && exit 1',
+      },
+      keywords: [],
+      author: '',
+      license: 'ISC',
+    }
 
   if (opts.initType === 'module') {
     manifest.type = opts.initType
@@ -109,7 +99,6 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
   if (opts.initPackageManager) {
     packageJson.packageManager = `pnpm@${packageManager.version}`
   }
-  handleInitBare(packageJson, opts)
   const priority = Object.fromEntries([
     'name',
     'version',
@@ -129,13 +118,4 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
   return `Wrote to ${manifestPath}
 
 ${JSON.stringify(sortedPackageJson, null, 2)}`
-}
-
-function handleInitBare (manifest: ProjectManifest, opts: Pick<InitOptions, 'initBare'>): void {
-  if (opts.initBare) {
-    for (const key of NOT_BARE_KEYS) {
-      delete manifest[key]
-    }
-    manifest.private = true
-  }
 }

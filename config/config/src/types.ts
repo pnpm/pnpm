@@ -51,7 +51,6 @@ export const pnpmTypes = {
   'ignore-workspace-root-check': Boolean,
   'optimistic-repeat-install': Boolean,
   'include-workspace-root': Boolean,
-  'init-bare': Boolean,
   'init-package-manager': Boolean,
   'init-type': ['commonjs', 'module'],
   'inject-workspace-packages': Boolean,
