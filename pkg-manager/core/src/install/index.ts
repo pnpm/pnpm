@@ -323,10 +323,15 @@ export async function mutateModules (
   // Skip this check when not saving the lockfile (e.g., during deploy) since there's no point
   // in forcing re-resolution if we're not going to persist the results
   let forceResolutionFromHook = false
-  if (opts.hooks.customResolvers && ctx.existsNonEmptyWantedLockfile && !opts.frozenLockfile && opts.saveLockfile) {
+  const shouldCheckCustomResolverForceResolve =
+    opts.hooks.customResolvers &&
+    ctx.existsNonEmptyWantedLockfile &&
+    !opts.frozenLockfile &&
+    opts.saveLockfile
+  if (shouldCheckCustomResolverForceResolve) {
     const projects = Object.values(ctx.projects).map(({ id, manifest }) => ({ id, manifest }))
     forceResolutionFromHook = await checkCustomResolverForceResolve(
-      opts.hooks.customResolvers,
+      opts.hooks.customResolvers!,
       ctx.wantedLockfile,
       projects
     )
