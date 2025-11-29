@@ -91,3 +91,16 @@ test('init a new package.json with init-type=module', async () => {
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest.type).toBe('module')
 })
+
+test('init a new package.json with --bare', async () => {
+  prepareEmpty()
+  await init.handler({ rawConfig: {}, cliOptions: {}, bare: true })
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
+  expect(manifest).not.toHaveProperty(['name'])
+  expect(manifest).not.toHaveProperty(['version'])
+  expect(manifest).not.toHaveProperty(['description'])
+  expect(manifest).not.toHaveProperty(['main'])
+  expect(manifest).not.toHaveProperty(['keywords'])
+  expect(manifest).not.toHaveProperty(['author'])
+  expect(manifest).not.toHaveProperty(['license'])
+})
