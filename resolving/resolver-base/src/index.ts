@@ -82,7 +82,6 @@ export interface ResolveResult {
   resolvedVia: string
   normalizedBareSpecifier?: string
   alias?: string
-  lockfileResolution?: Resolution
 }
 
 export interface WorkspacePackage {
