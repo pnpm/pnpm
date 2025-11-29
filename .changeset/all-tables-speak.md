@@ -1,9 +1,10 @@
 ---
-"@pnpm/config": major
+"@pnpm/config": patch
+"pnpm": patch
 ---
 
-allow loading certificates from `cert`, `ca` and `key` for specific repository
-scopes instead of only globally.
+Allow loading certificates from `cert`, `ca`, and `key` for specific registry URLs. E.g., `//registry.example.com/:ca=-----BEGIN CERTIFICATE-----...`. Previously this was only working via `certfile`, `cafile`, and `keyfile`.
 
-These properties are supported in .npmrc, but get ignored by pnpm, this will
-make pnpm read and use them as well.
+These properties are supported in `.npmrc`, but were ignored by pnpm, this will make pnpm read and use them as well.
+
+Related PR: [#10230](https://github.com/pnpm/pnpm/pull/10230).
