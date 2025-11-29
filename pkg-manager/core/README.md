@@ -187,7 +187,7 @@ const customResolver = {
     return {
       id: `company-cdn:${actualName}@${version}`,
       resolution: {
-        type: '@company/cdn',
+        type: 'custom:cdn',
         cdnUrl: `https://cdn.company.com/packages/${actualName}/${version}.tgz`,
         cachedAt: Date.now(), // Custom metadata for shouldForceResolve
       },
@@ -202,7 +202,7 @@ const customResolver = {
 
 const customFetcher = {
   canFetch: (pkgId, resolution) => {
-    return resolution.type === '@company/cdn'
+    return resolution.type === 'custom:cdn'
   },
 
   fetch: async (cafs, resolution, opts, fetchers) => {

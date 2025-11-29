@@ -44,7 +44,7 @@ export interface GitResolution {
 }
 
 export interface CustomResolution {
-  type: `@${string}/${string}` // Scoped name (e.g., '@company/cdn', '@acme/artifactory')
+  type: `custom:${string}` // e.g., 'custom:cdn', 'custom:artifactory'
   [key: string]: unknown
 }
 

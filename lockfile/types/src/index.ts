@@ -125,12 +125,12 @@ export interface PlatformAssetResolution {
 
 /**
  * Custom resolution type for custom resolver-provided packages.
- * Uses scoped naming convention (like npm packages) to avoid collisions.
+ * The type field must be prefixed with 'custom:' to differentiate it from built-in resolution types.
  *
- * Example: { type: '@company/cdn', cdnUrl: '...' }
+ * Example: { type: 'custom:cdn', cdnUrl: '...' }
  */
 export interface CustomResolution {
-  type: `@${string}/${string}` // Scoped name (e.g., '@company/cdn', '@acme/artifactory')
+  type: `custom:${string}` // e.g., 'custom:cdn', 'custom:artifactory'
   [key: string]: unknown
 }
 

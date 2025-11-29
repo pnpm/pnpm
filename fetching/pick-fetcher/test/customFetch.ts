@@ -204,15 +204,15 @@ describe('custom fetcher implementation examples', () => {
 
     test('should work with custom resolution types', async () => {
       const customResolution = createMockResolution({
-        type: '@company/cdn',
+        type: 'custom:cdn',
         cdnUrl: 'https://cdn.example.com/pkg.tgz',
       })
 
       const customFetcher = createMockCustomFetcher(
-        (_pkgId, resolution) => resolution.type === '@company/cdn',
+        (_pkgId, resolution) => resolution.type === 'custom:cdn',
         async (_cafs, resolution) => {
           // Custom fetcher can access custom resolution fields
-          expect(resolution.type).toBe('@company/cdn')
+          expect(resolution.type).toBe('custom:cdn')
           expect((resolution as any).cdnUrl).toBe('https://cdn.example.com/pkg.tgz') // eslint-disable-line @typescript-eslint/no-explicit-any
 
           return {
@@ -285,7 +285,7 @@ describe('custom fetcher implementation examples', () => {
 
       // Custom fetcher that maps custom URLs to tarballs
       const customFetcher = createMockCustomFetcher(
-        (_pkgId, resolution) => resolution.type === '@company/custom' && Boolean((resolution as any).customUrl), // eslint-disable-line @typescript-eslint/no-explicit-any
+        (_pkgId, resolution) => resolution.type === 'custom:url' && Boolean((resolution as any).customUrl), // eslint-disable-line @typescript-eslint/no-explicit-any
         async (cafs, resolution, opts, fetchers) => {
           // Map custom resolution to tarball resolution
           const tarballResolution = {
@@ -299,7 +299,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       const customResolution = createMockResolution({
-        type: '@company/custom',
+        type: 'custom:url',
         customUrl: `${registry}custom-pkg.tgz`,
       })
 
@@ -333,7 +333,7 @@ describe('custom fetcher implementation examples', () => {
 
       // Custom fetcher that maps custom local paths to tarballs
       const customFetcher = createMockCustomFetcher(
-        (_pkgId, resolution) => resolution.type === '@company/local' && Boolean((resolution as any).localPath), // eslint-disable-line @typescript-eslint/no-explicit-any
+        (_pkgId, resolution) => resolution.type === 'custom:local' && Boolean((resolution as any).localPath), // eslint-disable-line @typescript-eslint/no-explicit-any
         async (cafs, resolution, opts, fetchers) => {
           const tarballResolution = {
             tarball: `file:${(resolution as any).localPath}`, // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -345,7 +345,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       const customResolution = createMockResolution({
-        type: '@company/local',
+        type: 'custom:local',
         localPath: tarballPath,
       })
 
@@ -384,7 +384,7 @@ describe('custom fetcher implementation examples', () => {
 
       // Custom fetcher that transforms custom resolution to tarball URL
       const customFetcher = createMockCustomFetcher(
-        (_pkgId, resolution) => resolution.type === '@company/registry',
+        (_pkgId, resolution) => resolution.type === 'custom:registry',
         async (cafs, resolution, opts, fetchers) => {
           // Transform custom registry format to standard tarball URL
           const tarballUrl = `${registry}${(resolution as any).packageName}.tgz` // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -399,7 +399,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       const customResolution = createMockResolution({
-        type: '@company/registry',
+        type: 'custom:registry',
         packageName: 'transformed-pkg',
       })
 
@@ -433,7 +433,7 @@ describe('custom fetcher implementation examples', () => {
 
       // Custom fetcher that maps custom git resolution to git-hosted tarball
       const customFetcher = createMockCustomFetcher(
-        (_pkgId, resolution) => resolution.type === '@company/git',
+        (_pkgId, resolution) => resolution.type === 'custom:git',
         async (cafs, resolution, opts, fetchers) => {
           // Map custom git resolution to GitHub codeload URL
           const tarballResolution = {
@@ -445,7 +445,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       const customResolution = createMockResolution({
-        type: '@company/git',
+        type: 'custom:git',
         repo: 'sveltejs/action-deploy-docs',
         commit: 'a65fbf5a90f53c9d72fed4daaca59da50f074355',
       })
@@ -472,7 +472,7 @@ describe('custom fetcher implementation examples', () => {
       const cache = new Map<string, any>() // eslint-disable-line @typescript-eslint/no-explicit-any
 
       const customFetcher = createMockCustomFetcher(
-        (_pkgId, resolution) => resolution.type === '@company/cached',
+        (_pkgId, resolution) => resolution.type === 'custom:cached',
         async (_cafs, resolution) => {
           fetchCalls.push(Date.now())
 
@@ -494,7 +494,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       const customResolution = createMockResolution({
-        type: '@company/cached',
+        type: 'custom:cached',
         url: 'https://cache.example.com/pkg',
         version: '1.0.0',
       })
@@ -520,7 +520,7 @@ describe('custom fetcher implementation examples', () => {
       const authCalls: string[] = []
 
       const customFetcher = createMockCustomFetcher(
-        (_pkgId, resolution) => resolution.type === '@company/auth',
+        (_pkgId, resolution) => resolution.type === 'custom:auth',
         async () => {
           authCalls.push(authToken)
 
@@ -539,7 +539,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       const customResolution = createMockResolution({
-        type: '@company/auth',
+        type: 'custom:auth',
         url: 'https://secure.example.com/pkg',
       })
 

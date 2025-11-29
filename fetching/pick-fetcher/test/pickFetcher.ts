@@ -188,14 +188,14 @@ describe('custom fetcher support', () => {
     const customFetch = jest.fn(async () => mockFetchResult)
 
     const customFetcher: Partial<CustomFetcher> = {
-      canFetch: (pkgId: string, resolution: any) => resolution.type === '@test/custom', // eslint-disable-line @typescript-eslint/no-explicit-any
+      canFetch: (pkgId: string, resolution: any) => resolution.type === 'custom:test', // eslint-disable-line @typescript-eslint/no-explicit-any
       fetch: customFetch,
     }
 
     const mockFetchers = createMockFetchers({})
     const fetcher = await pickFetcher(
       mockFetchers,
-      { type: '@test/custom', customField: 'value' } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      { type: 'custom:test', customField: 'value' } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       {
         customFetchers: [customFetcher as CustomFetcher],
         packageId: 'test-package@1.0.0',
@@ -203,14 +203,14 @@ describe('custom fetcher support', () => {
     )
 
     const mockCafs = {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    const mockResolution = { type: '@test/custom', customField: 'value' } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    const mockResolution = { type: 'custom:test', customField: 'value' } as any // eslint-disable-line @typescript-eslint/no-explicit-any
     const mockFetchOpts = {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
     await fetcher(mockCafs, mockResolution, mockFetchOpts)
 
     expect(customFetch).toHaveBeenCalledWith(
       mockCafs,
-      { type: '@test/custom', customField: 'value' },
+      { type: 'custom:test', customField: 'value' },
       mockFetchOpts,
       mockFetchers
     )
@@ -251,7 +251,7 @@ describe('custom fetcher support', () => {
   test('throws error for custom resolution type with no custom fetcher', async () => {
     // Custom resolution type without a matching custom fetcher
     const customResolution = {
-      type: '@company/cdn',
+      type: 'custom:cdn',
       cdnUrl: 'https://cdn.company.com/package.tgz',
     } as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -259,6 +259,6 @@ describe('custom fetcher support', () => {
       pickFetcher(createMockFetchers({}), customResolution, {
         packageId: 'test-package@1.0.0',
       })
-    ).rejects.toThrow('Cannot fetch dependency with custom resolution type "@company/cdn". Custom resolutions must be handled by custom fetchers.')
+    ).rejects.toThrow('Cannot fetch dependency with custom resolution type "custom:cdn". Custom resolutions must be handled by custom fetchers.')
   })
 })

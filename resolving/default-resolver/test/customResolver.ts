@@ -197,7 +197,7 @@ test('custom resolver can intercept any protocol', async () => {
     resolve: (wantedDependency: WantedDependency) => ({
       id: `custom-handled:${wantedDependency.alias}@${wantedDependency.bareSpecifier}`,
       resolution: {
-        type: '@test/custom',
+        type: 'custom:test',
         directory: `/custom/${wantedDependency.alias}`,
       },
     }),
@@ -230,7 +230,7 @@ test('custom resolver falls through when not supported', async () => {
     },
     resolve: (wantedDependency: WantedDependency) => ({
       id: `custom:${wantedDependency.alias}@${wantedDependency.bareSpecifier}`,
-      resolution: { type: '@test/custom', directory: '/custom' },
+      resolution: { type: 'custom:test', directory: '/custom' },
     }),
   }
 
@@ -299,7 +299,7 @@ test('custom custom fetcher: reuse local tarball fetcher', async () => {
       return {
         id: wantedDependency.alias!,
         resolution: {
-          type: '@company/local',
+          type: 'custom:local',
           localPath: `/company/tarballs/${actualName}-${wantedDependency.bareSpecifier}.tgz`,
         },
       }
@@ -323,7 +323,7 @@ test('custom custom fetcher: reuse local tarball fetcher', async () => {
   )
 
   expect(result.resolvedVia).toBe('custom-resolver')
-  expect(result.resolution).toHaveProperty('type', '@company/local')
+  expect(result.resolution).toHaveProperty('type', 'custom:local')
 })
 
 test('custom custom fetcher: reuse remote tarball downloader', async () => {
@@ -336,7 +336,7 @@ test('custom custom fetcher: reuse remote tarball downloader', async () => {
       return {
         id: wantedDependency.alias!,
         resolution: {
-          type: '@company/cdn',
+          type: 'custom:cdn',
           cdnUrl: `https://cdn.example.com/packages/${actualName}/${wantedDependency.bareSpecifier}/${actualName}-${wantedDependency.bareSpecifier}.tgz`,
         },
       }
@@ -360,7 +360,7 @@ test('custom custom fetcher: reuse remote tarball downloader', async () => {
   )
 
   expect(result.resolvedVia).toBe('custom-resolver')
-  expect(result.resolution).toHaveProperty('type', '@company/cdn')
+  expect(result.resolution).toHaveProperty('type', 'custom:cdn')
 })
 
 test('custom custom fetcher: wrap npm registry with custom logic', async () => {
