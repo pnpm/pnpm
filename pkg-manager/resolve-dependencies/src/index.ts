@@ -4,6 +4,7 @@ import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
+import { isRuntimeDepPath } from '@pnpm/dependency-path'
 import {
   type LockfileObject,
   type ProjectSnapshot,
@@ -460,7 +461,7 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
 function extendGraph (graph: DependenciesGraph, virtualStoreDir: string, enableGlobalVirtualStore?: boolean): DependenciesGraph {
   const pkgMetaIter = (function * () {
     for (const depPath in graph) {
-      if ((enableGlobalVirtualStore === true || depPath.includes('@runtime:')) && Object.hasOwn(graph, depPath)) {
+      if ((enableGlobalVirtualStore === true || isRuntimeDepPath(depPath as DepPath)) && Object.hasOwn(graph, depPath)) {
         const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
         yield {
           name,

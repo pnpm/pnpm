@@ -39,7 +39,7 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
       }
       const pkgSnapshot = lockfile.packages[depPath as DepPath]
       const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      if (depPath.includes('@runtime:')) {
+      if (dp.isRuntimeDepPath(depPath as DepPath)) {
         // TODO: don't convert the whole lockfile to graph
         const graph = lockfileToDepGraph(lockfile)
         for (const { hash } of iterateHashedGraphNodes(graph, [{ name, version, depPath: depPath as DepPath }][Symbol.iterator]())) {
