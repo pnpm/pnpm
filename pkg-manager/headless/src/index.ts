@@ -140,6 +140,7 @@ export interface HeadlessOptions {
   lockfileDir: string
   modulesDir?: string
   enableGlobalVirtualStore?: boolean
+  globalVirtualStoreDir: string
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
   patchedDependencies?: PatchGroupRecord

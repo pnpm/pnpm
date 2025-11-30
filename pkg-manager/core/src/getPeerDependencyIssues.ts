@@ -26,7 +26,7 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 >
 & Partial<Pick<InstallOptions, 'supportedArchitectures'>>
 & Pick<GetContextOptions, 'autoInstallPeers' | 'excludeLinksFromLockfile' | 'storeDir'>
-& Required<Pick<InstallOptions, 'virtualStoreDirMaxLength' | 'peersSuffixMaxLength'>>
+& Required<Pick<InstallOptions, 'globalVirtualStoreDir' | 'virtualStoreDirMaxLength' | 'peersSuffixMaxLength'>>
 
 export async function getPeerDependencyIssues (
   projects: ProjectOptions[],
@@ -90,6 +90,7 @@ export async function getPeerDependencyIssues (
       saveWorkspaceProtocol: false, // this doesn't matter in our case. We won't write changes to package.json files
       storeController: opts.storeController,
       tag: 'latest',
+      globalVirtualStoreDir: opts.globalVirtualStoreDir,
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
       wantedLockfile: ctx.wantedLockfile,

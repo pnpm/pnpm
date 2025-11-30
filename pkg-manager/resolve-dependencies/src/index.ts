@@ -4,6 +4,7 @@ import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
+import { isRuntimeDepPath } from '@pnpm/dependency-path'
 import {
   type LockfileObject,
   type ProjectSnapshot,
@@ -335,7 +336,7 @@ export async function resolveDependencies (
 
   return {
     dependenciesByProjectId,
-    dependenciesGraph: opts.enableGlobalVirtualStore ? extendGraph(dependenciesGraph, opts.virtualStoreDir) : dependenciesGraph,
+    dependenciesGraph: extendGraph(dependenciesGraph, opts.globalVirtualStoreDir, opts.enableGlobalVirtualStore),
     outdatedDependencies,
     linkedDependenciesByProjectId,
     updatedCatalogs,
@@ -457,10 +458,10 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     .filter(Boolean) as DependencyManifest[]
 }
 
-function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): DependenciesGraph {
+function extendGraph (graph: DependenciesGraph, virtualStoreDir: string, enableGlobalVirtualStore?: boolean): DependenciesGraph {
   const pkgMetaIter = (function * () {
     for (const depPath in graph) {
-      if (Object.hasOwn(graph, depPath)) {
+      if ((enableGlobalVirtualStore === true || isRuntimeDepPath(depPath as DepPath)) && Object.hasOwn(graph, depPath)) {
         const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
         yield {
           name,
