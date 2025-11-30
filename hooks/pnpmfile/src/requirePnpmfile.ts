@@ -7,6 +7,7 @@ import { createRequire } from 'module'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import { type PackageManifest, type Finder } from '@pnpm/types'
+import { type CustomResolver, type CustomFetcher } from '@pnpm/hooks.types'
 import chalk from 'chalk'
 import { type Hooks } from './Hooks.js'
 
@@ -37,6 +38,8 @@ export type Finders = Record<string, Finder>
 export interface Pnpmfile {
   hooks?: Hooks
   finders?: Finders
+  resolvers?: CustomResolver[]
+  fetchers?: CustomFetcher[]
 }
 
 export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Promise<{ pnpmfileModule: Pnpmfile | undefined } | undefined> {

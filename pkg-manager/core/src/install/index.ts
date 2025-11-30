@@ -76,6 +76,7 @@ import pLimit from 'p-limit'
 import { map as mapValues, clone, isEmpty, pipeWith, props } from 'ramda'
 import { parseWantedDependencies } from '../parseWantedDependencies.js'
 import { removeDeps } from '../uninstall/removeDeps.js'
+import { checkCustomResolverForceResolve } from './checkCustomResolverForceResolve.js'
 import {
   extendOptions,
   type InstallOptions,
@@ -318,6 +319,24 @@ export async function mutateModules (
     }
   }
 
+  // Check if any custom resolvers want to force resolution for specific dependencies
+  // Skip this check when not saving the lockfile (e.g., during deploy) since there's no point
+  // in forcing re-resolution if we're not going to persist the results
+  let forceResolutionFromHook = false
+  const shouldCheckCustomResolverForceResolve =
+    opts.hooks.customResolvers &&
+    ctx.existsNonEmptyWantedLockfile &&
+    !opts.frozenLockfile &&
+    opts.saveLockfile
+  if (shouldCheckCustomResolverForceResolve) {
+    const projects = Object.values(ctx.projects).map(({ id, manifest }) => ({ id, manifest }))
+    forceResolutionFromHook = await checkCustomResolverForceResolve(
+      opts.hooks.customResolvers!,
+      ctx.wantedLockfile,
+      projects
+    )
+  }
+
   const pruneVirtualStore = !opts.enableGlobalVirtualStore && (ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
     : true
@@ -430,7 +449,8 @@ export async function mutateModules (
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
       !upToDateLockfileMajorVersion ||
-      opts.forceFullResolution
+      opts.forceFullResolution ||
+      forceResolutionFromHook
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,

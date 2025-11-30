@@ -24,16 +24,21 @@
     "!*.map"
   ],
   "scripts": {
-    "test": "pnpm run compile",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix",
-    "lint": "eslint \"src/**/*.ts\""
+    "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/hooks.types": "workspace:*"
   },
   "engines": {

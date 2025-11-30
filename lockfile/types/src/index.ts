@@ -123,11 +123,23 @@ export interface PlatformAssetResolution {
   targets: PlatformAssetTarget[]
 }
 
+/**
+ * Custom resolution type for custom resolver-provided packages.
+ * The type field must be prefixed with 'custom:' to differentiate it from built-in resolution types.
+ *
+ * Example: { type: 'custom:cdn', cdnUrl: '...' }
+ */
+export interface CustomResolution {
+  type: `custom:${string}` // e.g., 'custom:cdn', 'custom:artifactory'
+  [key: string]: unknown
+}
+
 export type Resolution =
   TarballResolution |
   GitRepositoryResolution |
   DirectoryResolution |
-  BinaryResolution
+  BinaryResolution |
+  CustomResolution
 
 export interface VariationsResolution {
   type: 'variations'

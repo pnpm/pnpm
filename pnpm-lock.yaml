@@ -2157,6 +2157,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: link:../../hooks/types
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -3220,19 +3223,47 @@ importers:
         version: 3.0.0
 
   fetching/pick-fetcher:
+    dependencies:
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../../store/cafs-types
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fetcher-base':
+        specifier: workspace:*
+        version: link:../fetcher-base
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: link:../../hooks/types
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.0.5
-      '@pnpm/fetcher-base':
+      '@pnpm/create-cafs-store':
         specifier: workspace:*
-        version: link:../fetcher-base
+        version: link:../../store/create-cafs-store
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/resolver-base':
+      '@pnpm/tarball-fetcher':
         specifier: workspace:*
-        version: link:../../resolving/resolver-base
+        version: link:../tarball-fetcher
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
+      nock:
+        specifier: 'catalog:'
+        version: 13.3.4
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
 
   fetching/tarball-fetcher:
     dependencies:
@@ -3591,13 +3622,25 @@ importers:
 
   hooks/types:
     dependencies:
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../../store/cafs-types
+      '@pnpm/fetcher-base':
+        specifier: workspace:*
+        version: link:../../fetching/fetcher-base
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: 'link:'
@@ -4065,6 +4108,12 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: link:../../hooks/types
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
@@ -4852,6 +4901,9 @@ importers:
       '@pnpm/git-fetcher':
         specifier: workspace:*
         version: link:../../fetching/git-fetcher
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: link:../../hooks/types
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
@@ -5669,6 +5721,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: link:../../hooks/types
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -6151,6 +6206,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: link:../../hooks/types
       '@pnpm/lockfile.preferred-versions':
         specifier: workspace:*
         version: link:../../lockfile/preferred-versions
@@ -7189,6 +7247,9 @@ importers:
       '@pnpm/git-resolver':
         specifier: workspace:*
         version: link:../git-resolver
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: link:../../hooks/types
       '@pnpm/local-resolver':
         specifier: workspace:*
         version: link:../local-resolver
@@ -7210,13 +7271,31 @@ importers:
       '@pnpm/tarball-resolver':
         specifier: workspace:*
         version: link:../tarball-resolver
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../../store/cafs-types
       '@pnpm/default-resolver':
         specifier: workspace:*
         version: 'link:'
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/fetcher-base':
+        specifier: workspace:*
+        version: link:../../fetching/fetcher-base
+      '@pnpm/tarball-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/tarball-fetcher
+      node-fetch:
+        specifier: 'catalog:'
+        version: 3.3.2
 
   resolving/deno-resolver:
     dependencies:
@@ -8122,6 +8201,9 @@ importers:
       '@pnpm/fs.v8-file':
         specifier: workspace:*
         version: link:../../fs/v8-file
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: link:../../hooks/types
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../../pkg-manager/package-requester
