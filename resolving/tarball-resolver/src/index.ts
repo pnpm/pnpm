@@ -28,8 +28,8 @@ export async function resolveFromTarball (
   }
 
   return {
-    id: resolvedUrl as PkgResolutionId,
-    normalizedBareSpecifier: resolvedUrl,
+    id: wantedDependency.bareSpecifier as PkgResolutionId,
+    normalizedBareSpecifier: wantedDependency.bareSpecifier,
     resolution: {
       tarball: resolvedUrl,
     },
