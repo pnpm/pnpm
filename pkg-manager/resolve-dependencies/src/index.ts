@@ -336,7 +336,7 @@ export async function resolveDependencies (
 
   return {
     dependenciesByProjectId,
-    dependenciesGraph: extendGraph(dependenciesGraph, opts.globalVirtualStoreDir, opts.enableGlobalVirtualStore),
+    dependenciesGraph: extendGraph(dependenciesGraph, opts),
     outdatedDependencies,
     linkedDependenciesByProjectId,
     updatedCatalogs,
@@ -458,10 +458,16 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     .filter(Boolean) as DependencyManifest[]
 }
 
-function extendGraph (graph: DependenciesGraph, virtualStoreDir: string, enableGlobalVirtualStore?: boolean): DependenciesGraph {
+function extendGraph (
+  graph: DependenciesGraph,
+  opts: {
+    virtualStoreDir: string
+    enableGlobalVirtualStore?: boolean
+  }
+): DependenciesGraph {
   const pkgMetaIter = (function * () {
     for (const depPath in graph) {
-      if ((enableGlobalVirtualStore === true || isRuntimeDepPath(depPath as DepPath)) && Object.hasOwn(graph, depPath)) {
+      if ((opts.enableGlobalVirtualStore === true || isRuntimeDepPath(depPath as DepPath)) && Object.hasOwn(graph, depPath)) {
         const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
         yield {
           name,
@@ -473,7 +479,7 @@ function extendGraph (graph: DependenciesGraph, virtualStoreDir: string, enableG
     }
   })()
   for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter)) {
-    const modules = path.join(virtualStoreDir, hash, 'node_modules')
+    const modules = path.join(opts.virtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {
       modules,
