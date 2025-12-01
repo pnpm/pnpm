@@ -322,7 +322,7 @@ export function extendOptions (
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
   if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
-    extendedOpts.virtualStoreDir = extendedOpts.globalVirtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+    extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
   }
   extendedOpts.globalVirtualStoreDir = extendedOpts.enableGlobalVirtualStore
     ? extendedOpts.virtualStoreDir!

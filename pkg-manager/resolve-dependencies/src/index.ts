@@ -461,7 +461,7 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
 function extendGraph (
   graph: DependenciesGraph,
   opts: {
-    virtualStoreDir: string
+    globalVirtualStoreDir: string
     enableGlobalVirtualStore?: boolean
   }
 ): DependenciesGraph {
@@ -479,7 +479,7 @@ function extendGraph (
     }
   })()
   for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter)) {
-    const modules = path.join(opts.virtualStoreDir, hash, 'node_modules')
+    const modules = path.join(opts.globalVirtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {
       modules,
