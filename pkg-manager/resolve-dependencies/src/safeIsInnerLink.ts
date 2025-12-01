@@ -29,7 +29,6 @@ export async function safeIsInnerLink (
     return link.target as string
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT') return true
-    console.log(err)
 
     if (opts.hideAlienModules) {
       logger.warn({
