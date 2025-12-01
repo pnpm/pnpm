@@ -4,6 +4,7 @@ import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
+import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -277,6 +278,20 @@ export async function mutateModules (
     await safeReadProjectManifestOnly(opts.lockfileDir)
 
   let ctx = await getContext(opts)
+  if (
+    !opts.forceFullResolution &&
+    !opts.frozenLockfile &&
+    ctx.ignoredBuilds &&
+    opts.onlyBuiltDependencies
+  ) {
+    console.log({ ignoredBuilds: ctx.ignoredBuilds, onlyBuiltDependencies: opts.onlyBuiltDependencies })
+    const onlyBuiltDeps = createPackageVersionPolicy(opts.onlyBuiltDependencies)
+    if (ctx.ignoredBuilds.some((ignoredPkg) => onlyBuiltDeps(ignoredPkg))) {
+      console.log('FORCE FULL RESOLVE')
+      opts.forceFullResolution = true
+      // opts.needsFullResolution = true
+    }
+  }
 
   if (!opts.lockfileOnly && ctx.modulesFile != null) {
     const { purged } = await validateModules(ctx.modulesFile, Object.values(ctx.projects), {
@@ -1168,7 +1183,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-      force: opts.force,
+      force: true, // opts.force,
       forceFullResolution,
       ignoreScripts: opts.ignoreScripts,
       hooks: {
@@ -1310,7 +1325,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ctx.pendingBuilds = ctx.pendingBuilds
       .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
 
-    if (result.newDepPaths?.length) {
+    if (result.newDepPaths?.length || opts.forceFullResolution) {
       if (opts.ignoreScripts) {
         // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
         ctx.pendingBuilds = ctx.pendingBuilds
@@ -1330,13 +1345,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
           }
         }
+        console.log('XXXXXXXXAAAAAAAAAAAAA')
+        console.log('XXXXXXXXAAAAAAAAAAAAA', rootNodes)
+        console.log('depsToBuild: ', opts.forceFullResolution ? Object.keys(dependenciesGraph) : result.newDepPaths)
         ignoredBuilds = (await buildModules(dependenciesGraph, rootNodes, {
           allowBuild,
           ignorePatchFailures: opts.ignorePatchFailures,
           ignoredBuiltDependencies: opts.ignoredBuiltDependencies,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
-          depsToBuild: new Set(result.newDepPaths),
+          depsToBuild: new Set(opts.forceFullResolution ? Object.keys(dependenciesGraph) : result.newDepPaths),
           extraBinPaths: ctx.extraBinPaths,
           extraNodePaths: ctx.extraNodePaths,
           extraEnv,

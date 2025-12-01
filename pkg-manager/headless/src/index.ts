@@ -515,6 +515,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   let ignoredBuilds: string[] | undefined
   if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
     const directNodes = new Set<string>()
+    console.log(directDependenciesByImporterId)
+    console.log(graph)
     for (const id of union(importerIds, ['.'])) {
       const directDependencies = directDependenciesByImporterId[id]
       for (const alias in directDependencies) {
@@ -534,6 +536,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
       }
     }
+    console.log('xxxxx')
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       allowBuild,
       ignoredBuiltDependencies: opts.ignoredBuiltDependencies,

@@ -48,6 +48,7 @@ export async function buildModules<T extends string> (
     hoistedLocations?: Record<string, string[]>
   }
 ): Promise<{ ignoredBuilds?: string[] }> {
+  console.log('=============================!!!!', rootDepPaths)
   if (!rootDepPaths.length) return {}
   const warn = (message: string) => {
     logger.warn({ message, prefix: opts.lockfileDir })

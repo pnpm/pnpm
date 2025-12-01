@@ -764,3 +764,33 @@ test('run pre/postinstall scripts in a project that uses node-linker=hoisted. Sh
     message: `An error occurred while uploading ${path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')}`,
   }))
 })
+
+test('build dependencies that were not previously built after onlyBuiltDependencies changes', async () => {
+  prepareEmpty()
+  const neverBuiltDependencies: string[] | undefined = undefined
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
+    testDefaults({
+      fastUnpack: false,
+      // ignoredBuiltDependencies: undefined ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+      onlyBuiltDependencies: ['@pnpm.e2e/install-script-example'],
+      neverBuiltDependencies,
+    })
+  )
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  await install(manifest, testDefaults({
+    fastUnpack: false,
+    // frozenLockfile: true,
+    ignoredBuiltDependencies: [],
+    neverBuiltDependencies,
+    onlyBuiltDependencies: ['@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'],
+  }))
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+})

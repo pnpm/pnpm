@@ -36,6 +36,7 @@ export async function readProjectsContext<T> (
     projects: Array<{
       id: ProjectId
     } & T & Required<ProjectOptions>>
+    ignoredBuilds?: string[]
     include: Record<DependenciesField, boolean>
     modules: Modules | null
     pendingBuilds: string[]
@@ -52,6 +53,7 @@ export async function readProjectsContext<T> (
     currentPublicHoistPattern: modules?.publicHoistPattern,
     hoist: (modules == null) ? undefined : Boolean(modules.hoistPattern),
     hoistedDependencies: modules?.hoistedDependencies ?? {},
+    ignoredBuilds: modules?.ignoredBuilds,
     include: modules?.included ?? { dependencies: true, devDependencies: true, optionalDependencies: true },
     modules,
     pendingBuilds: modules?.pendingBuilds ?? [],

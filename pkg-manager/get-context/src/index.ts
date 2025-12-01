@@ -38,6 +38,7 @@ export interface PnpmContext {
   extraNodePaths: string[]
   lockfileHadConflicts: boolean
   hoistedDependencies: HoistedDependencies
+  ignoredBuilds?: string[]
   /** Required included dependencies or dependencies currently included by the modules directory. */
   include: IncludedDependencies
   modulesFile: Modules | null
@@ -159,6 +160,7 @@ export async function getContext (
     hoistedModulesDir,
     hoistPattern: opts.hoistPattern,
     currentHoistPattern: importersContext.currentHoistPattern,
+    ignoredBuilds: importersContext.ignoredBuilds,
     include: opts.include ?? importersContext.include,
     lockfileDir: opts.lockfileDir,
     modulesFile: importersContext.modules,
@@ -214,6 +216,7 @@ export interface PnpmSingleContext {
   modulesDir: string
   importerId: string
   prefix: string
+  ignoredBuilds?: string[]
   /** Required included dependencies or dependencies currently included by the modules directory. */
   include: IncludedDependencies
   modulesFile: Modules | null
@@ -267,6 +270,7 @@ export async function getContextForSingleImporter (
     currentHoistPattern,
     hoistedDependencies,
     projects,
+    ignoredBuilds,
     include,
     modules,
     pendingBuilds,
@@ -316,6 +320,7 @@ export async function getContextForSingleImporter (
     hoistedModulesDir,
     hoistPattern: opts.hoistPattern,
     importerId,
+    ignoredBuilds,
     include: opts.include ?? include,
     lockfileDir: opts.lockfileDir,
     manifest: await opts.readPackageHook?.(manifest) ?? manifest,
