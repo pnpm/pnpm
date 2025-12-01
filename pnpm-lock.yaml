@@ -7095,6 +7095,9 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
+      read-ini-file:
+        specifier: 'catalog:'
+        version: 4.0.0
       realpath-missing:
         specifier: 'catalog:'
         version: 1.1.0
@@ -7113,6 +7116,9 @@ importers:
       validate-npm-package-name:
         specifier: 'catalog:'
         version: 6.0.2
+      write-ini-file:
+        specifier: 'catalog:'
+        version: 4.0.1
       write-json-file:
         specifier: 'catalog:'
         version: 6.0.0
