@@ -127,6 +127,7 @@ export async function resolveDependencies (
     lockfileOnly: opts.dryRun,
     preferredVersions: opts.preferredVersions,
     virtualStoreDir: opts.virtualStoreDir,
+    globalVirtualStoreDir: opts.globalVirtualStoreDir,
     workspacePackages: opts.workspacePackages,
     noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
   })

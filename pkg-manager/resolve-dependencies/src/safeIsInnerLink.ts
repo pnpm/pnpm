@@ -11,6 +11,7 @@ export async function safeIsInnerLink (
     hideAlienModules: boolean
     projectDir: string
     virtualStoreDir: string
+    globalVirtualStoreDir: string
   }
 ): Promise<true | string> {
   try {
@@ -18,11 +19,17 @@ export async function safeIsInnerLink (
 
     if (link.isInner) return true
 
-    if (isSubdir(opts.virtualStoreDir, link.target)) return true
+    if (
+      isSubdir(opts.virtualStoreDir, link.target) ||
+      opts.globalVirtualStoreDir !== opts.virtualStoreDir && isSubdir(opts.globalVirtualStoreDir, link.target)
+    ) {
+      return true
+    }
 
     return link.target as string
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT') return true
+    console.log(err)
 
     if (opts.hideAlienModules) {
       logger.warn({
