@@ -2,10 +2,12 @@ import path from 'path'
 import {
   iterateHashedGraphNodes,
   lockfileToDepGraph,
+  calcGraphNodeHash,
   type PkgMeta,
   type DepsGraph,
   type PkgMetaIterator,
   type HashedDepPath,
+  type DepsStateCache,
 } from '@pnpm/calc-dep-state'
 import { type LockfileObject, type PackageSnapshot } from '@pnpm/lockfile.fs'
 import {
@@ -33,6 +35,8 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
       }
     }
   } else if (lockfile.packages) {
+    let graph: DepsGraph<DepPath> | undefined
+    let graphCache: DepsStateCache | undefined
     for (const depPath in lockfile.packages) {
       if (!Object.hasOwn(lockfile.packages, depPath)) {
         continue
@@ -40,19 +44,20 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
       const pkgSnapshot = lockfile.packages[depPath as DepPath]
       const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       if (dp.isRuntimeDepPath(depPath as DepPath)) {
-        // TODO: don't convert the whole lockfile to graph
-        const graph = lockfileToDepGraph(lockfile)
-        for (const { hash } of iterateHashedGraphNodes(graph, [{ name, version, depPath: depPath as DepPath }][Symbol.iterator]())) {
-          yield {
-            dirInVirtualStore: path.join(opts.globalVirtualStoreDir, hash),
-            pkgMeta: {
-              depPath: depPath as DepPath,
-              pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
-              name,
-              version,
-              pkgSnapshot,
-            },
-          }
+        if (!graph) {
+          graph = lockfileToDepGraph(lockfile)
+          graphCache = {}
+        }
+        const hash = calcGraphNodeHash(graph, graphCache!, { name, version, depPath: depPath as DepPath })
+        yield {
+          dirInVirtualStore: path.join(opts.globalVirtualStoreDir, hash),
+          pkgMeta: {
+            depPath: depPath as DepPath,
+            pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
+            name,
+            version,
+            pkgSnapshot,
+          },
         }
         continue
       }
