@@ -35,41 +35,34 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
       }
     }
   } else if (lockfile.packages) {
-    let graph: DepsGraph<DepPath> | undefined
-    let graphCache: DepsStateCache | undefined
+    let graphNodeHashOpts: { graph: DepsGraph<DepPath>, cache: DepsStateCache } | undefined
     for (const depPath in lockfile.packages) {
       if (!Object.hasOwn(lockfile.packages, depPath)) {
         continue
       }
       const pkgSnapshot = lockfile.packages[depPath as DepPath]
       const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const pkgMeta = {
+        depPath: depPath as DepPath,
+        pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
+        name,
+        version,
+        pkgSnapshot,
+      }
+      let dirInVirtualStore!: string
       if (dp.isRuntimeDepPath(depPath as DepPath)) {
-        if (!graph) {
-          graph = lockfileToDepGraph(lockfile)
-          graphCache = {}
+        graphNodeHashOpts ??= {
+          cache: {},
+          graph: lockfileToDepGraph(lockfile),
         }
-        const hash = calcGraphNodeHash(graph, graphCache!, { name, version, depPath: depPath as DepPath })
-        yield {
-          dirInVirtualStore: path.join(opts.globalVirtualStoreDir, hash),
-          pkgMeta: {
-            depPath: depPath as DepPath,
-            pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
-            name,
-            version,
-            pkgSnapshot,
-          },
-        }
-        continue
+        const hash = calcGraphNodeHash(graphNodeHashOpts, pkgMeta)
+        dirInVirtualStore = path.join(opts.globalVirtualStoreDir, hash)
+      } else {
+        dirInVirtualStore = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength))
       }
       yield {
-        pkgMeta: {
-          depPath: depPath as DepPath,
-          pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
-          name,
-          version,
-          pkgSnapshot,
-        },
-        dirInVirtualStore: path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength)),
+        dirInVirtualStore,
+        pkgMeta,
       }
     }
   }

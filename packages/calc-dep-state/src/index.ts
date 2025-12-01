@@ -92,18 +92,20 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   graph: DepsGraph<DepPath>,
   pkgMetaIterator: PkgMetaIterator<T>
 ): IterableIterator<HashedDepPath<T>> {
-  const cache: DepsStateCache = {}
+  const _calcGraphNodeHash = calcGraphNodeHash.bind(null, { graph, cache: {} })
   for (const pkgMeta of pkgMetaIterator) {
     yield {
-      hash: calcGraphNodeHash(graph, cache, pkgMeta),
+      hash: _calcGraphNodeHash(pkgMeta),
       pkgMeta,
     }
   }
 }
 
 export function calcGraphNodeHash<T extends PkgMeta> (
-  graph: DepsGraph<DepPath>,
-  cache: DepsStateCache,
+  { graph, cache }: {
+    graph: DepsGraph<DepPath>
+    cache: DepsStateCache
+  },
   pkgMeta: T
 ): string {
   const { name, version, depPath } = pkgMeta
