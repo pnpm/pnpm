@@ -116,6 +116,7 @@ export interface StrictInstallOptions {
   workspacePackages?: WorkspacePackages
   pruneStore: boolean
   virtualStoreDir?: string
+  globalVirtualStoreDir: string
   dir: string
   symlink: boolean
   enableModulesDir: boolean
@@ -325,5 +326,8 @@ export function extendOptions (
   if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
     extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
   }
+  extendedOpts.globalVirtualStoreDir = extendedOpts.enableGlobalVirtualStore
+    ? extendedOpts.virtualStoreDir!
+    : path.join(extendedOpts.storeDir, 'links')
   return extendedOpts
 }

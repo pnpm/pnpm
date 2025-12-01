@@ -4,6 +4,7 @@ import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
+import { isRuntimeDepPath } from '@pnpm/dependency-path'
 import {
   type LockfileObject,
   type ProjectSnapshot,
@@ -126,6 +127,7 @@ export async function resolveDependencies (
     lockfileOnly: opts.dryRun,
     preferredVersions: opts.preferredVersions,
     virtualStoreDir: opts.virtualStoreDir,
+    globalVirtualStoreDir: opts.globalVirtualStoreDir,
     workspacePackages: opts.workspacePackages,
     noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
   })
@@ -335,7 +337,7 @@ export async function resolveDependencies (
 
   return {
     dependenciesByProjectId,
-    dependenciesGraph: opts.enableGlobalVirtualStore ? extendGraph(dependenciesGraph, opts.virtualStoreDir) : dependenciesGraph,
+    dependenciesGraph: extendGraph(dependenciesGraph, opts),
     outdatedDependencies,
     linkedDependenciesByProjectId,
     updatedCatalogs,
@@ -457,10 +459,16 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     .filter(Boolean) as DependencyManifest[]
 }
 
-function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): DependenciesGraph {
+function extendGraph (
+  graph: DependenciesGraph,
+  opts: {
+    globalVirtualStoreDir: string
+    enableGlobalVirtualStore?: boolean
+  }
+): DependenciesGraph {
   const pkgMetaIter = (function * () {
     for (const depPath in graph) {
-      if (Object.hasOwn(graph, depPath)) {
+      if ((opts.enableGlobalVirtualStore === true || isRuntimeDepPath(depPath as DepPath)) && Object.hasOwn(graph, depPath)) {
         const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
         yield {
           name,
@@ -472,7 +480,7 @@ function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): Depend
     }
   })()
   for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter)) {
-    const modules = path.join(virtualStoreDir, hash, 'node_modules')
+    const modules = path.join(opts.globalVirtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {
       modules,

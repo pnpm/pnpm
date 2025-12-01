@@ -25,6 +25,7 @@ export async function toResolveImporter (
     lockfileOnly: boolean
     preferredVersions?: PreferredVersions
     virtualStoreDir: string
+    globalVirtualStoreDir: string
     workspacePackages: WorkspacePackages
     updateToLatest?: boolean
     noDependencySelectors: boolean
@@ -38,6 +39,7 @@ export async function toResolveImporter (
     modulesDir: project.modulesDir,
     projectDir: project.rootDir,
     virtualStoreDir: opts.virtualStoreDir,
+    globalVirtualStoreDir: opts.globalVirtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })
   const defaultUpdateDepth = (project.update === true || (project.updateMatching != null)) ? opts.defaultUpdateDepth : -1
@@ -98,6 +100,7 @@ async function partitionLinkedPackages (
     lockfileOnly: boolean
     modulesDir: string
     virtualStoreDir: string
+    globalVirtualStoreDir: string
     workspacePackages?: WorkspacePackages
   }
 ): Promise<WantedDependency[]> {
@@ -116,6 +119,7 @@ async function partitionLinkedPackages (
       hideAlienModules: !opts.lockfileOnly,
       projectDir: opts.projectDir,
       virtualStoreDir: opts.virtualStoreDir,
+      globalVirtualStoreDir: opts.globalVirtualStoreDir,
     })
     if (isInnerLink === true) {
       nonLinkedDependencies.push(dependency)
