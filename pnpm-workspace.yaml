@@ -333,6 +333,8 @@ managePackageManagerVersions: true
 minimumReleaseAge: 1440 # At least a day
 
 minimumReleaseAgeExclude:
+  - body-parser@2.2.1
+  - express@4.22.1
   - pnpm
   - '@pnpm/*'
   - parse-npm-tarball-url@4.0.0
@@ -353,7 +355,7 @@ overrides:
   cookie@<0.7.0: '>=0.7.0'
   cross-spawn@<7.0.5: '>=7.0.5'
   debug@<3.1.0: '>=3.1.0'
-  express@<4.20.0: ^4.20.0
+  express@<4.22.1: ^4.22.1
   follow-redirects@<=1.15.5: '>=1.15.6'
   glob-parent@<5.1.2: '>=5.1.2'
   hosted-git-info@1: 'catalog:'
