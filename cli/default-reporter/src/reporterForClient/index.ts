@@ -8,6 +8,7 @@ import { reportContext } from './reportContext.js'
 import { reportExecutionTime } from './reportExecutionTime.js'
 import { reportDeprecations } from './reportDeprecations.js'
 import { reportHooks } from './reportHooks.js'
+import { reportIgnoredBuilds } from './reportIgnoredBuilds.js'
 import { reportInstallChecks } from './reportInstallChecks.js'
 import { reportInstallingConfigDeps } from './reportInstallingConfigDeps.js'
 import { reportLifecycleScripts } from './reportLifecycleScripts.js'
@@ -156,9 +157,14 @@ export function reporterForClient (
         env: opts.env,
         filterPkgsDiff: opts.filterPkgsDiff,
         pnpmConfig: opts.pnpmConfig,
-        approveBuildsInstructionText: opts.approveBuildsInstructionText,
       }))
     }
+    outputs.push(
+      reportIgnoredBuilds(log$, {
+        pnpmConfig: opts.pnpmConfig,
+        approveBuildsInstructionText: opts.approveBuildsInstructionText,
+      })
+    )
   }
 
   return outputs

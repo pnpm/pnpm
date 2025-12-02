@@ -92,7 +92,7 @@ export async function rebuildSelectedPkgs (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
-): Promise<void> {
+): Promise<{ ignoredBuilds?: string[] }> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -100,7 +100,7 @@ export async function rebuildSelectedPkgs (
   const opts = await extendRebuildOptions(maybeOpts)
   const ctx = await getContext({ ...opts, allProjects: projects })
 
-  if (ctx.currentLockfile?.packages == null) return
+  if (ctx.currentLockfile?.packages == null) return {}
   const packages = ctx.currentLockfile.packages
 
   const searched: PackageSelector[] = pkgSpecs.map((arg) => {
@@ -149,6 +149,9 @@ export async function rebuildSelectedPkgs (
     virtualStoreDir: ctx.virtualStoreDir,
     virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
   })
+  return {
+    ignoredBuilds: ignoredPkgs,
+  }
 }
 
 export async function rebuildProjects (
