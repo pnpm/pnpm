@@ -371,7 +371,15 @@ export async function mutateModules (
     opts.onlyBuiltDependencies
   ) {
     const onlyBuiltDeps = createPackageVersionPolicy(opts.onlyBuiltDependencies)
-    const pkgsToBuild = result.ignoredBuilds.filter((ignoredPkg) => onlyBuiltDeps(ignoredPkg))
+    const pkgsToBuild = result.ignoredBuilds.flatMap((ignoredPkg) => {
+      const matchResult = onlyBuiltDeps(ignoredPkg)
+      if (matchResult === true) {
+        return [ignoredPkg]
+      } else if (Array.isArray(matchResult)) {
+        return matchResult.map(version => `${ignoredPkg}@${version}`)
+      }
+      return []
+    })
     if (pkgsToBuild.length) {
       ignoredBuilds = (await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
         ...opts,
