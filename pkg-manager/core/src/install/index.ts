@@ -895,6 +895,7 @@ async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previou
   if (pkgsToBuild.length) {
     return (await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
       ...opts,
+      reporter: undefined, // We don't want to attach the reporter again, it was already attached.
       rootProjectManifestDir: opts.lockfileDir,
     })).ignoredBuilds ?? previousIgnoredBuilds
   }
