@@ -1,5 +1,12 @@
 # @pnpm/cache.api
 
+## 1000.0.41
+
+### Patch Changes
+
+- Updated dependencies [b0ec709]
+  - @pnpm/config@1004.7.0
+
 ## 1000.0.40
 
 ### Patch Changes

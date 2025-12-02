@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.1.4
+
+### Patch Changes
+
+- Updated dependencies [b0ec709]
+  - @pnpm/config@1004.7.0
+  - @pnpm/cli-utils@1001.2.13
+  - @pnpm/deps.status@1003.0.20
+  - @pnpm/plugin-commands-env@1000.0.49
+  - @pnpm/plugin-commands-installation@1004.8.3
+  - @pnpm/workspace.injected-deps-syncer@1000.0.22
+  - @pnpm/client@1001.1.9
+
 ## 1001.1.3
 
 ### Patch Changes

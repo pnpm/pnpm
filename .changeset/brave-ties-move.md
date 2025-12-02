@@ -1,5 +1,4 @@
 ---
-"@pnpm/plugin-commands-init": minor
 "pnpm": minor
 ---
 

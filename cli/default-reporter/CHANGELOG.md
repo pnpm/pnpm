@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 1002.1.1
+
+### Patch Changes
+
+- 033a256: `pnpm install` should build any dependencies that were added to `onlyBuiltDependencies` and were not built yet [#10256](https://github.com/pnpm/pnpm/pull/10256).
+- Updated dependencies [b0ec709]
+  - @pnpm/config@1004.7.0
+
 ## 1002.1.0
 
 - using custom instruction for builds approval [a58d510]

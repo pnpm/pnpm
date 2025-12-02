@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 1007.0.1
+
+### Patch Changes
+
+- 033a256: `pnpm install` should build any dependencies that were added to `onlyBuiltDependencies` and were not built yet [#10256](https://github.com/pnpm/pnpm/pull/10256).
+- Updated dependencies [033a256]
+  - @pnpm/build-modules@1004.0.1
+  - @pnpm/package-requester@1009.0.0
+
 ## 1007.0.0
 
 ### Patch Changes

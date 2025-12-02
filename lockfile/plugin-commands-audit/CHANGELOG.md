@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.1.24
+
+### Patch Changes
+
+- Updated dependencies [b0ec709]
+  - @pnpm/config@1004.7.0
+  - @pnpm/cli-utils@1001.2.13
+
 ## 1002.1.23
 
 ### Patch Changes

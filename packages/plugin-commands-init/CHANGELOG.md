@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-init
 
+## 1000.3.0
+
+### Minor Changes
+
+- 78f12ef: Added a new flag called `--bare` to `pnpm init` for creating a package.json with the bare minimum of required fields [#10226](https://github.com/pnpm/pnpm/issues/10226).
+
+### Patch Changes
+
+- Updated dependencies [b0ec709]
+  - @pnpm/config@1004.7.0
+  - @pnpm/cli-utils@1001.2.13
+
 ## 1000.2.23
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.bun-resolver",
-  "version": "1003.0.0",
+  "version": "1003.0.1",
   "description": "Resolves the Bun runtime",
   "keywords": [
     "pnpm",
