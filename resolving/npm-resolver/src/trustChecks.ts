@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
-import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
-import { type PackageVersionPolicy } from '@pnpm/types'
+import type { PackageMeta, PackageInRegistry, PackageMetaWithTime } from '@pnpm/registry.types'
+import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
 type TrustEvidence = 'provenance' | 'trustedPublisher'
@@ -15,14 +15,8 @@ export function failIfTrustDowngraded (
   version: string,
   trustPolicyExclude?: PackageVersionPolicy
 ): void {
-  if (trustPolicyExclude) {
-    const excludeResult = trustPolicyExclude(meta.name)
-    if (excludeResult === true) {
-      return
-    }
-    if (Array.isArray(excludeResult) && excludeResult.includes(version)) {
-      return
-    }
+  if (trustPolicyExclude && isPackageExcluded(meta, version, trustPolicyExclude)) {
+    return
   }
 
   const versionPublishedAt = meta.time[version]
@@ -63,6 +57,24 @@ export function failIfTrustDowngraded (
       }
     )
   }
+}
+
+export function isPackageExcluded (
+  meta: PackageMeta,
+  version: string,
+  trustPolicyExclude: PackageVersionPolicy
+): boolean {
+  if (trustPolicyExclude) {
+    const excludeResult = trustPolicyExclude(meta.name)
+    if (excludeResult === true) {
+      return true
+    }
+    if (Array.isArray(excludeResult) && excludeResult.includes(version)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 function prettyPrintTrustEvidence (trustEvidence: TrustEvidence | undefined): string {

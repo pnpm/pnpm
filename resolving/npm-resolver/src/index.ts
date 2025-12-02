@@ -49,7 +49,7 @@ import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOption
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { pickVersionByVersionRange, assertMetaHasTime } from './pickPackageFromMeta.js'
-import { failIfTrustDowngraded } from './trustChecks.js'
+import { failIfTrustDowngraded, isPackageExcluded } from './trustChecks.js'
 
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
@@ -308,8 +308,10 @@ async function resolveNpm (
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   } else if (opts.trustPolicy === 'no-downgrade') {
-    assertMetaHasTime(meta)
-    failIfTrustDowngraded(meta, pickedPackage.version, opts.trustPolicyExclude)
+    if (!opts.trustPolicyExclude || !isPackageExcluded(meta, pickedPackage.version, opts.trustPolicyExclude)) {
+      assertMetaHasTime(meta)
+      failIfTrustDowngraded(meta, pickedPackage.version)
+    }
   }
 
   const workspacePkgsMatchingName = workspacePackages?.get(pickedPackage.name)
