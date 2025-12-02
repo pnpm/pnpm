@@ -97,6 +97,7 @@
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
+    "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",

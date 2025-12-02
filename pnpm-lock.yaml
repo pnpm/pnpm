@@ -5058,6 +5058,9 @@ importers:
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: link:../direct-dep-linker
+      '@pnpm/plugin-commands-rebuild':
+        specifier: workspace:*
+        version: link:../../exec/plugin-commands-rebuild
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
