@@ -3,7 +3,7 @@ import path from 'path'
 import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { getWorkspaceConcurrency } from '@pnpm/config'
-import { skippedOptionalDependencyLogger, ignoredScriptsLogger } from '@pnpm/core-loggers'
+import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
@@ -97,7 +97,6 @@ export async function buildModules<T extends string> (
     }
   }
   const packageNames = Array.from(ignoredPkgs)
-  ignoredScriptsLogger.debug({ packageNames })
   return { ignoredBuilds: packageNames }
 }
 
