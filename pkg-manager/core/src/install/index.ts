@@ -359,9 +359,6 @@ export async function mutateModules (
     // @ts-expect-error
     globalInfo(`The integrity of ${global['verifiedFileIntegrity']} files was checked. This might have caused installation to take longer.`)
   }
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.removeListener('data', reporter)
-  }
 
   if (opts.mergeGitBranchLockfiles) {
     await cleanGitBranchLockfiles(ctx.lockfileDir)
@@ -383,6 +380,10 @@ export async function mutateModules (
     }
   }
   ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
+
+  if ((reporter != null) && typeof reporter === 'function') {
+    streamParser.removeListener('data', reporter)
+  }
 
   return {
     updatedCatalogs: result.updatedCatalogs,
