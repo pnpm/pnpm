@@ -367,6 +367,7 @@ export async function mutateModules (
     await cleanGitBranchLockfiles(ctx.lockfileDir)
   }
 
+  let ignoredBuilds = result.ignoredBuilds
   if (
     !opts.ignoreScripts &&
     result.ignoredBuilds &&
@@ -375,19 +376,20 @@ export async function mutateModules (
     const onlyBuiltDeps = createPackageVersionPolicy(opts.onlyBuiltDependencies)
     const pkgsToBuild = result.ignoredBuilds.filter((ignoredPkg) => onlyBuiltDeps(ignoredPkg))
     if (pkgsToBuild.length) {
-      await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
+      ignoredBuilds = (await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
         ...opts,
         rootProjectManifestDir: opts.lockfileDir,
-      })
+      })).ignoredBuilds
     }
   }
+  ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
 
   return {
     updatedCatalogs: result.updatedCatalogs,
     updatedProjects: result.updatedProjects,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
-    ignoredBuilds: result.ignoredBuilds,
+    ignoredBuilds,
   }
 
   interface InnerInstallResult {
@@ -1373,7 +1375,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         })).ignoredBuilds
         if (ignoredBuilds == null && ctx.modulesFile?.ignoredBuilds?.length) {
           ignoredBuilds = ctx.modulesFile.ignoredBuilds
-          ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
         }
       }
     }

@@ -772,7 +772,6 @@ test('build dependencies that were not previously built after onlyBuiltDependenc
     ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
     testDefaults({
       fastUnpack: false,
-      // ignoredBuiltDependencies: undefined ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
       onlyBuiltDependencies: ['@pnpm.e2e/install-script-example'],
       neverBuiltDependencies,
     })
@@ -784,7 +783,7 @@ test('build dependencies that were not previously built after onlyBuiltDependenc
 
   await install(manifest, testDefaults({
     fastUnpack: false,
-    // frozenLockfile: true,
+    frozenLockfile: true,
     ignoredBuiltDependencies: [],
     neverBuiltDependencies,
     onlyBuiltDependencies: ['@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'],

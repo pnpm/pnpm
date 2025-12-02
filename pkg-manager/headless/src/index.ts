@@ -8,7 +8,6 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
-  ignoredScriptsLogger,
   packageManifestLogger,
   progressLogger,
   stageLogger,
@@ -559,7 +558,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     })).ignoredBuilds
     if (ignoredBuilds == null && opts.modulesFile?.ignoredBuilds?.length) {
       ignoredBuilds = opts.modulesFile.ignoredBuilds
-      ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
     }
   }
 
