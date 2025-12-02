@@ -365,27 +365,8 @@ export async function mutateModules (
   }
 
   let ignoredBuilds = result.ignoredBuilds
-  if (
-    !opts.ignoreScripts &&
-    result.ignoredBuilds &&
-    opts.onlyBuiltDependencies
-  ) {
-    const onlyBuiltDeps = createPackageVersionPolicy(opts.onlyBuiltDependencies)
-    const pkgsToBuild = result.ignoredBuilds.flatMap((ignoredPkg) => {
-      const matchResult = onlyBuiltDeps(ignoredPkg)
-      if (matchResult === true) {
-        return [ignoredPkg]
-      } else if (Array.isArray(matchResult)) {
-        return matchResult.map(version => `${ignoredPkg}@${version}`)
-      }
-      return []
-    })
-    if (pkgsToBuild.length) {
-      ignoredBuilds = (await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
-        ...opts,
-        rootProjectManifestDir: opts.lockfileDir,
-      })).ignoredBuilds
-    }
+  if (!opts.ignoreScripts && ignoredBuilds?.length) {
+    ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds)
   }
   ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
 
@@ -895,6 +876,29 @@ Note that in CI environments, this setting is enabled by default.`,
       return { needsFullResolution }
     }
   }
+}
+
+async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previousIgnoredBuilds: string[]): Promise<string[]> {
+  if (!opts.onlyBuiltDependencies?.length) {
+    return previousIgnoredBuilds
+  }
+  const onlyBuiltDeps = createPackageVersionPolicy(opts.onlyBuiltDependencies)
+  const pkgsToBuild = previousIgnoredBuilds.flatMap((ignoredPkg) => {
+    const matchResult = onlyBuiltDeps(ignoredPkg)
+    if (matchResult === true) {
+      return [ignoredPkg]
+    } else if (Array.isArray(matchResult)) {
+      return matchResult.map(version => `${ignoredPkg}@${version}`)
+    }
+    return []
+  })
+  if (pkgsToBuild.length) {
+    return (await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
+      ...opts,
+      rootProjectManifestDir: opts.lockfileDir,
+    })).ignoredBuilds ?? previousIgnoredBuilds
+  }
+  return previousIgnoredBuilds
 }
 
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {
