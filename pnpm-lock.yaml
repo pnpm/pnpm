@@ -804,6 +804,7 @@ overrides:
   socks@2: ^2.8.1
   tmp@<=0.2.3: '>=0.2.4'
   tough-cookie@<4.1.3: '>=4.1.3'
+  validator@<13.15.22: '>=13.15.22'
   yaml@<2.2.2: '>=2.2.2'
 
 packageExtensionsChecksum: sha256-VLztJiT59DQuLj+e7xg8kB9fTEUJlTrj+wQKDJ4xUfs=
@@ -15640,8 +15641,8 @@ packages:
     resolution: {integrity: sha512-YuKoXDAhBYxY7SfOKxHBDoSyENFeW5VvIIQp2TGQuit8gpK6MnWaQelBKxso72DoxTZfZdcP3W90LqpSkgPzLQ==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
 
-  validator@13.7.0:
-    resolution: {integrity: sha512-nYXQLCBkpJ8X6ltALua9dRrZDHVYxjJ1wgskNt1lH9fzGjs3tgojGSCBjmEPwkWS1y29+DrizMTW19Pr9uB2nw==}
+  validator@13.15.23:
+    resolution: {integrity: sha512-4yoz1kEWqUjzi5zsPbAS/903QXSYp0UOtHsPpp7p9rHAw/W+dkInskAE386Fat3oKRROwO98d9ZB0G4cObgUyw==}
     engines: {node: '>= 0.10'}
 
   value-or-function@3.0.0:
@@ -18739,7 +18740,7 @@ snapshots:
       '@verdaccio/core': 6.0.0-6-next.55
       debug: 4.3.4
       lodash: 4.17.21
-      validator: 13.7.0
+      validator: 13.15.23
     transitivePeerDependencies:
       - supports-color
 
@@ -24227,7 +24228,7 @@ snapshots:
     dependencies:
       builtins: 5.1.0
 
-  validator@13.7.0: {}
+  validator@13.15.23: {}
 
   value-or-function@3.0.0: {}
 
@@ -24293,7 +24294,7 @@ snapshots:
       pretty-ms: 7.0.1
       request: postman-request@2.88.1-postman.40
       semver: 7.7.2
-      validator: 13.7.0
+      validator: 13.15.23
       verdaccio-audit: 10.2.4(encoding@0.1.13)
       verdaccio-htpasswd: 10.5.2
     transitivePeerDependencies:
