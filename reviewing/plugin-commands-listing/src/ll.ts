@@ -1,4 +1,4 @@
-import omit from 'ramda/src/omit'
+import { omit } from 'ramda'
 import * as list from './list.js'
 
 export const commandNames = ['ll', 'la']

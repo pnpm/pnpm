@@ -1,5 +1,65 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.2.19
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.8
+- @pnpm/client@1001.1.4
+- @pnpm/plugin-commands-env@1000.0.44
+
+## 1000.2.18
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/cli-utils@1001.2.7
+  - @pnpm/config@1004.4.2
+  - @pnpm/pick-registry-for-package@1000.0.11
+  - @pnpm/plugin-commands-env@1000.0.43
+  - @pnpm/lifecycle@1001.0.25
+  - @pnpm/client@1001.1.3
+  - @pnpm/package-bins@1000.0.11
+  - @pnpm/exportable-manifest@1000.1.7
+  - @pnpm/sort-packages@1000.0.11
+
+## 1000.2.17
+
+### Patch Changes
+
+- 3abd394: Remove pnpm-specific CLI options before passing to npm publish to prevent "Unknown cli config" warnings [#9646](https://github.com/pnpm/pnpm/issues/9646).
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/cli-utils@1001.2.6
+  - @pnpm/plugin-commands-env@1000.0.42
+  - @pnpm/lifecycle@1001.0.24
+  - @pnpm/client@1001.1.2
+
+## 1000.2.16
+
+### Patch Changes
+
+- @pnpm/client@1001.1.1
+- @pnpm/plugin-commands-env@1000.0.41
+- @pnpm/cli-utils@1001.2.5
+
+## 1000.2.15
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+- Updated dependencies [a514bc0]
+  - @pnpm/client@1001.1.0
+  - @pnpm/config@1004.4.0
+  - @pnpm/lifecycle@1001.0.23
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/plugin-commands-env@1000.0.40
+  - @pnpm/exportable-manifest@1000.1.6
+
 ## 1000.2.14
 
 ### Patch Changes

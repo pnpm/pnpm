@@ -1,21 +1,21 @@
 {
   "name": "@pnpm/list",
-  "version": "1000.1.1",
+  "version": "1000.1.3",
   "description": "List installed packages in a symlinked `node_modules`",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "list",
     "ls"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/list",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/list#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/reviewing/list",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/reviewing/list#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -31,12 +31,11 @@
     "prepareFixtures": "cd test && node ../../pnpm recursive install --no-link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
     "prepublishOnly": "pnpm run compile",
     "pretest": "pnpm run --filter dependencies-hierarchy pretest",
-    "_test": "pnpm pretest && jest",
+    "_test": "pnpm pretest && cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/crypto.polyfill": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
@@ -54,7 +53,7 @@
     "@types/ramda": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

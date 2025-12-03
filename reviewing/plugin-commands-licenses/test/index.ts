@@ -10,7 +10,7 @@ import { stripVTControlCharacters as stripAnsi } from 'util'
 import { DEFAULT_OPTS } from './utils/index.js'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('pnpm licenses', async () => {
   const workspaceDir = tempDir()

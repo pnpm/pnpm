@@ -1,12 +1,13 @@
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { update, install } from '@pnpm/plugin-commands-installation'
-import * as enquirer from 'enquirer'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { jest } from '@jest/globals'
 
-jest.mock('enquirer', () => ({ prompt: jest.fn() }))
+jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
+
+const { default: enquirer } = await import('enquirer')
+const { update, install } = await import('@pnpm/plugin-commands-installation')
 
 const prompt = jest.mocked(enquirer.prompt)
 

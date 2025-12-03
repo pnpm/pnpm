@@ -28,7 +28,7 @@ import { setup } from '@pnpm/plugin-commands-setup'
 import { store } from '@pnpm/plugin-commands-store'
 import { catFile, catIndex, findHash } from '@pnpm/plugin-commands-store-inspecting'
 import { init } from '@pnpm/plugin-commands-init'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import { type PnpmOptions } from '../types.js'
 import { shorthands as universalShorthands } from '../shorthands.js'
 import { parseCliArgs } from '../parseCliArgs.js'
@@ -108,6 +108,8 @@ export interface CommandDefinition {
   skipPackageManagerCheck?: boolean
 }
 
+const helpByCommandName: Record<string, () => string> = {}
+
 const commands: CommandDefinition[] = [
   add,
   approveBuilds,
@@ -159,10 +161,10 @@ const commands: CommandDefinition[] = [
   unlink,
   update,
   why,
+  createHelp(helpByCommandName),
 ]
 
 const handlerByCommandName: Record<string, Command> = {}
-const helpByCommandName: Record<string, () => string> = {}
 const cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>> = {}
 const aliasToFullName = new Map<string, string>()
 const completionByCommandName: Record<string, CompletionFunc> = {}
@@ -205,7 +207,6 @@ for (let i = 0; i < commands.length; i++) {
   }
 }
 
-handlerByCommandName.help = createHelp(helpByCommandName)
 handlerByCommandName['completion-server'] = createCompletionServer({
   cliOptionsTypesByCommandName,
   completionByCommandName,

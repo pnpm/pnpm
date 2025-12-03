@@ -18,11 +18,12 @@ import {
   type ReadPackageHook,
   type Registries,
   type PrepareExecutionEnv,
+  type TrustPolicy,
 } from '@pnpm/types'
+import { type CustomResolver, type CustomFetcher, type PreResolutionHookContext } from '@pnpm/hooks.types'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import { type ReporterFunction } from '../types.js'
-import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
@@ -91,6 +92,8 @@ export interface StrictInstallOptions {
     readPackage?: ReadPackageHook[]
     preResolution?: Array<(ctx: PreResolutionHookContext) => Promise<void>>
     afterAllResolved?: Array<(lockfile: LockfileObject) => LockfileObject | Promise<LockfileObject>>
+    customResolvers?: CustomResolver[]
+    customFetchers?: CustomFetcher[]
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }
   sideEffectsCacheRead: boolean
@@ -113,6 +116,7 @@ export interface StrictInstallOptions {
   workspacePackages?: WorkspacePackages
   pruneStore: boolean
   virtualStoreDir?: string
+  globalVirtualStoreDir: string
   dir: string
   symlink: boolean
   enableModulesDir: boolean
@@ -167,6 +171,8 @@ export interface StrictInstallOptions {
   ci?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: string[]
 }
 
 export type InstallOptions =
@@ -320,5 +326,8 @@ export function extendOptions (
   if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
     extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
   }
+  extendedOpts.globalVirtualStoreDir = extendedOpts.enableGlobalVirtualStore
+    ? extendedOpts.virtualStoreDir!
+    : path.join(extendedOpts.storeDir, 'links')
   return extendedOpts
 }

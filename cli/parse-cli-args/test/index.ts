@@ -1,7 +1,7 @@
 import os from 'os'
 import { type PnpmError } from '@pnpm/error'
 import { parseCliArgs } from '@pnpm/parse-cli-args'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 const DEFAULT_OPTS = {
   getCommandLongName: (commandName: string) => commandName,
@@ -180,7 +180,7 @@ test('no command', async () => {
   const { cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
   }, ['--version'])
-  expect(cmd).toBe(null)
+  expect(cmd).toBeNull()
 })
 
 test('use command-specific shorthands', async () => {
@@ -199,6 +199,43 @@ test('use command-specific shorthands', async () => {
     },
   }, ['install', '-D'])
   expect(options).toHaveProperty(['dev'])
+})
+
+test('command-specific shorthands override universal shorthands', async () => {
+  const { options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'add') {
+        return {
+          'save-dev': Boolean,
+          'save-prod': Boolean,
+          'save-optional': Boolean,
+          'save-exact': Boolean,
+          loglevel: String,
+          parseable: Boolean,
+        }
+      }
+      return {}
+    },
+    universalShorthands: {
+      d: '--loglevel',
+      p: '--parseable',
+    },
+    shorthandsByCommandName: {
+      add: {
+        d: '--save-dev',
+        p: '--save-prod',
+        o: '--save-optional',
+        e: '--save-exact',
+      },
+    },
+  }, ['add', '-d', '-p', '-o', '-e', 'package'])
+  expect(options['save-dev']).toBe(true)
+  expect(options['save-prod']).toBe(true)
+  expect(options['save-optional']).toBe(true)
+  expect(options['save-exact']).toBe(true)
+  expect(options.loglevel).toBeUndefined()
+  expect(options.parseable).toBeUndefined()
 })
 
 test('any unknown command is treated as a script', async () => {
@@ -268,7 +305,7 @@ test("don't use the fallback command if no command is present", async () => {
     getCommandLongName: () => null,
     universalOptionsTypes: { filter: [String, Array] },
   }, [])
-  expect(cmd).toBe(null)
+  expect(cmd).toBeNull()
   expect(params).toStrictEqual([])
 })
 
@@ -290,7 +327,7 @@ test('--workspace-root fails if used with --global', async () => {
 })
 
 test('--workspace-root fails if used outside of a workspace', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
   let err!: PnpmError
   try {
     await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root'])

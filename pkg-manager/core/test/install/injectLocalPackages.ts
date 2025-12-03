@@ -5,7 +5,7 @@ import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/c
 import { preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
-import { sync as writeJsonFile } from 'write-json-file'
+import { writeJsonFileSync } from 'write-json-file'
 import { testDefaults } from '../utils/index.js'
 
 test('inject local packages', async () => {
@@ -113,7 +113,7 @@ test('inject local packages', async () => {
   projects['project-3'].has('is-positive')
   projects['project-3'].has('project-2')
 
-  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
+  expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(8)
 
   const rootModules = assertProject(process.cwd())
   {
@@ -152,7 +152,7 @@ test('inject local packages', async () => {
     })
 
     const modulesState = rootModules.readModulesManifest()
-    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'].length).toBe(2)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
@@ -178,7 +178,7 @@ test('inject local packages', async () => {
   projects['project-3'].has('is-positive')
   projects['project-3'].has('project-2')
 
-  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
+  expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(8)
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
@@ -206,7 +206,7 @@ test('inject local packages', async () => {
       },
     })
     const modulesState = rootModules.readModulesManifest()
-    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'].length).toBe(2)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
@@ -308,7 +308,7 @@ test('inject local packages using the injectWorkspacePackages setting', async ()
   projects['project-3'].has('is-positive')
   projects['project-3'].has('project-2')
 
-  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
+  expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(8)
 
   const rootModules = assertProject(process.cwd())
   {
@@ -348,7 +348,7 @@ test('inject local packages using the injectWorkspacePackages setting', async ()
     })
 
     const modulesState = rootModules.readModulesManifest()
-    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'].length).toBe(2)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
@@ -375,7 +375,7 @@ test('inject local packages using the injectWorkspacePackages setting', async ()
   projects['project-3'].has('is-positive')
   projects['project-3'].has('project-2')
 
-  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
+  expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(8)
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
@@ -404,7 +404,7 @@ test('inject local packages using the injectWorkspacePackages setting', async ()
       },
     })
     const modulesState = rootModules.readModulesManifest()
-    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'].length).toBe(2)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
@@ -515,7 +515,7 @@ test('inject local packages declared via file protocol', async () => {
   projects['project-3'].has('is-positive')
   projects['project-3'].has('project-2')
 
-  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
+  expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(8)
 
   const rootModules = assertProject(process.cwd())
   {
@@ -554,7 +554,7 @@ test('inject local packages declared via file protocol', async () => {
     })
 
     const modulesState = rootModules.readModulesManifest()
-    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'].length).toBe(2)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
@@ -580,11 +580,11 @@ test('inject local packages declared via file protocol', async () => {
   projects['project-3'].has('is-positive')
   projects['project-3'].has('project-2')
 
-  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
+  expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(8)
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  writeJsonFile('project-1/package.json', allProjects[0].manifest)
+  writeJsonFileSync('project-1/package.json', allProjects[0].manifest)
   await mutateModules(importers, testDefaults({ autoInstallPeers: false, allProjects }))
   {
     const lockfile = rootModules.readLockfile()
@@ -609,7 +609,7 @@ test('inject local packages declared via file protocol', async () => {
       },
     })
     const modulesState = rootModules.readModulesManifest()
-    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'].length).toBe(2)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
@@ -710,7 +710,7 @@ test('inject local packages when the file protocol is used', async () => {
   projects['project-3'].has('is-positive')
   projects['project-3'].has('project-2')
 
-  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
+  expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(8)
 
   const rootModules = assertProject(process.cwd())
   {
@@ -744,7 +744,7 @@ test('inject local packages when the file protocol is used', async () => {
     })
 
     const modulesState = rootModules.readModulesManifest()
-    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'].length).toBe(2)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
@@ -770,11 +770,11 @@ test('inject local packages when the file protocol is used', async () => {
   projects['project-3'].has('is-positive')
   projects['project-3'].has('project-2')
 
-  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
+  expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(8)
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  writeJsonFile('project-1/package.json', allProjects[0].manifest)
+  writeJsonFileSync('project-1/package.json', allProjects[0].manifest)
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
@@ -797,7 +797,7 @@ test('inject local packages when the file protocol is used', async () => {
       },
     })
     const modulesState = rootModules.readModulesManifest()
-    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'].length).toBe(2)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
@@ -1177,7 +1177,7 @@ test('inject local packages when node-linker is hoisted', async () => {
     })
 
     const modulesState = rootModules.readModulesManifest()
-    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'].length).toBe(2)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toEqual(path.join('project-2', 'node_modules', 'project-1'))
     expect(modulesState?.injectedDeps?.['project-1'][1]).toEqual(path.join('project-3', 'node_modules', 'project-1'))
   }
@@ -1337,7 +1337,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
     })
 
     const modulesState = rootModules.readModulesManifest()
-    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'].length).toBe(2)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toEqual(path.join('project-2', 'node_modules', 'project-1'))
     expect(modulesState?.injectedDeps?.['project-1'][1]).toEqual(path.join('project-3', 'node_modules', 'project-1'))
   }
@@ -1426,7 +1426,7 @@ test('peer dependency of injected project should be resolved correctly', async (
 
   const rootModules = assertProject(process.cwd())
   const lockfile = rootModules.readLockfile()
-  expect(lockfile.snapshots?.['project-2@file:project-2(project-1@project-1)'].dependencies?.['project-1']).toEqual('link:project-1')
+  expect(lockfile.snapshots?.['project-2@file:project-2(project-1@project-1)'].dependencies?.['project-1']).toBe('link:project-1')
 })
 
 // There was a bug related to this. The manifests in the workspacePackages object were modified
@@ -1616,7 +1616,7 @@ test('injected package is kept up-to-date when it is hoisted to multiple places'
 
   const rootModules = assertProject(process.cwd())
   const modulesState = rootModules.readModulesManifest()
-  expect(modulesState?.injectedDeps?.['project-3'].length).toEqual(2)
+  expect(modulesState?.injectedDeps?.['project-3'].length).toBe(2)
   expect(modulesState?.injectedDeps?.['project-3'][0]).toEqual(path.join('project-1', 'node_modules', 'is-positive'))
   expect(modulesState?.injectedDeps?.['project-3'][1]).toEqual(path.join('project-2', 'node_modules', 'is-positive'))
 })
@@ -1941,7 +1941,7 @@ test('injected local packages are deduped', async () => {
   projects['project-3'].has('is-positive')
   projects['project-3'].has('project-2')
 
-  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(7)
+  expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(7)
 
   const rootModules = assertProject(process.cwd())
   {
@@ -1966,7 +1966,7 @@ test('injected local packages are deduped', async () => {
     })
 
     const modulesState = rootModules.readModulesManifest()
-    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(1)
+    expect(modulesState?.injectedDeps?.['project-1'].length).toBe(1)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
   }
 
@@ -1992,7 +1992,7 @@ test('injected local packages are deduped', async () => {
   projects['project-3'].has('is-positive')
   projects['project-3'].has('project-2')
 
-  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(7)
+  expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(7)
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
@@ -2006,7 +2006,7 @@ test('injected local packages are deduped', async () => {
     })
     expect(lockfile.packages['project-1@file:project-1(is-positive@1.0.0)']).toBeFalsy()
     const modulesState = rootModules.readModulesManifest()
-    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(1)
+    expect(modulesState?.injectedDeps?.['project-1'].length).toBe(1)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
   }
 })

@@ -1,5 +1,41 @@
 # @pnpm/config
 
+## 1004.4.2
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [7c1382f]
+  - @pnpm/types@1000.9.0
+  - @pnpm/matcher@1000.1.0
+  - @pnpm/pnpmfile@1002.1.3
+  - @pnpm/read-project-manifest@1001.1.4
+  - @pnpm/workspace.read-manifest@1000.2.5
+  - @pnpm/catalogs.config@1000.0.5
+
+## 1004.4.1
+
+### Patch Changes
+
+- 9865167: Fix a bug where pnpm would infinitely recurse when using `verifyDepsBeforeInstall: install` and pre/post install scripts that called other pnpm scripts [#10060](https://github.com/pnpm/pnpm/issues/10060).
+
+## 1004.4.0
+
+### Minor Changes
+
+- fb4da0c: Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.1.3
+- @pnpm/pnpmfile@1002.1.2
+
 ## 1004.3.1
 
 ### Patch Changes

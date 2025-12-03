@@ -1,5 +1,4 @@
 import { createReadStream, promises as fs } from 'fs'
-import os from 'os'
 import path from 'path'
 import {
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
@@ -43,13 +42,14 @@ import {
   type WantedDependency,
 } from '@pnpm/store-controller-types'
 import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
+import { type CustomFetcher } from '@pnpm/hooks.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
-import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
+import { calcMaxWorkers, readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
 import { familySync } from 'detect-libc'
 import PQueue from 'p-queue'
-import pDefer from 'p-defer'
+import pDefer, { type DeferredPromise } from 'p-defer'
 import pShare from 'promise-share'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import semver from 'semver'
 import ssri from 'ssri'
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
@@ -103,6 +103,7 @@ export function createPackageRequester (
     verifyStoreIntegrity: boolean
     virtualStoreDirMaxLength: number
     strictStorePkgContentCheck?: boolean
+    customFetchers?: CustomFetcher[]
   }
 ): RequestPackageFunction & {
     fetchPackageToStore: FetchPackageToStoreFunction
@@ -111,16 +112,13 @@ export function createPackageRequester (
   } {
   opts = opts || {}
 
-  // A lower bound of 16 is enforced to prevent performance degradation,
-  // especially in CI environments. Tests with a threshold lower than 16
-  // have shown consistent underperformance.
-  const networkConcurrency = opts.networkConcurrency ?? Math.max(os.availableParallelism?.() ?? os.cpus().length, 16)
+  const networkConcurrency = opts.networkConcurrency ?? Math.min(64, Math.max(calcMaxWorkers() * 3, 16))
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
 
   const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
-  const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
+  const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
   const fetchPackageToStore = fetchToStore.bind(null, {
     readPkgFromCafs: _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity),
     fetch,
@@ -209,7 +207,10 @@ async function resolveAndFetch (
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
+      trustPolicy: options.trustPolicy,
+      trustPolicyExclude: options.trustPolicyExclude,
       publishedBy: options.publishedBy,
+      publishedByExclude: options.publishedByExclude,
       pickLowestVersion: options.pickLowestVersion,
       lockfileDir: options.lockfileDir,
       preferredVersions,
@@ -538,7 +539,7 @@ function fetchToStore (
 
   async function doFetchToStore (
     filesIndexFile: string,
-    fetching: pDefer.DeferredPromise<PkgRequestFetchResult>,
+    fetching: DeferredPromise<PkgRequestFetchResult>,
     target: string,
     resolution: AtomicResolution
   ) {
@@ -695,13 +696,19 @@ async function tarballIsUpToDate (
 async function fetcher (
   fetcherByHostingType: Fetchers,
   cafs: Cafs,
+  customFetchers: CustomFetcher[] | undefined,
   packageId: string,
   resolution: AtomicResolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
-  const fetch = pickFetcher(fetcherByHostingType, resolution)
   try {
-    return await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+    // pickFetcher now handles custom fetcher hooks internally
+    const fetch = await pickFetcher(fetcherByHostingType, resolution, {
+      customFetchers,
+      packageId,
+    })
+    const result = await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+    return result
   } catch (err: any) { // eslint-disable-line
     packageRequestLogger.warn({
       message: `Fetching ${packageId} failed!`,

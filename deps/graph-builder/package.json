@@ -1,19 +1,19 @@
 {
   "name": "@pnpm/deps.graph-builder",
-  "version": "1002.2.5",
+  "version": "1002.3.0",
   "description": "A package for building a dependency graph from a lockfile",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/deps/graph-builder",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/deps/graph-builder#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/graph-builder",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/graph-builder#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -34,6 +34,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
@@ -54,7 +55,7 @@
     "@types/ramda": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

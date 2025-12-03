@@ -1,5 +1,11 @@
 # @pnpm/matcher
 
+## 1000.1.0
+
+### Minor Changes
+
+- 7c1382f: Export Matcher and MatcherWithIndex.
+
 ## 6.0.0
 
 ### Major Changes

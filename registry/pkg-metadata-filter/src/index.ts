@@ -2,12 +2,16 @@ import { globalWarn } from '@pnpm/logger'
 import { type PackageMetadataWithTime } from '@pnpm/registry.types'
 import semver from 'semver'
 
-export function filterPkgMetadataByPublishDate (pkgDoc: PackageMetadataWithTime, publishedBy: Date): PackageMetadataWithTime {
+export function filterPkgMetadataByPublishDate (
+  pkgDoc: PackageMetadataWithTime,
+  publishedBy: Date,
+  trustedVersions?: string[]
+): PackageMetadataWithTime {
   const versionsWithinDate: PackageMetadataWithTime['versions'] = {}
   for (const version in pkgDoc.versions) {
     if (!Object.hasOwn(pkgDoc.versions, version)) continue
     const timeStr = pkgDoc.time[version]
-    if (timeStr && new Date(timeStr) <= publishedBy) {
+    if ((timeStr && new Date(timeStr) <= publishedBy) || trustedVersions?.includes(version)) {
       versionsWithinDate[version] = pkgDoc.versions[version]
     }
   }
@@ -34,7 +38,7 @@ export function filterPkgMetadataByPublishDate (pkgDoc: PackageMetadataWithTime,
       distTagsWithinDate[tag] = distTagVersion
       continue
     }
-    // Repopulate the tag to the highest version available within date that has the same major as the original tag's version
+    // Repopulate the tag to the highest version available within date
     const originalSemVer = tryParseSemver(distTagVersion)
     if (!originalSemVer) continue
     const originalIsPrerelease = (originalSemVer.prerelease.length > 0)
@@ -44,7 +48,7 @@ export function filterPkgMetadataByPublishDate (pkgDoc: PackageMetadataWithTime,
       const candidateParsed = tryParseSemver(candidate)
       if (
         !candidateParsed ||
-        candidateParsed.major !== originalSemVer.major ||
+        (tag !== 'latest' && candidateParsed.major !== originalSemVer.major) ||
         (candidateParsed.prerelease.length > 0) !== originalIsPrerelease
       ) continue
       if (!bestVersion) {

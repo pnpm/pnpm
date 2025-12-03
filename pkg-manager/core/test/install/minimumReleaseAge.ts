@@ -11,7 +11,7 @@ test('minimumReleaseAge prevents installation of versions that do not meet the r
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], testDefaults({ minimumReleaseAge }))
 
-  expect(manifest.dependencies!['is-odd']).toEqual('~0.1.0')
+  expect(manifest.dependencies!['is-odd']).toBe('~0.1.0')
 })
 
 test('minimumReleaseAge is ignored for packages in the minimumReleaseAgeExclude array', async () => {
@@ -20,7 +20,7 @@ test('minimumReleaseAge is ignored for packages in the minimumReleaseAgeExclude 
   const opts = testDefaults({ minimumReleaseAge, minimumReleaseAgeExclude: ['is-odd'] })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
 
-  expect(manifest.dependencies!['is-odd']).toEqual('~0.1.2')
+  expect(manifest.dependencies!['is-odd']).toBe('~0.1.2')
 })
 
 test('minimumReleaseAge is ignored for packages in the minimumReleaseAgeExclude array, using a pattern', async () => {
@@ -29,5 +29,44 @@ test('minimumReleaseAge is ignored for packages in the minimumReleaseAgeExclude 
   const opts = testDefaults({ minimumReleaseAge, minimumReleaseAgeExclude: ['is-*'] })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
 
-  expect(manifest.dependencies!['is-odd']).toEqual('~0.1.2')
+  expect(manifest.dependencies!['is-odd']).toBe('~0.1.2')
+})
+
+test('minimumReleaseAge is ignored for specific exact versions in minimumReleaseAgeExclude', async () => {
+  prepareEmpty()
+
+  const opts = testDefaults({
+    minimumReleaseAge,
+    minimumReleaseAgeExclude: ['is-odd@0.1.2'],
+  })
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
+
+  // 0.1.2 is excluded, so it should be installed despite being newer than minimumReleaseAge
+  expect(manifest.dependencies!['is-odd']).toBe('~0.1.2')
+})
+
+test('minimumReleaseAge applies to versions not in minimumReleaseAgeExclude', async () => {
+  prepareEmpty()
+
+  const opts = testDefaults({
+    minimumReleaseAge,
+    minimumReleaseAgeExclude: ['is-odd@0.1.0'],
+  })
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
+
+  // 0.1.2 is NOT excluded (only 0.1.0 is), so minimumReleaseAge applies
+  // This should install 0.1.0 which is old enough
+  expect(manifest.dependencies!['is-odd']).toBe('~0.1.0')
+})
+
+test('throws error when semver range is used in minimumReleaseAgeExclude', async () => {
+  prepareEmpty()
+
+  await expect(async () => {
+    const opts = testDefaults({
+      minimumReleaseAge,
+      minimumReleaseAgeExclude: ['is-odd@^0.1.1'],
+    })
+    await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
+  }).rejects.toThrow(/Invalid versions union/)
 })

@@ -3,12 +3,12 @@ import { createResolver } from '@pnpm/client'
 import { type TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
+import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
 import { sortDeepKeys } from '@pnpm/object.key-sorting'
 import { getStorePath } from '@pnpm/store-path'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 
-import loadJsonFile from 'load-json-file'
 import renderHelp from 'render-help'
 
 export const skipPackageManagerCheck = true
@@ -86,7 +86,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     `${alias}@${bareSpecifier}`
   )
   try {
-    const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+    const pkgFilesIndex = await readV8FileStrictAsync<PackageFilesIndex>(filesIndexFile)
     return JSON.stringify(sortDeepKeys(pkgFilesIndex), null, 2)
   } catch {
     throw new PnpmError(

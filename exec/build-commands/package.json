@@ -1,20 +1,20 @@
 {
   "name": "@pnpm/exec.build-commands",
-  "version": "1001.0.28",
+  "version": "1001.0.33",
   "description": "Commands for managing dependency builds",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "rebuild"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/exec/build-commands",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/build-commands#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/exec/build-commands",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/exec/build-commands#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
@@ -60,7 +60,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

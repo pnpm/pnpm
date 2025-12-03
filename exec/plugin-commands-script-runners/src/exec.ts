@@ -13,7 +13,7 @@ import { type Project, type ProjectsGraph, type ProjectRootDir, type ProjectRoot
 import execa from 'execa'
 import pLimit from 'p-limit'
 import { prependDirsToPath } from '@pnpm/env.path'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { existsInDir } from './existsInDir.js'
 import { makeEnv } from './makeEnv.js'
@@ -25,7 +25,7 @@ import {
 } from './run.js'
 import { PnpmError } from '@pnpm/error'
 import which from 'which'
-import writeJsonFile from 'write-json-file'
+import { writeJsonFile } from 'write-json-file'
 import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
 

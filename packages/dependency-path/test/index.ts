@@ -1,10 +1,12 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import {
   depPathToFilename,
+  getPkgIdWithPatchHash,
   isAbsolute,
   parse,
   refToRelative,
   tryGetPackageId,
+  isRuntimeDepPath,
 } from '@pnpm/dependency-path'
 import { type DepPath } from '@pnpm/types'
 
@@ -70,18 +72,18 @@ test('parse()', () => {
 })
 
 test('refToRelative()', () => {
-  expect(refToRelative('1.3.0', '@most/multicast')).toEqual('@most/multicast@1.3.0')
-  expect(refToRelative('1.3.0', 'most')).toEqual('most@1.3.0')
-  expect(refToRelative('m@1.3.0', 'most')).toEqual('m@1.3.0')
-  expect(refToRelative('@most/multicast@1.3.0', 'most')).toEqual('@most/multicast@1.3.0')
-  expect(refToRelative('@most/multicast@1.3.0', '@most/multicast')).toEqual('@most/multicast@1.3.0')
-  expect(refToRelative('@most/multicast@1.3.0(@foo/bar@1.0.0)', '@most/multicast')).toEqual('@most/multicast@1.3.0(@foo/bar@1.0.0)')
-  expect(refToRelative('@most/multicast@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@most/multicast')).toEqual('@most/multicast@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
+  expect(refToRelative('1.3.0', '@most/multicast')).toBe('@most/multicast@1.3.0')
+  expect(refToRelative('1.3.0', 'most')).toBe('most@1.3.0')
+  expect(refToRelative('m@1.3.0', 'most')).toBe('m@1.3.0')
+  expect(refToRelative('@most/multicast@1.3.0', 'most')).toBe('@most/multicast@1.3.0')
+  expect(refToRelative('@most/multicast@1.3.0', '@most/multicast')).toBe('@most/multicast@1.3.0')
+  expect(refToRelative('@most/multicast@1.3.0(@foo/bar@1.0.0)', '@most/multicast')).toBe('@most/multicast@1.3.0(@foo/bar@1.0.0)')
+  expect(refToRelative('@most/multicast@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@most/multicast')).toBe('@most/multicast@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
   // linked dependencies don't have a relative path
   expect(refToRelative('link:../foo', 'foo')).toBeNull()
-  expect(refToRelative('file:../tarball.tgz', 'foo')).toEqual('foo@file:../tarball.tgz')
-  expect(refToRelative('1.3.0(@foo/bar@1.0.0)', '@qar/bar')).toEqual('@qar/bar@1.3.0(@foo/bar@1.0.0)')
-  expect(refToRelative('1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@qar/bar')).toEqual('@qar/bar@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
+  expect(refToRelative('file:../tarball.tgz', 'foo')).toBe('foo@file:../tarball.tgz')
+  expect(refToRelative('1.3.0(@foo/bar@1.0.0)', '@qar/bar')).toBe('@qar/bar@1.3.0(@foo/bar@1.0.0)')
+  expect(refToRelative('1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@qar/bar')).toBe('@qar/bar@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
 })
 
 test('depPathToFilename()', () => {
@@ -104,8 +106,42 @@ test('depPathToFilename()', () => {
 })
 
 test('tryGetPackageId', () => {
-  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toEqual('/foo@1.0.0')
-  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))' as DepPath)).toEqual('/foo@1.0.0')
-  expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toEqual('/@(-.-)/foo@1.0.0')
-  expect(tryGetPackageId('foo@1.0.0(patch_hash=xxxx)(@types/babel__core@7.1.14)' as DepPath)).toEqual('foo@1.0.0')
+  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toBe('/foo@1.0.0')
+  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))' as DepPath)).toBe('/foo@1.0.0')
+  expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toBe('/@(-.-)/foo@1.0.0')
+  expect(tryGetPackageId('foo@1.0.0(patch_hash=xxxx)(@types/babel__core@7.1.14)' as DepPath)).toBe('foo@1.0.0')
+})
+
+test('getPkgIdWithPatchHash', () => {
+  // Runtime dependency
+  expect(getPkgIdWithPatchHash('node@runtime:24.11.1' as DepPath)).toBe('node@runtime:24.11.1')
+
+  // Regular packages
+  expect(getPkgIdWithPatchHash('foo@1.0.0' as DepPath)).toBe('foo@1.0.0')
+
+  // Packages with patch hash
+  expect(getPkgIdWithPatchHash('foo@1.0.0(patch_hash=xxxx)' as DepPath)).toBe('foo@1.0.0(patch_hash=xxxx)')
+
+  // Packages with peer dependencies (should remove peer dependencies)
+  expect(getPkgIdWithPatchHash('foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toBe('foo@1.0.0')
+
+  // Packages with both patch hash and peer dependencies (should keep patch hash, remove peer dependencies)
+  expect(getPkgIdWithPatchHash('foo@1.0.0(patch_hash=xxxx)(@types/babel__core@7.1.14)' as DepPath)).toBe('foo@1.0.0(patch_hash=xxxx)')
+
+  // Scoped packages
+  expect(getPkgIdWithPatchHash('@foo/bar@1.0.0' as DepPath)).toBe('@foo/bar@1.0.0')
+
+  // Scoped packages with patch hash
+  expect(getPkgIdWithPatchHash('@foo/bar@1.0.0(patch_hash=yyyy)' as DepPath)).toBe('@foo/bar@1.0.0(patch_hash=yyyy)')
+
+  // Scoped packages with peer dependencies
+  expect(getPkgIdWithPatchHash('@foo/bar@1.0.0(@types/node@18.0.0)' as DepPath)).toBe('@foo/bar@1.0.0')
+
+  // Scoped packages with both patch hash and peer dependencies
+  expect(getPkgIdWithPatchHash('@foo/bar@1.0.0(patch_hash=zzzz)(@types/node@18.0.0)' as DepPath)).toBe('@foo/bar@1.0.0(patch_hash=zzzz)')
+})
+
+test('isRuntimeDepPath', () => {
+  expect(isRuntimeDepPath('node@runtime:20.1.0' as DepPath)).toBeTruthy()
+  expect(isRuntimeDepPath('node@20.1.0' as DepPath)).toBeFalsy()
 })

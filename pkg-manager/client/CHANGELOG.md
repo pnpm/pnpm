@@ -1,5 +1,67 @@
 # @pnpm/client
 
+## 1001.1.4
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.2.12
+
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/fetching.binary-fetcher@1002.0.0
+  - @pnpm/git-fetcher@1003.0.0
+  - @pnpm/tarball-fetcher@1003.0.0
+  - @pnpm/directory-fetcher@1000.1.14
+  - @pnpm/fetch@1000.2.6
+  - @pnpm/default-resolver@1002.2.11
+  - @pnpm/node.fetcher@1001.0.8
+
+## 1001.1.2
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1001.0.7
+- @pnpm/default-resolver@1002.2.10
+- @pnpm/git-fetcher@1002.0.1
+- @pnpm/tarball-fetcher@1002.0.1
+
+## 1001.1.1
+
+### Patch Changes
+
+- @pnpm/fetching.binary-fetcher@1001.0.0
+- @pnpm/git-fetcher@1002.0.0
+- @pnpm/tarball-fetcher@1002.0.0
+- @pnpm/node.fetcher@1001.0.6
+- @pnpm/default-resolver@1002.2.9
+
+## 1001.1.0
+
+### Minor Changes
+
+- fb4da0c: Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/tarball-fetcher@1001.1.0
+  - @pnpm/git-fetcher@1001.0.16
+  - @pnpm/node.fetcher@1001.0.5
+  - @pnpm/default-resolver@1002.2.8
+  - @pnpm/directory-fetcher@1000.1.13
+
 ## 1001.0.7
 
 ### Patch Changes

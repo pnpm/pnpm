@@ -1,5 +1,23 @@
 # @pnpm/list
 
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/read-package-json@1000.1.2
+  - @pnpm/read-project-manifest@1001.1.4
+  - @pnpm/reviewing.dependencies-hierarchy@1001.1.3
+
+## 1000.1.2
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.1.3
+- @pnpm/reviewing.dependencies-hierarchy@1001.1.2
+
 ## 1000.1.1
 
 ### Patch Changes

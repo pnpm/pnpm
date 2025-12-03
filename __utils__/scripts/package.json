@@ -2,6 +2,7 @@
   "name": "@pnpm/scripts",
   "version": "1000.0.0",
   "private": true,
+  "type": "module",
   "dependencies": {
     "@pnpm/workspace.find-packages": "catalog:",
     "@pnpm/workspace.read-manifest": "catalog:",
@@ -17,6 +18,7 @@
   },
   "keywords": [
     "pnpm",
-    "pnpm10"
-  ]
+    "pnpm11"
+  ],
+  "repository": "https://github.com/pnpm/pnpm/tree/main/__utils__/scripts"
 }

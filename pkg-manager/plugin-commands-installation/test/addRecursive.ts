@@ -41,20 +41,20 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
   }, ['is-negative@1.0.0'])
 
   {
-    const manifest = (await import(path.resolve('project-1/package.json')))
+    const { default: manifest } = (await import(path.resolve('project-1/package.json')))
     expect(
       manifest.devDependencies
-    ).toStrictEqual(
+    ).toEqual(
       { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
     expect(
       manifest.peerDependencies
-    ).toStrictEqual(
+    ).toEqual(
       { 'is-negative': '1.0.0' }
     )
     expect(
       projects['project-1'].readLockfile().importers['.'].devDependencies
-    ).toStrictEqual(
+    ).toEqual(
       {
         'is-positive': {
           specifier: '1.0.0',
@@ -69,20 +69,20 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
   }
 
   {
-    const manifest = (await import(path.resolve('project-2/package.json')))
+    const { default: manifest } = (await import(path.resolve('project-2/package.json')))
     expect(
       manifest.devDependencies
-    ).toStrictEqual(
+    ).toEqual(
       { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
     expect(
       manifest.peerDependencies
-    ).toStrictEqual(
+    ).toEqual(
       { 'is-negative': '1.0.0' }
     )
     expect(
       projects['project-2'].readLockfile().importers['.'].devDependencies
-    ).toStrictEqual(
+    ).toEqual(
       {
         'is-positive': {
           specifier: '1.0.0',
@@ -133,29 +133,29 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
   }, ['is-negative@1.0.0'])
 
   {
-    const manifest = (await import(path.resolve('project-1/package.json')))
+    const { default: manifest } = (await import(path.resolve('project-1/package.json')))
     expect(
       manifest.devDependencies
-    ).toStrictEqual(
+    ).toEqual(
       { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
     expect(
       manifest.peerDependencies
-    ).toStrictEqual(
+    ).toEqual(
       { 'is-negative': '1.0.0' }
     )
   }
 
   {
-    const manifest = (await import(path.resolve('project-2/package.json')))
+    const { default: manifest } = (await import(path.resolve('project-2/package.json')))
     expect(
       manifest.devDependencies
-    ).toStrictEqual(
+    ).toEqual(
       { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
     expect(
       manifest.peerDependencies
-    ).toStrictEqual(
+    ).toEqual(
       { 'is-negative': '1.0.0' }
     )
   }
@@ -163,7 +163,7 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
   const lockfile = readYamlFile<LockfileObject>('./pnpm-lock.yaml')
   expect(
     lockfile.importers['project-1' as ProjectId].devDependencies
-  ).toStrictEqual(
+  ).toEqual(
     {
       'is-positive': {
         specifier: '1.0.0',

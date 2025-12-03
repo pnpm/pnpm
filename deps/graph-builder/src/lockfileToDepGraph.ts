@@ -20,9 +20,8 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import * as dp from '@pnpm/dependency-path'
-import pathExists from 'path-exists'
-import equals from 'ramda/src/equals'
-import isEmpty from 'ramda/src/isEmpty'
+import { pathExists } from 'path-exists'
+import { equals, isEmpty } from 'ramda'
 import { iteratePkgsForVirtualStore } from './iteratePkgsForVirtualStore.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')
@@ -32,6 +31,7 @@ export interface DependenciesGraphNode {
   hasBundledDependencies: boolean
   modules: string
   name: string
+  version: string
   fetching?: () => Promise<PkgRequestFetchResult>
   forceImportPackage?: boolean // Used to force re-imports from the store of local tarballs that have changed.
   dir: string
@@ -70,6 +70,7 @@ export interface LockfileToDepGraphOptions {
   skipped: Set<DepPath>
   storeController: StoreController
   storeDir: string
+  globalVirtualStoreDir: string
   virtualStoreDir: string
   supportedArchitectures?: SupportedArchitectures
   virtualStoreDirMaxLength: number
@@ -166,7 +167,7 @@ async function buildGraphFromPackages (
   const promises: Array<Promise<void>> = []
   const pkgSnapshotsWithLocations = iteratePkgsForVirtualStore(lockfile, opts)
 
-  for (const { dirNameInVirtualStore, pkgMeta } of pkgSnapshotsWithLocations) {
+  for (const { dirInVirtualStore, pkgMeta } of pkgSnapshotsWithLocations) {
     promises.push((async () => {
       const { pkgIdWithPatchHash, name: pkgName, version: pkgVersion, depPath, pkgSnapshot } = pkgMeta
       if (opts.skipped.has(depPath)) return
@@ -198,7 +199,7 @@ async function buildGraphFromPackages (
 
       const depIntegrityIsUnchanged = isIntegrityEqual(pkgSnapshot.resolution, currentPackages[depPath]?.resolution)
 
-      const modules = path.join(opts.virtualStoreDir, dirNameInVirtualStore, 'node_modules')
+      const modules = path.join(dirInVirtualStore, 'node_modules')
       const dir = path.join(modules, pkgName)
       locationByDepPath[depPath] = dir
 
@@ -255,6 +256,7 @@ async function buildGraphFromPackages (
         hasBundledDependencies: pkgSnapshot.bundledDependencies != null,
         modules,
         name: pkgName,
+        version: pkgVersion,
         optional: !!pkgSnapshot.optional,
         optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
         patch: _getPatchInfo(pkgName, pkgVersion),

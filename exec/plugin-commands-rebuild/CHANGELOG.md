@@ -1,5 +1,102 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1004.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.8
+- @pnpm/workspace.find-packages@1000.0.43
+- @pnpm/store-connection-manager@1002.2.4
+
+## 1004.0.0
+
+### Minor Changes
+
+- dee39ec: You can now allow specific versions of dependencies to run postinstall scripts. `onlyBuiltDependencies` now accepts package names with lists of trusted versions. For example:
+
+  ```yaml
+  onlyBuiltDependencies:
+    - nx@21.6.4 || 21.6.5
+    - esbuild@0.25.1
+  ```
+
+  Related PR: [#10104](https://github.com/pnpm/pnpm/pull/10104).
+
+### Patch Changes
+
+- Updated dependencies [8993f68]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/worker@1000.3.0
+  - @pnpm/types@1000.9.0
+  - @pnpm/builder.policy@1000.0.0
+  - @pnpm/store-controller-types@1004.1.0
+  - @pnpm/cli-utils@1001.2.7
+  - @pnpm/config@1004.4.2
+  - @pnpm/normalize-registries@1000.1.4
+  - @pnpm/lifecycle@1001.0.25
+  - @pnpm/exec.pkg-requires-build@1000.0.11
+  - @pnpm/lockfile.types@1002.0.2
+  - @pnpm/lockfile.utils@1003.0.3
+  - @pnpm/lockfile.walker@1001.0.16
+  - @pnpm/calc-dep-state@1002.0.8
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/dependency-path@1001.1.3
+  - @pnpm/get-context@1001.1.8
+  - @pnpm/link-bins@1000.2.6
+  - @pnpm/modules-yaml@1000.3.6
+  - @pnpm/read-package-json@1000.1.2
+  - @pnpm/store.cafs@1000.0.19
+  - @pnpm/workspace.find-packages@1000.0.42
+  - @pnpm/sort-packages@1000.0.11
+  - @pnpm/store-connection-manager@1002.2.3
+
+## 1003.0.1
+
+### Patch Changes
+
+- Updated dependencies [9865167]
+- Updated dependencies [a8797c4]
+  - @pnpm/config@1004.4.1
+  - @pnpm/link-bins@1000.2.5
+  - @pnpm/cli-utils@1001.2.6
+  - @pnpm/store-connection-manager@1002.2.2
+  - @pnpm/lifecycle@1001.0.24
+  - @pnpm/workspace.find-packages@1000.0.41
+
+## 1003.0.0
+
+### Patch Changes
+
+- Updated dependencies [06d2160]
+  - @pnpm/worker@1000.2.0
+  - @pnpm/store-connection-manager@1002.2.1
+  - @pnpm/cli-utils@1001.2.5
+  - @pnpm/workspace.find-packages@1000.0.40
+
+## 1002.0.29
+
+### Patch Changes
+
+- Updated dependencies [9b9faa5]
+- Updated dependencies [fb4da0c]
+- Updated dependencies [a514bc0]
+  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/store-connection-manager@1002.2.0
+  - @pnpm/config@1004.4.0
+  - @pnpm/lifecycle@1001.0.23
+  - @pnpm/worker@1000.1.14
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/dependency-path@1001.1.2
+  - @pnpm/link-bins@1000.2.4
+  - @pnpm/workspace.find-packages@1000.0.39
+  - @pnpm/lockfile.utils@1003.0.2
+  - @pnpm/lockfile.walker@1001.0.15
+  - @pnpm/calc-dep-state@1002.0.7
+  - @pnpm/get-context@1001.1.7
+
 ## 1002.0.28
 
 ### Patch Changes

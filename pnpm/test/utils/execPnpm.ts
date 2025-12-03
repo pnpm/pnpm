@@ -1,12 +1,14 @@
 import { type ChildProcess as NodeChildProcess, type StdioOptions } from 'child_process'
 import path from 'path'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { type Config } from '@pnpm/config'
 import isWindows from 'is-windows'
 import crossSpawn from 'cross-spawn'
+import { sync as readYamlFile } from 'read-yaml-file'
 
-export const binDir = path.join(__dirname, '../..', isWindows() ? 'dist' : 'bin')
-export const pnpmBinLocation = path.join(binDir, 'pnpm.cjs')
-export const pnpxBinLocation = path.join(__dirname, '../../bin/pnpx.cjs')
+export const binDir = path.join(import.meta.dirname, '../..', isWindows() ? 'dist' : 'bin')
+export const pnpmBinLocation = path.join(binDir, 'pnpm.mjs')
+export const pnpxBinLocation = path.join(import.meta.dirname, '../../bin/pnpx.mjs')
 
 // The default timeout for tests is 4 minutes. Set a timeout for execPnpm calls
 // for 3 minutes to make it more clear what specific part of a test is timing
@@ -18,6 +20,7 @@ export async function execPnpm (
   args: string[],
   opts?: {
     env: Record<string, string>
+    storeDir?: string
     timeout?: number // timeout in ms
   }
 ): Promise<void> {
@@ -97,6 +100,7 @@ export function execPnpmSync (
     env?: Record<string, string>
     expectSuccess?: boolean // similar to expect(status).toBe(0), but also prints error messages, which makes it easier to debug failed tests
     stdio?: StdioOptions
+    storeDir?: string
     timeout?: number
   }
 ): ChildProcess {
@@ -142,16 +146,35 @@ export function execPnpxSync (
 }
 
 function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
+  let workspaceManifest: Record<string, unknown> | undefined
+  try {
+    workspaceManifest = readYamlFile('pnpm-workspace.yaml')
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      workspaceManifest = undefined
+    } else {
+      throw error
+    }
+  }
+
+  /** Fallback without overriding pnpm-workspace.yaml */
+  function fallback (key: keyof Config, value: string): string {
+    if (typeof workspaceManifest !== 'object' || !workspaceManifest) return value
+    const manifestValue: unknown = workspaceManifest[key]
+    return manifestValue === undefined ? value : String(manifestValue)
+  }
+
   const env: Record<string, string> = {
-    npm_config_fetch_retries: '4',
-    npm_config_hoist: 'true',
-    npm_config_registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-    npm_config_silent: 'true',
-    npm_config_store_dir: opts?.storeDir ?? '../store',
+    pnpm_config_fetch_retries: fallback('fetchRetries', '4'),
+    pnpm_config_hoist: fallback('hoist', 'true'),
+    pnpm_config_registry: fallback('registry', `http://localhost:${REGISTRY_MOCK_PORT}/`),
+    pnpm_config_silent: 'true',
+    pnpm_config_store_dir: opts?.storeDir ?? fallback('storeDir', '../store'),
     // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)
     // on CI servers we set it to `false`. That is why we set it back to true for the tests
-    npm_config_verify_store_integrity: 'true',
+    pnpm_config_verify_store_integrity: 'true',
   }
+
   for (const [key, value] of Object.entries(process.env)) {
     if (key.toLowerCase() === 'path' || key === 'COLORTERM' || key === 'APPDATA') {
       env[key] = value!

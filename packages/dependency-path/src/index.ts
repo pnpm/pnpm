@@ -66,9 +66,6 @@ export function getPkgIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {
   if (sepIndex !== -1) {
     pkgId = pkgId.substring(0, sepIndex)
   }
-  if (pkgId.includes(':')) {
-    pkgId = pkgId.substring(pkgId.indexOf('@', 1) + 1)
-  }
   return pkgId as PkgIdWithPatchHash
 }
 
@@ -213,4 +210,10 @@ export function createPeerDepGraphHash (peerIds: PeerId[], maxLength: number = 1
     dirName = createShortHash(dirName)
   }
   return `(${dirName})`
+}
+
+const RUNTIME_DEP_PATH_RE = /^(?:node|bun|deno)@runtime:/
+
+export function isRuntimeDepPath (depPath: DepPath): boolean {
+  return RUNTIME_DEP_PATH_RE.test(depPath)
 }

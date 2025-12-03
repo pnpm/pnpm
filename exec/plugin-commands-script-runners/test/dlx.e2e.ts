@@ -1,10 +1,23 @@
 import fs from 'fs'
 import path from 'path'
-import { add } from '@pnpm/plugin-commands-installation'
-import { dlx } from '@pnpm/plugin-commands-script-runners'
-import * as systemNodeVersion from '@pnpm/env.system-node-version'
 import { prepareEmpty } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
+
+const { getSystemNodeVersion: originalGetSystemNodeVersion } = await import('@pnpm/env.system-node-version')
+jest.unstable_mockModule('@pnpm/env.system-node-version', () => ({
+  getSystemNodeVersion: jest.fn(originalGetSystemNodeVersion),
+}))
+const { add: originalAdd } = await import('@pnpm/plugin-commands-installation')
+jest.unstable_mockModule('@pnpm/plugin-commands-installation', () => ({
+  add: {
+    handler: jest.fn(originalAdd.handler),
+  },
+}))
+
+const systemNodeVersion = await import('@pnpm/env.system-node-version')
+const { add } = await import('@pnpm/plugin-commands-installation')
+const { dlx } = await import('@pnpm/plugin-commands-script-runners')
 
 const testOnWindowsOnly = process.platform === 'win32' ? test : test.skip
 
@@ -207,7 +220,7 @@ testOnWindowsOnly('dlx should work when running in the root of a Windows Drive',
 test('dlx with cache', async () => {
   prepareEmpty()
 
-  const spy = jest.spyOn(add, 'handler')
+  const spy = jest.mocked(add.handler)
 
   await dlx.handler({
     ...DEFAULT_OPTS,
@@ -221,7 +234,7 @@ test('dlx with cache', async () => {
   verifyDlxCache(createCacheKey('shx@0.3.4'))
   expect(spy).toHaveBeenCalled()
 
-  spy.mockReset()
+  spy.mockClear()
 
   await dlx.handler({
     ...DEFAULT_OPTS,
@@ -235,10 +248,10 @@ test('dlx with cache', async () => {
   verifyDlxCache(createCacheKey('shx@0.3.4'))
   expect(spy).not.toHaveBeenCalled()
 
-  spy.mockRestore()
+  spy.mockClear()
 
   // Specify a node version that shx@0.3.4 does not support. Currently supported versions are >= 6.
-  const spySystemNodeVersion = jest.spyOn(systemNodeVersion, 'getSystemNodeVersion').mockReturnValue('v4.0.0')
+  jest.mocked(systemNodeVersion.getSystemNodeVersion).mockReturnValue('v4.0.0')
 
   await expect(dlx.handler({
     ...DEFAULT_OPTS,
@@ -249,7 +262,7 @@ test('dlx with cache', async () => {
     dlxCacheMaxAge: Infinity,
   }, ['shx@0.3.4', 'touch', 'foo'])).rejects.toThrow('Unsupported engine for')
 
-  spySystemNodeVersion.mockRestore()
+  jest.mocked(systemNodeVersion.getSystemNodeVersion).mockImplementation(originalGetSystemNodeVersion)
 })
 
 test('dlx does not reuse expired cache', async () => {
@@ -271,7 +284,7 @@ test('dlx does not reuse expired cache', async () => {
   const newDate = new Date(now.getTime() - 30 * 60_000)
   fs.lutimesSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'), 'pkg'), newDate, newDate)
 
-  const spy = jest.spyOn(add, 'handler')
+  const spy = jest.mocked(add.handler)
 
   // main dlx execution
   await dlx.handler({
@@ -285,7 +298,7 @@ test('dlx does not reuse expired cache', async () => {
   expect(fs.existsSync('BAR')).toBe(true)
   expect(spy).toHaveBeenCalledWith(expect.anything(), ['shx@0.3.4'])
 
-  spy.mockRestore()
+  spy.mockClear()
 
   expect(
     fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4')))
@@ -368,4 +381,21 @@ test('dlx builds the packages passed via --allow-build', async () => {
   const builtPkg2Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example')
   expect(fs.existsSync(path.join(builtPkg2Path, 'package.json'))).toBeTruthy()
   expect(fs.existsSync(path.join(builtPkg2Path, 'generated-by-install.js'))).toBeTruthy()
+})
+
+test('dlx should fail when the requested package does not meet the minimum age requirement', async () => {
+  prepareEmpty()
+
+  await expect(
+    dlx.handler({
+      ...DEFAULT_OPTS,
+      dir: path.resolve('project'),
+      minimumReleaseAge: 60 * 24 * 10000,
+      registries: {
+        // We must use the public registry instead of verdaccio here
+        // because verdaccio has the "times" field in the abbreviated metadata too.
+        default: 'https://registry.npmjs.org/',
+      },
+    }, ['shx@0.3.4'])
+  ).rejects.toThrow('No matching version found for shx@0.3.4 published by')
 })

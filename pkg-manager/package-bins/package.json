@@ -1,20 +1,20 @@
 {
   "name": "@pnpm/package-bins",
-  "version": "1000.0.10",
+  "version": "1000.0.11",
   "description": "Returns bins of a package",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "bins"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-bins",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-bins#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/package-bins",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/package-bins#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json --project . --fix",
@@ -42,7 +42,7 @@
     "@types/node": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

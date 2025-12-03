@@ -1,19 +1,19 @@
 {
   "name": "@pnpm/workspace.filter-packages-from-dir",
-  "version": "1000.0.38",
+  "version": "1000.0.43",
   "description": "Filters packages in a directory",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/filter-packages-from-dir",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/filter-packages-from-dir#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/workspace/filter-packages-from-dir",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/workspace/filter-packages-from-dir#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -39,7 +39,7 @@
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

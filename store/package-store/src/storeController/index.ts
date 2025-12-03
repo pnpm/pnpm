@@ -8,6 +8,7 @@ import {
   type ImportIndexedPackageAsync,
   type StoreController,
 } from '@pnpm/store-controller-types'
+import { type CustomFetcher } from '@pnpm/hooks.types'
 import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
 import { prune } from './prune.js'
 
@@ -29,6 +30,7 @@ export interface CreatePackageStoreOptions {
   virtualStoreDirMaxLength: number
   strictStorePkgContentCheck?: boolean
   clearResolutionCache: () => void
+  customFetchers?: CustomFetcher[]
 }
 
 export function createPackageStore (
@@ -58,6 +60,7 @@ export function createPackageStore (
     verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
     virtualStoreDirMaxLength: initOpts.virtualStoreDirMaxLength,
     strictStorePkgContentCheck: initOpts.strictStorePkgContentCheck,
+    customFetchers: initOpts.customFetchers,
   })
 
   return {

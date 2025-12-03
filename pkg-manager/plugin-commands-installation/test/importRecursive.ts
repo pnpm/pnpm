@@ -5,11 +5,11 @@ import { importCommand } from '@pnpm/plugin-commands-installation'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { fixtures } from '@pnpm/test-fixtures'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
-const TMP = tempy.directory()
+const TMP = temporaryDirectory()
 
 const DEFAULT_OPTS = {
   ca: undefined,

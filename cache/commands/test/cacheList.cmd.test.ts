@@ -5,7 +5,7 @@ import execa from 'execa'
 import { cache } from '@pnpm/cache.commands'
 import { sync as rimraf } from '@zkochan/rimraf'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 describe('cache', () => {
@@ -44,9 +44,9 @@ describe('cache', () => {
       pnpmHomeDir: storeDir,
     }, ['list'])
 
-    expect(result).toEqual(`localhost+${REGISTRY_MOCK_PORT}/is-negative.json
-registry.npmjs.org/is-negative.json
-registry.npmjs.org/is-positive.json`)
+    expect(result).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-negative.v8
+registry.npmjs.org/is-negative.v8
+registry.npmjs.org/is-positive.v8`)
   })
   test('list all metadata from the cache related to the specified registry', async () => {
     const result = await cache.handler({
@@ -57,8 +57,8 @@ registry.npmjs.org/is-positive.json`)
       pnpmHomeDir: storeDir,
     }, ['list'])
 
-    expect(result).toEqual(`registry.npmjs.org/is-negative.json
-registry.npmjs.org/is-positive.json`)
+    expect(result).toBe(`registry.npmjs.org/is-negative.v8
+registry.npmjs.org/is-positive.v8`)
   })
   test('list all metadata from the cache that matches a pattern', async () => {
     const result = await cache.handler({
@@ -67,7 +67,7 @@ registry.npmjs.org/is-positive.json`)
       pnpmHomeDir: storeDir,
     }, ['list', '*-positive'])
 
-    expect(result).toEqual('registry.npmjs.org/is-positive.json')
+    expect(result).toBe('registry.npmjs.org/is-positive.v8')
   })
   test('list registries', async () => {
     const result = await cache.handler({
@@ -76,7 +76,7 @@ registry.npmjs.org/is-positive.json`)
       pnpmHomeDir: storeDir,
     }, ['list-registries'])
 
-    expect(result).toEqual(`localhost+${REGISTRY_MOCK_PORT}
+    expect(result).toBe(`localhost+${REGISTRY_MOCK_PORT}
 registry.npmjs.org`)
   })
 })

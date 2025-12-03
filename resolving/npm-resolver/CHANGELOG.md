@@ -1,5 +1,53 @@
 # @pnpm/npm-resolver
 
+## 1004.4.1
+
+### Patch Changes
+
+- 6c3dcb8: Skip time field validation for packages excluded by `minimumReleaseAgeExclude` (allows packages that would otherwise throw `ERR_PNPM_MISSING_TIME`).
+- Updated dependencies [0152a51]
+  - @pnpm/registry.pkg-metadata-filter@1000.1.1
+
+## 1004.4.0
+
+### Minor Changes
+
+- 7c1382f: The npm resolver supports `publishedByExclude` now.
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/registry.pkg-metadata-filter@1000.1.0
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/pick-registry-for-package@1000.0.11
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/registry.types@1000.0.1
+  - @pnpm/crypto.hash@1000.2.1
+
+## 1004.3.0
+
+### Minor Changes
+
+- fb4da0c: Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- Updated dependencies [9b9faa5]
+- Updated dependencies [4a2d871]
+  - @pnpm/graceful-fs@1000.0.1
+  - @pnpm/registry.pkg-metadata-filter@1000.0.0
+  - @pnpm/registry.types@1000.0.0
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1004.2.3
 
 ### Patch Changes

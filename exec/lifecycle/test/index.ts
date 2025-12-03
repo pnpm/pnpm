@@ -12,13 +12,13 @@ import isWindows from 'is-windows'
 
 const skipOnWindows = isWindows() ? test.skip : test
 
-const f = fixtures(path.join(__dirname, 'fixtures'))
-const rootModulesDir = path.join(__dirname, '..', 'node_modules')
+const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
+const rootModulesDir = path.join(import.meta.dirname, '..', 'node_modules')
 
 test('runLifecycleHook()', async () => {
   const pkgRoot = f.find('simple')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
-  const pkg = await import(path.join(pkgRoot, 'package.json'))
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('postinstall', pkg, {
     depPath: '/simple/1.0.0',
     optional: false,
@@ -33,7 +33,7 @@ test('runLifecycleHook()', async () => {
 
 test('runLifecycleHook() escapes the args passed to the script', async () => {
   const pkgRoot = f.find('escape-args')
-  const pkg = await import(path.join(pkgRoot, 'package.json'))
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('echo', pkg, {
     depPath: '/escape-args/1.0.0',
     pkgRoot,
@@ -48,7 +48,7 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
 
 test('runLifecycleHook() passes newline correctly', async () => {
   const pkgRoot = f.find('escape-newline')
-  const pkg = await import(path.join(pkgRoot, 'package.json'))
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('echo', pkg, {
     depPath: 'escape-newline@1.0.0',
     pkgRoot,
@@ -66,7 +66,7 @@ test('runLifecycleHook() passes newline correctly', async () => {
 test('runLifecycleHook() sets frozen-lockfile to false', async () => {
   const pkgRoot = f.find('inspect-frozen-lockfile')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
-  const pkg = await import(path.join(pkgRoot, 'package.json'))
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('postinstall', pkg, {
     depPath: '/inspect-frozen-lockfile/1.0.0',
     pkgRoot,
@@ -97,7 +97,7 @@ test('runPostinstallHooks()', async () => {
 
 test('runLifecycleHook() should throw an error while missing script start or file server.js', async () => {
   const pkgRoot = f.find('without-script-start-serverjs')
-  const pkg = await import(path.join(pkgRoot, 'package.json'))
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await expect(
     runLifecycleHook('start', pkg, {
       depPath: '/without-script-start-serverjs/1.0.0',

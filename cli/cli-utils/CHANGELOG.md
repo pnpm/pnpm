@@ -1,5 +1,58 @@
 # @pnpm/cli-utils
 
+## 1001.2.8
+
+### Patch Changes
+
+- @pnpm/config.deps-installer@1000.0.19
+- @pnpm/store-connection-manager@1002.2.4
+
+## 1001.2.7
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/cli-meta@1000.0.11
+  - @pnpm/default-reporter@1002.0.11
+  - @pnpm/config@1004.4.2
+  - @pnpm/config.deps-installer@1000.0.18
+  - @pnpm/package-is-installable@1000.0.15
+  - @pnpm/pnpmfile@1002.1.3
+  - @pnpm/manifest-utils@1001.0.6
+  - @pnpm/read-project-manifest@1001.1.4
+  - @pnpm/store-connection-manager@1002.2.3
+
+## 1001.2.6
+
+### Patch Changes
+
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/default-reporter@1002.0.10
+  - @pnpm/store-connection-manager@1002.2.2
+  - @pnpm/config.deps-installer@1000.0.17
+
+## 1001.2.5
+
+### Patch Changes
+
+- @pnpm/config.deps-installer@1000.0.17
+- @pnpm/store-connection-manager@1002.2.1
+
+## 1001.2.4
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/store-connection-manager@1002.2.0
+  - @pnpm/config@1004.4.0
+  - @pnpm/read-project-manifest@1001.1.3
+  - @pnpm/config.deps-installer@1000.0.16
+  - @pnpm/default-reporter@1002.0.9
+  - @pnpm/pnpmfile@1002.1.2
+
 ## 1001.2.3
 
 ### Patch Changes

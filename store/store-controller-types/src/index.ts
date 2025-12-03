@@ -18,6 +18,8 @@ import {
   type DependencyManifest,
   type PackageManifest,
   type PinnedVersion,
+  type PackageVersionPolicy,
+  type TrustPolicy,
 } from '@pnpm/types'
 
 export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync }
@@ -118,6 +120,7 @@ export interface RequestPackageOptions {
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
   downloadPriority: number
   ignoreScripts?: boolean
   projectDir: string
@@ -134,6 +137,8 @@ export interface RequestPackageOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: PackageVersionPolicy
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>

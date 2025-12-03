@@ -4,15 +4,15 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type Registries } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import { retryLoadJsonFile } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const jsrRusGreetMeta = loadJsonFile.sync<any>(f.find('jsr-rus-greet.json'))
-const jsrLucaCasesMeta = loadJsonFile.sync<any>(f.find('jsr-luca-cases.json'))
+const jsrRusGreetMeta = loadJsonFileSync<any>(f.find('jsr-rus-greet.json'))
+const jsrLucaCasesMeta = loadJsonFileSync<any>(f.find('jsr-luca-cases.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const registries = {
@@ -46,7 +46,7 @@ test('resolveFromJsr() on jsr', async () => {
     .get(`/@jsr${slash}luca__cases`)
     .reply(200, jsrLucaCasesMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromJsr } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -70,7 +70,7 @@ test('resolveFromJsr() on jsr', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'npm.jsr.io/@jsr/rus__greet.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'npm.jsr.io/@jsr/rus__greet.v8')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta).toMatchObject({
     name: expect.any(String),
     versions: expect.any(Object),
@@ -91,7 +91,7 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
     .get(`/@jsr${slash}luca__cases`)
     .reply(200, jsrLucaCasesMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromJsr } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -114,7 +114,7 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'npm.jsr.io/@jsr/rus__greet.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'npm.jsr.io/@jsr/rus__greet.v8')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta).toMatchObject({
     name: expect.any(String),
     versions: expect.any(Object),
@@ -123,7 +123,7 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
 })
 
 test('resolveFromJsr() on jsr with packages without scope', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromJsr } = createResolveFromNpm({
     cacheDir,
     registries,

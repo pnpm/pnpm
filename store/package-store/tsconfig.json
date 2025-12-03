@@ -16,6 +16,12 @@
       "path": "../../fetching/fetcher-base"
     },
     {
+      "path": "../../fs/v8-file"
+    },
+    {
+      "path": "../../hooks/types"
+    },
+    {
       "path": "../../packages/logger"
     },
     {

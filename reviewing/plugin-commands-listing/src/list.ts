@@ -4,7 +4,7 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { type Config, types as allTypes } from '@pnpm/config'
 import { list, listForPackages } from '@pnpm/list'
 import { type Finder, type IncludedDependencies } from '@pnpm/types'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { listRecursive } from './recursive.js'
 
@@ -20,6 +20,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'global-dir',
     'global',
     'json',
+    'lockfile-only',
     'long',
     'only',
     'optional',
@@ -108,6 +109,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: "Don't display packages from `optionalDependencies`",
             name: '--no-optional',
           },
+          {
+            description: 'List packages from the lockfile only, without checking node_modules.',
+            name: '--lockfile-only',
+          },
           EXCLUDE_PEERS_HELP,
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
@@ -138,6 +143,7 @@ export type ListCommandOptions = Pick<Config,
   excludePeers?: boolean
   json?: boolean
   lockfileDir?: string
+  lockfileOnly?: boolean
   long?: boolean
   parseable?: boolean
   onlyProjects?: boolean
@@ -157,13 +163,14 @@ export async function handler (
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    return listRecursive(pkgs, params, { ...opts, depth, include })
+    return listRecursive(pkgs, params, { ...opts, depth, include, checkWantedLockfileOnly: opts.lockfileOnly })
   }
   return render([opts.dir], params, {
     ...opts,
     depth,
     include,
     lockfileDir: opts.lockfileDir ?? opts.dir,
+    checkWantedLockfileOnly: opts.lockfileOnly,
   })
 }
 
@@ -176,6 +183,7 @@ export async function render (
     excludePeers?: boolean
     include: IncludedDependencies
     lockfileDir: string
+    checkWantedLockfileOnly?: boolean
     long?: boolean
     json?: boolean
     onlyProjects?: boolean
@@ -201,6 +209,7 @@ export async function render (
     excludePeerDependencies: opts.excludePeers,
     include: opts.include,
     lockfileDir: opts.lockfileDir,
+    checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
     long: opts.long,
     onlyProjects: opts.onlyProjects,
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),

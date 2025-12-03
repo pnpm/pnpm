@@ -25,6 +25,9 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../builder/policy"
+    },
+    {
       "path": "../../catalogs/protocol-parser"
     },
     {
@@ -43,6 +46,9 @@
       "path": "../../config/parse-overrides"
     },
     {
+      "path": "../../config/version-policy"
+    },
+    {
       "path": "../../crypto/hash"
     },
     {
@@ -58,10 +64,16 @@
       "path": "../../exec/lifecycle"
     },
     {
+      "path": "../../exec/plugin-commands-rebuild"
+    },
+    {
       "path": "../../fs/read-modules-dir"
     },
     {
       "path": "../../fs/symlink-dependency"
+    },
+    {
+      "path": "../../fs/v8-file"
     },
     {
       "path": "../../hooks/read-package-hook"

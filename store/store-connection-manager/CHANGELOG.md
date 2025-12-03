@@ -1,5 +1,60 @@
 # @pnpm/store-connection-manager
 
+## 1002.2.4
+
+### Patch Changes
+
+- @pnpm/client@1001.1.4
+- @pnpm/package-store@1004.0.0
+- @pnpm/server@1001.0.11
+
+## 1002.2.3
+
+### Patch Changes
+
+- @pnpm/package-store@1004.0.0
+- @pnpm/cli-meta@1000.0.11
+- @pnpm/config@1004.4.2
+- @pnpm/client@1001.1.3
+- @pnpm/server@1001.0.11
+
+## 1002.2.2
+
+### Patch Changes
+
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/client@1001.1.2
+  - @pnpm/package-store@1003.0.0
+  - @pnpm/server@1001.0.10
+
+## 1002.2.1
+
+### Patch Changes
+
+- @pnpm/package-store@1003.0.0
+- @pnpm/client@1001.1.1
+- @pnpm/server@1001.0.10
+
+## 1002.2.0
+
+### Minor Changes
+
+- fb4da0c: Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/client@1001.1.0
+  - @pnpm/config@1004.4.0
+  - @pnpm/package-store@1002.0.12
+  - @pnpm/server@1001.0.10
+
 ## 1002.1.3
 
 ### Patch Changes
