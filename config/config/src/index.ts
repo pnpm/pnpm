@@ -22,6 +22,7 @@ import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
 import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
+import { addBuiltInRegistry } from './builtInRegistry.js'
 import { isConfigFileKey } from './configFileKey.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
@@ -225,10 +226,11 @@ export async function getConfig (opts: {
     const warn = npmConfig.addFile(path.join(configDir as string, 'rc'), 'pnpm-global')
     if (warn) warnings.push(warn)
   }
-  npmConfig.add({
-    registry: 'https://registry.npmjs.org/',
-    '@jsr:registry': 'https://npm.jsr.io/',
-  }, 'pnpm-builtin')
+  addBuiltInRegistry(npmConfig, {
+    warn (message: string): void {
+      warnings.push(message)
+    },
+  })
   {
     const warn = npmConfig.addFile(path.resolve(path.join(import.meta.dirname, 'pnpmrc')), 'pnpm-builtin')
     if (warn) warnings.push(warn)
