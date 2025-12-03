@@ -808,6 +808,7 @@ overrides:
   socks@2: ^2.8.1
   tmp@<=0.2.3: '>=0.2.4'
   tough-cookie@<4.1.3: '>=4.1.3'
+  validator@<13.15.22: '>=13.15.22'
   yaml@<2.2.2: '>=2.2.2'
 
 packageExtensionsChecksum: sha256-1qxck4M+gjHKVxNHtl5ISCI+egyJsA5Hru0aRTpMm9I=
@@ -16428,8 +16429,8 @@ packages:
     resolution: {integrity: sha512-IUoow1YUtvoBBC06dXs8bR8B9vuA3aJfmQNKMoaPG/OFsPmoQvw8xh+6Ye25Gx9DQhoEom3Pcu9MKHerm/NpUQ==}
     engines: {node: ^18.17.0 || >=20.5.0}
 
-  validator@13.12.0:
-    resolution: {integrity: sha512-c1Q0mCiPlgdTVVVIJIrBuxNicYE+t/7oKeI9MWLj3fh/uq2Pxh/3eeWbVZ4OcGW1TUf53At0njHw5SMdA3tmMg==}
+  validator@13.15.23:
+    resolution: {integrity: sha512-4yoz1kEWqUjzi5zsPbAS/903QXSYp0UOtHsPpp7p9rHAw/W+dkInskAE386Fat3oKRROwO98d9ZB0G4cObgUyw==}
     engines: {node: '>= 0.10'}
 
   value-or-function@3.0.0:
@@ -19769,7 +19770,7 @@ snapshots:
       '@verdaccio/core': 8.0.0-next-8.19
       debug: 4.4.1
       lodash: 4.17.21
-      validator: 13.12.0
+      validator: 13.15.23
     transitivePeerDependencies:
       - supports-color
 
@@ -25525,7 +25526,7 @@ snapshots:
 
   validate-npm-package-name@6.0.2: {}
 
-  validator@13.12.0: {}
+  validator@13.15.23: {}
 
   value-or-function@3.0.0: {}
 
