@@ -76,6 +76,7 @@ export interface StrictInstallOptions {
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   onlyBuiltDependenciesFile?: string
+  strictOnlyBuiltDependencies?: boolean
   nodeExecPath?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion?: string
@@ -272,6 +273,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     excludeLinksFromLockfile: false,
     virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
+    strictOnlyBuiltDependencies: false,
   } as StrictInstallOptions
 }
 
