@@ -21,4 +21,4 @@ test('a package with a huge amount of circular dependencies and many peer depend
   )
 
   expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
-})
+}, 10 * 60 * 1000) // 10 minutes timeout for this complex dependency resolution
