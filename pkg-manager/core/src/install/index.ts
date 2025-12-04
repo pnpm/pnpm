@@ -1238,11 +1238,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
   )
 
-  await validateOnlyBuiltDependencies(dependenciesGraph, {
-    onlyBuiltDependencies: opts.onlyBuiltDependencies,
-    strictOnlyBuiltDependencies: opts.strictOnlyBuiltDependencies,
-    lockfileDir: opts.lockfileDir,
-  })
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
     linkedDependenciesByProjectId = mapValues(
       (linkedDeps) => linkedDeps.filter((linkedDep) =>
@@ -1335,6 +1330,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     )
     stats = result.stats
+
+    // Validate onlyBuiltDependencies after packages are installed
+    await validateOnlyBuiltDependencies(dependenciesGraph, {
+      onlyBuiltDependencies: opts.onlyBuiltDependencies,
+      strictOnlyBuiltDependencies: opts.strictOnlyBuiltDependencies,
+      lockfileDir: opts.lockfileDir,
+    })
     if (opts.enablePnp) {
       const importerNames = Object.fromEntries(
         projects.map(({ manifest, id }) => [id, manifest.name ?? id])

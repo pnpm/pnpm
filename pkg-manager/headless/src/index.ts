@@ -191,7 +191,7 @@ export interface InstallationResult {
   ignoredBuilds: string[] | undefined
 }
 
-export async function headlessInstall(opts: HeadlessOptions): Promise<InstallationResult> {
+export async function headlessInstall (opts: HeadlessOptions): Promise<InstallationResult> {
   const reporter = opts.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -374,7 +374,7 @@ export async function headlessInstall(opts: HeadlessOptions): Promise<Installati
     prefix: lockfileDir,
   })
 
-  function warn(message: string) {
+  function warn (message: string) {
     logger.info({
       message,
       prefix: lockfileDir,
@@ -701,7 +701,7 @@ type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registries' | 'symli
   projects: Project[]
 }
 
-async function symlinkDirectDependencies(
+async function symlinkDirectDependencies (
   {
     filteredLockfile,
     dedupe,
@@ -750,7 +750,7 @@ async function symlinkDirectDependencies(
   return linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe) })
 }
 
-async function linkBinsOfImporter(
+async function linkBinsOfImporter (
   { manifest, modulesDir, binsDir, rootDir }: {
     binsDir: string
     manifest: ProjectManifest
@@ -771,7 +771,7 @@ async function linkBinsOfImporter(
   })
 }
 
-async function getRootPackagesToLink(
+async function getRootPackagesToLink (
   lockfile: LockfileObject,
   opts: {
     registries: Registries
@@ -851,7 +851,7 @@ async function getRootPackagesToLink(
 
 const limitLinking = pLimit(16)
 
-async function linkAllPkgs(
+async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
@@ -914,7 +914,7 @@ async function linkAllPkgs(
   )
 }
 
-async function linkAllBins(
+async function linkAllBins (
   depGraph: DependenciesGraph,
   opts: {
     extraNodePaths?: string[]
@@ -968,7 +968,7 @@ async function linkAllBins(
   )
 }
 
-async function linkAllModules(
+async function linkAllModules (
   depNodes: Array<Pick<DependenciesGraphNode, 'children' | 'optionalDependencies' | 'modules' | 'name'>>,
   opts: {
     optional: boolean
@@ -985,7 +985,7 @@ async function linkAllModules(
   })
 }
 
-async function validateOnlyBuiltDependenciesForHeadless(
+async function validateOnlyBuiltDependenciesForHeadless (
   graph: DependenciesGraph,
   opts: {
     onlyBuiltDependencies?: string[]
@@ -1075,7 +1075,7 @@ async function validateOnlyBuiltDependenciesForHeadless(
   })
 }
 
-function extractName(spec: string): string | null {
+function extractName (spec: string): string | null {
   if (!spec) return null
   if (!spec.includes('@')) return spec
   if (spec.startsWith('@')) {
@@ -1085,7 +1085,7 @@ function extractName(spec: string): string | null {
   return spec.split('@', 1)[0]!
 }
 
-function hasLifecycleScript(scripts: Record<string, string | undefined>): boolean {
+function hasLifecycleScript (scripts: Record<string, string | undefined>): boolean {
   return Boolean(
     scripts.preinstall ??
     scripts.install ??
