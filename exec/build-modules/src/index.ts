@@ -11,7 +11,7 @@ import { hardLinkDir } from '@pnpm/worker'
 import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import { type AllowBuild, type DependencyManifest } from '@pnpm/types'
+import { type AllowBuild, type DependencyManifest, type DepPath } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import { pickBy } from 'ramda'
 import runGroups from 'run-groups'
@@ -47,7 +47,7 @@ export async function buildModules<T extends string> (
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
   }
-): Promise<{ ignoredBuilds?: string[] }> {
+): Promise<{ ignoredBuilds?: DepPath[] }> {
   if (!rootDepPaths.length) return {}
   const warn = (message: string) => {
     logger.warn({ message, prefix: opts.lockfileDir })
@@ -61,7 +61,7 @@ export async function buildModules<T extends string> (
   }
   const chunks = buildSequence<T>(depGraph, rootDepPaths)
   if (!chunks.length) return {}
-  const ignoredPkgs = new Set<string>()
+  const ignoredPkgs = new Set<DepPath>()
   const allowBuild = opts.allowBuild ?? (() => true)
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
@@ -77,7 +77,7 @@ export async function buildModules<T extends string> (
         let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
         if (!ignoreScripts) {
           if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name, depGraph[depPath].version)) {
-            ignoredPkgs.add(depGraph[depPath].name)
+            ignoredPkgs.add(depGraph[depPath].depPath)
             ignoreScripts = true
           }
         }
@@ -89,15 +89,17 @@ export async function buildModules<T extends string> (
     )
   })
   await runGroups.default(getWorkspaceConcurrency(opts.childConcurrency), groups)
+  let ignoredPkgsArray = Array.from(ignoredPkgs)
   if (opts.ignoredBuiltDependencies?.length) {
-    for (const ignoredBuild of opts.ignoredBuiltDependencies) {
-      // We already ignore the build of this dependency.
-      // No need to report it.
-      ignoredPkgs.delete(ignoredBuild)
-    }
+    // We already ignore the build of these dependencies.
+    // No need to report them.
+    ignoredPkgsArray = ignoredPkgsArray.filter((ignoredPkgDepPath) =>
+      !opts.ignoredBuiltDependencies!.some((ignoredInSettings) =>
+        ignoredInSettings === ignoredPkgDepPath || ignoredPkgDepPath.startsWith(`${ignoredInSettings}@`)
+      )
+    )
   }
-  const packageNames = Array.from(ignoredPkgs)
-  return { ignoredBuilds: packageNames }
+  return { ignoredBuilds: ignoredPkgsArray }
 }
 
 async function buildDependency<T extends string> (

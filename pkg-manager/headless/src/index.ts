@@ -512,7 +512,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           .map(({ depPath }) => depPath)
       )
   }
-  let ignoredBuilds: string[] | undefined
+  let ignoredBuilds: DepPath[] | undefined
   if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
@@ -557,8 +557,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       unsafePerm: opts.unsafePerm,
       userAgent: opts.userAgent,
     })).ignoredBuilds
-    if (ignoredBuilds == null && opts.modulesFile?.ignoredBuilds?.length) {
-      ignoredBuilds = opts.modulesFile.ignoredBuilds
+    if (opts.modulesFile?.ignoredBuilds?.length) {
+      ignoredBuilds ??= []
+      for (const ignoredBuild of opts.modulesFile.ignoredBuilds) {
+        if (filteredLockfile.packages?.[ignoredBuild]) {
+          ignoredBuilds.push(ignoredBuild)
+        }
+      }
     }
   }
 

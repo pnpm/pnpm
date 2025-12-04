@@ -92,7 +92,7 @@ export async function rebuildSelectedPkgs (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
-): Promise<{ ignoredBuilds?: string[] }> {
+): Promise<{ ignoredBuilds?: DepPath[] }> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -269,7 +269,7 @@ async function _rebuild (
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictRebuildOptions
-): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: string[] }> {
+): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: DepPath[] }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile)
   const depsStateCache: DepsStateCache = {}
   const pkgsThatWereRebuilt = new Set<string>()
@@ -309,12 +309,12 @@ async function _rebuild (
     logger.info({ message, prefix: opts.dir })
   }
 
-  const ignoredPkgs: string[] = []
+  const ignoredPkgs: DepPath[] = []
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
-  const allowBuild = (pkgName: string, version: string) => {
+  const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
     if (_allowBuild(pkgName, version)) return true
     if (!opts.ignoredBuiltDependencies?.includes(pkgName)) {
-      ignoredPkgs.push(pkgName)
+      ignoredPkgs.push(depPath)
     }
     return false
   }
@@ -370,7 +370,7 @@ async function _rebuild (
           requiresBuild = pkgRequiresBuild(pgkManifest, {})
         }
 
-        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version) && await runPostinstallHooks({
+        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version, depPath) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,

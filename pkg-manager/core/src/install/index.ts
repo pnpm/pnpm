@@ -368,7 +368,9 @@ export async function mutateModules (
   if (!opts.ignoreScripts && ignoredBuilds?.length) {
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds)
   }
-  ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
+  if (!opts.neverBuiltDependencies) {
+    ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
+  }
 
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
@@ -1288,7 +1290,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
   let stats: InstallationResultStats | undefined
   const allowBuild = createAllowBuildFunction(opts)
-  let ignoredBuilds: string[] | undefined
+  let ignoredBuilds: DepPath[] | undefined
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
@@ -1388,8 +1390,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
         })).ignoredBuilds
-        if (ignoredBuilds == null && ctx.modulesFile?.ignoredBuilds?.length) {
-          ignoredBuilds = ctx.modulesFile.ignoredBuilds
+        if (ctx.modulesFile?.ignoredBuilds?.length) {
+          ignoredBuilds ??= []
+          for (const ignoredBuild of ctx.modulesFile.ignoredBuilds) {
+            if (result.currentLockfile.packages?.[ignoredBuild]) {
+              ignoredBuilds.push(ignoredBuild)
+            }
+          }
         }
       }
     }
