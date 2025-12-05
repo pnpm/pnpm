@@ -31,7 +31,7 @@ test('ignoredBuilds lists automatically ignored dependencies', async () => {
   fs.mkdirSync(modulesDir, { recursive: true })
   await writeModulesManifest(modulesDir, {
     ...DEFAULT_MODULES_MANIFEST,
-    ignoredBuilds: ['foo@1.0.0' as DepPath],
+    ignoredBuilds: new Set(['foo@1.0.0' as DepPath]),
   })
   const output = await ignoredBuilds.handler({
     dir,
@@ -47,7 +47,7 @@ test('ignoredBuilds lists explicitly ignored dependencies', async () => {
   fs.mkdirSync(modulesDir, { recursive: true })
   await writeModulesManifest(modulesDir, {
     ...DEFAULT_MODULES_MANIFEST,
-    ignoredBuilds: [],
+    ignoredBuilds: new Set(),
   })
   const output = await ignoredBuilds.handler({
     dir,
@@ -67,7 +67,7 @@ test('ignoredBuilds lists both automatically and explicitly ignored dependencies
   fs.mkdirSync(modulesDir, { recursive: true })
   await writeModulesManifest(modulesDir, {
     ...DEFAULT_MODULES_MANIFEST,
-    ignoredBuilds: ['foo@1.0.0', 'bar@1.0.0'] as DepPath[],
+    ignoredBuilds: new Set(['foo@1.0.0', 'bar@1.0.0'] as DepPath[]),
   })
   const output = await ignoredBuilds.handler({
     dir,

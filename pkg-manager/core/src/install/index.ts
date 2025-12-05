@@ -1397,9 +1397,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
         })).ignoredBuilds
-        if (ctx.modulesFile?.ignoredBuilds?.length) {
+        if (ctx.modulesFile?.ignoredBuilds?.size) {
           ignoredBuilds ??= new Set()
-          for (const ignoredBuild of ctx.modulesFile.ignoredBuilds) {
+          for (const ignoredBuild of ctx.modulesFile.ignoredBuilds.values()) {
             if (result.currentLockfile.packages?.[ignoredBuild]) {
               ignoredBuilds.add(ignoredBuild)
             }
@@ -1517,7 +1517,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           hoistPattern: ctx.hoistPattern,
           included: ctx.include,
           injectedDeps,
-          ignoredBuilds: ignoredBuilds ? Array.from(ignoredBuilds) : undefined,
+          ignoredBuilds,
           layoutVersion: LAYOUT_VERSION,
           nodeLinker: opts.nodeLinker,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,

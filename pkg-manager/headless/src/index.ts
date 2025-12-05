@@ -558,9 +558,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       unsafePerm: opts.unsafePerm,
       userAgent: opts.userAgent,
     })).ignoredBuilds
-    if (opts.modulesFile?.ignoredBuilds?.length) {
+    if (opts.modulesFile?.ignoredBuilds?.size) {
       ignoredBuilds ??= new Set()
-      for (const ignoredBuild of opts.modulesFile.ignoredBuilds) {
+      for (const ignoredBuild of opts.modulesFile.ignoredBuilds.values()) {
         if (filteredLockfile.packages?.[ignoredBuild]) {
           ignoredBuilds.add(ignoredBuild)
         }
@@ -626,7 +626,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       hoistPattern: opts.hoistPattern,
       included: opts.include,
       injectedDeps,
-      ignoredBuilds: ignoredBuilds ? Array.from(ignoredBuilds) : undefined,
+      ignoredBuilds,
       layoutVersion: LAYOUT_VERSION,
       hoistedLocations,
       nodeLinker: opts.nodeLinker,

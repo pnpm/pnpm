@@ -1,5 +1,11 @@
 import path from 'path'
-import { type DepPath, type DependenciesField, type HoistedDependencies, type Registries } from '@pnpm/types'
+import {
+  type DepPath,
+  type DependenciesField,
+  type HoistedDependencies,
+  type IgnoredBuilds,
+  type Registries,
+} from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import { map as mapValues } from 'ramda'
 import isWindows from 'is-windows'
@@ -13,7 +19,7 @@ export type IncludedDependencies = {
   [dependenciesField in DependenciesField]: boolean
 }
 
-export interface Modules {
+interface ModulesRaw {
   hoistedAliases?: { [depPath: DepPath]: string[] } // for backward compatibility
   hoistedDependencies: HoistedDependencies
   hoistPattern?: string[]
@@ -35,17 +41,25 @@ export interface Modules {
   hoistedLocations?: Record<string, string[]>
 }
 
+export type Modules = Omit<ModulesRaw, 'ignoredBuilds'> & {
+  ignoredBuilds?: IgnoredBuilds
+}
+
 export async function readModulesManifest (modulesDir: string): Promise<Modules | null> {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
-  let modules!: Modules
+  let modulesRaw!: ModulesRaw
   try {
-    modules = await readYamlFile.default<Modules>(modulesYamlPath)
-    if (!modules) return modules
+    modulesRaw = await readYamlFile.default<ModulesRaw>(modulesYamlPath)
+    if (!modulesRaw) return modulesRaw
   } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }
     return null
+  }
+  const modules = {
+    ...modulesRaw,
+    ignoredBuilds: modulesRaw.ignoredBuilds ? new Set<DepPath>(modulesRaw.ignoredBuilds) : undefined,
   }
   if (!modules.virtualStoreDir) {
     modules.virtualStoreDir = path.join(modulesDir, '.pnpm')
@@ -107,7 +121,7 @@ export async function writeModulesManifest (
   }
 ): Promise<void> {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
-  const saveModules = { ...modules }
+  const saveModules = { ...modules, ignoredBuilds: modules.ignoredBuilds ? Array.from(modules.ignoredBuilds) : undefined }
   if (saveModules.skipped) saveModules.skipped.sort()
 
   if (saveModules.hoistPattern == null || (saveModules.hoistPattern as unknown) === '') {
