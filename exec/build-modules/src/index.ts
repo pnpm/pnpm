@@ -4,6 +4,7 @@ import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { getWorkspaceConcurrency } from '@pnpm/config'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import * as dp from '@pnpm/dependency-path'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
@@ -95,7 +96,7 @@ export async function buildModules<T extends string> (
     // No need to report them.
     ignoredPkgsArray = ignoredPkgsArray.filter((ignoredPkgDepPath) =>
       !opts.ignoredBuiltDependencies!.some((ignoredInSettings) =>
-        ignoredInSettings === ignoredPkgDepPath || ignoredPkgDepPath.startsWith(`${ignoredInSettings}@`)
+        (ignoredInSettings === ignoredPkgDepPath) || (dp.parse(ignoredPkgDepPath).name === ignoredInSettings)
       )
     )
   }
