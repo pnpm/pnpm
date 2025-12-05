@@ -1,4 +1,5 @@
 import path from 'path'
+import { parse } from '@pnpm/dependency-path'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { type IgnoredBuildsCommandOpts } from './ignoredBuilds.js'
 
@@ -11,8 +12,14 @@ export interface GetAutomaticallyIgnoredBuildsResult {
 export async function getAutomaticallyIgnoredBuilds (opts: IgnoredBuildsCommandOpts): Promise<GetAutomaticallyIgnoredBuildsResult> {
   const modulesDir = getModulesDir(opts)
   const modulesManifest = await readModulesManifest(modulesDir)
+  const ignoredPkgNames = new Set<string>()
+  if (modulesManifest?.ignoredBuilds) {
+    for (const depPath of modulesManifest?.ignoredBuilds) {
+      ignoredPkgNames.add(parse(depPath).name ?? depPath)
+    }
+  }
   return {
-    automaticallyIgnoredBuilds: modulesManifest && (modulesManifest.ignoredBuilds ?? []),
+    automaticallyIgnoredBuilds: Array.from(ignoredPkgNames),
     modulesDir,
     modulesManifest,
   }

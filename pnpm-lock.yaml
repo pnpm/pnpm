@@ -2507,6 +2507,9 @@ importers:
       '@pnpm/config.config-writer':
         specifier: workspace:*
         version: link:../../config/config-writer
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.0
