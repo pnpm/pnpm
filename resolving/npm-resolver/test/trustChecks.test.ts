@@ -1,6 +1,6 @@
-import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
+import type { PackageMeta, PackageInRegistry, PackageMetaWithTime } from '@pnpm/registry.types'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import { getTrustEvidence, failIfTrustDowngraded } from '../src/trustChecks.js'
+import { getTrustEvidence, failIfTrustDowngraded, isPackageExcluded } from '../src/trustChecks.js'
 
 describe('getTrustEvidence', () => {
   test('returns "trustedPublisher" when _npmUser.trustedPublisher exists', () => {
@@ -535,5 +535,73 @@ describe('failIfTrustDowngraded with trustPolicyExclude', () => {
     expect(() => {
       failIfTrustDowngraded(meta, '3.0.0', createPackageVersionPolicy(['bar']))
     }).not.toThrow()
+  })
+})
+
+describe('isPackageExcluded', () => {
+  test('checks if package name is in exclude list', () => {
+    const meta: PackageMeta = {
+      name: 'foo',
+      'dist-tags': { latest: '3.0.0' },
+      versions: {
+        '2.0.0': {
+          name: 'foo',
+          version: '2.0.0',
+          dist: {
+            shasum: 'def456',
+            tarball: 'https://registry.example.com/foo/-/foo-2.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
+          },
+        },
+        '3.0.0': {
+          name: 'foo',
+          version: '3.0.0',
+          dist: {
+            shasum: 'ghi789',
+            tarball: 'https://registry.example.com/foo/-/foo-3.0.0.tgz',
+          },
+        },
+      },
+    }
+
+    expect(isPackageExcluded(meta, '3.0.0', createPackageVersionPolicy(['foo']))).toBe(true)
+    expect(isPackageExcluded(meta, '3.0.0', createPackageVersionPolicy(['bar']))).toBe(false)
+  })
+
+  test('checks if package version is in exclude list', () => {
+    const meta: PackageMeta = {
+      name: 'foo',
+      'dist-tags': { latest: '3.0.0' },
+      versions: {
+        '2.0.0': {
+          name: 'foo',
+          version: '2.0.0',
+          dist: {
+            shasum: 'def456',
+            tarball: 'https://registry.example.com/foo/-/foo-2.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
+          },
+        },
+        '3.0.0': {
+          name: 'foo',
+          version: '3.0.0',
+          dist: {
+            shasum: 'ghi789',
+            tarball: 'https://registry.example.com/foo/-/foo-3.0.0.tgz',
+          },
+        },
+      },
+    }
+
+    expect(isPackageExcluded(meta, '3.0.0', createPackageVersionPolicy(['foo@3.0.0']))).toBe(true)
+    expect(isPackageExcluded(meta, '3.0.0', createPackageVersionPolicy(['foo@3.1.0']))).toBe(false)
   })
 })
