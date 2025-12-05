@@ -68,12 +68,14 @@ import {
   type DepPath,
   type DependenciesField,
   type DependencyManifest,
+  type IgnoredBuilds,
   type PeerDependencyIssues,
   type ProjectId,
   type ProjectManifest,
   type ReadPackageHook,
   type ProjectRootDir,
 } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import isSubdir from 'is-subdir'
 import pLimit from 'p-limit'
 import { map as mapValues, clone, isEmpty, pipeWith, props } from 'ramda'
@@ -152,7 +154,7 @@ export interface InstallResult {
    */
   updatedCatalogs: Catalogs | undefined
   updatedManifest: ProjectManifest
-  ignoredBuilds: Set<DepPath> | undefined
+  ignoredBuilds: IgnoredBuilds | undefined
 }
 
 export async function install (
@@ -205,7 +207,7 @@ export type MutateModulesOptions = InstallOptions & {
 export interface MutateModulesInSingleProjectResult {
   updatedCatalogs: Catalogs | undefined
   updatedProject: UpdatedProject
-  ignoredBuilds: Set<DepPath> | undefined
+  ignoredBuilds: IgnoredBuilds | undefined
 }
 
 export async function mutateModulesInSingleProject (
@@ -247,7 +249,7 @@ export interface MutateModulesResult {
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
-  ignoredBuilds: Set<DepPath> | undefined
+  ignoredBuilds: IgnoredBuilds | undefined
 }
 
 const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
@@ -370,7 +372,9 @@ export async function mutateModules (
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds)
   }
   if (!opts.neverBuiltDependencies) {
-    ignoredScriptsLogger.debug({ packageNames: Array.from(ignoredBuilds ?? []).sort() })
+    ignoredScriptsLogger.debug({
+      packageNames: Array.from(ignoredBuilds ?? []).map((depPath) => removeSuffix(depPath)).sort(lexCompare),
+    })
   }
 
   if ((reporter != null) && typeof reporter === 'function') {
@@ -390,7 +394,7 @@ export async function mutateModules (
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
-    readonly ignoredBuilds: Set<DepPath> | undefined
+    readonly ignoredBuilds: IgnoredBuilds | undefined
   }
 
   async function _install (): Promise<InnerInstallResult> {
@@ -881,7 +885,7 @@ Note that in CI environments, this setting is enabled by default.`,
   }
 }
 
-async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previousIgnoredBuilds: Set<DepPath>): Promise<Set<DepPath>> {
+async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previousIgnoredBuilds: IgnoredBuilds): Promise<Set<DepPath>> {
   if (!opts.onlyBuiltDependencies?.length) {
     return previousIgnoredBuilds
   }
@@ -1073,7 +1077,7 @@ interface InstallFunctionResult {
   projects: UpdatedProject[]
   stats?: InstallationResultStats
   depsRequiringBuild: DepPath[]
-  ignoredBuilds?: Set<DepPath>
+  ignoredBuilds?: IgnoredBuilds
 }
 
 type InstallFunction = (
@@ -1293,7 +1297,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
   let stats: InstallationResultStats | undefined
   const allowBuild = createAllowBuildFunction(opts)
-  let ignoredBuilds: Set<DepPath> | undefined
+  let ignoredBuilds: IgnoredBuilds | undefined
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,

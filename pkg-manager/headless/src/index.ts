@@ -62,6 +62,7 @@ import {
   type DepPath,
   type DependencyManifest,
   type HoistedDependencies,
+  type IgnoredBuilds,
   type ProjectId,
   type ProjectManifest,
   type Registries,
@@ -186,7 +187,7 @@ export interface InstallationResultStats {
 
 export interface InstallationResult {
   stats: InstallationResultStats
-  ignoredBuilds: Set<DepPath> | undefined
+  ignoredBuilds: IgnoredBuilds | undefined
 }
 
 export async function headlessInstall (opts: HeadlessOptions): Promise<InstallationResult> {
@@ -512,7 +513,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           .map(({ depPath }) => depPath)
       )
   }
-  let ignoredBuilds: Set<DepPath> | undefined
+  let ignoredBuilds: IgnoredBuilds | undefined
   if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
