@@ -74,7 +74,11 @@ async function getStats (path: string): Promise<Stats | 'ENOENT'> {
 
 function readOptDir (dirPath: string): string[] | null {
   try {
-    return readdirSync(dirPath, 'utf-8')
+    return readdirSync(dirPath, {
+      encoding: 'utf-8',
+      withFileTypes: true,
+    }).filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name)
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
