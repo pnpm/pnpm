@@ -299,8 +299,8 @@ export async function recursive (
       }))
       await Promise.all(promises)
     }
-    if (opts.strictDepBuilds && ignoredBuilds?.length) {
-      throw new IgnoredBuildsError(ignoredBuilds)
+    if (opts.strictDepBuilds && ignoredBuilds?.size) {
+      throw new IgnoredBuildsError(Array.from(ignoredBuilds))
     }
     return true
   }
@@ -355,7 +355,7 @@ export async function recursive (
         interface ActionResult {
           updatedCatalogs?: Catalogs
           updatedManifest: ProjectManifest
-          ignoredBuilds: string[] | undefined
+          ignoredBuilds: Set<string> | undefined
         }
 
         type ActionFunction = (manifest: PackageManifest | ProjectManifest, opts: ActionOpts) => Promise<ActionResult>
@@ -419,8 +419,8 @@ export async function recursive (
             Object.assign(updatedCatalogs, newCatalogsAddition)
           }
         }
-        if (opts.strictDepBuilds && ignoredBuilds?.length) {
-          throw new IgnoredBuildsError(ignoredBuilds)
+        if (opts.strictDepBuilds && ignoredBuilds?.size) {
+          throw new IgnoredBuildsError(Array.from(ignoredBuilds))
         }
         result[rootDir].status = 'passed'
       } catch (err: any) { // eslint-disable-line

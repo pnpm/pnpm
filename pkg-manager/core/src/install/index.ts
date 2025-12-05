@@ -152,7 +152,7 @@ export interface InstallResult {
    */
   updatedCatalogs: Catalogs | undefined
   updatedManifest: ProjectManifest
-  ignoredBuilds: DepPath[] | undefined
+  ignoredBuilds: Set<DepPath> | undefined
 }
 
 export async function install (
@@ -205,7 +205,7 @@ export type MutateModulesOptions = InstallOptions & {
 export interface MutateModulesInSingleProjectResult {
   updatedCatalogs: Catalogs | undefined
   updatedProject: UpdatedProject
-  ignoredBuilds: DepPath[] | undefined
+  ignoredBuilds: Set<DepPath> | undefined
 }
 
 export async function mutateModulesInSingleProject (
@@ -247,7 +247,7 @@ export interface MutateModulesResult {
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
-  ignoredBuilds: DepPath[] | undefined
+  ignoredBuilds: Set<DepPath> | undefined
 }
 
 const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
@@ -366,7 +366,7 @@ export async function mutateModules (
   }
 
   let ignoredBuilds = result.ignoredBuilds
-  if (!opts.ignoreScripts && ignoredBuilds?.length) {
+  if (!opts.ignoreScripts && ignoredBuilds?.size) {
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds)
   }
   if (!opts.neverBuiltDependencies) {
@@ -390,7 +390,7 @@ export async function mutateModules (
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
-    readonly ignoredBuilds: DepPath[] | undefined
+    readonly ignoredBuilds: Set<DepPath> | undefined
   }
 
   async function _install (): Promise<InnerInstallResult> {
@@ -881,12 +881,12 @@ Note that in CI environments, this setting is enabled by default.`,
   }
 }
 
-async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previousIgnoredBuilds: DepPath[]): Promise<DepPath[]> {
+async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previousIgnoredBuilds: Set<DepPath>): Promise<Set<DepPath>> {
   if (!opts.onlyBuiltDependencies?.length) {
     return previousIgnoredBuilds
   }
   const onlyBuiltDeps = createPackageVersionPolicy(opts.onlyBuiltDependencies)
-  const pkgsToBuild = previousIgnoredBuilds.flatMap((ignoredPkg) => {
+  const pkgsToBuild = Array.from(previousIgnoredBuilds).flatMap((ignoredPkg) => {
     const ignoredPkgName = dp.parse(ignoredPkg).name
     if (!ignoredPkgName) return []
     const matchResult = onlyBuiltDeps(ignoredPkgName)
@@ -1073,7 +1073,7 @@ interface InstallFunctionResult {
   projects: UpdatedProject[]
   stats?: InstallationResultStats
   depsRequiringBuild: DepPath[]
-  ignoredBuilds?: DepPath[]
+  ignoredBuilds?: Set<DepPath>
 }
 
 type InstallFunction = (
@@ -1293,7 +1293,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
   let stats: InstallationResultStats | undefined
   const allowBuild = createAllowBuildFunction(opts)
-  let ignoredBuilds: DepPath[] | undefined
+  let ignoredBuilds: Set<DepPath> | undefined
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
@@ -1394,10 +1394,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           userAgent: opts.userAgent,
         })).ignoredBuilds
         if (ctx.modulesFile?.ignoredBuilds?.length) {
-          ignoredBuilds ??= []
+          ignoredBuilds ??= new Set()
           for (const ignoredBuild of ctx.modulesFile.ignoredBuilds) {
             if (result.currentLockfile.packages?.[ignoredBuild]) {
-              ignoredBuilds.push(ignoredBuild)
+              ignoredBuilds.add(ignoredBuild)
             }
           }
         }
@@ -1513,7 +1513,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           hoistPattern: ctx.hoistPattern,
           included: ctx.include,
           injectedDeps,
-          ignoredBuilds,
+          ignoredBuilds: ignoredBuilds ? Array.from(ignoredBuilds) : undefined,
           layoutVersion: LAYOUT_VERSION,
           nodeLinker: opts.nodeLinker,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,

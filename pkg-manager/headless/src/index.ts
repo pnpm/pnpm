@@ -186,7 +186,7 @@ export interface InstallationResultStats {
 
 export interface InstallationResult {
   stats: InstallationResultStats
-  ignoredBuilds: DepPath[] | undefined
+  ignoredBuilds: Set<DepPath> | undefined
 }
 
 export async function headlessInstall (opts: HeadlessOptions): Promise<InstallationResult> {
@@ -512,7 +512,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           .map(({ depPath }) => depPath)
       )
   }
-  let ignoredBuilds: DepPath[] | undefined
+  let ignoredBuilds: Set<DepPath> | undefined
   if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
@@ -558,10 +558,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       userAgent: opts.userAgent,
     })).ignoredBuilds
     if (opts.modulesFile?.ignoredBuilds?.length) {
-      ignoredBuilds ??= []
+      ignoredBuilds ??= new Set()
       for (const ignoredBuild of opts.modulesFile.ignoredBuilds) {
         if (filteredLockfile.packages?.[ignoredBuild]) {
-          ignoredBuilds.push(ignoredBuild)
+          ignoredBuilds.add(ignoredBuild)
         }
       }
     }
@@ -625,7 +625,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       hoistPattern: opts.hoistPattern,
       included: opts.include,
       injectedDeps,
-      ignoredBuilds,
+      ignoredBuilds: ignoredBuilds ? Array.from(ignoredBuilds) : undefined,
       layoutVersion: LAYOUT_VERSION,
       hoistedLocations,
       nodeLinker: opts.nodeLinker,

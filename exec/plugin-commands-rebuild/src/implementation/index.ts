@@ -92,7 +92,7 @@ export async function rebuildSelectedPkgs (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
-): Promise<{ ignoredBuilds?: DepPath[] }> {
+): Promise<{ ignoredBuilds?: Set<DepPath> }> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -138,7 +138,7 @@ export async function rebuildSelectedPkgs (
     hoistedDependencies: ctx.hoistedDependencies,
     hoistPattern: ctx.hoistPattern,
     included: ctx.include,
-    ignoredBuilds: ignoredPkgs,
+    ignoredBuilds: Array.from(ignoredPkgs),
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
@@ -214,7 +214,7 @@ export async function rebuildProjects (
     hoistedDependencies: ctx.hoistedDependencies,
     hoistPattern: ctx.hoistPattern,
     included: ctx.include,
-    ignoredBuilds: ignoredPkgs,
+    ignoredBuilds: Array.from(ignoredPkgs),
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
@@ -269,7 +269,7 @@ async function _rebuild (
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictRebuildOptions
-): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: DepPath[] }> {
+): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: Set<DepPath> }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile)
   const depsStateCache: DepsStateCache = {}
   const pkgsThatWereRebuilt = new Set<string>()
@@ -309,12 +309,12 @@ async function _rebuild (
     logger.info({ message, prefix: opts.dir })
   }
 
-  const ignoredPkgs: DepPath[] = []
+  const ignoredPkgs = new Set<DepPath>()
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
   const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
     if (_allowBuild(pkgName, version)) return true
     if (!opts.ignoredBuiltDependencies?.includes(pkgName)) {
-      ignoredPkgs.push(depPath)
+      ignoredPkgs.add(depPath)
     }
     return false
   }

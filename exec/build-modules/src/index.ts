@@ -48,7 +48,7 @@ export async function buildModules<T extends string> (
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
   }
-): Promise<{ ignoredBuilds?: DepPath[] }> {
+): Promise<{ ignoredBuilds?: Set<DepPath> }> {
   if (!rootDepPaths.length) return {}
   const warn = (message: string) => {
     logger.warn({ message, prefix: opts.lockfileDir })
@@ -62,7 +62,7 @@ export async function buildModules<T extends string> (
   }
   const chunks = buildSequence<T>(depGraph, rootDepPaths)
   if (!chunks.length) return {}
-  const ignoredPkgs = new Set<DepPath>()
+  let ignoredBuilds = new Set<DepPath>()
   const allowBuild = opts.allowBuild ?? (() => true)
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
@@ -78,7 +78,7 @@ export async function buildModules<T extends string> (
         let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
         if (!ignoreScripts) {
           if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name, depGraph[depPath].version)) {
-            ignoredPkgs.add(depGraph[depPath].depPath)
+            ignoredBuilds.add(depGraph[depPath].depPath)
             ignoreScripts = true
           }
         }
@@ -90,17 +90,16 @@ export async function buildModules<T extends string> (
     )
   })
   await runGroups.default(getWorkspaceConcurrency(opts.childConcurrency), groups)
-  let ignoredPkgsArray = Array.from(ignoredPkgs)
   if (opts.ignoredBuiltDependencies?.length) {
     // We already ignore the build of these dependencies.
     // No need to report them.
-    ignoredPkgsArray = ignoredPkgsArray.filter((ignoredPkgDepPath) =>
+    ignoredBuilds = new Set(Array.from(ignoredBuilds).filter((ignoredPkgDepPath) =>
       !opts.ignoredBuiltDependencies!.some((ignoredInSettings) =>
         (ignoredInSettings === ignoredPkgDepPath) || (dp.parse(ignoredPkgDepPath).name === ignoredInSettings)
       )
-    )
+    ))
   }
-  return { ignoredBuilds: ignoredPkgsArray }
+  return { ignoredBuilds }
 }
 
 async function buildDependency<T extends string> (
