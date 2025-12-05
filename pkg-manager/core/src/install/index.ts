@@ -373,7 +373,7 @@ export async function mutateModules (
   }
   if (!opts.neverBuiltDependencies) {
     ignoredScriptsLogger.debug({
-      packageNames: Array.from(ignoredBuilds ?? []).map((depPath) => removeSuffix(depPath)).sort(lexCompare),
+      packageNames: Array.from(ignoredBuilds ?? []).map((depPath) => dp.removeSuffix(depPath)).sort(lexCompare),
     })
   }
 
