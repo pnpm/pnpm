@@ -370,7 +370,7 @@ export async function mutateModules (
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds)
   }
   if (!opts.neverBuiltDependencies) {
-    ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
+    ignoredScriptsLogger.debug({ packageNames: Array.from(ignoredBuilds ?? []).sort() })
   }
 
   if ((reporter != null) && typeof reporter === 'function') {
