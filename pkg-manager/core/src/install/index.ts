@@ -152,7 +152,7 @@ export interface InstallResult {
    */
   updatedCatalogs: Catalogs | undefined
   updatedManifest: ProjectManifest
-  ignoredBuilds: string[] | undefined
+  ignoredBuilds: DepPath[] | undefined
 }
 
 export async function install (
@@ -205,7 +205,7 @@ export type MutateModulesOptions = InstallOptions & {
 export interface MutateModulesInSingleProjectResult {
   updatedCatalogs: Catalogs | undefined
   updatedProject: UpdatedProject
-  ignoredBuilds: string[] | undefined
+  ignoredBuilds: DepPath[] | undefined
 }
 
 export async function mutateModulesInSingleProject (
