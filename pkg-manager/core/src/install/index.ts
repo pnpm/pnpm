@@ -17,6 +17,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
+import * as dp from '@pnpm/dependency-path'
 import {
   calcPatchHashes,
   createOverridesMapFromParsed,
@@ -389,7 +390,7 @@ export async function mutateModules (
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
-    readonly ignoredBuilds: string[] | undefined
+    readonly ignoredBuilds: DepPath[] | undefined
   }
 
   async function _install (): Promise<InnerInstallResult> {
@@ -880,17 +881,19 @@ Note that in CI environments, this setting is enabled by default.`,
   }
 }
 
-async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previousIgnoredBuilds: string[]): Promise<string[]> {
+async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previousIgnoredBuilds: DepPath[]): Promise<DepPath[]> {
   if (!opts.onlyBuiltDependencies?.length) {
     return previousIgnoredBuilds
   }
   const onlyBuiltDeps = createPackageVersionPolicy(opts.onlyBuiltDependencies)
   const pkgsToBuild = previousIgnoredBuilds.flatMap((ignoredPkg) => {
-    const matchResult = onlyBuiltDeps(ignoredPkg)
+    const ignoredPkgName = dp.parse(ignoredPkg).name
+    if (!ignoredPkgName) return []
+    const matchResult = onlyBuiltDeps(ignoredPkgName)
     if (matchResult === true) {
-      return [ignoredPkg]
+      return [ignoredPkgName]
     } else if (Array.isArray(matchResult)) {
-      return matchResult.map(version => `${ignoredPkg}@${version}`)
+      return matchResult.map(version => `${ignoredPkgName}@${version}`)
     }
     return []
   })
@@ -1070,7 +1073,7 @@ interface InstallFunctionResult {
   projects: UpdatedProject[]
   stats?: InstallationResultStats
   depsRequiringBuild: DepPath[]
-  ignoredBuilds?: string[]
+  ignoredBuilds?: DepPath[]
 }
 
 type InstallFunction = (
