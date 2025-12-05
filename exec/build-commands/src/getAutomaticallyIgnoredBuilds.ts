@@ -12,14 +12,18 @@ export interface GetAutomaticallyIgnoredBuildsResult {
 export async function getAutomaticallyIgnoredBuilds (opts: IgnoredBuildsCommandOpts): Promise<GetAutomaticallyIgnoredBuildsResult> {
   const modulesDir = getModulesDir(opts)
   const modulesManifest = await readModulesManifest(modulesDir)
-  const ignoredPkgNames = new Set<string>()
+  let automaticallyIgnoredBuilds: null | string[]
   if (modulesManifest?.ignoredBuilds) {
+    const ignoredPkgNames = new Set<string>()
     for (const depPath of modulesManifest?.ignoredBuilds) {
       ignoredPkgNames.add(parse(depPath).name ?? depPath)
     }
+    automaticallyIgnoredBuilds = Array.from(ignoredPkgNames)
+  } else {
+    automaticallyIgnoredBuilds = null
   }
   return {
-    automaticallyIgnoredBuilds: Array.from(ignoredPkgNames),
+    automaticallyIgnoredBuilds,
     modulesDir,
     modulesManifest,
   }
