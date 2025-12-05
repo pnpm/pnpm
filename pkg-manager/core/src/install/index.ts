@@ -247,7 +247,7 @@ export interface MutateModulesResult {
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
-  ignoredBuilds: string[] | undefined
+  ignoredBuilds: DepPath[] | undefined
 }
 
 const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
