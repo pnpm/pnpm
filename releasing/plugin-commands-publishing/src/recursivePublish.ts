@@ -99,6 +99,9 @@ export async function recursivePublish (
     if (opts.dryRun) {
       appendedArgs.push('--dry-run')
     }
+    if (opts.force) {
+      appendedArgs.push('--force')
+    }
     if (opts.cliOptions['otp']) {
       appendedArgs.push(`--otp=${opts.cliOptions['otp'] as string}`)
     }
