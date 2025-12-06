@@ -7,6 +7,7 @@ import {
   refToRelative,
   tryGetPackageId,
   isRuntimeDepPath,
+  removeSuffix,
 } from '@pnpm/dependency-path'
 import { type DepPath } from '@pnpm/types'
 
@@ -144,4 +145,8 @@ test('getPkgIdWithPatchHash', () => {
 test('isRuntimeDepPath', () => {
   expect(isRuntimeDepPath('node@runtime:20.1.0' as DepPath)).toBeTruthy()
   expect(isRuntimeDepPath('node@20.1.0' as DepPath)).toBeFalsy()
+})
+
+test('removeSuffix', () => {
+  expect(removeSuffix('foo@1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)')).toBe('foo@1.0.0')
 })

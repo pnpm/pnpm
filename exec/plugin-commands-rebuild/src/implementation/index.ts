@@ -26,7 +26,13 @@ import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
-import { type DepPath, type ProjectManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
+import {
+  type DepPath,
+  type IgnoredBuilds,
+  type ProjectManifest,
+  type ProjectId,
+  type ProjectRootDir,
+} from '@pnpm/types'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
@@ -92,7 +98,7 @@ export async function rebuildSelectedPkgs (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
-): Promise<{ ignoredBuilds?: string[] }> {
+): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -269,7 +275,7 @@ async function _rebuild (
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictRebuildOptions
-): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: string[] }> {
+): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: IgnoredBuilds }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile)
   const depsStateCache: DepsStateCache = {}
   const pkgsThatWereRebuilt = new Set<string>()
@@ -309,12 +315,12 @@ async function _rebuild (
     logger.info({ message, prefix: opts.dir })
   }
 
-  const ignoredPkgs: string[] = []
+  const ignoredPkgs = new Set<DepPath>()
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
-  const allowBuild = (pkgName: string, version: string) => {
+  const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
     if (_allowBuild(pkgName, version)) return true
     if (!opts.ignoredBuiltDependencies?.includes(pkgName)) {
-      ignoredPkgs.push(pkgName)
+      ignoredPkgs.add(depPath)
     }
     return false
   }
@@ -370,7 +376,7 @@ async function _rebuild (
           requiresBuild = pkgRequiresBuild(pgkManifest, {})
         }
 
-        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version) && await runPostinstallHooks({
+        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version, depPath) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,
