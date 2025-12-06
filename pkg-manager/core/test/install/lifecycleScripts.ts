@@ -485,7 +485,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies', 
 
   {
     const ignoredPkgsLog = reporter.getCalls().find((call) => call.firstArg.name === 'pnpm:ignored-scripts')?.firstArg
-    expect(ignoredPkgsLog.packageNames).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+    expect(ignoredPkgsLog.packageNames).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
   }
   reporter.resetHistory()
 
@@ -526,7 +526,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies us
 
   {
     const ignoredPkgsLog = reporter.getCalls().find((call) => call.firstArg.name === 'pnpm:ignored-scripts')?.firstArg
-    expect(ignoredPkgsLog.packageNames).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+    expect(ignoredPkgsLog.packageNames).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
   }
   reporter.resetHistory()
 

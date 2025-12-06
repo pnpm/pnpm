@@ -2472,6 +2472,9 @@ importers:
       '@pnpm/config.config-writer':
         specifier: workspace:*
         version: link:../../config/config-writer
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.0
@@ -2545,6 +2548,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
       '@pnpm/deps.graph-sequencer':
         specifier: workspace:*
         version: link:../../deps/graph-sequencer
@@ -4978,6 +4984,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker

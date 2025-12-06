@@ -106,6 +106,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "enquirer": "catalog:",
     "is-inner-link": "catalog:",

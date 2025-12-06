@@ -62,6 +62,7 @@ import {
   type DepPath,
   type DependencyManifest,
   type HoistedDependencies,
+  type IgnoredBuilds,
   type ProjectId,
   type ProjectManifest,
   type Registries,
@@ -191,7 +192,7 @@ export interface InstallationResultStats {
 
 export interface InstallationResult {
   stats: InstallationResultStats
-  ignoredBuilds: string[] | undefined
+  ignoredBuilds: IgnoredBuilds | undefined
 }
 
 export async function headlessInstall (opts: HeadlessOptions): Promise<InstallationResult> {
@@ -517,7 +518,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           .map(({ depPath }) => depPath)
       )
   }
-  let ignoredBuilds: string[] | undefined
+  let ignoredBuilds: IgnoredBuilds | undefined
   if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
@@ -562,8 +563,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       unsafePerm: opts.unsafePerm,
       userAgent: opts.userAgent,
     })).ignoredBuilds
-    if (ignoredBuilds == null && opts.modulesFile?.ignoredBuilds?.length) {
-      ignoredBuilds = opts.modulesFile.ignoredBuilds
+    if (opts.modulesFile?.ignoredBuilds?.size) {
+      ignoredBuilds ??= new Set()
+      for (const ignoredBuild of opts.modulesFile.ignoredBuilds.values()) {
+        if (filteredLockfile.packages?.[ignoredBuild]) {
+          ignoredBuilds.add(ignoredBuild)
+        }
+      }
     }
   }
 

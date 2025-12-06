@@ -7,7 +7,7 @@ import { type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import { getConfig } from '@pnpm/config'
-import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
+import { readModulesManifest } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { jest } from '@jest/globals'
 import { sync as loadJsonFile } from 'load-json-file'
@@ -123,7 +123,7 @@ test('approve no builds', async () => {
   expect(fs.readdirSync('node_modules/@pnpm.e2e/install-script-example')).not.toContain('generated-by-install.js')
 
   // Covers https://github.com/pnpm/pnpm/issues/9296
-  expect(await readModulesManifest('node_modules')).not.toHaveProperty(['ignoredBuilds' satisfies keyof Modules])
+  expect((await readModulesManifest('node_modules'))!.ignoredBuilds).toBeUndefined()
 })
 
 test("works when root project manifest doesn't exist in a workspace", async () => {

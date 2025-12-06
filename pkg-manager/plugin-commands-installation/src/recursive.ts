@@ -23,6 +23,7 @@ import { requireHooks } from '@pnpm/pnpmfile'
 import { sortPackages } from '@pnpm/sort-packages'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
+  type IgnoredBuilds,
   type IncludedDependencies,
   type PackageManifest,
   type Project,
@@ -34,6 +35,7 @@ import {
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import {
   addDependenciesToPackage,
+  IgnoredBuildsError,
   install,
   type InstallOptions,
   type MutatedProject,
@@ -50,7 +52,6 @@ import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './u
 import { getSaveType } from './getSaveType.js'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { type PreferredVersions } from '@pnpm/resolver-base'
-import { IgnoredBuildsError } from './errors.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -299,7 +300,7 @@ export async function recursive (
       }))
       await Promise.all(promises)
     }
-    if (opts.strictDepBuilds && ignoredBuilds?.length) {
+    if (opts.strictDepBuilds && ignoredBuilds?.size) {
       throw new IgnoredBuildsError(ignoredBuilds)
     }
     return true
@@ -355,7 +356,7 @@ export async function recursive (
         interface ActionResult {
           updatedCatalogs?: Catalogs
           updatedManifest: ProjectManifest
-          ignoredBuilds: string[] | undefined
+          ignoredBuilds: IgnoredBuilds | undefined
         }
 
         type ActionFunction = (manifest: PackageManifest | ProjectManifest, opts: ActionOpts) => Promise<ActionResult>
@@ -419,7 +420,7 @@ export async function recursive (
             Object.assign(updatedCatalogs, newCatalogsAddition)
           }
         }
-        if (opts.strictDepBuilds && ignoredBuilds?.length) {
+        if (opts.strictDepBuilds && ignoredBuilds?.size) {
           throw new IgnoredBuildsError(ignoredBuilds)
         }
         result[rootDir].status = 'passed'
