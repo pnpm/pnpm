@@ -1,5 +1,5 @@
 import { type PkgResolutionId, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import { type FetchFromRegistry, type FetchFromRegistryOptions } from '@pnpm/fetching-types'
 
 export interface TarballResolveResult extends ResolveResult {
   normalizedBareSpecifier: string
@@ -16,11 +16,21 @@ export async function resolveFromTarball (
   }
 
   if (isRepository(wantedDependency.bareSpecifier)) return null
-
+  // If there are redirects, we want to get the final URL address
+  const opts: FetchFromRegistryOptions = {
+    method: 'HEAD',
+  }
+  const _url = new URL(wantedDependency.bareSpecifier)
+  if (_url.hostname === 'pkg.pr.new') {
+    const controller = new AbortController()
+    opts.method = 'GET' // pkg.pr.new don't support HEAD requests
+    opts.abort = controller.abort.bind(controller)
+    opts.signal = controller.signal
+  }
   let resolvedUrl: string
 
   // If there are redirects and the response is immutable, we want to get the final URL address
-  const response = await fetchFromRegistry(wantedDependency.bareSpecifier, { method: 'HEAD' })
+  const response = await fetchFromRegistry(wantedDependency.bareSpecifier, opts)
   if (response?.headers?.get('cache-control')?.includes('immutable')) {
     resolvedUrl = response.url
   } else {

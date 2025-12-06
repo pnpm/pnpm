@@ -22,6 +22,7 @@ export type RequestInfo = string | URLLike | Request
 export interface RequestInit extends NodeRequestInit {
   retry?: RetryTimeoutOptions
   timeout?: number
+  abort?: () => void
 }
 
 export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<Response> {
@@ -47,6 +48,9 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
             throw new ResponseError(res)
           } else {
             resolve(res)
+            if (res.status === 200) {
+              opts.abort?.()
+            }
           }
         } catch (error: unknown) {
           assert(util.types.isNativeError(error))
