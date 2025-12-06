@@ -178,7 +178,6 @@ export interface PnpmSettings {
 export interface ProjectManifest extends BaseManifest {
   packageManager?: string
   workspaces?: string[]
-  pnpm?: PnpmSettings
   private?: boolean
   resolutions?: Record<string, string>
 }
