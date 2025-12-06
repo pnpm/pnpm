@@ -20,6 +20,7 @@ export type OptionsFromRootManifest = {
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   onlyBuiltDependenciesFile?: string
+  strictOnlyBuiltDependencies?: boolean
   ignoredBuiltDependencies?: string[]
   packageExtensions?: Record<string, PackageExtension>
   ignoredOptionalDependencies?: string[]
@@ -46,6 +47,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       'neverBuiltDependencies',
       'onlyBuiltDependencies',
       'onlyBuiltDependenciesFile',
+      'strictOnlyBuiltDependencies',
       'overrides',
       'packageExtensions',
       'patchedDependencies',

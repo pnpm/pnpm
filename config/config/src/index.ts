@@ -196,6 +196,7 @@ export async function getConfig (opts: {
     'save-catalog-name': undefined,
     'save-workspace-protocol': 'rolling',
     'scripts-prepend-node-path': false,
+    'strict-only-built-dependencies': false,
     'strict-dep-builds': false,
     'side-effects-cache': true,
     symlink: true,

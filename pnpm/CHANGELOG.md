@@ -360,6 +360,10 @@
 - The `pnpm rebuild` command should not add pkgs included in `ignoredBuiltDependencies` to `ignoredBuilds` in `node_modules/.modules.yaml` [#9338](https://github.com/pnpm/pnpm/issues/9338).
 - Replaced `shell-quote` with `shlex` for quoting command arguments [#9381](https://github.com/pnpm/pnpm/issues/9381).
 
+### Minor Changes
+
+- Added `strictOnlyBuiltDependencies` / `strict-only-built-dependencies` which validates `onlyBuiltDependencies` entries against the resolved dependency graph after install resolution. By default, pnpm now warns when allow-listed packages have no lifecycle scripts; when `strictOnlyBuiltDependencies` is `true`, such cases cause install to fail with `STRICT_ONLY_BUILT_DEPENDENCIES`.
+
 ## 10.12.4
 
 ### Patch Changes
