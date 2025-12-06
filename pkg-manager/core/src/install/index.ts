@@ -373,7 +373,7 @@ export async function mutateModules (
   }
   if (!opts.neverBuiltDependencies) {
     ignoredScriptsLogger.debug({
-      packageNames: Array.from(ignoredBuilds ?? []).map(dp.removeSuffix).sort(lexCompare),
+      packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
     })
   }
 
@@ -1733,4 +1733,17 @@ async function linkAllBins (
   await Promise.all(
     depNodes.map(async depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))
   )
+}
+
+export class IgnoredBuildsError extends PnpmError {
+  constructor (ignoredBuilds: IgnoredBuilds) {
+    const packageNames = dedupePackageNamesFromIgnoredBuilds(ignoredBuilds)
+    super('IGNORED_BUILDS', `Ignored build scripts: ${packageNames.join(', ')}`, {
+      hint: 'Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.',
+    })
+  }
+}
+
+function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
+  return Array.from(new Set(Array.from(ignoredBuilds ?? []).map(dp.removeSuffix))).sort(lexCompare)
 }

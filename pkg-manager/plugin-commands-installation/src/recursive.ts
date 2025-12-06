@@ -35,6 +35,7 @@ import {
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import {
   addDependenciesToPackage,
+  IgnoredBuildsError,
   install,
   type InstallOptions,
   type MutatedProject,
@@ -51,7 +52,6 @@ import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './u
 import { getSaveType } from './getSaveType.js'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { type PreferredVersions } from '@pnpm/resolver-base'
-import { IgnoredBuildsError } from './errors.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
