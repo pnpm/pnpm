@@ -23,6 +23,7 @@ import { requireHooks } from '@pnpm/pnpmfile'
 import { sortPackages } from '@pnpm/sort-packages'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
+  type IgnoredBuilds,
   type IncludedDependencies,
   type PackageManifest,
   type Project,
@@ -300,7 +301,7 @@ export async function recursive (
       await Promise.all(promises)
     }
     if (opts.strictDepBuilds && ignoredBuilds?.size) {
-      throw new IgnoredBuildsError(Array.from(ignoredBuilds))
+      throw new IgnoredBuildsError(ignoredBuilds)
     }
     return true
   }
@@ -355,7 +356,7 @@ export async function recursive (
         interface ActionResult {
           updatedCatalogs?: Catalogs
           updatedManifest: ProjectManifest
-          ignoredBuilds: Set<string> | undefined
+          ignoredBuilds: IgnoredBuilds | undefined
         }
 
         type ActionFunction = (manifest: PackageManifest | ProjectManifest, opts: ActionOpts) => Promise<ActionResult>
@@ -420,7 +421,7 @@ export async function recursive (
           }
         }
         if (opts.strictDepBuilds && ignoredBuilds?.size) {
-          throw new IgnoredBuildsError(Array.from(ignoredBuilds))
+          throw new IgnoredBuildsError(ignoredBuilds)
         }
         result[rootDir].status = 'passed'
       } catch (err: any) { // eslint-disable-line
