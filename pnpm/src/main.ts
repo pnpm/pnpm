@@ -123,7 +123,7 @@ export async function main (inputArgv: string[]): Promise<void> {
         checkPackageManager(config.wantedPackageManager, config)
       }
     }
-    if (isDlxOrCreateCommand) {
+    if (isDlxOrCreateCommand || cmd === 'outdated') {
       config.useStderr = true
     }
     config.argv = argv
