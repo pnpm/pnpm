@@ -124,7 +124,7 @@ test('approve no builds', async () => {
   expect(fs.readdirSync('node_modules/@pnpm.e2e/install-script-example')).not.toContain('generated-by-install.js')
 
   // Covers https://github.com/pnpm/pnpm/issues/9296
-  expect(await readModulesManifest('node_modules').ignoredBuild).toBeUndefined()
+  expect((await readModulesManifest('node_modules'))!.ignoredBuilds).toBeUndefined()
 })
 
 test("works when root project manifest doesn't exist in a workspace", async () => {
