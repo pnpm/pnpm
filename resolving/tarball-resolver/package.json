@@ -33,11 +33,13 @@
   },
   "dependencies": {
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*"
+    "@pnpm/resolver-base": "workspace:*",
+    "ssri": "catalog:"
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
-    "@pnpm/tarball-resolver": "workspace:*"
+    "@pnpm/tarball-resolver": "workspace:*",
+    "@types/ssri": "catalog:"
   },
   "engines": {
     "node": ">=20.19"

@@ -7583,6 +7583,9 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
+      ssri:
+        specifier: 'catalog:'
+        version: 12.0.0
     devDependencies:
       '@pnpm/fetch':
         specifier: workspace:*
@@ -7590,6 +7593,9 @@ importers:
       '@pnpm/tarball-resolver':
         specifier: workspace:*
         version: 'link:'
+      '@types/ssri':
+        specifier: 'catalog:'
+        version: 7.1.5
 
   reviewing/dependencies-hierarchy:
     dependencies:

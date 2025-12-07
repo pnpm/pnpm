@@ -1,5 +1,6 @@
 import { type PkgResolutionId, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import ssri from 'ssri'
 
 export interface TarballResolveResult extends ResolveResult {
   normalizedBareSpecifier: string
@@ -17,20 +18,26 @@ export async function resolveFromTarball (
 
   if (isRepository(wantedDependency.bareSpecifier)) return null
 
-  let resolvedUrl: string
+  // Fetch the full tarball to compute integrity hash
+  const response = await fetchFromRegistry(wantedDependency.bareSpecifier)
 
-  // If there are redirects and the response is immutable, we want to get the final URL address
-  const response = await fetchFromRegistry(wantedDependency.bareSpecifier, { method: 'HEAD' })
+  // Determine the resolved URL (follow redirects for immutable resources)
+  let resolvedUrl: string
   if (response?.headers?.get('cache-control')?.includes('immutable')) {
     resolvedUrl = response.url
   } else {
     resolvedUrl = wantedDependency.bareSpecifier
   }
 
+  // Read the tarball content and compute integrity
+  const buffer = Buffer.from(await response.arrayBuffer())
+  const integrity = ssri.fromData(buffer).toString()
+
   return {
     id: resolvedUrl as PkgResolutionId,
     normalizedBareSpecifier: resolvedUrl,
     resolution: {
+      integrity,
       tarball: resolvedUrl,
     },
     resolvedVia: 'url',
