@@ -3183,6 +3183,9 @@ importers:
 
   fetching/git-fetcher:
     dependencies:
+      '@pnpm/builder.policy':
+        specifier: workspace:*
+        version: link:../../builder/policy
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base

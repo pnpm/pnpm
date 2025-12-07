@@ -48,6 +48,9 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'userAgent'
 | 'verifyStoreIntegrity'
 | 'virtualStoreDirMaxLength'
+| 'neverBuiltDependencies'
+| 'onlyBuiltDependencies'
+| 'onlyBuiltDependenciesFile'
 > & {
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
@@ -65,6 +68,9 @@ export async function createNewStoreController (
     ) && !opts.registrySupportsTimeField
   )
   const { resolve, fetchers, clearResolutionCache } = createClient({
+    neverBuiltDependencies: opts.neverBuiltDependencies,
+    onlyBuiltDependencies: opts.onlyBuiltDependencies,
+    onlyBuiltDependenciesFile: opts.onlyBuiltDependenciesFile,
     customFetchers: opts.hooks?.fetchers,
     customResolvers: opts.hooks?.customResolvers,
     customFetcherHooks: opts.hooks?.customFetchers,

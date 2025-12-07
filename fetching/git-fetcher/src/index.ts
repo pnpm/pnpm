@@ -1,6 +1,7 @@
 import assert from 'assert'
 import path from 'path'
 import util from 'util'
+import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import type { GitFetcher } from '@pnpm/fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
@@ -12,6 +13,9 @@ import { URL } from 'url'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]
+  neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
+  onlyBuiltDependenciesFile?: string
   rawConfig: Record<string, unknown>
   unsafePerm?: boolean
   ignoreScripts?: boolean
@@ -20,7 +24,13 @@ export interface CreateGitFetcherOptions {
 export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: GitFetcher } {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
   const ignoreScripts = createOpts.ignoreScripts ?? false
+  const allowBuild = createAllowBuildFunction({
+    neverBuiltDependencies: createOpts.neverBuiltDependencies,
+    onlyBuiltDependencies: createOpts.onlyBuiltDependencies,
+    onlyBuiltDependenciesFile: createOpts.onlyBuiltDependenciesFile,
+  })
   const preparePkg = preparePackage.bind(null, {
+    allowBuild,
     ignoreScripts: createOpts.ignoreScripts,
     rawConfig: createOpts.rawConfig,
     unsafePerm: createOpts.unsafePerm,
