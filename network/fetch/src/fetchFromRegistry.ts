@@ -83,8 +83,12 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
 
       // This is a workaround to remove authorization headers on redirect.
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
+      let location = response.headers.get('location')!
+      if (location.startsWith('/')) {
+        location = `${urlObject.protocol}//${urlObject.host}${location}`
+      }
       redirects++
-      urlObject = new URL(response.headers.get('location')!)
+      urlObject = new URL(location)
       if (!headers['authorization'] || originalHost === urlObject.host) continue
       delete headers.authorization
     }
