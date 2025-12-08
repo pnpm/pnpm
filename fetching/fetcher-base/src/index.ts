@@ -32,6 +32,7 @@ export interface FetchResult {
   manifest?: DependencyManifest
   filesIndex: Record<string, string>
   requiresBuild: boolean
+  integrity?: string
 }
 
 export interface GitFetcherOptions {
