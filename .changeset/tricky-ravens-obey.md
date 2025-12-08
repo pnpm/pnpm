@@ -1,5 +1,8 @@
 ---
-"@pnpm/tarball-resolver": minor
+"@pnpm/package-requester": minor
+"@pnpm/store-controller-types": minor
+"@pnpm/fetcher-base": minor
+"@pnpm/worker": minor
 ---
 
-Compute and store integrity hash for tarball URL dependencies during resolution, preventing remote servers from serving different content on subsequent installs
+Compute integrity hash for HTTP tarball dependencies when fetching, storing it in the lockfile to prevent servers from serving altered content on subsequent installs

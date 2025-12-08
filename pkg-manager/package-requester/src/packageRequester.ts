@@ -318,8 +318,8 @@ async function resolveAndFetch (
   if (!manifest) {
     const fetchedResult = await fetchResult.fetching()
     manifest = fetchedResult.bundledManifest
-    // Add integrity to resolution if it was computed during fetching
-    if (fetchedResult.integrity && !(resolution as TarballResolution).integrity) {
+    // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
+    if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
   }
