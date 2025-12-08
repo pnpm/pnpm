@@ -38,11 +38,9 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
       'GIT_DEP_PREPARE_NOT_ALLOWED',
       `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "onlyBuiltDependencies" allowlist. `,
       {
-        hint: `Add the package to "pnpm.onlyBuiltDependencies" in your project's package.json to allow it to run scripts. For example:
-{
-  "pnpm": {
-    "onlyBuiltDependencies": ["${manifest.name}"]
-  }
+        hint: `Add the package to "onlyBuiltDependencies" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
+onlyBuiltDependencies:
+  - "${manifest.name}"
 }
 `,
       }
