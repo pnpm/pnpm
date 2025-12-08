@@ -3278,6 +3278,9 @@ importers:
 
   fetching/tarball-fetcher:
     dependencies:
+      '@pnpm/builder.policy':
+        specifier: workspace:*
+        version: link:../../builder/policy
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
@@ -3299,6 +3302,9 @@ importers:
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
@@ -3342,9 +3348,6 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@types/lodash.throttle':
         specifier: 'catalog:'
         version: 4.1.7

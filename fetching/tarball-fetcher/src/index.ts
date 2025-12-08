@@ -41,6 +41,9 @@ export function createTarballFetcher (
     rawConfig: Record<string, unknown>
     unsafePerm?: boolean
     ignoreScripts?: boolean
+    neverBuiltDependencies?: string[]
+    onlyBuiltDependencies?: string[]
+    onlyBuiltDependenciesFile?: string
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean

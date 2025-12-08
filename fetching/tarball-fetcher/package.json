@@ -33,6 +33,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/builder.policy": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
@@ -40,6 +41,7 @@
     "@pnpm/fs.packlist": "catalog:",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
     "lodash.throttle": "catalog:",
     "p-map-values": "catalog:",
