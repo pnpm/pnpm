@@ -64,6 +64,7 @@ export interface StoreController {
 export interface PkgRequestFetchResult {
   bundledManifest?: BundledManifest
   files: PackageFilesResponse
+  integrity?: string
 }
 
 export interface FetchResponse {

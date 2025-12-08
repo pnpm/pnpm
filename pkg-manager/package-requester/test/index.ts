@@ -1069,3 +1069,34 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
     })
   }
 })
+
+test('HTTP tarball without integrity gets integrity computed during fetch', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+  // Request a package via HTTP tarball URL (simulated via the local registry)
+  const pkgResponse = await requestPackage(
+    { alias: 'is-positive', bareSpecifier: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz` },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(pkgResponse.body).toBeTruthy()
+  // The resolution should now include an integrity hash computed during fetch
+  expect(pkgResponse.body.resolution).toHaveProperty('integrity')
+  expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
+})

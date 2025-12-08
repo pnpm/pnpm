@@ -165,7 +165,20 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile }: Tar
   const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
-  return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
+  return {
+    status: 'success',
+    value: {
+      filesIndex: filesMap,
+      manifest,
+      requiresBuild,
+      integrity: integrity ?? calcIntegrity(buffer),
+    },
+  }
+}
+
+function calcIntegrity (buffer: Buffer): string {
+  const calculatedHash: string = crypto.hash('sha512', buffer, 'hex')
+  return `sha512-${Buffer.from(calculatedHash, 'hex').toString('base64')}`
 }
 
 interface AddFilesFromDirResult {
