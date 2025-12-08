@@ -48,7 +48,7 @@ import {
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
-import { pickVersionByVersionRange, assertMetaHasTime } from './pickPackageFromMeta.js'
+import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 
 export interface NoMatchingVersionErrorOptions {
@@ -73,7 +73,7 @@ export class NoMatchingVersionError extends PnpmError {
     } else {
       errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
     }
-    super('NO_MATCHING_VERSION', errorMessage)
+    super(opts.publishedBy ? 'NO_MATURE_MATCHING_VERSION' : 'NO_MATCHING_VERSION', errorMessage)
     this.packageMeta = opts.packageMeta
     this.immatureVersion = opts.immatureVersion
   }
@@ -308,7 +308,6 @@ async function resolveNpm (
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   } else if (opts.trustPolicy === 'no-downgrade') {
-    assertMetaHasTime(meta)
     failIfTrustDowngraded(meta, pickedPackage.version, opts.trustPolicyExclude)
   }
 

@@ -4,6 +4,7 @@ import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { getWorkspaceConcurrency } from '@pnpm/config'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import * as dp from '@pnpm/dependency-path'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
@@ -11,7 +12,12 @@ import { hardLinkDir } from '@pnpm/worker'
 import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import { type AllowBuild, type DependencyManifest } from '@pnpm/types'
+import {
+  type AllowBuild,
+  type DependencyManifest,
+  type DepPath,
+  type IgnoredBuilds,
+} from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import { pickBy } from 'ramda'
 import runGroups from 'run-groups'
@@ -47,7 +53,7 @@ export async function buildModules<T extends string> (
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
   }
-): Promise<{ ignoredBuilds?: string[] }> {
+): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   if (!rootDepPaths.length) return {}
   const warn = (message: string) => {
     logger.warn({ message, prefix: opts.lockfileDir })
@@ -61,7 +67,7 @@ export async function buildModules<T extends string> (
   }
   const chunks = buildSequence<T>(depGraph, rootDepPaths)
   if (!chunks.length) return {}
-  const ignoredPkgs = new Set<string>()
+  let ignoredBuilds = new Set<DepPath>()
   const allowBuild = opts.allowBuild ?? (() => true)
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
@@ -77,7 +83,7 @@ export async function buildModules<T extends string> (
         let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
         if (!ignoreScripts) {
           if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name, depGraph[depPath].version)) {
-            ignoredPkgs.add(depGraph[depPath].name)
+            ignoredBuilds.add(depGraph[depPath].depPath)
             ignoreScripts = true
           }
         }
@@ -90,14 +96,15 @@ export async function buildModules<T extends string> (
   })
   await runGroups.default(getWorkspaceConcurrency(opts.childConcurrency), groups)
   if (opts.ignoredBuiltDependencies?.length) {
-    for (const ignoredBuild of opts.ignoredBuiltDependencies) {
-      // We already ignore the build of this dependency.
-      // No need to report it.
-      ignoredPkgs.delete(ignoredBuild)
-    }
+    // We already ignore the build of these dependencies.
+    // No need to report them.
+    ignoredBuilds = new Set(Array.from(ignoredBuilds).filter((ignoredPkgDepPath) =>
+      !opts.ignoredBuiltDependencies!.some((ignoredInSettings) =>
+        (ignoredInSettings === ignoredPkgDepPath) || (dp.parse(ignoredPkgDepPath).name === ignoredInSettings)
+      )
+    ))
   }
-  const packageNames = Array.from(ignoredPkgs)
-  return { ignoredBuilds: packageNames }
+  return { ignoredBuilds }
 }
 
 async function buildDependency<T extends string> (
