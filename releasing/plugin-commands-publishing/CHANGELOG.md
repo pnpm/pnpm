@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.2.25
+
+### Patch Changes
+
+- d334fdc: `pnpm publish -r --force` should allow to run publish over already existing versions in the registry [#10272](https://github.com/pnpm/pnpm/issues/10272).
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+  - @pnpm/cli-utils@1001.2.14
+  - @pnpm/config@1004.7.1
+  - @pnpm/pick-registry-for-package@1000.0.14
+  - @pnpm/plugin-commands-env@1000.0.50
+  - @pnpm/lifecycle@1001.0.29
+  - @pnpm/client@1001.1.10
+  - @pnpm/package-bins@1000.0.14
+  - @pnpm/exportable-manifest@1000.2.2
+  - @pnpm/resolver-base@1005.3.2
+  - @pnpm/sort-packages@1000.0.14
+
 ## 1000.2.24
 
 ### Patch Changes

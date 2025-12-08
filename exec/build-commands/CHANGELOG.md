@@ -1,5 +1,20 @@
 # @pnpm/exec.build-commands
 
+## 1002.0.0
+
+### Major Changes
+
+- 9b05bdd: `ignoreBuilds` is now a set of DepPath.
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+  - @pnpm/plugin-commands-rebuild@1006.0.0
+  - @pnpm/modules-yaml@1001.0.0
+  - @pnpm/config@1004.7.1
+  - @pnpm/config.config-writer@1000.0.18
+  - @pnpm/dependency-path@1001.1.7
+
 ## 1001.0.38
 
 ### Patch Changes

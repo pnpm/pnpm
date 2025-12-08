@@ -1,5 +1,12 @@
 # @pnpm/fetching.binary-fetcher
 
+## 1003.0.1
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1001.0.6
+- @pnpm/worker@1000.4.1
+
 ## 1003.0.0
 
 ### Patch Changes

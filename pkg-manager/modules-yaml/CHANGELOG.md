@@ -1,5 +1,16 @@
 # @pnpm/modules-yaml
 
+## 1001.0.0
+
+### Major Changes
+
+- 9b05bdd: `ignoreBuilds` is now a set of DepPath.
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+
 ## 1000.3.8
 
 ### Patch Changes

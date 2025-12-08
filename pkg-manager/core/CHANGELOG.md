@@ -1,5 +1,56 @@
 # @pnpm/core
 
+## 1014.0.0
+
+### Major Changes
+
+- 9b05bdd: `ignoreBuilds` is now a set of DepPath.
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+- Updated dependencies [17d34fa]
+- Updated dependencies [9b05bdd]
+  - @pnpm/plugin-commands-rebuild@1006.0.0
+  - @pnpm/modules-yaml@1001.0.0
+  - @pnpm/headless@1008.0.0
+  - @pnpm/build-modules@1005.0.0
+  - @pnpm/resolve-dependencies@1008.5.3
+  - @pnpm/types@1001.1.0
+  - @pnpm/get-context@1001.1.13
+  - @pnpm/builder.policy@1000.0.3
+  - @pnpm/normalize-registries@1000.1.7
+  - @pnpm/config.version-policy@1000.0.3
+  - @pnpm/lifecycle@1001.0.29
+  - @pnpm/symlink-dependency@1000.0.15
+  - @pnpm/hooks.read-package-hook@1000.0.18
+  - @pnpm/hooks.types@1001.0.16
+  - @pnpm/lockfile.filtering@1001.0.26
+  - @pnpm/lockfile.fs@1001.1.26
+  - @pnpm/lockfile-to-pnp@1001.0.28
+  - @pnpm/lockfile.preferred-versions@1000.0.27
+  - @pnpm/lockfile.pruner@1001.0.22
+  - @pnpm/lockfile.utils@1003.0.8
+  - @pnpm/lockfile.verification@1001.2.14
+  - @pnpm/lockfile.walker@1001.0.21
+  - @pnpm/calc-dep-state@1002.0.13
+  - @pnpm/core-loggers@1001.0.7
+  - @pnpm/dependency-path@1001.1.7
+  - @pnpm/hoist@1002.0.11
+  - @pnpm/link-bins@1000.3.2
+  - @pnpm/modules-cleaner@1001.0.28
+  - @pnpm/package-requester@1009.0.1
+  - @pnpm/remove-bins@1000.0.18
+  - @pnpm/manifest-utils@1002.0.2
+  - @pnpm/read-project-manifest@1001.2.2
+  - @pnpm/resolver-base@1005.3.2
+  - @pnpm/store-controller-types@1004.3.2
+  - @pnpm/worker@1000.4.1
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/lockfile.settings-checker@1001.0.21
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.15
+  - @pnpm/patching.config@1001.0.15
+
 ## 1013.0.1
 
 ### Patch Changes

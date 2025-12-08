@@ -1,5 +1,13 @@
 # @pnpm/testing.temp-store
 
+## 1000.0.29
+
+### Patch Changes
+
+- @pnpm/client@1001.1.10
+- @pnpm/package-store@1005.0.1
+- @pnpm/store-controller-types@1004.3.2
+
 ## 1000.0.28
 
 ### Patch Changes

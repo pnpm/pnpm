@@ -1,5 +1,13 @@
 # @pnpm/manifest-utils
 
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+  - @pnpm/core-loggers@1001.0.7
+
 ## 1002.0.1
 
 ### Patch Changes

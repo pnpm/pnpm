@@ -1,5 +1,14 @@
 # @pnpm/lockfile-walker
 
+## 1001.0.21
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+  - @pnpm/lockfile.types@1002.0.6
+  - @pnpm/dependency-path@1001.1.7
+
 ## 1001.0.20
 
 ### Patch Changes

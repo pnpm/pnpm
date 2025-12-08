@@ -1,5 +1,17 @@
 # @pnpm/pnpmfile
 
+## 1002.1.7
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+  - @pnpm/hooks.types@1001.0.16
+  - @pnpm/lockfile.types@1002.0.6
+  - @pnpm/core-loggers@1001.0.7
+  - @pnpm/store-controller-types@1004.3.2
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1002.1.6
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.27
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+- Updated dependencies [9b05bdd]
+  - @pnpm/modules-yaml@1001.0.0
+  - @pnpm/types@1001.1.0
+  - @pnpm/plugin-commands-installation@1004.8.4
+  - @pnpm/cli-utils@1001.2.14
+  - @pnpm/config@1004.7.1
+  - @pnpm/config.config-writer@1000.0.18
+  - @pnpm/lockfile.fs@1001.1.26
+  - @pnpm/lockfile.utils@1003.0.8
+  - @pnpm/read-package-json@1000.1.5
+  - @pnpm/read-project-manifest@1001.2.2
+  - @pnpm/workspace.read-manifest@1000.2.8
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/patching.apply-patch@1000.0.7
+  - @pnpm/store-connection-manager@1002.3.5
+  - @pnpm/pick-fetcher@1001.0.0
+
 ## 1000.3.26
 
 ### Patch Changes

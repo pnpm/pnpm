@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.walker",
-  "version": "1001.0.20",
+  "version": "1001.0.21",
   "description": "Walk over all the dependencies in a lockfile",
   "keywords": [
     "pnpm",

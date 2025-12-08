@@ -1,5 +1,27 @@
 # @pnpm/build-modules
 
+## 1005.0.0
+
+### Major Changes
+
+- 9b05bdd: `ignoreBuilds` is now a set of DepPath.
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+  - @pnpm/config@1004.7.1
+  - @pnpm/lifecycle@1001.0.29
+  - @pnpm/calc-dep-state@1002.0.13
+  - @pnpm/core-loggers@1001.0.7
+  - @pnpm/dependency-path@1001.1.7
+  - @pnpm/link-bins@1000.3.2
+  - @pnpm/read-package-json@1000.1.5
+  - @pnpm/store-controller-types@1004.3.2
+  - @pnpm/worker@1000.4.1
+  - @pnpm/fs.hard-link-dir@1000.0.5
+  - @pnpm/patching.apply-patch@1000.0.7
+
 ## 1004.0.1
 
 ### Patch Changes

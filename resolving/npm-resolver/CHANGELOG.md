@@ -1,5 +1,24 @@
 # @pnpm/npm-resolver
 
+## 1005.0.0
+
+### Major Changes
+
+- 17d34fa: Changed the error code for no matching version that satisfies the maturity configuration.
+
+### Patch Changes
+
+- 17d34fa: Don't silently skip an optional dependency if it cannot be resolved from a version that satisfies the `minimumReleaseAge` setting [#10270](https://github.com/pnpm/pnpm/issues/10270).
+- 8e05103: Don't fail with a `ERR_PNPM_MISSING_TIME` error if a package that is excluded from trust policy checks is missing the time field in the metadata.
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+  - @pnpm/pick-registry-for-package@1000.0.14
+  - @pnpm/core-loggers@1001.0.7
+  - @pnpm/registry.types@1000.1.2
+  - @pnpm/resolver-base@1005.3.2
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/registry.pkg-metadata-filter@1000.1.4
+
 ## 1004.6.2
 
 ### Patch Changes

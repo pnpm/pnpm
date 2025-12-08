@@ -1,5 +1,11 @@
 # @pnpm/jest-config
 
+## 1000.0.10
+
+### Patch Changes
+
+- @pnpm/worker@1000.4.1
+
 ## 1000.0.9
 
 ### Patch Changes

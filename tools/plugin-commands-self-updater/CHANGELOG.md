@@ -1,5 +1,16 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.37
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.14
+- @pnpm/cli-meta@1000.0.14
+- @pnpm/config@1004.7.1
+- @pnpm/client@1001.1.10
+- @pnpm/link-bins@1000.3.2
+- @pnpm/read-project-manifest@1001.2.2
+
 ## 1000.1.36
 
 ### Patch Changes

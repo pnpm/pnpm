@@ -1,5 +1,16 @@
 # @pnpm/worker
 
+## 1000.4.1
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.14
+- @pnpm/symlink-dependency@1000.0.15
+- @pnpm/store.cafs@1000.0.23
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.5
+- @pnpm/create-cafs-store@1000.0.25
+
 ## 1000.4.0
 
 ### Minor Changes

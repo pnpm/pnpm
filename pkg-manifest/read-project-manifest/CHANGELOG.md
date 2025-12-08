@@ -1,5 +1,14 @@
 # @pnpm/read-project-manifest
 
+## 1001.2.2
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+  - @pnpm/manifest-utils@1002.0.2
+  - @pnpm/write-project-manifest@1000.0.14
+
 ## 1001.2.1
 
 ### Patch Changes

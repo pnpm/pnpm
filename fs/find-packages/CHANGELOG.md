@@ -1,5 +1,13 @@
 # @pnpm/fs.find-packages
 
+## 1000.0.20
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+  - @pnpm/read-project-manifest@1001.2.2
+
 ## 1000.0.19
 
 ### Patch Changes

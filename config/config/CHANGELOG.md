@@ -1,5 +1,16 @@
 # @pnpm/config
 
+## 1004.7.1
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+  - @pnpm/pnpmfile@1002.1.7
+  - @pnpm/read-project-manifest@1001.2.2
+  - @pnpm/workspace.read-manifest@1000.2.8
+  - @pnpm/catalogs.config@1000.0.5
+
 ## 1004.7.0
 
 ### Minor Changes

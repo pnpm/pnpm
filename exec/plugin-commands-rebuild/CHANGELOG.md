@@ -1,5 +1,39 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1006.0.0
+
+### Major Changes
+
+- 9b05bdd: `ignoreBuilds` is now a set of DepPath.
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+- Updated dependencies [9b05bdd]
+  - @pnpm/modules-yaml@1001.0.0
+  - @pnpm/types@1001.1.0
+  - @pnpm/get-context@1001.1.13
+  - @pnpm/cli-utils@1001.2.14
+  - @pnpm/builder.policy@1000.0.3
+  - @pnpm/config@1004.7.1
+  - @pnpm/normalize-registries@1000.1.7
+  - @pnpm/lifecycle@1001.0.29
+  - @pnpm/exec.pkg-requires-build@1000.0.14
+  - @pnpm/lockfile.types@1002.0.6
+  - @pnpm/lockfile.utils@1003.0.8
+  - @pnpm/lockfile.walker@1001.0.21
+  - @pnpm/calc-dep-state@1002.0.13
+  - @pnpm/core-loggers@1001.0.7
+  - @pnpm/dependency-path@1001.1.7
+  - @pnpm/link-bins@1000.3.2
+  - @pnpm/read-package-json@1000.1.5
+  - @pnpm/store.cafs@1000.0.23
+  - @pnpm/store-controller-types@1004.3.2
+  - @pnpm/worker@1000.4.1
+  - @pnpm/workspace.find-packages@1000.0.49
+  - @pnpm/sort-packages@1000.0.14
+  - @pnpm/store-connection-manager@1002.3.5
+
 ## 1005.0.1
 
 ### Patch Changes

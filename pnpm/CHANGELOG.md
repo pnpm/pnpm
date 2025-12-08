@@ -1,5 +1,24 @@
 # pnpm
 
+## 10.25.0
+
+### Minor Changes
+
+- Allow loading certificates from `cert`, `ca`, and `key` for specific registry URLs. E.g., `//registry.example.com/:ca=-----BEGIN CERTIFICATE-----...`. Previously this was only working via `certfile`, `cafile`, and `keyfile`.
+
+  These properties are supported in `.npmrc`, but were ignored by pnpm, this will make pnpm read and use them as well.
+
+  Related PR: [#10230](https://github.com/pnpm/pnpm/pull/10230).
+
+- Added a new flag called `--bare` to `pnpm init` for creating a package.json with the bare minimum of required fields [#10226](https://github.com/pnpm/pnpm/issues/10226).
+
+### Patch Changes
+
+- Improved reporting of ignored dependency scripts [#10276](https://github.com/pnpm/pnpm/pull/10276).
+- `pnpm install` should build any dependencies that were added to `onlyBuiltDependencies` and were not built yet [#10256](https://github.com/pnpm/pnpm/pull/10256).
+- `pnpm publish -r --force` should allow to run publish over already existing versions in the registry [#10272](https://github.com/pnpm/pnpm/issues/10272).
+- Don't fail with a `ERR_PNPM_MISSING_TIME` error if a package that is excluded from trust policy checks is missing the time field in the metadata.
+
 ## 10.24.0
 
 ### Minor Changes

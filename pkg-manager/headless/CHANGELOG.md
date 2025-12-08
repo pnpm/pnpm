@@ -1,5 +1,42 @@
 # @pnpm/headless
 
+## 1008.0.0
+
+### Major Changes
+
+- 9b05bdd: `ignoreBuilds` is now a set of DepPath.
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+- Updated dependencies [9b05bdd]
+  - @pnpm/modules-yaml@1001.0.0
+  - @pnpm/build-modules@1005.0.0
+  - @pnpm/types@1001.1.0
+  - @pnpm/deps.graph-builder@1002.3.5
+  - @pnpm/builder.policy@1000.0.3
+  - @pnpm/package-is-installable@1000.0.18
+  - @pnpm/lifecycle@1001.0.29
+  - @pnpm/symlink-dependency@1000.0.15
+  - @pnpm/lockfile.filtering@1001.0.26
+  - @pnpm/lockfile.fs@1001.1.26
+  - @pnpm/lockfile-to-pnp@1001.0.28
+  - @pnpm/lockfile.utils@1003.0.8
+  - @pnpm/calc-dep-state@1002.0.13
+  - @pnpm/core-loggers@1001.0.7
+  - @pnpm/dependency-path@1001.1.7
+  - @pnpm/hoist@1002.0.11
+  - @pnpm/link-bins@1000.3.2
+  - @pnpm/modules-cleaner@1001.0.28
+  - @pnpm/package-requester@1009.0.1
+  - @pnpm/real-hoist@1001.0.25
+  - @pnpm/read-package-json@1000.1.5
+  - @pnpm/read-project-manifest@1001.2.2
+  - @pnpm/store-controller-types@1004.3.2
+  - @pnpm/worker@1000.4.1
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.15
+  - @pnpm/patching.config@1001.0.15
+
 ## 1007.0.1
 
 ### Patch Changes

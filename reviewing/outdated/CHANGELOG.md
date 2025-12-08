@@ -1,5 +1,25 @@
 # @pnpm/outdated
 
+## 1001.1.7
+
+### Patch Changes
+
+- 17d34fa: Don't silently skip an optional dependency if it cannot be resolved from a version that satisfies the `minimumReleaseAge` setting [#10270](https://github.com/pnpm/pnpm/issues/10270).
+- Updated dependencies [17d34fa]
+- Updated dependencies [17d34fa]
+- Updated dependencies [8e05103]
+- Updated dependencies [9b05bdd]
+  - @pnpm/npm-resolver@1005.0.0
+  - @pnpm/types@1001.1.0
+  - @pnpm/pick-registry-for-package@1000.0.14
+  - @pnpm/config.version-policy@1000.0.3
+  - @pnpm/hooks.read-package-hook@1000.0.18
+  - @pnpm/lockfile.fs@1001.1.26
+  - @pnpm/lockfile.utils@1003.0.8
+  - @pnpm/dependency-path@1001.1.7
+  - @pnpm/client@1001.1.10
+  - @pnpm/manifest-utils@1002.0.2
+
 ## 1001.1.6
 
 ### Patch Changes

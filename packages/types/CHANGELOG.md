@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 1001.1.0
+
+### Minor Changes
+
+- 9b05bdd: Add type for IgnoredBuilds.
+
 ## 1001.0.1
 
 ### Patch Changes

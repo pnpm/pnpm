@@ -1,5 +1,17 @@
 # @pnpm/default-reporter
 
+## 1002.1.2
+
+### Patch Changes
+
+- 17d34fa: Don't silently skip an optional dependency if it cannot be resolved from a version that satisfies the `minimumReleaseAge` setting [#10270](https://github.com/pnpm/pnpm/issues/10270).
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+  - @pnpm/cli-meta@1000.0.14
+  - @pnpm/config@1004.7.1
+  - @pnpm/core-loggers@1001.0.7
+  - @pnpm/render-peer-issues@1002.0.8
+
 ## 1002.1.1
 
 ### Patch Changes

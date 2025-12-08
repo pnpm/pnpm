@@ -1,5 +1,14 @@
 # @pnpm/config.config-writer
 
+## 1000.0.18
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+  - @pnpm/read-project-manifest@1001.2.2
+  - @pnpm/workspace.manifest-writer@1001.0.7
+
 ## 1000.0.17
 
 ### Patch Changes

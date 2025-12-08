@@ -1,5 +1,12 @@
 # @pnpm/hooks.read-package-hook
 
+## 1000.0.18
+
+### Patch Changes
+
+- Updated dependencies [9b05bdd]
+  - @pnpm/types@1001.1.0
+
 ## 1000.0.17
 
 ### Patch Changes
