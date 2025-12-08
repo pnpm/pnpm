@@ -536,4 +536,56 @@ describe('failIfTrustDowngraded with trustPolicyExclude', () => {
       failIfTrustDowngraded(meta, '3.0.0', createPackageVersionPolicy(['bar']))
     }).not.toThrow()
   })
+
+  test('does not fail with ERR_PNPM_MISSING_TIME when package@version is excluded and time field is missing', () => {
+    const meta = {
+      name: 'baz',
+      'dist-tags': { latest: '1.0.0' },
+      versions: {
+        '1.0.0': {
+          name: 'baz',
+          version: '1.0.0',
+          dist: {
+            shasum: 'abc123',
+            tarball: 'https://registry.example.com/baz/-/baz-1.0.0.tgz',
+          },
+        },
+      },
+      // Note: no 'time' field
+    }
+
+    expect(() => {
+      failIfTrustDowngraded(meta, '1.0.0', createPackageVersionPolicy(['baz@1.0.0']))
+    }).not.toThrow()
+  })
+
+  test('does not fail with ERR_PNPM_MISSING_TIME when package name is excluded and time field is missing', () => {
+    const meta = {
+      name: 'qux',
+      'dist-tags': { latest: '2.0.0' },
+      versions: {
+        '1.0.0': {
+          name: 'qux',
+          version: '1.0.0',
+          dist: {
+            shasum: 'abc123',
+            tarball: 'https://registry.example.com/qux/-/qux-1.0.0.tgz',
+          },
+        },
+        '2.0.0': {
+          name: 'qux',
+          version: '2.0.0',
+          dist: {
+            shasum: 'def456',
+            tarball: 'https://registry.example.com/qux/-/qux-2.0.0.tgz',
+          },
+        },
+      },
+      // Note: no 'time' field
+    }
+
+    expect(() => {
+      failIfTrustDowngraded(meta, '2.0.0', createPackageVersionPolicy(['qux']))
+    }).not.toThrow()
+  })
 })
