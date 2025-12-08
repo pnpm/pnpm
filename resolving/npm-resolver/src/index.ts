@@ -73,7 +73,7 @@ export class NoMatchingVersionError extends PnpmError {
     } else {
       errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
     }
-    super('NO_MATCHING_VERSION', errorMessage)
+    super(opts.publishedBy ? 'NO_MATURE_MATCHING_VERSION' : 'NO_MATCHING_VERSION', errorMessage)
     this.packageMeta = opts.packageMeta
     this.immatureVersion = opts.immatureVersion
   }

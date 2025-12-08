@@ -1359,7 +1359,7 @@ async function resolveDependency (
       bareSpecifier: wantedDependency.bareSpecifier,
       version: wantedDependency.alias ? wantedDependency.bareSpecifier : undefined,
     }
-    if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE') {
+    if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE' && err.code !== 'ERR_PNPM_NO_MATURE_MATCHING_VERSION') {
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: wantedDependencyDetails,
