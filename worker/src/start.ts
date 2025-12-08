@@ -141,24 +141,20 @@ async function handleMessage (
 }
 
 function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile }: TarballExtractMessage) {
-  // Compute tarball integrity if not provided, or verify if provided
-  const calculatedHash: string = crypto.hash('sha512', buffer, 'hex')
-  const calculatedIntegrity = `sha512-${Buffer.from(calculatedHash, 'hex').toString('base64')}`
-
   if (integrity) {
     const [, algo, integrityHash] = integrity.match(INTEGRITY_REGEX)!
     // Compensate for the possibility of non-uniform Base64 padding
     const normalizedRemoteHash: string = Buffer.from(integrityHash, 'base64').toString('hex')
 
-    const verifyHash: string = crypto.hash(algo, buffer, 'hex')
-    if (verifyHash !== normalizedRemoteHash) {
+    const calculatedHash: string = crypto.hash(algo, buffer, 'hex')
+    if (calculatedHash !== normalizedRemoteHash) {
       return {
         status: 'error',
         error: {
           type: 'integrity_validation_failed',
           algorithm: algo,
           expected: integrity,
-          found: `${algo}-${Buffer.from(verifyHash, 'hex').toString('base64')}`,
+          found: `${algo}-${Buffer.from(calculatedHash, 'hex').toString('base64')}`,
         },
       }
     }
@@ -176,9 +172,14 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile }: Tar
       filesIndex: filesMap,
       manifest,
       requiresBuild,
-      integrity: integrity ?? calculatedIntegrity,
+      integrity: integrity ?? calcIntegrity(buffer),
     },
   }
+}
+
+function calcIntegrity (buffer: Buffer): string {
+  const calculatedHash: string = crypto.hash('sha512', buffer, 'hex')
+  return `sha512-${Buffer.from(calculatedHash, 'hex').toString('base64')}`
 }
 
 interface AddFilesFromDirResult {
