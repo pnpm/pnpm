@@ -133,7 +133,7 @@ interface PackageMeta {
   time?: Record<string, string>
 }
 
-function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, immatureVersion?: string }) {
+function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, immatureVersion?: string, latestAvailableVersion?: string | null }) {
   const meta: PackageMeta = msg.packageMeta
   const latestVersion = meta['dist-tags'].latest
   let output = `The latest release of ${meta.name} is "${latestVersion}".`
@@ -142,6 +142,11 @@ function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, i
     output += ` Published at ${stringifyDate(latestTime)}`
   }
   output += EOL
+  if (msg.latestAvailableVersion) {
+    output += EOL
+    output += `The latest available version that meets the "minimumReleaseAge" configuration is "${msg.latestAvailableVersion}".`
+    output += EOL
+  }
 
   if (!equals(Object.keys(meta['dist-tags']), ['latest'])) {
     output += EOL + 'Other releases are:' + EOL
