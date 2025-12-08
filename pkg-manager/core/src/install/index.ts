@@ -17,6 +17,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
+import * as dp from '@pnpm/dependency-path'
 import {
   calcPatchHashes,
   createOverridesMapFromParsed,
@@ -67,12 +68,14 @@ import {
   type DepPath,
   type DependenciesField,
   type DependencyManifest,
+  type IgnoredBuilds,
   type PeerDependencyIssues,
   type ProjectId,
   type ProjectManifest,
   type ReadPackageHook,
   type ProjectRootDir,
 } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import isSubdir from 'is-subdir'
 import pLimit from 'p-limit'
 import { map as mapValues, clone, isEmpty, pipeWith, props } from 'ramda'
@@ -151,7 +154,7 @@ export interface InstallResult {
    */
   updatedCatalogs: Catalogs | undefined
   updatedManifest: ProjectManifest
-  ignoredBuilds: string[] | undefined
+  ignoredBuilds: IgnoredBuilds | undefined
 }
 
 export async function install (
@@ -204,7 +207,7 @@ export type MutateModulesOptions = InstallOptions & {
 export interface MutateModulesInSingleProjectResult {
   updatedCatalogs: Catalogs | undefined
   updatedProject: UpdatedProject
-  ignoredBuilds: string[] | undefined
+  ignoredBuilds: IgnoredBuilds | undefined
 }
 
 export async function mutateModulesInSingleProject (
@@ -246,7 +249,7 @@ export interface MutateModulesResult {
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
-  ignoredBuilds: string[] | undefined
+  ignoredBuilds: IgnoredBuilds | undefined
 }
 
 const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
@@ -365,10 +368,14 @@ export async function mutateModules (
   }
 
   let ignoredBuilds = result.ignoredBuilds
-  if (!opts.ignoreScripts && ignoredBuilds?.length) {
+  if (!opts.ignoreScripts && ignoredBuilds?.size) {
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds)
   }
-  ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
+  if (!opts.neverBuiltDependencies) {
+    ignoredScriptsLogger.debug({
+      packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
+    })
+  }
 
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
@@ -387,7 +394,7 @@ export async function mutateModules (
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
-    readonly ignoredBuilds: string[] | undefined
+    readonly ignoredBuilds: IgnoredBuilds | undefined
   }
 
   async function _install (): Promise<InnerInstallResult> {
@@ -878,17 +885,19 @@ Note that in CI environments, this setting is enabled by default.`,
   }
 }
 
-async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previousIgnoredBuilds: string[]): Promise<string[]> {
+async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previousIgnoredBuilds: IgnoredBuilds): Promise<Set<DepPath>> {
   if (!opts.onlyBuiltDependencies?.length) {
     return previousIgnoredBuilds
   }
   const onlyBuiltDeps = createPackageVersionPolicy(opts.onlyBuiltDependencies)
-  const pkgsToBuild = previousIgnoredBuilds.flatMap((ignoredPkg) => {
-    const matchResult = onlyBuiltDeps(ignoredPkg)
+  const pkgsToBuild = Array.from(previousIgnoredBuilds).flatMap((ignoredPkg) => {
+    const ignoredPkgName = dp.parse(ignoredPkg).name
+    if (!ignoredPkgName) return []
+    const matchResult = onlyBuiltDeps(ignoredPkgName)
     if (matchResult === true) {
-      return [ignoredPkg]
+      return [ignoredPkgName]
     } else if (Array.isArray(matchResult)) {
-      return matchResult.map(version => `${ignoredPkg}@${version}`)
+      return matchResult.map(version => `${ignoredPkgName}@${version}`)
     }
     return []
   })
@@ -1068,7 +1077,7 @@ interface InstallFunctionResult {
   projects: UpdatedProject[]
   stats?: InstallationResultStats
   depsRequiringBuild: DepPath[]
-  ignoredBuilds?: string[]
+  ignoredBuilds?: IgnoredBuilds
 }
 
 type InstallFunction = (
@@ -1288,7 +1297,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
   let stats: InstallationResultStats | undefined
   const allowBuild = createAllowBuildFunction(opts)
-  let ignoredBuilds: string[] | undefined
+  let ignoredBuilds: IgnoredBuilds | undefined
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
@@ -1388,8 +1397,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
         })).ignoredBuilds
-        if (ignoredBuilds == null && ctx.modulesFile?.ignoredBuilds?.length) {
-          ignoredBuilds = ctx.modulesFile.ignoredBuilds
+        if (ctx.modulesFile?.ignoredBuilds?.size) {
+          ignoredBuilds ??= new Set()
+          for (const ignoredBuild of ctx.modulesFile.ignoredBuilds.values()) {
+            if (result.currentLockfile.packages?.[ignoredBuild]) {
+              ignoredBuilds.add(ignoredBuild)
+            }
+          }
         }
       }
     }
@@ -1719,4 +1733,17 @@ async function linkAllBins (
   await Promise.all(
     depNodes.map(async depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))
   )
+}
+
+export class IgnoredBuildsError extends PnpmError {
+  constructor (ignoredBuilds: IgnoredBuilds) {
+    const packageNames = dedupePackageNamesFromIgnoredBuilds(ignoredBuilds)
+    super('IGNORED_BUILDS', `Ignored build scripts: ${packageNames.join(', ')}`, {
+      hint: 'Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.',
+    })
+  }
+}
+
+function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
+  return Array.from(new Set(Array.from(ignoredBuilds ?? []).map(dp.removeSuffix))).sort(lexCompare)
 }

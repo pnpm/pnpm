@@ -42,3 +42,5 @@ export type PinnedVersion =
   | 'patch'
   | 'minor'
   | 'major'
+
+export type IgnoredBuilds = Set<DepPath>

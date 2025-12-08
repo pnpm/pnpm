@@ -36,6 +36,7 @@
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",

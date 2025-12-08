@@ -25,6 +25,9 @@
       "path": "../../packages/core-loggers"
     },
     {
+      "path": "../../packages/dependency-path"
+    },
+    {
       "path": "../../packages/logger"
     },
     {
