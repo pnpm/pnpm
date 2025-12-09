@@ -115,7 +115,7 @@ test('prevent directory traversal attack when using Git sub folder #2', async ()
 test('fetch a package from Git that has a prepare script', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({
-    onlyBuiltDependencies: ['test-git-fetch'],
+    allowBuild: (pkgName) => pkgName === 'test-git-fetch',
     rawConfig: {},
   }).git
   const { filesIndex } = await fetch(
@@ -198,7 +198,7 @@ test('still able to shallow fetch for allowed hosts', async () => {
 test('fail when preparing a git-hosted package', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({
-    onlyBuiltDependencies: ['@pnpm.e2e/prepare-script-fails'],
+    allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-fails',
     rawConfig: {},
   }).git
   await expect(
@@ -229,10 +229,9 @@ test('do not build the package when scripts are ignored', async () => {
   expect(globalWarn).toHaveBeenCalledWith('The git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-works.git" has to be built but the build scripts were ignored.')
 })
 
-test('block git package with prepare script when not in onlyBuiltDependencies', async () => {
+test('block git package with prepare script', async () => {
   const storeDir = temporaryDirectory()
-  // No onlyBuiltDependencies specified = default to blocking all builds
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ allowBuild: () => false, rawConfig: {} }).git
   const repo = 'https://github.com/pnpm-e2e/prepare-script-works.git'
   await expect(
     fetch(createCafsStore(storeDir),
@@ -246,26 +245,10 @@ test('block git package with prepare script when not in onlyBuiltDependencies', 
   ).rejects.toThrow('The git-hosted package "@pnpm.e2e/prepare-script-works@1.0.0" needs to execute build scripts but is not in the "onlyBuiltDependencies" allowlist')
 })
 
-test('block git package with prepare script when onlyBuiltDependencies is empty', async () => {
-  const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ onlyBuiltDependencies: [], rawConfig: {} }).git
-  const repo = 'https://github.com/pnpm-e2e/prepare-script-works.git'
-  await expect(
-    fetch(createCafsStore(storeDir),
-      {
-        commit: '55416a9c468806a935636c0ad0371a14a64df8c9',
-        repo,
-        type: 'git',
-      }, {
-        filesIndexFile: path.join(storeDir, 'index.json'),
-      })
-  ).rejects.toThrow('The git-hosted package "@pnpm.e2e/prepare-script-works@1.0.0" needs to execute build scripts but is not in the "onlyBuiltDependencies" allowlist')
-})
-
-test('allow git package with prepare script when in onlyBuiltDependencies', async () => {
+test('allow git package with prepare script', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({
-    onlyBuiltDependencies: ['@pnpm.e2e/prepare-script-works'],
+    allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-works',
     rawConfig: {},
   }).git
   // This should succeed without throwing because the package is in the allowlist

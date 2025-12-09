@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../builder/policy"
+    },
+    {
       "path": "../../cli/cli-meta"
     },
     {
@@ -20,6 +23,9 @@
     },
     {
       "path": "../../packages/logger"
+    },
+    {
+      "path": "../../packages/types"
     },
     {
       "path": "../../pkg-manager/client"

@@ -13,9 +13,6 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../builder/policy"
-    },
-    {
       "path": "../../exec/prepare-package"
     },
     {

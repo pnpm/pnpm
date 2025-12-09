@@ -1,7 +1,6 @@
 import assert from 'assert'
 import fs from 'node:fs/promises'
 import util from 'util'
-import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import { packlist } from '@pnpm/fs.packlist'
@@ -21,19 +20,12 @@ interface Resolution {
 
 export interface CreateGitHostedTarballFetcher {
   ignoreScripts?: boolean
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
+  allowBuild?: AllowBuild
   rawConfig: Record<string, unknown>
   unsafePerm?: boolean
 }
 
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
-  const allowBuild = createAllowBuildFunction({
-    neverBuiltDependencies: fetcherOpts.neverBuiltDependencies,
-    onlyBuiltDependencies: fetcherOpts.onlyBuiltDependencies,
-    onlyBuiltDependenciesFile: fetcherOpts.onlyBuiltDependenciesFile,
-  })
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const tempIndexFile = pathTemp(opts.filesIndexFile)
     const { filesIndex, manifest, requiresBuild } = await fetchRemoteTarball(cafs, resolution, {
@@ -41,7 +33,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
       filesIndexFile: tempIndexFile,
     })
     try {
-      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, tempIndexFile, opts.filesIndexFile, fetcherOpts, allowBuild, opts, resolution)
+      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, tempIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
@@ -72,7 +64,6 @@ async function prepareGitHostedPkg (
   filesIndexFileNonBuilt: string,
   filesIndexFile: string,
   opts: CreateGitHostedTarballFetcher,
-  allowBuild: AllowBuild | undefined,
   fetcherOpts: FetchOptions,
   resolution: Resolution
 ): Promise<PrepareGitHostedPkgResult> {
@@ -85,12 +76,7 @@ async function prepareGitHostedPkg (
     },
     force: true,
   })
-  const { shouldBeBuilt, pkgDir } = await preparePackage({
-    allowBuild,
-    ignoreScripts: opts.ignoreScripts,
-    rawConfig: opts.rawConfig,
-    unsafePerm: opts.unsafePerm,
-  }, tempLocation, resolution.path ?? '')
+  const { shouldBeBuilt, pkgDir } = await preparePackage(opts, tempLocation, resolution.path ?? '')
   const files = await packlist(pkgDir)
   if (!resolution.path && files.length === Object.keys(filesIndex).length) {
     if (!shouldBeBuilt) {

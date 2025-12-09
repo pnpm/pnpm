@@ -10,6 +10,7 @@ import {
   type GetAuthHeader,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
+import { type AllowBuild } from '@pnpm/types'
 import { TarballIntegrityError } from '@pnpm/worker'
 import {
   createDownloader,
@@ -41,9 +42,7 @@ export function createTarballFetcher (
     rawConfig: Record<string, unknown>
     unsafePerm?: boolean
     ignoreScripts?: boolean
-    neverBuiltDependencies?: string[]
-    onlyBuiltDependencies?: string[]
-    onlyBuiltDependenciesFile?: string
+    allowBuild?: AllowBuild
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean

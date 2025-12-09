@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../builder/policy"
-    },
-    {
       "path": "../../exec/prepare-package"
     },
     {

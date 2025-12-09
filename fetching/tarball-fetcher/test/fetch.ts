@@ -42,6 +42,7 @@ const registry = 'http://example.com/'
 const fetchFromRegistry = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-fails',
   rawConfig: {},
   retry: {
     maxTimeout: 100,

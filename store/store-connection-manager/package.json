@@ -31,6 +31,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/builder.policy": "workspace:*",
     "@pnpm/cli-meta": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
@@ -38,6 +39,7 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/server": "workspace:*",
     "@pnpm/store-path": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@zkochan/diable": "catalog:",
     "delay": "catalog:",
     "dir-is-case-sensitive": "catalog:"

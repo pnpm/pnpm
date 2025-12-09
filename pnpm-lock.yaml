@@ -3189,9 +3189,6 @@ importers:
 
   fetching/git-fetcher:
     dependencies:
-      '@pnpm/builder.policy':
-        specifier: workspace:*
-        version: link:../../builder/policy
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
@@ -3278,9 +3275,6 @@ importers:
 
   fetching/tarball-fetcher:
     dependencies:
-      '@pnpm/builder.policy':
-        specifier: workspace:*
-        version: link:../../builder/policy
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
@@ -8574,6 +8568,9 @@ importers:
 
   store/store-connection-manager:
     dependencies:
+      '@pnpm/builder.policy':
+        specifier: workspace:*
+        version: link:../../builder/policy
       '@pnpm/cli-meta':
         specifier: workspace:*
         version: link:../../cli/cli-meta
@@ -8595,6 +8592,9 @@ importers:
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@zkochan/diable':
         specifier: 'catalog:'
         version: 1.0.2
