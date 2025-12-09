@@ -1793,9 +1793,6 @@ function getCatalogExistingVersionFromSnapshot (
     : undefined
 }
 
-/**
- * Registry dependency types that are allowed when blockExoticSubdeps is enabled.
- */
 const NON_EXOTIC_RESOLVED_VIA = new Set([
   'custom-resolver',
   'github.com/denoland/deno',
