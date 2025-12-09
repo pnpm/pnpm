@@ -173,7 +173,7 @@ export interface StrictInstallOptions {
   minimumReleaseAgeExclude?: string[]
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
-  registrySubdepsOnly?: boolean
+  blockExoticSubdeps?: boolean
 }
 
 export type InstallOptions =
@@ -273,7 +273,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     excludeLinksFromLockfile: false,
     virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
-    registrySubdepsOnly: false,
+    blockExoticSubdeps: false,
   } as StrictInstallOptions
 }
 

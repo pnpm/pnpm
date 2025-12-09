@@ -141,7 +141,7 @@ export interface ResolveDependenciesOptions {
   minimumReleaseAgeExclude?: string[]
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
-  registrySubdepsOnly?: boolean
+  blockExoticSubdeps?: boolean
 }
 
 export interface ResolveDependencyTreeResult {
@@ -206,7 +206,7 @@ export async function resolveDependencyTree<T> (
     publishedByExclude: opts.minimumReleaseAgeExclude ? createPackageVersionPolicyByExclude(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude') : undefined,
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyByExclude(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
-    registrySubdepsOnly: opts.registrySubdepsOnly,
+    blockExoticSubdeps: opts.blockExoticSubdeps,
   }
 
   function createPackageVersionPolicyByExclude (patterns: string[], key: string): PackageVersionPolicy {

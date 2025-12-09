@@ -183,7 +183,7 @@ export interface ResolutionContext {
   publishedByExclude?: PackageVersionPolicy
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
-  registrySubdepsOnly?: boolean
+  blockExoticSubdeps?: boolean
 }
 
 export interface MissingPeerInfo {
@@ -1383,15 +1383,15 @@ async function resolveDependency (
     },
   })
 
-  // Check if non-registry dependencies are disallowed in subdependencies
+  // Check if exotic dependencies are disallowed in subdependencies
   if (
-    ctx.registrySubdepsOnly &&
+    ctx.blockExoticSubdeps &&
     options.currentDepth > 0 &&
-    !isRegistryDependency(pkgResponse.body.resolvedVia)
+    !isNonExoticDep(pkgResponse.body.resolvedVia)
   ) {
     const error = new PnpmError(
-      'NON_REGISTRY_SUBDEP',
-      `Non-registry dependency "${wantedDependency.alias ?? wantedDependency.bareSpecifier}" (resolved via ${pkgResponse.body.resolvedVia}) is not allowed in subdependencies when registrySubdepsOnly is enabled`
+      'EXOTIC_SUBDEP',
+      `Exotic dependency "${wantedDependency.alias ?? wantedDependency.bareSpecifier}" (resolved via ${pkgResponse.body.resolvedVia}) is not allowed in subdependencies when blockExoticSubdeps is enabled`
     )
     error.prefix = options.prefix
     error.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
@@ -1794,16 +1794,15 @@ function getCatalogExistingVersionFromSnapshot (
 }
 
 /**
- * Registry dependency types that are allowed when registrySubdepsOnly is enabled.
- * These resolve from package registries rather than git repos, URLs, or local files.
+ * Registry dependency types that are allowed when blockExoticSubdeps is enabled.
  */
-const REGISTRY_RESOLVED_VIA = new Set([
+const NON_EXOTIC_RESOLVED_VIA = new Set([
   'custom-resolver',
   'jsr-registry',
   'npm-registry',
   'workspace',
 ])
 
-function isRegistryDependency (resolvedVia: string | undefined): boolean {
-  return resolvedVia != null && REGISTRY_RESOLVED_VIA.has(resolvedVia)
+function isNonExoticDep (resolvedVia: string | undefined): boolean {
+  return resolvedVia != null && NON_EXOTIC_RESOLVED_VIA.has(resolvedVia)
 }
