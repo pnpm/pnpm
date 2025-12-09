@@ -1800,8 +1800,9 @@ function getCatalogExistingVersionFromSnapshot (
  * These resolve from package registries rather than git repos, URLs, or local files.
  */
 const REGISTRY_RESOLVED_VIA = new Set([
-  'npm-registry',
+  'custom-resolver',
   'jsr-registry',
+  'npm-registry',
   'workspace',
 ])
 
