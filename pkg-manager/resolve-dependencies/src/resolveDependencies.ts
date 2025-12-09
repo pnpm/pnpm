@@ -31,6 +31,7 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import {
+  type AllowBuild,
   type DepPath,
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
@@ -139,6 +140,7 @@ export interface ChildrenByParentId {
 }
 
 export interface ResolutionContext {
+  allowBuild?: AllowBuild
   allPeerDepNames: Set<string>
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
@@ -1311,6 +1313,7 @@ async function resolveDependency (
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
+      allowBuild: ctx.allowBuild,
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
         ? {

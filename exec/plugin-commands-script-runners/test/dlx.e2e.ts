@@ -91,6 +91,7 @@ test('dlx install from git', async () => {
     dir: process.cwd(),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
+    allowBuild: ['shx'],
   }, ['shelljs/shx#0dcbb9d1022037268959f8b706e0f06a6fd43fde', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()

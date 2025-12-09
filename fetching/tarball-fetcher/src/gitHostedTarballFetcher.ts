@@ -75,7 +75,10 @@ async function prepareGitHostedPkg (
     },
     force: true,
   })
-  const { shouldBeBuilt, pkgDir } = await preparePackage(opts, tempLocation, resolution.path ?? '')
+  const { shouldBeBuilt, pkgDir } = await preparePackage({
+    ...opts,
+    allowBuild: fetcherOpts.allowBuild,
+  }, tempLocation, resolution.path ?? '')
   const files = await packlist(pkgDir)
   if (!resolution.path && files.length === Object.keys(filesIndex).length) {
     if (!shouldBeBuilt) {

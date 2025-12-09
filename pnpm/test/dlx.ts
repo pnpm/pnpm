@@ -173,7 +173,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
     '--config.dlx-cache-max-age=50', // big number to avoid false negative should test unexpectedly takes too long to run
   ]
 
-  await Promise.all(Object.entries(commands).map(([cmd, args]) => execPnpm([...settings, 'dlx', cmd, ...args])))
+  await Promise.all(Object.entries(commands).map(([cmd, args]) => execPnpm([...settings, '--allow-build=shx', 'dlx', cmd, ...args])))
 
   // ensure that the dlx cache has certain structure
   const dlxBaseDir = path.resolve('cache', 'dlx')
@@ -191,11 +191,11 @@ test('dlx creates cache and store prune cleans cache', async () => {
     [dlxDirs[3]]: 123,
   } satisfies Record<string, number>
   const now = new Date()
-  await Promise.all(Object.entries(ageTable).map(async ([dlxDir, age]) => {
+  Object.entries(ageTable).forEach(([dlxDir, age]) => {
     const newDate = new Date(now.getTime() - age * 60_000)
     const dlxCacheLink = path.resolve('cache', 'dlx', dlxDir, 'pkg')
-    await fs.promises.lutimes(dlxCacheLink, newDate, newDate)
-  }))
+    fs.lutimesSync(dlxCacheLink, newDate, newDate)
+  })
 
   await execPnpm([...settings, 'store', 'prune'])
 
@@ -215,10 +215,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
     'store', 'prune'])
 
   // test to see if all dlx cache items are deleted
-  expect(
-    fs.readdirSync(path.resolve('cache', 'dlx'))
-      .sort()
-  ).toStrictEqual([])
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([])
 })
 
 test('dlx should ignore non-auth info from .npmrc in the current directory', async () => {

@@ -445,6 +445,7 @@ test('fail when preparing a git-hosted package', async () => {
 
   await expect(
     fetch.gitHostedTarball(cafs, resolution, {
+      allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-fails',
       filesIndexFile,
       lockfileDir: process.cwd(),
       pkg,

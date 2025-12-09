@@ -1183,6 +1183,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     forgetResolutionsOfAllPrevWantedDeps(ctx.wantedLockfile)
   }
 
+  const allowBuild = createAllowBuildFunction(opts)
   let {
     dependenciesGraph,
     dependenciesByProjectId,
@@ -1196,6 +1197,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   } = await resolveDependencies(
     projects,
     {
+      allowBuild,
       allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
       allowUnusedPatches: opts.allowUnusedPatches,
       autoInstallPeers: opts.autoInstallPeers,
@@ -1296,7 +1298,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
   let stats: InstallationResultStats | undefined
-  const allowBuild = createAllowBuildFunction(opts)
   let ignoredBuilds: IgnoredBuilds | undefined
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(

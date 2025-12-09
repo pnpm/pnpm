@@ -5,7 +5,7 @@ import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type PackageManifest } from '@pnpm/types'
+import { type AllowBuild, type PackageManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import preferredPM from 'preferred-pm'
 import { omit } from 'ramda'
@@ -20,6 +20,7 @@ const PREPUBLISH_SCRIPTS = [
 ]
 
 export interface PreparePackageOptions {
+  allowBuild?: AllowBuild
   ignoreScripts?: boolean
   rawConfig: Record<string, unknown>
   unsafePerm?: boolean
@@ -30,6 +31,19 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
   if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return { shouldBeBuilt: false, pkgDir }
   if (opts.ignoreScripts) return { shouldBeBuilt: true, pkgDir }
+  // Check if the package is allowed to run build scripts
+  // If allowBuild is undefined or returns false, block the build
+  if (!opts.allowBuild?.(manifest.name, manifest.version)) {
+    throw new PnpmError(
+      'GIT_DEP_PREPARE_NOT_ALLOWED',
+      `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "onlyBuiltDependencies" allowlist.`,
+      {
+        hint: `Add the package to "onlyBuiltDependencies" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
+onlyBuiltDependencies:
+  - "${manifest.name}"`,
+      }
+    )
+  }
   const pm = (await preferredPM(gitRootDir))?.name ?? 'npm'
   const execOpts: RunLifecycleHookOptions = {
     depPath: `${manifest.name}@${manifest.version}`,
