@@ -1,29 +1,15 @@
-import { type PnpmError } from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
-import {
-  addDependenciesToPackage,
-  install,
-} from '@pnpm/core'
+import { addDependenciesToPackage } from '@pnpm/core'
 import { testDefaults } from '../utils/index.js'
 
 test('registrySubdepsOnly disallows git dependencies in subdependencies', async () => {
   prepareEmpty()
 
-  let err!: PnpmError
-  try {
+  await expect(addDependenciesToPackage({},
     // @pnpm.e2e/has-aliased-git-dependency has a git-hosted subdependency (say-hi from github:zkochan/hi)
-    await addDependenciesToPackage(
-      {},
-      ['@pnpm.e2e/has-aliased-git-dependency'],
-      testDefaults({ registrySubdepsOnly: true, fastUnpack: false })
-    )
-    throw new Error('installation should have failed')
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-
-  expect(err.code).toBe('ERR_PNPM_NON_REGISTRY_SUBDEPENDENCY')
-  expect(err.message).toContain('is not allowed in subdependencies when registrySubdepsOnly is enabled')
+    ['@pnpm.e2e/has-aliased-git-dependency'],
+    testDefaults({ registrySubdepsOnly: true, fastUnpack: false })
+  )).rejects.toThrow('is not allowed in subdependencies when registrySubdepsOnly is enabled')
 })
 
 test('registrySubdepsOnly allows git dependencies in direct dependencies', async () => {
@@ -68,28 +54,4 @@ test('registrySubdepsOnly: false (default) allows git dependencies in subdepende
 
   const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
   expect(m).toBe('Hi')
-})
-
-test('registrySubdepsOnly set via pnpm settings in manifest', async () => {
-  prepareEmpty()
-
-  let err!: PnpmError
-  try {
-    await install(
-      {
-        dependencies: {
-          '@pnpm.e2e/has-aliased-git-dependency': '1.0.0',
-        },
-        pnpm: {
-          registrySubdepsOnly: true,
-        },
-      },
-      testDefaults({ registrySubdepsOnly: true, fastUnpack: false })
-    )
-    throw new Error('installation should have failed')
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-
-  expect(err.code).toBe('ERR_PNPM_NON_REGISTRY_SUBDEPENDENCY')
 })

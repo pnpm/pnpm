@@ -1387,17 +1387,15 @@ async function resolveDependency (
   if (
     ctx.registrySubdepsOnly &&
     options.currentDepth > 0 &&
-    pkgResponse.body.resolvedVia != null &&
     !isRegistryDependency(pkgResponse.body.resolvedVia)
   ) {
-    const parentPkgInfo = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
-    throw new PnpmError(
-      'NON_REGISTRY_SUBDEPENDENCY',
-      `Non-registry dependency "${wantedDependency.alias ?? wantedDependency.bareSpecifier}" (resolved via ${pkgResponse.body.resolvedVia}) is not allowed in subdependencies when registrySubdepsOnly is enabled`,
-      {
-        hint: `This dependency was required by ${parentPkgInfo.map((p) => `${p.name}@${p.version}`).join(' > ')}.`,
-      }
+    const error = new PnpmError(
+      'NON_REGISTRY_SUBDEP',
+      `Non-registry dependency "${wantedDependency.alias ?? wantedDependency.bareSpecifier}" (resolved via ${pkgResponse.body.resolvedVia}) is not allowed in subdependencies when registrySubdepsOnly is enabled`
     )
+    error.prefix = options.prefix
+    error.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
+    throw error
   }
 
   if (ctx.allPreferredVersions && pkgResponse.body.manifest?.version) {
@@ -1806,6 +1804,6 @@ const REGISTRY_RESOLVED_VIA = new Set([
   'workspace',
 ])
 
-function isRegistryDependency (resolvedVia: string): boolean {
-  return REGISTRY_RESOLVED_VIA.has(resolvedVia)
+function isRegistryDependency (resolvedVia: string | undefined): boolean {
+  return resolvedVia != null && REGISTRY_RESOLVED_VIA.has(resolvedVia)
 }
