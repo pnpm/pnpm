@@ -13,7 +13,14 @@ import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
 import { type PatchInfo } from '@pnpm/patching.types'
-import { type DepPath, type SupportedArchitectures, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
+import {
+  type DepPath,
+  type SupportedArchitectures,
+  type Registries,
+  type PkgIdWithPatchHash,
+  type ProjectId,
+  type AllowBuild,
+} from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
   type FetchResponse,
@@ -54,6 +61,7 @@ export interface DependenciesGraph {
 }
 
 export interface LockfileToDepGraphOptions {
+  allowBuild?: AllowBuild
   autoInstallPeers: boolean
   enableGlobalVirtualStore?: boolean
   engineStrict: boolean
@@ -231,6 +239,7 @@ async function buildGraphFromPackages (
 
         try {
           fetchResponse = await opts.storeController.fetchPackage({
+            allowBuild: opts.allowBuild,
             force: false,
             lockfileDir: opts.lockfileDir,
             ignoreScripts: opts.ignoreScripts,

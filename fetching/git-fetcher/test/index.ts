@@ -119,6 +119,7 @@ test('fetch a package from Git that has a prepare script', async () => {
       type: 'git',
     },
     {
+      allowBuild: (pkgName) => pkgName === 'test-git-fetch',
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
@@ -198,6 +199,7 @@ test('fail when preparing a git-hosted package', async () => {
         repo: 'https://github.com/pnpm-e2e/prepare-script-fails.git',
         type: 'git',
       }, {
+        allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-fails',
         filesIndexFile: path.join(storeDir, 'index.json'),
       })
   ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-fails.git": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
@@ -217,6 +219,43 @@ test('do not build the package when scripts are ignored', async () => {
   expect(filesIndex['package.json']).toBeTruthy()
   expect(filesIndex['prepare.txt']).toBeFalsy()
   expect(globalWarn).toHaveBeenCalledWith('The git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-works.git" has to be built but the build scripts were ignored.')
+})
+
+test('block git package with prepare script', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const repo = 'https://github.com/pnpm-e2e/prepare-script-works.git'
+  await expect(
+    fetch(createCafsStore(storeDir),
+      {
+        commit: '55416a9c468806a935636c0ad0371a14a64df8c9',
+        repo,
+        type: 'git',
+      }, {
+        allowBuild: () => false,
+        filesIndexFile: path.join(storeDir, 'index.json'),
+      })
+  ).rejects.toThrow('The git-hosted package "@pnpm.e2e/prepare-script-works@1.0.0" needs to execute build scripts but is not in the "onlyBuiltDependencies" allowlist')
+})
+
+test('allow git package with prepare script', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({
+    rawConfig: {},
+  }).git
+  // This should succeed without throwing because the package is in the allowlist
+  const { filesIndex } = await fetch(createCafsStore(storeDir),
+    {
+      commit: '55416a9c468806a935636c0ad0371a14a64df8c9',
+      repo: 'https://github.com/pnpm-e2e/prepare-script-works.git',
+      type: 'git',
+    }, {
+      allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-works',
+      filesIndexFile: path.join(storeDir, 'index.json'),
+    })
+  expect(filesIndex['package.json']).toBeTruthy()
+  // Note: prepare.txt is in .gitignore so it won't be in the files index
+  // The fact that no error was thrown proves the prepare script was allowed to run
 })
 
 function prefixGitArgs (): string[] {

@@ -20,11 +20,6 @@ export interface CreateGitFetcherOptions {
 export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: GitFetcher } {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
   const ignoreScripts = createOpts.ignoreScripts ?? false
-  const preparePkg = preparePackage.bind(null, {
-    ignoreScripts: createOpts.ignoreScripts,
-    rawConfig: createOpts.rawConfig,
-    unsafePerm: createOpts.unsafePerm,
-  })
 
   const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
     const tempLocation = await cafs.tempDir()
@@ -38,7 +33,12 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
     let pkgDir: string
     try {
-      const prepareResult = await preparePkg(tempLocation, resolution.path ?? '')
+      const prepareResult = await preparePackage({
+        allowBuild: opts.allowBuild,
+        ignoreScripts: createOpts.ignoreScripts,
+        rawConfig: createOpts.rawConfig,
+        unsafePerm: createOpts.unsafePerm,
+      }, tempLocation, resolution.path ?? '')
       pkgDir = prepareResult.pkgDir
       if (ignoreScripts && prepareResult.shouldBeBuilt) {
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
