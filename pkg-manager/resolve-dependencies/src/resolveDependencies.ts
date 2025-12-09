@@ -1798,7 +1798,11 @@ function getCatalogExistingVersionFromSnapshot (
  */
 const NON_EXOTIC_RESOLVED_VIA = new Set([
   'custom-resolver',
+  'github.com/denoland/deno',
+  'github.com/oven-sh/bun',
   'jsr-registry',
+  'local-filesystem',
+  'nodejs.org',
   'npm-registry',
   'workspace',
 ])
