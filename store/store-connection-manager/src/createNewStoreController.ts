@@ -48,9 +48,6 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'userAgent'
 | 'verifyStoreIntegrity'
 | 'virtualStoreDirMaxLength'
-| 'neverBuiltDependencies'
-| 'onlyBuiltDependencies'
-| 'onlyBuiltDependenciesFile'
 > & {
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean

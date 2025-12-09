@@ -38,7 +38,6 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/server": "workspace:*",
     "@pnpm/store-path": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "@zkochan/diable": "catalog:",
     "delay": "catalog:",
     "dir-is-case-sensitive": "catalog:"

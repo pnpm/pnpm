@@ -8589,9 +8589,6 @@ importers:
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@zkochan/diable':
         specifier: 'catalog:'
         version: 1.0.2

@@ -22,9 +22,6 @@
       "path": "../../packages/logger"
     },
     {
-      "path": "../../packages/types"
-    },
-    {
       "path": "../../pkg-manager/client"
     },
     {
