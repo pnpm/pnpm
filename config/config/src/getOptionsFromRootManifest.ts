@@ -26,7 +26,6 @@ export type OptionsFromRootManifest = {
   patchedDependencies?: Record<string, string>
   peerDependencyRules?: PeerDependencyRules
   supportedArchitectures?: SupportedArchitectures
-  registrySubdepsOnly?: boolean
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'executionEnv' | 'updateConfig'>
 
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
@@ -47,7 +46,6 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       'neverBuiltDependencies',
       'onlyBuiltDependencies',
       'onlyBuiltDependenciesFile',
-      'registrySubdepsOnly',
       'overrides',
       'packageExtensions',
       'patchedDependencies',

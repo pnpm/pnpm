@@ -173,7 +173,6 @@ export interface PnpmSettings {
   requiredScripts?: string[]
   supportedArchitectures?: SupportedArchitectures
   executionEnv?: ExecutionEnv
-  registrySubdepsOnly?: boolean
 }
 
 export interface ProjectManifest extends BaseManifest {
