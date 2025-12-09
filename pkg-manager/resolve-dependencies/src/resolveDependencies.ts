@@ -183,7 +183,7 @@ export interface ResolutionContext {
   publishedByExclude?: PackageVersionPolicy
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
-  onlyRegistryDependencies?: boolean
+  registrySubdepsOnly?: boolean
 }
 
 export interface MissingPeerInfo {
@@ -1385,7 +1385,7 @@ async function resolveDependency (
 
   // Check if non-registry dependencies are disallowed in subdependencies
   if (
-    ctx.onlyRegistryDependencies &&
+    ctx.registrySubdepsOnly &&
     options.currentDepth > 0 &&
     pkgResponse.body.resolvedVia != null &&
     !isRegistryDependency(pkgResponse.body.resolvedVia)
@@ -1393,7 +1393,7 @@ async function resolveDependency (
     const parentPkgInfo = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
     throw new PnpmError(
       'NON_REGISTRY_SUBDEPENDENCY',
-      `Non-registry dependency "${wantedDependency.alias ?? wantedDependency.bareSpecifier}" (resolved via ${pkgResponse.body.resolvedVia}) is not allowed in subdependencies when onlyRegistryDependencies is enabled`,
+      `Non-registry dependency "${wantedDependency.alias ?? wantedDependency.bareSpecifier}" (resolved via ${pkgResponse.body.resolvedVia}) is not allowed in subdependencies when registrySubdepsOnly is enabled`,
       {
         hint: `This dependency was required by ${parentPkgInfo.map((p) => `${p.name}@${p.version}`).join(' > ')}.`,
       }
@@ -1796,7 +1796,7 @@ function getCatalogExistingVersionFromSnapshot (
 }
 
 /**
- * Registry dependency types that are allowed when onlyRegistryDependencies is enabled.
+ * Registry dependency types that are allowed when registrySubdepsOnly is enabled.
  * These resolve from package registries rather than git repos, URLs, or local files.
  */
 const REGISTRY_RESOLVED_VIA = new Set([
