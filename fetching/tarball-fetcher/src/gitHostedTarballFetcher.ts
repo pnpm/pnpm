@@ -6,7 +6,7 @@ import type { Cafs } from '@pnpm/cafs-types'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
-import { type AllowBuild, type DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
 import renameOverwrite from 'rename-overwrite'
 import { fastPathTemp as pathTemp } from 'path-temp'
@@ -20,7 +20,6 @@ interface Resolution {
 
 export interface CreateGitHostedTarballFetcher {
   ignoreScripts?: boolean
-  allowBuild?: AllowBuild
   rawConfig: Record<string, unknown>
   unsafePerm?: boolean
 }
@@ -76,7 +75,10 @@ async function prepareGitHostedPkg (
     },
     force: true,
   })
-  const { shouldBeBuilt, pkgDir } = await preparePackage(opts, tempLocation, resolution.path ?? '')
+  const { shouldBeBuilt, pkgDir } = await preparePackage({
+    ...opts,
+    allowBuild: fetcherOpts.allowBuild,
+  }, tempLocation, resolution.path ?? '')
   const files = await packlist(pkgDir)
   if (!resolution.path && files.length === Object.keys(filesIndex).length) {
     if (!shouldBeBuilt) {

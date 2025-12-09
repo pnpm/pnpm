@@ -1,5 +1,4 @@
 import { promises as fs } from 'fs'
-import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { createClient, type ClientOptions } from '@pnpm/client'
 import { type Config } from '@pnpm/config'
 import { createPackageStore, type CafsLocker, type StoreController } from '@pnpm/package-store'
@@ -69,11 +68,6 @@ export async function createNewStoreController (
     ) && !opts.registrySupportsTimeField
   )
   const { resolve, fetchers, clearResolutionCache } = createClient({
-    allowBuild: createAllowBuildFunction({
-      neverBuiltDependencies: opts.neverBuiltDependencies,
-      onlyBuiltDependencies: opts.onlyBuiltDependencies,
-      onlyBuiltDependenciesFile: opts.onlyBuiltDependenciesFile,
-    }),
     customFetchers: opts.hooks?.fetchers,
     customResolvers: opts.hooks?.customResolvers,
     customFetcherHooks: opts.hooks?.customFetchers,

@@ -42,7 +42,6 @@ const registry = 'http://example.com/'
 const fetchFromRegistry = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-  allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-fails',
   rawConfig: {},
   retry: {
     maxTimeout: 100,
@@ -446,6 +445,7 @@ test('fail when preparing a git-hosted package', async () => {
 
   await expect(
     fetch.gitHostedTarball(cafs, resolution, {
+      allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-fails',
       filesIndexFile,
       lockfileDir: process.cwd(),
       pkg,

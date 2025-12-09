@@ -14,6 +14,7 @@ import {
   type ResolvedFrom,
 } from '@pnpm/cafs-types'
 import {
+  type AllowBuild,
   type SupportedArchitectures,
   type DependencyManifest,
   type PackageManifest,
@@ -86,6 +87,7 @@ export interface PkgNameVersion {
 }
 
 export interface FetchPackageToStoreOptions {
+  allowBuild?: AllowBuild
   fetchRawManifest?: boolean
   force: boolean
   ignoreScripts?: boolean
@@ -106,6 +108,7 @@ export type RequestPackageFunction = (
 ) => Promise<PackageResponse>
 
 export interface RequestPackageOptions {
+  allowBuild?: AllowBuild
   alwaysTryWorkspacePackages?: boolean
   currentPkg?: {
     id?: PkgResolutionId

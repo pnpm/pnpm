@@ -115,7 +115,6 @@ test('prevent directory traversal attack when using Git sub folder #2', async ()
 test('fetch a package from Git that has a prepare script', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({
-    allowBuild: (pkgName) => pkgName === 'test-git-fetch',
     rawConfig: {},
   }).git
   const { filesIndex } = await fetch(
@@ -126,6 +125,7 @@ test('fetch a package from Git that has a prepare script', async () => {
       type: 'git',
     },
     {
+      allowBuild: (pkgName) => pkgName === 'test-git-fetch',
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
@@ -198,7 +198,6 @@ test('still able to shallow fetch for allowed hosts', async () => {
 test('fail when preparing a git-hosted package', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({
-    allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-fails',
     rawConfig: {},
   }).git
   await expect(
@@ -208,6 +207,7 @@ test('fail when preparing a git-hosted package', async () => {
         repo: 'https://github.com/pnpm-e2e/prepare-script-fails.git',
         type: 'git',
       }, {
+        allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-fails',
         filesIndexFile: path.join(storeDir, 'index.json'),
       })
   ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-fails.git": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
@@ -231,7 +231,7 @@ test('do not build the package when scripts are ignored', async () => {
 
 test('block git package with prepare script', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ allowBuild: () => false, rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {} }).git
   const repo = 'https://github.com/pnpm-e2e/prepare-script-works.git'
   await expect(
     fetch(createCafsStore(storeDir),
@@ -240,6 +240,7 @@ test('block git package with prepare script', async () => {
         repo,
         type: 'git',
       }, {
+        allowBuild: () => false,
         filesIndexFile: path.join(storeDir, 'index.json'),
       })
   ).rejects.toThrow('The git-hosted package "@pnpm.e2e/prepare-script-works@1.0.0" needs to execute build scripts but is not in the "onlyBuiltDependencies" allowlist')
@@ -248,7 +249,6 @@ test('block git package with prepare script', async () => {
 test('allow git package with prepare script', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({
-    allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-works',
     rawConfig: {},
   }).git
   // This should succeed without throwing because the package is in the allowlist
@@ -258,6 +258,7 @@ test('allow git package with prepare script', async () => {
       repo: 'https://github.com/pnpm-e2e/prepare-script-works.git',
       type: 'git',
     }, {
+      allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-works',
       filesIndexFile: path.join(storeDir, 'index.json'),
     })
   expect(filesIndex['package.json']).toBeTruthy()

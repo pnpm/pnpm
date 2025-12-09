@@ -299,6 +299,7 @@ async function resolveAndFetch (
 
   const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
   const fetchResult = ctx.fetchPackageToStore({
+    allowBuild: options.allowBuild,
     fetchRawManifest: true,
     force: forceFetch,
     ignoreScripts: options.ignoreScripts,
@@ -618,6 +619,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
         opts.pkg.id,
         resolution,
         {
+          allowBuild: opts.allowBuild,
           filesIndexFile,
           lockfileDir: opts.lockfileDir,
           readManifest: opts.fetchRawManifest,

@@ -320,8 +320,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
+  const allowBuild = createAllowBuildFunction(opts)
   const lockfileToDepGraphOpts = {
     ...opts,
+    allowBuild,
     importerIds,
     lockfileDir,
     skipped,
@@ -382,7 +384,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 
   let newHoistedDependencies!: HoistedDependencies
   let linkedToRoot = 0
-  const allowBuild = createAllowBuildFunction(opts)
   if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
     await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
       allowBuild,

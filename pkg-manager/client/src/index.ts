@@ -4,7 +4,7 @@ import {
   type ResolverFactoryOptions,
 } from '@pnpm/default-resolver'
 import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
-import { type AllowBuild, type SslConfig } from '@pnpm/types'
+import { type SslConfig } from '@pnpm/types'
 import { type CustomResolver, type CustomFetcher as CustomFetcherHook } from '@pnpm/hooks.types'
 import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
 import type { CustomFetchers, GitFetcher, DirectoryFetcher, BinaryFetcher } from '@pnpm/fetcher-base'
@@ -18,7 +18,6 @@ import { map as mapValues } from 'ramda'
 export type { ResolveFunction }
 
 export type ClientOptions = {
-  allowBuild?: AllowBuild
   authConfig: Record<string, string>
   customFetchers?: CustomFetchers
   customResolvers?: CustomResolver[]
@@ -72,7 +71,7 @@ type Fetchers = {
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
-  opts: Pick<ClientOptions, 'allowBuild' | 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles' | 'offline' | 'fetchMinSpeedKiBps'>,
+  opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles' | 'offline' | 'fetchMinSpeedKiBps'>,
   customFetchers?: CustomFetchers
 ): Fetchers {
   const tarballFetchers = createTarballFetcher(fetchFromRegistry, getAuthHeader, opts)

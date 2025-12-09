@@ -8568,9 +8568,6 @@ importers:
 
   store/store-connection-manager:
     dependencies:
-      '@pnpm/builder.policy':
-        specifier: workspace:*
-        version: link:../../builder/policy
       '@pnpm/cli-meta':
         specifier: workspace:*
         version: link:../../cli/cli-meta
