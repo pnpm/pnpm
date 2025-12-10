@@ -1071,7 +1071,7 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
 })
 
 test('HTTP tarball without integrity gets integrity computed during fetch', async () => {
-  const storeDir = temporaryDirectory()
+  const storeDir = tempy.directory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
@@ -1083,7 +1083,7 @@ test('HTTP tarball without integrity gets integrity computed during fetch', asyn
     virtualStoreDirMaxLength: 120,
   })
 
-  const projectDir = temporaryDirectory()
+  const projectDir = tempy.directory()
   // Request a package via HTTP tarball URL (simulated via the local registry)
   const pkgResponse = await requestPackage(
     { alias: 'is-positive', bareSpecifier: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz` },
