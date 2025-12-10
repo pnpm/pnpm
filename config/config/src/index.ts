@@ -190,6 +190,7 @@ export async function getConfig (opts: {
     'public-hoist-pattern': [],
     'recursive-install': true,
     registry: npmDefaults.registry,
+    'block-exotic-subdeps': false,
     'resolution-mode': 'highest',
     'resolve-peers-from-workspace-root': true,
     'save-peer': false,

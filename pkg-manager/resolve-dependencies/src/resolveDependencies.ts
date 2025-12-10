@@ -185,6 +185,7 @@ export interface ResolutionContext {
   publishedByExclude?: PackageVersionPolicy
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
+  blockExoticSubdeps?: boolean
 }
 
 export interface MissingPeerInfo {
@@ -1385,6 +1386,21 @@ async function resolveDependency (
     },
   })
 
+  // Check if exotic dependencies are disallowed in subdependencies
+  if (
+    ctx.blockExoticSubdeps &&
+    options.currentDepth > 0 &&
+    !isNonExoticDep(pkgResponse.body.resolvedVia)
+  ) {
+    const error = new PnpmError(
+      'EXOTIC_SUBDEP',
+      `Exotic dependency "${wantedDependency.alias ?? wantedDependency.bareSpecifier}" (resolved via ${pkgResponse.body.resolvedVia}) is not allowed in subdependencies when blockExoticSubdeps is enabled`
+    )
+    error.prefix = options.prefix
+    error.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
+    throw error
+  }
+
   if (ctx.allPreferredVersions && pkgResponse.body.manifest?.version) {
     if (!ctx.allPreferredVersions[pkgResponse.body.manifest.name]) {
       ctx.allPreferredVersions[pkgResponse.body.manifest.name] = {}
@@ -1778,4 +1794,19 @@ function getCatalogExistingVersionFromSnapshot (
   return existingCatalogResolution?.specifier === catalogLookup.specifier
     ? existingCatalogResolution.version
     : undefined
+}
+
+const NON_EXOTIC_RESOLVED_VIA = new Set([
+  'custom-resolver',
+  'github.com/denoland/deno',
+  'github.com/oven-sh/bun',
+  'jsr-registry',
+  'local-filesystem',
+  'nodejs.org',
+  'npm-registry',
+  'workspace',
+])
+
+function isNonExoticDep (resolvedVia: string | undefined): boolean {
+  return resolvedVia != null && NON_EXOTIC_RESOLVED_VIA.has(resolvedVia)
 }

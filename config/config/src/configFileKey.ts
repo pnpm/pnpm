@@ -42,6 +42,7 @@ export const pnpmConfigFileKeys = [
   'prefer-frozen-lockfile',
   'prefer-offline',
   'prefer-symlinked-executables',
+  'block-exotic-subdeps',
   'reporter',
   'resolution-mode',
   'store-dir',
