@@ -263,7 +263,7 @@ catalog:
   resolve-link-target: ^2.0.0
   rimraf: ^6.0.1
   root-link-target: ^3.1.0
-  run-groups: ^3.0.1
+  run-groups: ^4.0.0
   rxjs: ^7.8.2
   safe-buffer: 5.2.1
   safe-execa: ^0.2.0
@@ -342,6 +342,7 @@ minimumReleaseAgeExclude:
   - publish-packed@5.0.0
   - glob@11.1.0
   - jws@3.2.3
+  - run-groups@4.0.0
 
 nodeVersion: 20.19.4
 

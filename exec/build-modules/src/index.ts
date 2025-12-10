@@ -20,7 +20,7 @@ import {
 } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import { pickBy } from 'ramda'
-import runGroups from 'run-groups'
+import { runGroups } from 'run-groups'
 import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence.js'
 
 export type { DepsStateCache }
@@ -94,7 +94,7 @@ export async function buildModules<T extends string> (
       }
     )
   })
-  await runGroups.default(getWorkspaceConcurrency(opts.childConcurrency), groups)
+  await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)
   if (opts.ignoredBuiltDependencies?.length) {
     // We already ignore the build of these dependencies.
     // No need to report them.

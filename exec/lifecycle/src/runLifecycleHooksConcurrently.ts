@@ -5,7 +5,7 @@ import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
-import runGroups from 'run-groups'
+import { runGroups } from 'run-groups'
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
 
 export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
@@ -98,7 +98,7 @@ export async function runLifecycleHooksConcurrently (
       }
     )
   })
-  await runGroups.default(childConcurrency, groups)
+  await runGroups(childConcurrency, groups)
 }
 
 async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Record<string, string>): Promise<void> {
