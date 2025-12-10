@@ -222,7 +222,7 @@ test('do not build the package when scripts are ignored', async () => {
 })
 
 test('block git package with prepare script', async () => {
-  const storeDir = temporaryDirectory()
+  const storeDir = tempy.directory()
   const fetch = createGitFetcher({ rawConfig: {} }).git
   const repo = 'https://github.com/pnpm-e2e/prepare-script-works.git'
   await expect(
@@ -239,7 +239,7 @@ test('block git package with prepare script', async () => {
 })
 
 test('allow git package with prepare script', async () => {
-  const storeDir = temporaryDirectory()
+  const storeDir = tempy.directory()
   const fetch = createGitFetcher({
     rawConfig: {},
   }).git
