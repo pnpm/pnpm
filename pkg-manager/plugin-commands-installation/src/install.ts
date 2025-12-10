@@ -62,6 +62,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache-readonly',
     'side-effects-cache',
     'store-dir',
+    'strict-only-built-dependencies',
     'strict-peer-dependencies',
     'trust-policy',
     'trust-policy-exclude',
@@ -317,6 +318,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'sideEffectsCache'
 | 'sideEffectsCacheReadonly'
 | 'sort'
+| 'strictOnlyBuiltDependencies'
 | 'sharedWorkspaceLockfile'
 | 'tag'
 | 'onlyBuiltDependencies'

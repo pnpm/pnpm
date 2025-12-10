@@ -388,3 +388,40 @@ test('the list of ignored builds is preserved after a repeat install', async () 
     'esbuild@0.25.0',
   ])
 })
+
+test('warn when onlyBuiltDependencies contains a package without lifecycle scripts', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    pnpm: {
+      onlyBuiltDependencies: ['is-positive'],
+    },
+  })
+
+  const result = execPnpmSync(['install'], { expectSuccess: true })
+  const output = result.stdout.toString() + result.stderr.toString()
+
+  expect(output).toContain('onlyBuiltDependencies')
+  expect(output).toContain('is-positive@1.0.0')
+})
+
+test('fail when strictOnlyBuiltDependencies is true and onlyBuiltDependencies contains a package without lifecycle scripts', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    pnpm: {
+      onlyBuiltDependencies: ['is-positive'],
+      strictOnlyBuiltDependencies: true,
+    },
+  })
+
+  const result = execPnpmSync(['install'], { expectSuccess: false })
+  const output = result.stdout.toString() + result.stderr.toString()
+
+  expect(result.status).toBe(1)
+  expect(output).toContain('STRICT_ONLY_BUILT_DEPENDENCIES')
+  expect(output).toContain('onlyBuiltDependencies')
+  expect(output).toContain('is-positive@1.0.0')
+})

@@ -91,6 +91,7 @@ import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
 import semver from 'semver'
+import { validateOnlyBuiltDependencies } from './validateOnlyBuiltDependencies.js'
 import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError.js'
 
 class LockfileConfigMismatchError extends PnpmError {
@@ -1247,6 +1248,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       trustPolicyExclude: opts.trustPolicyExclude,
     }
   )
+
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
     linkedDependenciesByProjectId = mapValues(
       (linkedDeps) => linkedDeps.filter((linkedDep) =>
@@ -1338,6 +1340,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     )
     stats = result.stats
+
+    // Validate onlyBuiltDependencies after packages are installed
+    await validateOnlyBuiltDependencies(dependenciesGraph, {
+      onlyBuiltDependencies: opts.onlyBuiltDependencies,
+      strictOnlyBuiltDependencies: opts.strictOnlyBuiltDependencies,
+      lockfileDir: opts.lockfileDir,
+    })
     if (opts.enablePnp) {
       const importerNames = Object.fromEntries(
         projects.map(({ manifest, id }) => [id, manifest.name ?? id])

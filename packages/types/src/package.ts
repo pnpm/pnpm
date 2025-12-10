@@ -156,6 +156,7 @@ export interface PnpmSettings {
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   onlyBuiltDependenciesFile?: string
+  strictOnlyBuiltDependencies?: boolean
   ignoredBuiltDependencies?: string[]
   overrides?: Record<string, string>
   packageExtensions?: Record<string, PackageExtension>
