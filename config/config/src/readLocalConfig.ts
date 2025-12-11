@@ -14,21 +14,21 @@ const LOCAL_CONFIG_FIELDS = [
 export type LocalConfig = Partial<Pick<Config, typeof LOCAL_CONFIG_FIELDS[number] | 'hoistPattern'>>
 
 export async function readLocalConfig (prefix: string): Promise<LocalConfig> {
-  let rawLocalConfig: unknown
+  let config: unknown
   try {
-    rawLocalConfig = await readRawLocalConfig(prefix)
+    config = await readRawLocalConfig(prefix)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
     throw err
   }
 
-  validateRawLocalConfig(rawLocalConfig)
+  validateRawLocalConfig(config)
 
-  if (rawLocalConfig.hoist === false) {
-    rawLocalConfig.hoistPattern = undefined
+  if (config.hoist === false) {
+    config.hoistPattern = undefined
   }
 
-  return rawLocalConfig
+  return config
 }
 
 async function readRawLocalConfig (prefix: string): Promise<unknown> {
