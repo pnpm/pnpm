@@ -4,6 +4,10 @@ import { readLocalConfig } from '@pnpm/config'
 const f = fixtures(import.meta.dirname)
 
 test('readLocalConfig parse number field', async () => {
-  const config = await readLocalConfig(f.find('has-number-setting'))
-  expect(typeof config.childConcurrency).toBe('number')
+  const config = await readLocalConfig(f.find('local-config'))
+  expect(config).toStrictEqual({
+    modulesDir: 'node_modules',
+    saveExact: false,
+    savePrefix: '^',
+  })
 })
