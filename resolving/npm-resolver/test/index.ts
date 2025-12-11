@@ -95,7 +95,7 @@ test('resolveFromNpm() strips port 80 from http tarball URLs', async () => {
       },
     })
 
-  const cacheDir = temporaryDirectory()
+  const cacheDir = tempy.directory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
