@@ -46,6 +46,19 @@ test('tarball from URL that contain port number', async () => {
   })
 })
 
+test('tarball from URL with redundant port', async () => {
+  const resolutionResult = await resolveFromTarball({ bareSpecifier: 'https://registry.npmjs.org:443/is-array/-/is-array-1.0.1.tgz' })
+
+  expect(resolutionResult).toStrictEqual({
+    id: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    normalizedBareSpecifier: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    resolution: {
+      tarball: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    },
+    resolvedVia: 'url',
+  })
+})
+
 test('tarball not from npm registry (mutable)', async () => {
   const resolutionResult = await resolveFromTarball({ bareSpecifier: 'https://github.com/hegemonic/taffydb/tarball/master' })
 
