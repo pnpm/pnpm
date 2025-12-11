@@ -8,6 +8,8 @@ import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig.js'
+import { getConfig } from '@pnpm/cli-utils'
+import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
@@ -63,7 +65,12 @@ export async function createExportableManifest (
     publishManifest.readme ??= opts.readmeFile
   }
 
-  return publishManifest
+  const config = await getConfig({}, {
+    excludeReporter: false,
+    rcOptionsTypes: {},
+    workspaceDir: await findWorkspaceDir(process.cwd()),
+  })
+  return (await config.hooks?.readPackageForPublishing?.[0]?.(publishManifest)) ?? publishManifest
 }
 
 export type PublishDependencyConverter = (
