@@ -3,4 +3,4 @@
 "pnpm": major
 ---
 
-Replace workspace projects' `.npmrc` with `config.yaml`
+Replace workspace project specific `.npmrc` with `config.yaml`.
