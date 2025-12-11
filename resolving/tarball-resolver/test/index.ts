@@ -59,6 +59,29 @@ test('tarball from URL with redundant port', async () => {
   })
 })
 
+test('tarball from URL that redirects to a different URL (immutable)', async () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fetch: any = async (url: string) => {
+    if (url === 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz') {
+      return {
+        url: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+        headers: new Map([['cache-control', 'immutable']]),
+      }
+    }
+    return { url }
+  }
+  const resolutionResult = await _resolveFromTarball(fetch, { bareSpecifier: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz' })
+
+  expect(resolutionResult).toStrictEqual({
+    id: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    normalizedBareSpecifier: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    resolution: {
+      tarball: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    },
+    resolvedVia: 'url',
+  })
+})
+
 test('tarball not from npm registry (mutable)', async () => {
   const resolutionResult = await resolveFromTarball({ bareSpecifier: 'https://github.com/hegemonic/taffydb/tarball/master' })
 
