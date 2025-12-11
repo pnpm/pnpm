@@ -640,8 +640,8 @@ test('recursive install in a monorepo with different modules directories', async
       },
     },
   ])
-  fs.writeFileSync('project-1/.npmrc', 'modules-dir=modules_1', 'utf8')
-  fs.writeFileSync('project-2/.npmrc', 'modules-dir=modules_2', 'utf8')
+  writeYamlFile('project-1/config.yaml', { modulesDir: 'modules_1' })
+  writeYamlFile('project-2/config.yaml', { modulesDir: 'modules_2' })
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
@@ -656,36 +656,6 @@ test('recursive install in a monorepo with different modules directories', async
 
   projects['project-1'].has('is-positive', 'modules_1')
   projects['project-2'].has('is-positive', 'modules_2')
-})
-
-test('recursive install in a monorepo with parsing env variables', async () => {
-  const projects = preparePackages([
-    {
-      name: 'project',
-      version: '1.0.0',
-
-      dependencies: {
-        'is-positive': '1.0.0',
-      },
-    },
-  ])
-
-  process.env['SOME_NAME'] = 'some_name'
-  // eslint-disable-next-line no-template-curly-in-string
-  fs.writeFileSync('project/.npmrc', 'modules-dir=${SOME_NAME}_modules', 'utf8')
-
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
-  await install.handler({
-    ...DEFAULT_OPTS,
-    allProjects,
-    allProjectsGraph,
-    dir: process.cwd(),
-    recursive: true,
-    selectedProjectsGraph,
-    workspaceDir: process.cwd(),
-  })
-
-  projects['project'].has('is-positive', `${process.env['SOME_NAME']}_modules`)
 })
 
 test('prefer-workspace-package', async () => {

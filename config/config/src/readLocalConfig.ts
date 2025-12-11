@@ -5,12 +5,13 @@ import { PnpmError } from '@pnpm/error'
 import { type Config } from './Config.js'
 
 const LOCAL_CONFIG_FIELDS = [
+  'hoist',
   'modulesDir',
   'saveExact',
   'savePrefix',
 ] as const satisfies Array<keyof Config>
 
-export type LocalConfig = Partial<Pick<Config, typeof LOCAL_CONFIG_FIELDS[number]>>
+export type LocalConfig = Partial<Pick<Config, typeof LOCAL_CONFIG_FIELDS[number] | 'hoistPattern'>>
 
 export async function readLocalConfig (prefix: string): Promise<LocalConfig> {
   let rawLocalConfig: unknown
@@ -22,6 +23,11 @@ export async function readLocalConfig (prefix: string): Promise<LocalConfig> {
   }
 
   validateRawLocalConfig(rawLocalConfig)
+
+  if (rawLocalConfig.hoist === false) {
+    rawLocalConfig.hoistPattern = undefined
+  }
+
   return rawLocalConfig
 }
 
@@ -60,6 +66,9 @@ export class LocalConfigUnsupportedFieldError extends PnpmError {
 
 function validateRawLocalConfig (config: unknown): asserts config is LocalConfig {
   if (typeof config !== 'object' || !config || Array.isArray(config)) throw new LocalConfigIsNotAnObjectError(config)
+  if ('hoist' in config && config.hoist !== undefined && typeof config.hoist !== 'boolean') {
+    throw new LocalConfigInvalidValueTypeError('boolean', config.hoist)
+  }
   if ('modulesDir' in config && config.modulesDir !== undefined && typeof config.modulesDir !== 'string') {
     throw new LocalConfigInvalidValueTypeError('string', config.modulesDir)
   }
