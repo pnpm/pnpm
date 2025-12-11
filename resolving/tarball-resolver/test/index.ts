@@ -7,7 +7,7 @@ const fetch = createFetchFromRegistry({})
 const resolveFromTarball = _resolveFromTarball.bind(null, fetch)
 
 test('tarball from npm registry (immutable)', async () => {
-  const resolutionResult = await resolveFromTarball({ bareSpecifier: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz' })
+  const resolutionResult = await resolveFromTarball({ bareSpecifier: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz' })
 
   expect(resolutionResult).toStrictEqual({
     id: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
@@ -19,7 +19,7 @@ test('tarball from npm registry (immutable)', async () => {
   })
 })
 test('tarball from npm.jsr.io registry (immutable)', async () => {
-  const resolutionResult = await resolveFromTarball({ bareSpecifier: 'http://npm.jsr.io/~/11/@jsr/luca__flag/1.0.1.tgz' })
+  const resolutionResult = await resolveFromTarball({ bareSpecifier: 'https://npm.jsr.io/~/11/@jsr/luca__flag/1.0.1.tgz' })
 
   expect(resolutionResult).toStrictEqual({
     id: 'https://npm.jsr.io/~/11/@jsr/luca__flag/1.0.1.tgz',
