@@ -79,6 +79,35 @@ test('resolveFromNpm()', async () => {
   expect(meta['dist-tags']).toBeTruthy()
 })
 
+test('resolveFromNpm() strips port 80 from http tarball URLs', async () => {
+  nock(registries.default)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: {
+        '1.0.0': {
+          ...isPositiveMeta.versions['1.0.0'],
+          dist: {
+            ...isPositiveMeta.versions['1.0.0'].dist,
+            tarball: 'http://registry.npmjs.org:80/is-positive/-/is-positive-1.0.0.tgz',
+          },
+        },
+      },
+    })
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    cacheDir,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, { calcSpecifier: true })
+
+  expect(resolveResult!.resolution).toStrictEqual({
+    integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
+    tarball: 'http://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+  })
+})
+
 test('resolveFromNpm() does not save mutated meta to the cache', async () => {
   nock(registries.default)
     .get('/is-positive')

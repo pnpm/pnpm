@@ -50,6 +50,7 @@ import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
+import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
@@ -348,7 +349,7 @@ async function resolveNpm (
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
-    tarball: pickedPackage.dist.tarball,
+    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
   }
   let normalizedBareSpecifier: string | undefined
   if (opts.calcSpecifier) {
@@ -400,7 +401,7 @@ async function resolveJsr (
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
-    tarball: pickedPackage.dist.tarball,
+    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
   }
   return {
     id,
