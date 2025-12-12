@@ -272,6 +272,7 @@ Do you want to continue?`,
     ...opts,
     dir,
     packDestination,
+    dryRun: false,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballPath), ...args], {

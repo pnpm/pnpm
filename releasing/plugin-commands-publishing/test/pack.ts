@@ -78,6 +78,24 @@ test('pack a package with scoped name', async () => {
   expect(fs.existsSync('pnpm-test-scope-0.0.0.tgz')).toBeTruthy()
 })
 
+test('pack: with dry-run', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    dryRun: true,
+  })
+
+  expect(fs.existsSync('test-publish-package.json-0.0.0.tgz')).toBeFalsy()
+  expect(fs.existsSync('package.json')).toBeTruthy()
+})
+
 test('pack when there is bundledDependencies but without node-linker=hoisted', async () => {
   prepare({
     name: 'bundled-deps-without-node-linker-hoisted',
