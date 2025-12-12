@@ -1,5 +1,6 @@
 ---
-"@pnpm/plugin-commands-publishing": patch
+"@pnpm/plugin-commands-publishing": minor
+"pnpm": minor
 ---
 
-Added support to for `--dry-run` to `pack`
+Added support for `--dry-run` to the `pack` command [#10301](https://github.com/pnpm/pnpm/issues/10301).
