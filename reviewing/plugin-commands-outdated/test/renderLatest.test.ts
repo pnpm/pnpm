@@ -22,7 +22,27 @@ test('renderLatest: outdated and deprecated', () => {
 
   const output = outdated.renderLatest(outdatedPkg)
 
-  expect(output).toContain('(deprecated)')
   expect(output).toContain('1.0.0')
   expect(output).toContain(chalk.redBright('(deprecated)'))
+})
+
+test('renderLatest: outdated and not deprecated', () => {
+  const diffResult = semverDiff.default('0.0.1', '1.0.0')
+  const outdatedPkg: OutdatedWithVersionDiff = {
+    ...diffResult,
+    alias: 'foo',
+    belongsTo: 'dependencies',
+    current: '0.0.1',
+    latestManifest: {
+      name: 'foo',
+      version: '1.0.0',
+    } as PackageManifest,
+    packageName: 'foo',
+    wanted: '0.0.1',
+  }
+
+  const output = outdated.renderLatest(outdatedPkg)
+
+  expect(output).not.toContain('(deprecated)')
+  expect(output).toContain('1.0.0')
 })
