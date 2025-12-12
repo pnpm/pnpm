@@ -86,6 +86,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
 export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
+  'package-lock-only': '--lockfile-only',
 }
 
 export const commandNames = ['update', 'up', 'upgrade']
