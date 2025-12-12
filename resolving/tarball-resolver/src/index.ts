@@ -18,7 +18,10 @@ export async function resolveFromTarball (
   if (isRepository(wantedDependency.bareSpecifier)) return null
 
   // The URL is normalized to remove the port if it is the default port of the protocol.
-  const normalizedBareSpecifier = new URL(wantedDependency.bareSpecifier).toString().replace(/\/$/, '')
+  let normalizedBareSpecifier = new URL(wantedDependency.bareSpecifier).toString()
+  if (normalizedBareSpecifier.endsWith('/') && !wantedDependency.bareSpecifier.endsWith('/')) {
+    normalizedBareSpecifier = normalizedBareSpecifier.slice(0, -1)
+  }
   let resolvedUrl: string
 
   // If there are redirects and the response is immutable, we want to get the final URL address
