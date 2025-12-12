@@ -72,7 +72,7 @@ export async function createExportableManifest (
   })
   for (const hook of config.hooks?.readPackageForPublishing ?? []) {
     // eslint-disable-next-line no-await-in-loop
-    publishManifest = await hook(publishManifest, dir)
+    publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
 
   return publishManifest
