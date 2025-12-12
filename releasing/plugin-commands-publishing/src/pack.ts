@@ -38,6 +38,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     out: String,
     recursive: Boolean,
     ...pick([
+      'dry-run',
       'pack-destination',
       'pack-gzip-level',
       'json',
@@ -57,6 +58,10 @@ export function help (): string {
         title: 'Options',
 
         list: [
+          {
+            description: 'Does everything `pnpm pack` would do except actually writing the tarball to disk.',
+            name: '--dry-run',
+          },
           {
             description: 'Directory in which `pnpm pack` will save tarballs. The default is the current working directory.',
             name: '--pack-destination <dir>',
@@ -101,6 +106,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
   argv: {
     original: string[]
   }
+  dryRun?: boolean
   engineStrict?: boolean
   packDestination?: string
   out?: string
@@ -250,21 +256,23 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   const destDir = packDestination
     ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
     : dir
-  await fs.promises.mkdir(destDir, { recursive: true })
-  await packPkg({
-    destFile: path.join(destDir, tarballName),
-    filesMap,
-    modulesDir: path.join(opts.dir, 'node_modules'),
-    packGzipLevel: opts.packGzipLevel,
-    manifest: publishManifest,
-    bins: [
-      ...(await getBinsFromPackageManifest(publishManifest as DependencyManifest, dir)).map(({ path }) => path),
-      ...(manifest.publishConfig?.executableFiles ?? [])
-        .map((executableFile) => path.join(dir, executableFile)),
-    ],
-  })
-  if (!opts.ignoreScripts) {
-    await _runScriptsIfPresent(['postpack'], entryManifest)
+  if (!opts.dryRun) {
+    await fs.promises.mkdir(destDir, { recursive: true })
+    await packPkg({
+      destFile: path.join(destDir, tarballName),
+      filesMap,
+      modulesDir: path.join(opts.dir, 'node_modules'),
+      packGzipLevel: opts.packGzipLevel,
+      manifest: publishManifest,
+      bins: [
+        ...(await getBinsFromPackageManifest(publishManifest as DependencyManifest, dir)).map(({ path }) => path),
+        ...(manifest.publishConfig?.executableFiles ?? [])
+          .map((executableFile) => path.join(dir, executableFile)),
+      ],
+    })
+    if (!opts.ignoreScripts) {
+      await _runScriptsIfPresent(['postpack'], entryManifest)
+    }
   }
   let packedTarballPath
   if (opts.dir !== destDir) {
