@@ -31,7 +31,7 @@ export async function createExportableManifest (
   originalManifest: ProjectManifest,
   opts: MakePublishManifestOptions
 ): Promise<ProjectManifest> {
-  const publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
+  let publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }
@@ -70,7 +70,12 @@ export async function createExportableManifest (
     rcOptionsTypes: {},
     workspaceDir: await findWorkspaceDir(process.cwd()),
   })
-  return (await config.hooks?.readPackageForPublishing?.[0]?.(publishManifest, dir)) ?? publishManifest
+  for (const hook of config.hooks?.readPackageForPublishing ?? []) {
+    // eslint-disable-next-line no-await-in-loop
+    publishManifest = await hook(publishManifest, dir)
+  }
+
+  return publishManifest
 }
 
 export type PublishDependencyConverter = (
