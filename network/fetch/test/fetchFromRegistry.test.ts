@@ -7,6 +7,10 @@ import fs from 'fs'
 
 const CERTS_DIR = path.join(import.meta.dirname, '__certs__')
 
+afterEach(() => {
+  nock.cleanAll()
+})
+
 test('fetchFromRegistry', async () => {
   const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive')
@@ -137,4 +141,49 @@ test('fail if the client certificate is not provided', async () => {
     await proxyServer.stop()
   }
   expect(err?.code).toMatch(/ECONNRESET|ERR_SSL_TLSV13_ALERT_CERTIFICATE_REQUIRED/)
+})
+
+test('redirect to protocol-relative URL', async () => {
+  nock('http://registry.pnpm.io/')
+    .get('/foo')
+    .reply(302, '', { location: '//registry.other.org/foo' })
+  nock('http://registry.other.org/')
+    .get('/foo')
+    .reply(200, { ok: true })
+
+  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const res = await fetchFromRegistry(
+    'http://registry.pnpm.io/foo'
+  )
+
+  expect(await res.json()).toStrictEqual({ ok: true })
+  expect(nock.isDone()).toBeTruthy()
+})
+
+test('redirect to relative URL', async () => {
+  nock('http://registry.pnpm.io/')
+    .get('/bar/baz')
+    .reply(302, '', { location: '../foo' })
+  nock('http://registry.pnpm.io/')
+    .get('/foo')
+    .reply(200, { ok: true })
+
+  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const res = await fetchFromRegistry(
+    'http://registry.pnpm.io/bar/baz'
+  )
+
+  expect(await res.json()).toStrictEqual({ ok: true })
+  expect(nock.isDone()).toBeTruthy()
+})
+
+test('redirect without location header throws error', async () => {
+  nock('http://registry.pnpm.io/')
+    .get('/missing-location')
+    .reply(302, 'found')
+
+  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  await expect(fetchFromRegistry(
+    'http://registry.pnpm.io/missing-location'
+  )).rejects.toThrow(/Redirect location header missing/)
 })
