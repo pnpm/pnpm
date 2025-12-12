@@ -62,7 +62,7 @@ export async function lockfileToHoistedDepGraph (
   if (currentLockfile?.packages != null) {
     prevGraph = (await _lockfileToHoistedDepGraph(currentLockfile, {
       ...opts,
-      force: true,
+      // force: true,
       skipped: new Set(),
     })).graph
   } else {
