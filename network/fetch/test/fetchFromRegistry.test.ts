@@ -7,6 +7,10 @@ import fs from 'fs'
 
 const CERTS_DIR = path.join(import.meta.dirname, '__certs__')
 
+afterEach(() => {
+  nock.cleanAll()
+})
+
 test('fetchFromRegistry', async () => {
   const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive')
@@ -137,10 +141,6 @@ test('fail if the client certificate is not provided', async () => {
     await proxyServer.stop()
   }
   expect(err?.code).toMatch(/ECONNRESET|ERR_SSL_TLSV13_ALERT_CERTIFICATE_REQUIRED/)
-})
-
-afterEach(() => {
-  nock.cleanAll()
 })
 
 test('redirect to protocol-relative URL', async () => {
