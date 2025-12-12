@@ -123,6 +123,10 @@ export function createDeployFiles ({
       overrides: undefined, // the effects of the overrides should already be part of the package snapshots
       packageExtensionsChecksum: undefined, // the effects of the package extensions should already be part of the package snapshots
       pnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
+      settings: {
+        ...lockfile.settings,
+        injectWorkspacePackages: undefined, // the effects of injecting workspace packages should already be part of the lockfile
+      },
       importers: {
         ['.' as ProjectId]: targetSnapshot,
       },
