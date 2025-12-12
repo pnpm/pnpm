@@ -160,7 +160,7 @@ export async function requireHooks (
     if (fileHooks.readPackageForPublishing) {
       const fn = fileHooks.readPackageForPublishing
       const context = createReadPackageHookContext(file, prefix, 'readPackageForPublishing')
-      cookedHooks.readPackageForPublishing.push(<Pkg extends BaseManifest>(pkg: Pkg, _dir?: string) => fn(pkg, context))
+      cookedHooks.readPackageForPublishing.push(<Pkg extends BaseManifest>(pkg: Pkg, dir: string) => fn(pkg, dir, context))
     }
 
     // afterAllResolved

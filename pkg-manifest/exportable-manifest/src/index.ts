@@ -70,7 +70,7 @@ export async function createExportableManifest (
     rcOptionsTypes: {},
     workspaceDir: await findWorkspaceDir(process.cwd()),
   })
-  return (await config.hooks?.readPackageForPublishing?.[0]?.(publishManifest)) ?? publishManifest
+  return (await config.hooks?.readPackageForPublishing?.[0]?.(publishManifest, dir)) ?? publishManifest
 }
 
 export type PublishDependencyConverter = (
