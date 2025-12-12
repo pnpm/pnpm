@@ -7,13 +7,14 @@ const defaultOpts: MakePublishManifestOptions = {
   catalogs: {},
 }
 
-test('readPackageForPublishing hook', async () => {
+test('readPackageForPublishing basic hook', async () => {
   prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', `
 module.exports = {
   hooks: {
-    readPackageForPublishing: (pkg) => {
+    readPackageForPublishing: (pkg, dir, context) => {
+      context.log(dir)
       pkg.foo = 'foo'
       return pkg // return optional
     },
@@ -33,6 +34,26 @@ module.exports = {
       qar: '2',
     },
     foo: 'foo',
+  })
+})
+
+test('readPackageForPublishing hook returns new manifest', async () => {
+  prepare()
+
+  fs.writeFileSync('.pnpmfile.cjs', `
+module.exports = {
+  hooks: {
+    readPackageForPublishing: (pkg) => {
+      return { type: 'module' }
+    },
+  },
+}`, 'utf8')
+
+  expect(await createExportableManifest(process.cwd(), {
+    name: 'foo',
+    version: '1.0.0',
+  }, defaultOpts)).toStrictEqual({
+    type: 'module',
   })
 })
 
