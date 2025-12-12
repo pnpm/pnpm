@@ -5,6 +5,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils/index.js'
+import { install } from '@pnpm/plugin-commands-installation'
 
 const original = await import('@pnpm/logger')
 const warn = jest.fn()
@@ -497,4 +498,52 @@ test('deploy works when workspace packages use catalog protocol', async () => {
 
   // Make sure the is-positive cataloged dependency was actually installed.
   expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/is-positive')).toBeTruthy()
+})
+
+test('deploy does not preserve the inject workspace packages settings in the lockfile', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: true,
+    production: true,
+    lockfileOnly: true,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['dist'])
+
+  const project = assertProject(path.resolve('dist'))
+  const lockfile = project.readLockfile()
+  expect(lockfile.settings).not.toHaveProperty('injectWorkspacePackages')
 })
