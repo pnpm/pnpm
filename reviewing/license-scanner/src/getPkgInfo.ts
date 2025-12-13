@@ -173,9 +173,9 @@ async function parseLicense (
   // check if we discovered a license, if not attempt to parse the LICENSE file
   if (!license || /see license/i.test(license)) {
     const { files: pkgFileIndex } = pkg.files
-    const licenseFile = LICENSE_FILES.find((licenseFile) => licenseFile in pkgFileIndex)
+    const licenseFile = LICENSE_FILES.find((licenseFile) => pkgFileIndex instanceof Map ? pkgFileIndex.has(licenseFile) : licenseFile in pkgFileIndex)
     if (licenseFile) {
-      const licensePackageFileInfo = pkgFileIndex[licenseFile]
+      const licensePackageFileInfo = pkgFileIndex instanceof Map ? pkgFileIndex.get(licenseFile) : (pkgFileIndex as Record<string, string>)[licenseFile]
       let licenseContents: Buffer | undefined
       if (pkg.files.local) {
         licenseContents = await readFile(licensePackageFileInfo as string)
@@ -246,7 +246,7 @@ export async function readPackageIndexFile (
     )
     return {
       local: true,
-      files: localInfo.filesIndex,
+      files: localInfo.filesIndex as any,
     }
   }
 
@@ -344,13 +344,10 @@ export async function getPkgInfo (
   // Fetch the package manifest
   let packageManifestDir!: string
   if (packageFileIndexInfo.local) {
-    packageManifestDir = packageFileIndexInfo.files['package.json']
+    packageManifestDir = (packageFileIndexInfo.files instanceof Map ? packageFileIndexInfo.files.get('package.json') : packageFileIndexInfo.files['package.json']) as string
   } else {
-    const packageFileIndex = packageFileIndexInfo.files as Record<
-    string,
-    PackageFileInfo
-    >
-    const packageManifestFile = packageFileIndex['package.json']
+    const packageFileIndex = packageFileIndexInfo.files
+    const packageManifestFile = packageFileIndex.get('package.json') as PackageFileInfo
     packageManifestDir = getFilePathByModeInCafs(
       opts.storeDir,
       packageManifestFile.integrity,

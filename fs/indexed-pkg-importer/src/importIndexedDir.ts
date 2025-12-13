@@ -17,7 +17,7 @@ export type ImportFile = (src: string, dest: string) => void
 export function importIndexedDir (
   importFile: ImportFile,
   newDir: string,
-  filenames: Record<string, string>,
+  filenames: Map<string, string>,
   opts: {
     keepModulesDir?: boolean
   }
@@ -33,19 +33,19 @@ export function importIndexedDir (
   } catch (err: unknown) {
     try {
       rimraf(stage)
-    } catch {} // eslint-disable-line:no-empty
+    } catch { } // eslint-disable-line:no-empty
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
       const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
-      if (Object.keys(conflictingFileNames).length === 0) throw err
+      if (conflictingFileNames.size === 0) throw err
       filenameConflictsLogger.debug({
-        conflicts: conflictingFileNames,
+        conflicts: Object.fromEntries(conflictingFileNames),
         writingTo: newDir,
       })
       globalWarn(
         `Not all files were linked to "${path.relative(process.cwd(), newDir)}". ` +
         'Some of the files have equal names in different case, ' +
         'which is an issue on case-insensitive filesystems. ' +
-        `The conflicting file names are: ${JSON.stringify(conflictingFileNames)}`
+        `The conflicting file names are: ${JSON.stringify(Object.fromEntries(conflictingFileNames))}`
       )
       importIndexedDir(importFile, newDir, uniqueFileMap, opts)
       return
@@ -65,27 +65,27 @@ They were renamed.`)
 }
 
 interface SanitizeFilenamesResult {
-  sanitizedFilenames: Record<string, string>
+  sanitizedFilenames: Map<string, string>
   invalidFilenames: string[]
 }
 
-function sanitizeFilenames (filenames: Record<string, string>): SanitizeFilenamesResult {
-  const sanitizedFilenames: Record<string, string> = {}
+function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesResult {
+  const sanitizedFilenames = new Map<string, string>()
   const invalidFilenames: string[] = []
-  for (const [filename, src] of Object.entries(filenames)) {
+  for (const [filename, src] of filenames) {
     const sanitizedFilename = filename.split('/').map((f) => sanitizeFilename(f)).join('/')
     if (sanitizedFilename !== filename) {
       invalidFilenames.push(filename)
     }
-    sanitizedFilenames[sanitizedFilename] = src
+    sanitizedFilenames.set(sanitizedFilename, src)
   }
   return { sanitizedFilenames, invalidFilenames }
 }
 
-function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Record<string, string>): void {
+function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Map<string, string>): void {
   makeEmptyDir(newDir, { recursive: true })
   const allDirs = new Set<string>()
-  for (const f in filenames) {
+  for (const f of filenames.keys()) {
     const dir = path.dirname(f)
     if (dir === '.') continue
     allDirs.add(dir)
@@ -93,29 +93,29 @@ function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames:
   Array.from(allDirs)
     .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
     .forEach((dir) => fs.mkdirSync(path.join(newDir, dir), { recursive: true }))
-  for (const [f, src] of Object.entries(filenames)) {
+  for (const [f, src] of filenames) {
     const dest = path.join(newDir, f)
     importFile(src, dest)
   }
 }
 
 interface GetUniqueFileMapResult {
-  conflictingFileNames: Record<string, string>
-  uniqueFileMap: Record<string, string>
+  conflictingFileNames: Map<string, string>
+  uniqueFileMap: Map<string, string>
 }
 
-function getUniqueFileMap (fileMap: Record<string, string>): GetUniqueFileMapResult {
+function getUniqueFileMap (fileMap: Map<string, string>): GetUniqueFileMapResult {
   const lowercaseFiles = new Map<string, string>()
-  const conflictingFileNames: Record<string, string> = {}
-  const uniqueFileMap: Record<string, string> = {}
-  for (const filename of Object.keys(fileMap).sort()) {
+  const conflictingFileNames = new Map<string, string>()
+  const uniqueFileMap = new Map<string, string>()
+  for (const filename of Array.from(fileMap.keys()).sort()) {
     const lowercaseFilename = filename.toLowerCase()
     if (lowercaseFiles.has(lowercaseFilename)) {
-      conflictingFileNames[filename] = lowercaseFiles.get(lowercaseFilename)!
+      conflictingFileNames.set(filename, lowercaseFiles.get(lowercaseFilename)!)
       continue
     }
     lowercaseFiles.set(lowercaseFilename, filename)
-    uniqueFileMap[filename] = fileMap[filename]
+    uniqueFileMap.set(filename, fileMap.get(filename)!)
   }
   return {
     conflictingFileNames,

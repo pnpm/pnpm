@@ -15,7 +15,6 @@ import {
 } from '@pnpm/store-controller-types'
 import memoize from 'mem'
 import pathTemp from 'path-temp'
-import { map as mapValues } from 'ramda'
 
 export { type CafsLocker }
 
@@ -83,13 +82,13 @@ function getFlatMap (
   storeDir: string,
   filesResponse: PackageFilesResponse,
   targetEngine?: string
-): { filesMap: Record<string, string>, isBuilt: boolean } {
+): { filesMap: Map<string, string>, isBuilt: boolean } {
   let isBuilt!: boolean
   let filesIndex!: PackageFiles
-  if (targetEngine && ((filesResponse.sideEffects?.[targetEngine]) != null)) {
-    filesIndex = applySideEffectsDiff(filesResponse.filesIndex as PackageFiles, filesResponse.sideEffects?.[targetEngine])
+  if (targetEngine && ((filesResponse.sideEffects?.get(targetEngine)) != null)) {
+    filesIndex = applySideEffectsDiff(filesResponse.filesIndex as PackageFiles, filesResponse.sideEffects.get(targetEngine)!)
     isBuilt = true
-  } else if (!filesResponse.unprocessed) {
+  } else if (filesResponse.unprocessed !== true) {
     return {
       filesMap: filesResponse.filesIndex,
       isBuilt: false,
@@ -98,15 +97,18 @@ function getFlatMap (
     filesIndex = filesResponse.filesIndex
     isBuilt = false
   }
-  const filesMap = mapValues(({ integrity, mode }) => getFilePathByModeInCafs(storeDir, integrity, mode), filesIndex)
+  const filesMap = new Map<string, string>()
+  for (const [fileName, { integrity, mode }] of filesIndex) {
+    filesMap.set(fileName, getFilePathByModeInCafs(storeDir, integrity, mode))
+  }
   return { filesMap, isBuilt }
 }
 
 function applySideEffectsDiff (baseFiles: PackageFiles, { added, deleted }: SideEffectsDiff): PackageFiles {
-  const filesWithSideEffects: PackageFiles = { ...added }
-  for (const fileName in baseFiles) {
-    if (!deleted?.includes(fileName) && !filesWithSideEffects[fileName]) {
-      filesWithSideEffects[fileName] = baseFiles[fileName]
+  const filesWithSideEffects: PackageFiles = new Map(added)
+  for (const [fileName, fileInfo] of baseFiles) {
+    if (!deleted?.includes(fileName) && !filesWithSideEffects.has(fileName)) {
+      filesWithSideEffects.set(fileName, fileInfo)
     }
   }
   return filesWithSideEffects

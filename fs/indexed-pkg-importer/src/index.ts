@@ -134,10 +134,10 @@ function pickFileFromFilesMap (filesMap: FilesMap): string {
   // A package might not have a package.json file.
   // For instance, the Node.js package.
   // Or injected packages in a Bit workspace.
-  if (filesMap['package.json']) {
+  if (filesMap.has('package.json')) {
     return 'package.json'
   }
-  const files = Object.keys(filesMap)
+  const files = Array.from(filesMap.keys())
   if (files.length === 0) {
     throw new Error('pickFileFromFilesMap cannot pick a file from an empty FilesMap')
   }
@@ -220,7 +220,7 @@ function pkgLinkedToStore (filesMap: FilesMap, linkedPkgDir: string): boolean {
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
   }
-  const stats1 = fs.statSync(filesMap[filename])
+  const stats1 = fs.statSync(filesMap.get(filename)!)
   if (stats0.ino === stats1.ino) return true
   globalInfo(`Relinking ${linkedPkgDir} from the store`)
   return false

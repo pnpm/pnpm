@@ -382,12 +382,12 @@ test('fetchPackageToStore()', async () => {
 
   const { files, bundledManifest } = await fetchResult.fetching()
   expect(bundledManifest).toBeTruthy() // we always read the bundled manifest
-  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 
   const indexFile = readV8FileStrictSync<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
-  expect(typeof indexFile.files['package.json'].checkedAt).toBeTruthy()
+  expect(typeof indexFile.files.get('package.json')!.checkedAt).toBeTruthy()
 
   const fetchResult2 = packageRequester.fetchPackageToStore({
     fetchRawManifest: true,
@@ -470,9 +470,9 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[0]
     const { files } = await fetchResult.fetching()
 
-    ino1 = fs.statSync(files.filesIndex['package.json'] as string).ino
+    ino1 = fs.statSync(files.filesIndex.get('package.json') as string).ino
 
-    expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.resolvedFrom).toBe('remote')
   }
 
@@ -480,9 +480,9 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[1]
     const { files } = await fetchResult.fetching()
 
-    ino2 = fs.statSync(files.filesIndex['package.json'] as string).ino
+    ino2 = fs.statSync(files.filesIndex.get('package.json') as string).ino
 
-    expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.resolvedFrom).toBe('remote')
   }
 
@@ -699,7 +699,13 @@ test('refetch package to store if it has been modified', async () => {
     })
 
     const { filesIndex } = (await fetchResult.fetching()).files
-    indexJsFile = filesIndex['index.js'] as string
+    let indexJs: string | undefined
+    if (filesIndex instanceof Map) {
+      indexJs = filesIndex.get('index.js') as unknown as string
+    } else {
+      indexJs = filesIndex['index.js']
+    }
+    indexJsFile = indexJs as string
   }
 
   // We should restart the workers otherwise the locker cache will still try to read the file
