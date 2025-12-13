@@ -177,6 +177,28 @@ test('redirect to relative URL', async () => {
   expect(nock.isDone()).toBeTruthy()
 })
 
+test('redirect to relative URL when request pkg.pr.new link', async () => {
+  nock('https://pkg.pr.new/')
+    .get('/vue@14175')
+    .reply(302, '', { location: '/vuejs/core/vue@14182' })
+
+  nock('https://pkg.pr.new/')
+    .get('/vuejs/core/vue@14182')
+    .reply(302, '', { location: '/vuejs/core/vue@82a13bb6faaa9f77a06b57e69e0934b9f620f333' })
+
+  nock('https://pkg.pr.new/')
+    .get('/vuejs/core/vue@82a13bb6faaa9f77a06b57e69e0934b9f620f333')
+    .reply(200, { ok: true })
+
+  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const res = await fetchFromRegistry(
+    'https://pkg.pr.new/vue@14175'
+  )
+
+  expect(await res.json()).toStrictEqual({ ok: true })
+  expect(nock.isDone()).toBeTruthy()
+})
+
 test('redirect without location header throws error', async () => {
   nock('http://registry.pnpm.io/')
     .get('/missing-location')
