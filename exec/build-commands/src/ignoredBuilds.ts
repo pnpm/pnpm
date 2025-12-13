@@ -35,8 +35,8 @@ export async function handler (opts: IgnoredBuildsCommandOpts): Promise<string> 
     output += '  None'
   } else {
     output += `  ${automaticallyIgnoredBuilds.join('\n  ')}
-hint: To allow the execution of build scripts for a package, set "pnpm.allowBuilds" to true for that package in your "package.json", then run "pnpm rebuild".
-hint: If you don't want to build a package, set "pnpm.allowBuilds" to false for that package.`
+hint: To allow the execution of build scripts for a package, add its name to "pnpm.onlyBuiltDependencies" in your "package.json", then run "pnpm rebuild".
+hint: If you don't want to build a package, add it to the "pnpm.ignoredBuiltDependencies" list.`
   }
   output += '\n'
   if (ignoredBuiltDependencies.length) {

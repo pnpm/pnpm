@@ -103,6 +103,7 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
         break
       case false:
         settings.ignoredBuiltDependencies.push(packagePattern)
+        break
       }
     }
   }
