@@ -67,7 +67,8 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
 }
 
 export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
-  const settings: OptionsFromRootManifest = omit(['allowNonAppliedPatches'], replaceEnvInSettings(pnpmSettings))
+  const renamedKeys = ['allowNonAppliedPatches', 'allowBuilds'] as const satisfies Array<keyof PnpmSettings>
+  const settings: OptionsFromRootManifest = omit(renamedKeys, replaceEnvInSettings(pnpmSettings))
   if (settings.overrides) {
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
