@@ -60,6 +60,7 @@
     "path-name": "catalog:",
     "ramda": "catalog:",
     "read-ini-file": "catalog:",
+    "read-yaml-file": "catalog:",
     "realpath-missing": "catalog:",
     "which": "catalog:"
   },

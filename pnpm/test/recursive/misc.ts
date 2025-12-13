@@ -16,7 +16,7 @@ import {
 
 const skipOnWindows = isWindows() ? test.skip : test
 
-test('recursive installation with package-specific .npmrc', async () => {
+test('recursive installation with package-specific config.yaml', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -36,7 +36,7 @@ test('recursive installation with package-specific .npmrc', async () => {
     },
   ])
 
-  fs.writeFileSync('project-2/.npmrc', 'hoist = false', 'utf8')
+  writeYamlFile('project-2/config.yaml', { hoist: false })
 
   await execPnpm(['recursive', 'install'])
 
@@ -50,7 +50,7 @@ test('recursive installation with package-specific .npmrc', async () => {
   expect(modulesYaml2?.hoistPattern).toBeFalsy()
 })
 
-test('workspace .npmrc is always read', async () => {
+test('workspace config.yaml is always read', async () => {
   const projects = preparePackages([
     {
       location: 'workspace/project-1',
@@ -82,7 +82,7 @@ test('workspace .npmrc is always read', async () => {
     shamefullyFlatten: true,
     sharedWorkspaceLockfile: false,
   })
-  fs.writeFileSync('workspace/project-2/.npmrc', 'hoist=false', 'utf8')
+  writeYamlFile('workspace/project-2/config.yaml', { hoist: false })
 
   process.chdir('workspace/project-1')
   await execPnpm(['install', '--store-dir', storeDir, '--filter', '.'])

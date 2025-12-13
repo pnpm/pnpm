@@ -663,16 +663,8 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   ])
 
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync(
-    'is-positive/.npmrc',
-    'save-exact = true',
-    'utf8'
-  )
-  fs.writeFileSync(
-    'project-1/.npmrc',
-    'save-prefix = ~',
-    'utf8'
-  )
+  writeYamlFile('is-positive/config.yaml', { saveExact: true })
+  writeYamlFile('project-1/config.yaml', { savePrefix: '~' })
 
   await execPnpm(['recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store'])
 

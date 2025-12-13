@@ -1,5 +1,5 @@
-import fs from 'fs'
 import path from 'path'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { execPnpm } from '../utils/index.js'
@@ -35,17 +35,8 @@ test.skip('recursive update --latest should update deps with correct specs', asy
     },
   ])
 
-  fs.writeFileSync(
-    'project-2/.npmrc',
-    'save-exact = true',
-    'utf8'
-  )
-
-  fs.writeFileSync(
-    'project-3/.npmrc',
-    'save-prefix = ~',
-    'utf8'
-  )
+  writeYamlFile('project-2/config.yaml', { saveExact: true })
+  writeYamlFile('project-3/config.yaml', { savePrefix: '~' })
 
   await execPnpm(['recursive', 'update', '--latest'])
 

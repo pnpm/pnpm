@@ -1,0 +1,3 @@
+modulesDir: node_modules
+saveExact: false
+savePrefix: '^'
