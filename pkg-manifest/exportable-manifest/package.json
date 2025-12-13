@@ -32,7 +32,9 @@
   },
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/cli-utils": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
     "@pnpm/types": "workspace:*",

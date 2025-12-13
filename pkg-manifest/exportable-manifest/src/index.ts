@@ -8,6 +8,8 @@ import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig.js'
+import { getConfig } from '@pnpm/cli-utils'
+import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
@@ -29,7 +31,7 @@ export async function createExportableManifest (
   originalManifest: ProjectManifest,
   opts: MakePublishManifestOptions
 ): Promise<ProjectManifest> {
-  const publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
+  let publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }
@@ -61,6 +63,16 @@ export async function createExportableManifest (
 
   if (opts?.readmeFile) {
     publishManifest.readme ??= opts.readmeFile
+  }
+
+  const config = await getConfig({}, {
+    excludeReporter: false,
+    rcOptionsTypes: {},
+    workspaceDir: await findWorkspaceDir(process.cwd()),
+  })
+  for (const hook of config.hooks?.readPackageForPublishing ?? []) {
+    // eslint-disable-next-line no-await-in-loop
+    publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
 
   return publishManifest

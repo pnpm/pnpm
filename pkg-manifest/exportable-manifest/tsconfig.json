@@ -22,6 +22,9 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../cli/cli-utils"
+    },
+    {
       "path": "../../packages/error"
     },
     {
@@ -29,6 +32,9 @@
     },
     {
       "path": "../../resolving/jsr-specifier-parser"
+    },
+    {
+      "path": "../../workspace/find-workspace-dir"
     },
     {
       "path": "../read-project-manifest"
