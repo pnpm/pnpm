@@ -2,7 +2,7 @@ import { type Config } from '@pnpm/config'
 import renderHelp from 'render-help'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type IgnoredBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'lockfileDir'>
+export type IgnoredBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'lockfileDir' | 'ignoredBuiltDependencies'>
 
 export const commandNames = ['ignored-builds']
 
@@ -22,7 +22,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 }
 
 export async function handler (opts: IgnoredBuildsCommandOpts): Promise<string> {
-  const ignoredBuiltDependencies = opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies ?? []
+  const ignoredBuiltDependencies = opts.ignoredBuiltDependencies ?? []
   let { automaticallyIgnoredBuilds } = await getAutomaticallyIgnoredBuilds(opts)
   if (automaticallyIgnoredBuilds) {
     automaticallyIgnoredBuilds = automaticallyIgnoredBuilds
