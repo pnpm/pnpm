@@ -31,6 +31,11 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       await execGit(['clone', resolution.repo, tempLocation])
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
+    const receivedCommit = await execGit(['rev-parse', '--revs-only', 'HEAD'], { cwd: tempLocation })
+    // git-resolver supports partial / short commits without resolving them
+    if (!receivedCommit.trim().startsWith(resolution.commit)) {
+      throw new Error(`received commit ${receivedCommit.trim()} does not match expected value ${resolution.commit}`)
+    }
     let pkgDir: string
     try {
       const prepareResult = await preparePackage({
@@ -85,7 +90,8 @@ function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
 
-async function execGit (args: string[], opts?: object): Promise<void> {
+async function execGit (args: string[], opts?: object): Promise<string> {
   const fullArgs = prefixGitArgs().concat(args || [])
-  await execa('git', fullArgs, opts)
+  const { stdout } = await execa('git', fullArgs, opts)
+  return stdout
 }
