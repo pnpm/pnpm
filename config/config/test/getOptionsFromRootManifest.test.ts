@@ -174,3 +174,19 @@ test('getOptionsFromPnpmSettings() replaces env variables in settings', () => {
   } as any) as any // eslint-disable-line
   expect(options.foo).toEqual('bar')
 })
+
+test('getOptionsFromRootManifest() converts allowBuilds', () => {
+  const options = getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowBuilds: {
+        foo: true,
+        bar: false,
+        qar: 'warn',
+      },
+    },
+  })
+  expect(options).toStrictEqual({
+    onlyBuiltDependencies: ['foo'],
+    ignoredBuiltDependencies: ['bar'],
+  })
+})
