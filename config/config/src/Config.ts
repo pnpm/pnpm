@@ -185,6 +185,7 @@ export interface Config extends OptionsFromRootManifest {
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean
   onlyBuiltDependencies?: string[]
+  allowBuilds?: Record<string, boolean | string>
   dedupePeerDependents?: boolean
   patchesDir?: string
   ignoreWorkspaceCycles?: boolean

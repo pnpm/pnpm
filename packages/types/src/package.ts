@@ -153,9 +153,10 @@ export interface AuditConfig {
 
 export interface PnpmSettings {
   configDependencies?: ConfigDependencies
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
+  neverBuiltDependencies?: string[] // deprecated
+  onlyBuiltDependencies?: string[] // deprecated
+  onlyBuiltDependenciesFile?: string // deprecated
+  allowBuilds?: Record<string, boolean | string>
   ignoredBuiltDependencies?: string[]
   overrides?: Record<string, string>
   packageExtensions?: Record<string, PackageExtension>
