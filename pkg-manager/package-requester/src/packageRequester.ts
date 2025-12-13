@@ -510,8 +510,7 @@ function fetchToStore (
           bundledManifest: undefined,
         }
         if (files.unprocessed) {
-          const pkgJsonInfo = files.filesIndex.get('package.json')!
-          const { integrity, mode } = pkgJsonInfo
+          const { integrity, mode } = files.filesIndex.get('package.json')!
           const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
           return {
             files,

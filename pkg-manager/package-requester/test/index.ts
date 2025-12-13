@@ -70,7 +70,7 @@ test('request package', async () => {
   })
 
   const { files } = await pkgResponse.fetching!()
-  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 })
 
@@ -549,7 +549,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     },
   })
   const { files } = await fetchResult.fetching()
-  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 
   expect(nock.isDone()).toBeTruthy()
@@ -699,13 +699,7 @@ test('refetch package to store if it has been modified', async () => {
     })
 
     const { filesIndex } = (await fetchResult.fetching()).files
-    let indexJs: string | undefined
-    if (filesIndex instanceof Map) {
-      indexJs = filesIndex.get('index.js') as unknown as string
-    } else {
-      indexJs = filesIndex['index.js']
-    }
-    indexJsFile = indexJs as string
+    indexJsFile = filesIndex.get('index.js') as string
   }
 
   // We should restart the workers otherwise the locker cache will still try to read the file

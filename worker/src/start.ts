@@ -237,7 +237,7 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
         },
       }
     }
-    filesIndex.sideEffects = filesIndex.sideEffects ?? new Map()
+    filesIndex.sideEffects ??= new Map()
     filesIndex.sideEffects.set(sideEffectsCacheKey, calculateDiff(filesIndex.files, filesIntegrity))
     if (filesIndex.requiresBuild == null) {
       requiresBuild = pkgRequiresBuild(manifest, filesIntegrity)
@@ -283,13 +283,10 @@ interface ProcessFilesIndexResult {
 function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
   const filesIntegrity: PackageFiles = new Map()
   const filesMap = new Map<string, string>()
-  // FilesIndex is a Map type alias, but TypeScript needs explicit conversion
-  const entries = filesIndex as unknown as Map<string, { mode: number, size: number, checkedAt: number, filePath: string, integrity: unknown }>
-  for (const [k, value] of entries) {
-    const { checkedAt, filePath, integrity, mode, size } = value
+  for (const [k, { checkedAt, filePath, integrity, mode, size }] of filesIndex) {
     filesIntegrity.set(k, {
       checkedAt,
-      integrity: String(integrity), // TODO: use the raw Integrity object
+      integrity: integrity.toString(), // TODO: use the raw Integrity object
       mode,
       size,
     })

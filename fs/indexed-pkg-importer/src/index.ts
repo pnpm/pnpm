@@ -137,11 +137,10 @@ function pickFileFromFilesMap (filesMap: FilesMap): string {
   if (filesMap.has('package.json')) {
     return 'package.json'
   }
-  const files = Array.from(filesMap.keys())
-  if (files.length === 0) {
+  if (filesMap.size === 0) {
     throw new Error('pickFileFromFilesMap cannot pick a file from an empty FilesMap')
   }
-  return files[0]
+  return filesMap.keys().next().value!
 }
 
 function createCloneFunction (): CloneFunction {

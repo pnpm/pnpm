@@ -88,7 +88,7 @@ test('rebuilds dependencies', async () => {
       }),
     },
   })}`
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-postinstall.js'])
+  expect(cacheIntegrity.sideEffects!.get(sideEffectsKey)!.added!.has('generated-by-postinstall.js')).toBeTruthy()
   cacheIntegrity!.sideEffects!.get(sideEffectsKey)!.added!.delete('generated-by-postinstall.js')
 })
 
@@ -147,7 +147,7 @@ test('skipIfHasSideEffectsCache', async () => {
 
   cacheIntegrity = readV8FileSync<PackageFilesIndex>(cacheIntegrityPath)!
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'foo'])
+  expect(cacheIntegrity.sideEffects!.get(sideEffectsKey)!.added!.get('foo')).toBeTruthy()
 })
 
 test('rebuild does not fail when a linked package is present', async () => {

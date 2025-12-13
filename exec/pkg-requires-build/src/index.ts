@@ -12,6 +12,13 @@ export function pkgRequiresBuild (manifest: Partial<DependencyManifest> | undefi
 }
 
 function filesIncludeInstallScripts (filesIndex: Map<string, unknown>): boolean {
-  return filesIndex.has('binding.gyp') ||
-    Array.from(filesIndex.keys()).some((filename) => !(filename.match(/^\.hooks[\\/]/) == null)) // TODO: optimize this
+  if (filesIndex.has('binding.gyp')) {
+    return true
+  }
+  for (const filename of filesIndex.keys()) {
+    if (filename.match(/^\.hooks[\\/]/) != null) {
+      return true
+    }
+  }
+  return false
 }

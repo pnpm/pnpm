@@ -33,7 +33,7 @@ export function importIndexedDir (
   } catch (err: unknown) {
     try {
       rimraf(stage)
-    } catch { } // eslint-disable-line:no-empty
+    } catch {} // eslint-disable-line:no-empty
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
       const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
       if (conflictingFileNames.size === 0) throw err

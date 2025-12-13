@@ -85,7 +85,7 @@ function getFlatMap (
 ): { filesMap: Map<string, string>, isBuilt: boolean } {
   let isBuilt!: boolean
   let filesIndex!: PackageFiles
-  if (targetEngine && ((filesResponse.sideEffects?.get(targetEngine)) != null)) {
+  if (targetEngine && filesResponse.sideEffects?.has(targetEngine)) {
     filesIndex = applySideEffectsDiff(filesResponse.filesIndex as PackageFiles, filesResponse.sideEffects.get(targetEngine)!)
     isBuilt = true
   } else if (filesResponse.unprocessed !== true) {

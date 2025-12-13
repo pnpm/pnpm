@@ -357,12 +357,12 @@ async function _rebuild (
           let pkgFilesIndex: PackageFilesIndex | undefined
           try {
             pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
-          } catch { }
+          } catch {}
           if (pkgFilesIndex) {
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
               includeDepGraphHash: true,
             })
-            if (pkgFilesIndex.sideEffects?.get(sideEffectsCacheKey)) {
+            if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
               pkgsThatWereRebuilt.add(depPath)
               return
             }
