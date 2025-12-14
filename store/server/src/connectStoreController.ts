@@ -11,6 +11,7 @@ import {
 
 import pLimit from 'p-limit'
 import pShare from 'promise-share'
+import { omit } from 'ramda'
 import v8 from 'v8'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -95,7 +96,7 @@ async function requestPackage (
   const msgId = uuidv4()
   const packageResponseBody = await limitedFetch(`${remotePrefix}/requestPackage`, {
     msgId,
-    options,
+    options: omit(['allowBuild', 'onFetchError'], options),
     wantedDependency,
   })
   if (options.skipFetch === true) {
@@ -123,7 +124,7 @@ async function fetchPackage (
 
   const fetchResponseBody = await limitedFetch(`${remotePrefix}/fetchPackage`, {
     msgId,
-    options,
+    options: omit(['allowBuild', 'onFetchError'], options),
   }) as object & { filesIndexFile: string, inStoreLocation: string }
   const fetching = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
     msgId,
