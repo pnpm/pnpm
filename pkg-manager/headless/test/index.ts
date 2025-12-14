@@ -692,10 +692,10 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
       }),
     },
   })}`
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-postinstall.js'])
-  delete cacheIntegrity!.sideEffects![sideEffectsKey].added!['generated-by-postinstall.js']
+  expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)!.added!.has('generated-by-postinstall.js')).toBeTruthy()
+  cacheIntegrity!.sideEffects!.get(sideEffectsKey)!.added!.delete('generated-by-postinstall.js')
 
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-preinstall.js'])
+  expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)!.added!.has('generated-by-preinstall.js')).toBeTruthy()
   fs.writeFileSync(cacheIntegrityPath, v8.serialize(cacheIntegrity))
 
   prefix = f.prepare('side-effects')

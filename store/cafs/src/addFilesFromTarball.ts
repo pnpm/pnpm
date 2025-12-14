@@ -18,7 +18,7 @@ export function addFilesFromTarball (
   const ignore = _ignore ?? (() => false)
   const tarContent = isGzip(tarballBuffer) ? gunzipSync(tarballBuffer) : (Buffer.isBuffer(tarballBuffer) ? tarballBuffer : Buffer.from(tarballBuffer))
   const { files } = parseTarball(tarContent)
-  const filesIndex: FilesIndex = {}
+  const filesIndex = new Map() as FilesIndex
   let manifestBuffer: Buffer | undefined
 
   for (const [relativePath, { mode, offset, size }] of files) {
@@ -28,11 +28,11 @@ export function addFilesFromTarball (
     if (readManifest && relativePath === 'package.json') {
       manifestBuffer = fileBuffer
     }
-    filesIndex[relativePath] = {
+    filesIndex.set(relativePath, {
       mode,
       size,
       ...addBufferToCafs(fileBuffer, mode),
-    }
+    })
   }
   return {
     filesIndex,

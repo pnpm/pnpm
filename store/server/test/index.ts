@@ -72,7 +72,7 @@ test('server', async () => {
   expect(response.body.manifest!.version).toBe('1.0.0')
 
   expect(files.resolvedFrom).toBe('remote')
-  expect(files.filesIndex).toHaveProperty(['package.json'])
+  expect(files.filesIndex.has('package.json')).toBeTruthy()
 
   await server.close()
   await storeCtrl.close()
@@ -112,7 +112,7 @@ test('fetchPackage', async () => {
   expect(bundledManifest).toBeTruthy()
 
   expect(files.resolvedFrom).toBe('remote')
-  expect(files.filesIndex).toHaveProperty(['package.json'])
+  expect(files.filesIndex.has('package.json')).toBeTruthy()
 
   await server.close()
   await storeCtrl.close()
@@ -177,7 +177,7 @@ test('server upload', async () => {
   fs.writeFileSync(filesIndexFile, v8.serialize({
     name: 'fake-pkg',
     version: '1.0.0',
-    files: {},
+    files: new Map(),
   }))
 
   await storeCtrl.upload(path.join(import.meta.dirname, '__fixtures__/side-effect-fake-dir'), {
@@ -186,7 +186,7 @@ test('server upload', async () => {
   })
 
   const cacheIntegrity = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
-  expect(Object.keys(cacheIntegrity.sideEffects![fakeEngine].added!).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
+  expect(Array.from(cacheIntegrity.sideEffects!.get(fakeEngine)!.added!.keys()).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
 
   await server.close()
   await storeCtrl.close()
@@ -337,7 +337,7 @@ test('server route not found', async () => {
   const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: 'POST' })
   // Ensure error is correct
   expect(response.status).toBe(404)
-  expect((await response.json() as any).error).toBeTruthy() // eslint-disable-line
+  expect((v8.deserialize(Buffer.from(await response.arrayBuffer())) as any).error).toBeTruthy() // eslint-disable-line
 
   await server.close()
   await storeCtrlForServer.close()

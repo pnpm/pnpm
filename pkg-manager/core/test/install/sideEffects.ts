@@ -94,9 +94,13 @@ test('using side effects cache', async () => {
       }),
     },
   })}`
-  expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'added', 'generated-by-preinstall.js'])
-  expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'added', 'generated-by-postinstall.js'])
-  delete filesIndex.sideEffects![sideEffectsKey].added?.['generated-by-postinstall.js']
+  expect(filesIndex.sideEffects).toBeTruthy()
+  expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
+  expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
+  const addedFiles = filesIndex.sideEffects!.get(sideEffectsKey)!.added!
+  expect(addedFiles.get('generated-by-preinstall.js')).toBeTruthy()
+  expect(addedFiles.get('generated-by-postinstall.js')).toBeTruthy()
+  addedFiles.delete('generated-by-postinstall.js')
   fs.writeFileSync(filesIndexFile, v8.serialize(filesIndex))
 
   rimraf('node_modules')
@@ -182,12 +186,17 @@ test('a postinstall script does not modify the original sources added to the sto
 
   const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0'), '@pnpm/postinstall-modifies-source@1.0.0')
   const filesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
-  const patchedFileIntegrity = filesIndex.sideEffects?.[`${ENGINE_NAME};deps=${hashObject({
+  expect(filesIndex.sideEffects).toBeTruthy()
+  expect(filesIndex.sideEffects!.has(`${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm/postinstall-modifies-source@1.0.0:${getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0')}`,
     deps: {},
-  })}`].added?.['empty-file.txt']?.integrity
+  })}`)).toBeTruthy()
+  const patchedFileIntegrity = filesIndex.sideEffects!.get(`${ENGINE_NAME};deps=${hashObject({
+    id: `@pnpm/postinstall-modifies-source@1.0.0:${getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0')}`,
+    deps: {},
+  })}`)!.added!.get('empty-file.txt')?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
-  const originalFileIntegrity = filesIndex.files['empty-file.txt'].integrity
+  const originalFileIntegrity = filesIndex.files.get('empty-file.txt')!.integrity
   expect(originalFileIntegrity).toBeTruthy()
   // The integrity of the original file differs from the integrity of the patched file
   expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
@@ -218,8 +227,11 @@ test('a corrupted side-effects cache is ignored', async () => {
     },
   })}`
 
-  expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'added', 'generated-by-preinstall.js'])
-  const sideEffectFileStat = filesIndex.sideEffects![sideEffectsKey].added!['generated-by-preinstall.js']
+  expect(filesIndex.sideEffects).toBeTruthy()
+  expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
+  expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
+  expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added!.has('generated-by-preinstall.js')).toBeTruthy()
+  const sideEffectFileStat = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('generated-by-preinstall.js')!
   const sideEffectFile = getFilePathByModeInCafs(opts.storeDir, sideEffectFileStat.integrity, sideEffectFileStat.mode)
   expect(fs.existsSync(sideEffectFile)).toBeTruthy()
   rimraf(sideEffectFile) // we remove the side effect file to break the store

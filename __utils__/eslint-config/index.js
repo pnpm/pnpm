@@ -1,6 +1,7 @@
 import js from '@eslint/js'
 import { FlatCompat } from '@eslint/eslintrc'
 import noDupeConditions from './no-dupe-conditions.js'
+import noObjectMethodsOnMap from './no-object-methods-on-map.js'
 import jestPlugin from 'eslint-plugin-jest'
 
 const compat = new FlatCompat({
@@ -31,6 +32,7 @@ export default [
       "conditions": {
         rules: {
           'no-dupe-conditions': noDupeConditions,
+          'no-object-methods-on-map': noObjectMethodsOnMap,
         }
       },
       "jest": jestPlugin
@@ -129,6 +131,7 @@ export default [
       'jest/prefer-to-have-length': 'error',
       'jest/valid-describe-callback': 'error',
       'jest/valid-title': 'error',
+      'conditions/no-object-methods-on-map': 'error',
     },
   },
   // Separate configuration for test files

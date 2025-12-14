@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@pnpm/eslint-config": "workspace:*",
+    "@typescript-eslint/utils": "catalog:",
     "eslint-plugin-jest": "catalog:"
   }
 }

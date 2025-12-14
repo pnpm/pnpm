@@ -21,7 +21,7 @@ function pickMatchingLocalVersionOrNull (
   versions: WorkspacePackagesByVersion,
   spec: RegistryPackageSpec
 ): string | null {
-  const localVersions = Object.keys(versions)
+  const localVersions = Array.from(versions.keys())
   switch (spec.type) {
   case 'tag':
     return semver.maxSatisfying(localVersions, '*')

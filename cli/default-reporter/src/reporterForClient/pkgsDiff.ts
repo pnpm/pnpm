@@ -14,7 +14,7 @@ export interface PackageDiff {
   latest?: string
 }
 
-export interface Map<T> {
+export interface RecordByString<T> {
   [index: string]: T
 }
 
@@ -27,11 +27,11 @@ export const propertyByDependencyType = {
 } as const
 
 export interface PkgsDiff {
-  dev: Map<PackageDiff>
-  nodeModulesOnly: Map<PackageDiff>
-  optional: Map<PackageDiff>
-  peer: Map<PackageDiff>
-  prod: Map<PackageDiff>
+  dev: RecordByString<PackageDiff>
+  nodeModulesOnly: RecordByString<PackageDiff>
+  optional: RecordByString<PackageDiff>
+  peer: RecordByString<PackageDiff>
+  prod: RecordByString<PackageDiff>
 }
 
 export function getPkgsDiff (

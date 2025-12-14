@@ -11,6 +11,7 @@ import {
 
 import pLimit from 'p-limit'
 import pShare from 'promise-share'
+import v8 from 'v8'
 import { v4 as uuidv4 } from 'uuid'
 
 export interface StoreServerController extends StoreController {
@@ -53,7 +54,7 @@ export async function connectStoreController (
           opts,
         })
       },
-      clearResolutionCache: () => {},
+      clearResolutionCache: () => { },
     })
   })
 }
@@ -66,8 +67,8 @@ function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: str
       url = url.replace('http://unix:', 'unix:')
     }
     const response = await fetch(url, {
-      body: JSON.stringify(body),
-      headers: { 'Content-Type': 'application/json' },
+      body: v8.serialize(body),
+      headers: { 'Content-Type': 'application/octet-stream' },
       method: 'POST',
       retry: {
         retries: 100,
@@ -76,7 +77,8 @@ function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: str
     if (!response.ok) {
       throw await response.json()
     }
-    const json = await response.json() as any // eslint-disable-line
+    const arrayBuffer = await response.arrayBuffer()
+    const json = v8.deserialize(Buffer.from(arrayBuffer)) as any // eslint-disable-line
     if (json.error) {
       throw json.error
     }
