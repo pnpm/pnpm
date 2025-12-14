@@ -34,11 +34,30 @@ export * from './createManifestGetter.js'
 
 export type GetLatestManifestFunction = (packageName: string, rangeOrTag: string) => Promise<PackageManifest | null>
 
+interface OutdatedPackageManifest extends PackageManifest {
+  _npmUser?: {
+    name?: string
+    email?: string
+    trustedPublisher?: {
+      id: string
+      oidcConfigId: string
+    }
+  }
+  dist?: {
+    attestations?: {
+      provenance?: {
+        predicateType: string
+      }
+    }
+  }
+}
+
 export interface OutdatedPackage {
   alias: string
   belongsTo: DependenciesField
   current?: string // not defined means the package is not installed
-  latestManifest?: PackageManifest
+  currentManifest?: OutdatedPackageManifest | null
+  latestManifest?: OutdatedPackageManifest
   packageName: string
   wanted: string
   workspace?: string
@@ -60,6 +79,7 @@ export async function outdated (
     prefix: string
     registries: Registries
     wantedLockfile: LockfileObject | null
+    trustPolicy?: 'no-downgrade' | 'off'
   }
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
@@ -176,7 +196,7 @@ export async function outdated (
           }
 
           if (current !== wanted || semver.lt(current, latestManifest.version) || latestManifest.deprecated) {
-            outdated.push({
+            const outdatedPks = {
               alias,
               belongsTo: depType,
               current,
@@ -184,8 +204,11 @@ export async function outdated (
               packageName,
               wanted,
               workspace: opts.manifest.name,
-
-            })
+            } as OutdatedPackage
+            if (opts.trustPolicy === 'no-downgrade') {
+              outdatedPks.currentManifest = await opts.getLatestManifest(name, current)
+            }
+            outdated.push(outdatedPks)
           }
         })
       )
