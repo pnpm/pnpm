@@ -73,13 +73,19 @@ test('resolveFromGit() with no commit, when main branch is not master', async ()
 test('resolveFromGit() with partial commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'zoli-forks/cmd-shim#a00a83a' })
   expect(resolveResult).toStrictEqual({
-    id: 'https://codeload.github.com/zoli-forks/cmd-shim/tar.gz/a00a83a',
+    id: 'https://codeload.github.com/zoli-forks/cmd-shim/tar.gz/a00a83a1593edb6e395d3ce41f2ef70edf7e2cf5',
     normalizedBareSpecifier: 'github:zoli-forks/cmd-shim#a00a83a',
     resolution: {
-      tarball: 'https://codeload.github.com/zoli-forks/cmd-shim/tar.gz/a00a83a',
+      tarball: 'https://codeload.github.com/zoli-forks/cmd-shim/tar.gz/a00a83a1593edb6e395d3ce41f2ef70edf7e2cf5',
     },
     resolvedVia: 'git-repository',
   })
+})
+
+test('resolveFromGit() with partial commit that is a branch name', async () => {
+  await expect(
+    resolveFromGit({ bareSpecifier: 'pnpm-e2e/simple-pkg#deadbeef' })
+  ).rejects.toThrow(/resolved commit [0-9a-f]{40} from commit-ish reference deadbeef/)
 })
 
 test('resolveFromGit() with branch', async () => {

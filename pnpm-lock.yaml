@@ -7377,6 +7377,9 @@ importers:
 
   resolving/git-resolver:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
