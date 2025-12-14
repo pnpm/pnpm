@@ -72,6 +72,6 @@ jobs:
     - name: run tests (branch)
       timeout-minutes: 70
       if: github.ref_name != 'main'
-      run: pnpm run test-branch
+      run: pnpm run test-main
       env:
         PNPM_WORKERS: 3
