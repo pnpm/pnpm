@@ -527,7 +527,7 @@ function tryResolveFromWorkspacePackages (
       'WORKSPACE_PKG_NOT_FOUND',
       `In ${path.relative(process.cwd(), opts.projectDir)}: "${spec.name}@${opts.wantedDependency.bareSpecifier ?? ''}" is in the dependencies but no package named "${spec.name}" is present in the workspace`,
       {
-        hint: 'Packages found in the workspace: ' + Object.keys(workspacePackages).join(', '),
+        hint: 'Packages found in the workspace: ' + Array.from(workspacePackages.keys()).join(', '),
       }
     )
   }
