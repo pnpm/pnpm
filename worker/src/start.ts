@@ -82,6 +82,9 @@ async function handleMessage (
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
         pkgFilesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
+        if (pkgFilesIndex?.files && !(pkgFilesIndex.files instanceof Map)) {
+          pkgFilesIndex = undefined
+        }
       } catch {
         // ignoring. It is fine if the integrity file is not present. Just refetch the package
       }
