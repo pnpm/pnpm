@@ -1140,6 +1140,9 @@ importers:
       '@pnpm/jest-config':
         specifier: workspace:*
         version: 'link:'
+      pnpm:
+        specifier: 'workspace:'
+        version: link:../../pnpm
       ts-jest-resolver:
         specifier: 'catalog:'
         version: 2.0.1
