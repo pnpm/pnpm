@@ -150,7 +150,7 @@ export async function extendFilesMap ({ filesIndex, filesStats }: ExtendFilesMap
     }
   }
 
-  await Promise.all(Array.from(filesIndex).map(async ([relativePath, realPath]) => {
+  await Promise.all(Array.from(filesIndex.entries()).map(async ([relativePath, realPath]) => {
     const stats = filesStats?.[relativePath] ?? await fs.promises.stat(realPath)
     if (stats.isFile()) {
       addInodeAndAncestors(relativePath, stats.ino)

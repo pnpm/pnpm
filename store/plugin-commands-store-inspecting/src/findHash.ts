@@ -69,7 +69,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
       continue
     }
 
-    for (const [, file] of Object.entries(pkgFilesIndex.files)) {
+    for (const [, file] of pkgFilesIndex.files) {
       if (file?.integrity === hash) {
         result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 
@@ -79,9 +79,9 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
     }
 
     if (pkgFilesIndex?.sideEffects) {
-      for (const { added } of Object.values(pkgFilesIndex.sideEffects)) {
+      for (const { added } of pkgFilesIndex.sideEffects.values()) {
         if (!added) continue
-        for (const file of Object.values(added)) {
+        for (const file of added.values()) {
           if (file?.integrity === hash) {
             result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 
