@@ -5,7 +5,7 @@ import { type OutdatedWithVersionDiff } from '../src/utils.js'
 import chalk from 'chalk'
 
 test('renderLatest: outdated and deprecated', () => {
-  const diffResult = semverDiff.default('0.0.1', '1.0.0')
+  const diffResult = semverDiff('0.0.1', '1.0.0')
   const outdatedPkg: OutdatedWithVersionDiff = {
     ...diffResult,
     alias: 'foo',
@@ -27,7 +27,7 @@ test('renderLatest: outdated and deprecated', () => {
 })
 
 test('renderLatest: outdated and not deprecated', () => {
-  const diffResult = semverDiff.default('0.0.1', '1.0.0')
+  const diffResult = semverDiff('0.0.1', '1.0.0')
   const outdatedPkg: OutdatedWithVersionDiff = {
     ...diffResult,
     alias: 'foo',
