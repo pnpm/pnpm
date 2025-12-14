@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@pnpm/jest-config": "workspace:*",
+    "pnpm": "workspace:",
     "ts-jest-resolver": "catalog:"
   },
   "keywords": [
