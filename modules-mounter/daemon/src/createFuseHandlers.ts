@@ -122,7 +122,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
           return
         }
         case 'directory':
-          // eslint-disable-next-line n/no-callback-literal
+        // eslint-disable-next-line n/no-callback-literal
           cb(0, schemas.Stat.directory({
             ...STAT_DEFAULT,
             size: 1,

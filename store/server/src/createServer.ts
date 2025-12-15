@@ -103,7 +103,7 @@ export function createServer (
       case '/fetchPackage': {
         try {
           body = await bodyPromise
-            const pkgResponse = (store.fetchPackage as FetchPackageToStoreFunction)(body.options as any) // eslint-disable-line
+          const pkgResponse = (store.fetchPackage as FetchPackageToStoreFunction)(body.options as any) // eslint-disable-line
           filesPromises[body.msgId] = pkgResponse.fetching
           res.end(v8.serialize({ filesIndexFile: pkgResponse.filesIndexFile }))
         } catch (err: unknown) {

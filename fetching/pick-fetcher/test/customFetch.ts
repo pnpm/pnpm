@@ -176,7 +176,7 @@ describe('custom fetcher implementation examples', () => {
         async (_cafs, _resolution, opts) => {
           // Custom fetcher can call progress callbacks
           opts.onStart?.(100, 1)
-          ; (opts.onProgress as any)?.({ done: 50, total: 100 }) // eslint-disable-line @typescript-eslint/no-explicit-any
+          ;(opts.onProgress as any)?.({ done: 50, total: 100 }) // eslint-disable-line @typescript-eslint/no-explicit-any
 
           return {
             filesIndex: new Map(),
