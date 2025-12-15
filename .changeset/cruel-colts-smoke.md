@@ -25,9 +25,9 @@ Or this:
 packages:
   - 'packages/*'
 projectSettings:
-  match:
-    - 'project-1'
-    - 'project-2'
-  settings:
-    saveExact: true
+  - match:
+      - 'project-1'
+      - 'project-2'
+    settings:
+      saveExact: true
 ```
