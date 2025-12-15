@@ -1,4 +1,3 @@
-
 import { ESLintUtils } from '@typescript-eslint/utils'
 import ts from 'typescript'
 
