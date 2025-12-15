@@ -53,7 +53,7 @@ async function main (): Promise<void> {
     JSON.stringify(typeCheckTSConfig, undefined, 2)
   )
 
-  execa('tsc', ['--build'], {
+  execa('tsgo', ['--build'], {
     cwd: typeCheckDir,
     stdio: 'inherit',
   })

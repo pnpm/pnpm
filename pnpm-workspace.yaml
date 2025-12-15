@@ -137,6 +137,7 @@ catalog:
   '@typescript-eslint/eslint-plugin': 6.18.1
   '@typescript-eslint/parser': 6.18.1
   '@typescript-eslint/utils': 6.18.1
+  '@typescript/native-preview': ^7.0.0-dev.20251215.1
   '@yarnpkg/core': 4.2.0
   '@yarnpkg/extensions': 2.0.3
   '@yarnpkg/lockfile': ^1.1.0
@@ -348,6 +349,7 @@ minimumReleaseAgeExclude:
   - glob@11.1.0
   - jws@3.2.3
   - run-groups@4.0.0
+  - '@typescript/native-preview*'
 
 nodeVersion: 20.19.4
 

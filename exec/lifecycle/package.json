@@ -31,7 +31,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",

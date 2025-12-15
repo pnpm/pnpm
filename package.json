@@ -57,6 +57,7 @@
     "shx": "catalog:",
     "ts-jest": "catalog:",
     "ts-node": "catalog:",
+    "@typescript/native-preview": "catalog:",
     "typescript": "catalog:",
     "verdaccio": "catalog:"
   },

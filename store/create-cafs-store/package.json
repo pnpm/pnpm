@@ -39,7 +39,7 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/exec.pkg-requires-build": "workspace:*",

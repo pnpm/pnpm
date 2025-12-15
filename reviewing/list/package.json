@@ -33,7 +33,7 @@
     "pretest": "pnpm run --filter dependencies-hierarchy pretest",
     "_test": "pnpm pretest && cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/read-package-json": "workspace:*",

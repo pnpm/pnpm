@@ -30,7 +30,7 @@
     "prepublishOnly": "pnpm run compile",
     "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",

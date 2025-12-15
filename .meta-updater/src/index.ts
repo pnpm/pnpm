@@ -318,7 +318,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       scripts._test += ' --detectOpenHandles'
     }
   }
-  scripts.compile = 'tsc --build && pnpm run lint --fix'
+  scripts.compile = 'tsgo --build && pnpm run lint --fix'
   delete scripts.tsc
   let homepage: string
   let repository: string | { type: 'git', url: string, directory: 'pnpm' }
