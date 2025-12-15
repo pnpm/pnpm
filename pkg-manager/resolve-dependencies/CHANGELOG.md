@@ -1,5 +1,44 @@
 # @pnpm/resolve-dependencies
 
+## 1008.6.0
+
+### Minor Changes
+
+- 73cc635: Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic protocols in transitive dependencies.
+
+  When set to `true`, direct dependencies (those listed in your root `package.json`) may still use exotic sources, but all transitive dependencies must be resolved from a trusted source. Trusted sources include the configured registry, local file paths, workspace links, trusted GitHub repositories (node, bun, deno), and custom resolvers.
+
+  This helps to secure the dependency supply chain. Packages from trusted sources are considered safer, as they are typically subject to more reliable verification and scanning for malware and vulnerabilities.
+
+  **Exotic sources** are dependency locations that bypass the usual trusted resolution process. These protocols are specifically targeted and blocked: Git repositories (`git+ssh://...`) and direct URL links to tarballs (`https://.../package.tgz`).
+
+  Related PR: [#10265](https://github.com/pnpm/pnpm/pull/10265).
+
+- 4077539: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+
+### Patch Changes
+
+- Updated dependencies [59a81aa]
+- Updated dependencies [4077539]
+- Updated dependencies [cfec937]
+- Updated dependencies [b7d3ec6]
+  - @pnpm/types@1001.2.0
+  - @pnpm/store-controller-types@1004.4.0
+  - @pnpm/npm-resolver@1005.0.1
+  - @pnpm/config.version-policy@1000.0.4
+  - @pnpm/lockfile.preferred-versions@1000.0.28
+  - @pnpm/lockfile.pruner@1001.0.23
+  - @pnpm/lockfile.types@1002.0.7
+  - @pnpm/lockfile.utils@1003.0.9
+  - @pnpm/calc-dep-state@1002.0.14
+  - @pnpm/core-loggers@1001.0.8
+  - @pnpm/dependency-path@1001.1.8
+  - @pnpm/manifest-utils@1002.0.3
+  - @pnpm/read-package-json@1000.1.6
+  - @pnpm/resolver-base@1005.3.3
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/patching.config@1001.0.16
+
 ## 1008.5.3
 
 ### Patch Changes

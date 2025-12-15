@@ -1,5 +1,14 @@
 # @pnpm/workspace.state
 
+## 1002.0.14
+
+### Patch Changes
+
+- Updated dependencies [73cc635]
+- Updated dependencies [59a81aa]
+  - @pnpm/config@1004.8.0
+  - @pnpm/types@1001.2.0
+
 ## 1002.0.13
 
 ### Patch Changes

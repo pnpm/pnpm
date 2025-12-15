@@ -1,5 +1,12 @@
 # @pnpm/tarball-resolver
 
+## 1002.1.9
+
+### Patch Changes
+
+- 948c717: When a dependency is installed via a direct URL that redirects to another URL and is immutable, the original URL is normalized and saved to `package.json` [#10197](https://github.com/pnpm/pnpm/pull/10197).
+  - @pnpm/resolver-base@1005.3.3
+
 ## 1002.1.8
 
 ### Patch Changes

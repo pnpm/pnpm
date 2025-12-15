@@ -1,5 +1,49 @@
 # @pnpm/config
 
+## 1004.8.0
+
+### Minor Changes
+
+- 73cc635: Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic protocols in transitive dependencies.
+
+  When set to `true`, direct dependencies (those listed in your root `package.json`) may still use exotic sources, but all transitive dependencies must be resolved from a trusted source. Trusted sources include the configured registry, local file paths, workspace links, trusted GitHub repositories (node, bun, deno), and custom resolvers.
+
+  This helps to secure the dependency supply chain. Packages from trusted sources are considered safer, as they are typically subject to more reliable verification and scanning for malware and vulnerabilities.
+
+  **Exotic sources** are dependency locations that bypass the usual trusted resolution process. These protocols are specifically targeted and blocked: Git repositories (`git+ssh://...`) and direct URL links to tarballs (`https://.../package.tgz`).
+
+  Related PR: [#10265](https://github.com/pnpm/pnpm/pull/10265).
+
+- 59a81aa: Added support for `allowBuilds`, which is a new field that can be used instead of `onlyBuiltDependencies` and `ignoredBuiltDependencies`. The new `allowBuilds` field in your `pnpm-workspace.yaml` uses a map of package matchers to explicitly allow (`true`) or disallow (`false`) script execution. This allows for a single, easy-to-manage source of truth for your build permissions.
+
+  **Example Usage.** To explicitly allow all versions of `esbuild` to run scripts and prevent `core-js` from running them:
+
+  ```yaml
+  allowBuilds:
+    esbuild: true
+    core-js: false
+  ```
+
+  The example above achieves the same result as the previous configuration:
+
+  ```yaml
+  onlyBuiltDependencies:
+    - esbuild
+  ignoredBuiltDependencies:
+    - core-js
+  ```
+
+  Related PR: [#10311](https://github.com/pnpm/pnpm/pull/10311)
+
+### Patch Changes
+
+- Updated dependencies [59a81aa]
+  - @pnpm/types@1001.2.0
+  - @pnpm/pnpmfile@1002.1.8
+  - @pnpm/read-project-manifest@1001.2.3
+  - @pnpm/workspace.read-manifest@1000.2.9
+  - @pnpm/catalogs.config@1000.0.5
+
 ## 1004.7.1
 
 ### Patch Changes

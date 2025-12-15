@@ -1,5 +1,20 @@
 # @pnpm/worker
 
+## 1000.5.0
+
+### Minor Changes
+
+- b7d3ec6: Compute integrity hash for HTTP tarball dependencies when fetching, storing it in the lockfile to prevent servers from serving altered content on subsequent installs [#10287](https://github.com/pnpm/pnpm/pull/10287).
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.15
+- @pnpm/symlink-dependency@1000.0.16
+- @pnpm/store.cafs@1000.0.24
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/create-cafs-store@1000.0.26
+- @pnpm/fs.hard-link-dir@1000.0.5
+
 ## 1000.4.1
 
 ### Patch Changes

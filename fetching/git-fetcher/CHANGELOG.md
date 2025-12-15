@@ -1,5 +1,16 @@
 # @pnpm/git-fetcher
 
+## 1005.0.0
+
+### Patch Changes
+
+- 4077539: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- Updated dependencies [4077539]
+- Updated dependencies [b7d3ec6]
+  - @pnpm/prepare-package@1001.0.0
+  - @pnpm/fetcher-base@1001.1.0
+  - @pnpm/worker@1000.5.0
+
 ## 1004.0.1
 
 ### Patch Changes

@@ -1,5 +1,26 @@
 # @pnpm/build-modules
 
+## 1006.0.0
+
+### Patch Changes
+
+- Updated dependencies [73cc635]
+- Updated dependencies [59a81aa]
+- Updated dependencies [4077539]
+- Updated dependencies [b7d3ec6]
+  - @pnpm/config@1004.8.0
+  - @pnpm/types@1001.2.0
+  - @pnpm/store-controller-types@1004.4.0
+  - @pnpm/worker@1000.5.0
+  - @pnpm/lifecycle@1001.0.30
+  - @pnpm/calc-dep-state@1002.0.14
+  - @pnpm/core-loggers@1001.0.8
+  - @pnpm/dependency-path@1001.1.8
+  - @pnpm/link-bins@1000.3.3
+  - @pnpm/read-package-json@1000.1.6
+  - @pnpm/fs.hard-link-dir@1000.0.5
+  - @pnpm/patching.apply-patch@1000.0.7
+
 ## 1005.0.0
 
 ### Major Changes

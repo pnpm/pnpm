@@ -1,5 +1,12 @@
 # @pnpm/workspace.read-manifest
 
+## 1000.2.9
+
+### Patch Changes
+
+- Updated dependencies [59a81aa]
+  - @pnpm/types@1001.2.0
+
 ## 1000.2.8
 
 ### Patch Changes

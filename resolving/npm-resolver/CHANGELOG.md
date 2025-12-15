@@ -1,5 +1,19 @@
 # @pnpm/npm-resolver
 
+## 1005.0.1
+
+### Patch Changes
+
+- cfec937: Normalize the tarball URLs before saving them to the lockfile. URLs should not contain default ports, like :80 for http and :443 for https [#10273](https://github.com/pnpm/pnpm/pull/10273).
+- Updated dependencies [59a81aa]
+  - @pnpm/types@1001.2.0
+  - @pnpm/pick-registry-for-package@1000.0.15
+  - @pnpm/core-loggers@1001.0.8
+  - @pnpm/registry.types@1000.1.3
+  - @pnpm/resolver-base@1005.3.3
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/registry.pkg-metadata-filter@1000.1.5
+
 ## 1005.0.0
 
 ### Major Changes

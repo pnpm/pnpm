@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.3.0
+
+### Minor Changes
+
+- 0c00d90: Added support for `--dry-run` to the `pack` command [#10301](https://github.com/pnpm/pnpm/issues/10301).
+
+### Patch Changes
+
+- Updated dependencies [73cc635]
+- Updated dependencies [59a81aa]
+  - @pnpm/config@1004.8.0
+  - @pnpm/types@1001.2.0
+  - @pnpm/cli-utils@1001.2.15
+  - @pnpm/plugin-commands-env@1000.0.51
+  - @pnpm/pick-registry-for-package@1000.0.15
+  - @pnpm/lifecycle@1001.0.30
+  - @pnpm/client@1001.1.11
+  - @pnpm/package-bins@1000.0.15
+  - @pnpm/exportable-manifest@1000.2.3
+  - @pnpm/resolver-base@1005.3.3
+  - @pnpm/sort-packages@1000.0.15
+
 ## 1000.2.25
 
 ### Patch Changes

@@ -1,5 +1,40 @@
 # @pnpm/headless
 
+## 1009.0.0
+
+### Patch Changes
+
+- 4077539: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- Updated dependencies [59a81aa]
+- Updated dependencies [4077539]
+- Updated dependencies [b7d3ec6]
+  - @pnpm/types@1001.2.0
+  - @pnpm/package-requester@1010.0.0
+  - @pnpm/store-controller-types@1004.4.0
+  - @pnpm/worker@1000.5.0
+  - @pnpm/build-modules@1006.0.0
+  - @pnpm/builder.policy@1000.0.4
+  - @pnpm/package-is-installable@1000.0.19
+  - @pnpm/deps.graph-builder@1002.3.6
+  - @pnpm/lifecycle@1001.0.30
+  - @pnpm/symlink-dependency@1000.0.16
+  - @pnpm/lockfile.filtering@1001.0.27
+  - @pnpm/lockfile.fs@1001.1.27
+  - @pnpm/lockfile-to-pnp@1001.0.29
+  - @pnpm/lockfile.utils@1003.0.9
+  - @pnpm/calc-dep-state@1002.0.14
+  - @pnpm/core-loggers@1001.0.8
+  - @pnpm/dependency-path@1001.1.8
+  - @pnpm/hoist@1002.0.12
+  - @pnpm/link-bins@1000.3.3
+  - @pnpm/modules-cleaner@1001.0.29
+  - @pnpm/modules-yaml@1001.0.1
+  - @pnpm/real-hoist@1001.0.26
+  - @pnpm/read-package-json@1000.1.6
+  - @pnpm/read-project-manifest@1001.2.3
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.16
+  - @pnpm/patching.config@1001.0.16
+
 ## 1008.0.0
 
 ### Major Changes

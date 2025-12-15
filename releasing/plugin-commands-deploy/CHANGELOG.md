@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-deploy
 
+## 1002.0.21
+
+### Patch Changes
+
+- 1b2a289: Remove the `injectWorkspacePackages` setting from the lockfile on the `deploy` command [#10294](https://github.com/pnpm/pnpm/pull/10294).
+- Updated dependencies [73cc635]
+- Updated dependencies [59a81aa]
+  - @pnpm/config@1004.8.0
+  - @pnpm/types@1001.2.0
+  - @pnpm/plugin-commands-installation@1004.8.5
+  - @pnpm/cli-utils@1001.2.15
+  - @pnpm/directory-fetcher@1000.1.19
+  - @pnpm/lockfile.fs@1001.1.27
+  - @pnpm/lockfile.types@1002.0.7
+  - @pnpm/dependency-path@1001.1.8
+  - @pnpm/fs.indexed-pkg-importer@1000.1.20
+
 ## 1002.0.20
 
 ### Patch Changes

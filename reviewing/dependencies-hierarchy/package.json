@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/reviewing.dependencies-hierarchy",
-  "version": "1001.2.2",
+  "version": "1001.2.3",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "keywords": [
     "pnpm",

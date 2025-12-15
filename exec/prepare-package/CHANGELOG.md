@@ -1,5 +1,18 @@
 # @pnpm/prepare-package
 
+## 1001.0.0
+
+### Major Changes
+
+- 4077539: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+
+### Patch Changes
+
+- Updated dependencies [59a81aa]
+  - @pnpm/types@1001.2.0
+  - @pnpm/lifecycle@1001.0.30
+  - @pnpm/read-package-json@1000.1.6
+
 ## 1000.0.30
 
 ### Patch Changes

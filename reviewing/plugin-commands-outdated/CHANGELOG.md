@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-outdated
 
+## 1000.0.53
+
+### Patch Changes
+
+- 3b887c6: Show deprecation in table/list formats when latest version is deprecated [#8658](https://github.com/pnpm/pnpm/issues/8658).
+- Updated dependencies [73cc635]
+- Updated dependencies [59a81aa]
+  - @pnpm/config@1004.8.0
+  - @pnpm/types@1001.2.0
+  - @pnpm/cli-utils@1001.2.15
+  - @pnpm/lockfile.fs@1001.1.27
+  - @pnpm/modules-yaml@1001.0.1
+  - @pnpm/outdated@1001.1.8
+  - @pnpm/default-resolver@1002.2.19
+
 ## 1000.0.52
 
 ### Patch Changes

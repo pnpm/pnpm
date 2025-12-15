@@ -1,5 +1,18 @@
 # @pnpm/fetcher-base
 
+## 1001.1.0
+
+### Minor Changes
+
+- 4077539: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- b7d3ec6: Compute integrity hash for HTTP tarball dependencies when fetching, storing it in the lockfile to prevent servers from serving altered content on subsequent installs [#10287](https://github.com/pnpm/pnpm/pull/10287).
+
+### Patch Changes
+
+- Updated dependencies [59a81aa]
+  - @pnpm/types@1001.2.0
+  - @pnpm/resolver-base@1005.3.3
+
 ## 1001.0.6
 
 ### Patch Changes

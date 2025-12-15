@@ -1,5 +1,15 @@
 # @pnpm/local-resolver
 
+## 1002.1.9
+
+### Patch Changes
+
+- Updated dependencies [59a81aa]
+  - @pnpm/types@1001.2.0
+  - @pnpm/read-project-manifest@1001.2.3
+  - @pnpm/resolver-base@1005.3.3
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1002.1.8
 
 ### Patch Changes

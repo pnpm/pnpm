@@ -1,5 +1,66 @@
 # @pnpm/core
 
+## 1015.0.0
+
+### Minor Changes
+
+- 73cc635: Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic protocols in transitive dependencies.
+
+  When set to `true`, direct dependencies (those listed in your root `package.json`) may still use exotic sources, but all transitive dependencies must be resolved from a trusted source. Trusted sources include the configured registry, local file paths, workspace links, trusted GitHub repositories (node, bun, deno), and custom resolvers.
+
+  This helps to secure the dependency supply chain. Packages from trusted sources are considered safer, as they are typically subject to more reliable verification and scanning for malware and vulnerabilities.
+
+  **Exotic sources** are dependency locations that bypass the usual trusted resolution process. These protocols are specifically targeted and blocked: Git repositories (`git+ssh://...`) and direct URL links to tarballs (`https://.../package.tgz`).
+
+  Related PR: [#10265](https://github.com/pnpm/pnpm/pull/10265).
+
+### Patch Changes
+
+- 4077539: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- Updated dependencies [73cc635]
+- Updated dependencies [59a81aa]
+- Updated dependencies [4077539]
+- Updated dependencies [b7d3ec6]
+  - @pnpm/resolve-dependencies@1008.6.0
+  - @pnpm/types@1001.2.0
+  - @pnpm/headless@1009.0.0
+  - @pnpm/package-requester@1010.0.0
+  - @pnpm/store-controller-types@1004.4.0
+  - @pnpm/worker@1000.5.0
+  - @pnpm/build-modules@1006.0.0
+  - @pnpm/plugin-commands-rebuild@1007.0.0
+  - @pnpm/builder.policy@1000.0.4
+  - @pnpm/normalize-registries@1000.1.8
+  - @pnpm/config.version-policy@1000.0.4
+  - @pnpm/lifecycle@1001.0.30
+  - @pnpm/symlink-dependency@1000.0.16
+  - @pnpm/hooks.read-package-hook@1000.0.19
+  - @pnpm/hooks.types@1001.0.17
+  - @pnpm/lockfile.filtering@1001.0.27
+  - @pnpm/lockfile.fs@1001.1.27
+  - @pnpm/lockfile-to-pnp@1001.0.29
+  - @pnpm/lockfile.preferred-versions@1000.0.28
+  - @pnpm/lockfile.pruner@1001.0.23
+  - @pnpm/lockfile.utils@1003.0.9
+  - @pnpm/lockfile.verification@1001.2.15
+  - @pnpm/lockfile.walker@1001.0.22
+  - @pnpm/calc-dep-state@1002.0.14
+  - @pnpm/core-loggers@1001.0.8
+  - @pnpm/dependency-path@1001.1.8
+  - @pnpm/get-context@1001.1.14
+  - @pnpm/hoist@1002.0.12
+  - @pnpm/link-bins@1000.3.3
+  - @pnpm/modules-cleaner@1001.0.29
+  - @pnpm/modules-yaml@1001.0.1
+  - @pnpm/remove-bins@1000.0.19
+  - @pnpm/manifest-utils@1002.0.3
+  - @pnpm/read-project-manifest@1001.2.3
+  - @pnpm/resolver-base@1005.3.3
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/lockfile.settings-checker@1001.0.22
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.16
+  - @pnpm/patching.config@1001.0.16
+
 ## 1014.0.0
 
 ### Major Changes

@@ -1,5 +1,29 @@
 # @pnpm/package-requester
 
+## 1010.0.0
+
+### Minor Changes
+
+- 4077539: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- b7d3ec6: Compute integrity hash for HTTP tarball dependencies when fetching, storing it in the lockfile to prevent servers from serving altered content on subsequent installs [#10287](https://github.com/pnpm/pnpm/pull/10287).
+
+### Patch Changes
+
+- Updated dependencies [59a81aa]
+- Updated dependencies [4077539]
+- Updated dependencies [b7d3ec6]
+  - @pnpm/types@1001.2.0
+  - @pnpm/fetcher-base@1001.1.0
+  - @pnpm/store-controller-types@1004.4.0
+  - @pnpm/worker@1000.5.0
+  - @pnpm/package-is-installable@1000.0.19
+  - @pnpm/core-loggers@1001.0.8
+  - @pnpm/dependency-path@1001.1.8
+  - @pnpm/read-package-json@1000.1.6
+  - @pnpm/resolver-base@1005.3.3
+  - @pnpm/store.cafs@1000.0.24
+  - @pnpm/pick-fetcher@1001.0.0
+
 ## 1009.0.1
 
 ### Patch Changes

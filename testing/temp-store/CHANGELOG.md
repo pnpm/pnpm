@@ -1,5 +1,15 @@
 # @pnpm/testing.temp-store
 
+## 1000.0.30
+
+### Patch Changes
+
+- Updated dependencies [4077539]
+- Updated dependencies [b7d3ec6]
+  - @pnpm/store-controller-types@1004.4.0
+  - @pnpm/client@1001.1.11
+  - @pnpm/package-store@1006.0.0
+
 ## 1000.0.29
 
 ### Patch Changes
