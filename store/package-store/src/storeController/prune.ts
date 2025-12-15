@@ -76,7 +76,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
   await Promise.all(pkgIndexFiles.map(async (pkgIndexFilePath) => {
     const { files: pkgFilesIndex } = await readV8FileStrictAsync<PackageFilesIndex>(pkgIndexFilePath)
     // TODO: implement prune of Node.js packages, they don't have a package.json file
-    if (pkgFilesIndex['package.json'] && removedHashes.has(pkgFilesIndex['package.json'].integrity)) {
+    if (pkgFilesIndex.has('package.json') && removedHashes.has(pkgFilesIndex.get('package.json')!.integrity)) {
       await fs.unlink(pkgIndexFilePath)
       pkgCounter++
     }

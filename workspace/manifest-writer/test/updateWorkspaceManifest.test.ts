@@ -42,3 +42,20 @@ test('updateWorkspaceManifest updates an existing setting', async () => {
     overrides: { bar: '3' },
   })
 })
+
+test('updateWorkspaceManifest updates allowBuilds', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFile(filePath, { packages: ['*'], allowBuilds: { qar: 'warn' } })
+  await updateWorkspaceManifest(dir, {
+    updatedFields: { onlyBuiltDependencies: ['foo'], ignoredBuiltDependencies: ['bar'] },
+  })
+  expect(readYamlFile(filePath)).toStrictEqual({
+    packages: ['*'],
+    allowBuilds: {
+      bar: false,
+      foo: true,
+      qar: 'warn',
+    },
+  })
+})

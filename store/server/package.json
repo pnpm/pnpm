@@ -37,6 +37,7 @@
     "@pnpm/types": "workspace:*",
     "p-limit": "catalog:",
     "promise-share": "catalog:",
+    "ramda": "catalog:",
     "uuid": "catalog:"
   },
   "peerDependencies": {
@@ -50,6 +51,7 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/server": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@types/ramda": "catalog:",
     "@types/uuid": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "get-port": "catalog:",

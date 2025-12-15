@@ -1,5 +1,6 @@
 import path from 'path'
 import fs from 'fs'
+import util from 'util'
 import chalk from 'chalk'
 
 import { type Config } from '@pnpm/config'
@@ -69,19 +70,21 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
       continue
     }
 
-    for (const [, file] of Object.entries(pkgFilesIndex.files)) {
-      if (file?.integrity === hash) {
-        result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
+    if (util.types.isMap(pkgFilesIndex.files)) {
+      for (const [, file] of pkgFilesIndex.files) {
+        if (file?.integrity === hash) {
+          result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 
-        // a package is only found once.
-        continue
+          // a package is only found once.
+          continue
+        }
       }
     }
 
-    if (pkgFilesIndex?.sideEffects) {
-      for (const { added } of Object.values(pkgFilesIndex.sideEffects)) {
+    if (pkgFilesIndex?.sideEffects && util.types.isMap(pkgFilesIndex.sideEffects)) {
+      for (const { added } of pkgFilesIndex.sideEffects.values()) {
         if (!added) continue
-        for (const file of Object.values(added)) {
+        for (const file of added.values()) {
           if (file?.integrity === hash) {
             result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 

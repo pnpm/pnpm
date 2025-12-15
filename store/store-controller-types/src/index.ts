@@ -175,7 +175,7 @@ export interface PackageResponse {
   )
 }
 
-export type FilesMap = Record<string, string>
+export type FilesMap = Map<string, string>
 
 export interface ImportOptions {
   disableRelinkLocalDirDeps?: boolean
