@@ -44,6 +44,12 @@ packages:
   - '!**/test/**'
   - '!resolving/local-resolver/example-package/**'
 
+allowBuilds:
+  core-js: false
+  esbuild: true
+  fuse-native: true
+  ghooks: true
+
 auditConfig:
   ignoreCves:
     - CVE-2025-56200
@@ -325,9 +331,6 @@ gitChecks: false
 hoistPattern:
   - jest-runner
 
-ignoredBuiltDependencies:
-  - core-js
-
 managePackageManagerVersions: true
 
 minimumReleaseAge: 1440 # At least a day
@@ -343,11 +346,6 @@ minimumReleaseAgeExclude:
   - jws@3.2.3
 
 nodeVersion: 18.18.0
-
-onlyBuiltDependencies:
-  - esbuild
-  - fuse-native
-  - ghooks
 
 optimisticRepeatInstall: true
 
