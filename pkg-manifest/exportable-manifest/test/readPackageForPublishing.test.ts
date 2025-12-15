@@ -15,7 +15,7 @@ module.exports = {
   hooks: {
     readPackageForPublishing: (pkg, dir, context) => {
       context.log(dir)
-      pkg.foo = 'foo'
+      pkg.foo = 'bar'
       return pkg // return optional
     },
   },
@@ -33,7 +33,7 @@ module.exports = {
     dependencies: {
       qar: '2',
     },
-    foo: 'foo',
+    foo: 'bar',
   })
 })
 
