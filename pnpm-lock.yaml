@@ -5997,9 +5997,6 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
-      mem:
-        specifier: 'catalog:'
-        version: 10.0.0
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0

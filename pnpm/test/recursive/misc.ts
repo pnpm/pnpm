@@ -1,7 +1,9 @@
 import fs from 'fs'
 import path from 'path'
+import { type Config } from '@pnpm/config'
 import { STORE_VERSION } from '@pnpm/constants'
 import { preparePackages } from '@pnpm/prepare'
+import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { isCI } from 'ci-info'
@@ -16,7 +18,7 @@ import {
 
 const skipOnWindows = isWindows() ? test.skip : test
 
-test('recursive installation with package-specific config.yaml', async () => {
+test('recursive installation with projectSettings', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -36,7 +38,13 @@ test('recursive installation with package-specific config.yaml', async () => {
     },
   ])
 
-  writeYamlFile('project-2/config.yaml', { hoist: false })
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['*'],
+    projectSettings: {
+      'project-2': { hoist: false },
+    },
+    sharedWorkspaceLockfile: false,
+  } satisfies Partial<Config> & WorkspaceManifest)
 
   await execPnpm(['recursive', 'install'])
 
@@ -50,7 +58,7 @@ test('recursive installation with package-specific config.yaml', async () => {
   expect(modulesYaml2?.hoistPattern).toBeFalsy()
 })
 
-test('workspace config.yaml is always read', async () => {
+test('workspace projectSettings is always read', async () => {
   const projects = preparePackages([
     {
       location: 'workspace/project-1',
@@ -79,10 +87,12 @@ test('workspace config.yaml is always read', async () => {
   const storeDir = path.resolve('../store')
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['workspace/*'],
-    shamefullyFlatten: true,
+    projectSettings: {
+      'project-2': { hoist: false },
+    },
+    shamefullyHoist: true,
     sharedWorkspaceLockfile: false,
-  })
-  writeYamlFile('workspace/project-2/config.yaml', { hoist: false })
+  } satisfies Partial<Config> & WorkspaceManifest)
 
   process.chdir('workspace/project-1')
   await execPnpm(['install', '--store-dir', storeDir, '--filter', '.'])

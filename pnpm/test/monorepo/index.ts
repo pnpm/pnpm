@@ -1,7 +1,9 @@
 // cspell:ignore buildscript
 import fs from 'fs'
 import path from 'path'
+import { type Config } from '@pnpm/config'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
@@ -662,9 +664,13 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  writeYamlFile('is-positive/config.yaml', { saveExact: true })
-  writeYamlFile('project-1/config.yaml', { savePrefix: '~' })
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    projectSettings: {
+      'is-positive': { saveExact: true },
+      'project-1': { savePrefix: '~' },
+    },
+  } satisfies Partial<Config> & WorkspaceManifest)
 
   await execPnpm(['recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store'])
 
