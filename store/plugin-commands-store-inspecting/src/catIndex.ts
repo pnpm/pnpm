@@ -1,4 +1,5 @@
 import { type Config } from '@pnpm/config'
+import util from 'util'
 import { createResolver } from '@pnpm/client'
 import { type TarballResolution } from '@pnpm/lockfile.types'
 
@@ -98,7 +99,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
 }
 
 function replacer (key: string, value: unknown) {
-  if (Object.prototype.toString.call(value) === '[object Map]') {
+  if (util.types.isMap(value)) {
     const entries = Array.from((value as Map<string, unknown>).entries())
     entries.sort(([key1], [key2]) => lexCompare(key1, key2))
     return Object.fromEntries(entries)
