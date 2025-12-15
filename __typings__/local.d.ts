@@ -122,5 +122,16 @@ declare module 'ramda/src/map' {
   export = map
 }
 
+// cspell:disable-next-line
+declare module '@npmcli/metavuln-calculator' {
+  class Calculator {
+    constructor (options?: Record<string, any>)
+    get cache (): string;
+    get options (): Record<string, any>;
+    calculate (name: string, source: Record<string, any>): Promise<unknown>;
+  }
+  export = Calculator
+}
+
 declare module '@yarnpkg/core/semverUtils'
 declare module '@yarnpkg/core/structUtils'

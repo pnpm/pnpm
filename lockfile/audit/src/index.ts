@@ -4,23 +4,81 @@ import { type GetAuthHeader } from '@pnpm/fetching-types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type DependenciesField } from '@pnpm/types'
 import { lockfileToAuditTree } from './lockfileToAuditTree.js'
+import { lockfileToBulkAuditTree } from './lockfileToBulkAuditTree.js'
+import { type BulkAuditReport, type BulkProcessedAuditReport, performBulkAudit } from './bulkAudit.js'
 import { type AuditReport } from './types.js'
+
+export type { BulkProcessedAuditReport } from './bulkAudit.js'
 
 export * from './types.js'
 
-export async function audit (
-  lockfile: LockfileObject,
-  getAuthHeader: GetAuthHeader,
-  opts: {
-    agentOptions?: AgentOptions
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    lockfileDir: string
-    registry: string
-    retry?: RetryTimeoutOptions
-    timeout?: number
-    virtualStoreDirMaxLength: number
+export async function bulkAudit (lockfile: LockfileObject,
+                                 getAuthHeader: GetAuthHeader,
+                                 opts: {
+                                   agentOptions?: AgentOptions
+                                   include?: { [dependenciesField in DependenciesField]: boolean }
+                                   lockfileDir: string
+                                   registry: string
+                                   retry?: RetryTimeoutOptions
+                                   timeout?: number
+                                   virtualStoreDir: string
+                                   virtualStoreDirMaxLength: number
+                                 }): Promise<BulkProcessedAuditReport> {
+  const auditTree = await lockfileToBulkAuditTree(lockfile, { include: opts.include, lockfileDir: opts.lockfileDir })
+  const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
+  const auditUrl = `${registry}-/npm/v1/security/advisories/bulk`
+  const authHeaderValue = getAuthHeader(registry)
+
+  const packageList: Record<string, string[]> = {}
+  for (const [name, nodes] of auditTree.allNodesByPackageName) {
+    const versions = new Set<string>()
+    for (const node of nodes) {
+      versions.add(node.version)
+    }
+    packageList[name] = Array.from(versions)
   }
-): Promise<AuditReport> {
+
+  const res = await fetchWithAgent(auditUrl, {
+    agentOptions: opts.agentOptions ?? {},
+    body: JSON.stringify(packageList),
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(authHeaderValue),
+    },
+    method: 'post',
+    retry: opts.retry,
+    timeout: opts.timeout,
+  })
+
+  if (res.status === 404) {
+    throw new AuditEndpointNotExistsError(auditUrl)
+  }
+
+  if (res.status !== 200) {
+    throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
+  }
+  const result = (await res.json()) as BulkAuditReport
+
+  const report = await performBulkAudit(result, auditTree, lockfile, {
+    lockfileDir: opts.lockfileDir,
+    virtualStoreDir: opts.virtualStoreDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+  })
+
+  return report
+}
+
+export async function audit (lockfile: LockfileObject,
+                             getAuthHeader: GetAuthHeader,
+                             opts: {
+                               agentOptions?: AgentOptions
+                               include?: { [dependenciesField in DependenciesField]: boolean }
+                               lockfileDir: string
+                               registry: string
+                               retry?: RetryTimeoutOptions
+                               timeout?: number
+                               virtualStoreDirMaxLength: number
+                             }): Promise<AuditReport> {
   const auditTree = await lockfileToAuditTree(lockfile, { include: opts.include, lockfileDir: opts.lockfileDir })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/audits`

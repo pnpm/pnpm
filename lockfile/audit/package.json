@@ -32,6 +32,8 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@npmcli/metavuln-calculator": "catalog:",
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
@@ -39,9 +41,17 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
+    "@pnpm/manifest-utils": "workspace:*",
+    "@pnpm/npm-package-arg": "catalog:",
+    "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/registry.types": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "ramda": "catalog:"
+    "normalize-path": "catalog:",
+    "ramda": "catalog:",
+    "semver": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -52,7 +62,9 @@
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
     "nock": "catalog:"
   },
   "engines": {

@@ -22,6 +22,9 @@
       "path": "../../packages/constants"
     },
     {
+      "path": "../../packages/dependency-path"
+    },
+    {
       "path": "../../packages/error"
     },
     {
@@ -31,7 +34,22 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../pkg-manifest/manifest-utils"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
       "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../registry/types"
+    },
+    {
+      "path": "../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../resolving/resolver-base"
     },
     {
       "path": "../detect-dep-types"
