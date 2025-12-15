@@ -8,6 +8,7 @@ import { sortDeepKeys } from '@pnpm/object.key-sorting'
 import { getStorePath } from '@pnpm/store-path'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 
 import renderHelp from 'render-help'
 
@@ -87,11 +88,20 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
   )
   try {
     const pkgFilesIndex = await readV8FileStrictAsync<PackageFilesIndex>(filesIndexFile)
-    return JSON.stringify(sortDeepKeys(pkgFilesIndex), null, 2)
+    return JSON.stringify(sortDeepKeys(pkgFilesIndex), replacer, 2)
   } catch {
     throw new PnpmError(
       'INVALID_PACKAGE',
       'No corresponding index file found. You can use pnpm list to see if the package is installed.'
     )
   }
+}
+
+function replacer (key: string, value: unknown) {
+  if (Object.prototype.toString.call(value) === '[object Map]') {
+    const entries = Array.from((value as Map<string, unknown>).entries())
+    entries.sort(([key1], [key2]) => lexCompare(key1, key2))
+    return Object.fromEntries(entries)
+  }
+  return value
 }

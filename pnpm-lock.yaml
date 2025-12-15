@@ -8494,6 +8494,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
       chalk:
         specifier: 'catalog:'
         version: 5.6.0
