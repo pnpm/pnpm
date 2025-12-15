@@ -160,7 +160,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
   const { files: integrityFile } = readV8FileStrictSync<PackageFilesIndex>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
-  const packageFiles = Object.keys(integrityFile).sort()
+  const packageFiles = Array.from(integrityFile.keys()).sort()
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')

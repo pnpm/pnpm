@@ -8494,6 +8494,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
       chalk:
         specifier: 'catalog:'
         version: 5.6.0
@@ -8531,6 +8534,9 @@ importers:
       promise-share:
         specifier: 'catalog:'
         version: 1.0.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
       uuid:
         specifier: 'catalog:'
         version: 9.0.1
@@ -8556,6 +8562,9 @@ importers:
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
       '@types/uuid':
         specifier: 'catalog:'
         version: 8.3.4
