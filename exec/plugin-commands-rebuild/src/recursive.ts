@@ -122,7 +122,7 @@ export async function recursiveRebuild (
           }
           result[rootDir] = { status: 'running' }
           const { manifest } = opts.selectedProjectsGraph[rootDir].package
-          const localConfig = manifest.name ? projectConfigRecord[manifest.name] : {}
+          const localConfig = manifest.name ? projectConfigRecord[manifest.name] : undefined
           await rebuild(
             [
               {
