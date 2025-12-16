@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { PROJECT_CONFIG_FIELDS, type Config, type ProjectConfig, type ProjectConfigRecord } from './Config.js'
 
-export type CreateProjectConfigRecordOptions = Pick<Config, | 'projectSettings'>
+export type CreateProjectConfigRecordOptions = Pick<Config, 'projectSettings'>
 
 export function createProjectConfigRecord (opts: CreateProjectConfigRecordOptions): ProjectConfigRecord | undefined {
   return createProjectConfigRecordFromConfigSet(opts.projectSettings)
