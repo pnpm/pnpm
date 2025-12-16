@@ -302,3 +302,20 @@ test('config get npm-globalconfig', async () => {
 
   expect(getOutputString(getResult)).toBe(npmGlobalconfigPath)
 })
+
+describe('does not traverse the prototype chain (#10296)', () => {
+  test.each([
+    'constructor',
+    '__proto__',
+  ])('%s', async key => {
+    const getResult = await config.handler({
+      dir: process.cwd(),
+      cliOptions: {},
+      configDir: process.cwd(),
+      global: true,
+      rawConfig: {},
+    }, ['get', key])
+
+    expect(getOutputString(getResult)).toBe('undefined')
+  })
+})
