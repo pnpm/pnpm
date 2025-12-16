@@ -24,7 +24,7 @@ function normalizeTopLevelConfigName (configName: string | number): string {
   if (typeof configName === 'number') return configName.toString()
 
   const kebabKey = kebabCase(configName)
-  if (kebabKey in types) return kebabKey
+  if (Object.hasOwn(types, kebabKey)) return kebabKey
 
   return configName
 }

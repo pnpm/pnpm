@@ -70,7 +70,7 @@ const usefulNonRootPnpmFields: ReadonlyArray<keyof ProjectManifestPnpm> = USEFUL
 function checkNonRootProjectManifest ({ manifest, rootDir }: Project): void {
   const warn = printNonRootFieldWarning.bind(null, rootDir)
   for (const field of uselessNonRootManifestFields) {
-    if (field in manifest) {
+    if (Object.hasOwn(manifest, field)) {
       warn(field)
     }
   }

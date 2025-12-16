@@ -430,7 +430,7 @@ export async function getConfig (opts: {
     // TODO: should we throw some error or print some warning here?
     if (value === undefined) continue
 
-    if (key in cliOptions || kebabCase(key) in cliOptions) continue
+    if (Object.hasOwn(cliOptions, key) || Object.hasOwn(cliOptions, kebabCase(key))) continue
 
     // @ts-expect-error
     pnpmConfig[key] = value

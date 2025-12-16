@@ -35,11 +35,11 @@ function getRcConfig (rawConfig: Record<string, unknown>, key: string, isScopedK
     return { value }
   }
   const rcKey = isCamelCase(key) ? kebabCase(key) : key
-  if (rcKey in types) {
+  if (Object.hasOwn(types, rcKey)) {
     const value = rawConfig[rcKey]
     return { value }
   }
-  if (isStrictlyKebabCase(key)) {
+  if (isStrictlyKebabCase(key) && Object.hasOwn(rawConfig, key)) {
     const value = rawConfig[key]
     return { value }
   }
