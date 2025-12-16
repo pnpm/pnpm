@@ -39,7 +39,7 @@ function getRcConfig (rawConfig: Record<string, unknown>, key: string, isScopedK
     const value = rawConfig[rcKey]
     return { value }
   }
-  if (isStrictlyKebabCase(key) && Object.hasOwn(rawConfig, key)) {
+  if (isStrictlyKebabCase(key)) {
     const value = rawConfig[key]
     return { value }
   }
