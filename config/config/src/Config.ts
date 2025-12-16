@@ -264,5 +264,5 @@ export interface ProjectConfigMultiMatch {
 }
 
 export type ProjectConfigSet =
-  | Record<string, ProjectConfig>
+  | ProjectConfigRecord
   | ProjectConfigMultiMatch[]
