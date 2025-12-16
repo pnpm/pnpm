@@ -306,6 +306,10 @@ test('config get npm-globalconfig', async () => {
 describe('does not traverse the prototype chain (#10296)', () => {
   test.each([
     'constructor',
+    'hasOwnProperty',
+    'isPrototypeOf',
+    'toString',
+    'valueOf',
     '__proto__',
   ])('%s', async key => {
     const getResult = await config.handler({
