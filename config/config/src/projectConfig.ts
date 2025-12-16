@@ -145,12 +145,14 @@ function createProjectConfigRecordFromConfigSet (configSet: unknown): ProjectCon
       throw new ProjectSettingsArrayItemSettingsIsNotDefinedError()
     }
 
+    const projectConfig = createProjectConfigFromRaw(item.settings)
+
     for (const projectName of item.match as unknown[]) {
       if (typeof projectName !== 'string') {
         throw new ProjectSettingsMatchItemIsNotAStringError(projectName)
       }
 
-      result[projectName] = createProjectConfigFromRaw(item.settings)
+      result[projectName] = projectConfig
     }
   }
 
