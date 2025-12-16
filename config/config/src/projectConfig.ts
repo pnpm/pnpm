@@ -10,7 +10,7 @@ export function createProjectConfigRecord (opts: CreateProjectConfigRecordOption
 export class ProjectConfigIsNotAnObjectError extends PnpmError {
   readonly actualRawConfig: unknown
   constructor (actualRawConfig: unknown) {
-    super('PROJECT_CONFIG_NOT_AN_OBJECT', `Expecting local config to be an object, but received ${JSON.stringify(actualRawConfig)}`)
+    super('PROJECT_CONFIG_NOT_AN_OBJECT', `Expecting project-specific config to be an object, but received ${JSON.stringify(actualRawConfig)}`)
     this.actualRawConfig = actualRawConfig
   }
 }
