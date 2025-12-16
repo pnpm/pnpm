@@ -4,18 +4,7 @@ import { PROJECT_CONFIG_FIELDS, type Config, type ProjectConfig, type ProjectCon
 export type CreateProjectConfigRecordOptions = Pick<Config, | 'projectSettings'>
 
 export function createProjectConfigRecord (opts: CreateProjectConfigRecordOptions): ProjectConfigRecord | undefined {
-  const result = createProjectConfigRecordFromConfigSet(opts.projectSettings)
-
-  // TODO: move this post-processing to validateRawProjectConfig
-  // TODO: change validateRawProjectConfig into createProjectConfig
-  for (const projectName in result) {
-    const projectConfig = result[projectName]
-    if (projectConfig.hoist === false) {
-      projectConfig.hoistPattern = undefined
-    }
-  }
-
-  return result
+  return createProjectConfigRecordFromConfigSet(opts.projectSettings)
 }
 
 export class ProjectConfigIsNotAnObjectError extends PnpmError {
@@ -47,25 +36,38 @@ export class ProjectConfigUnsupportedFieldError extends PnpmError {
   }
 }
 
-function validateRawProjectConfig (config: unknown): asserts config is ProjectConfig {
-  if (typeof config !== 'object' || !config || Array.isArray(config)) throw new ProjectConfigIsNotAnObjectError(config)
+function createProjectConfigFromRaw (config: unknown): ProjectConfig {
+  if (typeof config !== 'object' || !config || Array.isArray(config)) {
+    throw new ProjectConfigIsNotAnObjectError(config)
+  }
+
   if ('hoist' in config && config.hoist !== undefined && typeof config.hoist !== 'boolean') {
     throw new ProjectConfigInvalidValueTypeError('boolean', config.hoist)
   }
+
   if ('modulesDir' in config && config.modulesDir !== undefined && typeof config.modulesDir !== 'string') {
     throw new ProjectConfigInvalidValueTypeError('string', config.modulesDir)
   }
+
   if ('saveExact' in config && config.saveExact !== undefined && typeof config.saveExact !== 'boolean') {
     throw new ProjectConfigInvalidValueTypeError('boolean', config.saveExact)
   }
+
   if ('savePrefix' in config && config.savePrefix !== undefined && typeof config.savePrefix !== 'string') {
     throw new ProjectConfigInvalidValueTypeError('string', config.savePrefix)
   }
+
   for (const key in config) {
     if ((config as Record<string, unknown>)[key] !== undefined && !(PROJECT_CONFIG_FIELDS as string[]).includes(key)) {
       throw new ProjectConfigUnsupportedFieldError(key)
     }
   }
+
+  const result: ProjectConfig = config
+  if (result.hoist === false) {
+    return { ...result, hoistPattern: undefined }
+  }
+  return result
 }
 
 export class ProjectSettingsIsNeitherObjectNorArrayError extends PnpmError {
@@ -121,8 +123,7 @@ function createProjectConfigRecordFromConfigSet (configSet: unknown): ProjectCon
   if (!Array.isArray(configSet)) {
     for (const projectName in configSet) {
       const projectConfig = (configSet as Record<string, unknown>)[projectName]
-      validateRawProjectConfig(projectConfig)
-      result[projectName] = projectConfig
+      result[projectName] = createProjectConfigFromRaw(projectConfig)
     }
     return result
   }
@@ -144,14 +145,12 @@ function createProjectConfigRecordFromConfigSet (configSet: unknown): ProjectCon
       throw new ProjectSettingsArrayItemSettingsIsNotDefinedError()
     }
 
-    validateRawProjectConfig(item.settings)
-
     for (const projectName of item.match as unknown[]) {
       if (typeof projectName !== 'string') {
         throw new ProjectSettingsMatchItemIsNotAStringError(projectName)
       }
 
-      result[projectName] = item.settings
+      result[projectName] = createProjectConfigFromRaw(item.settings)
     }
   }
 
