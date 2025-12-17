@@ -4,6 +4,7 @@ import semver from 'semver'
 import { parseBareSpecifier, type HostedPackageSpec } from './parseBareSpecifier.js'
 import { createGitHostedPkgId } from './createGitHostedPkgId.js'
 import { type AgentOptions } from '@pnpm/network.agent'
+import { PnpmError } from '@pnpm/error'
 
 export { createGitHostedPkgId }
 
@@ -99,16 +100,21 @@ async function getRepoRefs (repo: string, ref: string | null): Promise<Record<st
 }
 
 async function resolveRef (repo: string, ref: string, range?: string): Promise<string> {
-  if (ref.match(/^[0-9a-f]{7,40}$/) != null) {
+  const committish = ref.match(/^[0-9a-f]{7,40}$/) !== null
+  if (committish && ref.length === 40) {
     return ref
   }
-  const refs = await getRepoRefs(repo, range ? null : ref)
-  return resolveRefFromRefs(refs, repo, ref, range)
+  const refs = await getRepoRefs(repo, (range ?? committish) ? null : ref)
+  const result = resolveRefFromRefs(refs, repo, ref, committish, range)
+  if (committish && !result.startsWith(ref)) {
+    throw new PnpmError('GIT_AMBIGUOUS_REF', `resolved commit ${result} from commit-ish reference ${ref}`)
+  }
+  return result
 }
 
-function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref: string, range?: string): string {
+function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref: string, committish: boolean, range?: string): string {
   if (!range) {
-    const commitId =
+    let commitId =
       refs[ref] ||
       refs[`refs/${ref}`] ||
       refs[`refs/tags/${ref}^{}`] || // prefer annotated tags
@@ -116,7 +122,13 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
       refs[`refs/heads/${ref}`]
 
     if (!commitId) {
-      throw new Error(`Could not resolve ${ref} to a commit of ${repo}.`)
+      // check for a partial commit
+      const commits = committish ? Object.values(refs).filter((value: string) => value.startsWith(ref)) : []
+      if (commits.length === 1) {
+        commitId = commits[0]
+      } else {
+        throw new Error(`Could not resolve ${ref} to a commit of ${repo}.`)
+      }
     }
 
     return commitId
