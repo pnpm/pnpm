@@ -3198,6 +3198,9 @@ importers:
 
   fetching/git-fetcher:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
@@ -7380,6 +7383,9 @@ importers:
 
   resolving/git-resolver:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
