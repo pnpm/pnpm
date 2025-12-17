@@ -1,5 +1,6 @@
 import fs from 'fs'
 import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/exportable-manifest'
+import { requireHooks } from '@pnpm/pnpmfile'
 import { prepare } from '@pnpm/prepare'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
@@ -21,13 +22,14 @@ module.exports = {
   },
 }`, 'utf8')
 
+  const { hooks } = await requireHooks(process.cwd(), { tryLoadDefaultPnpmfile: true })
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
     dependencies: {
       qar: '2',
     },
-  }, defaultOpts)).toStrictEqual({
+  }, { ...defaultOpts, hooks })).toStrictEqual({
     name: 'foo',
     version: '1.0.0',
     dependencies: {
@@ -49,10 +51,11 @@ module.exports = {
   },
 }`, 'utf8')
 
+  const { hooks } = await requireHooks(process.cwd(), { tryLoadDefaultPnpmfile: true })
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
-  }, defaultOpts)).toStrictEqual({
+  }, { ...defaultOpts, hooks })).toStrictEqual({
     type: 'module',
   })
 })
@@ -76,15 +79,17 @@ module.exports = {
     },
   },
 }`, 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { pnpmfile: ['pnpmfile1.cjs', 'pnpmfile2.cjs'] })
+  const pnpmfiles = ['pnpmfile1.cjs', 'pnpmfile2.cjs']
+  writeYamlFile('pnpm-workspace.yaml', { pnpmfile: pnpmfiles })
 
+  const { hooks } = await requireHooks(process.cwd(), { pnpmfiles })
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
     dependencies: {
       qar: '2',
     },
-  }, defaultOpts)).toStrictEqual({
+  }, { ...defaultOpts, hooks })).toStrictEqual({
     name: 'foo',
     version: '1.0.0',
     dependencies: {
