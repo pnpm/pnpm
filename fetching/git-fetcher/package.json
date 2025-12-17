@@ -32,6 +32,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "catalog:",
     "@pnpm/prepare-package": "workspace:*",

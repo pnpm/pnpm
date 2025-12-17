@@ -213,6 +213,23 @@ test('fail when preparing a git-hosted package', async () => {
   ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-fails.git": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
 })
 
+test('fail when preparing a git-hosted package with a partial commit', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({
+    rawConfig: {},
+  }).git
+  await expect(
+    fetch(createCafsStore(storeDir),
+      {
+        commit: 'deadbeef',
+        repo: 'https://github.com/pnpm-e2e/simple-pkg.git',
+        type: 'git',
+      }, {
+        filesIndexFile: path.join(storeDir, 'index.json'),
+      })
+  ).rejects.toThrow(/received commit [0-9a-f]{40} does not match expected value deadbeef/)
+})
+
 test('do not build the package when scripts are ignored', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({ ignoreScripts: true, rawConfig: {} }).git
