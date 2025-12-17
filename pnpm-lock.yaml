@@ -6356,15 +6356,9 @@ importers:
       '@pnpm/catalogs.resolver':
         specifier: workspace:*
         version: link:../../catalogs/resolver
-      '@pnpm/cli-utils':
-        specifier: workspace:*
-        version: link:../../cli/cli-utils
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/find-workspace-dir':
-        specifier: workspace:*
-        version: link:../../workspace/find-workspace-dir
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../read-project-manifest
@@ -6390,6 +6384,9 @@ importers:
       '@pnpm/exportable-manifest':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/pnpmfile':
+        specifier: workspace:*
+        version: link:../../hooks/pnpmfile
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -7164,6 +7161,9 @@ importers:
       '@pnpm/plugin-commands-publishing':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/pnpmfile':
+        specifier: workspace:*
+        version: link:../../hooks/pnpmfile
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare

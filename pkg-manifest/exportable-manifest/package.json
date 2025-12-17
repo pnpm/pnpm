@@ -32,9 +32,7 @@
   },
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",
-    "@pnpm/cli-utils": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -45,6 +43,7 @@
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/exportable-manifest": "workspace:*",
+    "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",

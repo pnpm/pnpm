@@ -4,12 +4,11 @@ import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { type Hooks } from '@pnpm/pnpmfile'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig.js'
-import { getConfig } from '@pnpm/cli-utils'
-import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
@@ -22,6 +21,7 @@ const PREPUBLISH_SCRIPTS = [
 
 export interface MakePublishManifestOptions {
   catalogs: Catalogs
+  hooks?: Hooks
   modulesDir?: string
   readmeFile?: string
 }
@@ -65,12 +65,7 @@ export async function createExportableManifest (
     publishManifest.readme ??= opts.readmeFile
   }
 
-  const config = await getConfig({}, {
-    excludeReporter: false,
-    rcOptionsTypes: {},
-    workspaceDir: await findWorkspaceDir(process.cwd()),
-  })
-  for (const hook of config.hooks?.readPackageForPublishing ?? []) {
+  for (const hook of opts?.hooks?.readPackageForPublishing ?? []) {
     // eslint-disable-next-line no-await-in-loop
     publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
