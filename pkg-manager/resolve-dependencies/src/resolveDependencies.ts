@@ -1392,7 +1392,8 @@ async function resolveDependency (
   if (
     ctx.blockExoticSubdeps &&
     options.currentDepth > 0 &&
-    !isNonExoticDep(pkgResponse.body.resolvedVia)
+    pkgResponse.body.resolvedVia != null && // This is already coming from the lockfile, we skip the check in this case for now. Should be fixed later.
+    isExoticDep(pkgResponse.body.resolvedVia)
   ) {
     const error = new PnpmError(
       'EXOTIC_SUBDEP',
@@ -1809,6 +1810,6 @@ const NON_EXOTIC_RESOLVED_VIA = new Set([
   'workspace',
 ])
 
-function isNonExoticDep (resolvedVia: string | undefined): boolean {
-  return resolvedVia != null && NON_EXOTIC_RESOLVED_VIA.has(resolvedVia)
+function isExoticDep (resolvedVia: string): boolean {
+  return !NON_EXOTIC_RESOLVED_VIA.has(resolvedVia)
 }
