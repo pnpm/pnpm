@@ -63,7 +63,8 @@ module.exports = {
 test('readPackageForPublishing hook in multiple pnpmfiles', async () => {
   prepare()
 
-  fs.writeFileSync('pnpmfile1.cjs', `
+  const pnpmfiles = ['pnpmfile1.cjs', 'pnpmfile2.cjs']
+  fs.writeFileSync(pnpmfiles[0], `
 module.exports = {
   hooks: {
     readPackageForPublishing: (pkg) => {
@@ -71,7 +72,7 @@ module.exports = {
     },
   },
 }`, 'utf8')
-  fs.writeFileSync('pnpmfile2.cjs', `
+  fs.writeFileSync(pnpmfiles[1], `
 module.exports = {
   hooks: {
     readPackageForPublishing: (pkg) => {
@@ -79,7 +80,6 @@ module.exports = {
     },
   },
 }`, 'utf8')
-  const pnpmfiles = ['pnpmfile1.cjs', 'pnpmfile2.cjs']
   writeYamlFile('pnpm-workspace.yaml', { pnpmfile: pnpmfiles })
 
   const { hooks } = await requireHooks(process.cwd(), { pnpmfiles })
