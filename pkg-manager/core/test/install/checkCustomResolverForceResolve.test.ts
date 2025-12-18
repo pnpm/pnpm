@@ -563,4 +563,41 @@ describe('checkCustomResolverForceResolve', () => {
 
     expect(result).toBe(false)
   })
+
+  test('passes lockfile to shouldForceResolve', async () => {
+    let receivedLockfile: LockfileObject | undefined
+    const lockfile: LockfileObject = {
+      lockfileVersion: '9.0',
+      importers: {
+        '.': {
+          specifiers: { 'test-pkg': '1.0.0' },
+          dependencies: { 'test-pkg': '1.0.0' },
+        },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      packages: {
+        '/test-pkg@1.0.0': {
+          resolution: { tarball: 'http://example.com/test-pkg-1.0.0.tgz', integrity: 'sha512-test' },
+        },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    }
+    const resolver: CustomResolver = {
+      canResolve: () => true,
+      shouldForceResolve: (_wantedDep, wantedLockfile) => {
+        receivedLockfile = wantedLockfile
+        return false
+      },
+    }
+    const projects: ProjectWithManifest[] = [
+      {
+        id: '.' as ProjectId,
+        manifest: {
+          dependencies: { 'test-pkg': '1.0.0' },
+        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      },
+    ]
+
+    await checkCustomResolverForceResolve([resolver], lockfile, projects)
+
+    expect(receivedLockfile).toBe(lockfile)
+  })
 })

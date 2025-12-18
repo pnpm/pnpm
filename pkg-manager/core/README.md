@@ -146,7 +146,7 @@ interface CustomResolver {
   resolve?: (wantedDependency: WantedDependency, opts: ResolveOptions) => ResolveResult | Promise<ResolveResult>
 
   // Force resolution check
-  shouldForceResolve?: (wantedDependency: WantedDependency) => boolean | Promise<boolean>
+  shouldForceResolve?: (wantedDependency: WantedDependency, wantedLockfile: LockfileObject) => boolean | Promise<boolean>
 }
 ```
 
@@ -164,7 +164,7 @@ interface CustomFetcher {
 
 * `canResolve(wantedDependency)` - Returns `true` if this resolver can resolve the given package descriptor
 * `resolve(wantedDependency, opts)` - Resolves a package descriptor to a resolution. Should return an object with `id` and `resolution`
-* `shouldForceResolve(wantedDependency)` - Return `true` to trigger full resolution of all packages (skipping the "Lockfile is up to date" optimization)
+* `shouldForceResolve(wantedDependency, wantedLockfile)` - Return `true` to trigger full resolution of all packages (skipping the "Lockfile is up to date" optimization). The lockfile contents are provided to enable comparisons with the latest resolved version.
 
 **Custom Fetcher Methods:**
 
