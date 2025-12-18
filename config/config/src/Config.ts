@@ -258,10 +258,7 @@ export type ProjectConfig = Partial<Pick<Config, typeof PROJECT_CONFIG_FIELDS[nu
 export type ProjectConfigRecord = Record<string, ProjectConfig>
 
 /** Map multiple project names to a shared {@link ProjectConfig} */
-export interface ProjectConfigMultiMatch {
-  match: string[]
-  settings: ProjectConfig
-}
+export type ProjectConfigMultiMatch = { match: string[] } & ProjectConfig
 
 export type ProjectConfigSet =
   | ProjectConfigRecord

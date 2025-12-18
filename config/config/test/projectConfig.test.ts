@@ -1,3 +1,4 @@
+import { omit } from 'ramda'
 import {
   type Config,
   type ProjectConfig,
@@ -246,41 +247,39 @@ describe('record', () => {
 })
 
 describe('array', () => {
+  type ProjectConfigWithExtraFields = Pick<ProjectConfigMultiMatch, 'match'> & Partial<Config>
+
   it('returns an empty record for an empty array', () => {
     expect(createProjectConfigRecord({ projectConfigs: [] })).toStrictEqual({})
   })
 
   it('returns a map of project-specific settings for a non-empty array', () => {
+    const withoutMatch: (withMatch: ProjectConfigMultiMatch) => ProjectConfig = omit(['match'])
+
     const projectConfigs = [
       {
         match: ['project-1'],
-        settings: {
-          modulesDir: 'foo',
-        },
+        modulesDir: 'foo',
       },
       {
         match: ['project-2', 'project-3'],
-        settings: {
-          saveExact: true,
-        },
+        saveExact: true,
       },
       {
         match: ['project-4', 'project-5', 'project-6'],
-        settings: {
-          savePrefix: '~',
-        },
+        savePrefix: '~',
       },
     ] as const satisfies ProjectConfigMultiMatch[]
 
     const record: ProjectConfigRecord | undefined = createProjectConfigRecord({ projectConfigs })
 
     expect(record).toStrictEqual({
-      'project-1': projectConfigs[0].settings,
-      'project-2': projectConfigs[1].settings,
-      'project-3': projectConfigs[1].settings,
-      'project-4': projectConfigs[2].settings,
-      'project-5': projectConfigs[2].settings,
-      'project-6': projectConfigs[2].settings,
+      'project-1': withoutMatch(projectConfigs[0]),
+      'project-2': withoutMatch(projectConfigs[1]),
+      'project-3': withoutMatch(projectConfigs[1]),
+      'project-4': withoutMatch(projectConfigs[2]),
+      'project-5': withoutMatch(projectConfigs[2]),
+      'project-6': withoutMatch(projectConfigs[2]),
     } as ProjectConfigRecord)
 
     expect(createProjectConfigRecord({ projectConfigs: record })).toStrictEqual(record)
@@ -290,7 +289,7 @@ describe('array', () => {
     expect(createProjectConfigRecord({
       projectConfigs: [{
         match: ['project-1'],
-        settings: { hoist: false },
+        hoist: false,
       }],
     })).toStrictEqual({
       'project-1': {
@@ -332,21 +331,9 @@ describe('array', () => {
 
   it('errors on undefined match', () => {
     expect(() => createProjectConfigRecord({
-      projectConfigs: [{
-        settings: {},
-      } as ProjectConfigMultiMatch],
+      projectConfigs: [{} as ProjectConfigMultiMatch],
     })).toThrow(expect.objectContaining({
       code: 'ERR_PNPM_PROJECT_CONFIGS_ARRAY_ITEM_MATCH_IS_NOT_DEFINED',
-    }))
-  })
-
-  it('errors on undefined settings', () => {
-    expect(() => createProjectConfigRecord({
-      projectConfigs: [{
-        match: [] as string[],
-      } as ProjectConfigMultiMatch],
-    })).toThrow(expect.objectContaining({
-      code: 'ERR_PNPM_PROJECT_CONFIGS_ARRAY_ITEM_SETTINGS_IS_NOT_DEFINED',
     }))
   })
 
@@ -354,7 +341,6 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: 0 as unknown as string[],
-        settings: {},
       }],
     })).toThrow(expect.objectContaining({
       match: 0,
@@ -364,7 +350,6 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: 'some string' as unknown as string[],
-        settings: {},
       }],
     })).toThrow(expect.objectContaining({
       match: 'some string',
@@ -374,7 +359,6 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: true as unknown as string[],
-        settings: {},
       }],
     })).toThrow(expect.objectContaining({
       match: true,
@@ -384,7 +368,6 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: undefined as unknown as string[],
-        settings: {},
       }],
     })).toThrow(expect.objectContaining({
       match: undefined,
@@ -394,7 +377,6 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: null as unknown as string[],
-        settings: {},
       }],
     })).toThrow(expect.objectContaining({
       match: null,
@@ -406,7 +388,6 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: [0 as unknown as string],
-        settings: {},
       }],
     })).toThrow(expect.objectContaining({
       matchItem: 0,
@@ -416,7 +397,6 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: [null as unknown as string],
-        settings: {},
       }],
     })).toThrow(expect.objectContaining({
       matchItem: null,
@@ -426,7 +406,6 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: [{} as unknown as string],
-        settings: {},
       }],
     })).toThrow(expect.objectContaining({
       matchItem: {},
@@ -434,23 +413,11 @@ describe('array', () => {
     }))
   })
 
-  it('errors on invalid project config', () => {
-    expect(() => createProjectConfigRecord({
-      projectConfigs: [{
-        match: [],
-        settings: 0 as unknown as ProjectConfig,
-      }],
-    })).toThrow(expect.objectContaining({
-      actualRawConfig: 0,
-      code: 'ERR_PNPM_PROJECT_CONFIG_NOT_AN_OBJECT',
-    }))
-  })
-
   it('errors on invalid hoist', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: ['project-1'],
-        settings: { hoist: 'invalid' as unknown as boolean },
+        hoist: 'invalid' as unknown as boolean,
       }],
     })).toThrow(expect.objectContaining({
       expectedType: 'boolean',
@@ -461,7 +428,7 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: ['project-1'],
-        settings: { hoist: 0 as unknown as boolean },
+        hoist: 0 as unknown as boolean,
       }],
     })).toThrow(expect.objectContaining({
       expectedType: 'boolean',
@@ -474,7 +441,7 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: ['project-1'],
-        settings: { modulesDir: 0 as unknown as string },
+        modulesDir: 0 as unknown as string,
       }],
     })).toThrow(expect.objectContaining({
       expectedType: 'string',
@@ -485,7 +452,7 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: ['project-1'],
-        settings: { modulesDir: true as unknown as string },
+        modulesDir: true as unknown as string,
       }],
     })).toThrow(expect.objectContaining({
       expectedType: 'string',
@@ -498,7 +465,7 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: ['project-1'],
-        settings: { saveExact: 'invalid' as unknown as boolean },
+        saveExact: 'invalid' as unknown as boolean,
       }],
     })).toThrow(expect.objectContaining({
       expectedType: 'boolean',
@@ -509,7 +476,7 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: ['project-1'],
-        settings: { saveExact: 0 as unknown as boolean },
+        saveExact: 0 as unknown as boolean,
       }],
     })).toThrow(expect.objectContaining({
       expectedType: 'boolean',
@@ -522,7 +489,7 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: ['project-1'],
-        settings: { savePrefix: 0 as unknown as string },
+        savePrefix: 0 as unknown as string,
       }],
     })).toThrow(expect.objectContaining({
       expectedType: 'string',
@@ -533,7 +500,7 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: ['project-1'],
-        settings: { savePrefix: false as unknown as string },
+        savePrefix: false as unknown as string,
       }],
     })).toThrow(expect.objectContaining({
       expectedType: 'string',
@@ -546,10 +513,8 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: ['project-1'],
-        settings: {
-          ignoreScripts: true,
-        } as Partial<Config>,
-      }],
+        ignoreScripts: true,
+      } as ProjectConfigWithExtraFields],
     })).toThrow(expect.objectContaining({
       field: 'ignoreScripts',
       code: 'ERR_PNPM_PROJECT_CONFIG_UNSUPPORTED_FIELD',
@@ -558,9 +523,7 @@ describe('array', () => {
     expect(() => createProjectConfigRecord({
       projectConfigs: [{
         match: ['project-1'],
-        settings: {
-          hoistPattern: ['*'],
-        } as Partial<Config>,
+        hoistPattern: ['*'],
       }],
     })).toThrow(expect.objectContaining({
       field: 'hoistPattern',
@@ -572,11 +535,9 @@ describe('array', () => {
     expect(createProjectConfigRecord({
       projectConfigs: [{
         match: ['project-1'],
-        settings: {
-          ignoreScripts: undefined,
-          hoistPattern: undefined,
-        } as Partial<Config>,
-      }],
+        ignoreScripts: undefined,
+        hoistPattern: undefined,
+      } as ProjectConfigWithExtraFields],
     })).toStrictEqual({
       'project-1': {
         ignoreScripts: undefined,

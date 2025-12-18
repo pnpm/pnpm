@@ -58,7 +58,6 @@ export {
   ProjectSettingsArrayItemIsNotAnObjectError,
   ProjectSettingsArrayItemMatchIsNotAnArrayError,
   ProjectSettingsArrayItemMatchIsNotDefinedError,
-  ProjectSettingsArrayItemSettingsIsNotDefinedError,
   ProjectSettingsIsNeitherObjectNorArrayError,
   ProjectSettingsMatchItemIsNotAStringError,
   type CreateProjectConfigRecordOptions,

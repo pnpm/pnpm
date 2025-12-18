@@ -1,3 +1,4 @@
+import { omit } from 'ramda'
 import { PnpmError } from '@pnpm/error'
 import { PROJECT_CONFIG_FIELDS, type Config, type ProjectConfig, type ProjectConfigRecord } from './Config.js'
 
@@ -100,12 +101,6 @@ export class ProjectSettingsArrayItemMatchIsNotAnArrayError extends PnpmError {
   }
 }
 
-export class ProjectSettingsArrayItemSettingsIsNotDefinedError extends PnpmError {
-  constructor () {
-    super('PROJECT_CONFIGS_ARRAY_ITEM_SETTINGS_IS_NOT_DEFINED', 'A projectConfigs settings is not defined')
-  }
-}
-
 export class ProjectSettingsMatchItemIsNotAStringError extends PnpmError {
   readonly matchItem: unknown
   constructor (matchItem: unknown) {
@@ -113,6 +108,8 @@ export class ProjectSettingsMatchItemIsNotAStringError extends PnpmError {
     this.matchItem = matchItem
   }
 }
+
+const withoutMatch = omit(['match'])
 
 function createProjectConfigRecordFromConfigSet (configSet: unknown): ProjectConfigRecord | undefined {
   if (configSet == null) return undefined
@@ -141,11 +138,7 @@ function createProjectConfigRecordFromConfigSet (configSet: unknown): ProjectCon
       throw new ProjectSettingsArrayItemMatchIsNotAnArrayError(item.match)
     }
 
-    if (!('settings' in item)) {
-      throw new ProjectSettingsArrayItemSettingsIsNotDefinedError()
-    }
-
-    const projectConfig = createProjectConfigFromRaw(item.settings)
+    const projectConfig = createProjectConfigFromRaw(withoutMatch(item))
 
     for (const projectName of item.match as unknown[]) {
       if (typeof projectName !== 'string') {
