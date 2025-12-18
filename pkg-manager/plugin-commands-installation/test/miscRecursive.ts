@@ -691,7 +691,7 @@ test('recursive install in a monorepo with different modules directories specifi
     workspaceDir: process.cwd(),
     projectConfigs: [{
       match: ['project-1', 'project-2'],
-      settings: { modulesDir: 'different_node_modules' },
+      modulesDir: 'different_node_modules',
     }],
   })
 
