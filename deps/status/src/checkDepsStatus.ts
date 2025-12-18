@@ -36,6 +36,7 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { type WorkspaceState, type WorkspaceStateSettings, loadWorkspaceState, updateWorkspaceState } from '@pnpm/workspace.state'
 import { assertLockfilesEqual } from './assertLockfilesEqual.js'
+import { checkCustomResolverForceResolve } from './checkCustomResolverForceResolve.js'
 import { safeStat, safeStatSync } from './safeStat.js'
 import { statManifestFile } from './statManifestFile.js'
 
@@ -220,6 +221,18 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
     if (modifiedProjects.length === 0) {
       logger.debug({ msg: 'No manifest files were modified since the last validation. Exiting check.' })
+      // Check if any custom resolver wants to force re-resolution
+      const customResolvers = opts.hooks?.customResolvers
+      if (customResolvers?.length) {
+        const wantedLockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: true })
+        if (wantedLockfile) {
+          const manifests = allProjects.map(p => p.manifest)
+          const forceResolve = await checkCustomResolverForceResolve(customResolvers, wantedLockfile, manifests)
+          if (forceResolve) {
+            return { upToDate: false, issue: 'Custom resolver requires re-resolution', workspaceState }
+          }
+        }
+      }
       return { upToDate: true, workspaceState }
     }
 
@@ -329,6 +342,19 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       filteredInstall: workspaceState.filteredInstall,
     })
 
+    // Check if any custom resolver wants to force re-resolution
+    const customResolvers = opts.hooks?.customResolvers
+    if (customResolvers?.length) {
+      const wantedLockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: true })
+      if (wantedLockfile) {
+        const manifests = allProjects.map(p => p.manifest)
+        const forceResolve = await checkCustomResolverForceResolve(customResolvers, wantedLockfile, manifests)
+        if (forceResolve) {
+          return { upToDate: false, issue: 'Custom resolver requires re-resolution', workspaceState }
+        }
+      }
+    }
+
     return { upToDate: true, workspaceState }
   }
 
@@ -423,6 +449,16 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         throw new PnpmError('RUN_CHECK_DEPS_NO_DEPS', 'The lockfile requires dependencies but none were installed', {
           hint: 'Run `pnpm install` to install dependencies',
         })
+      }
+    }
+
+    // Check if any custom resolver wants to force re-resolution
+    const customResolvers = opts.hooks?.customResolvers
+    if (customResolvers?.length) {
+      const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir)
+      const forceResolve = await checkCustomResolverForceResolve(customResolvers, wantedLockfile, [rootProjectManifest])
+      if (forceResolve) {
+        return { upToDate: false, issue: 'Custom resolver requires re-resolution', workspaceState }
       }
     }
 

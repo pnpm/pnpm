@@ -22,6 +22,9 @@
       "path": "../../crypto/object-hasher"
     },
     {
+      "path": "../../hooks/types"
+    },
+    {
       "path": "../../lockfile/fs"
     },
     {

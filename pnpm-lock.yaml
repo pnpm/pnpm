@@ -2235,6 +2235,9 @@ importers:
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: link:../../hooks/types
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
