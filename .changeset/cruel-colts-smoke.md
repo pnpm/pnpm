@@ -25,9 +25,7 @@ Or this:
 packages:
   - 'packages/*'
 projectConfigs:
-  - match:
-      - 'project-1'
-      - 'project-2'
-    settings:
-      saveExact: true
+  - match: ['project-1', 'project-2']
+    modulesDir: 'node_modules'
+    saveExact: true
 ```
