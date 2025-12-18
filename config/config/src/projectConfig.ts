@@ -71,7 +71,7 @@ function createProjectConfigFromRaw (config: unknown): ProjectConfig {
   return result
 }
 
-export class ProjectSettingsIsNeitherObjectNorArrayError extends PnpmError {
+export class ProjectConfigsIsNeitherObjectNorArrayError extends PnpmError {
   readonly configSet: unknown
   constructor (configSet: unknown) {
     super('PROJECT_CONFIGS_IS_NEITHER_OBJECT_NOR_ARRAY', `Expecting projectConfigs to be either an object or an array but received ${JSON.stringify(configSet)}`)
@@ -79,7 +79,7 @@ export class ProjectSettingsIsNeitherObjectNorArrayError extends PnpmError {
   }
 }
 
-export class ProjectSettingsArrayItemIsNotAnObjectError extends PnpmError {
+export class ProjectConfigsArrayItemIsNotAnObjectError extends PnpmError {
   readonly item: unknown
   constructor (item: unknown) {
     super('PROJECT_CONFIGS_ARRAY_ITEM_IS_NOT_AN_OBJECT', `Expecting a projectConfigs item to be an object but received ${JSON.stringify(item)}`)
@@ -87,13 +87,13 @@ export class ProjectSettingsArrayItemIsNotAnObjectError extends PnpmError {
   }
 }
 
-export class ProjectSettingsArrayItemMatchIsNotDefinedError extends PnpmError {
+export class ProjectConfigsArrayItemMatchIsNotDefinedError extends PnpmError {
   constructor () {
     super('PROJECT_CONFIGS_ARRAY_ITEM_MATCH_IS_NOT_DEFINED', 'A projectConfigs match is not defined')
   }
 }
 
-export class ProjectSettingsArrayItemMatchIsNotAnArrayError extends PnpmError {
+export class ProjectConfigsArrayItemMatchIsNotAnArrayError extends PnpmError {
   readonly match: unknown
   constructor (match: unknown) {
     super('PROJECT_CONFIGS_ARRAY_ITEM_MATCH_IS_NOT_AN_ARRAY', `Expecting a projectConfigs match to be an array but received ${JSON.stringify(match)}`)
@@ -101,7 +101,7 @@ export class ProjectSettingsArrayItemMatchIsNotAnArrayError extends PnpmError {
   }
 }
 
-export class ProjectSettingsMatchItemIsNotAStringError extends PnpmError {
+export class ProjectConfigsMatchItemIsNotAStringError extends PnpmError {
   readonly matchItem: unknown
   constructor (matchItem: unknown) {
     super('PROJECT_CONFIGS_MATCH_ITEM_IS_NOT_A_STRING', `Expecting a match item to be a string but received ${JSON.stringify(matchItem)}`)
@@ -113,7 +113,7 @@ const withoutMatch = omit(['match'])
 
 function createProjectConfigRecordFromConfigSet (configSet: unknown): ProjectConfigRecord | undefined {
   if (configSet == null) return undefined
-  if (typeof configSet !== 'object') throw new ProjectSettingsIsNeitherObjectNorArrayError(configSet)
+  if (typeof configSet !== 'object') throw new ProjectConfigsIsNeitherObjectNorArrayError(configSet)
 
   const result: ProjectConfigRecord = {}
 
@@ -127,22 +127,22 @@ function createProjectConfigRecordFromConfigSet (configSet: unknown): ProjectCon
 
   for (const item of configSet as unknown[]) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) {
-      throw new ProjectSettingsArrayItemIsNotAnObjectError(item)
+      throw new ProjectConfigsArrayItemIsNotAnObjectError(item)
     }
 
     if (!('match' in item)) {
-      throw new ProjectSettingsArrayItemMatchIsNotDefinedError()
+      throw new ProjectConfigsArrayItemMatchIsNotDefinedError()
     }
 
     if (typeof item.match !== 'object' || !Array.isArray(item.match)) {
-      throw new ProjectSettingsArrayItemMatchIsNotAnArrayError(item.match)
+      throw new ProjectConfigsArrayItemMatchIsNotAnArrayError(item.match)
     }
 
     const projectConfig = createProjectConfigFromRaw(withoutMatch(item))
 
     for (const projectName of item.match as unknown[]) {
       if (typeof projectName !== 'string') {
-        throw new ProjectSettingsMatchItemIsNotAStringError(projectName)
+        throw new ProjectConfigsMatchItemIsNotAStringError(projectName)
       }
 
       result[projectName] = projectConfig
