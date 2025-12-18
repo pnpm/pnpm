@@ -18,7 +18,7 @@ import {
 
 const skipOnWindows = isWindows() ? test.skip : test
 
-test('recursive installation with projectSettings', async () => {
+test('recursive installation with projectConfigs', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -40,7 +40,7 @@ test('recursive installation with projectSettings', async () => {
 
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['*'],
-    projectSettings: {
+    projectConfigs: {
       'project-2': { hoist: false },
     },
     sharedWorkspaceLockfile: false,
@@ -58,7 +58,7 @@ test('recursive installation with projectSettings', async () => {
   expect(modulesYaml2?.hoistPattern).toBeFalsy()
 })
 
-test('workspace projectSettings is always read', async () => {
+test('workspace projectConfigs is always read', async () => {
   const projects = preparePackages([
     {
       location: 'workspace/project-1',
@@ -87,7 +87,7 @@ test('workspace projectSettings is always read', async () => {
   const storeDir = path.resolve('../store')
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['workspace/*'],
-    projectSettings: {
+    projectConfigs: {
       'project-2': { hoist: false },
     },
     shamefullyHoist: true,

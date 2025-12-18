@@ -666,7 +666,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
 
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
-    projectSettings: {
+    projectConfigs: {
       'is-positive': { saveExact: true },
       'project-1': { savePrefix: '~' },
     },

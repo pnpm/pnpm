@@ -236,7 +236,7 @@ export interface Config extends OptionsFromRootManifest {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
 
-  projectSettings?: ProjectConfigSet
+  projectConfigs?: ProjectConfigSet
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

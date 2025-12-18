@@ -621,7 +621,7 @@ test('recursive install on workspace with custom lockfile-dir', async () => {
   expect(Object.keys(lockfile.importers!)).toStrictEqual(['../project-1', '../project-2'])
 })
 
-test('recursive install in a monorepo with different modules directories specified by projectSettings record', async () => {
+test('recursive install in a monorepo with different modules directories specified by projectConfigs record', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -650,7 +650,7 @@ test('recursive install in a monorepo with different modules directories specifi
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-    projectSettings: {
+    projectConfigs: {
       'project-1': { modulesDir: 'modules_1' },
       'project-2': { modulesDir: 'modules_2' },
     },
@@ -660,7 +660,7 @@ test('recursive install in a monorepo with different modules directories specifi
   projects['project-2'].has('is-positive', 'modules_2')
 })
 
-test('recursive install in a monorepo with different modules directories specified by projectSettings multi match', async () => {
+test('recursive install in a monorepo with different modules directories specified by projectConfigs multi match', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -689,7 +689,7 @@ test('recursive install in a monorepo with different modules directories specifi
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-    projectSettings: [{
+    projectConfigs: [{
       match: ['project-1', 'project-2'],
       settings: { modulesDir: 'different_node_modules' },
     }],

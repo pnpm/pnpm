@@ -24,7 +24,7 @@ type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'nodeLinker'
-| 'projectSettings'
+| 'projectConfigs'
 | 'rawLocalConfig'
 | 'registries'
 | 'rootProjectManifest'

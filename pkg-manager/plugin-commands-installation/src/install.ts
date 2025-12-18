@@ -332,7 +332,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'updateConfig'
 | 'overrides'
 | 'supportedArchitectures'
-| 'projectSettings'
+| 'projectConfigs'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
