@@ -69,9 +69,10 @@ export interface CustomResolver {
    * Use this to implement custom cache invalidation logic (e.g., time-based expiry, version checks).
    *
    * @param wantedDependency - The dependency to check for force re-resolution
+   * @param wantedLockfile - The current lockfile contents
    * @returns true to force re-resolution of all dependencies
    */
-  shouldForceResolve?: (wantedDependency: WantedDependency) => boolean | Promise<boolean>
+  shouldForceResolve?: (wantedDependency: WantedDependency, wantedLockfile: LockfileObject) => boolean | Promise<boolean>
 }
 
 export interface CustomFetcher {
