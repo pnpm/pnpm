@@ -1,5 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
+import os from 'os'
+import { randomUUID } from 'crypto'
+import fs from 'fs/promises'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { jest } from '@jest/globals'
 import { temporaryDirectory } from 'tempy'
@@ -306,4 +309,80 @@ test('fetch only the included files', async () => {
     'dist/index.js',
     'package.json',
   ])
+})
+
+test('should accept annotated tag object SHA by resolving it to a commit (issue #10335)', async () => {
+  const createTemporaryDirectory = (prefix: string) => {
+    return fs.mkdtemp(path.join(os.tmpdir(), `${prefix}-${randomUUID()}-`))
+  }
+
+  const removeTemporaryDirectory = (dir: string) => {
+    return fs.rm(dir, { recursive: true, force: true })
+  }
+
+  const execGit = async (args: string[], opts?: object): Promise<string> => {
+    const fullArgs = prefixGitArgs().concat(args || [])
+    const { stdout } = await execa('git', fullArgs, opts)
+    return stdout
+  }
+
+  let storeDir: string | undefined
+  let workDir: string | undefined
+  let remoteBareDir: string | undefined
+
+  try {
+    storeDir = await createTemporaryDirectory('pnpm-store')
+    workDir = await createTemporaryDirectory('pnpm-git-work')
+    remoteBareDir = await createTemporaryDirectory('pnpm-git-remote')
+
+    // Create a repository with one commit.
+    await execGit(['init'], { cwd: workDir })
+    await execGit(['config', 'user.email', 'test@example.com'], { cwd: workDir })
+    await execGit(['config', 'user.name', 'Test'], { cwd: workDir })
+
+    await fs.writeFile(
+      path.join(workDir, 'package.json'),
+      JSON.stringify({ name: 'x', version: '1.0.0' })
+    )
+    await execGit(['add', '.'], { cwd: workDir })
+    await execGit(['commit', '-m', 'init'], { cwd: workDir })
+
+    // Create an annotated tag => tag object SHA differs from commit SHA.
+    await execGit(['tag', '-a', 'v1.0.0', '-m', 'v1.0.0'], { cwd: workDir })
+
+    // Create a bare remote + push.
+    await execGit(['init', '--bare'], { cwd: remoteBareDir })
+    await execGit(['remote', 'add', 'origin', remoteBareDir], { cwd: workDir })
+    await execGit(['push', '--tags', 'origin', 'HEAD:refs/heads/master'], { cwd: workDir })
+
+    // Get SHA of the tag.
+    const lsRemote = (await execGit(['ls-remote', '--tags', remoteBareDir, 'v1.0.0'], { cwd: workDir })).trim()
+    const [tagObjectSha] = lsRemote.split(/\s+/)
+    expect(tagObjectSha).toMatch(/^[0-9a-f]{40}$/i)
+
+    // To confirm it's a tag, not a commit.
+    const objType = (await execGit(['cat-file', '-t', tagObjectSha], { cwd: workDir })).trim()
+    expect(objType).toBe('tag')
+
+    // Fetch should succeed because pnpm resolves annotated tag to commit.
+    const fetch = createGitFetcher({ rawConfig: {} }).git
+
+    await expect(
+      fetch(
+        createCafsStore(storeDir),
+        { commit: tagObjectSha, repo: remoteBareDir, type: 'git' },
+        { filesIndexFile: path.join(storeDir, 'index.json') }
+      )
+    ).resolves.toBeDefined()
+  } finally {
+    if (storeDir) {
+      await removeTemporaryDirectory(storeDir)
+    }
+    if (workDir) {
+      await removeTemporaryDirectory(workDir)
+    }
+    if (remoteBareDir) {
+      await removeTemporaryDirectory(remoteBareDir)
+    }
+  }
 })

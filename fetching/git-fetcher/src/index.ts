@@ -32,9 +32,25 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       await execGit(['clone', resolution.repo, tempLocation])
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
-    const receivedCommit = await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation })
-    if (receivedCommit.trim() !== resolution.commit) {
-      throw new PnpmError('GIT_CHECKOUT_FAILED', `received commit ${receivedCommit.trim()} does not match expected value ${resolution.commit}`)
+    const receivedCommit = (await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation })).trim()
+
+    // `resolution.commit` can be a hash of a commit or an annotated tag. When the latter, it must be resolved to a commit. See #10335.
+    let expectedCommit = resolution.commit.trim()
+
+    // Resolve a probably annotated tag only when it is a full SHA-1 commit. See #10310.
+    if (expectedCommit.length === 40) {
+      try {
+        expectedCommit = (await execGit(['rev-parse', `${expectedCommit}^{commit}`], { cwd: tempLocation })).trim()
+      } catch {
+        // When throws, it's already a commit hash.
+      }
+    }
+
+    if (receivedCommit !== expectedCommit) {
+      throw new PnpmError(
+        'GIT_CHECKOUT_FAILED',
+        `received commit ${receivedCommit} does not match expected value ${expectedCommit}`
+      )
     }
     let pkgDir: string
     try {
