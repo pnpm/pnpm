@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/registry.pkg-metadata-filter'
 import { type PackageInRegistry, type PackageMeta, type PackageMetaWithTime } from '@pnpm/registry.types'
 import { type VersionSelectors } from '@pnpm/resolver-base'
-import { type PackageVersionPolicy } from '@pnpm/types'
+import { VulnerabilitySeverity, type PackageVersionPolicy, type PackageVulnerabilityAudit } from '@pnpm/types'
 import semver from 'semver'
 import util from 'util'
 import { type RegistryPackageSpec } from './parseBareSpecifier.js'
@@ -12,6 +12,7 @@ export interface PickVersionByVersionRangeOptions {
   versionRange: string
   preferredVersionSelectors?: VersionSelectors
   publishedBy?: Date
+  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
 export type PickVersionByVersionRange = (options: PickVersionByVersionRangeOptions) => string | null
@@ -20,6 +21,7 @@ export interface PickPackageFromMetaOptions {
   preferredVersionSelectors: VersionSelectors | undefined
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
+  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
 export function pickPackageFromMeta (
@@ -28,6 +30,7 @@ export function pickPackageFromMeta (
     preferredVersionSelectors,
     publishedBy,
     publishedByExclude,
+    packageVulnerabilityAudit,
   }: PickPackageFromMetaOptions,
   spec: RegistryPackageSpec,
   meta: PackageMeta
@@ -63,6 +66,7 @@ export function pickPackageFromMeta (
         versionRange: spec.fetchSpec,
         preferredVersionSelectors,
         publishedBy,
+        packageVulnerabilityAudit,
       })
       break
     }
@@ -127,8 +131,11 @@ function semverSatisfiesLoose (version: string, range: string): boolean {
 }
 
 export function pickLowestVersionByVersionRange (
-  { meta, versionRange, preferredVersionSelectors }: PickVersionByVersionRangeOptions
+  { meta, versionRange, preferredVersionSelectors, packageVulnerabilityAudit }: PickVersionByVersionRangeOptions
 ): string | null {
+  if (packageVulnerabilityAudit) {
+    preferredVersionSelectors = penalizeVulnerableVersions(preferredVersionSelectors, packageVulnerabilityAudit, meta.name)
+  }
   if (preferredVersionSelectors != null && Object.keys(preferredVersionSelectors).length > 0) {
     const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVersionSelectors)
     for (const preferredVersions of prioritizedPreferredVersions) {
@@ -144,8 +151,12 @@ export function pickLowestVersionByVersionRange (
   return semver.minSatisfying(Object.keys(meta.versions), versionRange, true)
 }
 
-export function pickVersionByVersionRange ({ meta, versionRange, preferredVersionSelectors }: PickVersionByVersionRangeOptions): string | null {
+export function pickVersionByVersionRange ({ meta, versionRange, preferredVersionSelectors, packageVulnerabilityAudit }: PickVersionByVersionRangeOptions): string | null {
   const latest: string | undefined = meta['dist-tags'].latest
+
+  if (packageVulnerabilityAudit) {
+    preferredVersionSelectors = penalizeVulnerableVersions(preferredVersionSelectors, packageVulnerabilityAudit, meta.name)
+  }
 
   if (preferredVersionSelectors != null && Object.keys(preferredVersionSelectors).length > 0) {
     const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVersionSelectors)
@@ -181,6 +192,51 @@ export function pickVersionByVersionRange ({ meta, versionRange, preferredVersio
   return maxVersion
 }
 
+function penalizeVulnerableVersions (preferredVersionSelectors: VersionSelectors | undefined, packageVulnerabilityAudit: PackageVulnerabilityAudit, packageName: string): VersionSelectors | undefined {
+  const vulnerabilities = packageVulnerabilityAudit.getVulnerabilities(packageName)
+  if (vulnerabilities.length === 0) {
+    return preferredVersionSelectors
+  }
+  const vulnerableRanges = new Map<string, VulnerabilitySeverity>()
+  for (const vuln of vulnerabilities) {
+    const existingSeverity = vulnerableRanges.get(vuln.versionRange)
+    if (existingSeverity == null) {
+      vulnerableRanges.set(vuln.versionRange, vuln.severity)
+      continue
+    }
+    // Choose the highest severity for the same version range
+    if (vuln.severity > existingSeverity) {
+      vulnerableRanges.set(vuln.versionRange, vuln.severity)
+    }
+  }
+  let lowestWeightInPreferred = 0
+  if (preferredVersionSelectors == null) {
+    preferredVersionSelectors = {}
+  } else {
+    for (const weight of Object.values(preferredVersionSelectors)) {
+      const w = typeof weight === 'string' ? DEFAULT_PREFERRED_VERSION_WEIGHT : weight.weight
+      if (w < lowestWeightInPreferred) {
+        lowestWeightInPreferred = w
+      }
+    }
+  }
+  const severityToWeight = new Map<VulnerabilitySeverity, number>([
+    [VulnerabilitySeverity.low, lowestWeightInPreferred - 1],
+    [VulnerabilitySeverity.moderate, lowestWeightInPreferred - 10],
+    [VulnerabilitySeverity.high, lowestWeightInPreferred - 100],
+    [VulnerabilitySeverity.critical, lowestWeightInPreferred - 1000],
+  ])
+  for (const [vulnRange, severity] of vulnerableRanges) {
+    preferredVersionSelectors[vulnRange] = {
+      selectorType: 'range',
+      weight: severityToWeight.get(severity)!,
+    }
+  }
+  return preferredVersionSelectors
+}
+
+const DEFAULT_PREFERRED_VERSION_WEIGHT = 1
+
 function prioritizePreferredVersions (
   meta: PackageMeta,
   versionRange: string,
@@ -190,7 +246,7 @@ function prioritizePreferredVersions (
   const versionsPrioritizer = new PreferredVersionsPrioritizer()
   for (const [preferredSelector, preferredSelectorType] of preferredVerSelectorsArr) {
     const { selectorType, weight } = typeof preferredSelectorType === 'string'
-      ? { selectorType: preferredSelectorType, weight: 1 }
+      ? { selectorType: preferredSelectorType, weight: DEFAULT_PREFERRED_VERSION_WEIGHT }
       : preferredSelectorType
     if (preferredSelector === versionRange) continue
     switch (selectorType) {

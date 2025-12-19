@@ -41,6 +41,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/table": "catalog:",
@@ -51,7 +52,7 @@
   },
   "devDependencies": {
     "@pnpm/plugin-commands-audit": "workspace:*",
-    "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/zkochan__table": "catalog:",
@@ -64,6 +65,6 @@
     "node": ">=20.19"
   },
   "jest": {
-    "preset": "@pnpm/jest-config"
+    "preset": "@pnpm/jest-config/with-registry"
   }
 }
