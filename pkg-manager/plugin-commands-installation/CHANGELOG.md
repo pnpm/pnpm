@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.8.6
+
+### Patch Changes
+
+- @pnpm/core@1015.0.1
+- @pnpm/outdated@1001.1.9
+- @pnpm/package-store@1006.0.0
+- @pnpm/store-connection-manager@1002.3.7
+- @pnpm/cli-utils@1001.2.16
+- @pnpm/plugin-commands-rebuild@1007.0.1
+- @pnpm/config.deps-installer@1000.0.25
+- @pnpm/plugin-commands-env@1000.0.52
+- @pnpm/workspace.find-packages@1000.0.51
+- @pnpm/deps.status@1003.0.23
+- @pnpm/filter-workspace-packages@1000.0.51
+
 ## 1004.8.5
 
 ### Patch Changes

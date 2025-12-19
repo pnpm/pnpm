@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/client",
-  "version": "1001.1.11",
+  "version": "1001.1.12",
   "description": "Creates the package resolve and fetch functions",
   "keywords": [
     "pnpm",

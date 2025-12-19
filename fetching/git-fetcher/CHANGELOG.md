@@ -1,5 +1,11 @@
 # @pnpm/git-fetcher
 
+## 1005.0.1
+
+### Patch Changes
+
+- aba18ac: Always resolve git references to full commits and ensure `HEAD` points to the commit after checkout [#10310](https://github.com/pnpm/pnpm/pull/10310).
+
 ## 1005.0.0
 
 ### Patch Changes

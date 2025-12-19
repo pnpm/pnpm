@@ -1,5 +1,13 @@
 # @pnpm/store-connection-manager
 
+## 1002.3.7
+
+### Patch Changes
+
+- @pnpm/client@1001.1.12
+- @pnpm/package-store@1006.0.0
+- @pnpm/server@1001.0.16
+
 ## 1002.3.6
 
 ### Patch Changes

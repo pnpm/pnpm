@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1007.0.1
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@1002.3.7
+- @pnpm/cli-utils@1001.2.16
+- @pnpm/workspace.find-packages@1000.0.51
+
 ## 1007.0.0
 
 ### Patch Changes

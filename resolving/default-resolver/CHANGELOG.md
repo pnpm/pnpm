@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 1002.2.20
+
+### Patch Changes
+
+- Updated dependencies [aba18ac]
+  - @pnpm/git-resolver@1001.1.11
+
 ## 1002.2.19
 
 ### Patch Changes

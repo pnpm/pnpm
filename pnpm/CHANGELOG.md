@@ -1,5 +1,12 @@
 # pnpm
 
+## 10.26.1
+
+### Patch Changes
+
+- Don't fail on `pnpm add`, when `blockExoticSubdeps` is set to `true` [#10324](https://github.com/pnpm/pnpm/issues/10324).
+- Always resolve git references to full commits and ensure `HEAD` points to the commit after checkout [#10310](https://github.com/pnpm/pnpm/pull/10310).
+
 ## 10.26.0
 
 ### Minor Changes

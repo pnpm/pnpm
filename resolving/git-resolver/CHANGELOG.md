@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 1001.1.11
+
+### Patch Changes
+
+- aba18ac: Always resolve git references to full commits and ensure `HEAD` points to the commit after checkout [#10310](https://github.com/pnpm/pnpm/pull/10310).
+
 ## 1001.1.10
 
 ### Patch Changes

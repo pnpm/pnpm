@@ -1,5 +1,15 @@
 # @pnpm/core
 
+## 1015.0.1
+
+### Patch Changes
+
+- Updated dependencies [d068fcf]
+  - @pnpm/resolve-dependencies@1008.6.1
+  - @pnpm/package-requester@1010.0.0
+  - @pnpm/plugin-commands-rebuild@1007.0.1
+  - @pnpm/headless@1009.0.0
+
 ## 1015.0.0
 
 ### Minor Changes

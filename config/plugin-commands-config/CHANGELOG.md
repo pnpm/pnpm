@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-config
 
+## 1000.3.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.16
+
 ## 1000.3.6
 
 ### Patch Changes

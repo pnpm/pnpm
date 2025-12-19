@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 1008.6.1
+
+### Patch Changes
+
+- d068fcf: Don't fail on `pnpm add`, when `blockExoticSubdeps` is set to `true` [#10324](https://github.com/pnpm/pnpm/issues/10324).
+
 ## 1008.6.0
 
 ### Minor Changes
