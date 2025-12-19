@@ -65,7 +65,7 @@ export async function createExportableManifest (
     publishManifest.readme ??= opts.readmeFile
   }
 
-  for (const hook of opts?.hooks?.readPackageForPublishing ?? []) {
+  for (const hook of opts?.hooks?.beforePacking ?? []) {
     // eslint-disable-next-line no-await-in-loop
     publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }

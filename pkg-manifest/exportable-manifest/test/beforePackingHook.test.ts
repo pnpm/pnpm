@@ -8,13 +8,13 @@ const defaultOpts: MakePublishManifestOptions = {
   catalogs: {},
 }
 
-test('readPackageForPublishing basic hook', async () => {
+test('basic test', async () => {
   prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', `
 module.exports = {
   hooks: {
-    readPackageForPublishing: (pkg, dir, context) => {
+    beforePacking: (pkg, dir, context) => {
       context.log(dir)
       pkg.foo = 'bar'
       return pkg // return optional
@@ -39,13 +39,13 @@ module.exports = {
   })
 })
 
-test('readPackageForPublishing hook returns new manifest', async () => {
+test('hook returns new manifest', async () => {
   prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', `
 module.exports = {
   hooks: {
-    readPackageForPublishing: (pkg) => {
+    beforePacking: (pkg) => {
       return { type: 'module' }
     },
   },
@@ -60,14 +60,14 @@ module.exports = {
   })
 })
 
-test('readPackageForPublishing hook in multiple pnpmfiles', async () => {
+test('hook in multiple pnpmfiles', async () => {
   prepare()
 
   const pnpmfiles = ['pnpmfile1.cjs', 'pnpmfile2.cjs']
   fs.writeFileSync(pnpmfiles[0], `
 module.exports = {
   hooks: {
-    readPackageForPublishing: (pkg) => {
+    beforePacking: (pkg) => {
       pkg.foo = 'foo'
     },
   },
@@ -75,7 +75,7 @@ module.exports = {
   fs.writeFileSync(pnpmfiles[1], `
 module.exports = {
   hooks: {
-    readPackageForPublishing: (pkg) => {
+    beforePacking: (pkg) => {
       pkg.bar = 'bar'
     },
   },

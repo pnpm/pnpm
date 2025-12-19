@@ -12,7 +12,7 @@ export interface Hooks {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Flexible hook signature for any package manifest
   readPackage?: (pkg: any, context: HookContext) => any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Flexible hook signature for any package manifest
-  readPackageForPublishing?: (pkg: any, dir: string, context: HookContext) => any
+  beforePacking?: (pkg: any, dir: string, context: HookContext) => any
   preResolution?: PreResolutionHook
   afterAllResolved?: (lockfile: LockfileObject, context: HookContext) => LockfileObject | Promise<LockfileObject>
   filterLog?: (log: Log) => boolean
