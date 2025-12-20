@@ -272,11 +272,11 @@ export async function handler (
       }
     }
     let allowBuildList = [] as string[]
-    let shouldSettingAllowBuilds = false
+    let shouldWriteAllowBuilds = false
     if (opts.onlyBuiltDependencies) {
       allowBuildList.push(...opts.onlyBuiltDependencies)
     } else {
-      shouldSettingAllowBuilds = true
+      shouldWriteAllowBuilds = true
       allowBuildList.push(...Object.entries(opts.allowBuilds ?? {}).filter(([, allowBuild]) => allowBuild).map(([dep]) => dep))
     }
     allowBuildList.push(...opts.allowBuild)
@@ -289,7 +289,7 @@ export async function handler (
         ...opts,
         workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
         updatedSettings:
-          shouldSettingAllowBuilds
+          shouldWriteAllowBuilds
             ? {
               allowBuilds: allowBuildList.reduce((acc, dep) => {
                 acc[dep] = true
