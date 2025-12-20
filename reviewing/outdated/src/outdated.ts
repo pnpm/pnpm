@@ -44,6 +44,9 @@ interface OutdatedPackageManifest extends PackageManifest {
     }
   }
   dist?: {
+    integrity?: string
+    shasum: string
+    tarball: string
     attestations?: {
       provenance?: {
         predicateType: string

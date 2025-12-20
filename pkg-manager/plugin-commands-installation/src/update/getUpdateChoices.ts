@@ -4,6 +4,7 @@ import semverDiff from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
 import chalk from 'chalk'
 import { pipe, groupBy, pluck, uniqBy, pickBy, and, isEmpty } from 'ramda'
+import { getTrustEvidence } from '@pnpm/npm-resolver'
 
 export interface ChoiceRow {
   name: string
@@ -24,19 +25,9 @@ const trustLevels = {
   trustedPublisher: 2,
 }
 
-function getTrustEvidence (manifest: OutdatedPackage['latestManifest']): 'trustedPublisher' | 'provenance' | 'none' {
-  if (manifest?._npmUser?.trustedPublisher) {
-    return 'trustedPublisher'
-  }
-  if (manifest?.dist?.attestations?.provenance) {
-    return 'provenance'
-  }
-  return 'none'
-}
-
 function trustPolicyChange (outdatedPkg: OutdatedPackage): string {
-  const currentTrustEvidence = getTrustEvidence(outdatedPkg.currentManifest!)
-  const latestTrustEvidence = getTrustEvidence(outdatedPkg.latestManifest!)
+  const currentTrustEvidence = getTrustEvidence(outdatedPkg.currentManifest!) ?? 'none'
+  const latestTrustEvidence = getTrustEvidence(outdatedPkg.latestManifest!) ?? 'none'
   const currentLevel = trustLevels[currentTrustEvidence]
   const latestLevel = trustLevels[latestTrustEvidence]
 

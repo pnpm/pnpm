@@ -51,6 +51,8 @@ import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { pickVersionByVersionRange, assertMetaHasTime } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 
+export { getTrustEvidence } from './trustChecks.js'
+
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
   packageMeta: PackageMeta
