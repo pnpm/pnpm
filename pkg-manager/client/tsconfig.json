@@ -28,6 +28,9 @@
       "path": "../../fetching/tarball-fetcher"
     },
     {
+      "path": "../../hooks/types"
+    },
+    {
       "path": "../../network/auth-header"
     },
     {

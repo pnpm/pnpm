@@ -4,7 +4,7 @@
   "description": "Hoists dependencies in a node_modules created by pnpm",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",

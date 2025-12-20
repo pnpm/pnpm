@@ -1,21 +1,21 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
-import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
+import { readModulesManifest, writeModulesManifest, type StrictModules } from '@pnpm/modules-yaml'
 import { sync as readYamlFile } from 'read-yaml-file'
 import isWindows from 'is-windows'
 import { temporaryDirectory } from 'tempy'
 
 test('writeModulesManifest() and readModulesManifest()', async () => {
   const modulesDir = temporaryDirectory()
-  const modulesYaml = {
+  const modulesYaml: StrictModules = {
     hoistedDependencies: {},
     included: {
       dependencies: true,
       devDependencies: true,
       optionalDependencies: true,
     },
-    ignoredBuilds: [],
+    ignoredBuilds: new Set(),
     layoutVersion: 1,
     packageManager: 'pnpm@2',
     pendingBuilds: [],
@@ -66,14 +66,14 @@ test('backward compatible read of .modules.yaml created with shamefully-hoist=fa
 
 test('readModulesManifest() should not create a node_modules directory if it does not exist', async () => {
   const modulesDir = path.join(temporaryDirectory(), 'node_modules')
-  const modulesYaml = {
+  const modulesYaml: StrictModules = {
     hoistedDependencies: {},
     included: {
       dependencies: true,
       devDependencies: true,
       optionalDependencies: true,
     },
-    ignoredBuilds: [],
+    ignoredBuilds: new Set(),
     layoutVersion: 1,
     packageManager: 'pnpm@2',
     pendingBuilds: [],
@@ -94,14 +94,14 @@ test('readModulesManifest() should not create a node_modules directory if it doe
 
 test('readModulesManifest() should create a node_modules directory if makeModuleDir is set to true', async () => {
   const modulesDir = path.join(temporaryDirectory(), 'node_modules')
-  const modulesYaml = {
+  const modulesYaml: StrictModules = {
     hoistedDependencies: {},
     included: {
       dependencies: true,
       devDependencies: true,
       optionalDependencies: true,
     },
-    ignoredBuilds: [],
+    ignoredBuilds: new Set(),
     layoutVersion: 1,
     packageManager: 'pnpm@2',
     pendingBuilds: [],

@@ -48,7 +48,15 @@ function calcDepGraphHash<T extends string> (
   if (cache[depPath]) return cache[depPath]
   const node = depsGraph[depPath]
   if (!node) return ''
-  node.fullPkgId ??= createFullPkgId(node.pkgIdWithPatchHash!, node.resolution!)
+  if (!node.fullPkgId) {
+    if (!node.pkgIdWithPatchHash) {
+      throw new Error(`pkgIdWithPatchHash is not defined for ${depPath} in depsGraph`)
+    }
+    if (!node.resolution) {
+      throw new Error(`resolution is not defined for ${depPath} in depsGraph`)
+    }
+    node.fullPkgId = createFullPkgId(node.pkgIdWithPatchHash, node.resolution)
+  }
   const deps: Record<string, string> = {}
   if (Object.keys(node.children).length && !parents.has(node.fullPkgId)) {
     const nextParents = new Set([...Array.from(parents), node.fullPkgId])
@@ -84,26 +92,36 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   graph: DepsGraph<DepPath>,
   pkgMetaIterator: PkgMetaIterator<T>
 ): IterableIterator<HashedDepPath<T>> {
-  const _calcDepGraphHash = calcDepGraphHash.bind(null, graph, {})
+  const _calcGraphNodeHash = calcGraphNodeHash.bind(null, { graph, cache: {} })
   for (const pkgMeta of pkgMetaIterator) {
-    const { name, version, depPath } = pkgMeta
-    const state = {
-      // Unfortunately, we need to include the engine name in the hash,
-      // even though it's only required for packages that are built,
-      // or have dependencies that are built.
-      // We can't know for sure whether a package needs to be built
-      // before it's fetched from the registry.
-      // However, we fetch and write packages to node_modules in random order for performance,
-      // so we can't determine at this stage which dependencies will be built.
-      engine: ENGINE_NAME,
-      deps: _calcDepGraphHash(new Set(), depPath),
-    }
-    const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
     yield {
-      hash: `${name}/${version}/${hexDigest}`,
+      hash: _calcGraphNodeHash(pkgMeta),
       pkgMeta,
     }
   }
+}
+
+export function calcGraphNodeHash<T extends PkgMeta> (
+  { graph, cache }: {
+    graph: DepsGraph<DepPath>
+    cache: DepsStateCache
+  },
+  pkgMeta: T
+): string {
+  const { name, version, depPath } = pkgMeta
+  const state = {
+    // Unfortunately, we need to include the engine name in the hash,
+    // even though it's only required for packages that are built,
+    // or have dependencies that are built.
+    // We can't know for sure whether a package needs to be built
+    // before it's fetched from the registry.
+    // However, we fetch and write packages to node_modules in random order for performance,
+    // so we can't determine at this stage which dependencies will be built.
+    engine: ENGINE_NAME,
+    deps: calcDepGraphHash(graph, cache, new Set(), depPath),
+  }
+  const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
+  return `${name}/${version}/${hexDigest}`
 }
 
 export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath> {
@@ -135,6 +153,6 @@ function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<stri
 }
 
 function createFullPkgId (pkgIdWithPatchHash: PkgIdWithPatchHash, resolution: LockfileResolution): string {
-  const res = 'integrity' in resolution ? resolution.integrity : JSON.stringify(resolution)
+  const res = 'integrity' in resolution ? String(resolution.integrity) : hashObject(resolution)
   return `${pkgIdWithPatchHash}:${res}`
 }

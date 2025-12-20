@@ -4,7 +4,7 @@
   "description": "Fetcher for packages hosted as tarballs",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "fetcher",
     "tarball"
   ],
@@ -40,6 +40,7 @@
     "@pnpm/fs.packlist": "catalog:",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
     "lodash.throttle": "catalog:",
     "p-map-values": "catalog:",

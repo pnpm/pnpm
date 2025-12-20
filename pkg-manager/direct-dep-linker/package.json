@@ -4,7 +4,7 @@
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",

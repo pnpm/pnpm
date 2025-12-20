@@ -14,6 +14,10 @@ import { writeSettings } from '@pnpm/config.config-writer'
 
 export const shorthands: Record<string, string> = {
   'save-catalog': '--save-catalog-name=default',
+  d: '--save-dev',
+  e: '--save-exact',
+  o: '--save-optional',
+  p: '--save-prod',
 }
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -75,6 +79,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'store-dir',
     'strict-peer-dependencies',
     'trust-policy',
+    'trust-policy-exclude',
     'unsafe-perm',
     'offline',
     'only',
@@ -110,17 +115,17 @@ export function help (): string {
           {
             description: 'Save package to your `dependencies`. The default behavior',
             name: '--save-prod',
-            shortAlias: '-P',
+            shortAlias: '-p',
           },
           {
             description: 'Save package to your `devDependencies`',
             name: '--save-dev',
-            shortAlias: '-D',
+            shortAlias: '-d',
           },
           {
             description: 'Save package to your `optionalDependencies`',
             name: '--save-optional',
-            shortAlias: '-O',
+            shortAlias: '-o',
           },
           {
             description: 'Save package to your `peerDependencies` and `devDependencies`',
@@ -137,7 +142,7 @@ export function help (): string {
           {
             description: 'Install exact version',
             name: '--[no-]save-exact',
-            shortAlias: '-E',
+            shortAlias: '-e',
           },
           {
             description: 'Save packages from the workspace with a "workspace:" protocol. True by default',

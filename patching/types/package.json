@@ -4,7 +4,7 @@
   "description": "Types related to patching",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "patch"
   ],
   "license": "MIT",

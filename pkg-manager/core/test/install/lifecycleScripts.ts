@@ -309,7 +309,11 @@ test('run lifecycle scripts of dependent packages after running scripts of their
 test('run prepare script for git-hosted dependencies', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf'], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf'], testDefaults({
+    fastUnpack: false,
+    onlyBuiltDependencies: ['test-git-fetch'],
+    neverBuiltDependencies: undefined,
+  }))
 
   const scripts = project.requireModule('test-git-fetch/output.json')
   expect(scripts).toStrictEqual([
@@ -486,7 +490,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies', 
 
   {
     const ignoredPkgsLog = reporter.getCalls().find((call) => call.firstArg.name === 'pnpm:ignored-scripts')?.firstArg
-    expect(ignoredPkgsLog.packageNames).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+    expect(ignoredPkgsLog.packageNames).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
   }
   reporter.resetHistory()
 
@@ -527,7 +531,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies us
 
   {
     const ignoredPkgsLog = reporter.getCalls().find((call) => call.firstArg.name === 'pnpm:ignored-scripts')?.firstArg
-    expect(ignoredPkgsLog.packageNames).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+    expect(ignoredPkgsLog.packageNames).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
   }
   reporter.resetHistory()
 
@@ -763,4 +767,33 @@ test('run pre/postinstall scripts in a project that uses node-linker=hoisted. Sh
     level: 'warn',
     message: `An error occurred while uploading ${path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')}`,
   }))
+})
+
+test('build dependencies that were not previously built after onlyBuiltDependencies changes', async () => {
+  prepareEmpty()
+  const neverBuiltDependencies: string[] | undefined = undefined
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
+    testDefaults({
+      fastUnpack: false,
+      onlyBuiltDependencies: ['@pnpm.e2e/install-script-example'],
+      neverBuiltDependencies,
+    })
+  )
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  await install(manifest, testDefaults({
+    fastUnpack: false,
+    frozenLockfile: true,
+    ignoredBuiltDependencies: [],
+    neverBuiltDependencies,
+    onlyBuiltDependencies: ['@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'],
+  }))
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })

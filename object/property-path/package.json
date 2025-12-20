@@ -4,7 +4,7 @@
   "description": "Basic library to manipulate object property path which includes dots and subscriptions",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "object.property-path"
   ],
   "license": "MIT",

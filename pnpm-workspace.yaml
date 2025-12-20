@@ -44,12 +44,20 @@ packages:
   - '!**/test/**'
   - '!resolving/local-resolver/example-package/**'
 
+allowBuilds:
+  core-js: false
+  esbuild: true
+  fuse-native: true
+  ghooks: true
+  unrs-resolver: true
+
 auditConfig:
   ignoreCves:
     - CVE-2025-56200
   ignoreGhsas:
     - GHSA-76c9-3jph-rj3q
     - GHSA-ffrw-9mx8-89p8
+    - GHSA-mh29-5h37-fv8m
 
 catalog:
   '@babel/core': ^7.28.3
@@ -73,12 +81,12 @@ catalog:
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/network.agent': ^2.0.3
   '@pnpm/nopt': ^0.3.1
-  '@pnpm/npm-conf': 3.0.0
+  '@pnpm/npm-conf': 3.0.1
   '@pnpm/npm-lifecycle': ^1001.0.0
   '@pnpm/npm-package-arg': ^2.0.0
   '@pnpm/os.env.path-extender': ^2.0.3
   '@pnpm/patch-package': 0.0.1
-  '@pnpm/registry-mock': 5.1.0
+  '@pnpm/registry-mock': 5.2.0
   '@pnpm/semver-diff': ^1.1.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
@@ -128,11 +136,12 @@ catalog:
   '@types/zkochan__table': npm:@types/table@6.0.0
   '@typescript-eslint/eslint-plugin': 6.18.1
   '@typescript-eslint/parser': 6.18.1
+  '@typescript-eslint/utils': 6.18.1
   '@yarnpkg/core': 4.2.0
   '@yarnpkg/extensions': 2.0.3
   '@yarnpkg/lockfile': ^1.1.0
   '@yarnpkg/nm': 4.0.5
-  '@yarnpkg/parsers': 3.0.0
+  '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
   '@zkochan/cmd-shim': ^7.0.0
   '@zkochan/diable': ^1.0.2
@@ -236,7 +245,7 @@ catalog:
   p-memoize: 8.0.0
   p-queue: ^8.1.0
   parse-json: ^8.3.0
-  parse-npm-tarball-url: ^3.0.0
+  parse-npm-tarball-url: ^4.0.0
   path-absolute: ^1.0.1
   path-exists: ^5.0.0
   path-name: ^1.0.0
@@ -250,7 +259,7 @@ catalog:
   promise-share: ^1.0.0
   proxyquire: ^2.1.3
   ps-list: ^8.1.1
-  publish-packed: ^4.1.2
+  publish-packed: ^5.0.0
   ramda: npm:@pnpm/ramda@0.28.1
   read-ini-file: 4.0.0
   read-yaml-file: ^2.1.0
@@ -262,7 +271,7 @@ catalog:
   resolve-link-target: ^2.0.0
   rimraf: ^6.0.1
   root-link-target: ^3.1.0
-  run-groups: ^3.0.1
+  run-groups: ^4.0.0
   rxjs: ^7.8.2
   safe-buffer: 5.2.1
   safe-execa: ^0.2.0
@@ -325,42 +334,44 @@ gitChecks: false
 hoistPattern:
   - jest-runner
 
-ignoredBuiltDependencies:
-  - core-js
-
 managePackageManagerVersions: true
 
 minimumReleaseAge: 1440 # At least a day
 
 minimumReleaseAgeExclude:
+  - body-parser@2.2.1
+  - express@4.22.1
   - pnpm
   - '@pnpm/*'
+  - parse-npm-tarball-url@4.0.0
+  - publish-packed@5.0.0
+  - glob@11.1.0
+  - jws@3.2.3
+  - run-groups@4.0.0
 
 nodeVersion: 20.19.4
-
-onlyBuiltDependencies:
-  - esbuild
-  - fuse-native
-  - ghooks
 
 optimisticRepeatInstall: true
 
 overrides:
   '@yarnpkg/fslib@2': '3'
-  body-parser@<1.20.3: ^1.20.3
+  body-parser@<2.2.1: '^2.2.1'
   clipanion: 3.2.0-rc.6
   cookie@<0.7.0: '>=0.7.0'
   cross-spawn@<7.0.5: '>=7.0.5'
   debug@<3.1.0: '>=3.1.0'
-  express@<4.20.0: ^4.20.0
+  express@<4.22.1: ^4.22.1
   follow-redirects@<=1.15.5: '>=1.15.6'
   glob-parent@<5.1.2: '>=5.1.2'
+  glob@>=10.3.7 <=11.0.3: '^11.1.0'
   hosted-git-info@1: 'catalog:'
   http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
+  js-yaml@<3.14.2: '^3.14.2'
   js-yaml@^4.0.0: 'catalog:'
   json5@<2.2.2: 'catalog:'
   jsonwebtoken@<=8.5.1: '>=9.0.0'
+  jws@<3.2.3: '^3.2.3'
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
   path-to-regexp@<0.1.12: ^0.1.12
@@ -373,6 +384,7 @@ overrides:
   socks@2: ^2.8.1
   tmp@<=0.2.3: '>=0.2.4'
   tough-cookie@<4.1.3: '>=4.1.3'
+  validator@<13.15.22: '>=13.15.22'
   yaml@<2.2.2: '>=2.2.2'
 
 packageExtensions:
@@ -407,5 +419,20 @@ resolutionMode: lowest-direct
 savePrefix: ''
 
 sharedWorkspaceLockfile: true
+
+trustPolicy: no-downgrade
+
+trustPolicyExclude:
+  - '@typescript-eslint/eslint-plugin@6.18.1'
+  - '@typescript-eslint/parser@6.18.1'
+  - '@typescript-eslint/scope-manager@6.18.1'
+  - '@typescript-eslint/type-utils@6.18.1'
+  - '@typescript-eslint/types@6.18.1'
+  - '@typescript-eslint/typescript-estree@6.18.1'
+  - '@typescript-eslint/utils@6.18.1'
+  - '@typescript-eslint/visitor-keys@6.18.1'
+  - '@yarnpkg/libzip@3.2.2'
+  - rxjs@7.8.2
+  - undici-types@6.21.0
 
 verifyDepsBeforeRun: install

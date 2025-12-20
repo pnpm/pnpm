@@ -4,7 +4,7 @@
   "description": "Package lifecycle hook runner",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "lifecycle",
     "scripts"
   ],

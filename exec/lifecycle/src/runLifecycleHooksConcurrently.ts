@@ -5,7 +5,7 @@ import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
-import runGroups from 'run-groups'
+import { runGroups } from 'run-groups'
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
 
 export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
@@ -74,22 +74,19 @@ export async function runLifecycleHooksConcurrently (
         await Promise.all(
           targetDirs.map(async (targetDir) => {
             const targetModulesDir = path.join(targetDir, 'node_modules')
-            const nodeModulesIndex = {}
+            const newFilesIndex = new Map(filesResponse.filesIndex)
             if (fs.existsSync(targetModulesDir)) {
               // If the target directory contains a node_modules directory
               // (it may happen when the hoisted node linker is used)
               // then we need to preserve this node_modules.
               // So we scan this node_modules directory and  pass it as part of the new package.
-              await scanDir('node_modules', targetModulesDir, targetModulesDir, nodeModulesIndex)
+              await scanDir('node_modules', targetModulesDir, targetModulesDir, newFilesIndex)
             }
             return opts.storeController.importPackage(targetDir, {
               filesResponse: {
                 resolvedFrom: 'local-dir',
                 ...filesResponse,
-                filesIndex: {
-                  ...filesResponse.filesIndex,
-                  ...nodeModulesIndex,
-                },
+                filesIndex: newFilesIndex,
               },
               force: false,
             })
@@ -98,10 +95,10 @@ export async function runLifecycleHooksConcurrently (
       }
     )
   })
-  await runGroups.default(childConcurrency, groups)
+  await runGroups(childConcurrency, groups)
 }
 
-async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Record<string, string>): Promise<void> {
+async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Map<string, string>): Promise<void> {
   const files = await fs.promises.readdir(currentDir)
   await Promise.all(files.map(async (file) => {
     const fullPath = path.join(currentDir, file)
@@ -111,7 +108,7 @@ async function scanDir (prefix: string, rootDir: string, currentDir: string, ind
     }
     if (stat.isFile()) {
       const relativePath = path.relative(rootDir, fullPath)
-      index[path.join(prefix, relativePath)] = fullPath
+      index.set(path.join(prefix, relativePath), fullPath)
     }
   }))
 }

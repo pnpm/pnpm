@@ -1,5 +1,8 @@
 import { PnpmError } from '@pnpm/error'
-import { type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
+import { type PackageInRegistry, type PackageMeta, type PackageMetaWithTime } from '@pnpm/registry.types'
+import { type PackageVersionPolicy } from '@pnpm/types'
+import semver from 'semver'
+import { assertMetaHasTime } from './pickPackageFromMeta.js'
 
 type TrustEvidence = 'provenance' | 'trustedPublisher'
 
@@ -9,9 +12,22 @@ const TRUST_RANK = {
 } as const satisfies Record<TrustEvidence, number>
 
 export function failIfTrustDowngraded (
-  meta: PackageMetaWithTime,
-  version: string
+  meta: PackageMeta,
+  version: string,
+  trustPolicyExclude?: PackageVersionPolicy
 ): void {
+  if (trustPolicyExclude) {
+    const excludeResult = trustPolicyExclude(meta.name)
+    if (excludeResult === true) {
+      return
+    }
+    if (Array.isArray(excludeResult) && excludeResult.includes(version)) {
+      return
+    }
+  }
+
+  assertMetaHasTime(meta)
+
   const versionPublishedAt = meta.time[version]
   if (!versionPublishedAt) {
     throw new PnpmError(
@@ -29,7 +45,9 @@ export function failIfTrustDowngraded (
     )
   }
 
-  const strongestEvidencePriorToRequestedVersion = detectStrongestTrustEvidenceBeforeDate(meta, versionDate)
+  const strongestEvidencePriorToRequestedVersion = detectStrongestTrustEvidenceBeforeDate(meta, versionDate, {
+    excludePrerelease: !semver.prerelease(version, true),
+  })
   if (strongestEvidencePriorToRequestedVersion == null) {
     return
   }
@@ -40,7 +58,9 @@ export function failIfTrustDowngraded (
       'TRUST_DOWNGRADE',
       `High-risk trust downgrade for "${meta.name}@${version}" (possible package takeover)`,
       {
-        hint: `Earlier versions had ${prettyPrintTrustEvidence(strongestEvidencePriorToRequestedVersion)}, ` +
+        hint: 'Trust checks are based solely on publish date, not semver. ' +
+          'A package cannot be installed if any earlier-published version had stronger trust evidence. ' +
+          `Earlier versions had ${prettyPrintTrustEvidence(strongestEvidencePriorToRequestedVersion)}, ` +
           `but this version has ${prettyPrintTrustEvidence(currentTrustEvidence)}. ` +
           'A trust downgrade may indicate a supply chain incident.',
       }
@@ -58,11 +78,15 @@ function prettyPrintTrustEvidence (trustEvidence: TrustEvidence | undefined): st
 
 function detectStrongestTrustEvidenceBeforeDate (
   meta: PackageMetaWithTime,
-  beforeDate: Date
+  beforeDate: Date,
+  options: {
+    excludePrerelease: boolean
+  }
 ): TrustEvidence | undefined {
   let best: TrustEvidence | undefined
 
   for (const [version, manifest] of Object.entries(meta.versions)) {
+    if (options.excludePrerelease && semver.prerelease(version, true)) continue
     const ts = meta.time[version]
     if (!ts) continue
 

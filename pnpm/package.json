@@ -1,10 +1,10 @@
 {
   "name": "pnpm",
-  "version": "10.20.0",
+  "version": "11.0.0-alpha.2",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "dependencies",
     "dependency manager",
     "efficient",
@@ -179,29 +179,28 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "runtime": {
-      "name": "node",
-      "version": "24.11.0",
-      "onFail": "download"
-    }
+    "node": ">=20.19"
   },
   "pnpm": {
     "overrides": {
       "@yarnpkg/fslib@2": "3",
-      "body-parser@<1.20.3": "^1.20.3",
+      "body-parser@<2.2.1": "^2.2.1",
       "clipanion": "3.2.0-rc.6",
       "cookie@<0.7.0": ">=0.7.0",
       "cross-spawn@<7.0.5": ">=7.0.5",
       "debug@<3.1.0": ">=3.1.0",
-      "express@<4.20.0": "^4.20.0",
+      "express@<4.22.1": "^4.22.1",
       "follow-redirects@<=1.15.5": ">=1.15.6",
       "glob-parent@<5.1.2": ">=5.1.2",
+      "glob@>=10.3.7 <=11.0.3": "^11.1.0",
       "hosted-git-info@1": "npm:@pnpm/hosted-git-info@1.0.0",
       "http-proxy-middleware@<2.0.7": "^2.0.7",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
+      "js-yaml@<3.14.2": "^3.14.2",
       "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.10",
       "json5@<2.2.2": "^2.2.3",
       "jsonwebtoken@<=8.5.1": ">=9.0.0",
+      "jws@<3.2.3": "^3.2.3",
       "nopt@5": "npm:@pnpm/nopt@^0.2.1",
       "on-headers@<1.1.0": ">=1.1.0",
       "path-to-regexp@<0.1.12": "^0.1.12",
@@ -214,6 +213,7 @@
       "socks@2": "^2.8.1",
       "tmp@<=0.2.3": ">=0.2.4",
       "tough-cookie@<4.1.3": ">=4.1.3",
+      "validator@<13.15.22": ">=13.15.22",
       "yaml@<2.2.2": ">=2.2.2"
     }
   },
@@ -222,11 +222,18 @@
   },
   "preferGlobal": true,
   "publishConfig": {
-    "tag": "next-10",
+    "tag": "next-11",
     "executableFiles": [
       "./dist/node-gyp-bin/node-gyp",
       "./dist/node-gyp-bin/node-gyp.cmd",
       "./dist/node_modules/node-gyp/bin/node-gyp.js"
-    ]
+    ],
+    "engines": {
+      "runtime": {
+        "name": "node",
+        "version": "24.11.0",
+        "onFail": "download"
+      }
+    }
   }
 }

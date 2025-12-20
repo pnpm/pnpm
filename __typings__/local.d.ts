@@ -113,7 +113,7 @@ declare module 'yaml-tag' {
   export = anything
 }
 
-declare module '@pnpm/patch-package/dist/applyPatches' {
+declare module '@pnpm/patch-package/dist/applyPatches.js' {
   export function applyPatch (opts: any): boolean
 }
 

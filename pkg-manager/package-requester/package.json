@@ -4,7 +4,7 @@
   "description": "Concurrent downloader of npm-compatible packages",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "npm",
     "resolver"
   ],
@@ -39,6 +39,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",

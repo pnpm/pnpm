@@ -981,6 +981,38 @@ test('getConfig() should read cafile', async () => {
 -----END CERTIFICATE-----`])
 })
 
+test('getConfig() should read inline SSL certificates from .npmrc', async () => {
+  prepareEmpty()
+
+  // These are written to .npmrc with literal \n strings
+  const inlineCa = '-----BEGIN CERTIFICATE-----\\nMIIFNzCCAx+gAwIBAgIQNB613yRzpKtDztlXiHmOGDANBgkqhkiG9w0BAQsFADAR\\n-----END CERTIFICATE-----'
+  const inlineCert = '-----BEGIN CERTIFICATE-----\\nMIIClientCert\\n-----END CERTIFICATE-----'
+  const inlineKey = '-----BEGIN PRIVATE KEY-----\\nMIIClientKey\\n-----END PRIVATE KEY-----'
+
+  const npmrc = [
+    '//registry.example.com/:ca=' + inlineCa,
+    '//registry.example.com/:cert=' + inlineCert,
+    '//registry.example.com/:key=' + inlineKey,
+  ].join('\n')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  // After processing, \n should be converted to actual newlines
+  expect(config.sslConfigs).toBeDefined()
+  expect(config.sslConfigs['//registry.example.com/']).toStrictEqual({
+    ca: inlineCa.replace(/\\n/g, '\n'),
+    cert: inlineCert.replace(/\\n/g, '\n'),
+    key: inlineKey.replace(/\\n/g, '\n'),
+  })
+})
+
 test('respect mergeGitBranchLockfilesBranchPattern', async () => {
   {
     prepareEmpty()
@@ -1357,4 +1389,45 @@ test('CLI should override environment variable pnpm_config_*', async () => {
   expect(await getConfigValue({
     'use-node-version': '22.0.0',
   })).toBe('22.0.0')
+})
+
+describe('global config.yaml', () => {
+  let XDG_CONFIG_HOME: string | undefined
+
+  beforeEach(() => {
+    XDG_CONFIG_HOME = process.env.XDG_CONFIG_HOME
+  })
+
+  afterEach(() => {
+    process.env.XDG_CONFIG_HOME = XDG_CONFIG_HOME
+  })
+
+  test('reads config from global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFile('.config/pnpm/config.yaml', {
+      dangerouslyAllowAllBuilds: true,
+    })
+
+    // TODO: `getConfigDir`, `getHomeDir`, etc. (from dirs.ts) should allow customizing env or process.
+    // TODO: after that, remove this `describe` wrapper.
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
+
+    // NOTE: the field may appear kebab-case here, but only internally,
+    //       `pnpm config list` would convert them to camelCase.
+    // TODO: switch to camelCase entirely later.
+    expect(config.rawConfig).toHaveProperty(['dangerously-allow-all-builds'])
+  })
 })

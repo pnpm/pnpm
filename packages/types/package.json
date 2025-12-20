@@ -4,7 +4,7 @@
   "description": "Basic types used by pnpm",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "types"
   ],
   "license": "MIT",

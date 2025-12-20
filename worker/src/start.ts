@@ -81,7 +81,10 @@ async function handleMessage (
       let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
-        pkgFilesIndex = readV8FileStrictSync(filesIndexFile)
+        pkgFilesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
+        if (pkgFilesIndex?.files && !(pkgFilesIndex.files instanceof Map)) {
+          pkgFilesIndex = undefined
+        }
       } catch {
         // ignoring. It is fine if the integrity file is not present. Just refetch the package
       }
@@ -166,13 +169,26 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile }: Tar
   const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
-  return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
+  return {
+    status: 'success',
+    value: {
+      filesIndex: filesMap,
+      manifest,
+      requiresBuild,
+      integrity: integrity ?? calcIntegrity(buffer),
+    },
+  }
+}
+
+function calcIntegrity (buffer: Buffer): string {
+  const calculatedHash: string = crypto.hash('sha512', buffer, 'hex')
+  return `sha512-${Buffer.from(calculatedHash, 'hex').toString('base64')}`
 }
 
 interface AddFilesFromDirResult {
   status: string
   value: {
-    filesIndex: Record<string, string>
+    filesIndex: Map<string, string>
     manifest?: DependencyManifest
     requiresBuild: boolean
   }
@@ -224,8 +240,8 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
         },
       }
     }
-    filesIndex.sideEffects = filesIndex.sideEffects ?? {}
-    filesIndex.sideEffects[sideEffectsCacheKey] = calculateDiff(filesIndex.files, filesIntegrity)
+    filesIndex.sideEffects ??= new Map()
+    filesIndex.sideEffects.set(sideEffectsCacheKey, calculateDiff(filesIndex.files, filesIntegrity))
     if (filesIndex.requiresBuild == null) {
       requiresBuild = pkgRequiresBuild(manifest, filesIntegrity)
     } else {
@@ -240,23 +256,23 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
 
 function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles): SideEffectsDiff {
   const deleted: string[] = []
-  const added: PackageFiles = {}
-  for (const file of new Set([...Object.keys(baseFiles), ...Object.keys(sideEffectsFiles)])) {
-    if (!sideEffectsFiles[file]) {
+  const added: PackageFiles = new Map()
+  for (const file of new Set([...baseFiles.keys(), ...sideEffectsFiles.keys()])) {
+    if (!sideEffectsFiles.has(file)) {
       deleted.push(file)
     } else if (
-      !baseFiles[file] ||
-      baseFiles[file].integrity !== sideEffectsFiles[file].integrity ||
-      baseFiles[file].mode !== sideEffectsFiles[file].mode
+      !baseFiles.has(file) ||
+      baseFiles.get(file)!.integrity !== sideEffectsFiles.get(file)!.integrity ||
+      baseFiles.get(file)!.mode !== sideEffectsFiles.get(file)!.mode
     ) {
-      added[file] = sideEffectsFiles[file]
+      added.set(file, sideEffectsFiles.get(file)!)
     }
   }
   const diff: SideEffectsDiff = {}
   if (deleted.length > 0) {
     diff.deleted = deleted
   }
-  if (Object.keys(added).length > 0) {
+  if (added.size > 0) {
     diff.added = added
   }
   return diff
@@ -264,20 +280,20 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
 
 interface ProcessFilesIndexResult {
   filesIntegrity: PackageFiles
-  filesMap: Record<string, string>
+  filesMap: Map<string, string>
 }
 
 function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
-  const filesIntegrity: PackageFiles = {}
-  const filesMap: Record<string, string> = {}
-  for (const [k, { checkedAt, filePath, integrity, mode, size }] of Object.entries(filesIndex)) {
-    filesIntegrity[k] = {
+  const filesIntegrity: PackageFiles = new Map()
+  const filesMap = new Map<string, string>()
+  for (const [k, { checkedAt, filePath, integrity, mode, size }] of filesIndex) {
+    filesIntegrity.set(k, {
       checkedAt,
       integrity: integrity.toString(), // TODO: use the raw Integrity object
       mode,
       size,
-    }
-    filesMap[k] = filePath
+    })
+    filesMap.set(k, filePath)
   }
   return { filesIntegrity, filesMap }
 }

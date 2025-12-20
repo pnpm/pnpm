@@ -20,20 +20,6 @@ test('switch to the pnpm version specified in the packageManager field of packag
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
-test('do not switch to the pnpm version specified in the packageManager field of package.json, if manage-package-manager-versions is set to false (backward-compatibility)', async () => {
-  prepare()
-  const pnpmHome = path.resolve('pnpm')
-  const env = { PNPM_HOME: pnpmHome }
-  fs.writeFileSync('.npmrc', 'manage-package-manager-versions=false')
-  writeJsonFileSync('package.json', {
-    packageManager: 'pnpm@9.3.0',
-  })
-
-  const { stdout } = execPnpmSync(['help'], { env })
-
-  expect(stdout.toString()).not.toContain('Version 9.3.0')
-})
-
 test('do not switch to the pnpm version specified in the packageManager field of package.json, if managePackageManagerVersions is set to false', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
@@ -91,19 +77,17 @@ test('do not switch to pnpm version when a range is specified', async () => {
 
 test('throws error if pnpm tools dir is corrupt', () => {
   prepare()
+  const config = ['--config.manage-package-manager-versions=true'] as const
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
   const version = '9.3.0'
-
-  // NOTE: replace this .npmrc file with an equivalent pnpm-workspace.yaml would cause the test to hang indefinitely.
-  fs.writeFileSync('.npmrc', 'manage-package-manager-versions=true')
 
   writeJsonFileSync('package.json', {
     packageManager: `pnpm@${version}`,
   })
 
   // Run pnpm once to ensure the tools dir is created.
-  execPnpmSync(['help'], { env })
+  execPnpmSync([...config, 'help'], { env })
 
   // Intentionally corrupt the tool dir.
   const toolDir = getToolDirPath({ pnpmHomeDir: pnpmHome, tool: { name: 'pnpm', version } })
@@ -112,6 +96,6 @@ test('throws error if pnpm tools dir is corrupt', () => {
     fs.rmSync(path.join(toolDir, 'bin/pnpm.cmd'))
   }
 
-  const { stderr } = execPnpmSync(['help'], { env })
+  const { stderr } = execPnpmSync([...config, 'help'], { env })
   expect(stderr.toString()).toContain('Failed to switch pnpm to v9.3.0. Looks like pnpm CLI is missing')
 })

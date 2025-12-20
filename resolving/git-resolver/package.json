@@ -4,7 +4,7 @@
   "description": "Resolver for git-hosted packages",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "npm",
     "resolver"
   ],
@@ -34,6 +34,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "graceful-git": "catalog:",

@@ -4,7 +4,7 @@
   "description": "pnpm commands for dependencies audit",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "audit"
   ],
   "license": "MIT",

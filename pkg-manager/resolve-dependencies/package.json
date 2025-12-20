@@ -4,7 +4,7 @@
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
@@ -40,6 +40,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile.preferred-versions": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

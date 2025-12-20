@@ -48,8 +48,9 @@ import {
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
-import { pickVersionByVersionRange, assertMetaHasTime } from './pickPackageFromMeta.js'
+import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
+import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 
 export { getTrustEvidence } from './trustChecks.js'
 
@@ -75,7 +76,7 @@ export class NoMatchingVersionError extends PnpmError {
     } else {
       errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
     }
-    super('NO_MATCHING_VERSION', errorMessage)
+    super(opts.publishedBy ? 'NO_MATURE_MATCHING_VERSION' : 'NO_MATCHING_VERSION', errorMessage)
     this.packageMeta = opts.packageMeta
     this.immatureVersion = opts.immatureVersion
   }
@@ -190,6 +191,7 @@ export type ResolveFromNpmOptions = {
   publishedByExclude?: PackageVersionPolicy
   pickLowestVersion?: boolean
   trustPolicy?: TrustPolicy
+  trustPolicyExclude?: PackageVersionPolicy
   dryRun?: boolean
   lockfileDir?: string
   preferredVersions?: PreferredVersions
@@ -309,8 +311,7 @@ async function resolveNpm (
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   } else if (opts.trustPolicy === 'no-downgrade') {
-    assertMetaHasTime(meta)
-    failIfTrustDowngraded(meta, pickedPackage.version)
+    failIfTrustDowngraded(meta, pickedPackage.version, opts.trustPolicyExclude)
   }
 
   const workspacePkgsMatchingName = workspacePackages?.get(pickedPackage.name)
@@ -350,7 +351,7 @@ async function resolveNpm (
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
-    tarball: pickedPackage.dist.tarball,
+    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
   }
   let normalizedBareSpecifier: string | undefined
   if (opts.calcSpecifier) {
@@ -402,7 +403,7 @@ async function resolveJsr (
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
-    tarball: pickedPackage.dist.tarball,
+    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
   }
   return {
     id,
@@ -528,7 +529,7 @@ function tryResolveFromWorkspacePackages (
       'WORKSPACE_PKG_NOT_FOUND',
       `In ${path.relative(process.cwd(), opts.projectDir)}: "${spec.name}@${opts.wantedDependency.bareSpecifier ?? ''}" is in the dependencies but no package named "${spec.name}" is present in the workspace`,
       {
-        hint: 'Packages found in the workspace: ' + Object.keys(workspacePackages).join(', '),
+        hint: 'Packages found in the workspace: ' + Array.from(workspacePackages.keys()).join(', '),
       }
     )
   }

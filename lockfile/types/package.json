@@ -4,7 +4,7 @@
   "description": "Types for the pnpm-lock.yaml lockfile",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "lockfile",
     "types"
   ],

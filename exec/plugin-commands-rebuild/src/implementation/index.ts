@@ -26,14 +26,20 @@ import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
-import { type DepPath, type ProjectManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
+import {
+  type DepPath,
+  type IgnoredBuilds,
+  type ProjectManifest,
+  type ProjectId,
+  type ProjectRootDir,
+} from '@pnpm/types'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { hardLinkDir } from '@pnpm/worker'
 import { loadJsonFile } from 'load-json-file'
-import runGroups from 'run-groups'
+import { runGroups } from 'run-groups'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import npa from '@pnpm/npm-package-arg'
 import pLimit from 'p-limit'
@@ -92,7 +98,7 @@ export async function rebuildSelectedPkgs (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
-): Promise<void> {
+): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -100,7 +106,7 @@ export async function rebuildSelectedPkgs (
   const opts = await extendRebuildOptions(maybeOpts)
   const ctx = await getContext({ ...opts, allProjects: projects })
 
-  if (ctx.currentLockfile?.packages == null) return
+  if (ctx.currentLockfile?.packages == null) return {}
   const packages = ctx.currentLockfile.packages
 
   const searched: PackageSelector[] = pkgSpecs.map((arg) => {
@@ -149,6 +155,9 @@ export async function rebuildSelectedPkgs (
     virtualStoreDir: ctx.virtualStoreDir,
     virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
   })
+  return {
+    ignoredBuilds: ignoredPkgs,
+  }
 }
 
 export async function rebuildProjects (
@@ -266,7 +275,7 @@ async function _rebuild (
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictRebuildOptions
-): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: string[] }> {
+): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: IgnoredBuilds }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile)
   const depsStateCache: DepsStateCache = {}
   const pkgsThatWereRebuilt = new Set<string>()
@@ -306,12 +315,12 @@ async function _rebuild (
     logger.info({ message, prefix: opts.dir })
   }
 
-  const ignoredPkgs: string[] = []
+  const ignoredPkgs = new Set<DepPath>()
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
-  const allowBuild = (pkgName: string, version: string) => {
+  const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
     if (_allowBuild(pkgName, version)) return true
     if (!opts.ignoredBuiltDependencies?.includes(pkgName)) {
-      ignoredPkgs.push(pkgName)
+      ignoredPkgs.add(depPath)
     }
     return false
   }
@@ -353,7 +362,7 @@ async function _rebuild (
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
               includeDepGraphHash: true,
             })
-            if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
+            if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
               pkgsThatWereRebuilt.add(depPath)
               return
             }
@@ -364,10 +373,10 @@ async function _rebuild (
         if (pgkManifest != null) {
           // This won't return the correct result for packages with binding.gyp as we don't pass the filesIndex to the function.
           // However, currently rebuild doesn't work for such packages at all, which should be fixed.
-          requiresBuild = pkgRequiresBuild(pgkManifest, {})
+          requiresBuild = pkgRequiresBuild(pgkManifest, new Map())
         }
 
-        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version) && await runPostinstallHooks({
+        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version, depPath) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,
@@ -433,7 +442,7 @@ async function _rebuild (
     }
   ))
 
-  await runGroups.default(opts.childConcurrency || 5, groups)
+  await runGroups(opts.childConcurrency || 5, groups)
 
   if (builtDepPaths.size > 0) {
     // It may be optimized because some bins were already linked before running lifecycle scripts

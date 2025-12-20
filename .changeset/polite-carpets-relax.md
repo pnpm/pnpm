@@ -129,7 +129,6 @@
 "@pnpm/cafs-types": major
 "@pnpm/store-path": major
 "@pnpm/catalogs.config": major
-"@pnpm/crypto.polyfill": major
 "@pnpm/lockfile.merger": major
 "@pnpm/lockfile.pruner": major
 "@pnpm/lockfile.walker": major

@@ -26,12 +26,14 @@ export type OptionsFromRootManifest = {
   patchedDependencies?: Record<string, string>
   peerDependencyRules?: PeerDependencyRules
   supportedArchitectures?: SupportedArchitectures
+  allowBuilds?: Record<string, boolean | string>
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'executionEnv' | 'updateConfig'>
 
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
   const settings: OptionsFromRootManifest = getOptionsFromPnpmSettings(manifestDir, {
     ...pick([
       'allowNonAppliedPatches',
+      'allowBuilds',
       'allowUnusedPatches',
       'allowedDeprecatedVersions',
       'auditConfig',
@@ -64,8 +66,8 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
   return settings
 }
 
-export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
-  const renamedKeys = ['allowNonAppliedPatches'] as const satisfies Array<keyof PnpmSettings>
+export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
+  const renamedKeys = ['allowNonAppliedPatches', 'allowBuilds'] as const satisfies Array<keyof PnpmSettings>
   const settings: OptionsFromRootManifest = omit(renamedKeys, replaceEnvInSettings(pnpmSettings))
   if (settings.overrides) {
     if (Object.keys(settings.overrides).length === 0) {
@@ -74,13 +76,13 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
       settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
     }
   }
-  if (pnpmSettings.onlyBuiltDependenciesFile) {
+  if (pnpmSettings.onlyBuiltDependenciesFile && manifestDir != null) {
     settings.onlyBuiltDependenciesFile = path.join(manifestDir, pnpmSettings.onlyBuiltDependenciesFile)
   }
   if (pnpmSettings.patchedDependencies) {
     settings.patchedDependencies = { ...pnpmSettings.patchedDependencies }
     for (const [dep, patchFile] of Object.entries(pnpmSettings.patchedDependencies)) {
-      if (path.isAbsolute(patchFile)) continue
+      if (manifestDir == null || path.isAbsolute(patchFile)) continue
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
   }
@@ -91,6 +93,22 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
   if (pnpmSettings.ignorePatchFailures != null) {
     settings.ignorePatchFailures = pnpmSettings.ignorePatchFailures
   }
+
+  if (pnpmSettings.allowBuilds) {
+    settings.onlyBuiltDependencies ??= []
+    settings.ignoredBuiltDependencies ??= []
+    for (const [packagePattern, build] of Object.entries(pnpmSettings.allowBuilds)) {
+      switch (build) {
+      case true:
+        settings.onlyBuiltDependencies.push(packagePattern)
+        break
+      case false:
+        settings.ignoredBuiltDependencies.push(packagePattern)
+        break
+      }
+    }
+  }
+
   return settings
 }
 

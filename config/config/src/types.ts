@@ -1,7 +1,7 @@
 import npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { type TrustPolicy } from '@pnpm/types'
 
-export const types = Object.assign({
+export const pnpmTypes = {
   'auto-install-peers': Boolean,
   bail: Boolean,
   ci: Boolean,
@@ -91,6 +91,7 @@ export const types = Object.assign({
   'public-hoist-pattern': Array,
   'publish-branch': String,
   'recursive-install': Boolean,
+  'block-exotic-subdeps': Boolean,
   reporter: String,
   'resolution-mode': ['highest', 'time-based', 'lowest-direct'],
   'resolve-peers-from-workspace-root': Boolean,
@@ -115,6 +116,7 @@ export const types = Object.assign({
   'strict-store-pkg-content-check': Boolean,
   'strict-peer-dependencies': Boolean,
   'trust-policy': ['off', 'no-downgrade'] satisfies TrustPolicy[],
+  'trust-policy-exclude': [String, Array],
   'use-beta-cli': Boolean,
   'use-node-version': String,
   'use-running-store-server': Boolean,
@@ -139,4 +141,14 @@ export const types = Object.assign({
   cpu: [String, Array],
   libc: [String, Array],
   os: [String, Array],
-}, npmTypes.types)
+}
+
+// NOTE: There is an oversight I just now notice thanks to a test failure: pnpmTypes (which used to be the object literal inside `Object.assign`)
+//       contains some field that overlaps with that of `npmTypes.types`. The definitions of such fields are pointless as they are overwritten by
+//       `npmTypes.types` anyway.
+// TODO: Fix this overlap later.
+// TODO: After that, move `...pnpmTypes` down, `...npmTypes.types` up.
+export const types = {
+  ...pnpmTypes,
+  ...npmTypes.types,
+}

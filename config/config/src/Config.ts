@@ -185,11 +185,13 @@ export interface Config extends OptionsFromRootManifest {
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean
   onlyBuiltDependencies?: string[]
+  allowBuilds?: Record<string, boolean | string>
   dedupePeerDependents?: boolean
   patchesDir?: string
   ignoreWorkspaceCycles?: boolean
   disallowWorkspaceCycles?: boolean
   packGzipLevel?: number
+  blockExoticSubdeps?: boolean
 
   registries: Registries
   sslConfigs: Record<string, SslConfig>
@@ -234,6 +236,7 @@ export interface Config extends OptionsFromRootManifest {
   fetchWarnTimeoutMs?: number
   fetchMinSpeedKiBps?: number
   trustPolicy?: TrustPolicy
+  trustPolicyExclude?: string[]
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

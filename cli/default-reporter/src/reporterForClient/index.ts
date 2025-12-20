@@ -8,6 +8,7 @@ import { reportContext } from './reportContext.js'
 import { reportExecutionTime } from './reportExecutionTime.js'
 import { reportDeprecations } from './reportDeprecations.js'
 import { reportHooks } from './reportHooks.js'
+import { reportIgnoredBuilds } from './reportIgnoredBuilds.js'
 import { reportInstallChecks } from './reportInstallChecks.js'
 import { reportInstallingConfigDeps } from './reportInstallingConfigDeps.js'
 import { reportLifecycleScripts } from './reportLifecycleScripts.js'
@@ -73,6 +74,8 @@ export function reporterForClient (
     hideProgressPrefix?: boolean
     hideLifecycleOutput?: boolean
     hideLifecyclePrefix?: boolean
+    // This is used by Bit CLI
+    approveBuildsInstructionText?: string
   }
 ): Array<Rx.Observable<Rx.Observable<{ msg: string }>>> {
   const width = opts.width ?? process.stdout.columns ?? 80
@@ -156,6 +159,12 @@ export function reporterForClient (
         pnpmConfig: opts.pnpmConfig,
       }))
     }
+    outputs.push(
+      reportIgnoredBuilds(log$, {
+        pnpmConfig: opts.pnpmConfig,
+        approveBuildsInstructionText: opts.approveBuildsInstructionText,
+      })
+    )
   }
 
   return outputs

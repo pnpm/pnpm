@@ -14,7 +14,7 @@ import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DepPath, type SupportedArchitectures, type ProjectId, type Registries } from '@pnpm/types'
+import { type DepPath, type SupportedArchitectures, type ProjectId, type Registries, type AllowBuild } from '@pnpm/types'
 import {
   type FetchPackageToStoreFunction,
   type StoreController,
@@ -29,6 +29,7 @@ import {
 } from '@pnpm/deps.graph-builder'
 
 export interface LockfileToHoistedDepGraphOptions {
+  allowBuild?: AllowBuild
   autoInstallPeers: boolean
   engineStrict: boolean
   force: boolean
@@ -225,6 +226,7 @@ async function fetchDeps (
     } else {
       try {
         fetchResponse = opts.storeController.fetchPackage({
+          allowBuild: opts.allowBuild,
           force: false,
           lockfileDir: opts.lockfileDir,
           ignoreScripts: opts.ignoreScripts,

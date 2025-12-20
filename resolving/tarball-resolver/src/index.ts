@@ -17,19 +17,21 @@ export async function resolveFromTarball (
 
   if (isRepository(wantedDependency.bareSpecifier)) return null
 
+  // The URL is normalized to remove the port if it is the default port of the protocol.
+  const normalizedBareSpecifier = new URL(wantedDependency.bareSpecifier).toString()
   let resolvedUrl: string
 
   // If there are redirects and the response is immutable, we want to get the final URL address
-  const response = await fetchFromRegistry(wantedDependency.bareSpecifier, { method: 'HEAD' })
+  const response = await fetchFromRegistry(normalizedBareSpecifier, { method: 'HEAD' })
   if (response?.headers?.get('cache-control')?.includes('immutable')) {
     resolvedUrl = response.url
   } else {
-    resolvedUrl = wantedDependency.bareSpecifier
+    resolvedUrl = normalizedBareSpecifier
   }
 
   return {
-    id: resolvedUrl as PkgResolutionId,
-    normalizedBareSpecifier: resolvedUrl,
+    id: normalizedBareSpecifier as PkgResolutionId,
+    normalizedBareSpecifier,
     resolution: {
       tarball: resolvedUrl,
     },

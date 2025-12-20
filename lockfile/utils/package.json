@@ -4,7 +4,7 @@
   "description": "Utils for dealing with pnpm-lock.yaml",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "lockfile",
     "shrinkwrap"
   ],
@@ -34,6 +34,8 @@
   },
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",

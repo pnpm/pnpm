@@ -4,7 +4,7 @@
   "description": "Reads/writes `node_modules/.modules.yaml`",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "modules.yaml"
   ],
   "license": "MIT",

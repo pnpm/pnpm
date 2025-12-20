@@ -48,7 +48,7 @@ test('fetch', async () => {
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
-  expect(filesIndex['package.json']).toBeTruthy()
+  expect(filesIndex.has('package.json')).toBeTruthy()
   expect(manifest?.name).toBe('is-positive')
 })
 
@@ -67,7 +67,7 @@ test('fetch a package from Git sub folder', async () => {
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
-  expect(filesIndex['public/index.html']).toBeTruthy()
+  expect(filesIndex.has('public/index.html')).toBeTruthy()
 })
 
 test('prevent directory traversal attack when using Git sub folder', async () => {
@@ -114,7 +114,9 @@ test('prevent directory traversal attack when using Git sub folder #2', async ()
 
 test('fetch a package from Git that has a prepare script', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({
+    rawConfig: {},
+  }).git
   const { filesIndex } = await fetch(
     createCafsStore(storeDir),
     {
@@ -123,10 +125,11 @@ test('fetch a package from Git that has a prepare script', async () => {
       type: 'git',
     },
     {
+      allowBuild: (pkgName) => pkgName === 'test-git-fetch',
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
-  expect(filesIndex['dist/index.js']).toBeTruthy()
+  expect(filesIndex.has('dist/index.js')).toBeTruthy()
 })
 
 // Test case for https://github.com/pnpm/pnpm/issues/1866
@@ -145,7 +148,7 @@ test('fetch a package without a package.json', async () => {
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
-  expect(filesIndex['denolib.json']).toBeTruthy()
+  expect(filesIndex.has('denolib.json')).toBeTruthy()
 })
 
 // Covers the regression reported in https://github.com/pnpm/pnpm/issues/4064
@@ -188,13 +191,15 @@ test('still able to shallow fetch for allowed hosts', async () => {
     // Discard final argument as it passes temporary directory
     expect(calls[i].slice(0, -1)).toEqual(expectedCalls[i])
   }
-  expect(filesIndex['package.json']).toBeTruthy()
+  expect(filesIndex.has('package.json')).toBeTruthy()
   expect(manifest?.name).toBe('is-positive')
 })
 
 test('fail when preparing a git-hosted package', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({
+    rawConfig: {},
+  }).git
   await expect(
     fetch(createCafsStore(storeDir),
       {
@@ -202,9 +207,27 @@ test('fail when preparing a git-hosted package', async () => {
         repo: 'https://github.com/pnpm-e2e/prepare-script-fails.git',
         type: 'git',
       }, {
+        allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-fails',
         filesIndexFile: path.join(storeDir, 'index.json'),
       })
   ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-fails.git": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
+})
+
+test('fail when preparing a git-hosted package with a partial commit', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({
+    rawConfig: {},
+  }).git
+  await expect(
+    fetch(createCafsStore(storeDir),
+      {
+        commit: 'deadbeef',
+        repo: 'https://github.com/pnpm-e2e/simple-pkg.git',
+        type: 'git',
+      }, {
+        filesIndexFile: path.join(storeDir, 'index.json'),
+      })
+  ).rejects.toThrow(/received commit [0-9a-f]{40} does not match expected value deadbeef/)
 })
 
 test('do not build the package when scripts are ignored', async () => {
@@ -218,9 +241,46 @@ test('do not build the package when scripts are ignored', async () => {
     }, {
       filesIndexFile: path.join(storeDir, 'index.json'),
     })
-  expect(filesIndex['package.json']).toBeTruthy()
-  expect(filesIndex['prepare.txt']).toBeFalsy()
+  expect(filesIndex.has('package.json')).toBeTruthy()
+  expect(filesIndex.has('prepare.txt')).toBeFalsy()
   expect(globalWarn).toHaveBeenCalledWith('The git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-works.git" has to be built but the build scripts were ignored.')
+})
+
+test('block git package with prepare script', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const repo = 'https://github.com/pnpm-e2e/prepare-script-works.git'
+  await expect(
+    fetch(createCafsStore(storeDir),
+      {
+        commit: '55416a9c468806a935636c0ad0371a14a64df8c9',
+        repo,
+        type: 'git',
+      }, {
+        allowBuild: () => false,
+        filesIndexFile: path.join(storeDir, 'index.json'),
+      })
+  ).rejects.toThrow('The git-hosted package "@pnpm.e2e/prepare-script-works@1.0.0" needs to execute build scripts but is not in the "onlyBuiltDependencies" allowlist')
+})
+
+test('allow git package with prepare script', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({
+    rawConfig: {},
+  }).git
+  // This should succeed without throwing because the package is in the allowlist
+  const { filesIndex } = await fetch(createCafsStore(storeDir),
+    {
+      commit: '55416a9c468806a935636c0ad0371a14a64df8c9',
+      repo: 'https://github.com/pnpm-e2e/prepare-script-works.git',
+      type: 'git',
+    }, {
+      allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-works',
+      filesIndexFile: path.join(storeDir, 'index.json'),
+    })
+  expect(filesIndex.has('package.json')).toBeTruthy()
+  // Note: prepare.txt is in .gitignore so it won't be in the files index
+  // The fact that no error was thrown proves the prepare script was allowed to run
 })
 
 function prefixGitArgs (): string[] {
@@ -241,7 +301,7 @@ test('fetch only the included files', async () => {
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
-  expect(Object.keys(filesIndex).sort()).toStrictEqual([
+  expect(Array.from(filesIndex.keys()).sort()).toStrictEqual([
     'README.md',
     'dist/index.js',
     'package.json',

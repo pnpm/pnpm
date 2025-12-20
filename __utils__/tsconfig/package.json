@@ -20,7 +20,7 @@
   },
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "engines": {
     "node": ">=14.6"
