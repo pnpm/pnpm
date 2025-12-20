@@ -106,10 +106,10 @@ function detectStrongestTrustEvidenceBeforeDate (
 }
 
 export function getTrustEvidence (manifest: Omit<PackageInRegistry, 'dist'> & Partial<Pick<PackageInRegistry, 'dist'>>): TrustEvidence | undefined {
-  if (manifest._npmUser?.trustedPublisher) {
+  if (manifest?._npmUser?.trustedPublisher) {
     return 'trustedPublisher'
   }
-  if (manifest.dist?.attestations?.provenance) {
+  if (manifest?.dist?.attestations?.provenance) {
     return 'provenance'
   }
   return undefined
