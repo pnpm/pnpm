@@ -2,10 +2,10 @@ import { omit } from 'ramda'
 import { PnpmError } from '@pnpm/error'
 import { PROJECT_CONFIG_FIELDS, type Config, type ProjectConfig, type ProjectConfigRecord } from './Config.js'
 
-export type CreateProjectConfigRecordOptions = Pick<Config, 'projectConfigs'>
+export type CreateProjectConfigRecordOptions = Pick<Config, 'packageConfigs'>
 
 export function createProjectConfigRecord (opts: CreateProjectConfigRecordOptions): ProjectConfigRecord | undefined {
-  return createProjectConfigRecordFromConfigSet(opts.projectConfigs)
+  return createProjectConfigRecordFromConfigSet(opts.packageConfigs)
 }
 
 export class ProjectConfigIsNotAnObjectError extends PnpmError {
@@ -74,7 +74,7 @@ function createProjectConfigFromRaw (config: unknown): ProjectConfig {
 export class ProjectConfigsIsNeitherObjectNorArrayError extends PnpmError {
   readonly configSet: unknown
   constructor (configSet: unknown) {
-    super('PROJECT_CONFIGS_IS_NEITHER_OBJECT_NOR_ARRAY', `Expecting projectConfigs to be either an object or an array but received ${JSON.stringify(configSet)}`)
+    super('PROJECT_CONFIGS_IS_NEITHER_OBJECT_NOR_ARRAY', `Expecting packageConfigs to be either an object or an array but received ${JSON.stringify(configSet)}`)
     this.configSet = configSet
   }
 }
@@ -82,21 +82,21 @@ export class ProjectConfigsIsNeitherObjectNorArrayError extends PnpmError {
 export class ProjectConfigsArrayItemIsNotAnObjectError extends PnpmError {
   readonly item: unknown
   constructor (item: unknown) {
-    super('PROJECT_CONFIGS_ARRAY_ITEM_IS_NOT_AN_OBJECT', `Expecting a projectConfigs item to be an object but received ${JSON.stringify(item)}`)
+    super('PROJECT_CONFIGS_ARRAY_ITEM_IS_NOT_AN_OBJECT', `Expecting a packageConfigs item to be an object but received ${JSON.stringify(item)}`)
     this.item = item
   }
 }
 
 export class ProjectConfigsArrayItemMatchIsNotDefinedError extends PnpmError {
   constructor () {
-    super('PROJECT_CONFIGS_ARRAY_ITEM_MATCH_IS_NOT_DEFINED', 'A projectConfigs match is not defined')
+    super('PROJECT_CONFIGS_ARRAY_ITEM_MATCH_IS_NOT_DEFINED', 'A packageConfigs match is not defined')
   }
 }
 
 export class ProjectConfigsArrayItemMatchIsNotAnArrayError extends PnpmError {
   readonly match: unknown
   constructor (match: unknown) {
-    super('PROJECT_CONFIGS_ARRAY_ITEM_MATCH_IS_NOT_AN_ARRAY', `Expecting a projectConfigs match to be an array but received ${JSON.stringify(match)}`)
+    super('PROJECT_CONFIGS_ARRAY_ITEM_MATCH_IS_NOT_AN_ARRAY', `Expecting a packageConfigs match to be an array but received ${JSON.stringify(match)}`)
     this.match = match
   }
 }

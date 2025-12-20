@@ -39,7 +39,7 @@ test.skip('recursive update --latest should update deps with correct specs', asy
 
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['*'],
-    projectConfigs: {
+    packageConfigs: {
       'project-2': { saveExact: true },
       'project-3': { savePrefix: '~' },
     },

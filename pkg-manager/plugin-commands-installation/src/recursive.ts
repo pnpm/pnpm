@@ -84,7 +84,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'tag'
 | 'cleanupUnusedCatalogs'
-| 'projectConfigs'
+| 'packageConfigs'
 > & {
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
