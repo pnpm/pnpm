@@ -271,18 +271,34 @@ export async function handler (
         })
       }
     }
-    opts.onlyBuiltDependencies = Array.from(new Set([
-      ...(opts.onlyBuiltDependencies ?? []),
-      ...opts.allowBuild,
-    ])).sort((a, b) => a.localeCompare(b))
+    let allowBuildList = [] as string[]
+    let shouldSettingAllowBuilds = false
+    if (opts.onlyBuiltDependencies) {
+      allowBuildList.push(...opts.onlyBuiltDependencies)
+    } else {
+      shouldSettingAllowBuilds = true
+      allowBuildList.push(...Object.entries(opts.allowBuilds ?? {}).filter(([, allowBuild]) => allowBuild).map(([dep]) => dep))
+    }
+    allowBuildList.push(...opts.allowBuild)
+    allowBuildList = Array.from(new Set(allowBuildList)).sort((a, b) => a.localeCompare(b))
+    opts.onlyBuiltDependencies = allowBuildList
+
     if (opts.rootProjectManifestDir) {
       opts.rootProjectManifest = opts.rootProjectManifest ?? {}
       await writeSettings({
         ...opts,
         workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-        updatedSettings: {
-          onlyBuiltDependencies: opts.onlyBuiltDependencies,
-        },
+        updatedSettings:
+          shouldSettingAllowBuilds
+            ? {
+              allowBuilds: allowBuildList.reduce((acc, dep) => {
+                acc[dep] = true
+                return acc
+              }, {} as Record<string, boolean>),
+            }
+            : {
+              onlyBuiltDependencies: allowBuildList,
+            },
       })
     }
   }
