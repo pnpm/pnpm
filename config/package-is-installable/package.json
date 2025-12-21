@@ -39,7 +39,7 @@
     "@pnpm/types": "workspace:*",
     "detect-libc": "catalog:",
     "execa": "catalog:",
-    "mem": "catalog:",
+    "memoize": "catalog:",
     "semver": "catalog:"
   },
   "peerDependencies": {

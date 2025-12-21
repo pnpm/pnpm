@@ -1,5 +1,5 @@
 import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
-import mem from 'mem'
+import mem from 'memoize'
 import * as execa from 'execa'
 
 export function getSystemNodeVersionNonCached (): string | undefined {

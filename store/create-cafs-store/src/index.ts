@@ -13,7 +13,7 @@ import {
   type ImportPackageFunction,
   type ImportPackageFunctionAsync,
 } from '@pnpm/store-controller-types'
-import memoize from 'mem'
+import memoize from 'memoize'
 import pathTemp from 'path-temp'
 
 export { type CafsLocker }
