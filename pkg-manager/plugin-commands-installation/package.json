@@ -82,7 +82,6 @@
     "get-npm-tarball-url": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
-    "mem": "catalog:",
     "normalize-path": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
