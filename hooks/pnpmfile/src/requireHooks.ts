@@ -30,6 +30,7 @@ interface PnpmfileEntryLoaded {
 
 export interface CookedHooks {
   readPackage?: Array<Cook<Required<Hooks>['readPackage']>>
+  beforePacking?: Array<Cook<Required<Hooks>['beforePacking']>>
   preResolution?: Array<Cook<Required<Hooks>['preResolution']>>
   afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>>
   filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
@@ -96,8 +97,9 @@ export function requireHooks (
   }
 
   const mergedFinders: Finders = {}
-  const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'readPackage' | 'preResolution' | 'afterAllResolved' | 'filterLog' | 'updateConfig'>> = {
+  const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'readPackage' | 'beforePacking' | 'preResolution' | 'afterAllResolved' | 'filterLog' | 'updateConfig'>> = {
     readPackage: [],
+    beforePacking: [],
     preResolution: [],
     afterAllResolved: [],
     filterLog: [],
@@ -146,6 +148,13 @@ export function requireHooks (
         const context = createReadPackageHookContext(file, prefix, hookName)
         cookedHooks[hookName].push((pkg: object) => fn(pkg as any, context)) // eslint-disable-line @typescript-eslint/no-explicit-any
       }
+    }
+
+    // beforePacking
+    if (fileHooks.beforePacking) {
+      const fn = fileHooks.beforePacking
+      const context = createReadPackageHookContext(file, prefix, 'beforePacking')
+      cookedHooks.beforePacking.push((pkg: object, dir: string) => fn(pkg, dir, context))
     }
 
     // filterLog
