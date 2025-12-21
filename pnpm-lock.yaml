@@ -6381,6 +6381,9 @@ importers:
       '@pnpm/exportable-manifest':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/pnpmfile':
+        specifier: workspace:*
+        version: link:../../hooks/pnpmfile
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -7155,6 +7158,9 @@ importers:
       '@pnpm/plugin-commands-publishing':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/pnpmfile':
+        specifier: workspace:*
+        version: link:../../hooks/pnpmfile
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
