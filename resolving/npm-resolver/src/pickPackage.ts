@@ -141,13 +141,14 @@ export async function pickPackage (
     if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
       metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
 
-      if (ctx.offline) {
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+      if (ctx.offline || ctx.preferOffline) {
         if (metaCachedInStore != null) return {
           meta: metaCachedInStore,
           pickedPackage: _pickPackageFromMeta(metaCachedInStore),
         }
 
-        throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
+        if (ctx.offline) throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
       if (metaCachedInStore != null) {
