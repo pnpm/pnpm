@@ -1,6 +1,8 @@
-import fs from 'fs'
 import path from 'path'
+import { sync as writeYamlFile } from 'write-yaml-file'
+import { type Config } from '@pnpm/config'
 import { preparePackages } from '@pnpm/prepare'
+import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { addDistTag } from '@pnpm/registry-mock'
 import { execPnpm } from '../utils/index.js'
 
@@ -35,17 +37,13 @@ test.skip('recursive update --latest should update deps with correct specs', asy
     },
   ])
 
-  fs.writeFileSync(
-    'project-2/.npmrc',
-    'save-exact = true',
-    'utf8'
-  )
-
-  fs.writeFileSync(
-    'project-3/.npmrc',
-    'save-prefix = ~',
-    'utf8'
-  )
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['*'],
+    packageConfigs: {
+      'project-2': { saveExact: true },
+      'project-3': { savePrefix: '~' },
+    },
+  } satisfies Partial<Config> & WorkspaceManifest)
 
   await execPnpm(['recursive', 'update', '--latest'])
 

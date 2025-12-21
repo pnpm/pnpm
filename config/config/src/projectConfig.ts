@@ -1,0 +1,153 @@
+import { omit } from 'ramda'
+import { PnpmError } from '@pnpm/error'
+import { PROJECT_CONFIG_FIELDS, type Config, type ProjectConfig, type ProjectConfigRecord } from './Config.js'
+
+export type CreateProjectConfigRecordOptions = Pick<Config, 'packageConfigs'>
+
+export function createProjectConfigRecord (opts: CreateProjectConfigRecordOptions): ProjectConfigRecord | undefined {
+  return createProjectConfigRecordFromConfigSet(opts.packageConfigs)
+}
+
+export class ProjectConfigIsNotAnObjectError extends PnpmError {
+  readonly actualRawConfig: unknown
+  constructor (actualRawConfig: unknown) {
+    super('PROJECT_CONFIG_NOT_AN_OBJECT', `Expecting project-specific config to be an object, but received ${JSON.stringify(actualRawConfig)}`)
+    this.actualRawConfig = actualRawConfig
+  }
+}
+
+export class ProjectConfigInvalidValueTypeError extends PnpmError {
+  readonly expectedType: string
+  readonly actualType: string
+  readonly actualValue: unknown
+  constructor (expectedType: string, actualValue: unknown) {
+    const actualType = typeof actualValue
+    super('PROJECT_CONFIG_INVALID_VALUE_TYPE', `Expecting a value of type ${expectedType} but received a value of type ${actualType}: ${JSON.stringify(actualValue)}`)
+    this.expectedType = expectedType
+    this.actualType = actualType
+    this.actualValue = actualValue
+  }
+}
+
+export class ProjectConfigUnsupportedFieldError extends PnpmError {
+  readonly field: string
+  constructor (field: string) {
+    super('PROJECT_CONFIG_UNSUPPORTED_FIELD', `Field ${field} is not supported but was specified`)
+    this.field = field
+  }
+}
+
+function createProjectConfigFromRaw (config: unknown): ProjectConfig {
+  if (typeof config !== 'object' || !config || Array.isArray(config)) {
+    throw new ProjectConfigIsNotAnObjectError(config)
+  }
+
+  if ('hoist' in config && config.hoist !== undefined && typeof config.hoist !== 'boolean') {
+    throw new ProjectConfigInvalidValueTypeError('boolean', config.hoist)
+  }
+
+  if ('modulesDir' in config && config.modulesDir !== undefined && typeof config.modulesDir !== 'string') {
+    throw new ProjectConfigInvalidValueTypeError('string', config.modulesDir)
+  }
+
+  if ('saveExact' in config && config.saveExact !== undefined && typeof config.saveExact !== 'boolean') {
+    throw new ProjectConfigInvalidValueTypeError('boolean', config.saveExact)
+  }
+
+  if ('savePrefix' in config && config.savePrefix !== undefined && typeof config.savePrefix !== 'string') {
+    throw new ProjectConfigInvalidValueTypeError('string', config.savePrefix)
+  }
+
+  for (const key in config) {
+    if ((config as Record<string, unknown>)[key] !== undefined && !(PROJECT_CONFIG_FIELDS as string[]).includes(key)) {
+      throw new ProjectConfigUnsupportedFieldError(key)
+    }
+  }
+
+  const result: ProjectConfig = config
+  if (result.hoist === false) {
+    return { ...result, hoistPattern: undefined }
+  }
+  return result
+}
+
+export class ProjectConfigsIsNeitherObjectNorArrayError extends PnpmError {
+  readonly configSet: unknown
+  constructor (configSet: unknown) {
+    super('PROJECT_CONFIGS_IS_NEITHER_OBJECT_NOR_ARRAY', `Expecting packageConfigs to be either an object or an array but received ${JSON.stringify(configSet)}`)
+    this.configSet = configSet
+  }
+}
+
+export class ProjectConfigsArrayItemIsNotAnObjectError extends PnpmError {
+  readonly item: unknown
+  constructor (item: unknown) {
+    super('PROJECT_CONFIGS_ARRAY_ITEM_IS_NOT_AN_OBJECT', `Expecting a packageConfigs item to be an object but received ${JSON.stringify(item)}`)
+    this.item = item
+  }
+}
+
+export class ProjectConfigsArrayItemMatchIsNotDefinedError extends PnpmError {
+  constructor () {
+    super('PROJECT_CONFIGS_ARRAY_ITEM_MATCH_IS_NOT_DEFINED', 'A packageConfigs match is not defined')
+  }
+}
+
+export class ProjectConfigsArrayItemMatchIsNotAnArrayError extends PnpmError {
+  readonly match: unknown
+  constructor (match: unknown) {
+    super('PROJECT_CONFIGS_ARRAY_ITEM_MATCH_IS_NOT_AN_ARRAY', `Expecting a packageConfigs match to be an array but received ${JSON.stringify(match)}`)
+    this.match = match
+  }
+}
+
+export class ProjectConfigsMatchItemIsNotAStringError extends PnpmError {
+  readonly matchItem: unknown
+  constructor (matchItem: unknown) {
+    super('PROJECT_CONFIGS_MATCH_ITEM_IS_NOT_A_STRING', `Expecting a match item to be a string but received ${JSON.stringify(matchItem)}`)
+    this.matchItem = matchItem
+  }
+}
+
+const withoutMatch = omit(['match'])
+
+function createProjectConfigRecordFromConfigSet (configSet: unknown): ProjectConfigRecord | undefined {
+  if (configSet == null) return undefined
+  if (typeof configSet !== 'object') throw new ProjectConfigsIsNeitherObjectNorArrayError(configSet)
+
+  const result: ProjectConfigRecord = {}
+
+  if (!Array.isArray(configSet)) {
+    for (const projectName in configSet) {
+      const projectConfig = (configSet as Record<string, unknown>)[projectName]
+      result[projectName] = createProjectConfigFromRaw(projectConfig)
+    }
+    return result
+  }
+
+  for (const item of configSet as unknown[]) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new ProjectConfigsArrayItemIsNotAnObjectError(item)
+    }
+
+    if (!('match' in item)) {
+      throw new ProjectConfigsArrayItemMatchIsNotDefinedError()
+    }
+
+    if (typeof item.match !== 'object' || !Array.isArray(item.match)) {
+      throw new ProjectConfigsArrayItemMatchIsNotAnArrayError(item.match)
+    }
+
+    const projectConfig = createProjectConfigFromRaw(withoutMatch(item))
+
+    for (const projectName of item.match as unknown[]) {
+      if (typeof projectName !== 'string') {
+        throw new ProjectConfigsMatchItemIsNotAStringError(projectName)
+      }
+
+      result[projectName] = projectConfig
+    }
+  }
+
+  return result
+}
