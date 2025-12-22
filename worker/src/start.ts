@@ -143,7 +143,7 @@ async function handleMessage (
   }
 }
 
-function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile }: TarballExtractMessage) {
+function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appendManifest: syntheticManifest }: TarballExtractMessage) {
   if (integrity) {
     const [, algo, integrityHash] = integrity.match(INTEGRITY_REGEX)!
     // Compensate for the possibility of non-uniform Base64 padding
@@ -167,13 +167,23 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile }: Tar
   }
   const cafs = cafsCache.get(storeDir)!
   const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
+  if (syntheticManifest) {
+    const { filePath, integrity, checkedAt } = cafs.addFile(Buffer.from(JSON.stringify(syntheticManifest, null, 2), 'utf8'), 0o644)
+    filesIndex.set('package.json', {
+      checkedAt,
+      integrity,
+      mode: 0o644,
+      size: Buffer.byteLength(JSON.stringify(syntheticManifest, null, 2)),
+      filePath, // internal property
+    } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
+  const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: syntheticManifest ?? manifest ?? {}, files: filesIntegrity })
   return {
     status: 'success',
     value: {
       filesIndex: filesMap,
-      manifest,
+      manifest: syntheticManifest ?? manifest,
       requiresBuild,
       integrity: integrity ?? calcIntegrity(buffer),
     },
@@ -214,7 +224,7 @@ function initStore ({ storeDir }: InitStoreMessage): { status: string } {
   return { status: 'success' }
 }
 
-function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, files }: AddDirToStoreMessage): AddFilesFromDirResult {
+function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, appendManifest: syntheticManifest, files }: AddDirToStoreMessage): AddFilesFromDirResult {
   if (!cafsCache.has(storeDir)) {
     cafsCache.set(storeDir, createCafs(storeDir))
   }
@@ -223,6 +233,16 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
     files,
     readManifest: true,
   })
+  if (syntheticManifest) {
+    const { filePath, integrity, checkedAt } = cafs.addFile(Buffer.from(JSON.stringify(syntheticManifest, null, 2), 'utf8'), 0o644)
+    filesIndex.set('package.json', {
+      checkedAt,
+      integrity,
+      mode: 0o644,
+      size: Buffer.byteLength(JSON.stringify(syntheticManifest, null, 2)),
+      filePath, // internal property
+    } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   let requiresBuild: boolean
   if (sideEffectsCacheKey) {
@@ -235,23 +255,23 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
         status: 'success',
         value: {
           filesIndex: filesMap,
-          manifest,
-          requiresBuild: pkgRequiresBuild(manifest, filesIntegrity),
+          manifest: syntheticManifest ?? manifest,
+          requiresBuild: pkgRequiresBuild(syntheticManifest ?? manifest, filesIntegrity),
         },
       }
     }
     filesIndex.sideEffects ??= new Map()
     filesIndex.sideEffects.set(sideEffectsCacheKey, calculateDiff(filesIndex.files, filesIntegrity))
     if (filesIndex.requiresBuild == null) {
-      requiresBuild = pkgRequiresBuild(manifest, filesIntegrity)
+      requiresBuild = pkgRequiresBuild(syntheticManifest ?? manifest, filesIntegrity)
     } else {
       requiresBuild = filesIndex.requiresBuild
     }
     writeV8File(filesIndexFile, filesIndex)
   } else {
-    requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
+    requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: syntheticManifest ?? manifest ?? {}, files: filesIntegrity })
   }
-  return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
+  return { status: 'success', value: { filesIndex: filesMap, manifest: syntheticManifest ?? manifest, requiresBuild } }
 }
 
 function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles): SideEffectsDiff {

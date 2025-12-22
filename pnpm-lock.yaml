@@ -3105,6 +3105,9 @@ importers:
 
   fetching/binary-fetcher:
     dependencies:
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../../store/cafs-types
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -3114,6 +3117,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/fs.v8-file':
+        specifier: workspace:*
+        version: link:../../fs/v8-file
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker

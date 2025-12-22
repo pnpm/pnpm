@@ -73,7 +73,7 @@ interface AddFilesResult {
   integrity?: string
 }
 
-type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest'>
 
 export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
   if (!workerPool) {
@@ -97,6 +97,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
+      appendManifest: opts.appendManifest,
       files: opts.files,
     })
   })
@@ -136,7 +137,7 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
   }
 }
 
-type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
+type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest'> & {
   url: string
 }
 
@@ -169,6 +170,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
+      appendManifest: opts.appendManifest,
     })
   })
 }

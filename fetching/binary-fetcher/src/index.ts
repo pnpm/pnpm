@@ -19,13 +19,23 @@ export function createBinaryFetcher (ctx: {
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_BINARY_OFFLINE', `Cannot download binary "${resolution.url}" because offline mode is enabled.`)
     }
+
+    const manifest = {
+      name: opts.pkg.name!,
+      version: opts.pkg.version!,
+      bin: resolution.bin,
+    }
+
     let fetchResult!: FetchResult
     switch (resolution.archive) {
     case 'tarball': {
       fetchResult = await ctx.fetchFromRemoteTarball(cafs, {
         tarball: resolution.url,
         integrity: resolution.integrity,
-      }, opts)
+      }, {
+        appendManifest: manifest,
+        ...opts,
+      })
       break
     }
     case 'zip': {
@@ -40,6 +50,7 @@ export function createBinaryFetcher (ctx: {
         dir: tempLocation,
         filesIndexFile: opts.filesIndexFile,
         readManifest: false,
+        appendManifest: manifest,
       })
       break
     }
@@ -47,11 +58,7 @@ export function createBinaryFetcher (ctx: {
       throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
     }
     }
-    const manifest = {
-      name: opts.pkg.name!,
-      version: opts.pkg.version!,
-      bin: resolution.bin,
-    }
+
     return {
       ...fetchResult,
       manifest,

@@ -27,7 +27,7 @@ export type DownloadFunction = (url: string, opts: {
   onProgress?: (downloaded: number) => void
   integrity?: string
   filesIndexFile: string
-} & Pick<FetchOptions, 'pkg'>) => Promise<FetchResult>
+} & Pick<FetchOptions, 'pkg' | 'appendManifest'>) => Promise<FetchResult>
 
 export interface NpmRegistryClient {
   get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void
@@ -69,7 +69,7 @@ export function createDownloader (
     onProgress?: (downloaded: number) => void
     integrity?: string
     filesIndexFile: string
-  } & Pick<FetchOptions, 'pkg'>): Promise<FetchResult> {
+  } & Pick<FetchOptions, 'pkg' | 'appendManifest'>): Promise<FetchResult> {
     const authHeaderValue = opts.getAuthHeaderByURI(url)
 
     const op = retry.operation(retryOpts)
@@ -179,6 +179,7 @@ export function createDownloader (
         filesIndexFile: opts.filesIndexFile,
         url,
         pkg: opts.pkg,
+        appendManifest: opts.appendManifest,
       })
     }
   }

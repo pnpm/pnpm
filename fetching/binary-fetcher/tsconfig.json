@@ -10,10 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../fs/v8-file"
+    },
+    {
       "path": "../../network/fetching-types"
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../store/cafs-types"
     },
     {
       "path": "../../worker"
