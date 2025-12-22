@@ -185,7 +185,7 @@ export class ConfigSetUnsupportedIniConfigKeyError extends PnpmError {
  */
 function validateIniConfigKey (key: string): string {
   const kebabKey = kebabCase(key)
-  if (kebabKey in types) {
+  if (Object.hasOwn(types, kebabKey)) {
     return kebabKey
   }
   throw new ConfigSetUnsupportedIniConfigKeyError(key)
@@ -207,7 +207,7 @@ export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
  * Return the camelCase of {@link key} if it's valid.
  */
 function validateWorkspaceKey (key: string): string {
-  if (key in types) return camelCase(key)
+  if (Object.hasOwn(types, key)) return camelCase(key)
   if (!isCamelCase(key)) throw new ConfigSetUnsupportedWorkspaceKeyError(key)
   return key
 }
