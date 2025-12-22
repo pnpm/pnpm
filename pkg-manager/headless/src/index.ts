@@ -799,7 +799,8 @@ async function getRootPackagesToLink (
         if (ref.startsWith('link:')) {
           const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
           const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
-          const packageDir = path.join(opts.projectDir, ref.slice(5))
+          ref = ref.slice(5)
+          const packageDir = path.isAbsolute(ref) ? ref : path.join(opts.projectDir, ref)
           const linkedPackage = await (async () => {
             const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
             if (opts.importerManifestsByImporterId[importerId]) {
