@@ -116,7 +116,7 @@ test('do not pick version that does not satisfy the date requirement even if it 
   })
   await expect(resolveFromNpm({ alias: 'foo', bareSpecifier: '1.0.0' }, {
     publishedBy: new Date('2015-08-17T19:26:00.508Z'),
-  })).rejects.toThrow('Version 1.0.0 of foo exists but does not meet the minimumReleaseAge constraint')
+  })).rejects.toThrow(/Version 1\.0\.0 \(released .+\) of foo does not meet the minimumReleaseAge constraint/)
 })
 
 test('should skip time field validation for excluded packages', async () => {

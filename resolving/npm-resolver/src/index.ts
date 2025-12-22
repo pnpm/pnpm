@@ -71,7 +71,8 @@ export class NoMatchingVersionError extends PnpmError {
     if (opts.publishedBy && opts.immatureVersion && opts.packageMeta.time) {
       const time = new Date(opts.packageMeta.time[opts.immatureVersion])
       const releaseAgeText = formatTimeAgo(time)
-      errorMessage = `Version ${opts.immatureVersion} of ${opts.packageMeta.name} exists but does not meet the minimumReleaseAge constraint (released ${releaseAgeText})`
+      const pkgName = opts.wantedDependency.alias ?? opts.packageMeta.name
+      errorMessage = `Version ${opts.immatureVersion} (released ${releaseAgeText}) of ${pkgName} does not meet the minimumReleaseAge constraint`
     } else {
       errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
     }
@@ -84,6 +85,12 @@ export class NoMatchingVersionError extends PnpmError {
 function formatTimeAgo (date: Date): string {
   const now = Date.now()
   const diffMs = now - date.getTime()
+
+  // Handle clock skew (future dates) and very recent releases (< 1 minute)
+  if (diffMs < 60 * 1000) {
+    return 'just now'
+  }
+
   const diffMinutes = Math.floor(diffMs / (60 * 1000))
   const diffHours = Math.floor(diffMs / (60 * 60 * 1000))
   const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000))
