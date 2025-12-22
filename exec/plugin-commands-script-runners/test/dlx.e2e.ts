@@ -398,5 +398,5 @@ test('dlx should fail when the requested package does not meet the minimum age r
         default: 'https://registry.npmjs.org/',
       },
     }, ['shx@0.3.4'])
-  ).rejects.toThrow('No matching version found for shx@0.3.4 published by')
+  ).rejects.toThrow('Version 0.3.4 of shx exists but does not meet the minimumReleaseAge constraint')
 })
