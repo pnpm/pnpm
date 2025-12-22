@@ -95,10 +95,10 @@ function formatTimeAgo (date: Date): string {
   const diffHours = Math.floor(diffMs / (60 * 60 * 1000))
   const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000))
 
-  if (diffDays > 0) {
+  if (diffHours >= 48) {
     return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
   }
-  if (diffHours > 0) {
+  if (diffMinutes >= 90) {
     return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
   }
   return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
