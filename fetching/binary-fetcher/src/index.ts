@@ -2,7 +2,7 @@ import path from 'path'
 import fsPromises from 'fs/promises'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { type BinaryFetcher, type FetchFunction } from '@pnpm/fetcher-base'
+import { type BinaryFetcher, type FetchFunction, type FetchResult } from '@pnpm/fetcher-base'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
@@ -19,40 +19,43 @@ export function createBinaryFetcher (ctx: {
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_BINARY_OFFLINE', `Cannot download binary "${resolution.url}" because offline mode is enabled.`)
     }
-    const version = opts.pkg.version!
-    const manifest = {
-      name: opts.pkg.name!,
-      version,
-      bin: resolution.bin,
+    let fetchResult!: FetchResult
+    switch (resolution.archive) {
+    case 'tarball': {
+      fetchResult = await ctx.fetchFromRemoteTarball(cafs, {
+        tarball: resolution.url,
+        integrity: resolution.integrity,
+      }, opts)
+      break
     }
-
-    if (resolution.archive === 'tarball') {
-      return {
-        ...await ctx.fetchFromRemoteTarball(cafs, {
-          tarball: resolution.url,
-          integrity: resolution.integrity,
-        }, opts),
-        manifest,
-      }
-    }
-    if (resolution.archive === 'zip') {
+    case 'zip': {
       const tempLocation = await cafs.tempDir()
       await downloadAndUnpackZip(ctx.fetch, {
         url: resolution.url,
         integrity: resolution.integrity,
         basename: resolution.prefix ?? '',
       }, tempLocation)
-      return {
-        ...await addFilesFromDir({
-          storeDir: cafs.storeDir,
-          dir: tempLocation,
-          filesIndexFile: opts.filesIndexFile,
-          readManifest: false,
-        }),
-        manifest,
-      }
+      fetchResult = await addFilesFromDir({
+        storeDir: cafs.storeDir,
+        dir: tempLocation,
+        filesIndexFile: opts.filesIndexFile,
+        readManifest: false,
+      })
+      break
     }
-    throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
+    default: {
+      throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
+    }
+    }
+    const manifest = {
+      name: opts.pkg.name!,
+      version: opts.pkg.version!,
+      bin: resolution.bin,
+    }
+    return {
+      ...fetchResult,
+      manifest,
+    }
   }
   return {
     binary: fetchBinary,
