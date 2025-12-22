@@ -227,7 +227,7 @@ catalog:
   lru-cache: ^11.1.0
   make-empty-dir: ^3.0.2
   mdast-util-to-string: ^2.0.0
-  mem: ^10.0.0
+  memoize: ^10.2.0
   micromatch: ^4.0.8
   nock: 13.3.4
   node-fetch: ^3.3.2

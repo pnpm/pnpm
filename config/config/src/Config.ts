@@ -237,6 +237,8 @@ export interface Config extends OptionsFromRootManifest {
   fetchMinSpeedKiBps?: number
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
+
+  packageConfigs?: ProjectConfigSet
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
@@ -244,3 +246,22 @@ export interface ConfigWithDeprecatedSettings extends Config {
   proxy?: string
   shamefullyFlatten?: boolean
 }
+
+export const PROJECT_CONFIG_FIELDS = [
+  'hoist',
+  'modulesDir',
+  'saveExact',
+  'savePrefix',
+] as const satisfies Array<keyof Config>
+
+export type ProjectConfig = Partial<Pick<Config, typeof PROJECT_CONFIG_FIELDS[number] | 'hoistPattern'>>
+
+/** Simple map from project names to {@link ProjectConfig} */
+export type ProjectConfigRecord = Record<string, ProjectConfig>
+
+/** Map multiple project names to a shared {@link ProjectConfig} */
+export type ProjectConfigMultiMatch = { match: string[] } & ProjectConfig
+
+export type ProjectConfigSet =
+  | ProjectConfigRecord
+  | ProjectConfigMultiMatch[]

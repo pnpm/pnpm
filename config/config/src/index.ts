@@ -31,6 +31,7 @@ import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import {
   type Config,
   type ConfigWithDeprecatedSettings,
+  type ProjectConfig,
   type UniversalOptions,
   type VerifyDepsBeforeRun,
   type WantedPackageManager,
@@ -48,10 +49,22 @@ import {
 export { types }
 
 export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
-export * from './readLocalConfig.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 
-export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
+export {
+  ProjectConfigInvalidValueTypeError,
+  ProjectConfigIsNotAnObjectError,
+  ProjectConfigUnsupportedFieldError,
+  ProjectConfigsArrayItemIsNotAnObjectError,
+  ProjectConfigsArrayItemMatchIsNotAnArrayError,
+  ProjectConfigsArrayItemMatchIsNotDefinedError,
+  ProjectConfigsIsNeitherObjectNorArrayError,
+  ProjectConfigsMatchItemIsNotAStringError,
+  type CreateProjectConfigRecordOptions,
+  createProjectConfigRecord,
+} from './projectConfig.js'
+
+export type { Config, ProjectConfig, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
 
 export { isIniConfigKey } from './auth.js'
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
