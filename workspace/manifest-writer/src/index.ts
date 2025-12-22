@@ -65,7 +65,9 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     }
 
     // Update allowBuilds instead of the old fields
-    updatedFields.allowBuilds = allowBuilds
+    if (Object.keys(allowBuilds).length > 0) {
+      updatedFields.allowBuilds = allowBuilds
+    }
     delete updatedFields.onlyBuiltDependencies
     delete updatedFields.ignoredBuiltDependencies
   }
