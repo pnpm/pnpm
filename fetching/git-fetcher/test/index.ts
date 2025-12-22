@@ -206,7 +206,7 @@ test('fail when preparing a git-hosted package', async () => {
 })
 
 test('fail when preparing a git-hosted package with a partial commit', async () => {
-  const storeDir = temporaryDirectory()
+  const storeDir = tempy.directory()
   const fetch = createGitFetcher({
     rawConfig: {},
   }).git
