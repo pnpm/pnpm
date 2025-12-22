@@ -30,7 +30,7 @@ test('should pick remoteTarball fetcher', async () => {
 })
 
 test.each([
-  'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+  'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
   'https://bitbucket.org/pnpmjs/git-resolver/get/87cf6a67064d2ce56e8cd20624769a5512b83ff9.tar.gz',
   'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz',
 ])('should pick gitHostedTarball fetcher', async (tarball) => {

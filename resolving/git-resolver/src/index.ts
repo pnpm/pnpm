@@ -83,11 +83,11 @@ function resolveVTags (vTags: string[], range: string): string | null {
 
 async function getRepoRefs (repo: string, ref: string | null): Promise<Record<string, string>> {
   const gitArgs = [repo]
-  if (ref !== 'HEAD') {
-    gitArgs.unshift('--refs')
-  }
   if (ref) {
     gitArgs.push(ref)
+    // Also request the peeled ref for annotated tags (e.g., refs/tags/v1.0.0^{})
+    // This is needed because annotated tags have their own SHA, and we need the commit SHA they point to
+    gitArgs.push(`${ref}^{}`)
   }
   // graceful-git by default retries 10 times, reduce to single retry
   const result = await git(['ls-remote', ...gitArgs], { retries: 1 })
@@ -123,7 +123,8 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
 
     if (!commitId) {
       // check for a partial commit
-      const commits = committish ? Object.values(refs).filter((value: string) => value.startsWith(ref)) : []
+      // Use Set to deduplicate since multiple refs can point to the same commit
+      const commits = committish ? [...new Set(Object.values(refs).filter((value: string) => value.startsWith(ref)))] : []
       if (commits.length === 1) {
         commitId = commits[0]
       } else {
@@ -133,7 +134,7 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
 
     return commitId
   } else {
-    const vTags =
+    const vTags = [...new Set(
       Object.keys(refs)
         // using the same semantics of version tags as https://github.com/zkat/pacote
         .filter((key: string) => /^refs\/tags\/v?\d+\.\d+\.\d+(?:[-+].+)?(?:\^\{\})?$/.test(key))
@@ -143,10 +144,11 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
             .replace(/\^\{\}$/, '') // accept annotated tags
         })
         .filter((key: string) => semver.valid(key, true))
+    )]
     const refVTag = resolveVTags(vTags, range)
     const commitId = refVTag &&
       (refs[`refs/tags/${refVTag}^{}`] || // prefer annotated tags
-      refs[`refs/tags/${refVTag}`])
+        refs[`refs/tags/${refVTag}`])
 
     if (!commitId) {
       throw new Error(`Could not resolve ${range} to a commit of ${repo}. Available versions are: ${vTags.join(', ')}`)
