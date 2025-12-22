@@ -275,7 +275,6 @@ export async function handler (
       ...(opts.onlyBuiltDependencies ?? []),
       ...opts.allowBuild,
     ])).sort((a, b) => a.localeCompare(b))
-
     if (opts.rootProjectManifestDir) {
       opts.rootProjectManifest = opts.rootProjectManifest ?? {}
       await writeSettings({
