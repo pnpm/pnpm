@@ -267,12 +267,12 @@ test('re-adding a git repo with a different tag', async () => {
   lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.['is-negative']).toEqual({
     specifier: 'github:kevva/is-negative#1.0.1',
-    version: 'https://codeload.github.com/kevva/is-negative/tar.gz/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72',
+    version: 'https://codeload.github.com/kevva/is-negative/tar.gz/f7dec4d66a5a56719e49b9f94a24d73f924ddeb3',
   })
   expect(lockfile.packages).toEqual(
     {
-      'is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72': {
-        resolution: { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72' },
+      'is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/f7dec4d66a5a56719e49b9f94a24d73f924ddeb3': {
+        resolution: { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/f7dec4d66a5a56719e49b9f94a24d73f924ddeb3' },
         version: '1.0.1',
         engines: { node: '>=0.10.0' },
       },
@@ -348,5 +348,5 @@ test('no hash character for github subdirectory install', async () => {
   ], testDefaults())
 
   expect(fs.readdirSync('./node_modules/.pnpm'))
-    .toContain('only-allow@https+++codeload.github.com+pnpm+only-allow+tar.gz+4d577a5a5862a43e752df37a1e8a0c71c3a0084a+path++')
+    .toContain('only-allow@https+++codeload.github.com+pnpm+only-allow+tar.gz+91ab41994c6a1b7319869fa8864163c9954f56ec+path++')
 })

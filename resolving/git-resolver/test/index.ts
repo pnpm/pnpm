@@ -102,10 +102,10 @@ test('resolveFromGit() with branch relative to refs', async () => {
 test('resolveFromGit() with tag', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'zkochan/is-negative#2.0.1' })
   expect(resolveResult).toStrictEqual({
-    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
     normalizedBareSpecifier: 'github:zkochan/is-negative#2.0.1',
     resolution: {
-      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
     },
     resolvedVia: 'git-repository',
   })
@@ -150,10 +150,10 @@ test.skip('resolveFromGit() with strict semver (v-prefixed tag)', async () => {
 test('resolveFromGit() with range semver', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'zkochan/is-negative#semver:^1.0.0' })
   expect(resolveResult).toStrictEqual({
-    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72',
+    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/f7dec4d66a5a56719e49b9f94a24d73f924ddeb3',
     normalizedBareSpecifier: 'github:zkochan/is-negative#semver:^1.0.0',
     resolution: {
-      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72',
+      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/f7dec4d66a5a56719e49b9f94a24d73f924ddeb3',
     },
     resolvedVia: 'git-repository',
   })
@@ -379,10 +379,10 @@ test.skip('resolveFromGit() gitlab with tag', async () => {
 test('resolveFromGit() normalizes full url', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com:zkochan/is-negative.git#2.0.1' })
   expect(resolveResult).toStrictEqual({
-    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
     normalizedBareSpecifier: 'github:zkochan/is-negative#2.0.1',
     resolution: {
-      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
     },
     resolvedVia: 'git-repository',
   })
@@ -391,10 +391,10 @@ test('resolveFromGit() normalizes full url', async () => {
 test('resolveFromGit() normalizes full url with port', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com:22:zkochan/is-negative.git#2.0.1' })
   expect(resolveResult).toStrictEqual({
-    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
     normalizedBareSpecifier: 'github:zkochan/is-negative#2.0.1',
     resolution: {
-      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
     },
     resolvedVia: 'git-repository',
   })
@@ -403,10 +403,10 @@ test('resolveFromGit() normalizes full url with port', async () => {
 test('resolveFromGit() normalizes full url (alternative form)', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/zkochan/is-negative.git#2.0.1' })
   expect(resolveResult).toStrictEqual({
-    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
     normalizedBareSpecifier: 'github:zkochan/is-negative#2.0.1',
     resolution: {
-      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
     },
     resolvedVia: 'git-repository',
   })
@@ -415,17 +415,17 @@ test('resolveFromGit() normalizes full url (alternative form)', async () => {
 test('resolveFromGit() normalizes full url (alternative form 2)', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'https://github.com/zkochan/is-negative.git#2.0.1' })
   expect(resolveResult).toStrictEqual({
-    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
     normalizedBareSpecifier: 'github:zkochan/is-negative#2.0.1',
     resolution: {
-      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
     },
     resolvedVia: 'git-repository',
   })
 })
 
 // This test relies on implementation detail.
-// current implementation does not try git ls-remote --refs on bareSpecifier with full commit hash, this fake repo url will pass.
+// current implementation does not try git ls-remote on bareSpecifier with full commit hash, this fake repo url will pass.
 test('resolveFromGit() private repo with commit hash', async () => {
   // parseBareSpecifier will try to access the repository with --exit-code
   git.mockImplementation(() => {
@@ -448,11 +448,6 @@ test('resolveFromGit() private repo with commit hash', async () => {
 test('resolve a private repository using the HTTPS protocol without auth token', async () => {
   git.mockImplementation(async (args: string[]) => {
     expect(args).toContain('git+ssh://git@github.com/foo/bar.git')
-    if (args.includes('--refs')) {
-      return {
-        stdout: `\n${'a'.repeat(40)}\trefs/heads/master\n`,
-      }
-    }
     return {
       stdout: '0'.repeat(40) + '\tHEAD',
     }
@@ -497,13 +492,6 @@ test('resolve a private repository using the HTTPS protocol with a commit hash',
 test('resolve a private repository using the HTTPS protocol and an auth token', async () => {
   git.mockImplementation(async (args: string[]) => {
     if (!args.includes('https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git')) throw new Error('')
-    if (args.includes('--refs')) {
-      return {
-        stdout: '\
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
-',
-      }
-    }
     return { stdout: '0000000000000000000000000000000000000000\tHEAD' }
   })
   mockFetchAsPrivate()
@@ -523,14 +511,6 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
 test('resolve an internal repository using SSH protocol with range semver', async () => {
   git.mockImplementation(async (args: string[]) => {
     if (!args.includes('ssh://git@example.com/org/repo.git')) throw new Error('')
-    if (args.includes('--refs')) {
-      return {
-        stdout: '\
-ed3de20970d980cf21a07fd8b8732c70d5182303\trefs/tags/v0.0.38\n\
-cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39\
-',
-      }
-    }
     return {
       stdout: '0000000000000000000000000000000000000000\tHEAD\n\
 ed3de20970d980cf21a07fd8b8732c70d5182303\trefs/tags/v0.0.38\n\
@@ -553,14 +533,6 @@ cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39',
 test('resolve an internal repository using SSH protocol with range semver and SCP-like URL', async () => {
   git.mockImplementation(async (args: string[]) => {
     if (!args.includes('ssh://git@example.com/org/repo.git')) throw new Error('')
-    if (args.includes('--refs')) {
-      return {
-        stdout: '\
-ed3de20970d980cf21a07fd8b8732c70d5182303\trefs/tags/v0.0.38\n\
-cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39\
-',
-      }
-    }
     return {
       stdout: '0000000000000000000000000000000000000000\tHEAD\n\
 ed3de20970d980cf21a07fd8b8732c70d5182303\trefs/tags/v0.0.38\n\
