@@ -10,7 +10,7 @@ export function insertComments (json: string, comments: CommentSpecifier[]): str
   const canonicalizer = /[\s'"]/g
   for (let i = 0; i < jsonLines.length; ++i) {
     const key = jsonLines[i].replace(canonicalizer, '')
-    if (Object.hasOwn(index, key)) {
+    if (key in index) {
       index[key] = -1 // Mark this line as occurring twice
     } else {
       index[key] = i
