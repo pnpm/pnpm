@@ -258,7 +258,7 @@ export async function linkBinsOfDependencies<T extends string> (
   const pkgs = await Promise.all(pkgNodes
     .map(async (dep) => ({
       location: dep.dir,
-      manifest: (await dep.fetching?.())?.bundledManifest ?? (await safeReadPackageJsonFromDir(dep.dir) as DependencyManifest) ?? {},
+      manifest: (await dep.fetching?.())?.bundledManifest ?? (await safeReadPackageJsonFromDir(dep.dir) as DependencyManifest),
     }))
   )
 

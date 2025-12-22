@@ -99,7 +99,7 @@ function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: b
 
 export async function linkBinsOfPackages (
   pkgs: Array<{
-    manifest: DependencyManifest
+    manifest: DependencyManifest | null
     nodeExecPath?: string
     location: string
   }>,
@@ -111,7 +111,12 @@ export async function linkBinsOfPackages (
   const allCmds = unnest(
     (await Promise.all(
       pkgs
-        .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location, pkg.nodeExecPath))
+        .map(async (pkg) => {
+          if (!pkg.manifest) {
+            return getBinsForKnownRuntimes(pkg.location)
+          }
+          return getPackageBinsFromManifest(pkg.manifest, pkg.location, pkg.nodeExecPath)
+        })
     ))
       .filter((cmds: Command[]) => cmds.length)
   )
@@ -204,38 +209,7 @@ async function getPackageBins (
   if (manifest == null) {
     // There is a probably a better way to do this.
     // It isn't good to have these hardcoded here.
-    switch (path.basename(target)) {
-    case 'node':
-      return [{
-        name: 'node',
-        path: path.join(target, getNodeBinLocationForCurrentOS()),
-        ownName: true,
-        pkgName: '',
-        pkgVersion: '',
-        makePowerShellShim: false,
-      }]
-    case 'deno':
-      return [{
-        name: 'deno',
-        path: path.join(target, getDenoBinLocationForCurrentOS()),
-        ownName: true,
-        pkgName: '',
-        pkgVersion: '',
-        makePowerShellShim: false,
-      }]
-    case 'bun':
-      return [{
-        name: 'bun',
-        path: path.join(target, getBunBinLocationForCurrentOS()),
-        ownName: true,
-        pkgName: '',
-        pkgVersion: '',
-        makePowerShellShim: false,
-      }]
-    }
-    // There's a directory in node_modules without package.json: ${target}.
-    // This used to be a warning but it didn't really cause any issues.
-    return []
+    return getBinsForKnownRuntimes(target)
   }
 
   if (isEmpty(manifest.bin) && !await isFromModules(target)) {
@@ -247,6 +221,41 @@ async function getPackageBins (
   }
 
   return getPackageBinsFromManifest(manifest, target, nodeExecPath)
+}
+
+function getBinsForKnownRuntimes (target: string): CommandInfo[] {
+  switch (path.basename(target)) {
+  case 'node':
+    return [{
+      name: 'node',
+      path: path.join(target, getNodeBinLocationForCurrentOS()),
+      ownName: true,
+      pkgName: '',
+      pkgVersion: '',
+      makePowerShellShim: false,
+    }]
+  case 'deno':
+    return [{
+      name: 'deno',
+      path: path.join(target, getDenoBinLocationForCurrentOS()),
+      ownName: true,
+      pkgName: '',
+      pkgVersion: '',
+      makePowerShellShim: false,
+    }]
+  case 'bun':
+    return [{
+      name: 'bun',
+      path: path.join(target, getBunBinLocationForCurrentOS()),
+      ownName: true,
+      pkgName: '',
+      pkgVersion: '',
+      makePowerShellShim: false,
+    }]
+  }
+  // There's a directory in node_modules without package.json: ${target}.
+  // This used to be a warning but it didn't really cause any issues.
+  return []
 }
 
 async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string, nodeExecPath?: string): Promise<CommandInfo[]> {
