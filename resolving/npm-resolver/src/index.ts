@@ -70,7 +70,9 @@ export class NoMatchingVersionError extends PnpmError {
     let errorMessage: string
     if (opts.publishedBy && opts.immatureVersion && opts.packageMeta.time) {
       const time = new Date(opts.packageMeta.time[opts.immatureVersion])
-      errorMessage = `No matching version found for ${dep} published by ${opts.publishedBy.toString()} while fetching it from ${opts.registry}. Version ${opts.immatureVersion} satisfies the specs but was released at ${time.toString()}`
+      const releaseAgeText = formatTimeAgo(time)
+      const pkgName = opts.wantedDependency.alias ?? opts.packageMeta.name
+      errorMessage = `Version ${opts.immatureVersion} (released ${releaseAgeText}) of ${pkgName} does not meet the minimumReleaseAge constraint`
     } else {
       errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
     }
@@ -78,6 +80,28 @@ export class NoMatchingVersionError extends PnpmError {
     this.packageMeta = opts.packageMeta
     this.immatureVersion = opts.immatureVersion
   }
+}
+
+function formatTimeAgo (date: Date): string {
+  const now = Date.now()
+  const diffMs = now - date.getTime()
+
+  // Handle clock skew (future dates) and very recent releases (< 1 minute)
+  if (diffMs < 60 * 1000) {
+    return 'just now'
+  }
+
+  const diffMinutes = Math.floor(diffMs / (60 * 1000))
+  const diffHours = Math.floor(diffMs / (60 * 60 * 1000))
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000))
+
+  if (diffHours >= 48) {
+    return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+  }
+  if (diffMinutes >= 90) {
+    return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+  }
+  return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
 }
 
 export {
