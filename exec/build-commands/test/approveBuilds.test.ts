@@ -12,7 +12,7 @@ import { jest } from '@jest/globals'
 import { loadJsonFileSync } from 'load-json-file'
 import { omit } from 'ramda'
 import { tempDir } from '@pnpm/prepare-temp-dir'
-import { writePackageSync } from 'write-pkg'
+import { writePackageSync } from 'write-package'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 

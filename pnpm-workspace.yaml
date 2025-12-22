@@ -314,7 +314,7 @@ catalog:
   write-ini-file: 4.0.1
   write-json-file: ^6.0.0
   write-json5-file: ^3.1.0
-  write-pkg: 7.0.0
+  write-package: 7.2.0
   write-yaml-file: ^5.0.0
   yaml-tag: 1.1.0
   yazl: ^3.3.1
