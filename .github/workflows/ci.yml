@@ -50,7 +50,7 @@ jobs:
       timeout-minutes: 1
     - name: pnpm install
       run: pnpm install
-      timeout-minutes: 2
+      timeout-minutes: 3
     # - name: Cache TypeScript and Jest
       # uses: actions/cache@v3
       # with:
