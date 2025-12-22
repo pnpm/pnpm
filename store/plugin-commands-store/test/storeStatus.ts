@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { store } from '@pnpm/plugin-commands-store'
@@ -53,6 +54,7 @@ test('CLI fails when store status finds modified packages', async () => {
 
 test('CLI does not fail when store status does not find modified packages', async () => {
   const project = prepare()
+  fs.writeFileSync('pnpm-workspace.yaml', 'allowBuilds: { "es5-ext": false, "fsevents": true }', 'utf8')
   const tmp = temporaryDirectory()
   const cacheDir = path.join(tmp, 'cache')
   const storeDir = path.join(tmp, 'store')

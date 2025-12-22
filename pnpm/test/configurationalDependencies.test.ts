@@ -46,6 +46,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFil
       '@pnpm.e2e/build-allow-list': `1.0.0+${getIntegrity('@pnpm.e2e/build-allow-list', '1.0.0')}`,
     },
     onlyBuiltDependenciesFile: 'node_modules/.pnpm-config/@pnpm.e2e/build-allow-list/list.json',
+    strictDepBuilds: false,
   })
 
   await execPnpm(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])

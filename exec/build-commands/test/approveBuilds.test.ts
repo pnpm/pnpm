@@ -39,6 +39,7 @@ async function approveSomeBuilds (opts?: _ApproveBuildsOptions) {
     cacheDir: path.resolve('cache'),
     pnpmfile: [], // this is only needed because the pnpmfile returned by getConfig is string | string[]
     enableGlobalVirtualStore: false,
+    strictDepBuilds: false,
   }
   await install.handler({ ...config, argv: { original: [] } })
 
@@ -70,6 +71,7 @@ async function approveNoBuilds (opts?: _ApproveBuildsOptions) {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     pnpmfile: [], // this is only needed because the pnpmfile returned by getConfig is string | string[]
+    strictDepBuilds: false,
   }
   await install.handler({ ...config, argv: { original: [] } })
 
