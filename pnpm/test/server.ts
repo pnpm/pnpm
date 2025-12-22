@@ -152,6 +152,7 @@ test('stopping server fails when the server disallows stopping via remote call',
 skipOnWindows('uploading cache can be disabled without breaking install', async () => {
   await using setup = prepareServerTest(['--ignore-upload-requests'])
   const { project } = setup
+  fs.writeFileSync('pnpm-workspace.yaml', 'allowBuilds: { "es5-ext": false, "diskusage": true }', 'utf8')
 
   // TODO: remove the delay and run install by connecting it to the store server
   // Can be done once this gets implemented: https://github.com/pnpm/pnpm/issues/1018

@@ -193,6 +193,7 @@ test('not top-level packages should find the plugins they use', async () => {
       test: 'standard',
     },
   })
+  fs.writeFileSync('pnpm-workspace.yaml', 'allowBuilds: { "es5-ext": false }', 'utf8')
 
   await execPnpm(['install', 'standard@8.6.0'])
 
