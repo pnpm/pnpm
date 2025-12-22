@@ -1128,10 +1128,14 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
   }
 
+  const removePackages = new Set<string>()
   await Promise.all(
     projects
       .map(async (project) => {
         if (project.mutation !== 'uninstallSome') return
+        if (project.removePackages) {
+          project.removePackages.forEach((depName) => removePackages.add(depName))
+        }
         const _removeDeps = async (manifest: ProjectManifest) => removeDeps(manifest, project.dependencyNames, { prefix: project.rootDir, saveType: project.targetDependenciesField })
         project.manifest = await _removeDeps(project.manifest)
         if (project.originalManifest != null) {
@@ -1408,6 +1412,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           }
         }
       }
+    } else if (ctx.modulesFile?.ignoredBuilds?.length) {
+      ignoredBuilds = ctx.modulesFile.ignoredBuilds.filter((pkgId) => !removePackages.has(pkgId))
     }
 
     const binWarn = (prefix: string, message: string) => {
