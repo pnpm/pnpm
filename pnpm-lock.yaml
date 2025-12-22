@@ -768,9 +768,9 @@ catalogs:
     write-json5-file:
       specifier: ^3.1.0
       version: 3.1.0
-    write-pkg:
-      specifier: 7.0.0
-      version: 7.0.0
+    write-package:
+      specifier: 7.2.0
+      version: 7.2.0
     write-yaml-file:
       specifier: ^5.0.0
       version: 5.0.0
@@ -1024,9 +1024,9 @@ importers:
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0
-      write-pkg:
+      write-package:
         specifier: 'catalog:'
-        version: 7.0.0
+        version: 7.2.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -1161,9 +1161,9 @@ importers:
       write-json5-file:
         specifier: 'catalog:'
         version: 3.1.0
-      write-pkg:
+      write-package:
         specifier: 'catalog:'
-        version: 7.0.0
+        version: 7.2.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -2575,9 +2575,9 @@ importers:
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0
-      write-pkg:
+      write-package:
         specifier: 'catalog:'
-        version: 7.0.0
+        version: 7.2.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -6109,9 +6109,9 @@ importers:
       write-json-file:
         specifier: 'catalog:'
         version: 6.0.0
-      write-pkg:
+      write-package:
         specifier: 'catalog:'
-        version: 7.0.0
+        version: 7.2.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -6833,9 +6833,9 @@ importers:
       write-json-file:
         specifier: 'catalog:'
         version: 6.0.0
-      write-pkg:
+      write-package:
         specifier: 'catalog:'
-        version: 7.0.0
+        version: 7.2.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -12429,8 +12429,8 @@ packages:
   deep-resolve-from@1.1.0:
     resolution: {integrity: sha512-xkAd1DNr3YnRjaKU2mAE67aWH4hjlis1G6tJlPRPnjV9P2L4ILeghq/GUEF6k30lq6euveeoHIapF/J+/Jlgmg==}
 
-  deepmerge-ts@5.1.0:
-    resolution: {integrity: sha512-eS8dRJOckyo9maw9Tu5O5RUi/4inFLrnoLkBe3cPfDMx3WZioXtmOew4TXQaxq7Rhl4xjDtR7c6x8nNTxOvbFw==}
+  deepmerge-ts@7.1.5:
+    resolution: {integrity: sha512-HOJkrhaYsweh+W+e74Yn7YStZOilkoPb6fycpwNLKzSPtruFs48nYis0zy5yJz1+ktUhHxoRDJ27RQAWLIJVJw==}
     engines: {node: '>=16.0.0'}
 
   deepmerge@4.3.1:
@@ -14068,10 +14068,6 @@ packages:
   json-parse-even-better-errors@2.3.1:
     resolution: {integrity: sha512-xyFwyhro/JEof6Ghe2iz2NcXoj2sloNsWr/XsERDK/oiPCfaNhl5ONfp+jQdAZRQQ0IJWNzH9zIZF7li91kh2w==}
 
-  json-parse-even-better-errors@3.0.2:
-    resolution: {integrity: sha512-fi0NG4bPjCHunUJffmLd0gxssIgkNmArMvis4iNah6Owg1MCJjWhEcDLmsK6iGkJq3tHwbDkTlce70/tmXN4cQ==}
-    engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
-
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
 
@@ -14152,10 +14148,6 @@ packages:
 
   lines-and-columns@1.2.4:
     resolution: {integrity: sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg==}
-
-  lines-and-columns@2.0.4:
-    resolution: {integrity: sha512-wM1+Z03eypVAVUCE7QdSqpVIvelbOakn1M0bPDoA4SGWPx3sNDVUiMo3L6To6WWGClB7VyXnhQ4Sn7gxiJbE6A==}
-    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   load-json-file@6.2.0:
     resolution: {integrity: sha512-gUD/epcRms75Cw8RT1pUdHugZYM5ce64ucs2GEISABwkRsOQr0q2wm/MV2TKThycIe5e0ytRweW2RZxclogCdQ==}
@@ -15006,10 +14998,6 @@ packages:
     resolution: {integrity: sha512-ayCKvm/phCGxOkYRSCM82iDwct8/EonSEgCSxWxD7ve6jHggsFl4fZVQBPRNgQoKiuV/odhFrGzQXZwbifC8Rg==}
     engines: {node: '>=8'}
 
-  parse-json@7.1.1:
-    resolution: {integrity: sha512-SgOTCX/EZXtZxBE5eJ97P4yGM5n37BwRU+YMsH4vNzFqJV/oWFXXCmwFlgWUM4PrakybVOueJJ6pwHqSVhTFDw==}
-    engines: {node: '>=16'}
-
   parse-json@8.3.0:
     resolution: {integrity: sha512-ybiGyvspI+fAoRQbIPRddCcSTV9/LsJbf0e/S85VLowVGzRmokfneg2kwVW/KU5rOXrPSbF1qAKPMgNTqqROQQ==}
     engines: {node: '>=18'}
@@ -15363,9 +15351,9 @@ packages:
     resolution: {integrity: sha512-5iOehe+WF75IccPc30bWTbpdDQLOCc3Uu8bi3Dte3Eueij81yx1Mrufk8qBx/YAbR4uL1FdUr+7BKXDwEtisXg==}
     engines: {node: '>=12.20'}
 
-  read-pkg@8.1.0:
-    resolution: {integrity: sha512-PORM8AgzXeskHO/WEv312k9U03B8K9JSiWF/8N9sUuFjBa+9SF2u6K7VClzXwDXab51jCd8Nd36CNM+zR97ScQ==}
-    engines: {node: '>=16'}
+  read-pkg@9.0.1:
+    resolution: {integrity: sha512-9viLL4/n1BJUCT1NXVTdS1jtm80yDEgR5T4yCelII49Mbj0v1rZdKqj7zCiYdbB0CuCgdrvHcNogAKTFPBocFA==}
+    engines: {node: '>=18'}
 
   read-yaml-file@1.1.0:
     resolution: {integrity: sha512-VIMnQi/Z4HT2Fxuwg5KrY174U1VdUIASQVWXXyqtNRtxSr9IYkn1rsI6Tb6HsrHCmB7gVpNwX6JxPTHcH6IoTA==}
@@ -16659,14 +16647,13 @@ packages:
     resolution: {integrity: sha512-Xt2KWSJ6Y8frmTT9JUNEp8M6GoeIvnofhxdm3sZPMi9JzlAhAgtOVMoZI9MxElAT7RH+NMoHClnq3EZrnwXSmw==}
     engines: {node: '>=10.12'}
 
+  write-package@7.2.0:
+    resolution: {integrity: sha512-uMQTubF/vcu+Wd0b5BGtDmiXePd/+44hUWQz2nZPbs92/BnxRo74tqs+hqDo12RLiEd+CXFKUwxvvIZvtt34Jw==}
+    engines: {node: '>=18'}
+
   write-pkg@4.0.0:
     resolution: {integrity: sha512-v2UQ+50TNf2rNHJ8NyWttfm/EJUBWMJcx6ZTYZr6Qp52uuegWw/lBkCtCbnYZEmPRNL61m+u67dAmGxo+HTULA==}
     engines: {node: '>=8'}
-
-  write-pkg@7.0.0:
-    resolution: {integrity: sha512-wXBOrcEUstxZxfqy2hQO0O+c7wcwuVkZCCmBfaFtFssa5kcFqf7SQGYL6YtxKXt/O41z6reAPFJcumUyyiYnTQ==}
-    engines: {node: '>=16'}
-    deprecated: Renamed to write-package
 
   write-yaml-file@4.2.0:
     resolution: {integrity: sha512-LwyucHy0uhWqbrOkh9cBluZBeNVxzHjDaE9mwepZG3n3ZlbM4v3ndrFw51zW/NXYFFqP+QWZ72ihtLWTh05e4Q==}
@@ -21030,7 +21017,7 @@ snapshots:
     dependencies:
       resolve-from: 3.0.0
 
-  deepmerge-ts@5.1.0: {}
+  deepmerge-ts@7.1.5: {}
 
   deepmerge@4.3.1: {}
 
@@ -23044,8 +23031,6 @@ snapshots:
 
   json-parse-even-better-errors@2.3.1: {}
 
-  json-parse-even-better-errors@3.0.2: {}
-
   json-schema-traverse@0.4.1: {}
 
   json-schema-traverse@1.0.0: {}
@@ -23136,8 +23121,6 @@ snapshots:
       type-check: 0.4.0
 
   lines-and-columns@1.2.4: {}
-
-  lines-and-columns@2.0.4: {}
 
   load-json-file@6.2.0:
     dependencies:
@@ -23998,14 +23981,6 @@ snapshots:
       json-parse-even-better-errors: 2.3.1
       lines-and-columns: 1.2.4
 
-  parse-json@7.1.1:
-    dependencies:
-      '@babel/code-frame': 7.27.1
-      error-ex: 1.3.2
-      json-parse-even-better-errors: 3.0.2
-      lines-and-columns: 2.0.4
-      type-fest: 3.13.1
-
   parse-json@8.3.0:
     dependencies:
       '@babel/code-frame': 7.27.1
@@ -24360,12 +24335,13 @@ snapshots:
       parse-json: 5.2.0
       type-fest: 2.19.0
 
-  read-pkg@8.1.0:
+  read-pkg@9.0.1:
     dependencies:
       '@types/normalize-package-data': 2.4.4
       normalize-package-data: 6.0.2
-      parse-json: 7.1.1
+      parse-json: 8.3.0
       type-fest: 4.41.0
+      unicorn-magic: 0.1.0
 
   read-yaml-file@1.1.0:
     dependencies:
@@ -25901,19 +25877,19 @@ snapshots:
       sort-keys: 4.2.0
       write-file-atomic: 3.0.3
 
+  write-package@7.2.0:
+    dependencies:
+      deepmerge-ts: 7.1.5
+      read-pkg: 9.0.1
+      sort-keys: 5.1.0
+      type-fest: 4.41.0
+      write-json-file: 6.0.0
+
   write-pkg@4.0.0:
     dependencies:
       sort-keys: 2.0.0
       type-fest: 0.4.1
       write-json-file: 3.2.0
-
-  write-pkg@7.0.0:
-    dependencies:
-      deepmerge-ts: 5.1.0
-      read-pkg: 8.1.0
-      sort-keys: 5.1.0
-      type-fest: 4.41.0
-      write-json-file: 5.0.0
 
   write-yaml-file@4.2.0:
     dependencies:

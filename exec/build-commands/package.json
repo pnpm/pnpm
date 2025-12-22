@@ -57,7 +57,7 @@
     "load-json-file": "catalog:",
     "ramda": "catalog:",
     "read-yaml-file": "catalog:",
-    "write-pkg": "catalog:",
+    "write-package": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "engines": {

@@ -53,6 +53,6 @@
     "is-windows": "catalog:",
     "isexe": "catalog:",
     "read-yaml-file": "catalog:",
-    "write-pkg": "catalog:"
+    "write-package": "catalog:"
   }
 }

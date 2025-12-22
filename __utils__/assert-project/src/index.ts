@@ -8,7 +8,7 @@ import { type LockfileFile } from '@pnpm/lockfile.types'
 import { type Modules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
-import { writePackageSync } from 'write-pkg'
+import { writePackageSync } from 'write-package'
 import isExecutable from './isExecutable.js'
 
 const require = createRequire(import.meta.url)

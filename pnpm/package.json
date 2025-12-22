@@ -175,7 +175,7 @@
     "tempy": "catalog:",
     "tree-kill": "catalog:",
     "write-json-file": "catalog:",
-    "write-pkg": "catalog:",
+    "write-package": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "engines": {
