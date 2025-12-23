@@ -168,14 +168,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
   const cafs = cafsCache.get(storeDir)!
   const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
   if (syntheticManifest) {
-    const { filePath, integrity, checkedAt } = cafs.addFile(Buffer.from(JSON.stringify(syntheticManifest, null, 2), 'utf8'), 0o644)
-    filesIndex.set('package.json', {
-      checkedAt,
-      integrity,
-      mode: 0o644,
-      size: Buffer.byteLength(JSON.stringify(syntheticManifest, null, 2)),
-      filePath, // internal property
-    } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    addManifestToCafs(cafs, filesIndex, syntheticManifest)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: syntheticManifest ?? manifest ?? {}, files: filesIntegrity })
@@ -234,14 +227,7 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
     readManifest: true,
   })
   if (syntheticManifest) {
-    const { filePath, integrity, checkedAt } = cafs.addFile(Buffer.from(JSON.stringify(syntheticManifest, null, 2), 'utf8'), 0o644)
-    filesIndex.set('package.json', {
-      checkedAt,
-      integrity,
-      mode: 0o644,
-      size: Buffer.byteLength(JSON.stringify(syntheticManifest, null, 2)),
-      filePath, // internal property
-    } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    addManifestToCafs(cafs, filesIndex, syntheticManifest)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   let requiresBuild: boolean
@@ -272,6 +258,19 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
     requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: syntheticManifest ?? manifest ?? {}, files: filesIntegrity })
   }
   return { status: 'success', value: { filesIndex: filesMap, manifest: syntheticManifest ?? manifest, requiresBuild } }
+}
+
+function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
+  const fileBuffer = Buffer.from(JSON.stringify(manifest, null, 2), 'utf8')
+  const fileMode = 0o644
+  const { filePath, integrity, checkedAt } = cafs.addFile(fileBuffer, fileMode)
+  filesIndex.set('package.json', {
+    checkedAt,
+    integrity,
+    mode: fileMode,
+    size: fileBuffer.length,
+    filePath, // internal property
+  })
 }
 
 function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles): SideEffectsDiff {
