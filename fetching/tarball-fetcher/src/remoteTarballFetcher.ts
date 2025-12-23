@@ -18,16 +18,16 @@ export interface HttpResponse {
   body: string
 }
 
-export type DownloadFunction = (url: string, opts: {
+export type DownloadOptions = {
   getAuthHeaderByURI: (registry: string) => string | undefined
   cafs: Cafs
-  readManifest?: boolean
   registry?: string
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   integrity?: string
-  filesIndexFile: string
-} & Pick<FetchOptions, 'pkg' | 'appendManifest'>) => Promise<FetchResult>
+} & Pick<FetchOptions, 'pkg' | 'appendManifest' | 'readManifest' | 'filesIndexFile'>
+
+export type DownloadFunction = (url: string, opts: DownloadOptions) => Promise<FetchResult>
 
 export interface NpmRegistryClient {
   get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void
@@ -60,16 +60,7 @@ export function createDownloader (
   }
   const fetchMinSpeedKiBps = gotOpts.fetchMinSpeedKiBps ?? 50 // 50 KiB/s
 
-  return async function download (url: string, opts: {
-    getAuthHeaderByURI: (registry: string) => string | undefined
-    cafs: Cafs
-    readManifest?: boolean
-    registry?: string
-    onStart?: (totalSize: number | null, attempt: number) => void
-    onProgress?: (downloaded: number) => void
-    integrity?: string
-    filesIndexFile: string
-  } & Pick<FetchOptions, 'pkg' | 'appendManifest'>): Promise<FetchResult> {
+  return async function download (url: string, opts: DownloadOptions): Promise<FetchResult> {
     const authHeaderValue = opts.getAuthHeaderByURI(url)
 
     const op = retry.operation(retryOpts)

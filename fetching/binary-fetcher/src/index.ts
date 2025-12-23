@@ -58,7 +58,6 @@ export function createBinaryFetcher (ctx: {
       throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
     }
     }
-
     return {
       ...fetchResult,
       manifest,

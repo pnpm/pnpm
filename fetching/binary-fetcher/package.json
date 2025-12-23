@@ -30,11 +30,9 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
     "adm-zip": "catalog:",
     "rename-overwrite": "catalog:",
     "ssri": "catalog:",

@@ -143,7 +143,7 @@ async function handleMessage (
   }
 }
 
-function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appendManifest: syntheticManifest }: TarballExtractMessage) {
+function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appendManifest }: TarballExtractMessage) {
   if (integrity) {
     const [, algo, integrityHash] = integrity.match(INTEGRITY_REGEX)!
     // Compensate for the possibility of non-uniform Base64 padding
@@ -166,17 +166,18 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
     cafsCache.set(storeDir, createCafs(storeDir))
   }
   const cafs = cafsCache.get(storeDir)!
-  const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
-  if (syntheticManifest) {
-    addManifestToCafs(cafs, filesIndex, syntheticManifest)
+  let { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
+  if (appendManifest && !manifest) {
+    manifest = appendManifest
+    addManifestToCafs(cafs, filesIndex, appendManifest)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: syntheticManifest ?? manifest ?? {}, files: filesIntegrity })
+  const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
   return {
     status: 'success',
     value: {
       filesIndex: filesMap,
-      manifest: syntheticManifest ?? manifest,
+      manifest,
       requiresBuild,
       integrity: integrity ?? calcIntegrity(buffer),
     },
@@ -217,17 +218,27 @@ function initStore ({ storeDir }: InitStoreMessage): { status: string } {
   return { status: 'success' }
 }
 
-function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, appendManifest: syntheticManifest, files }: AddDirToStoreMessage): AddFilesFromDirResult {
+function addFilesFromDir (
+  {
+    appendManifest,
+    dir,
+    files,
+    filesIndexFile,
+    sideEffectsCacheKey,
+    storeDir,
+  }: AddDirToStoreMessage
+): AddFilesFromDirResult {
   if (!cafsCache.has(storeDir)) {
     cafsCache.set(storeDir, createCafs(storeDir))
   }
   const cafs = cafsCache.get(storeDir)!
-  const { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
+  let { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
     files,
     readManifest: true,
   })
-  if (syntheticManifest) {
-    addManifestToCafs(cafs, filesIndex, syntheticManifest)
+  if (appendManifest && manifest == null) {
+    manifest = appendManifest
+    addManifestToCafs(cafs, filesIndex, appendManifest)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   let requiresBuild: boolean
@@ -241,35 +252,32 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
         status: 'success',
         value: {
           filesIndex: filesMap,
-          manifest: syntheticManifest ?? manifest,
-          requiresBuild: pkgRequiresBuild(syntheticManifest ?? manifest, filesIntegrity),
+          manifest,
+          requiresBuild: pkgRequiresBuild(manifest, filesIntegrity),
         },
       }
     }
     filesIndex.sideEffects ??= new Map()
     filesIndex.sideEffects.set(sideEffectsCacheKey, calculateDiff(filesIndex.files, filesIntegrity))
     if (filesIndex.requiresBuild == null) {
-      requiresBuild = pkgRequiresBuild(syntheticManifest ?? manifest, filesIntegrity)
+      requiresBuild = pkgRequiresBuild(manifest, filesIntegrity)
     } else {
       requiresBuild = filesIndex.requiresBuild
     }
     writeV8File(filesIndexFile, filesIndex)
   } else {
-    requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: syntheticManifest ?? manifest ?? {}, files: filesIntegrity })
+    requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
   }
-  return { status: 'success', value: { filesIndex: filesMap, manifest: syntheticManifest ?? manifest, requiresBuild } }
+  return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
 }
 
 function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
   const fileBuffer = Buffer.from(JSON.stringify(manifest, null, 2), 'utf8')
-  const fileMode = 0o644
-  const { filePath, integrity, checkedAt } = cafs.addFile(fileBuffer, fileMode)
+  const mode = 0o644
   filesIndex.set('package.json', {
-    checkedAt,
-    integrity,
-    mode: fileMode,
+    mode,
     size: fileBuffer.length,
-    filePath, // internal property
+    ...cafs.addFile(fileBuffer, mode),
   })
 }
 
