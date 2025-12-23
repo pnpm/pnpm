@@ -10,4 +10,4 @@
 "pnpm": minor
 ---
 
-Adding `trustPolicyIgnoreAfter` allows you to ignore dependency adaptations to trustPolicy where the time interval between the release date and the current date is greater than a specified time.
+Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago.
