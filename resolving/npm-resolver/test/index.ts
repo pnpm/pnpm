@@ -766,7 +766,7 @@ test('prefer offline does not make network requests when cached metadata exists'
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = temporaryDirectory()
+  const cacheDir = tempy.directory()
 
   {
     const { resolveFromNpm } = createResolveFromNpm({

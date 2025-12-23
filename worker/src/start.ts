@@ -270,11 +270,11 @@ function addFilesFromDir (
 function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
   const fileBuffer = Buffer.from(JSON.stringify(manifest, null, 2), 'utf8')
   const mode = 0o644
-  filesIndex.set('package.json', {
+  filesIndex['package.json'] = {
     mode,
     size: fileBuffer.length,
     ...cafs.addFile(fileBuffer, mode),
-  })
+  }
 }
 
 function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles): SideEffectsDiff {
