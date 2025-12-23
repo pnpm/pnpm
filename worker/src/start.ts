@@ -167,7 +167,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
   }
   const cafs = cafsCache.get(storeDir)!
   let { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
-  if (appendManifest && !manifest) {
+  if (appendManifest && manifest == null) {
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
   }
