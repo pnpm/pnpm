@@ -80,7 +80,7 @@ invalidWorkspaceManifests.forEach((filename) => {
       },
     ])
 
-    writeYamlFile('pnpm-workspace.yml', { packages: ['**', '!store/**'] })
+    writeYamlFile(filename, { packages: ['**', '!store/**'] })
 
     const { status, stderr } = execPnpmSync(['install'])
     expect(stderr.toString()).toMatch(/The workspace manifest file should be named "pnpm-workspace.yaml"/)
