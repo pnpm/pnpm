@@ -1,5 +1,11 @@
 # @pnpm/node.resolver
 
+## 1001.0.13
+
+### Patch Changes
+
+- @pnpm/config@1004.8.1
+
 ## 1001.0.12
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.state",
-  "version": "1002.0.14",
+  "version": "1002.0.15",
   "description": "Track the list of actual paths of workspace packages in a cache",
   "keywords": [
     "pnpm",

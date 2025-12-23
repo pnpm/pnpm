@@ -1,5 +1,12 @@
 # @pnpm/pnpmfile
 
+## 1002.1.9
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1004.4.1
+- @pnpm/crypto.hash@1000.2.1
+
 ## 1002.1.8
 
 ### Patch Changes

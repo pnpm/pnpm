@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/license-scanner",
-  "version": "1001.0.33",
+  "version": "1001.0.34",
   "description": "Check for licenses packages",
   "keywords": [
     "pnpm",

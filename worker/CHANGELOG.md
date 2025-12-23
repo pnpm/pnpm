@@ -1,5 +1,20 @@
 # @pnpm/worker
 
+## 1000.6.0
+
+### Minor Changes
+
+- 914f2e5: Added a way to append a manifest to a package with no package.json file.
+
+### Patch Changes
+
+- Updated dependencies [914f2e5]
+  - @pnpm/cafs-types@1000.1.0
+  - @pnpm/store.cafs@1000.1.0
+  - @pnpm/create-cafs-store@1000.0.27
+  - @pnpm/fs.hard-link-dir@1000.0.5
+  - @pnpm/symlink-dependency@1000.0.16
+
 ## 1000.5.0
 
 ### Minor Changes

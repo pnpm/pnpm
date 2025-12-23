@@ -1,5 +1,17 @@
 # pnpm
 
+## 10.26.2
+
+### Patch Changes
+
+- Improve error message when a package version exists but does not meet the `minimumReleaseAge` constraint. The error now clearly states that the version exists and shows a human-readable time since release (e.g., "released 6 hours ago") [#10307](https://github.com/pnpm/pnpm/issues/10307).
+- Fix installation of Git dependencies using annotated tags [#10335](https://github.com/pnpm/pnpm/issues/10335).
+
+  Previously, pnpm would store the annotated tag object's SHA in the lockfile instead of the actual commit SHA. This caused `ERR_PNPM_GIT_CHECKOUT_FAILED` errors because the checked-out commit hash didn't match the stored tag object hash.
+
+- Binaries of runtime engines (Node.js, Deno, Bun) are written to `node_modules/.bin` before lifecycle scripts (install, postinstall, prepare) are executed [#10244](https://github.com/pnpm/pnpm/issues/10244).
+- Try to avoid making network calls with preferOffline [#10334](https://github.com/pnpm/pnpm/pull/10334).
+
 ## 10.26.1
 
 ### Patch Changes

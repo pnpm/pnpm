@@ -1,5 +1,11 @@
 # @pnpm/workspace.state
 
+## 1002.0.15
+
+### Patch Changes
+
+- @pnpm/config@1004.8.1
+
 ## 1002.0.14
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # @pnpm/core
 
+## 1016.0.0
+
+### Patch Changes
+
+- Updated dependencies [cb9f72c]
+- Updated dependencies [914f2e5]
+  - @pnpm/headless@1010.0.0
+  - @pnpm/worker@1000.6.0
+  - @pnpm/crypto.object-hasher@1000.2.0
+  - @pnpm/resolve-dependencies@1008.6.2
+  - @pnpm/package-requester@1011.0.0
+  - @pnpm/store-controller-types@1004.4.1
+  - @pnpm/plugin-commands-rebuild@1008.0.0
+  - @pnpm/build-modules@1007.0.0
+  - @pnpm/calc-dep-state@1002.0.15
+  - @pnpm/lifecycle@1001.0.31
+  - @pnpm/modules-cleaner@1001.0.30
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/symlink-dependency@1000.0.16
+  - @pnpm/lockfile.settings-checker@1001.0.22
+  - @pnpm/lockfile.verification@1001.2.15
+
 ## 1015.0.1
 
 ### Patch Changes

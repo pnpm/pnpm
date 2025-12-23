@@ -1,5 +1,12 @@
 # @pnpm/deps.graph-builder
 
+## 1002.3.7
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1004.4.1
+- @pnpm/calc-dep-state@1002.0.15
+
 ## 1002.3.6
 
 ### Patch Changes

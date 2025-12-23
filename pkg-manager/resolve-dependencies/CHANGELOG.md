@@ -1,5 +1,16 @@
 # @pnpm/resolve-dependencies
 
+## 1008.6.2
+
+### Patch Changes
+
+- Updated dependencies [71624c9]
+- Updated dependencies [080857a]
+  - @pnpm/npm-resolver@1005.0.2
+  - @pnpm/store-controller-types@1004.4.1
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/calc-dep-state@1002.0.15
+
 ## 1008.6.1
 
 ### Patch Changes

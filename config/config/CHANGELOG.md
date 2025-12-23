@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1004.8.1
+
+### Patch Changes
+
+- @pnpm/pnpmfile@1002.1.9
+
 ## 1004.8.0
 
 ### Minor Changes

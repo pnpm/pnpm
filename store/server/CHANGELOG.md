@@ -1,5 +1,11 @@
 # @pnpm/server
 
+## 1001.0.17
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1004.4.1
+
 ## 1001.0.16
 
 ### Patch Changes

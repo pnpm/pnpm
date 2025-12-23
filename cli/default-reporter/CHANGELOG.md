@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 1002.1.4
+
+### Patch Changes
+
+- @pnpm/config@1004.8.1
+
 ## 1002.1.3
 
 ### Patch Changes

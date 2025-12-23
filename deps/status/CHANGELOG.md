@@ -1,5 +1,17 @@
 # @pnpm/deps.status
 
+## 1003.0.24
+
+### Patch Changes
+
+- Updated dependencies [914f2e5]
+  - @pnpm/crypto.object-hasher@1000.2.0
+  - @pnpm/workspace.find-packages@1000.0.52
+  - @pnpm/config@1004.8.1
+  - @pnpm/lockfile.settings-checker@1001.0.22
+  - @pnpm/lockfile.verification@1001.2.15
+  - @pnpm/workspace.state@1002.0.15
+
 ## 1003.0.23
 
 ### Patch Changes

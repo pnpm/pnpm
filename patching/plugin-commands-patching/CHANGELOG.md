@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.30
+
+### Patch Changes
+
+- @pnpm/pick-fetcher@1001.0.0
+- @pnpm/plugin-commands-installation@1004.8.7
+- @pnpm/cli-utils@1001.2.17
+- @pnpm/store-connection-manager@1002.3.8
+- @pnpm/config@1004.8.1
+- @pnpm/crypto.hash@1000.2.1
+- @pnpm/patching.apply-patch@1000.0.7
+
 ## 1000.3.29
 
 ### Patch Changes

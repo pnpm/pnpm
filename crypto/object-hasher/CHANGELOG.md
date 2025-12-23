@@ -1,5 +1,11 @@
 # @pnpm/crypto.object-hasher
 
+## 1000.2.0
+
+### Minor Changes
+
+- 914f2e5: Added a way to append a manifest to a package with no package.json file.
+
 ## 1000.1.0
 
 ### Minor Changes

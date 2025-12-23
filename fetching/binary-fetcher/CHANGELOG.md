@@ -1,5 +1,14 @@
 # @pnpm/fetching.binary-fetcher
 
+## 1005.0.0
+
+### Patch Changes
+
+- 914f2e5: Runtime dependencies (node, bun, deno) are now added to the store with a package.json file.
+- Updated dependencies [914f2e5]
+  - @pnpm/fetcher-base@1001.2.0
+  - @pnpm/worker@1000.6.0
+
 ## 1004.0.0
 
 ### Patch Changes

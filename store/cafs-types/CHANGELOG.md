@@ -1,5 +1,11 @@
 # @pnpm/cafs-types
 
+## 1000.1.0
+
+### Minor Changes
+
+- 914f2e5: Export a new function to add a new file to the CAFS.
+
 ## 6.0.0
 
 ### Major Changes

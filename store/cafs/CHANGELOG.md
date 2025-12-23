@@ -1,5 +1,17 @@
 # @pnpm/store.cafs
 
+## 1000.1.0
+
+### Minor Changes
+
+- 914f2e5: Export a new function to add a new file to the CAFS.
+
+### Patch Changes
+
+- Updated dependencies [914f2e5]
+  - @pnpm/fetcher-base@1001.2.0
+  - @pnpm/store-controller-types@1004.4.1
+
 ## 1000.0.24
 
 ### Patch Changes

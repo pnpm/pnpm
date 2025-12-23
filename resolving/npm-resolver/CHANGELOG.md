@@ -1,5 +1,13 @@
 # @pnpm/npm-resolver
 
+## 1005.0.2
+
+### Patch Changes
+
+- 71624c9: Improve error message when a package version exists but does not meet the `minimumReleaseAge` constraint. The error now clearly states that the version exists and shows a human-readable time since release (e.g., "released 6 hours ago") [#10307](https://github.com/pnpm/pnpm/issues/10307).
+- 080857a: Try to avoid making network calls with preferOffline [#10334](https://github.com/pnpm/pnpm/pull/10334).
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1005.0.1
 
 ### Patch Changes

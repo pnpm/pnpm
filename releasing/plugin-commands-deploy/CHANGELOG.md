@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-deploy
 
+## 1002.0.23
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.1.20
+- @pnpm/plugin-commands-installation@1004.8.7
+- @pnpm/cli-utils@1001.2.17
+- @pnpm/fs.indexed-pkg-importer@1000.1.21
+- @pnpm/config@1004.8.1
+
 ## 1002.0.22
 
 ### Patch Changes

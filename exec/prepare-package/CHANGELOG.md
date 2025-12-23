@@ -1,5 +1,11 @@
 # @pnpm/prepare-package
 
+## 1001.0.1
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.31
+
 ## 1001.0.0
 
 ### Major Changes

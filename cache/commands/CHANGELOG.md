@@ -1,5 +1,13 @@
 # @pnpm/cache.commands
 
+## 1000.0.52
+
+### Patch Changes
+
+- @pnpm/cache.api@1000.0.44
+- @pnpm/cli-utils@1001.2.17
+- @pnpm/config@1004.8.1
+
 ## 1000.0.51
 
 ### Patch Changes

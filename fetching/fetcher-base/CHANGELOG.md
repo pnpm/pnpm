@@ -1,5 +1,11 @@
 # @pnpm/fetcher-base
 
+## 1001.2.0
+
+### Minor Changes
+
+- 914f2e5: Added a way to append a manifest to a package with no package.json file.
+
 ## 1001.1.0
 
 ### Minor Changes
