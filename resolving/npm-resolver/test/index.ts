@@ -778,7 +778,7 @@ test('prefer offline does not make network requests when cached metadata exists'
   }
 
   // Wait for the cache file to be written
-  await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.v8')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
 
   // Clear all mocks - if a network request is made, nock will throw an error
   nock.cleanAll()
