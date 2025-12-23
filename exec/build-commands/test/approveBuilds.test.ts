@@ -114,7 +114,8 @@ test('approve no builds', async () => {
 
   const manifest = readYamlFile<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
   expect(manifest.onlyBuiltDependencies).toBeUndefined()
-  expect(manifest.ignoredBuiltDependencies?.sort()).toStrictEqual([
+  expect(manifest.ignoredBuiltDependencies).toBeUndefined()
+  expect(Object.keys(manifest.allowBuilds ?? {}).sort()).toStrictEqual([
     '@pnpm.e2e/install-script-example',
     '@pnpm.e2e/pre-and-postinstall-scripts-example',
   ])
@@ -145,8 +146,10 @@ test("works when root project manifest doesn't exist in a workspace", async () =
 
   expect(readYamlFile(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],
-    onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
-    ignoredBuiltDependencies: ['@pnpm.e2e/install-script-example'],
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': false,
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
   })
 })
 
@@ -224,7 +227,9 @@ test('should approve builds with package.json that has no onlyBuiltDependencies 
 
   expect(readYamlFile(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],
-    onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
-    ignoredBuiltDependencies: ['@pnpm.e2e/install-script-example'],
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': false,
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
   })
 })
