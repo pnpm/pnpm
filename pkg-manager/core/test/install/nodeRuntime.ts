@@ -216,6 +216,9 @@ test('installing Node.js runtime', async () => {
     },
   })
 
+  // Verify that package.json is created
+  expect(fs.existsSync(path.resolve('node_modules/node/package.json'))).toBeTruthy()
+
   rimraf('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true }, {
     offline: true, // We want to verify that Node.js is resolved from cache.

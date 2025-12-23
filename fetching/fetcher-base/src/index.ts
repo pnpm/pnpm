@@ -20,6 +20,7 @@ export interface FetchOptions {
   onProgress?: (downloaded: number) => void
   readManifest?: boolean
   pkg: PkgNameVersion
+  appendManifest?: DependencyManifest
 }
 
 export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = (
