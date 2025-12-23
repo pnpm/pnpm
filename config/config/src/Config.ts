@@ -237,6 +237,7 @@ export interface Config extends OptionsFromRootManifest {
   fetchMinSpeedKiBps?: number
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
+  trustPolicyIgnoreAfter?: number
 
   packageConfigs?: ProjectConfigSet
 }

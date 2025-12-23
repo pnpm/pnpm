@@ -589,3 +589,47 @@ describe('failIfTrustDowngraded with trustPolicyExclude', () => {
     }).not.toThrow()
   })
 })
+
+describe('failIfTrustDowngraded with trustPolicyIgnoreAfter', () => {
+  test('allows downgrade when version is older than ignoreAfter threshold', () => {
+    const meta: PackageMetaWithTime = {
+      name: 'foo',
+      'dist-tags': { latest: '3.0.0' },
+      versions: {
+        '2.0.0': {
+          name: 'foo',
+          version: '2.0.0',
+          dist: {
+            shasum: 'def456',
+            tarball: 'https://registry.example.com/foo/-/foo-2.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
+          },
+        },
+        '3.0.0': {
+          name: 'foo',
+          version: '3.0.0',
+          dist: {
+            shasum: 'ghi789',
+            tarball: 'https://registry.example.com/foo/-/foo-3.0.0.tgz',
+          },
+        },
+      },
+      time: {
+        '2.0.0': '2025-02-01T00:00:00.000Z',
+        '3.0.0': '2025-03-01T00:00:00.000Z',
+      },
+    }
+
+    expect(() => {
+      failIfTrustDowngraded(meta, '3.0.0', undefined, 60 * 24 * 30) // 30 days)
+    }).not.toThrow()
+
+    expect(() => {
+      failIfTrustDowngraded(meta, '3.0.0')
+    }).toThrow('High-risk trust downgrade')
+  })
+})

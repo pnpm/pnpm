@@ -14,7 +14,8 @@ const TRUST_RANK = {
 export function failIfTrustDowngraded (
   meta: PackageMeta,
   version: string,
-  trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyExclude?: PackageVersionPolicy,
+  trustPolicyIgnoreAfter?: number
 ): void {
   if (trustPolicyExclude) {
     const excludeResult = trustPolicyExclude(meta.name)
@@ -37,6 +38,13 @@ export function failIfTrustDowngraded (
   }
 
   const versionDate = new Date(versionPublishedAt)
+  if (trustPolicyIgnoreAfter) {
+    const now = new Date()
+    const minutesSincePublish = (now.getTime() - versionDate.getTime()) / (1000 * 60)
+    if (minutesSincePublish > trustPolicyIgnoreAfter) {
+      return
+    }
+  }
   const manifest = meta.versions[version]
   if (!manifest) {
     throw new PnpmError(
