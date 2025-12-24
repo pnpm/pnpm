@@ -648,4 +648,86 @@ describe('global virtual store prune', () => {
 
     rimraf(projectDir)
   })
+
+  test('prune preserves transitive dependencies (subdependencies)', async () => {
+    const cacheDir = path.resolve('cache')
+    const storeDir = path.resolve('store6', STORE_VERSION)
+
+    // Setup store directories
+    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
+
+    // Create a realistic package structure with subdependencies:
+    // project -> pkg-a -> pkg-b -> pkg-c
+    // Also include an unreferenced pkg-d that should be removed
+    const linksDir = path.join(storeDir, 'links')
+
+    // pkg-a: root dependency
+    const pkgA = path.join(linksDir, 'pkg-a', '1.0.0', 'hash-a', 'node_modules', 'pkg-a')
+    const pkgANodeModules = path.join(linksDir, 'pkg-a', '1.0.0', 'hash-a', 'node_modules')
+
+    // pkg-b: subdependency of pkg-a
+    const pkgB = path.join(linksDir, 'pkg-b', '2.0.0', 'hash-b', 'node_modules', 'pkg-b')
+    const pkgBNodeModules = path.join(linksDir, 'pkg-b', '2.0.0', 'hash-b', 'node_modules')
+
+    // pkg-c: subdependency of pkg-b
+    const pkgC = path.join(linksDir, 'pkg-c', '3.0.0', 'hash-c', 'node_modules', 'pkg-c')
+
+    // pkg-d: unreferenced package
+    const pkgD = path.join(linksDir, 'pkg-d', '4.0.0', 'hash-d', 'node_modules', 'pkg-d')
+
+    // Create all packages
+    fs.mkdirSync(pkgA, { recursive: true })
+    fs.mkdirSync(pkgB, { recursive: true })
+    fs.mkdirSync(pkgC, { recursive: true })
+    fs.mkdirSync(pkgD, { recursive: true })
+    fs.writeFileSync(path.join(pkgA, 'package.json'), '{"name": "pkg-a"}')
+    fs.writeFileSync(path.join(pkgB, 'package.json'), '{"name": "pkg-b"}')
+    fs.writeFileSync(path.join(pkgC, 'package.json'), '{"name": "pkg-c"}')
+    fs.writeFileSync(path.join(pkgD, 'package.json'), '{"name": "pkg-d"}')
+
+    // Create symlinks for subdependencies within the store:
+    // pkg-a/node_modules/pkg-b -> pkg-b
+    fs.symlinkSync(pkgB, path.join(pkgANodeModules, 'pkg-b'))
+    // pkg-b/node_modules/pkg-c -> pkg-c
+    fs.symlinkSync(pkgC, path.join(pkgBNodeModules, 'pkg-c'))
+
+    // Create a project that references pkg-a
+    const projectDir = path.resolve('complex-project')
+    const projectNodeModules = path.join(projectDir, 'node_modules')
+    fs.mkdirSync(projectNodeModules, { recursive: true })
+    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
+
+    // Project references pkg-a
+    fs.symlinkSync(pkgA, path.join(projectNodeModules, 'pkg-a'))
+
+    await registerProject(storeDir, projectDir)
+
+    const reporter = jest.fn()
+
+    // Run prune
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      rawConfig: {
+        registry: REGISTRY,
+      },
+      registries: { default: REGISTRY },
+      reporter,
+      storeDir,
+      userConfig: {},
+      dlxCacheMaxAge: Infinity,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['prune'])
+
+    // Verify: all transitive dependencies should be preserved
+    expect(fs.existsSync(pkgA)).toBe(true)
+    expect(fs.existsSync(pkgB)).toBe(true)
+    expect(fs.existsSync(pkgC)).toBe(true)
+
+    // Verify: unreferenced pkg-d should be removed
+    expect(fs.existsSync(path.join(linksDir, 'pkg-d'))).toBe(false)
+
+    rimraf(projectDir)
+  })
 })
