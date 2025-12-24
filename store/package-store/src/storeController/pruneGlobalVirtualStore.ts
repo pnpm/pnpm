@@ -1,6 +1,7 @@
 import { type Dirent, promises as fs } from 'fs'
 import util from 'util'
 import path from 'path'
+import crypto from 'crypto'
 import { globalInfo } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
 import { getRegisteredProjects } from './projectRegistry.js'
@@ -103,11 +104,11 @@ async function walkSymlinksToStore (
   visited: Set<string>
 ): Promise<void> {
   // Prevent infinite loops from circular symlinks
-  const realDir = await getRealPath(dir)
-  if (visited.has(realDir)) {
+  const dirHash = await getRealPathHash(dir)
+  if (visited.has(dirHash)) {
     return
   }
-  visited.add(realDir)
+  visited.add(dirHash)
 
   let entries: Dirent[]
   try {
@@ -137,10 +138,11 @@ async function walkSymlinksToStore (
             // Find the hash directory (the one containing node_modules)
             const nodeModulesIdx = parts.indexOf('node_modules')
             if (nodeModulesIdx !== -1) {
-              const hashDirPath = path.join(linksDir, ...parts.slice(0, nodeModulesIdx))
-              reachable.add(hashDirPath)
+              // Store relative path like "pkg-a/1.0.0/hash123"
+              const relativePath = parts.slice(0, nodeModulesIdx).join(path.sep)
+              reachable.add(relativePath)
               // Also walk into the package's node_modules for transitive deps
-              const pkgNodeModules = path.join(hashDirPath, 'node_modules')
+              const pkgNodeModules = path.join(linksDir, relativePath, 'node_modules')
               await walkSymlinksToStore(pkgNodeModules, linksDir, reachable, visited)
             }
           }
@@ -155,12 +157,18 @@ async function walkSymlinksToStore (
   )
 }
 
-async function getRealPath (p: string): Promise<string> {
+/**
+ * Resolve symlinks and return a hash of the real path (for cycle detection)
+ */
+async function getRealPathHash (p: string): Promise<string> {
+  let realPath: string
   try {
-    return await fs.realpath(p)
+    realPath = await fs.realpath(p)
   } catch {
-    return p
+    realPath = p
   }
+  // Create a compact hash for in-memory use (base64url is shorter than hex that we use for file name hashes)
+  return crypto.createHash('sha256').update(realPath).digest('base64url')
 }
 
 /**
@@ -188,8 +196,10 @@ async function removeUnreachablePackages (
           // Remove unreachable hash directories
           await Promise.all(
             hashes.map(async (hash) => {
-              const hashDir = path.join(versionDir, hash)
-              if (!reachable.has(hashDir)) {
+              // Compare using relative path like "pkg-a/1.0.0/hash123"
+              const relativePath = path.join(pkgName, version, hash)
+              if (!reachable.has(relativePath)) {
+                const hashDir = path.join(versionDir, hash)
                 await rimraf(hashDir)
                 count++
               }
