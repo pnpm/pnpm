@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
 import { STORE_VERSION } from '@pnpm/constants'
+import { registerProject, getRegisteredProjects } from '@pnpm/package-store'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
@@ -403,7 +404,7 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
-    reporter () {},
+    reporter () { },
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: 7,
@@ -418,4 +419,233 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
       .map(cmd => createCacheKey(cmd))
       .sort()
   )
+})
+
+describe('global virtual store prune', () => {
+  test('prune cleans up stale project registry entries', async () => {
+    const cacheDir = path.resolve('cache')
+    const storeDir = path.resolve('store', STORE_VERSION)
+
+    // Setup store directories
+    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
+
+    // Create a project and register it
+    const projectDir = path.resolve('test-project')
+    fs.mkdirSync(projectDir, { recursive: true })
+    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
+
+    await registerProject(storeDir, projectDir)
+
+    // Verify project is registered
+    let projects = await getRegisteredProjects(storeDir)
+    expect(projects).toContain(projectDir)
+
+    // Delete the project
+    rimraf(projectDir)
+
+    // Run prune - should clean up stale registry entry
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      rawConfig: {
+        registry: REGISTRY,
+      },
+      registries: { default: REGISTRY },
+      storeDir,
+      userConfig: {},
+      dlxCacheMaxAge: Infinity,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['prune'])
+
+    // Verify project was removed from registry
+    projects = await getRegisteredProjects(storeDir)
+    expect(projects).not.toContain(projectDir)
+  })
+
+  test('getRegisteredProjects returns empty array for non-existent registry', async () => {
+    const storeDir = path.resolve('new-store', STORE_VERSION)
+    const projects = await getRegisteredProjects(storeDir)
+    expect(projects).toEqual([])
+  })
+
+  test('registerProject creates symlink to project', async () => {
+    const storeDir = path.resolve('store2', STORE_VERSION)
+    const projectDir = path.resolve('test-project2')
+
+    fs.mkdirSync(projectDir, { recursive: true })
+    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
+
+    await registerProject(storeDir, projectDir)
+
+    const registryDir = path.join(storeDir, 'projects')
+    const entries = fs.readdirSync(registryDir)
+    expect(entries).toHaveLength(1)
+
+    const linkPath = path.join(registryDir, entries[0])
+    const target = fs.readlinkSync(linkPath)
+    expect(path.resolve(path.dirname(linkPath), target)).toBe(projectDir)
+
+    rimraf(projectDir)
+  })
+
+  test('prune removes unreferenced packages from global virtual store links directory', async () => {
+    const cacheDir = path.resolve('cache')
+    const storeDir = path.resolve('store3', STORE_VERSION)
+
+    // Setup store directories
+    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
+
+    // Create a fake global virtual store structure
+    // Structure: links/{pkgName}/{version}/{hash}/node_modules/{pkgName}/...
+    const linksDir = path.join(storeDir, 'links')
+    const unreferencedPkg = path.join(linksDir, 'unused-pkg', '1.0.0', 'abc123', 'node_modules', 'unused-pkg')
+    const referencedPkg = path.join(linksDir, 'used-pkg', '2.0.0', 'def456', 'node_modules', 'used-pkg')
+
+    fs.mkdirSync(unreferencedPkg, { recursive: true })
+    fs.writeFileSync(path.join(unreferencedPkg, 'package.json'), '{}')
+
+    fs.mkdirSync(referencedPkg, { recursive: true })
+    fs.writeFileSync(path.join(referencedPkg, 'package.json'), '{}')
+
+    // Create a project that references the 'used-pkg'
+    const projectDir = path.resolve('test-project3')
+    const projectNodeModules = path.join(projectDir, 'node_modules')
+    fs.mkdirSync(projectNodeModules, { recursive: true })
+    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
+
+    // Create a symlink in the project's node_modules pointing to the referenced package
+    fs.symlinkSync(referencedPkg, path.join(projectNodeModules, 'used-pkg'))
+
+    // Register the project
+    await registerProject(storeDir, projectDir)
+
+    // Run prune
+    const reporter = jest.fn()
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      rawConfig: {
+        registry: REGISTRY,
+      },
+      registries: { default: REGISTRY },
+      reporter,
+      storeDir,
+      userConfig: {},
+      dlxCacheMaxAge: Infinity,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['prune'])
+
+    // Verify: unreferenced package should be removed
+    expect(fs.existsSync(path.join(linksDir, 'unused-pkg'))).toBe(false)
+
+    // Verify: referenced package should still exist
+    expect(fs.existsSync(referencedPkg)).toBe(true)
+
+    rimraf(projectDir)
+  })
+
+  test('prune keeps packages that are referenced by multiple projects', async () => {
+    const cacheDir = path.resolve('cache')
+    const storeDir = path.resolve('store4', STORE_VERSION)
+
+    // Setup store directories
+    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
+
+    // Create a package in the global virtual store
+    const linksDir = path.join(storeDir, 'links')
+    const sharedPkg = path.join(linksDir, 'shared-pkg', '1.0.0', 'hash123', 'node_modules', 'shared-pkg')
+    fs.mkdirSync(sharedPkg, { recursive: true })
+    fs.writeFileSync(path.join(sharedPkg, 'package.json'), '{}')
+
+    // Create two projects that both reference the same package
+    const project1 = path.resolve('test-project-a')
+    const project2 = path.resolve('test-project-b')
+
+    fs.mkdirSync(path.join(project1, 'node_modules'), { recursive: true })
+    fs.mkdirSync(path.join(project2, 'node_modules'), { recursive: true })
+    fs.writeFileSync(path.join(project1, 'package.json'), '{}')
+    fs.writeFileSync(path.join(project2, 'package.json'), '{}')
+
+    // Both projects symlink to the shared package
+    fs.symlinkSync(sharedPkg, path.join(project1, 'node_modules', 'shared-pkg'))
+    fs.symlinkSync(sharedPkg, path.join(project2, 'node_modules', 'shared-pkg'))
+
+    await registerProject(storeDir, project1)
+    await registerProject(storeDir, project2)
+
+    // Delete project1 but keep project2
+    rimraf(project1)
+
+    // Run prune
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      rawConfig: {
+        registry: REGISTRY,
+      },
+      registries: { default: REGISTRY },
+      storeDir,
+      userConfig: {},
+      dlxCacheMaxAge: Infinity,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['prune'])
+
+    // Package should still exist because project2 references it
+    expect(fs.existsSync(sharedPkg)).toBe(true)
+
+    rimraf(project2)
+  })
+
+  test('prune removes all packages when no projects reference them', async () => {
+    const cacheDir = path.resolve('cache')
+    const storeDir = path.resolve('store5', STORE_VERSION)
+
+    // Setup store directories
+    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
+
+    // Create packages in the global virtual store with no referencing projects
+    const linksDir = path.join(storeDir, 'links')
+    const orphanPkg1 = path.join(linksDir, 'orphan-a', '1.0.0', 'hash1', 'node_modules', 'orphan-a')
+    const orphanPkg2 = path.join(linksDir, 'orphan-b', '2.0.0', 'hash2', 'node_modules', 'orphan-b')
+
+    fs.mkdirSync(orphanPkg1, { recursive: true })
+    fs.mkdirSync(orphanPkg2, { recursive: true })
+    fs.writeFileSync(path.join(orphanPkg1, 'package.json'), '{}')
+    fs.writeFileSync(path.join(orphanPkg2, 'package.json'), '{}')
+
+    // Create a project that doesn't reference ANY packages in the store
+    const projectDir = path.resolve('empty-project')
+    fs.mkdirSync(path.join(projectDir, 'node_modules'), { recursive: true })
+    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
+
+    // Register the project
+    await registerProject(storeDir, projectDir)
+
+    const reporter = jest.fn()
+
+    // Run prune - project is registered but references nothing
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      rawConfig: {
+        registry: REGISTRY,
+      },
+      registries: { default: REGISTRY },
+      reporter,
+      storeDir,
+      userConfig: {},
+      dlxCacheMaxAge: Infinity,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['prune'])
+
+    // Both orphan packages should be removed since no project references them
+    expect(fs.existsSync(path.join(linksDir, 'orphan-a'))).toBe(false)
+    expect(fs.existsSync(path.join(linksDir, 'orphan-b'))).toBe(false)
+
+    rimraf(projectDir)
+  })
 })

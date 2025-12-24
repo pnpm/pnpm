@@ -45,6 +45,7 @@
   },
   "dependencies": {
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
@@ -55,7 +56,8 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "ramda": "catalog:",
-    "ssri": "catalog:"
+    "ssri": "catalog:",
+    "symlink-dir": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:",

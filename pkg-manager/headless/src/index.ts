@@ -664,7 +664,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   await Promise.all(depNodes.map(async ({ fetching }) => {
     try {
       await fetching?.()
-    } catch {}
+    } catch { }
   }))
 
   summaryLogger.debug({ prefix: lockfileDir })

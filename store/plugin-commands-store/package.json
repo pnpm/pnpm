@@ -61,6 +61,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/package-store": "workspace:*",
     "@pnpm/plugin-commands-script-runners": "workspace:*",
     "@pnpm/plugin-commands-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
