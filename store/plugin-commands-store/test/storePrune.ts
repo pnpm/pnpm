@@ -474,7 +474,7 @@ describe('global virtual store prune', () => {
     // Verify: is-positive should no longer exist in links/@/ directory
     const unscopedDir = path.join(linksDir, '@')
     const entries = fs.existsSync(unscopedDir) ? fs.readdirSync(unscopedDir) : []
-    expect(entries.find(e => e.startsWith('is-positive'))).toBeUndefined()
+    expect(entries).not.toContain('is-positive')
   })
 
   test('prune keeps packages that are referenced by multiple projects', async () => {
@@ -520,7 +520,7 @@ describe('global virtual store prune', () => {
     const linksDir = path.join(storeDir, STORE_VERSION, 'links')
     const unscopedDir = path.join(linksDir, '@')
     const beforePrune = fs.readdirSync(unscopedDir)
-    expect(beforePrune.find(e => e.startsWith('is-positive'))).toBeDefined()
+    expect(beforePrune).toContain('is-positive')
 
     // Run prune
     await store.handler({
@@ -539,7 +539,7 @@ describe('global virtual store prune', () => {
 
     // Package should still exist because project2 references it
     const afterPrune = fs.readdirSync(unscopedDir)
-    expect(afterPrune.find(e => e.startsWith('is-positive'))).toBeDefined()
+    expect(afterPrune).toContain('is-positive')
 
     rimraf(project2Dir)
   })
@@ -585,8 +585,8 @@ describe('global virtual store prune', () => {
     const unscopedDir = path.join(linksDir, '@')
     expect(fs.existsSync(unscopedDir)).toBe(true)
     const beforePrune = fs.readdirSync(unscopedDir)
-    expect(beforePrune.find(e => e.startsWith('is-positive'))).toBeDefined()
-    expect(beforePrune.find(e => e.startsWith('is-negative'))).toBeDefined()
+    expect(beforePrune).toContain('is-positive')
+    expect(beforePrune).toContain('is-negative')
 
     // Delete project1 (which uses is-positive)
     rimraf(project1Dir)
@@ -608,9 +608,9 @@ describe('global virtual store prune', () => {
 
     // is-positive should be removed since project1 was deleted
     const afterPrune = fs.readdirSync(unscopedDir)
-    expect(afterPrune.find(e => e.startsWith('is-positive'))).toBeUndefined()
+    expect(afterPrune).not.toContain('is-positive')
     // is-negative should remain since project2 still exists
-    expect(afterPrune.find(e => e.startsWith('is-negative'))).toBeDefined()
+    expect(afterPrune).toContain('is-negative')
 
     rimraf(project2Dir)
   })
@@ -648,14 +648,14 @@ describe('global virtual store prune', () => {
     // Scoped packages are in links/@pnpm.e2e/pkg-name/
     const scopeDir = path.join(linksDir, '@pnpm.e2e')
     const scopedPkgs = fs.readdirSync(scopeDir)
-    expect(scopedPkgs.some(e => e.includes('pkg-with-1-dep'))).toBe(true)
-    expect(scopedPkgs.some(e => e.includes('dep-of-pkg-with-1-dep'))).toBe(true)
-    expect(scopedPkgs.some(e => e.includes('romeo') && !e.includes('romeo-dep'))).toBe(true)
-    expect(scopedPkgs.some(e => e.includes('romeo-dep'))).toBe(true)
+    expect(scopedPkgs).toContain('pkg-with-1-dep')
+    expect(scopedPkgs).toContain('dep-of-pkg-with-1-dep')
+    expect(scopedPkgs).toContain('romeo')
+    expect(scopedPkgs).toContain('romeo-dep')
     // Unscoped packages are in links/@/pkg-name/ (uniform 4-level depth)
     const unscopedDir = path.join(linksDir, '@')
     const unscopedPkgs = fs.readdirSync(unscopedDir)
-    expect(unscopedPkgs.some(e => e.startsWith('is-positive'))).toBe(true)
+    expect(unscopedPkgs).toContain('is-positive')
 
     // Remove @pnpm.e2e/pkg-with-1-dep, keeping romeo and is-positive
     fs.writeFileSync('package.json', JSON.stringify({
@@ -695,19 +695,14 @@ describe('global virtual store prune', () => {
     const afterPruneScopes = fs.readdirSync(linksDir)
     expect(afterPruneScopes).toContain('@') // unscoped packages scope
     const unscopedAfterPrune = fs.readdirSync(unscopedDir)
-    expect(unscopedAfterPrune.some(e => e.startsWith('is-positive'))).toBe(true)
+    expect(unscopedAfterPrune).toContain('is-positive')
 
-    if (fs.existsSync(scopeDir)) {
-      const scopedPkgsAfter = fs.readdirSync(scopeDir)
-      // pkg-with-1-dep and its transitive dep should be removed
-      expect(scopedPkgsAfter.some(e => e.includes('pkg-with-1-dep'))).toBe(false)
-      expect(scopedPkgsAfter.some(e => e.includes('dep-of-pkg-with-1-dep'))).toBe(false)
-      // romeo and its transitive dep should be preserved
-      expect(scopedPkgsAfter.some(e => e.includes('romeo') && !e.includes('romeo-dep'))).toBe(true)
-      expect(scopedPkgsAfter.some(e => e.includes('romeo-dep'))).toBe(true)
-    } else {
-      // Fail the test if scope directory doesn't exist (romeo should be preserved)
-      throw new Error('Expected @pnpm.e2e directory to exist with romeo packages')
-    }
+    const scopedPkgsAfter = fs.readdirSync(scopeDir)
+    // pkg-with-1-dep and its transitive dep should be removed
+    expect(scopedPkgsAfter).not.toEqual(expect.arrayContaining([expect.stringContaining('pkg-with-1-dep')]))
+    expect(scopedPkgsAfter).not.toEqual(expect.arrayContaining([expect.stringContaining('dep-of-pkg-with-1-dep')]))
+    // romeo and its transitive dep should be preserved
+    expect(scopedPkgsAfter).toContain('romeo')
+    expect(scopedPkgsAfter).toContain('romeo-dep')
   })
 })
