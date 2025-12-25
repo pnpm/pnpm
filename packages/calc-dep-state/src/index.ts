@@ -107,8 +107,12 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
       deps: _calcDepGraphHash(new Set(), depPath),
     }
     const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
+    // Use @/ prefix for unscoped packages to maintain uniform 4-level directory depth
+    // Scoped: @scope/pkg/version/hash
+    // Unscoped: @/pkg/version/hash
+    const prefix = name.startsWith('@') ? '' : '@/'
     yield {
-      hash: `${name}/${version}/${hexDigest}`,
+      hash: `${prefix}${name}/${version}/${hexDigest}`,
       pkgMeta,
     }
   }
