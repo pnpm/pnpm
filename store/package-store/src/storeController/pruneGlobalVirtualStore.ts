@@ -174,55 +174,105 @@ async function getRealPathHash (p: string): Promise<string> {
 /**
  * Remove package directories from the global virtual store that are not in the reachable set.
  * Returns the count of removed packages.
+ *
+ * Directory structure:
+ * - Unscoped: {linksDir}/{pkgName}/{version}/{hash}/
+ * - Scoped: {linksDir}/{scope}/{pkgName}/{version}/{hash}/
  */
 async function removeUnreachablePackages (
   linksDir: string,
   reachable: Set<string>
 ): Promise<number> {
-  // Walk through the links directory structure: {linksDir}/{pkgName}/{version}/{hash}/
-  const pkgNames = await getSubdirsSafely(linksDir)
+  const topLevelDirs = await getSubdirsSafely(linksDir)
   let count = 0
 
   await Promise.all(
-    pkgNames.map(async (pkgName) => {
-      const pkgDir = path.join(linksDir, pkgName)
-      const versions = await getSubdirsSafely(pkgDir)
+    topLevelDirs.map(async (topLevel) => {
+      const topLevelPath = path.join(linksDir, topLevel)
 
-      let removedVersions = 0
-      await Promise.all(
-        versions.map(async (version) => {
-          const versionDir = path.join(pkgDir, version)
-          const hashes = await getSubdirsSafely(versionDir)
+      if (topLevel.startsWith('@')) {
+        // Scoped package: {linksDir}/{scope}/{pkgName}/{version}/{hash}/
+        const scopedPkgNames = await getSubdirsSafely(topLevelPath)
+        let removedPkgs = 0
 
-          // Remove unreachable hash directories
-          let removedHashes = 0
-          await Promise.all(
-            hashes.map(async (hash) => {
-              const relativePath = path.join(pkgName, version, hash)
-              if (!reachable.has(relativePath)) {
-                await rimraf(path.join(versionDir, hash))
-                removedHashes++
-                count++
-              }
-            })
-          )
+        await Promise.all(
+          scopedPkgNames.map(async (pkgName) => {
+            const pkgDir = path.join(topLevelPath, pkgName)
+            const removedVersions = await removeUnreachableVersions(
+              pkgDir,
+              path.join(topLevel, pkgName),
+              reachable
+            )
+            count += removedVersions.count
+            if (removedVersions.allRemoved) {
+              // Remove the package directory when all its versions are removed
+              await rimraf(pkgDir)
+              removedPkgs++
+            }
+          })
+        )
 
-          // If we removed all hashes, remove the version directory
-          if (removedHashes === hashes.length && hashes.length > 0) {
-            await rimraf(versionDir)
-            removedVersions++
-          }
-        })
-      )
-
-      // If we removed all versions, remove the package directory
-      if (removedVersions === versions.length && versions.length > 0) {
-        await rimraf(pkgDir)
+        // If we removed all packages in scope, remove the scope directory
+        if (removedPkgs === scopedPkgNames.length && scopedPkgNames.length > 0) {
+          await rimraf(topLevelPath)
+        }
+      } else {
+        // Unscoped package: {linksDir}/{pkgName}/{version}/{hash}/
+        const result = await removeUnreachableVersions(topLevelPath, topLevel, reachable)
+        count += result.count
+        if (result.allRemoved) {
+          await rimraf(topLevelPath)
+        }
       }
     })
   )
 
   return count
+}
+
+/**
+ * Remove unreachable versions and hashes for a package.
+ * Returns the count of removed packages and whether all versions were removed.
+ */
+async function removeUnreachableVersions (
+  pkgDir: string,
+  pkgPath: string, // relative path like "is-positive" or "@pnpm.e2e/romeo"
+  reachable: Set<string>
+): Promise<{ count: number, allRemoved: boolean }> {
+  const versions = await getSubdirsSafely(pkgDir)
+  let count = 0
+  let removedVersions = 0
+
+  await Promise.all(
+    versions.map(async (version) => {
+      const versionDir = path.join(pkgDir, version)
+      const hashes = await getSubdirsSafely(versionDir)
+
+      // Remove unreachable hash directories
+      let removedHashes = 0
+      await Promise.all(
+        hashes.map(async (hash) => {
+          const relativePath = path.join(pkgPath, version, hash)
+          if (!reachable.has(relativePath)) {
+            await rimraf(path.join(versionDir, hash))
+            removedHashes++
+            count++
+          }
+        })
+      )
+
+      // If we removed all hashes, remove the version directory
+      if (removedHashes === hashes.length && hashes.length > 0) {
+        await rimraf(versionDir)
+        removedVersions++
+      }
+    })
+  )
+
+  return {
+    count,
+    allRemoved: removedVersions === versions.length && versions.length > 0,
+  }
 }
 
 async function pathExists (p: string): Promise<boolean> {

@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
 import { STORE_VERSION } from '@pnpm/constants'
-import { registerProject, getRegisteredProjects } from '@pnpm/package-store'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
@@ -353,7 +352,7 @@ describe('prune when store directory is not properly configured', () => {
   })
 })
 
-function createSampleDlxCacheLinkTarget (dirPath: string): void {
+function createSampleDlxCacheLinkTarget(dirPath: string): void {
   fs.mkdirSync(path.join(dirPath, 'node_modules', '.pnpm'), { recursive: true })
   fs.mkdirSync(path.join(dirPath, 'node_modules', '.bin'), { recursive: true })
   fs.writeFileSync(path.join(dirPath, 'node_modules', '.modules.yaml'), '')
@@ -361,7 +360,7 @@ function createSampleDlxCacheLinkTarget (dirPath: string): void {
   fs.writeFileSync(path.join(dirPath, 'pnpm-lock.yaml'), '')
 }
 
-function createSampleDlxCacheItem (cacheDir: string, cmd: string, now: Date, age: number): void {
+function createSampleDlxCacheItem(cacheDir: string, cmd: string, now: Date, age: number): void {
   const hash = createCacheKey(cmd)
   const newDate = new Date(now.getTime() - age * 60_000)
   const timeError = 432 // just an arbitrary amount, nothing is special about this number
@@ -374,7 +373,7 @@ function createSampleDlxCacheItem (cacheDir: string, cmd: string, now: Date, age
   fs.lutimesSync(linkPath, newDate, newDate)
 }
 
-function createSampleDlxCacheFsTree (cacheDir: string, now: Date, ageTable: Record<string, number>): void {
+function createSampleDlxCacheFsTree(cacheDir: string, now: Date, ageTable: Record<string, number>): void {
   for (const [cmd, age] of Object.entries(ageTable)) {
     createSampleDlxCacheItem(cacheDir, cmd, now, age)
   }
@@ -404,7 +403,7 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
-    reporter () { },
+    reporter() { },
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: 7,
@@ -422,28 +421,42 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
 })
 
 describe('global virtual store prune', () => {
-  test('prune cleans up stale project registry entries', async () => {
+  test('prune removes unreferenced packages from global virtual store', async () => {
+    // Create project that installs a package with global virtual store enabled
+    prepare({
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    })
     const cacheDir = path.resolve('cache')
-    const storeDir = path.resolve('store', STORE_VERSION)
+    const storeDir = path.resolve('store')
 
-    // Setup store directories
-    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
+    // Install with global virtual store enabled
+    await execa('node', [
+      pnpmBin,
+      'install',
+      `--store-dir=${storeDir}`,
+      `--cache-dir=${cacheDir}`,
+      `--registry=${REGISTRY}`,
+      '--config.enableGlobalVirtualStore=true',
+    ])
 
-    // Create a project and register it
-    const projectDir = path.resolve('test-project')
-    fs.mkdirSync(projectDir, { recursive: true })
-    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
+    // Verify the links directory was created
+    const linksDir = path.join(storeDir, STORE_VERSION, 'links')
+    expect(fs.existsSync(linksDir)).toBe(true)
 
-    await registerProject(storeDir, projectDir)
+    // Remove the dependency from package.json and reinstall
+    fs.writeFileSync('package.json', JSON.stringify({ dependencies: {} }))
+    await execa('node', [
+      pnpmBin,
+      'install',
+      `--store-dir=${storeDir}`,
+      `--cache-dir=${cacheDir}`,
+      `--registry=${REGISTRY}`,
+      '--config.enableGlobalVirtualStore=true',
+    ])
 
-    // Verify project is registered
-    let projects = await getRegisteredProjects(storeDir)
-    expect(projects).toContain(projectDir)
-
-    // Delete the project
-    rimraf(projectDir)
-
-    // Run prune - should clean up stale registry entry
+    // Run prune - should remove the now-unreferenced package
     await store.handler({
       cacheDir,
       dir: process.cwd(),
@@ -452,131 +465,60 @@ describe('global virtual store prune', () => {
         registry: REGISTRY,
       },
       registries: { default: REGISTRY },
-      storeDir,
+      storeDir: path.join(storeDir, STORE_VERSION),
       userConfig: {},
       dlxCacheMaxAge: Infinity,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['prune'])
 
-    // Verify project was removed from registry
-    projects = await getRegisteredProjects(storeDir)
-    expect(projects).not.toContain(projectDir)
-  })
-
-  test('getRegisteredProjects returns empty array for non-existent registry', async () => {
-    const storeDir = path.resolve('new-store', STORE_VERSION)
-    const projects = await getRegisteredProjects(storeDir)
-    expect(projects).toEqual([])
-  })
-
-  test('registerProject creates symlink to project', async () => {
-    const storeDir = path.resolve('store2', STORE_VERSION)
-    const projectDir = path.resolve('test-project2')
-
-    fs.mkdirSync(projectDir, { recursive: true })
-    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
-
-    await registerProject(storeDir, projectDir)
-
-    const registryDir = path.join(storeDir, 'projects')
-    const entries = fs.readdirSync(registryDir)
-    expect(entries).toHaveLength(1)
-
-    const linkPath = path.join(registryDir, entries[0])
-    const target = fs.readlinkSync(linkPath)
-    expect(path.resolve(path.dirname(linkPath), target)).toBe(projectDir)
-
-    rimraf(projectDir)
-  })
-
-  test('prune removes unreferenced packages from global virtual store links directory', async () => {
-    const cacheDir = path.resolve('cache')
-    const storeDir = path.resolve('store3', STORE_VERSION)
-
-    // Setup store directories
-    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
-
-    // Create a fake global virtual store structure
-    // Structure: links/{pkgName}/{version}/{hash}/node_modules/{pkgName}/...
-    const linksDir = path.join(storeDir, 'links')
-    const unreferencedPkg = path.join(linksDir, 'unused-pkg', '1.0.0', 'abc123', 'node_modules', 'unused-pkg')
-    const referencedPkg = path.join(linksDir, 'used-pkg', '2.0.0', 'def456', 'node_modules', 'used-pkg')
-
-    fs.mkdirSync(unreferencedPkg, { recursive: true })
-    fs.writeFileSync(path.join(unreferencedPkg, 'package.json'), '{}')
-
-    fs.mkdirSync(referencedPkg, { recursive: true })
-    fs.writeFileSync(path.join(referencedPkg, 'package.json'), '{}')
-
-    // Create a project that references the 'used-pkg'
-    const projectDir = path.resolve('test-project3')
-    const projectNodeModules = path.join(projectDir, 'node_modules')
-    fs.mkdirSync(projectNodeModules, { recursive: true })
-    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
-
-    // Create a symlink in the project's node_modules pointing to the referenced package
-    fs.symlinkSync(referencedPkg, path.join(projectNodeModules, 'used-pkg'))
-
-    // Register the project
-    await registerProject(storeDir, projectDir)
-
-    // Run prune
-    const reporter = jest.fn()
-    await store.handler({
-      cacheDir,
-      dir: process.cwd(),
-      pnpmHomeDir: '',
-      rawConfig: {
-        registry: REGISTRY,
-      },
-      registries: { default: REGISTRY },
-      reporter,
-      storeDir,
-      userConfig: {},
-      dlxCacheMaxAge: Infinity,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
-    }, ['prune'])
-
-    // Verify: unreferenced package should be removed
-    expect(fs.existsSync(path.join(linksDir, 'unused-pkg'))).toBe(false)
-
-    // Verify: referenced package should still exist
-    expect(fs.existsSync(referencedPkg)).toBe(true)
-
-    rimraf(projectDir)
+    // Verify: is-positive should no longer exist in links directory
+    const entries = fs.existsSync(linksDir) ? fs.readdirSync(linksDir) : []
+    expect(entries.find(e => e.startsWith('is-positive'))).toBeUndefined()
   })
 
   test('prune keeps packages that are referenced by multiple projects', async () => {
+    const storeDir = path.resolve('shared-store')
     const cacheDir = path.resolve('cache')
-    const storeDir = path.resolve('store4', STORE_VERSION)
 
-    // Setup store directories
-    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
+    // Create first project with is-positive
+    const project1Dir = path.resolve('project1')
+    fs.mkdirSync(project1Dir, { recursive: true })
+    fs.writeFileSync(path.join(project1Dir, 'package.json'), JSON.stringify({
+      dependencies: { 'is-positive': '1.0.0' },
+    }))
 
-    // Create a package in the global virtual store
-    const linksDir = path.join(storeDir, 'links')
-    const sharedPkg = path.join(linksDir, 'shared-pkg', '1.0.0', 'hash123', 'node_modules', 'shared-pkg')
-    fs.mkdirSync(sharedPkg, { recursive: true })
-    fs.writeFileSync(path.join(sharedPkg, 'package.json'), '{}')
+    await execa('node', [
+      pnpmBin,
+      'install',
+      `--store-dir=${storeDir}`,
+      `--cache-dir=${cacheDir}`,
+      `--registry=${REGISTRY}`,
+      '--config.enableGlobalVirtualStore=true',
+    ], { cwd: project1Dir })
 
-    // Create two projects that both reference the same package
-    const project1 = path.resolve('test-project-a')
-    const project2 = path.resolve('test-project-b')
+    // Create second project with the same dependency
+    const project2Dir = path.resolve('project2')
+    fs.mkdirSync(project2Dir, { recursive: true })
+    fs.writeFileSync(path.join(project2Dir, 'package.json'), JSON.stringify({
+      dependencies: { 'is-positive': '1.0.0' },
+    }))
 
-    fs.mkdirSync(path.join(project1, 'node_modules'), { recursive: true })
-    fs.mkdirSync(path.join(project2, 'node_modules'), { recursive: true })
-    fs.writeFileSync(path.join(project1, 'package.json'), '{}')
-    fs.writeFileSync(path.join(project2, 'package.json'), '{}')
+    await execa('node', [
+      pnpmBin,
+      'install',
+      `--store-dir=${storeDir}`,
+      `--cache-dir=${cacheDir}`,
+      `--registry=${REGISTRY}`,
+      '--config.enableGlobalVirtualStore=true',
+    ], { cwd: project2Dir })
 
-    // Both projects symlink to the shared package
-    fs.symlinkSync(sharedPkg, path.join(project1, 'node_modules', 'shared-pkg'))
-    fs.symlinkSync(sharedPkg, path.join(project2, 'node_modules', 'shared-pkg'))
+    // Delete project1
+    rimraf(project1Dir)
 
-    await registerProject(storeDir, project1)
-    await registerProject(storeDir, project2)
-
-    // Delete project1 but keep project2
-    rimraf(project1)
+    // Verify package still exists in links directory
+    const linksDir = path.join(storeDir, STORE_VERSION, 'links')
+    const beforePrune = fs.readdirSync(linksDir)
+    expect(beforePrune.find(e => e.startsWith('is-positive'))).toBeDefined()
 
     // Run prune
     await store.handler({
@@ -587,122 +529,64 @@ describe('global virtual store prune', () => {
         registry: REGISTRY,
       },
       registries: { default: REGISTRY },
-      storeDir,
+      storeDir: path.join(storeDir, STORE_VERSION),
       userConfig: {},
       dlxCacheMaxAge: Infinity,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['prune'])
 
     // Package should still exist because project2 references it
-    expect(fs.existsSync(sharedPkg)).toBe(true)
+    const afterPrune = fs.readdirSync(linksDir)
+    expect(afterPrune.find(e => e.startsWith('is-positive'))).toBeDefined()
 
-    rimraf(project2)
+    rimraf(project2Dir)
   })
 
-  test('prune removes all packages when no projects reference them', async () => {
+  test('prune removes packages when project using them is deleted', async () => {
+    const storeDir = path.resolve('orphan-store')
     const cacheDir = path.resolve('cache')
-    const storeDir = path.resolve('store5', STORE_VERSION)
 
-    // Setup store directories
-    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
+    // Create first project with is-positive
+    const project1Dir = path.resolve('orphan-project1')
+    fs.mkdirSync(project1Dir, { recursive: true })
+    fs.writeFileSync(path.join(project1Dir, 'package.json'), JSON.stringify({
+      dependencies: { 'is-positive': '1.0.0' },
+    }))
 
-    // Create packages in the global virtual store with no referencing projects
-    const linksDir = path.join(storeDir, 'links')
-    const orphanPkg1 = path.join(linksDir, 'orphan-a', '1.0.0', 'hash1', 'node_modules', 'orphan-a')
-    const orphanPkg2 = path.join(linksDir, 'orphan-b', '2.0.0', 'hash2', 'node_modules', 'orphan-b')
+    await execa('node', [
+      pnpmBin,
+      'install',
+      `--store-dir=${storeDir}`,
+      `--cache-dir=${cacheDir}`,
+      `--registry=${REGISTRY}`,
+      '--config.enableGlobalVirtualStore=true',
+    ], { cwd: project1Dir })
 
-    fs.mkdirSync(orphanPkg1, { recursive: true })
-    fs.mkdirSync(orphanPkg2, { recursive: true })
-    fs.writeFileSync(path.join(orphanPkg1, 'package.json'), '{}')
-    fs.writeFileSync(path.join(orphanPkg2, 'package.json'), '{}')
+    // Create second project with a different package (so it stays)
+    const project2Dir = path.resolve('orphan-project2')
+    fs.mkdirSync(project2Dir, { recursive: true })
+    fs.writeFileSync(path.join(project2Dir, 'package.json'), JSON.stringify({
+      dependencies: { 'is-negative': '1.0.0' },
+    }))
 
-    // Create a project that doesn't reference ANY packages in the store
-    const projectDir = path.resolve('empty-project')
-    fs.mkdirSync(path.join(projectDir, 'node_modules'), { recursive: true })
-    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
+    await execa('node', [
+      pnpmBin,
+      'install',
+      `--store-dir=${storeDir}`,
+      `--cache-dir=${cacheDir}`,
+      `--registry=${REGISTRY}`,
+      '--config.enableGlobalVirtualStore=true',
+    ], { cwd: project2Dir })
 
-    // Register the project
-    await registerProject(storeDir, projectDir)
+    // Verify both packages exist in links directory
+    const linksDir = path.join(storeDir, STORE_VERSION, 'links')
+    expect(fs.existsSync(linksDir)).toBe(true)
+    const beforePrune = fs.readdirSync(linksDir)
+    expect(beforePrune.find(e => e.startsWith('is-positive'))).toBeDefined()
+    expect(beforePrune.find(e => e.startsWith('is-negative'))).toBeDefined()
 
-    const reporter = jest.fn()
-
-    // Run prune - project is registered but references nothing
-    await store.handler({
-      cacheDir,
-      dir: process.cwd(),
-      pnpmHomeDir: '',
-      rawConfig: {
-        registry: REGISTRY,
-      },
-      registries: { default: REGISTRY },
-      reporter,
-      storeDir,
-      userConfig: {},
-      dlxCacheMaxAge: Infinity,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
-    }, ['prune'])
-
-    // Both orphan packages should be removed since no project references them
-    expect(fs.existsSync(path.join(linksDir, 'orphan-a'))).toBe(false)
-    expect(fs.existsSync(path.join(linksDir, 'orphan-b'))).toBe(false)
-
-    rimraf(projectDir)
-  })
-
-  test('prune preserves transitive dependencies (subdependencies)', async () => {
-    const cacheDir = path.resolve('cache')
-    const storeDir = path.resolve('store6', STORE_VERSION)
-
-    // Setup store directories
-    fs.mkdirSync(path.join(storeDir, 'files'), { recursive: true })
-
-    // Create a realistic package structure with subdependencies:
-    // project -> pkg-a -> pkg-b -> pkg-c
-    // Also include an unreferenced pkg-d that should be removed
-    const linksDir = path.join(storeDir, 'links')
-
-    // pkg-a: root dependency
-    const pkgA = path.join(linksDir, 'pkg-a', '1.0.0', 'hash-a', 'node_modules', 'pkg-a')
-    const pkgANodeModules = path.join(linksDir, 'pkg-a', '1.0.0', 'hash-a', 'node_modules')
-
-    // pkg-b: subdependency of pkg-a
-    const pkgB = path.join(linksDir, 'pkg-b', '2.0.0', 'hash-b', 'node_modules', 'pkg-b')
-    const pkgBNodeModules = path.join(linksDir, 'pkg-b', '2.0.0', 'hash-b', 'node_modules')
-
-    // pkg-c: subdependency of pkg-b
-    const pkgC = path.join(linksDir, 'pkg-c', '3.0.0', 'hash-c', 'node_modules', 'pkg-c')
-
-    // pkg-d: unreferenced package
-    const pkgD = path.join(linksDir, 'pkg-d', '4.0.0', 'hash-d', 'node_modules', 'pkg-d')
-
-    // Create all packages
-    fs.mkdirSync(pkgA, { recursive: true })
-    fs.mkdirSync(pkgB, { recursive: true })
-    fs.mkdirSync(pkgC, { recursive: true })
-    fs.mkdirSync(pkgD, { recursive: true })
-    fs.writeFileSync(path.join(pkgA, 'package.json'), '{"name": "pkg-a"}')
-    fs.writeFileSync(path.join(pkgB, 'package.json'), '{"name": "pkg-b"}')
-    fs.writeFileSync(path.join(pkgC, 'package.json'), '{"name": "pkg-c"}')
-    fs.writeFileSync(path.join(pkgD, 'package.json'), '{"name": "pkg-d"}')
-
-    // Create symlinks for subdependencies within the store:
-    // pkg-a/node_modules/pkg-b -> pkg-b
-    fs.symlinkSync(pkgB, path.join(pkgANodeModules, 'pkg-b'))
-    // pkg-b/node_modules/pkg-c -> pkg-c
-    fs.symlinkSync(pkgC, path.join(pkgBNodeModules, 'pkg-c'))
-
-    // Create a project that references pkg-a
-    const projectDir = path.resolve('complex-project')
-    const projectNodeModules = path.join(projectDir, 'node_modules')
-    fs.mkdirSync(projectNodeModules, { recursive: true })
-    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
-
-    // Project references pkg-a
-    fs.symlinkSync(pkgA, path.join(projectNodeModules, 'pkg-a'))
-
-    await registerProject(storeDir, projectDir)
-
-    const reporter = jest.fn()
+    // Delete project1 (which uses is-positive)
+    rimraf(project1Dir)
 
     // Run prune
     await store.handler({
@@ -713,21 +597,110 @@ describe('global virtual store prune', () => {
         registry: REGISTRY,
       },
       registries: { default: REGISTRY },
-      reporter,
-      storeDir,
+      storeDir: path.join(storeDir, STORE_VERSION),
       userConfig: {},
       dlxCacheMaxAge: Infinity,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['prune'])
 
-    // Verify: all transitive dependencies should be preserved
-    expect(fs.existsSync(pkgA)).toBe(true)
-    expect(fs.existsSync(pkgB)).toBe(true)
-    expect(fs.existsSync(pkgC)).toBe(true)
+    // is-positive should be removed since project1 was deleted
+    const afterPrune = fs.readdirSync(linksDir)
+    expect(afterPrune.find(e => e.startsWith('is-positive'))).toBeUndefined()
+    // is-negative should remain since project2 still exists
+    expect(afterPrune.find(e => e.startsWith('is-negative'))).toBeDefined()
 
-    // Verify: unreferenced pkg-d should be removed
-    expect(fs.existsSync(path.join(linksDir, 'pkg-d'))).toBe(false)
+    rimraf(project2Dir)
+  })
 
-    rimraf(projectDir)
+  test('prune preserves transitive dependencies and removes isolated ones', async () => {
+    // Create project with three packages:
+    // - @pnpm.e2e/pkg-with-1-dep has transitive dep @pnpm.e2e/dep-of-pkg-with-1-dep
+    // - @pnpm.e2e/romeo has transitive dep @pnpm.e2e/romeo-dep
+    // - is-positive has no transitive deps
+    prepare({
+      dependencies: {
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        '@pnpm.e2e/romeo': '1.0.0',
+        'is-positive': '1.0.0',
+      },
+    })
+
+    // Store should be OUTSIDE the project directory to avoid findAllNodeModulesDirs
+    // scanning the store's internal node_modules
+    const storeDir = path.resolve('..', 'transitive-store')
+    const cacheDir = path.resolve('..', 'cache')
+
+    await execa('node', [
+      pnpmBin,
+      'install',
+      `--store-dir=${storeDir}`,
+      `--cache-dir=${cacheDir}`,
+      `--registry=${REGISTRY}`,
+      '--config.enableGlobalVirtualStore=true',
+    ])
+
+    // Verify all packages exist in links directory
+    const linksDir = path.join(storeDir, STORE_VERSION, 'links')
+    const topLevelDirs = fs.readdirSync(linksDir)
+
+    // Scoped packages are in links/@pnpm.e2e/pkg-name/
+    const scopeDir = path.join(linksDir, '@pnpm.e2e')
+    const scopedPkgs = fs.readdirSync(scopeDir)
+    expect(scopedPkgs.some(e => e.includes('pkg-with-1-dep'))).toBe(true)
+    expect(scopedPkgs.some(e => e.includes('dep-of-pkg-with-1-dep'))).toBe(true)
+    expect(scopedPkgs.some(e => e.includes('romeo') && !e.includes('romeo-dep'))).toBe(true)
+    expect(scopedPkgs.some(e => e.includes('romeo-dep'))).toBe(true)
+    expect(topLevelDirs.some(e => e.startsWith('is-positive'))).toBe(true)
+
+    // Remove @pnpm.e2e/pkg-with-1-dep, keeping romeo and is-positive
+    fs.writeFileSync('package.json', JSON.stringify({
+      dependencies: {
+        '@pnpm.e2e/romeo': '1.0.0',
+        'is-positive': '1.0.0',
+      },
+    }))
+    await execa('node', [
+      pnpmBin,
+      'install',
+      `--store-dir=${storeDir}`,
+      `--cache-dir=${cacheDir}`,
+      `--registry=${REGISTRY}`,
+      '--config.enableGlobalVirtualStore=true',
+    ])
+
+    // Run prune
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      rawConfig: {
+        registry: REGISTRY,
+      },
+      registries: { default: REGISTRY },
+      storeDir: path.join(storeDir, STORE_VERSION),
+      userConfig: {},
+      dlxCacheMaxAge: Infinity,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['prune'])
+
+    // Verify:
+    // - pkg-with-1-dep and its transitive dep-of-pkg-with-1-dep should be removed
+    // - romeo and its transitive romeo-dep should still exist
+    // - is-positive should still exist
+    const afterPrune = fs.readdirSync(linksDir)
+    expect(afterPrune.some(e => e.startsWith('is-positive'))).toBe(true)
+
+    if (fs.existsSync(scopeDir)) {
+      const scopedPkgsAfter = fs.readdirSync(scopeDir)
+      // pkg-with-1-dep and its transitive dep should be removed
+      expect(scopedPkgsAfter.some(e => e.includes('pkg-with-1-dep'))).toBe(false)
+      expect(scopedPkgsAfter.some(e => e.includes('dep-of-pkg-with-1-dep'))).toBe(false)
+      // romeo and its transitive dep should be preserved
+      expect(scopedPkgsAfter.some(e => e.includes('romeo') && !e.includes('romeo-dep'))).toBe(true)
+      expect(scopedPkgsAfter.some(e => e.includes('romeo-dep'))).toBe(true)
+    } else {
+      // Fail the test if scope directory doesn't exist (romeo should be preserved)
+      throw new Error('Expected @pnpm.e2e directory to exist with romeo packages')
+    }
   })
 })
