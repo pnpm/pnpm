@@ -131,14 +131,16 @@ async function walkSymlinksToStore (
           // Check if this symlink points into the global virtual store
           if (absoluteTarget.startsWith(linksDir)) {
             // Mark the package directory as reachable
-            // The path structure is: {linksDir}/{pkgName}/{version}/{hash}/node_modules/{pkgName}
+            // The path structure is:
+            //   - Scoped:   {linksDir}/{scope}/{pkgName}/{version}/{hash}/node_modules/{pkgName}
+            //   - Unscoped: {linksDir}/@/{pkgName}/{version}/{hash}/node_modules/{pkgName}
             // We want to mark the {hash} directory
             const relPath = path.relative(linksDir, absoluteTarget)
             const parts = relPath.split(path.sep)
             // Find the hash directory (the one containing node_modules)
             const nodeModulesIdx = parts.indexOf('node_modules')
             if (nodeModulesIdx !== -1) {
-              // Store relative path like "pkg-a/1.0.0/hash123"
+              // Store relative path like "@scope/pkg-a/1.0.0/hash123" or "@/pkg-a/1.0.0/hash123"
               const relativePath = parts.slice(0, nodeModulesIdx).join(path.sep)
               reachable.add(relativePath)
               // Also walk into the package's node_modules for transitive deps
