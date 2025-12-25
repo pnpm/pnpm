@@ -25,6 +25,9 @@
       "path": "../../hooks/types"
     },
     {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../../packages/logger"
     },
     {
