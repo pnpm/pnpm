@@ -181,50 +181,48 @@ async function removeUnreachablePackages (
 ): Promise<number> {
   // Walk through the links directory structure: {linksDir}/{pkgName}/{version}/{hash}/
   const pkgNames = await getSubdirsSafely(linksDir)
+  let count = 0
 
-  const results = await Promise.all(
-    pkgNames.map(async (pkgName): Promise<number> => {
+  await Promise.all(
+    pkgNames.map(async (pkgName) => {
       const pkgDir = path.join(linksDir, pkgName)
       const versions = await getSubdirsSafely(pkgDir)
 
-      let count = 0
+      let removedVersions = 0
       await Promise.all(
         versions.map(async (version) => {
           const versionDir = path.join(pkgDir, version)
           const hashes = await getSubdirsSafely(versionDir)
 
           // Remove unreachable hash directories
+          let removedHashes = 0
           await Promise.all(
             hashes.map(async (hash) => {
-              // Compare using relative path like "pkg-a/1.0.0/hash123"
               const relativePath = path.join(pkgName, version, hash)
               if (!reachable.has(relativePath)) {
-                const hashDir = path.join(versionDir, hash)
-                await rimraf(hashDir)
+                await rimraf(path.join(versionDir, hash))
+                removedHashes++
                 count++
               }
             })
           )
 
-          // Clean up empty version directories
-          const remainingHashes = await getSubdirsSafely(versionDir)
-          if (remainingHashes.length === 0) {
+          // If we removed all hashes, remove the version directory
+          if (removedHashes === hashes.length && hashes.length > 0) {
             await rimraf(versionDir)
+            removedVersions++
           }
         })
       )
 
-      // Clean up empty package directories
-      const remainingVersions = await getSubdirsSafely(pkgDir)
-      if (remainingVersions.length === 0) {
+      // If we removed all versions, remove the package directory
+      if (removedVersions === versions.length && versions.length > 0) {
         await rimraf(pkgDir)
       }
-
-      return count
     })
   )
 
-  return results.reduce((sum, count) => sum + count, 0)
+  return count
 }
 
 async function pathExists (p: string): Promise<boolean> {
@@ -246,7 +244,11 @@ async function getSubdirsSafely (dir: string): Promise<string[]> {
     }
     throw err
   }
-  return entries
-    .filter(entry => entry.isDirectory())
-    .map(dir => dir.name)
+  const subdirs: string[] = []
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      subdirs.push(entry.name)
+    }
+  }
+  return subdirs
 }
