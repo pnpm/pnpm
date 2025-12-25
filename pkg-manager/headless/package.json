@@ -58,7 +58,6 @@
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
-    "@pnpm/package-store": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
@@ -111,3 +110,4 @@
     "preset": "@pnpm/jest-config/with-registry"
   }
 }
+

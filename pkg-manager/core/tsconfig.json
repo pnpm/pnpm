@@ -157,9 +157,6 @@
       "path": "../../store/cafs"
     },
     {
-      "path": "../../store/package-store"
-    },
-    {
       "path": "../../store/store-controller-types"
     },
     {

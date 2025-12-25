@@ -93,7 +93,6 @@
     "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/package-requester": "workspace:*",
-    "@pnpm/package-store": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
@@ -170,3 +169,4 @@
     "preset": "@pnpm/jest-config/with-registry"
   }
 }
+

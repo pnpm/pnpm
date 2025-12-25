@@ -403,7 +403,7 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
-    reporter () { },
+    reporter () {},
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: 7,

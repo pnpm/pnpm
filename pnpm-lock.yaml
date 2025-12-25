@@ -5066,9 +5066,6 @@ importers:
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../package-requester
-      '@pnpm/package-store':
-        specifier: workspace:*
-        version: link:../../store/package-store
       '@pnpm/parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
@@ -5393,9 +5390,6 @@ importers:
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../package-requester
-      '@pnpm/package-store':
-        specifier: workspace:*
-        version: link:../../store/package-store
       '@pnpm/patching.config':
         specifier: workspace:*
         version: link:../../patching/config
