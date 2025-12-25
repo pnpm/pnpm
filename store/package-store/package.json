@@ -56,6 +56,7 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
+    "is-subdir": "catalog:",
     "ramda": "catalog:",
     "ssri": "catalog:",
     "symlink-dir": "catalog:"

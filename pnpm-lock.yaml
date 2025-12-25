@@ -8269,6 +8269,9 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
+      is-subdir:
+        specifier: 'catalog:'
+        version: 1.2.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'

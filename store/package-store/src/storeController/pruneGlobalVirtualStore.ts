@@ -4,6 +4,7 @@ import path from 'path'
 import crypto from 'crypto'
 import { globalInfo } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
+import isSubdir from 'is-subdir'
 import { getRegisteredProjects } from './projectRegistry.js'
 
 const LINKS_DIR = 'links'
@@ -129,7 +130,7 @@ async function walkSymlinksToStore (
             : path.resolve(dir, target)
 
           // Check if this symlink points into the global virtual store
-          if (absoluteTarget.startsWith(linksDir)) {
+          if (isSubdir(linksDir, absoluteTarget)) {
             // Mark the package directory as reachable
             // The path structure is:
             //   - Scoped:   {linksDir}/{scope}/{pkgName}/{version}/{hash}/node_modules/{pkgName}
@@ -228,7 +229,7 @@ async function removeUnreachablePackages (
  */
 async function removeUnreachableVersions (
   pkgDir: string,
-  pkgPath: string, // relative path like "is-positive" or "@pnpm.e2e/romeo"
+  pkgPath: string, // relative path like "@/is-positive" or "@pnpm.e2e/romeo"
   reachable: Set<string>
 ): Promise<{ count: number, allRemoved: boolean }> {
   const versions = await getSubdirsSafely(pkgDir)
