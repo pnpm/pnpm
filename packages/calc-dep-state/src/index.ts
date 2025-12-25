@@ -121,7 +121,11 @@ export function calcGraphNodeHash<T extends PkgMeta> (
     deps: calcDepGraphHash(graph, cache, new Set(), depPath),
   }
   const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
-  return `${name}/${version}/${hexDigest}`
+  // Use @/ prefix for unscoped packages to maintain uniform 4-level directory depth
+  // Scoped: @scope/pkg/version/hash
+  // Unscoped: @/pkg/version/hash
+  const prefix = name.startsWith('@') ? '' : '@/'
+  return `${prefix}${name}/${version}/${hexDigest}`
 }
 
 export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath> {
