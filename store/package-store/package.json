@@ -46,6 +46,7 @@
   "dependencies": {
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
