@@ -175,54 +175,44 @@ async function getRealPathHash (p: string): Promise<string> {
  * Remove package directories from the global virtual store that are not in the reachable set.
  * Returns the count of removed packages.
  *
- * Directory structure:
- * - Unscoped: {linksDir}/{pkgName}/{version}/{hash}/
+ * Directory structure is uniform 4-level:
  * - Scoped: {linksDir}/{scope}/{pkgName}/{version}/{hash}/
+ * - Unscoped: {linksDir}/@/{pkgName}/{version}/{hash}/
  */
 async function removeUnreachablePackages (
   linksDir: string,
   reachable: Set<string>
 ): Promise<number> {
-  const topLevelDirs = await getSubdirsSafely(linksDir)
+  // First level is always a scope (either @scope or @ for unscoped packages)
+  const scopes = await getSubdirsSafely(linksDir)
   let count = 0
 
   await Promise.all(
-    topLevelDirs.map(async (topLevel) => {
-      const topLevelPath = path.join(linksDir, topLevel)
+    scopes.map(async (scope) => {
+      const scopePath = path.join(linksDir, scope)
+      const pkgNames = await getSubdirsSafely(scopePath)
+      let removedPkgs = 0
 
-      if (topLevel.startsWith('@')) {
-        // Scoped package: {linksDir}/{scope}/{pkgName}/{version}/{hash}/
-        const scopedPkgNames = await getSubdirsSafely(topLevelPath)
-        let removedPkgs = 0
+      await Promise.all(
+        pkgNames.map(async (pkgName) => {
+          const pkgDir = path.join(scopePath, pkgName)
+          const removedVersions = await removeUnreachableVersions(
+            pkgDir,
+            path.join(scope, pkgName),
+            reachable
+          )
+          count += removedVersions.count
+          if (removedVersions.allRemoved) {
+            // Remove the package directory when all its versions are removed
+            await rimraf(pkgDir)
+            removedPkgs++
+          }
+        })
+      )
 
-        await Promise.all(
-          scopedPkgNames.map(async (pkgName) => {
-            const pkgDir = path.join(topLevelPath, pkgName)
-            const removedVersions = await removeUnreachableVersions(
-              pkgDir,
-              path.join(topLevel, pkgName),
-              reachable
-            )
-            count += removedVersions.count
-            if (removedVersions.allRemoved) {
-              // Remove the package directory when all its versions are removed
-              await rimraf(pkgDir)
-              removedPkgs++
-            }
-          })
-        )
-
-        // If we removed all packages in scope, remove the scope directory
-        if (removedPkgs === scopedPkgNames.length && scopedPkgNames.length > 0) {
-          await rimraf(topLevelPath)
-        }
-      } else {
-        // Unscoped package: {linksDir}/{pkgName}/{version}/{hash}/
-        const result = await removeUnreachableVersions(topLevelPath, topLevel, reachable)
-        count += result.count
-        if (result.allRemoved) {
-          await rimraf(topLevelPath)
-        }
+      // If we removed all packages in scope, remove the scope directory
+      if (removedPkgs === pkgNames.length && pkgNames.length > 0) {
+        await rimraf(scopePath)
       }
     })
   )

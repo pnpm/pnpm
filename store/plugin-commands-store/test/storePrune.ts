@@ -352,7 +352,7 @@ describe('prune when store directory is not properly configured', () => {
   })
 })
 
-function createSampleDlxCacheLinkTarget(dirPath: string): void {
+function createSampleDlxCacheLinkTarget (dirPath: string): void {
   fs.mkdirSync(path.join(dirPath, 'node_modules', '.pnpm'), { recursive: true })
   fs.mkdirSync(path.join(dirPath, 'node_modules', '.bin'), { recursive: true })
   fs.writeFileSync(path.join(dirPath, 'node_modules', '.modules.yaml'), '')
@@ -360,7 +360,7 @@ function createSampleDlxCacheLinkTarget(dirPath: string): void {
   fs.writeFileSync(path.join(dirPath, 'pnpm-lock.yaml'), '')
 }
 
-function createSampleDlxCacheItem(cacheDir: string, cmd: string, now: Date, age: number): void {
+function createSampleDlxCacheItem (cacheDir: string, cmd: string, now: Date, age: number): void {
   const hash = createCacheKey(cmd)
   const newDate = new Date(now.getTime() - age * 60_000)
   const timeError = 432 // just an arbitrary amount, nothing is special about this number
@@ -373,7 +373,7 @@ function createSampleDlxCacheItem(cacheDir: string, cmd: string, now: Date, age:
   fs.lutimesSync(linkPath, newDate, newDate)
 }
 
-function createSampleDlxCacheFsTree(cacheDir: string, now: Date, ageTable: Record<string, number>): void {
+function createSampleDlxCacheFsTree (cacheDir: string, now: Date, ageTable: Record<string, number>): void {
   for (const [cmd, age] of Object.entries(ageTable)) {
     createSampleDlxCacheItem(cacheDir, cmd, now, age)
   }
@@ -403,7 +403,7 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
-    reporter() { },
+    reporter () { },
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: 7,
@@ -471,8 +471,9 @@ describe('global virtual store prune', () => {
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['prune'])
 
-    // Verify: is-positive should no longer exist in links directory
-    const entries = fs.existsSync(linksDir) ? fs.readdirSync(linksDir) : []
+    // Verify: is-positive should no longer exist in links/@/ directory
+    const unscopedDir = path.join(linksDir, '@')
+    const entries = fs.existsSync(unscopedDir) ? fs.readdirSync(unscopedDir) : []
     expect(entries.find(e => e.startsWith('is-positive'))).toBeUndefined()
   })
 
@@ -515,9 +516,10 @@ describe('global virtual store prune', () => {
     // Delete project1
     rimraf(project1Dir)
 
-    // Verify package still exists in links directory
+    // Verify package still exists in links/@/ directory
     const linksDir = path.join(storeDir, STORE_VERSION, 'links')
-    const beforePrune = fs.readdirSync(linksDir)
+    const unscopedDir = path.join(linksDir, '@')
+    const beforePrune = fs.readdirSync(unscopedDir)
     expect(beforePrune.find(e => e.startsWith('is-positive'))).toBeDefined()
 
     // Run prune
@@ -536,7 +538,7 @@ describe('global virtual store prune', () => {
     }, ['prune'])
 
     // Package should still exist because project2 references it
-    const afterPrune = fs.readdirSync(linksDir)
+    const afterPrune = fs.readdirSync(unscopedDir)
     expect(afterPrune.find(e => e.startsWith('is-positive'))).toBeDefined()
 
     rimraf(project2Dir)
@@ -578,10 +580,11 @@ describe('global virtual store prune', () => {
       '--config.enableGlobalVirtualStore=true',
     ], { cwd: project2Dir })
 
-    // Verify both packages exist in links directory
+    // Verify both packages exist in links/@/ directory
     const linksDir = path.join(storeDir, STORE_VERSION, 'links')
-    expect(fs.existsSync(linksDir)).toBe(true)
-    const beforePrune = fs.readdirSync(linksDir)
+    const unscopedDir = path.join(linksDir, '@')
+    expect(fs.existsSync(unscopedDir)).toBe(true)
+    const beforePrune = fs.readdirSync(unscopedDir)
     expect(beforePrune.find(e => e.startsWith('is-positive'))).toBeDefined()
     expect(beforePrune.find(e => e.startsWith('is-negative'))).toBeDefined()
 
@@ -604,7 +607,7 @@ describe('global virtual store prune', () => {
     }, ['prune'])
 
     // is-positive should be removed since project1 was deleted
-    const afterPrune = fs.readdirSync(linksDir)
+    const afterPrune = fs.readdirSync(unscopedDir)
     expect(afterPrune.find(e => e.startsWith('is-positive'))).toBeUndefined()
     // is-negative should remain since project2 still exists
     expect(afterPrune.find(e => e.startsWith('is-negative'))).toBeDefined()
@@ -641,7 +644,6 @@ describe('global virtual store prune', () => {
 
     // Verify all packages exist in links directory
     const linksDir = path.join(storeDir, STORE_VERSION, 'links')
-    const topLevelDirs = fs.readdirSync(linksDir)
 
     // Scoped packages are in links/@pnpm.e2e/pkg-name/
     const scopeDir = path.join(linksDir, '@pnpm.e2e')
@@ -650,7 +652,10 @@ describe('global virtual store prune', () => {
     expect(scopedPkgs.some(e => e.includes('dep-of-pkg-with-1-dep'))).toBe(true)
     expect(scopedPkgs.some(e => e.includes('romeo') && !e.includes('romeo-dep'))).toBe(true)
     expect(scopedPkgs.some(e => e.includes('romeo-dep'))).toBe(true)
-    expect(topLevelDirs.some(e => e.startsWith('is-positive'))).toBe(true)
+    // Unscoped packages are in links/@/pkg-name/ (uniform 4-level depth)
+    const unscopedDir = path.join(linksDir, '@')
+    const unscopedPkgs = fs.readdirSync(unscopedDir)
+    expect(unscopedPkgs.some(e => e.startsWith('is-positive'))).toBe(true)
 
     // Remove @pnpm.e2e/pkg-with-1-dep, keeping romeo and is-positive
     fs.writeFileSync('package.json', JSON.stringify({
@@ -687,8 +692,10 @@ describe('global virtual store prune', () => {
     // - pkg-with-1-dep and its transitive dep-of-pkg-with-1-dep should be removed
     // - romeo and its transitive romeo-dep should still exist
     // - is-positive should still exist
-    const afterPrune = fs.readdirSync(linksDir)
-    expect(afterPrune.some(e => e.startsWith('is-positive'))).toBe(true)
+    const afterPruneScopes = fs.readdirSync(linksDir)
+    expect(afterPruneScopes).toContain('@') // unscoped packages scope
+    const unscopedAfterPrune = fs.readdirSync(unscopedDir)
+    expect(unscopedAfterPrune.some(e => e.startsWith('is-positive'))).toBe(true)
 
     if (fs.existsSync(scopeDir)) {
       const scopedPkgsAfter = fs.readdirSync(scopeDir)
