@@ -767,3 +767,29 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
 
   projects['project-1'].has('is-positive')
 })
+
+test('install with package in the parent folder', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFile('project-1/workspace/pnpm-workspace.yaml', { packages: ['..'] })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterPackagesFromDir(process.cwd(), []),
+    dir: path.join(process.cwd(), 'project-1', 'workspace'),
+    lockfileDir: path.join(process.cwd(), 'project-1', 'workspace'),
+    recursive: true,
+    workspaceDir: path.join(process.cwd(), 'project-1', 'workspace'),
+  })
+
+  projects['project-1'].has('is-positive')
+})
