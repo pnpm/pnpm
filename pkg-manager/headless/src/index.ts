@@ -339,7 +339,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     graph,
     hierarchy,
     hoistedLocations,
-    pkgLocationsByDepPath,
+    directoryDepsByDepPath,
     prevGraph,
     symlinkedDirectDependenciesByImporterId,
   } = await (
@@ -569,6 +569,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
+  // Convert directoryDepsByDepPath Map to array format for extendProjectsWithTargetDirs
+  const pkgLocationsByDepPath: Record<string, string[]> | undefined = directoryDepsByDepPath
+    ? Object.fromEntries([...directoryDepsByDepPath].map(([k, v]) => [k, [v]]))
+    : undefined
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
     pkgLocationsByDepPath,
     virtualStoreDir,
@@ -664,7 +668,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   await Promise.all(depNodes.map(async ({ fetching }) => {
     try {
       await fetching?.()
-    } catch {}
+    } catch { }
   }))
 
   summaryLogger.debug({ prefix: lockfileDir })
