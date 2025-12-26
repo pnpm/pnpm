@@ -569,12 +569,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
-  // Convert directoryDepsByDepPath Map to array format for extendProjectsWithTargetDirs
-  const pkgLocationsByDepPath: Record<string, string[]> | undefined = directoryDepsByDepPath
-    ? Object.fromEntries([...directoryDepsByDepPath].map(([k, v]) => [k, [v]]))
-    : undefined
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
-    pkgLocationsByDepPath,
+    directoryDepsByDepPath,
     virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
   })
