@@ -56,7 +56,6 @@
     "rimraf": "catalog:",
     "shx": "catalog:",
     "ts-jest": "catalog:",
-    "ts-node": "catalog:",
     "typescript": "catalog:",
     "verdaccio": "catalog:"
   },
