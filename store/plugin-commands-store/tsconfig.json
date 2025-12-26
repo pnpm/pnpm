@@ -58,6 +58,9 @@
       "path": "../cafs"
     },
     {
+      "path": "../package-store"
+    },
+    {
       "path": "../store-connection-manager"
     },
     {
