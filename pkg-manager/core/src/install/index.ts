@@ -1488,7 +1488,30 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }))
 
+    // Compute pkgLocationsByDepPath from dependenciesGraph for injected deps support
+    // We need to include both snapshot depPaths (with peer suffixes) and base depPaths
+    // because extendProjectsWithTargetDirs iterates over lockfile.packages which uses base depPaths
+    const pkgLocationsByDepPath: Record<string, string[]> = {}
+    for (const node of Object.values(dependenciesGraph)) {
+      // Add entry for the full depPath (with peer suffix)
+      if (!pkgLocationsByDepPath[node.depPath]) {
+        pkgLocationsByDepPath[node.depPath] = []
+      }
+      pkgLocationsByDepPath[node.depPath].push(node.dir)
+
+      // Also add entry for the base depPath (without peer suffix)
+      // This is needed for injected deps lookup in extendProjectsWithTargetDirs
+      const baseDepPath = dp.removeSuffix(node.depPath)
+      if (baseDepPath !== node.depPath) {
+        if (!pkgLocationsByDepPath[baseDepPath]) {
+          pkgLocationsByDepPath[baseDepPath] = []
+        }
+        pkgLocationsByDepPath[baseDepPath].push(node.dir)
+      }
+    }
+
     const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, newLockfile, {
+      pkgLocationsByDepPath,
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })

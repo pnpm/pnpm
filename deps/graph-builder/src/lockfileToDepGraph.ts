@@ -156,7 +156,13 @@ export async function lockfileToDepGraph (
     directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
   }
 
-  return { graph, directDependenciesByImporterId }
+  // Convert locationByDepPath to pkgLocationsByDepPath format (array of paths per depPath)
+  const pkgLocationsByDepPath: Record<string, string[]> = {}
+  for (const [depPath, dir] of Object.entries(locationByDepPath)) {
+    pkgLocationsByDepPath[depPath] = [dir]
+  }
+
+  return { graph, directDependenciesByImporterId, pkgLocationsByDepPath }
 }
 
 async function buildGraphFromPackages (
