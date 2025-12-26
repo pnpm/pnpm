@@ -119,6 +119,7 @@ export async function lockfileToDepGraph (
   const {
     graph,
     locationByDepPath,
+    pkgLocationsByDepPath,
   } = await buildGraphFromPackages(lockfile, currentLockfile, opts)
 
   const _getChildrenPaths = getChildrenPaths.bind(null, {
@@ -156,12 +157,6 @@ export async function lockfileToDepGraph (
     directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
   }
 
-  // Convert locationByDepPath to pkgLocationsByDepPath format (array of paths per depPath)
-  const pkgLocationsByDepPath: Record<string, string[]> = {}
-  for (const [depPath, dir] of Object.entries(locationByDepPath)) {
-    pkgLocationsByDepPath[depPath] = [dir]
-  }
-
   return { graph, directDependenciesByImporterId, pkgLocationsByDepPath }
 }
 
@@ -172,10 +167,13 @@ async function buildGraphFromPackages (
 ): Promise<{
     graph: DependenciesGraph
     locationByDepPath: Record<string, string>
+    pkgLocationsByDepPath: Record<string, string[]>
   }> {
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
   const locationByDepPath: Record<string, string> = {}
+  // Only populated for file: deps (injected workspace packages)
+  const pkgLocationsByDepPath: Record<string, string[]> = {}
 
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
@@ -207,7 +205,8 @@ async function buildGraphFromPackages (
         return
       }
 
-      const depIsPresent = !('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) &&
+      const isDirectoryDep = 'directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null
+      const depIsPresent = !isDirectoryDep &&
         currentPackages[depPath] &&
         equals(currentPackages[depPath].dependencies, pkgSnapshot.dependencies)
 
@@ -216,6 +215,10 @@ async function buildGraphFromPackages (
       const modules = path.join(dirInVirtualStore, 'node_modules')
       const dir = path.join(modules, pkgName)
       locationByDepPath[depPath] = dir
+      // Track directory deps for injected workspace packages
+      if (isDirectoryDep) {
+        pkgLocationsByDepPath[depPath] = [dir]
+      }
 
       let dirExists: boolean | undefined
       if (
@@ -279,7 +282,7 @@ async function buildGraphFromPackages (
     })())
   }
   await Promise.all(promises)
-  return { graph, locationByDepPath }
+  return { graph, locationByDepPath, pkgLocationsByDepPath }
 }
 
 interface GetChildrenPathsContext {
