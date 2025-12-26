@@ -59,7 +59,6 @@
     "publish-packed": "catalog:",
     "rimraf": "catalog:",
     "shx": "catalog:",
-    "ts-jest": "catalog:",
     "typescript": "catalog:",
     "verdaccio": "catalog:"
   },
