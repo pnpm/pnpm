@@ -1488,17 +1488,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }))
 
-    // Build directoryDepsByDepPath Map from dependenciesGraph for injected deps support
-    // Only include directory deps (file: deps) since those are injected workspace packages
-    const directoryDepsByDepPath = new Map<string, string>()
-    for (const node of Object.values(dependenciesGraph)) {
-      if (node.depPath.includes('file:')) {
-        directoryDepsByDepPath.set(node.depPath, node.dir)
-      }
-    }
-
     const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, newLockfile, {
-      directoryDepsByDepPath,
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })

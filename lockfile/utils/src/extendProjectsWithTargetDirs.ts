@@ -10,7 +10,7 @@ export function extendProjectsWithTargetDirs<T> (
   lockfile: LockfileObject,
   ctx: {
     virtualStoreDir: string
-    directoryDepsByDepPath?: Map<string, string>
+    directoryDepsByDepPath?: Map<string, string[]>
     virtualStoreDirMaxLength: number
   }
 ): Array<T & { id: ProjectId, stages: string[], targetDirs: string[] }> {
@@ -20,12 +20,17 @@ export function extendProjectsWithTargetDirs<T> (
   if (ctx.directoryDepsByDepPath) {
     // When directoryDepsByDepPath is provided (from dependency graph), use it directly
     // It already contains only directory deps with their resolved locations
-    for (const [depPath, location] of ctx.directoryDepsByDepPath) {
+    for (const [depPath, locations] of ctx.directoryDepsByDepPath) {
       const parsed = parseDepPath(depPath)
       if (!parsed.name || !parsed.nonSemverVersion?.startsWith('file:')) continue
       const importerId = parsed.nonSemverVersion.replace(/^file:/, '') as ProjectId
       if (projectsById[importerId] == null) continue
-      projectsById[importerId].targetDirs.push(location)
+      // Dedupe: only add locations that aren't already tracked
+      for (const location of locations) {
+        if (!projectsById[importerId].targetDirs.includes(location)) {
+          projectsById[importerId].targetDirs.push(location)
+        }
+      }
       projectsById[importerId].stages = ['preinstall', 'install', 'postinstall', 'prepare', 'prepublishOnly']
     }
   } else {

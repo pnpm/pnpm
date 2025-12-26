@@ -99,7 +99,7 @@ export interface LockfileToDepGraphResult {
   hoistedLocations?: Record<string, string[]>
   symlinkedDirectDependenciesByImporterId?: DirectDependenciesByImporterId
   prevGraph?: DependenciesGraph
-  directoryDepsByDepPath?: Map<string, string>
+  directoryDepsByDepPath?: Map<string, string[]>
 }
 
 /**
@@ -167,13 +167,13 @@ async function buildGraphFromPackages (
 ): Promise<{
     graph: DependenciesGraph
     locationByDepPath: Record<string, string>
-    directoryDepsByDepPath: Map<string, string>
+    directoryDepsByDepPath: Map<string, string[]>
   }> {
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
   const locationByDepPath: Record<string, string> = {}
   // Only populated for directory deps (injected workspace packages)
-  const directoryDepsByDepPath = new Map<string, string>()
+  const directoryDepsByDepPath = new Map<string, string[]>()
 
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
@@ -217,7 +217,7 @@ async function buildGraphFromPackages (
       locationByDepPath[depPath] = dir
       // Track directory deps for injected workspace packages
       if (isDirectoryDep) {
-        directoryDepsByDepPath.set(depPath, dir)
+        directoryDepsByDepPath.set(depPath, [dir])
       }
 
       let dirExists: boolean | undefined
