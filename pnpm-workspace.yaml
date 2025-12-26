@@ -63,6 +63,7 @@ auditConfig:
 
 catalog:
   '@babel/core': ^7.28.3
+  '@babel/plugin-transform-explicit-resource-management': ^7.27.1
   '@babel/preset-typescript': ^7.27.1
   '@babel/types': ^7.28.2
   '@changesets/cli': ^2.29.6
