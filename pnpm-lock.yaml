@@ -5302,6 +5302,9 @@ importers:
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
+      '@pnpm/package-store':
+        specifier: workspace:*
+        version: link:../../store/package-store
       '@pnpm/read-projects-context':
         specifier: workspace:*
         version: link:../read-projects-context
@@ -8230,6 +8233,12 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../create-cafs-store
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -8260,12 +8269,18 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
+      is-subdir:
+        specifier: 'catalog:'
+        version: 1.2.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       ssri:
         specifier: 'catalog:'
         version: 12.0.0
+      symlink-dir:
+        specifier: 'catalog:'
+        version: 7.0.0
     devDependencies:
       '@pnpm/client':
         specifier: workspace:*
@@ -8434,6 +8449,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@pnpm/package-store':
+        specifier: workspace:*
+        version: link:../package-store
       '@pnpm/plugin-commands-script-runners':
         specifier: workspace:*
         version: link:../../exec/plugin-commands-script-runners
