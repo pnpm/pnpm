@@ -104,6 +104,7 @@ test('injected local packages work with global virtual store', async () => {
       package: project2Manifest,
     },
   ])
+  fs.writeFileSync('project-1/foo.js', '', 'utf8')
 
   const globalVirtualStoreDir = path.resolve('links')
   const importers: MutatedProject[] = [
@@ -146,5 +147,7 @@ test('injected local packages work with global virtual store', async () => {
   expect(modulesState?.injectedDeps?.['project-1']).toBeDefined()
   expect(modulesState?.injectedDeps?.['project-1'].length).toBeGreaterThan(0)
   // Injected deps should be in the global virtual store (links directory)
-  expect(modulesState?.injectedDeps?.['project-1'][0]).toContain('links')
+  const injectedDepLocation = modulesState?.injectedDeps?.['project-1'][0]
+  expect(injectedDepLocation).toContain('links')
+  expect(fs.existsSync(path.join(injectedDepLocation!, 'foo.js'))).toBeTruthy()
 })

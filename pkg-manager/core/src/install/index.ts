@@ -36,6 +36,7 @@ import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   type ProjectSnapshot,
   type LockfileObject,
+  type DirectoryResolution,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
@@ -1488,7 +1489,43 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }))
 
+    // Build directoryDepsByDepPath from the dependenciesGraph for injected workspace packages.
+    // The dependenciesGraph already has the correct `dir` values after `extendGraph` is applied
+    // (which uses the correct hash-based paths when global virtual store is enabled).
+    // We iterate lockfile.packages to respect dedupeInjectedDeps which removes some depPaths
+    // from the lockfile after deduplication. For each lockfile entry, we look up the dir from the graph.
+    // Graph entries may have peer suffixes (e.g., project-1@file:project-1(is-positive@1.0.0))
+    // while lockfile entries may not, so we search for a matching graph entry.
+    const directoryDepsByDepPath = new Map<string, string[]>()
+    if (newLockfile.packages) {
+      for (const [depPath, pkgSnapshot] of Object.entries(newLockfile.packages)) {
+        const resolution = pkgSnapshot.resolution as DirectoryResolution
+        if (resolution?.type === 'directory') {
+          // Look up the dir from the graph (which has correct hash-based paths for global virtual store)
+          let graphNodeDir: string | undefined
+          // First try exact match
+          if (dependenciesGraph[depPath as DepPath]?.dir) {
+            graphNodeDir = dependenciesGraph[depPath as DepPath].dir
+          } else {
+            // Search for a graph entry that starts with this depPath (may have peer suffix)
+            for (const [graphDepPath, graphNode] of Object.entries(dependenciesGraph)) {
+              if (graphDepPath === depPath || graphDepPath.startsWith(`${depPath}(`)) {
+                if ((graphNode.resolution as DirectoryResolution)?.type === 'directory' && graphNode.dir) {
+                  graphNodeDir = graphNode.dir
+                  break
+                }
+              }
+            }
+          }
+          if (graphNodeDir) {
+            directoryDepsByDepPath.set(depPath, [graphNodeDir])
+          }
+        }
+      }
+    }
+
     const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, newLockfile, {
+      directoryDepsByDepPath,
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
