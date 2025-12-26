@@ -120,7 +120,6 @@ async function _lockfileToHoistedDepGraph (
     directDependenciesByImporterId,
     graph,
     hierarchy,
-    pkgLocationsByDepPath: fetchDepsOpts.pkgLocationsByDepPath,
     symlinkedDirectDependenciesByImporterId,
     hoistedLocations: fetchDepsOpts.hoistedLocations,
   }
