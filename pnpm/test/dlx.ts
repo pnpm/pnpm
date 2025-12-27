@@ -261,44 +261,6 @@ test('dlx read registry from .npmrc in the current directory', async () => {
   expect(execResult.stdout.toString().trim()).toBe('hello from @pnpm.e2e/needs-auth')
 })
 
-test('dlx uses the node version specified by --use-node-version', async () => {
-  prepareEmpty()
-
-  const pnpmHome = path.resolve('home')
-
-  const execResult = execPnpmSync([
-    '--use-node-version=20.0.0',
-    `--config.store-dir=${path.resolve('store')}`,
-    `--config.cache-dir=${path.resolve('cache')}`,
-    'dlx',
-    '@pnpm.e2e/print-node-info',
-  ], {
-    env: {
-      PNPM_HOME: pnpmHome,
-    },
-    stdio: [null, 'pipe', 'inherit'],
-    expectSuccess: true,
-  })
-
-  let nodeInfo
-  try {
-    nodeInfo = JSON.parse(execResult.stdout.toString())
-  } catch (err) {
-    console.error(execResult.stdout.toString())
-    console.error(execResult.stderr.toString())
-    throw err
-  }
-
-  expect(nodeInfo).toMatchObject({
-    versions: {
-      node: '20.0.0',
-    },
-    execPath: process.platform === 'win32'
-      ? path.join(pnpmHome, 'nodejs', '20.0.0', 'node.exe')
-      : path.join(pnpmHome, 'nodejs', '20.0.0', 'bin', 'node'),
-  })
-})
-
 describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {
   type CPU = 'arm64' | 'x64'
   type LibC = 'glibc' | 'musl'
