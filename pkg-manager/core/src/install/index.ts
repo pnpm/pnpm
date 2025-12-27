@@ -1488,25 +1488,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }))
 
-    // Build directoryDepsByDepPath from the dependenciesGraph for injected workspace packages.
-    // The dependenciesGraph already has the correct `dir` values after `extendGraph` is applied
-    // (which uses the correct hash-based paths when global virtual store is enabled).
-    const directoryDepsByDepPath = new Map<string, string[]>()
-    if (newLockfile.packages) {
-      for (const [depPath, pkgSnapshot] of Object.entries(newLockfile.packages)) {
-        const resolution = pkgSnapshot.resolution as DirectoryResolution
-        if (resolution?.type === 'directory') {
-          const graphNode = dependenciesGraph[depPath as DepPath]
-          if (graphNode?.dir) {
-            directoryDepsByDepPath.set(depPath, [graphNode.dir])
-          }
-        }
-      }
-    }
-
-    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, {
-      directoryDepsByDepPath,
-    })
+    const projectsWithTargetDirs = getProjectsWithTargetDirs(projects, newLockfile, dependenciesGraph)
     const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
@@ -1763,4 +1745,30 @@ export class IgnoredBuildsError extends PnpmError {
 
 function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
   return Array.from(new Set(Array.from(ignoredBuilds ?? []).map(dp.removeSuffix))).sort(lexCompare)
+}
+
+/**
+ * Build injectionTargetsByDepPath from the dependenciesGraph for injected workspace packages
+ * and extend projects with their target directories.
+ * The dependenciesGraph already has the correct `dir` values after `extendGraph` is applied
+ * (which uses the correct hash-based paths when global virtual store is enabled).
+ */
+function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
+  projects: T[],
+  lockfile: LockfileObject,
+  dependenciesGraph: DependenciesGraph
+): Array<T & { id: ProjectId, stages: string[], targetDirs: string[] }> {
+  const injectionTargetsByDepPath = new Map<string, string[]>()
+  if (lockfile.packages) {
+    for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {
+      const resolution = pkgSnapshot.resolution as DirectoryResolution
+      if (resolution?.type === 'directory') {
+        const graphNode = dependenciesGraph[depPath as DepPath]
+        if (graphNode?.dir) {
+          injectionTargetsByDepPath.set(depPath, [graphNode.dir])
+        }
+      }
+    }
+  }
+  return extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
 }

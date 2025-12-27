@@ -99,7 +99,7 @@ export interface LockfileToDepGraphResult {
   hoistedLocations?: Record<string, string[]>
   symlinkedDirectDependenciesByImporterId?: DirectDependenciesByImporterId
   prevGraph?: DependenciesGraph
-  directoryDepsByDepPath: Map<string, string[]>
+  injectionTargetsByDepPath: Map<string, string[]>
 }
 
 /**
@@ -119,7 +119,7 @@ export async function lockfileToDepGraph (
   const {
     graph,
     locationByDepPath,
-    directoryDepsByDepPath,
+    injectionTargetsByDepPath,
   } = await buildGraphFromPackages(lockfile, currentLockfile, opts)
 
   const _getChildrenPaths = getChildrenPaths.bind(null, {
@@ -157,7 +157,7 @@ export async function lockfileToDepGraph (
     directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
   }
 
-  return { graph, directDependenciesByImporterId, directoryDepsByDepPath }
+  return { graph, directDependenciesByImporterId, injectionTargetsByDepPath }
 }
 
 async function buildGraphFromPackages (
@@ -167,13 +167,13 @@ async function buildGraphFromPackages (
 ): Promise<{
     graph: DependenciesGraph
     locationByDepPath: Record<string, string>
-    directoryDepsByDepPath: Map<string, string[]>
+    injectionTargetsByDepPath: Map<string, string[]>
   }> {
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
   const locationByDepPath: Record<string, string> = {}
   // Only populated for directory deps (injected workspace packages)
-  const directoryDepsByDepPath = new Map<string, string[]>()
+  const injectionTargetsByDepPath = new Map<string, string[]>()
 
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
@@ -217,7 +217,7 @@ async function buildGraphFromPackages (
       locationByDepPath[depPath] = dir
       // Track directory deps for injected workspace packages
       if (isDirectoryDep) {
-        directoryDepsByDepPath.set(depPath, [dir])
+        injectionTargetsByDepPath.set(depPath, [dir])
       }
 
       let dirExists: boolean | undefined
@@ -282,7 +282,7 @@ async function buildGraphFromPackages (
     })())
   }
   await Promise.all(promises)
-  return { graph, locationByDepPath, directoryDepsByDepPath }
+  return { graph, locationByDepPath, injectionTargetsByDepPath }
 }
 
 interface GetChildrenPathsContext {

@@ -340,7 +340,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     graph,
     hierarchy,
     hoistedLocations,
-    directoryDepsByDepPath,
+    injectionTargetsByDepPath,
     prevGraph,
     symlinkedDirectDependenciesByImporterId,
   } = await (
@@ -570,9 +570,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
-  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, {
-    directoryDepsByDepPath,
-  })
+  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath)
 
   if (opts.enableModulesDir !== false) {
     const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
@@ -663,7 +661,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   await Promise.all(depNodes.map(async ({ fetching }) => {
     try {
       await fetching?.()
-    } catch { }
+    } catch {}
   }))
 
   summaryLogger.debug({ prefix: lockfileDir })
