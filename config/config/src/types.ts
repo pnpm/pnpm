@@ -117,6 +117,7 @@ export const pnpmTypes = {
   'strict-peer-dependencies': Boolean,
   'trust-policy': ['off', 'no-downgrade'] satisfies TrustPolicy[],
   'trust-policy-exclude': [String, Array],
+  'trust-policy-ignore-after': Number,
   'use-beta-cli': Boolean,
   'use-node-version': String,
   'use-running-store-server': Boolean,

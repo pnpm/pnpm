@@ -143,6 +143,7 @@ export interface RequestPackageOptions {
   pinnedVersion?: PinnedVersion
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyIgnoreAfter?: number
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>

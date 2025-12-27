@@ -209,6 +209,7 @@ async function resolveAndFetch (
       defaultTag: options.defaultTag,
       trustPolicy: options.trustPolicy,
       trustPolicyExclude: options.trustPolicyExclude,
+      trustPolicyIgnoreAfter: options.trustPolicyIgnoreAfter,
       publishedBy: options.publishedBy,
       publishedByExclude: options.publishedByExclude,
       pickLowestVersion: options.pickLowestVersion,

@@ -116,6 +116,7 @@ export interface ResolveOptions {
   alwaysTryWorkspacePackages?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyIgnoreAfter?: number
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date

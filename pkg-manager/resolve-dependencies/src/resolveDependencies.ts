@@ -185,6 +185,7 @@ export interface ResolutionContext {
   publishedByExclude?: PackageVersionPolicy
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
 }
 
@@ -1343,6 +1344,7 @@ async function resolveDependency (
       skipFetch: ctx.dryRun,
       trustPolicy: ctx.trustPolicy,
       trustPolicyExclude: ctx.trustPolicyExclude,
+      trustPolicyIgnoreAfter: ctx.trustPolicyIgnoreAfter,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
