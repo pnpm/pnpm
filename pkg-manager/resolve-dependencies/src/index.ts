@@ -290,7 +290,17 @@ export async function resolveDependencies (
       if (dep.catalogLookup == null) continue
       updatedCatalogs ??= {}
       updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
-      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
+
+      // For update operations, use the newly resolved version while preserving the semver range
+      if (project.wantedDependencies[i]?.updateSpec === true && dep.normalizedBareSpecifier) {
+        const existingSpecifier = dep.catalogLookup.specifier
+        const rangeMatch = existingSpecifier.match(/^([\^~>=<]*)/)
+        const range = rangeMatch ? rangeMatch[1] : ''
+        const newVersion = dep.normalizedBareSpecifier.replace(/^[\^~>=<]+/, '')
+        updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = range + newVersion
+      } else {
+        updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.specifier
+      }
     }
   }
 
