@@ -5925,9 +5925,6 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
-      '@pnpm/plugin-commands-env':
-        specifier: workspace:*
-        version: link:../../env/plugin-commands-env
       '@pnpm/plugin-commands-rebuild':
         specifier: workspace:*
         version: link:../../exec/plugin-commands-rebuild
