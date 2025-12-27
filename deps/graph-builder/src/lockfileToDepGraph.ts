@@ -99,7 +99,7 @@ export interface LockfileToDepGraphResult {
   hoistedLocations?: Record<string, string[]>
   symlinkedDirectDependenciesByImporterId?: DirectDependenciesByImporterId
   prevGraph?: DependenciesGraph
-  directoryDepsByDepPath?: Map<string, string[]>
+  directoryDepsByDepPath: Map<string, string[]>
 }
 
 /**

@@ -571,7 +571,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
 
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, {
-    directoryDepsByDepPath: directoryDepsByDepPath ?? new Map(),
+    directoryDepsByDepPath,
   })
 
   if (opts.enableModulesDir !== false) {
