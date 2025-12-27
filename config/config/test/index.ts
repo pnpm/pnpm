@@ -1341,10 +1341,10 @@ test('environment variable pnpm_config_* should override pnpm-workspace.yaml', a
   prepareEmpty()
 
   writeYamlFile('pnpm-workspace.yaml', {
-    nodeVersion: '20.0.0',
+    fetchRetries: 5,
   })
 
-  async function getConfigValue (env: NodeJS.ProcessEnv): Promise<string | undefined> {
+  async function getConfigValue (env: NodeJS.ProcessEnv): Promise<number | undefined> {
     const { config } = await getConfig({
       cliOptions: {},
       env,
@@ -1354,23 +1354,23 @@ test('environment variable pnpm_config_* should override pnpm-workspace.yaml', a
       },
       workspaceDir: process.cwd(),
     })
-    return config.nodeVersion
+    return config.fetchRetries
   }
 
-  expect(await getConfigValue({})).toBe('20.0.0')
+  expect(await getConfigValue({})).toBe(5)
   expect(await getConfigValue({
-    pnpm_config_node_version: '22.0.0',
-  })).toBe('22.0.0')
+    pnpm_config_fetch_retries: '10',
+  })).toBe(10)
 })
 
 test('CLI should override environment variable pnpm_config_*', async () => {
   prepareEmpty()
 
-  async function getConfigValue (cliOptions: Record<string, unknown>): Promise<string | undefined> {
+  async function getConfigValue (cliOptions: Record<string, unknown>): Promise<number | undefined> {
     const { config } = await getConfig({
       cliOptions,
       env: {
-        pnpm_config_node_version: '18.0.0',
+        pnpm_config_fetch_retries: '5',
       },
       packageManager: {
         name: 'pnpm',
@@ -1378,16 +1378,16 @@ test('CLI should override environment variable pnpm_config_*', async () => {
       },
       workspaceDir: process.cwd(),
     })
-    return config.nodeVersion
+    return config.fetchRetries
   }
 
-  expect(await getConfigValue({})).toBe('18.0.0')
+  expect(await getConfigValue({})).toBe(5)
   expect(await getConfigValue({
-    nodeVersion: '22.0.0',
-  })).toBe('22.0.0')
+    fetchRetries: 10,
+  })).toBe(10)
   expect(await getConfigValue({
-    'node-version': '22.0.0',
-  })).toBe('22.0.0')
+    'fetch-retries': 10,
+  })).toBe(10)
 })
 
 describe('global config.yaml', () => {
