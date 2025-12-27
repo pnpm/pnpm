@@ -5,12 +5,12 @@ import { type ApproveBuildsCommandOpts } from '@pnpm/exec.build-commands'
 import { type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { prepare } from '@pnpm/prepare'
 import { getConfig } from '@pnpm/config'
-import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
+import { readModulesManifest } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { jest } from '@jest/globals'
 import { omit } from 'ramda'
 import { tempDir } from '@pnpm/prepare-temp-dir'
-import { writePackageSync } from 'write-pkg'
+import { writePackageSync } from 'write-package'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
@@ -37,6 +37,7 @@ async function approveSomeBuilds (opts?: _ApproveBuildsOptions) {
     cacheDir: path.resolve('cache'),
     pnpmfile: [], // this is only needed because the pnpmfile returned by getConfig is string | string[]
     enableGlobalVirtualStore: false,
+    strictDepBuilds: false,
   }
   await install.handler({ ...config, argv: { original: [] } })
 
@@ -68,6 +69,7 @@ async function approveNoBuilds (opts?: _ApproveBuildsOptions) {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     pnpmfile: [], // this is only needed because the pnpmfile returned by getConfig is string | string[]
+    strictDepBuilds: false,
   }
   await install.handler({ ...config, argv: { original: [] } })
 
@@ -119,7 +121,7 @@ test('approve no builds', async () => {
   expect(fs.readdirSync('node_modules/@pnpm.e2e/install-script-example')).not.toContain('generated-by-install.js')
 
   // Covers https://github.com/pnpm/pnpm/issues/9296
-  expect(await readModulesManifest('node_modules')).not.toHaveProperty(['ignoredBuilds' satisfies keyof Modules])
+  expect((await readModulesManifest('node_modules'))!.ignoredBuilds).toBeUndefined()
 })
 
 test("works when root project manifest doesn't exist in a workspace", async () => {

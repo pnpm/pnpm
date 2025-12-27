@@ -981,6 +981,38 @@ test('getConfig() should read cafile', async () => {
 -----END CERTIFICATE-----`])
 })
 
+test('getConfig() should read inline SSL certificates from .npmrc', async () => {
+  prepareEmpty()
+
+  // These are written to .npmrc with literal \n strings
+  const inlineCa = '-----BEGIN CERTIFICATE-----\\nMIIFNzCCAx+gAwIBAgIQNB613yRzpKtDztlXiHmOGDANBgkqhkiG9w0BAQsFADAR\\n-----END CERTIFICATE-----'
+  const inlineCert = '-----BEGIN CERTIFICATE-----\\nMIIClientCert\\n-----END CERTIFICATE-----'
+  const inlineKey = '-----BEGIN PRIVATE KEY-----\\nMIIClientKey\\n-----END PRIVATE KEY-----'
+
+  const npmrc = [
+    '//registry.example.com/:ca=' + inlineCa,
+    '//registry.example.com/:cert=' + inlineCert,
+    '//registry.example.com/:key=' + inlineKey,
+  ].join('\n')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  // After processing, \n should be converted to actual newlines
+  expect(config.sslConfigs).toBeDefined()
+  expect(config.sslConfigs['//registry.example.com/']).toStrictEqual({
+    ca: inlineCa.replace(/\\n/g, '\n'),
+    cert: inlineCert.replace(/\\n/g, '\n'),
+    key: inlineKey.replace(/\\n/g, '\n'),
+  })
+})
+
 test('respect mergeGitBranchLockfilesBranchPattern', async () => {
   {
     prepareEmpty()
@@ -1300,7 +1332,6 @@ test('loads setting from environment variable pnpm_config_*', async () => {
   })
   expect(config.fetchRetries).toBe(100)
   expect(config.hoistPattern).toStrictEqual(['react', 'react-dom'])
-  expect(config.useNodeVersion).toBe('22.0.0')
   expect(config.onlyBuiltDependencies).toStrictEqual(['is-number', 'is-positive', 'is-negative'])
   expect(config.registry).toBe('https://registry.example.com/')
   expect(config.registries.default).toBe('https://registry.example.com/')
@@ -1310,10 +1341,10 @@ test('environment variable pnpm_config_* should override pnpm-workspace.yaml', a
   prepareEmpty()
 
   writeYamlFile('pnpm-workspace.yaml', {
-    useNodeVersion: '20.0.0',
+    fetchRetries: 5,
   })
 
-  async function getConfigValue (env: NodeJS.ProcessEnv): Promise<string | undefined> {
+  async function getConfigValue (env: NodeJS.ProcessEnv): Promise<number | undefined> {
     const { config } = await getConfig({
       cliOptions: {},
       env,
@@ -1323,23 +1354,23 @@ test('environment variable pnpm_config_* should override pnpm-workspace.yaml', a
       },
       workspaceDir: process.cwd(),
     })
-    return config.useNodeVersion
+    return config.fetchRetries
   }
 
-  expect(await getConfigValue({})).toBe('20.0.0')
+  expect(await getConfigValue({})).toBe(5)
   expect(await getConfigValue({
-    pnpm_config_use_node_version: '22.0.0',
-  })).toBe('22.0.0')
+    pnpm_config_fetch_retries: '10',
+  })).toBe(10)
 })
 
 test('CLI should override environment variable pnpm_config_*', async () => {
   prepareEmpty()
 
-  async function getConfigValue (cliOptions: Record<string, unknown>): Promise<string | undefined> {
+  async function getConfigValue (cliOptions: Record<string, unknown>): Promise<number | undefined> {
     const { config } = await getConfig({
       cliOptions,
       env: {
-        pnpm_config_use_node_version: '18.0.0',
+        pnpm_config_fetch_retries: '5',
       },
       packageManager: {
         name: 'pnpm',
@@ -1347,16 +1378,16 @@ test('CLI should override environment variable pnpm_config_*', async () => {
       },
       workspaceDir: process.cwd(),
     })
-    return config.useNodeVersion
+    return config.fetchRetries
   }
 
-  expect(await getConfigValue({})).toBe('18.0.0')
+  expect(await getConfigValue({})).toBe(5)
   expect(await getConfigValue({
-    useNodeVersion: '22.0.0',
-  })).toBe('22.0.0')
+    fetchRetries: 10,
+  })).toBe(10)
   expect(await getConfigValue({
-    'use-node-version': '22.0.0',
-  })).toBe('22.0.0')
+    'fetch-retries': 10,
+  })).toBe(10)
 })
 
 describe('global config.yaml', () => {

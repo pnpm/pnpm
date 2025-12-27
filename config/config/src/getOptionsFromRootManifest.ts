@@ -9,7 +9,7 @@ import {
   type ProjectManifest,
   type PnpmSettings,
 } from '@pnpm/types'
-import { map as mapValues, omit } from 'ramda'
+import { map as mapValues, omit, pick } from 'ramda'
 import { globalWarn } from '@pnpm/logger'
 
 export type OptionsFromRootManifest = {
@@ -26,10 +26,47 @@ export type OptionsFromRootManifest = {
   patchedDependencies?: Record<string, string>
   peerDependencyRules?: PeerDependencyRules
   supportedArchitectures?: SupportedArchitectures
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'executionEnv' | 'updateConfig'>
+  allowBuilds?: Record<string, boolean | string>
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'updateConfig'>
+
+export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
+  const settings: OptionsFromRootManifest = getOptionsFromPnpmSettings(manifestDir, {
+    ...pick([
+      'allowNonAppliedPatches',
+      'allowBuilds',
+      'allowUnusedPatches',
+      'allowedDeprecatedVersions',
+      'auditConfig',
+      'auditConfig',
+      'auditConfig',
+      'configDependencies',
+      'ignorePatchFailures',
+      'ignoredBuiltDependencies',
+      'ignoredOptionalDependencies',
+      'neverBuiltDependencies',
+      'onlyBuiltDependencies',
+      'onlyBuiltDependenciesFile',
+      'overrides',
+      'packageExtensions',
+      'patchedDependencies',
+      'peerDependencyRules',
+      'supportedArchitectures',
+      'updateConfig',
+    ], manifest.pnpm ?? {}),
+    // We read Yarn's resolutions field for compatibility
+    // but we really replace the version specs to any other version spec, not only to exact versions,
+    // so we cannot call it resolutions
+    overrides: {
+      ...manifest.resolutions,
+      ...manifest.pnpm?.overrides,
+    },
+  }, manifest)
+  return settings
+}
+
 
 export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
-  const renamedKeys = ['allowNonAppliedPatches'] as const satisfies Array<keyof PnpmSettings>
+  const renamedKeys = ['allowNonAppliedPatches', 'allowBuilds'] as const satisfies Array<keyof PnpmSettings>
   const settings: OptionsFromRootManifest = omit(renamedKeys, replaceEnvInSettings(pnpmSettings))
   if (settings.overrides) {
     if (Object.keys(settings.overrides).length === 0) {
@@ -55,6 +92,22 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
   if (pnpmSettings.ignorePatchFailures != null) {
     settings.ignorePatchFailures = pnpmSettings.ignorePatchFailures
   }
+
+  if (pnpmSettings.allowBuilds) {
+    settings.onlyBuiltDependencies ??= []
+    settings.ignoredBuiltDependencies ??= []
+    for (const [packagePattern, build] of Object.entries(pnpmSettings.allowBuilds)) {
+      switch (build) {
+      case true:
+        settings.onlyBuiltDependencies.push(packagePattern)
+        break
+      case false:
+        settings.ignoredBuiltDependencies.push(packagePattern)
+        break
+      }
+    }
+  }
+
   return settings
 }
 

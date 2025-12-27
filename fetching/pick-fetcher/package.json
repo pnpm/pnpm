@@ -4,7 +4,7 @@
   "description": "Pick a package fetcher by type",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
@@ -25,16 +25,27 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
+  "dependencies": {
+    "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*"
+  },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*"
+    "@pnpm/tarball-fetcher": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "nock": "catalog:",
+    "tempy": "catalog:"
   },
   "engines": {
     "node": ">=20.19"

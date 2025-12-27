@@ -18,3 +18,7 @@ packages:
   - '!workspace-has-shared-package-lock-json'
   - '!workspace-has-shared-npm-shrinkwrap-json'
 sharedWorkspaceLockfile: false
+
+catalog:
+  # Used in has-outdated-deps-using-catalog-protocol fixture.
+  is-negative: ^1.0.0

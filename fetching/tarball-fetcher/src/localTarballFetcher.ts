@@ -24,6 +24,7 @@ export function createLocalTarballFetcher (): FetchFunction {
       readManifest: opts.readManifest,
       url: tarball,
       pkg: opts.pkg,
+      appendManifest: opts.appendManifest,
     })
   }
 

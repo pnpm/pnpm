@@ -91,6 +91,7 @@ test('dlx install from git', async () => {
     dir: process.cwd(),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
+    allowBuild: ['shx'],
   }, ['shelljs/shx#0dcbb9d1022037268959f8b706e0f06a6fd43fde', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
@@ -397,5 +398,5 @@ test('dlx should fail when the requested package does not meet the minimum age r
         default: 'https://registry.npmjs.org/',
       },
     }, ['shx@0.3.4'])
-  ).rejects.toThrow('No matching version found for shx@0.3.4 published by')
+  ).rejects.toThrow(/Version 0\.3\.4 \(released .+\) of shx does not meet the minimumReleaseAge constraint/)
 })

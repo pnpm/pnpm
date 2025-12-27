@@ -28,7 +28,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-project#readme",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "engines": {
@@ -53,6 +53,6 @@
     "is-windows": "catalog:",
     "isexe": "catalog:",
     "read-yaml-file": "catalog:",
-    "write-pkg": "catalog:"
+    "write-package": "catalog:"
   }
 }

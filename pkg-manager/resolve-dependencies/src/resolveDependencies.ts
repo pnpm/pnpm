@@ -31,6 +31,7 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import {
+  type AllowBuild,
   type DepPath,
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
@@ -139,6 +140,7 @@ export interface ChildrenByParentId {
 }
 
 export interface ResolutionContext {
+  allowBuild?: AllowBuild
   allPeerDepNames: Set<string>
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
@@ -183,6 +185,7 @@ export interface ResolutionContext {
   publishedByExclude?: PackageVersionPolicy
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
+  blockExoticSubdeps?: boolean
 }
 
 export interface MissingPeerInfo {
@@ -1311,6 +1314,7 @@ async function resolveDependency (
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
+      allowBuild: ctx.allowBuild,
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
         ? {
@@ -1357,7 +1361,7 @@ async function resolveDependency (
       bareSpecifier: wantedDependency.bareSpecifier,
       version: wantedDependency.alias ? wantedDependency.bareSpecifier : undefined,
     }
-    if (wantedDependency.optional) {
+    if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE' && err.code !== 'ERR_PNPM_NO_MATURE_MATCHING_VERSION') {
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: wantedDependencyDetails,
@@ -1381,6 +1385,22 @@ async function resolveDependency (
       rawSpec: wantedDependency.bareSpecifier,
     },
   })
+
+  // Check if exotic dependencies are disallowed in subdependencies
+  if (
+    ctx.blockExoticSubdeps &&
+    options.currentDepth > 0 &&
+    pkgResponse.body.resolvedVia != null && // This is already coming from the lockfile, we skip the check in this case for now. Should be fixed later.
+    isExoticDep(pkgResponse.body.resolvedVia)
+  ) {
+    const error = new PnpmError(
+      'EXOTIC_SUBDEP',
+      `Exotic dependency "${wantedDependency.alias ?? wantedDependency.bareSpecifier}" (resolved via ${pkgResponse.body.resolvedVia}) is not allowed in subdependencies when blockExoticSubdeps is enabled`
+    )
+    error.prefix = options.prefix
+    error.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
+    throw error
+  }
 
   if (ctx.allPreferredVersions && pkgResponse.body.manifest?.version) {
     if (!ctx.allPreferredVersions[pkgResponse.body.manifest.name]) {
@@ -1775,4 +1795,19 @@ function getCatalogExistingVersionFromSnapshot (
   return existingCatalogResolution?.specifier === catalogLookup.specifier
     ? existingCatalogResolution.version
     : undefined
+}
+
+const NON_EXOTIC_RESOLVED_VIA = new Set([
+  'custom-resolver',
+  'github.com/denoland/deno',
+  'github.com/oven-sh/bun',
+  'jsr-registry',
+  'local-filesystem',
+  'nodejs.org',
+  'npm-registry',
+  'workspace',
+])
+
+function isExoticDep (resolvedVia: string): boolean {
+  return !NON_EXOTIC_RESOLVED_VIA.has(resolvedVia)
 }

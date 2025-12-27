@@ -14,6 +14,7 @@ import {
   type ResolvedFrom,
 } from '@pnpm/cafs-types'
 import {
+  type AllowBuild,
   type SupportedArchitectures,
   type DependencyManifest,
   type PackageManifest,
@@ -64,6 +65,7 @@ export interface StoreController {
 export interface PkgRequestFetchResult {
   bundledManifest?: BundledManifest
   files: PackageFilesResponse
+  integrity?: string
 }
 
 export interface FetchResponse {
@@ -86,6 +88,7 @@ export interface PkgNameVersion {
 }
 
 export interface FetchPackageToStoreOptions {
+  allowBuild?: AllowBuild
   fetchRawManifest?: boolean
   force: boolean
   ignoreScripts?: boolean
@@ -106,6 +109,7 @@ export type RequestPackageFunction = (
 ) => Promise<PackageResponse>
 
 export interface RequestPackageOptions {
+  allowBuild?: AllowBuild
   alwaysTryWorkspacePackages?: boolean
   currentPkg?: {
     id?: PkgResolutionId
@@ -171,7 +175,7 @@ export interface PackageResponse {
   )
 }
 
-export type FilesMap = Record<string, string>
+export type FilesMap = Map<string, string>
 
 export interface ImportOptions {
   disableRelinkLocalDirDeps?: boolean

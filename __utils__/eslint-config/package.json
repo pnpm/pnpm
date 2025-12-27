@@ -18,7 +18,7 @@
   "homepage": "https://pnpm.io",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "engines": {
@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@pnpm/eslint-config": "workspace:*",
+    "@typescript-eslint/utils": "catalog:",
     "eslint-plugin-jest": "catalog:"
   }
 }

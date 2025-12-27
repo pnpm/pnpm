@@ -9,7 +9,7 @@
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/types": "workspace:*",
     "write-json5-file": "catalog:",
-    "write-pkg": "catalog:",
+    "write-package": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "devDependencies": {
@@ -24,7 +24,7 @@
   },
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "repository": "https://github.com/pnpm/pnpm/tree/main/__utils__/prepare"
 }

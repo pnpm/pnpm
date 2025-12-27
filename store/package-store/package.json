@@ -4,7 +4,7 @@
   "description": "A storage for packages",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "cache",
     "central storage",
     "global store",
@@ -38,23 +38,28 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest": "rimraf .tmp",
-    "_test": "pnpm pretest && cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "_test": "pnpm pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.v8-file": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
+    "is-subdir": "catalog:",
     "ramda": "catalog:",
-    "ssri": "catalog:"
+    "ssri": "catalog:",
+    "symlink-dir": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:",

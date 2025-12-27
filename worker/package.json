@@ -4,7 +4,7 @@
   "description": "A worker for extracting package taralls to the store",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "tarball"
   ],
   "license": "MIT",
@@ -43,8 +43,7 @@
     "@pnpm/symlink-dependency": "workspace:*",
     "@rushstack/worker-pool": "catalog:",
     "is-windows": "catalog:",
-    "p-limit": "catalog:",
-    "shlex": "catalog:"
+    "p-limit": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

@@ -4,7 +4,7 @@
   "description": "Utilities to check if lockfile settings are out-of-date",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "base32",
     "crypto",
     "hash"
@@ -33,8 +33,10 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
     "p-map-values": "catalog:",
     "ramda": "catalog:"

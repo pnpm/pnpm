@@ -134,7 +134,7 @@ test('importPackage hooks', async () => {
     module.exports = { hooks: { importPackage } }
 
     function importPackage (to, opts) {
-      fs.writeFileSync('args.json', JSON.stringify([to, opts]), 'utf8')
+      fs.writeFileSync('args.json', JSON.stringify([to, Array.from(opts.filesMap.keys()).sort()]), 'utf8')
       return {}
     }
   `
@@ -147,10 +147,10 @@ test('importPackage hooks', async () => {
 
   await execPnpm(['add', 'is-positive@1.0.0'])
 
-  const [to, opts] = loadJsonFileSync<any>('args.json') // eslint-disable-line
+  const [to, files] = loadJsonFileSync<any>('args.json') // eslint-disable-line
 
   expect(typeof to).toBe('string')
-  expect(Object.keys(opts.filesMap).sort()).toStrictEqual([
+  expect(files).toStrictEqual([
     'index.js',
     'license',
     'package.json',

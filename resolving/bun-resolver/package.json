@@ -4,7 +4,7 @@
   "description": "Resolves the Bun runtime",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "bun",
     "runtime"
   ],

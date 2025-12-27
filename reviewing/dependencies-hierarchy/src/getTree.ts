@@ -142,6 +142,7 @@ function getTreeHelper (
     })
     let circular: boolean
     const matchedSearched = opts.search?.({
+      alias,
       name: packageInfo.name,
       version: packageInfo.version,
       readManifest,
@@ -239,7 +240,11 @@ function getTreeHelper (
  * Useful for detecting cycles.
  */
 class Keypath {
-  private constructor (private readonly keypath: readonly string[]) {}
+  private readonly keypath: readonly string[]
+
+  private constructor (keypath: readonly string[]) {
+    this.keypath = keypath
+  }
 
   public static initialize (treeNodeId: TreeNodeId): Keypath {
     return new Keypath([serializeTreeNodeId(treeNodeId)])

@@ -8,6 +8,7 @@ import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
 import { loadJsonFileSync } from 'load-json-file'
+import semver from 'semver'
 import normalizePath from 'normalize-path'
 import { writeJsonFile } from 'write-json-file'
 
@@ -50,7 +51,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
       const libMajorVersion = Number(manifest.version!.split('.')[0])
       if (manifest.name !== CLI_PKG_NAME) {
-        if (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100) {
+        if (!semver.prerelease(pnpmVersion) && (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100)) {
           manifest.version = `${smallestAllowedLibVersion}.0.0`
         }
         for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
@@ -282,9 +283,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (manifest.name === '@pnpm/core') {
       // @pnpm/core tests currently works only with port 7769 due to the usage of
       // the next package: pkg-with-tarball-dep-from-registry
-      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS=--experimental-vm-modules jest`
+      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest`
     } else {
-      scripts._test = 'cross-env NODE_OPTIONS=--experimental-vm-modules jest'
+      scripts._test = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest'
     }
     break
   }
@@ -292,7 +293,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (fs.existsSync(path.join(dir, 'test'))) {
       scripts = {
         ...(manifest.scripts as Record<string, string>),
-        _test: 'cross-env NODE_OPTIONS=--experimental-vm-modules jest',
+        _test: 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest',
         test: 'pnpm run compile && pnpm run _test',
       }
     } else {

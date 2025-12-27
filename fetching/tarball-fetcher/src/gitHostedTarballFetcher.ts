@@ -32,7 +32,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
       filesIndexFile: tempIndexFile,
     })
     try {
-      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, tempIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
+      const prepareResult = await prepareGitHostedPkg(filesIndex, cafs, tempIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
@@ -52,13 +52,13 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
 }
 
 interface PrepareGitHostedPkgResult {
-  filesIndex: Record<string, string>
+  filesIndex: Map<string, string>
   manifest?: DependencyManifest
   ignoredBuild: boolean
 }
 
 async function prepareGitHostedPkg (
-  filesIndex: Record<string, string>,
+  filesIndex: Map<string, string>,
   cafs: Cafs,
   filesIndexFileNonBuilt: string,
   filesIndexFile: string,
@@ -75,9 +75,12 @@ async function prepareGitHostedPkg (
     },
     force: true,
   })
-  const { shouldBeBuilt, pkgDir } = await preparePackage(opts, tempLocation, resolution.path ?? '')
+  const { shouldBeBuilt, pkgDir } = await preparePackage({
+    ...opts,
+    allowBuild: fetcherOpts.allowBuild,
+  }, tempLocation, resolution.path ?? '')
   const files = await packlist(pkgDir)
-  if (!resolution.path && files.length === Object.keys(filesIndex).length) {
+  if (!resolution.path && files.length === filesIndex.size) {
     if (!shouldBeBuilt) {
       if (filesIndexFileNonBuilt !== filesIndexFile) {
         await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)

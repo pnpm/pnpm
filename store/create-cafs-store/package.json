@@ -4,7 +4,7 @@
   "description": "Create a CAFS store controller",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "cache",
     "central storage",
     "global store",
@@ -47,7 +47,7 @@
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "mem": "catalog:",
+    "memoize": "catalog:",
     "path-temp": "catalog:",
     "ramda": "catalog:"
   },

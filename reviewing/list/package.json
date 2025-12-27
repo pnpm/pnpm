@@ -4,7 +4,7 @@
   "description": "List installed packages in a symlinked `node_modules`",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "list",
     "ls"
   ],
@@ -31,7 +31,7 @@
     "prepareFixtures": "cd test && node ../../pnpm recursive install --no-link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
     "prepublishOnly": "pnpm run compile",
     "pretest": "pnpm run --filter dependencies-hierarchy pretest",
-    "_test": "pnpm pretest && cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "_test": "pnpm pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "tsc --build && pnpm run lint --fix"
   },

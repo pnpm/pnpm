@@ -1,5 +1,4 @@
 import { createReadStream, promises as fs } from 'fs'
-import os from 'os'
 import path from 'path'
 import {
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
@@ -43,8 +42,9 @@ import {
   type WantedDependency,
 } from '@pnpm/store-controller-types'
 import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
+import { type CustomFetcher } from '@pnpm/hooks.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
-import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
+import { calcMaxWorkers, readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
 import { familySync } from 'detect-libc'
 import PQueue from 'p-queue'
 import pDefer, { type DeferredPromise } from 'p-defer'
@@ -103,6 +103,7 @@ export function createPackageRequester (
     verifyStoreIntegrity: boolean
     virtualStoreDirMaxLength: number
     strictStorePkgContentCheck?: boolean
+    customFetchers?: CustomFetcher[]
   }
 ): RequestPackageFunction & {
     fetchPackageToStore: FetchPackageToStoreFunction
@@ -111,16 +112,13 @@ export function createPackageRequester (
   } {
   opts = opts || {}
 
-  // A lower bound of 16 is enforced to prevent performance degradation,
-  // especially in CI environments. Tests with a threshold lower than 16
-  // have shown consistent underperformance.
-  const networkConcurrency = opts.networkConcurrency ?? Math.max(os.availableParallelism?.() ?? os.cpus().length, 16)
+  const networkConcurrency = opts.networkConcurrency ?? Math.min(64, Math.max(calcMaxWorkers() * 3, 16))
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
 
   const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
-  const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
+  const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
   const fetchPackageToStore = fetchToStore.bind(null, {
     readPkgFromCafs: _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity),
     fetch,
@@ -267,17 +265,17 @@ async function resolveAndFetch (
 
   const isInstallable = (
     ctx.force === true ||
-      (
-        manifest == null
-          ? undefined
-          : packageIsInstallable(id, manifest, {
-            engineStrict: ctx.engineStrict,
-            lockfileDir: options.lockfileDir,
-            nodeVersion: ctx.nodeVersion,
-            optional: wantedDependency.optional === true,
-            supportedArchitectures: options.supportedArchitectures,
-          })
-      )
+    (
+      manifest == null
+        ? undefined
+        : packageIsInstallable(id, manifest, {
+          engineStrict: ctx.engineStrict,
+          lockfileDir: options.lockfileDir,
+          nodeVersion: ctx.nodeVersion,
+          optional: wantedDependency.optional === true,
+          supportedArchitectures: options.supportedArchitectures,
+        })
+    )
   )
   // We can skip fetching the package only if the manifest
   // is present after resolution
@@ -301,6 +299,7 @@ async function resolveAndFetch (
 
   const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
   const fetchResult = ctx.fetchPackageToStore({
+    allowBuild: options.allowBuild,
     fetchRawManifest: true,
     force: forceFetch,
     ignoreScripts: options.ignoreScripts,
@@ -318,7 +317,12 @@ async function resolveAndFetch (
   })
 
   if (!manifest) {
-    manifest = (await fetchResult.fetching()).bundledManifest
+    const fetchedResult = await fetchResult.fetching()
+    manifest = fetchedResult.bundledManifest
+    // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
+    if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
+      (resolution as TarballResolution).integrity = fetchedResult.integrity
+    }
   }
   return {
     body: {
@@ -501,12 +505,12 @@ function fetchToStore (
   if (opts.fetchRawManifest && !result.fetchRawManifest) {
     result.fetching = removeKeyOnFail(
       result.fetching.then(async ({ files }) => {
-        if (!files.filesIndex['package.json']) return {
+        if (!files.filesIndex.get('package.json')) return {
           files,
           bundledManifest: undefined,
         }
         if (files.unprocessed) {
-          const { integrity, mode } = files.filesIndex['package.json']
+          const { integrity, mode } = files.filesIndex.get('package.json')!
           const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
           return {
             files,
@@ -515,7 +519,7 @@ function fetchToStore (
         }
         return {
           files,
-          bundledManifest: await readBundledManifest(files.filesIndex['package.json']),
+          bundledManifest: await readBundledManifest(files.filesIndex.get('package.json')!),
         }
       })
     )
@@ -620,6 +624,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
         opts.pkg.id,
         resolution,
         {
+          allowBuild: opts.allowBuild,
           filesIndexFile,
           lockfileDir: opts.lockfileDir,
           readManifest: opts.fetchRawManifest,
@@ -645,9 +650,10 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
         }
       ), { priority })
 
-      if (isLocalTarballDep && (opts.pkg.resolution as TarballResolution).integrity) {
+      const integrity = (opts.pkg.resolution as TarballResolution).integrity ?? fetchedPackage.integrity
+      if (isLocalTarballDep && integrity) {
         await fs.mkdir(target, { recursive: true })
-        await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), (opts.pkg.resolution as TarballResolution).integrity!, 'utf8')
+        await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), integrity, 'utf8')
       }
 
       fetching.resolve({
@@ -658,6 +664,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
           requiresBuild: fetchedPackage.requiresBuild,
         },
         bundledManifest: fetchedPackage.manifest == null ? fetchedPackage.manifest : normalizeBundledManifest(fetchedPackage.manifest),
+        integrity,
       })
     } catch (err: any) { // eslint-disable-line
       fetching.reject(err)
@@ -698,13 +705,19 @@ async function tarballIsUpToDate (
 async function fetcher (
   fetcherByHostingType: Fetchers,
   cafs: Cafs,
+  customFetchers: CustomFetcher[] | undefined,
   packageId: string,
   resolution: AtomicResolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
-  const fetch = pickFetcher(fetcherByHostingType, resolution)
   try {
-    return await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+    // pickFetcher now handles custom fetcher hooks internally
+    const fetch = await pickFetcher(fetcherByHostingType, resolution, {
+      customFetchers,
+      packageId,
+    })
+    const result = await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+    return result
   } catch (err: any) { // eslint-disable-line
     packageRequestLogger.warn({
       message: `Fetching ${packageId} failed!`,

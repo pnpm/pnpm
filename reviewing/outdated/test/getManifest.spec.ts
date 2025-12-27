@@ -63,7 +63,7 @@ test('getManifest() with minimumReleaseAge filters latest when too new', async (
 
     // Simulate latest version being too new
     const error = new Error('No matching version found') as Error & { code?: string }
-    error.code = 'ERR_PNPM_NO_MATCHING_VERSION'
+    error.code = 'ERR_PNPM_NO_MATURE_MATCHING_VERSION'
     throw error
   })
 
@@ -110,7 +110,7 @@ test('getManifest() handles NO_MATCHING_VERSION error gracefully', async () => {
 
   const resolve: ResolveFunction = jest.fn(async function () {
     const error = new Error('No matching version found') as Error & { code?: string }
-    error.code = 'ERR_PNPM_NO_MATCHING_VERSION'
+    error.code = 'ERR_PNPM_NO_MATURE_MATCHING_VERSION'
     throw error
   })
 

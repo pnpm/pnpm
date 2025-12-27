@@ -3,6 +3,7 @@ import fs from 'fs'
 import { ignoredBuilds } from '@pnpm/exec.build-commands'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
+import { type DepPath } from '@pnpm/types'
 
 const DEFAULT_MODULES_MANIFEST = {
   hoistedDependencies: {},
@@ -30,7 +31,7 @@ test('ignoredBuilds lists automatically ignored dependencies', async () => {
   fs.mkdirSync(modulesDir, { recursive: true })
   await writeModulesManifest(modulesDir, {
     ...DEFAULT_MODULES_MANIFEST,
-    ignoredBuilds: ['foo'],
+    ignoredBuilds: new Set(['foo@1.0.0' as DepPath]),
   })
   const output = await ignoredBuilds.handler({
     dir,
@@ -45,7 +46,7 @@ test('ignoredBuilds lists explicitly ignored dependencies', async () => {
   fs.mkdirSync(modulesDir, { recursive: true })
   await writeModulesManifest(modulesDir, {
     ...DEFAULT_MODULES_MANIFEST,
-    ignoredBuilds: [],
+    ignoredBuilds: new Set(),
   })
   const output = await ignoredBuilds.handler({
     dir,
@@ -61,7 +62,7 @@ test('ignoredBuilds lists both automatically and explicitly ignored dependencies
   fs.mkdirSync(modulesDir, { recursive: true })
   await writeModulesManifest(modulesDir, {
     ...DEFAULT_MODULES_MANIFEST,
-    ignoredBuilds: ['foo', 'bar'],
+    ignoredBuilds: new Set(['foo@1.0.0', 'bar@1.0.0'] as DepPath[]),
   })
   const output = await ignoredBuilds.handler({
     dir,

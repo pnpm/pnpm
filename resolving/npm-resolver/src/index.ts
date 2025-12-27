@@ -48,8 +48,9 @@ import {
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
-import { pickVersionByVersionRange, assertMetaHasTime } from './pickPackageFromMeta.js'
+import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
+import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
@@ -69,14 +70,38 @@ export class NoMatchingVersionError extends PnpmError {
     let errorMessage: string
     if (opts.publishedBy && opts.immatureVersion && opts.packageMeta.time) {
       const time = new Date(opts.packageMeta.time[opts.immatureVersion])
-      errorMessage = `No matching version found for ${dep} published by ${opts.publishedBy.toString()} while fetching it from ${opts.registry}. Version ${opts.immatureVersion} satisfies the specs but was released at ${time.toString()}`
+      const releaseAgeText = formatTimeAgo(time)
+      const pkgName = opts.wantedDependency.alias ?? opts.packageMeta.name
+      errorMessage = `Version ${opts.immatureVersion} (released ${releaseAgeText}) of ${pkgName} does not meet the minimumReleaseAge constraint`
     } else {
       errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
     }
-    super('NO_MATCHING_VERSION', errorMessage)
+    super(opts.publishedBy ? 'NO_MATURE_MATCHING_VERSION' : 'NO_MATCHING_VERSION', errorMessage)
     this.packageMeta = opts.packageMeta
     this.immatureVersion = opts.immatureVersion
   }
+}
+
+function formatTimeAgo (date: Date): string {
+  const now = Date.now()
+  const diffMs = now - date.getTime()
+
+  // Handle clock skew (future dates) and very recent releases (< 1 minute)
+  if (diffMs < 60 * 1000) {
+    return 'just now'
+  }
+
+  const diffMinutes = Math.floor(diffMs / (60 * 1000))
+  const diffHours = Math.floor(diffMs / (60 * 60 * 1000))
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000))
+
+  if (diffHours >= 48) {
+    return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+  }
+  if (diffMinutes >= 90) {
+    return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+  }
+  return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
 }
 
 export {
@@ -308,7 +333,6 @@ async function resolveNpm (
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   } else if (opts.trustPolicy === 'no-downgrade') {
-    assertMetaHasTime(meta)
     failIfTrustDowngraded(meta, pickedPackage.version, opts.trustPolicyExclude)
   }
 
@@ -349,7 +373,7 @@ async function resolveNpm (
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
-    tarball: pickedPackage.dist.tarball,
+    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
   }
   let normalizedBareSpecifier: string | undefined
   if (opts.calcSpecifier) {
@@ -401,7 +425,7 @@ async function resolveJsr (
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
-    tarball: pickedPackage.dist.tarball,
+    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
   }
   return {
     id,
@@ -527,7 +551,7 @@ function tryResolveFromWorkspacePackages (
       'WORKSPACE_PKG_NOT_FOUND',
       `In ${path.relative(process.cwd(), opts.projectDir)}: "${spec.name}@${opts.wantedDependency.bareSpecifier ?? ''}" is in the dependencies but no package named "${spec.name}" is present in the workspace`,
       {
-        hint: 'Packages found in the workspace: ' + Object.keys(workspacePackages).join(', '),
+        hint: 'Packages found in the workspace: ' + Array.from(workspacePackages.keys()).join(', '),
       }
     )
   }

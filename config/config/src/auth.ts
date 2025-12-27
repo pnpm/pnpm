@@ -17,8 +17,11 @@ const RAW_AUTH_CFG_KEYS = [
 ] satisfies Array<keyof typeof types>
 
 const RAW_AUTH_CFG_KEY_SUFFIXES = [
+  ':ca',
   ':cafile',
+  ':cert',
   ':certfile',
+  ':key',
   ':keyfile',
   ':registry',
   ':tokenHelper',

@@ -8,8 +8,10 @@ import {
 import {
   type Config,
   type OptionsFromRootManifest,
+  type ProjectConfig,
+  createProjectConfigRecord,
+  getOptionsFromRootManifest,
   getWorkspaceConcurrency,
-  readLocalConfig,
 } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
@@ -22,6 +24,7 @@ import { requireHooks } from '@pnpm/pnpmfile'
 import { sortPackages } from '@pnpm/sort-packages'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
+  type IgnoredBuilds,
   type IncludedDependencies,
   type PackageManifest,
   type Project,
@@ -33,6 +36,7 @@ import {
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import {
   addDependenciesToPackage,
+  IgnoredBuildsError,
   install,
   type InstallOptions,
   type MutatedProject,
@@ -42,14 +46,12 @@ import {
   type WorkspacePackages,
 } from '@pnpm/core'
 import isSubdir from 'is-subdir'
-import mem from 'mem'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 import { getSaveType } from './getSaveType.js'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { type PreferredVersions } from '@pnpm/resolver-base'
-import { IgnoredBuildsError } from './errors.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -82,6 +84,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'tag'
 | 'cleanupUnusedCatalogs'
+| 'packageConfigs'
 > & {
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
@@ -162,7 +165,11 @@ export async function recursive (
 
   const result: RecursiveSummary = {}
 
-  const memReadLocalConfig = mem(readLocalConfig)
+  const projectConfigRecord = createProjectConfigRecord(opts)
+  const getProjectConfig: (manifest: Pick<ProjectManifest, 'name'>) => ProjectConfig | undefined =
+    projectConfigRecord
+      ? manifest => manifest.name ? projectConfigRecord[manifest.name] : undefined
+      : () => undefined
 
   const updateToLatest = opts.update && opts.latest
   const includeDirect = opts.includeDirect ?? {
@@ -204,9 +211,9 @@ export async function recursive (
     }
     const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ rootDir }) => {
-      const localConfig = await memReadLocalConfig(rootDir)
-      const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       const { manifest } = manifestsByPath[rootDir]
+      const localConfig = getProjectConfig(manifest) ?? {}
+      const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       let currentInput = [...params]
       if (updateMatch != null) {
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
@@ -296,7 +303,7 @@ export async function recursive (
       }))
       await Promise.all(promises)
     }
-    if (opts.strictDepBuilds && ignoredBuilds?.length) {
+    if (opts.strictDepBuilds && ignoredBuilds?.size) {
       throw new IgnoredBuildsError(ignoredBuilds)
     }
     return true
@@ -352,7 +359,7 @@ export async function recursive (
         interface ActionResult {
           updatedCatalogs?: Catalogs
           updatedManifest: ProjectManifest
-          ignoredBuilds: string[] | undefined
+          ignoredBuilds: IgnoredBuilds | undefined
         }
 
         type ActionFunction = (manifest: PackageManifest | ProjectManifest, opts: ActionOpts) => Promise<ActionResult>
@@ -382,7 +389,7 @@ export async function recursive (
           break
         }
 
-        const localConfig = await memReadLocalConfig(rootDir)
+        const localConfig = getProjectConfig(manifest) ?? {}
         const {
           updatedCatalogs: newCatalogsAddition,
           updatedManifest: newManifest,
@@ -415,7 +422,7 @@ export async function recursive (
             Object.assign(updatedCatalogs, newCatalogsAddition)
           }
         }
-        if (opts.strictDepBuilds && ignoredBuilds?.length) {
+        if (opts.strictDepBuilds && ignoredBuilds?.size) {
           throw new IgnoredBuildsError(ignoredBuilds)
         }
         result[rootDir].status = 'passed'

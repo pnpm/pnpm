@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/parse-overrides"
     },
     {
@@ -20,6 +23,9 @@
     },
     {
       "path": "../types"
+    },
+    {
+      "path": "../verification"
     }
   ]
 }

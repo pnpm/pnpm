@@ -43,6 +43,11 @@ export interface GitResolution {
   type: 'git'
 }
 
+export interface CustomResolution {
+  type: `custom:${string}` // e.g., 'custom:cdn', 'custom:artifactory'
+  [key: string]: unknown
+}
+
 export interface PlatformAssetTarget {
   os: string
   cpu: string
@@ -59,6 +64,7 @@ export type AtomicResolution =
   | DirectoryResolution
   | GitResolution
   | BinaryResolution
+  | CustomResolution
 
 export interface VariationsResolution {
   type: 'variations'

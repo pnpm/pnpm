@@ -4,7 +4,7 @@
   "description": "Gets configuration options for pnpm",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "config"
   ],
   "license": "MIT",
@@ -27,8 +27,7 @@
   "scripts": {
     "prepublishOnly": "pnpm run compile",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test-with-preview": "ts-node test",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "start": "tsc --watch",
     "compile": "tsc --build && pnpm run lint --fix"

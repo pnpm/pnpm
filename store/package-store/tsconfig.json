@@ -13,10 +13,19 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../crypto/hash"
+    },
+    {
       "path": "../../fetching/fetcher-base"
     },
     {
       "path": "../../fs/v8-file"
+    },
+    {
+      "path": "../../hooks/types"
+    },
+    {
+      "path": "../../packages/error"
     },
     {
       "path": "../../packages/logger"

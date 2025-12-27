@@ -4,7 +4,7 @@
   "description": "pnpm's default package resolver",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "npm",
     "resolver"
   ],
@@ -27,7 +27,7 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
@@ -36,17 +36,24 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/git-resolver": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/local-resolver": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/resolving.bun-resolver": "workspace:*",
     "@pnpm/resolving.deno-resolver": "workspace:*",
-    "@pnpm/tarball-resolver": "workspace:*"
+    "@pnpm/tarball-resolver": "workspace:*",
+    "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/default-resolver": "workspace:*",
-    "@pnpm/fetch": "workspace:*"
+    "@pnpm/fetch": "workspace:*",
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/tarball-fetcher": "workspace:*",
+    "node-fetch": "catalog:"
   },
   "engines": {
     "node": ">=20.19"

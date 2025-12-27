@@ -281,9 +281,6 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
         overrides: {
           'is-positive': '2.0.0',
         },
-        executionEnv: {
-          nodeVersion: '20.0.0',
-        },
       },
     },
     'project-0': {
@@ -297,9 +294,6 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
         onlyBuiltDependencies: ['from-project-0'],
         overrides: {
           'is-positive': '=1.0.0',
-        },
-        executionEnv: {
-          nodeVersion: '18.0.0',
         },
       },
     },
@@ -350,7 +344,6 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
   const manifest = readPackageJson('deploy') as ProjectManifest
   expect(manifest.pnpm).toStrictEqual({
     onlyBuiltDependencies: preparedManifests.root.pnpm!.onlyBuiltDependencies,
-    executionEnv: preparedManifests['project-0'].pnpm!.executionEnv,
   } as ProjectManifest['pnpm'])
 
   expect(readPackageJson('deploy/node_modules/is-positive/')).toHaveProperty(['version'], preparedManifests.root.pnpm!.overrides!['is-positive'])

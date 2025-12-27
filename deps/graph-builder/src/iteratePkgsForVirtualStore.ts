@@ -1,10 +1,13 @@
+import path from 'path'
 import {
   iterateHashedGraphNodes,
   lockfileToDepGraph,
+  calcGraphNodeHash,
   type PkgMeta,
   type DepsGraph,
   type PkgMetaIterator,
   type HashedDepPath,
+  type DepsStateCache,
 } from '@pnpm/calc-dep-state'
 import { type LockfileObject, type PackageSnapshot } from '@pnpm/lockfile.fs'
 import {
@@ -15,35 +18,51 @@ import * as dp from '@pnpm/dependency-path'
 
 interface PkgSnapshotWithLocation {
   pkgMeta: PkgMetaAndSnapshot
-  dirNameInVirtualStore: string
+  dirInVirtualStore: string
 }
 
 export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   enableGlobalVirtualStore?: boolean
   virtualStoreDirMaxLength: number
+  virtualStoreDir: string
+  globalVirtualStoreDir: string
 }): IterableIterator<PkgSnapshotWithLocation> {
   if (opts.enableGlobalVirtualStore) {
     for (const { hash, pkgMeta } of hashDependencyPaths(lockfile)) {
       yield {
-        dirNameInVirtualStore: hash,
+        dirInVirtualStore: path.join(opts.globalVirtualStoreDir, hash),
         pkgMeta,
       }
     }
   } else if (lockfile.packages) {
+    let graphNodeHashOpts: { graph: DepsGraph<DepPath>, cache: DepsStateCache } | undefined
     for (const depPath in lockfile.packages) {
-      if (Object.hasOwn(lockfile.packages, depPath)) {
-        const pkgSnapshot = lockfile.packages[depPath as DepPath]
-        const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        yield {
-          pkgMeta: {
-            depPath: depPath as DepPath,
-            pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
-            name,
-            version,
-            pkgSnapshot,
-          },
-          dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength),
+      if (!Object.hasOwn(lockfile.packages, depPath)) {
+        continue
+      }
+      const pkgSnapshot = lockfile.packages[depPath as DepPath]
+      const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const pkgMeta = {
+        depPath: depPath as DepPath,
+        pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
+        name,
+        version,
+        pkgSnapshot,
+      }
+      let dirInVirtualStore!: string
+      if (dp.isRuntimeDepPath(depPath as DepPath)) {
+        graphNodeHashOpts ??= {
+          cache: {},
+          graph: lockfileToDepGraph(lockfile),
         }
+        const hash = calcGraphNodeHash(graphNodeHashOpts, pkgMeta)
+        dirInVirtualStore = path.join(opts.globalVirtualStoreDir, hash)
+      } else {
+        dirInVirtualStore = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength))
+      }
+      yield {
+        dirInVirtualStore,
+        pkgMeta,
       }
     }
   }

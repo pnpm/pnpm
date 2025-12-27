@@ -4,7 +4,7 @@
   "description": "Check for outdated packages",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "outdated"
   ],
   "license": "MIT",
@@ -28,7 +28,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {

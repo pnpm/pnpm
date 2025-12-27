@@ -4,6 +4,7 @@ import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
+import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -16,6 +17,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
+import * as dp from '@pnpm/dependency-path'
 import {
   calcPatchHashes,
   createOverridesMapFromParsed,
@@ -23,7 +25,7 @@ import {
 } from '@pnpm/lockfile.settings-checker'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
-import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
+import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/headless'
 import {
   makeNodeRequireOption,
   runLifecycleHook,
@@ -41,13 +43,13 @@ import {
   type CatalogSnapshots,
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
-import { extendProjectsWithTargetDirs } from '@pnpm/lockfile.utils'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { type PatchGroupRecord, groupPatchedDependencies } from '@pnpm/patching.config'
+import { rebuildSelectedPkgs } from '@pnpm/plugin-commands-rebuild'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   getWantedDependencies,
@@ -65,17 +67,20 @@ import {
   type DepPath,
   type DependenciesField,
   type DependencyManifest,
+  type IgnoredBuilds,
   type PeerDependencyIssues,
   type ProjectId,
   type ProjectManifest,
   type ReadPackageHook,
   type ProjectRootDir,
 } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import isSubdir from 'is-subdir'
 import pLimit from 'p-limit'
 import { map as mapValues, clone, isEmpty, pipeWith, props } from 'ramda'
 import { parseWantedDependencies } from '../parseWantedDependencies.js'
 import { removeDeps } from '../uninstall/removeDeps.js'
+import { checkCustomResolverForceResolve } from './checkCustomResolverForceResolve.js'
 import {
   extendOptions,
   type InstallOptions,
@@ -148,7 +153,7 @@ export interface InstallResult {
    */
   updatedCatalogs: Catalogs | undefined
   updatedManifest: ProjectManifest
-  ignoredBuilds: string[] | undefined
+  ignoredBuilds: IgnoredBuilds | undefined
 }
 
 export async function install (
@@ -201,7 +206,7 @@ export type MutateModulesOptions = InstallOptions & {
 export interface MutateModulesInSingleProjectResult {
   updatedCatalogs: Catalogs | undefined
   updatedProject: UpdatedProject
-  ignoredBuilds: string[] | undefined
+  ignoredBuilds: IgnoredBuilds | undefined
 }
 
 export async function mutateModulesInSingleProject (
@@ -243,7 +248,7 @@ export interface MutateModulesResult {
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
-  ignoredBuilds: string[] | undefined
+  ignoredBuilds: IgnoredBuilds | undefined
 }
 
 const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
@@ -318,6 +323,24 @@ export async function mutateModules (
     }
   }
 
+  // Check if any custom resolvers want to force resolution for specific dependencies
+  // Skip this check when not saving the lockfile (e.g., during deploy) since there's no point
+  // in forcing re-resolution if we're not going to persist the results
+  let forceResolutionFromHook = false
+  const shouldCheckCustomResolverForceResolve =
+    opts.hooks.customResolvers &&
+    ctx.existsNonEmptyWantedLockfile &&
+    !opts.frozenLockfile &&
+    opts.saveLockfile
+  if (shouldCheckCustomResolverForceResolve) {
+    const projects = Object.values(ctx.projects).map(({ id, manifest }) => ({ id, manifest }))
+    forceResolutionFromHook = await checkCustomResolverForceResolve(
+      opts.hooks.customResolvers!,
+      ctx.wantedLockfile,
+      projects
+    )
+  }
+
   const pruneVirtualStore = !opts.enableGlobalVirtualStore && (ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
     : true
@@ -338,12 +361,23 @@ export async function mutateModules (
     // @ts-expect-error
     globalInfo(`The integrity of ${global['verifiedFileIntegrity']} files was checked. This might have caused installation to take longer.`)
   }
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.removeListener('data', reporter)
-  }
 
   if (opts.mergeGitBranchLockfiles) {
     await cleanGitBranchLockfiles(ctx.lockfileDir)
+  }
+
+  let ignoredBuilds = result.ignoredBuilds
+  if (!opts.ignoreScripts && ignoredBuilds?.size) {
+    ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds)
+  }
+  if (!opts.neverBuiltDependencies) {
+    ignoredScriptsLogger.debug({
+      packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
+    })
+  }
+
+  if ((reporter != null) && typeof reporter === 'function') {
+    streamParser.removeListener('data', reporter)
   }
 
   return {
@@ -351,7 +385,7 @@ export async function mutateModules (
     updatedProjects: result.updatedProjects,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
-    ignoredBuilds: result.ignoredBuilds,
+    ignoredBuilds,
   }
 
   interface InnerInstallResult {
@@ -359,7 +393,7 @@ export async function mutateModules (
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
-    readonly ignoredBuilds: string[] | undefined
+    readonly ignoredBuilds: IgnoredBuilds | undefined
   }
 
   async function _install (): Promise<InnerInstallResult> {
@@ -376,7 +410,6 @@ export async function mutateModules (
       stdio: opts.ownLifecycleHooksStdio,
       storeController: opts.storeController,
       unsafePerm: opts.unsafePerm || false,
-      prepareExecutionEnv: opts.prepareExecutionEnv,
     }
 
     if (!opts.ignoreScripts && !opts.ignorePackageManifest && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
@@ -410,6 +443,7 @@ export async function mutateModules (
     if (!opts.ignorePackageManifest) {
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
+        catalogs: opts.catalogs,
         injectWorkspacePackages: opts.injectWorkspacePackages,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
@@ -429,7 +463,8 @@ export async function mutateModules (
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
       !upToDateLockfileMajorVersion ||
-      opts.forceFullResolution
+      opts.forceFullResolution ||
+      forceResolutionFromHook
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
@@ -848,6 +883,32 @@ Note that in CI environments, this setting is enabled by default.`,
   }
 }
 
+async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previousIgnoredBuilds: IgnoredBuilds): Promise<Set<DepPath>> {
+  if (!opts.onlyBuiltDependencies?.length) {
+    return previousIgnoredBuilds
+  }
+  const onlyBuiltDeps = createPackageVersionPolicy(opts.onlyBuiltDependencies)
+  const pkgsToBuild = Array.from(previousIgnoredBuilds).flatMap((ignoredPkg) => {
+    const ignoredPkgName = dp.parse(ignoredPkg).name
+    if (!ignoredPkgName) return []
+    const matchResult = onlyBuiltDeps(ignoredPkgName)
+    if (matchResult === true) {
+      return [ignoredPkgName]
+    } else if (Array.isArray(matchResult)) {
+      return matchResult.map(version => `${ignoredPkgName}@${version}`)
+    }
+    return []
+  })
+  if (pkgsToBuild.length) {
+    return (await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
+      ...opts,
+      reporter: undefined, // We don't want to attach the reporter again, it was already attached.
+      rootProjectManifestDir: opts.lockfileDir,
+    })).ignoredBuilds ?? previousIgnoredBuilds
+  }
+  return previousIgnoredBuilds
+}
+
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {
   return ((Date.now() - new Date(prunedAt).valueOf()) / (1000 * 60)) > maxAgeInMinutes
 }
@@ -1014,7 +1075,7 @@ interface InstallFunctionResult {
   projects: UpdatedProject[]
   stats?: InstallationResultStats
   depsRequiringBuild: DepPath[]
-  ignoredBuilds?: string[]
+  ignoredBuilds?: IgnoredBuilds
 }
 
 type InstallFunction = (
@@ -1120,6 +1181,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     forgetResolutionsOfAllPrevWantedDeps(ctx.wantedLockfile)
   }
 
+  const allowBuild = createAllowBuildFunction(opts)
   let {
     dependenciesGraph,
     dependenciesByProjectId,
@@ -1133,6 +1195,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   } = await resolveDependencies(
     projects,
     {
+      allowBuild,
       allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
       allowUnusedPatches: opts.allowUnusedPatches,
       autoInstallPeers: opts.autoInstallPeers,
@@ -1165,6 +1228,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
       tag: opts.tag,
+      globalVirtualStoreDir: opts.globalVirtualStoreDir,
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
       wantedLockfile: ctx.wantedLockfile,
@@ -1179,6 +1243,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
       trustPolicy: opts.trustPolicy,
       trustPolicyExclude: opts.trustPolicyExclude,
+      blockExoticSubdeps: opts.blockExoticSubdeps,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
@@ -1232,8 +1297,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
   let stats: InstallationResultStats | undefined
-  const allowBuild = createAllowBuildFunction(opts)
-  let ignoredBuilds: string[] | undefined
+  let ignoredBuilds: IgnoredBuilds | undefined
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
@@ -1333,9 +1397,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
         })).ignoredBuilds
-        if (ignoredBuilds == null && ctx.modulesFile?.ignoredBuilds?.length) {
-          ignoredBuilds = ctx.modulesFile.ignoredBuilds
-          ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
+        if (ctx.modulesFile?.ignoredBuilds?.size) {
+          ignoredBuilds ??= new Set()
+          for (const ignoredBuild of ctx.modulesFile.ignoredBuilds.values()) {
+            if (result.currentLockfile.packages?.[ignoredBuild]) {
+              ignoredBuilds.add(ignoredBuild)
+            }
+          }
         }
       }
     }
@@ -1418,10 +1486,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }))
 
-    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, newLockfile, {
-      virtualStoreDir: ctx.virtualStoreDir,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    })
+    const projectsWithTargetDirs = getProjectsWithTargetDirs(projects, newLockfile, dependenciesGraph)
     const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
@@ -1665,4 +1730,42 @@ async function linkAllBins (
   await Promise.all(
     depNodes.map(async depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))
   )
+}
+
+export class IgnoredBuildsError extends PnpmError {
+  constructor (ignoredBuilds: IgnoredBuilds) {
+    const packageNames = dedupePackageNamesFromIgnoredBuilds(ignoredBuilds)
+    super('IGNORED_BUILDS', `Ignored build scripts: ${packageNames.join(', ')}`, {
+      hint: 'Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.',
+    })
+  }
+}
+
+function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
+  return Array.from(new Set(Array.from(ignoredBuilds ?? []).map(dp.removeSuffix))).sort(lexCompare)
+}
+
+/**
+ * Build injectionTargetsByDepPath from the dependenciesGraph for injected workspace packages
+ * and extend projects with their target directories.
+ * The dependenciesGraph already has the correct `dir` values after `extendGraph` is applied
+ * (which uses the correct hash-based paths when global virtual store is enabled).
+ */
+function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
+  projects: T[],
+  lockfile: LockfileObject,
+  dependenciesGraph: DependenciesGraph
+): Array<T & { id: ProjectId, stages: string[], targetDirs: string[] }> {
+  const injectionTargetsByDepPath = new Map<string, string[]>()
+  if (lockfile.packages) {
+    for (const [depPath, { resolution }] of Object.entries(lockfile.packages)) {
+      if (resolution?.type === 'directory') {
+        const graphNode = dependenciesGraph[depPath as DepPath]
+        if (graphNode?.dir) {
+          injectionTargetsByDepPath.set(depPath, [graphNode.dir])
+        }
+      }
+    }
+  }
+  return extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
 }

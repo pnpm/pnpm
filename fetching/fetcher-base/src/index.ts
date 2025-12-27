@@ -5,7 +5,7 @@ import {
   type BinaryResolution,
 } from '@pnpm/resolver-base'
 import { type Cafs } from '@pnpm/cafs-types'
-import { type DependencyManifest } from '@pnpm/types'
+import { type AllowBuild, type DependencyManifest } from '@pnpm/types'
 
 export interface PkgNameVersion {
   name?: string
@@ -13,12 +13,14 @@ export interface PkgNameVersion {
 }
 
 export interface FetchOptions {
+  allowBuild?: AllowBuild
   filesIndexFile: string
   lockfileDir: string
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   readManifest?: boolean
   pkg: PkgNameVersion
+  appendManifest?: DependencyManifest
 }
 
 export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = (
@@ -30,18 +32,20 @@ export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions
 export interface FetchResult {
   local?: boolean
   manifest?: DependencyManifest
-  filesIndex: Record<string, string>
+  filesIndex: Map<string, string>
   requiresBuild: boolean
+  integrity?: string
 }
 
 export interface GitFetcherOptions {
+  allowBuild?: AllowBuild
   readManifest?: boolean
   filesIndexFile: string
   pkg?: PkgNameVersion
 }
 
 export interface GitFetcherResult {
-  filesIndex: Record<string, string>
+  filesIndex: Map<string, string>
   manifest?: DependencyManifest
   requiresBuild: boolean
 }
@@ -57,7 +61,7 @@ export interface DirectoryFetcherOptions {
 
 export interface DirectoryFetcherResult {
   local: true
-  filesIndex: Record<string, string>
+  filesIndex: Map<string, string>
   packageImportMethod: 'hardlink'
   manifest?: DependencyManifest
   requiresBuild: boolean

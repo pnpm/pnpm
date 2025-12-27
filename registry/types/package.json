@@ -4,7 +4,7 @@
   "description": "Types related to the npm registry",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "npm"
   ],
   "license": "MIT",

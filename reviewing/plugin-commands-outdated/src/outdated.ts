@@ -382,7 +382,12 @@ export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
       : latestManifest.version
   }
 
-  return colorizeSemverDiff.default({ change, diff })
+  const versionText = colorizeSemverDiff.default({ change, diff })
+  if (latestManifest.deprecated) {
+    return `${versionText} ${chalk.redBright('(deprecated)')}`
+  }
+
+  return versionText
 }
 
 export function renderDetails ({ latestManifest }: OutdatedPackage): string {

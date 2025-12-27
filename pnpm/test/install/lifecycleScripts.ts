@@ -5,7 +5,8 @@ import { type PackageManifest, type ProjectManifest } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
 import { loadJsonFileSync } from 'load-json-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { sync as writeYamlFileSync } from 'write-yaml-file'
+import writeYamlFile from 'write-yaml-file'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
@@ -265,7 +266,7 @@ test('use node versions specified by devEngines.runtime in workspace packages', 
     },
   ])
 
-  writeYamlFile(path.resolve('pnpm-workspace.yaml'), {
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
     packages: ['*'],
     verifyDepsBeforeRun: 'install',
   })
@@ -312,6 +313,7 @@ test('ignores pnpm.executionEnv specified by dependencies', async () => {
     versions: process.versions,
   })
 })
+
 
 test('preinstall script does not trigger verify-deps-before-run (#8954)', async () => {
   const pnpm = `${process.execPath} ${pnpmBinLocation}` // this would fail if either paths happen to contain spaces
@@ -388,8 +390,8 @@ test('the list of ignored builds is preserved after a repeat install', async () 
   expect(result.stdout.toString()).toContain('Ignored build scripts:')
 
   const modulesManifest = project.readModulesManifest()
-  expect(modulesManifest?.ignoredBuilds?.sort()).toStrictEqual([
-    '@pnpm.e2e/pre-and-postinstall-scripts-example',
-    'esbuild',
+  expect(Array.from(modulesManifest!.ignoredBuilds!).sort()).toStrictEqual([
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    'esbuild@0.25.0',
   ])
 })

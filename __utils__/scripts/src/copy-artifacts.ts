@@ -26,5 +26,9 @@ const artifactsDir = path.join(repoRoot, 'pnpm/artifacts')
 })()
 
 function copyArtifact (srcName: string, destName: string): void {
-  fs.copyFileSync(path.join(artifactsDir, srcName), path.join(dest, destName))
+  try {
+    fs.copyFileSync(path.join(artifactsDir, srcName), path.join(dest, destName))
+  } catch (err) {
+    console.log(err)
+  }
 }

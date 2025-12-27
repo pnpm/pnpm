@@ -4,7 +4,7 @@
   "description": "Utils for dealing with pnpm-lock.yaml",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "lockfile",
     "shrinkwrap"
   ],
@@ -27,13 +27,15 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",

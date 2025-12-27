@@ -1,4 +1,5 @@
 import fs from 'fs'
+import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
@@ -183,6 +184,7 @@ test('installing Node.js runtime', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['node@runtime:22.0.0'], testDefaults({ fastUnpack: false }))
 
   project.isExecutable('.bin/node')
+  expect(fs.readlinkSync('node_modules/node')).toContain(path.join('links', '@', 'node', '22.0.0'))
   expect(project.readLockfile()).toStrictEqual({
     settings: {
       autoInstallPeers: true,
@@ -214,11 +216,15 @@ test('installing Node.js runtime', async () => {
     },
   })
 
+  // Verify that package.json is created
+  expect(fs.existsSync(path.resolve('node_modules/node/package.json'))).toBeTruthy()
+
   rimraf('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true }, {
     offline: true, // We want to verify that Node.js is resolved from cache.
   }))
   project.isExecutable('.bin/node')
+  expect(fs.readlinkSync('node_modules/node')).toContain(path.join('links', '@', 'node', '22.0.0'))
 
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'], testDefaults({ fastUnpack: false }))
   project.has('@pnpm.e2e/dep-of-pkg-with-1-dep')

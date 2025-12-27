@@ -5,6 +5,7 @@ export const DEPS_BUILD_CONFIG_KEYS = [
   'onlyBuiltDependencies',
   'onlyBuiltDependenciesFile',
   'neverBuiltDependencies',
+  'allowBuilds',
 ] as const satisfies Array<keyof Config>
 
 export type DepsBuildConfigKey = typeof DEPS_BUILD_CONFIG_KEYS[number]

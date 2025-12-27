@@ -3,7 +3,6 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { types as allTypes } from '@pnpm/config'
 import { resolveConfigDeps } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
@@ -14,6 +13,10 @@ import { writeSettings } from '@pnpm/config.config-writer'
 
 export const shorthands: Record<string, string> = {
   'save-catalog': '--save-catalog-name=default',
+  d: '--save-dev',
+  e: '--save-exact',
+  o: '--save-optional',
+  p: '--save-prod',
 }
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -111,17 +114,17 @@ export function help (): string {
           {
             description: 'Save package to your `dependencies`. The default behavior',
             name: '--save-prod',
-            shortAlias: '-P',
+            shortAlias: '-p',
           },
           {
             description: 'Save package to your `devDependencies`',
             name: '--save-dev',
-            shortAlias: '-D',
+            shortAlias: '-d',
           },
           {
             description: 'Save package to your `optionalDependencies`',
             name: '--save-optional',
-            shortAlias: '-O',
+            shortAlias: '-o',
           },
           {
             description: 'Save package to your `peerDependencies` and `devDependencies`',
@@ -138,7 +141,7 @@ export function help (): string {
           {
             description: 'Install exact version',
             name: '--[no-]save-exact',
-            shortAlias: '-E',
+            shortAlias: '-e',
           },
           {
             description: 'Save packages from the workspace with a "workspace:" protocol. True by default',
@@ -287,6 +290,5 @@ export async function handler (
     fetchFullMetadata: getFetchFullMetadata(opts),
     include,
     includeDirect: include,
-    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   }, params)
 }

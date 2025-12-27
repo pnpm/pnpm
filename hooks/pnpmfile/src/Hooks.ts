@@ -9,13 +9,18 @@ export interface HookContext {
 }
 
 export interface Hooks {
-  // eslint-disable-next-line
-  readPackage?: (pkg: any, context: HookContext) => any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Flexible hook signature for any package manifest
+  readPackage?: (pkg: any, context: HookContext) => any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Flexible hook signature for any package manifest
+  beforePacking?: (pkg: any, dir: string, context: HookContext) => any
   preResolution?: PreResolutionHook
   afterAllResolved?: (lockfile: LockfileObject, context: HookContext) => LockfileObject | Promise<LockfileObject>
   filterLog?: (log: Log) => boolean
   importPackage?: ImportIndexedPackageAsync
+  /**
+   * @deprecated Use top-level `fetchers` export instead. This will be removed in a future version.
+   */
   fetchers?: CustomFetchers
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Flexible hook signature for any config object
   updateConfig?: (config: any) => any
 }
