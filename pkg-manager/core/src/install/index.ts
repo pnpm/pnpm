@@ -36,7 +36,6 @@ import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   type ProjectSnapshot,
   type LockfileObject,
-  type DirectoryResolution,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
@@ -1760,8 +1759,7 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
 ): Array<T & { id: ProjectId, stages: string[], targetDirs: string[] }> {
   const injectionTargetsByDepPath = new Map<string, string[]>()
   if (lockfile.packages) {
-    for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {
-      const resolution = pkgSnapshot.resolution as DirectoryResolution
+    for (const [depPath, { resolution }] of Object.entries(lockfile.packages)) {
       if (resolution?.type === 'directory') {
         const graphNode = dependenciesGraph[depPath as DepPath]
         if (graphNode?.dir) {
