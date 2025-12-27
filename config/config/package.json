@@ -27,7 +27,6 @@
   "scripts": {
     "prepublishOnly": "pnpm run compile",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test-with-preview": "ts-node test",
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "start": "tsc --watch",
