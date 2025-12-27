@@ -1344,6 +1344,7 @@ async function resolveDependency (
       trustPolicy: ctx.trustPolicy,
       trustPolicyExclude: ctx.trustPolicyExclude,
       update: options.update,
+      forceResolve: options.proceed,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
       onFetchError: (err: any) => { // eslint-disable-line
