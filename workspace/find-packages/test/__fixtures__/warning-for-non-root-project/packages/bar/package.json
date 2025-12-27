@@ -2,8 +2,7 @@
   "name": "bar",
   "version": "1.0.0",
   "pnpm": {
-    "overrides": {},
-    "executionEnv": {}
+    "overrides": {}
   },
   "resolutions": {}
 }
