@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import { type Config } from '@pnpm/config'
-import { getSystemNodeVersion } from '@pnpm/env.system-node-version'
 import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetchNode } from '@pnpm/node.fetcher'
@@ -32,31 +31,14 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'rawConfig'
 | 'strictSsl'
 | 'storeDir'
-| 'useNodeVersion'
 | 'pnpmHomeDir'
 > & Partial<Pick<Config, 'configDir' | 'cliOptions' | 'sslConfigs'>> & {
   remote?: boolean
+  useNodeVersion?: string
 }
 
-const nodeFetchPromises: Record<string, Promise<string>> = {}
-
-export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extraBinPaths, executionEnv }: PrepareExecutionEnvOptions): Promise<PrepareExecutionEnvResult> {
-  if (!executionEnv?.nodeVersion || `v${executionEnv.nodeVersion}` === getSystemNodeVersion()) {
-    return { extraBinPaths: extraBinPaths ?? [] }
-  }
-
-  let nodePathPromise = nodeFetchPromises[executionEnv.nodeVersion]
-  if (!nodePathPromise) {
-    nodePathPromise = getNodeBinDir({
-      ...config,
-      useNodeVersion: executionEnv.nodeVersion,
-    })
-    nodeFetchPromises[executionEnv.nodeVersion] = nodePathPromise
-  }
-
-  return {
-    extraBinPaths: [await nodePathPromise, ...extraBinPaths ?? []],
-  }
+export async function prepareExecutionEnv (_config: NvmNodeCommandOptions, { extraBinPaths }: PrepareExecutionEnvOptions): Promise<PrepareExecutionEnvResult> {
+  return { extraBinPaths: extraBinPaths ?? [] }
 }
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {

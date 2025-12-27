@@ -1,6 +1,5 @@
 export interface PrepareExecutionEnvOptions {
   extraBinPaths?: string[]
-  executionEnv: ExecutionEnv | undefined
 }
 
 export interface PrepareExecutionEnvResult {
@@ -8,7 +7,3 @@ export interface PrepareExecutionEnvResult {
 }
 
 export type PrepareExecutionEnv = (options: PrepareExecutionEnvOptions) => Promise<PrepareExecutionEnvResult>
-
-export interface ExecutionEnv {
-  nodeVersion?: string
-}
