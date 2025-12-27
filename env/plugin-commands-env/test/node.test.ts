@@ -60,7 +60,6 @@ const {
   getNodeDir,
   getNodeBinDir,
   getNodeVersionsBaseDir,
-  prepareExecutionEnv,
 } = await import('../lib/node.js')
 
 beforeEach(() => {
@@ -144,20 +143,4 @@ test('specified an invalid Node.js via use-node-version should not cause pnpm it
 
   const calls = jest.mocked(globalWarn).mock.calls
   expect(calls[calls.length - 1][0]).toContain('"22.14" is not a valid Node.js version.')
-})
-
-describe('prepareExecutionEnv', () => {
-  test('should not proceed to fetch Node.js if the process is already running in wanted node version', async () => {
-    fetchMock.mockImplementationOnce(() => {
-      throw new Error('prepareExecutionEnv should not proceed to fetch Node.js when wanted version is running')
-    })
-
-    await prepareExecutionEnv({
-      bin: '',
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-    }, {
-      executionEnv: { nodeVersion: process.versions.node },
-    })
-  })
 })

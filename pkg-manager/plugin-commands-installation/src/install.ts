@@ -2,7 +2,6 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
@@ -367,7 +366,6 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
     ),
     include,
     includeDirect: include,
-    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
     fetchFullMetadata: getFetchFullMetadata(opts),
   }
   if (opts.resolutionOnly) {

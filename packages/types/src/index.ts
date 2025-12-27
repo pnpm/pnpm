@@ -1,5 +1,4 @@
 export * from './config.js'
-export * from './env.js'
 export * from './misc.js'
 export * from './options.js'
 export * from './package.js'

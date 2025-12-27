@@ -3,7 +3,6 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { types as allTypes } from '@pnpm/config'
 import { resolveConfigDeps } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
@@ -291,6 +290,5 @@ export async function handler (
     fetchFullMetadata: getFetchFullMetadata(opts),
     include,
     includeDirect: include,
-    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   }, params)
 }

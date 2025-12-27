@@ -2,13 +2,11 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import { type Config } from '@pnpm/config'
-import { getSystemNodeVersion } from '@pnpm/env.system-node-version'
 import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetchNode } from '@pnpm/node.fetcher'
 import { getNodeMirror } from '@pnpm/node.resolver'
 import { getStorePath } from '@pnpm/store-path'
-import { type PrepareExecutionEnvOptions, type PrepareExecutionEnvResult } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 import { writeJsonFile } from 'write-json-file'
 import { isValidVersion, parseNodeSpecifier } from './parseNodeSpecifier.js'
@@ -32,31 +30,10 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'rawConfig'
 | 'strictSsl'
 | 'storeDir'
-| 'useNodeVersion'
 | 'pnpmHomeDir'
 > & Partial<Pick<Config, 'configDir' | 'cliOptions' | 'sslConfigs'>> & {
   remote?: boolean
-}
-
-const nodeFetchPromises: Record<string, Promise<string>> = {}
-
-export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extraBinPaths, executionEnv }: PrepareExecutionEnvOptions): Promise<PrepareExecutionEnvResult> {
-  if (!executionEnv?.nodeVersion || `v${executionEnv.nodeVersion}` === getSystemNodeVersion()) {
-    return { extraBinPaths: extraBinPaths ?? [] }
-  }
-
-  let nodePathPromise = nodeFetchPromises[executionEnv.nodeVersion]
-  if (!nodePathPromise) {
-    nodePathPromise = getNodeBinDir({
-      ...config,
-      useNodeVersion: executionEnv.nodeVersion,
-    })
-    nodeFetchPromises[executionEnv.nodeVersion] = nodePathPromise
-  }
-
-  return {
-    extraBinPaths: [await nodePathPromise, ...extraBinPaths ?? []],
-  }
+  useNodeVersion?: string
 }
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {

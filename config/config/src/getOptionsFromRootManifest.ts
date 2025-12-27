@@ -27,7 +27,7 @@ export type OptionsFromRootManifest = {
   peerDependencyRules?: PeerDependencyRules
   supportedArchitectures?: SupportedArchitectures
   allowBuilds?: Record<string, boolean | string>
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'executionEnv' | 'updateConfig'>
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'updateConfig'>
 
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
   const settings: OptionsFromRootManifest = getOptionsFromPnpmSettings(manifestDir, {
@@ -40,8 +40,6 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       'auditConfig',
       'auditConfig',
       'configDependencies',
-      'executionEnv',
-      'executionEnv',
       'ignorePatchFailures',
       'ignoredBuiltDependencies',
       'ignoredOptionalDependencies',

@@ -9,7 +9,6 @@ import { runNpm } from '@pnpm/run-npm'
 import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import { loadToken } from '@pnpm/network.auth-header'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import enquirer from 'enquirer'
 import rimraf from '@zkochan/rimraf'
 import { pick } from 'ramda'
@@ -252,7 +251,6 @@ Do you want to continue?`,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
-    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   })
   const { manifest } = await readProjectManifest(dir, opts)
   // Unfortunately, we cannot support postpack at the moment
