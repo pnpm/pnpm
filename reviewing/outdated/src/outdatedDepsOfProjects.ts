@@ -24,6 +24,7 @@ export async function outdatedDepsOfProjects (
     include: IncludedDependencies
     minimumReleaseAge?: number
     minimumReleaseAgeExclude?: string[]
+    trustPolicy?: 'no-downgrade' | 'off'
   } & Partial<Pick<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'>>
 ): Promise<OutdatedPackage[][]> {
   if (!opts.lockfileDir) {
@@ -39,7 +40,7 @@ export async function outdatedDepsOfProjects (
   const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) ?? currentLockfile
   const getLatestManifest = createManifestGetter({
     ...opts,
-    fullMetadata: opts.fullMetadata === true || Boolean(opts.minimumReleaseAge),
+    fullMetadata: opts.fullMetadata === true || Boolean(opts.minimumReleaseAge) || opts.trustPolicy === 'no-downgrade',
     lockfileDir,
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
@@ -61,6 +62,7 @@ export async function outdatedDepsOfProjects (
       prefix: rootDir,
       registries: opts.registries,
       wantedLockfile,
+      trustPolicy: opts.trustPolicy,
     })
   }))
 }
