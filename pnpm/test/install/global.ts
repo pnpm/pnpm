@@ -34,6 +34,29 @@ test('global installation', async () => {
   expect(typeof isNegative).toBe('function')
 })
 
+test('global install warns when project has packageManager configured', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+    packageManager: 'yarn@4.0.0',
+  })
+
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  const { status } = execPnpmSync([
+    'install',
+    '--global',
+    'is-positive',
+    '--config.package-manager-strict=true',
+  ], { env })
+
+  expect(status).toBe(0)
+})
+
 test('global installation to custom directory with --global-dir', async () => {
   prepare()
   const global = path.resolve('..', 'global')
