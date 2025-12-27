@@ -756,25 +756,3 @@ test('pnpm run without node version', async () => {
     workspaceConcurrency: 1,
   }, ['assert-node-version'])
 })
-
-test('pnpm run with node version', async () => {
-  prepare({
-    scripts: {
-      'assert-node-version': 'node -e "assert.equal(process.version, \'v20.0.0\')"',
-    },
-  })
-
-  await run.handler({
-    ...DEFAULT_OPTS,
-    bin: 'node_modules/.bin',
-    dir: process.cwd(),
-    extraBinPaths: [],
-    extraEnv: {},
-    pnpmHomeDir: process.cwd(),
-    rawConfig: {},
-    workspaceConcurrency: 1,
-    executionEnv: {
-      nodeVersion: '20.0.0',
-    },
-  }, ['assert-node-version'])
-})

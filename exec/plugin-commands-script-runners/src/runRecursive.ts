@@ -3,7 +3,6 @@ import path from 'path'
 import util from 'util'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
 import { type Config, getWorkspaceConcurrency } from '@pnpm/config'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,
@@ -126,10 +125,6 @@ export async function runRecursive (
             shellEmulator: opts.shellEmulator,
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
-          }
-          const { executionEnv } = pkg.package.manifest.pnpm ?? {}
-          if (executionEnv != null) {
-            lifecycleOpts.extraBinPaths = (await prepareExecutionEnv(opts, { executionEnv })).extraBinPaths
           }
           const pnpPath = workspacePnpPath ?? existsPnp(prefix)
           if (pnpPath) {
