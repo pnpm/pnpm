@@ -108,14 +108,13 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'
     : undefined
-  const extraBinPaths = opts.extraBinPaths
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,
       'frozen-lockfile': false,
     },
     dir: opts.rootModulesDir,
-    extraBinPaths,
+    extraBinPaths: opts.extraBinPaths,
     extraEnv: {
       ...opts.extraEnv,
       INIT_CWD: opts.initCwd ?? process.cwd(),
