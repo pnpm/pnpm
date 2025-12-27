@@ -25,7 +25,7 @@ import {
 } from '@pnpm/lockfile.settings-checker'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
-import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
+import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/headless'
 import {
   makeNodeRequireOption,
   runLifecycleHook,
@@ -43,7 +43,6 @@ import {
   type CatalogSnapshots,
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
-import { extendProjectsWithTargetDirs } from '@pnpm/lockfile.utils'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
@@ -1471,10 +1470,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }))
 
-    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, newLockfile, {
-      virtualStoreDir: ctx.virtualStoreDir,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    })
+    const projectsWithTargetDirs = getProjectsWithTargetDirs(projects, newLockfile, dependenciesGraph)
     const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
@@ -1731,4 +1727,29 @@ export class IgnoredBuildsError extends PnpmError {
 
 function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
   return Array.from(new Set(Array.from(ignoredBuilds ?? []).map(dp.removeSuffix))).sort(lexCompare)
+}
+
+/**
+ * Build injectionTargetsByDepPath from the dependenciesGraph for injected workspace packages
+ * and extend projects with their target directories.
+ * The dependenciesGraph already has the correct `dir` values after `extendGraph` is applied
+ * (which uses the correct hash-based paths when global virtual store is enabled).
+ */
+function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
+  projects: T[],
+  lockfile: LockfileObject,
+  dependenciesGraph: DependenciesGraph
+): Array<T & { id: ProjectId, stages: string[], targetDirs: string[] }> {
+  const injectionTargetsByDepPath = new Map<string, string[]>()
+  if (lockfile.packages) {
+    for (const [depPath, { resolution }] of Object.entries(lockfile.packages)) {
+      if (resolution?.type === 'directory') {
+        const graphNode = dependenciesGraph[depPath as DepPath]
+        if (graphNode?.dir) {
+          injectionTargetsByDepPath.set(depPath, [graphNode.dir])
+        }
+      }
+    }
+  }
+  return extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
 }

@@ -1,7 +1,9 @@
 import fs from 'fs'
 import path from 'path'
-import { prepareEmpty } from '@pnpm/prepare'
-import { install } from '@pnpm/core'
+import { assertProject } from '@pnpm/assert-project'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { install, type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
+import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
 
@@ -70,4 +72,82 @@ test('modules are correctly updated when using a global virtual store', async ()
     expect(files.length).toBe(1)
     expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/peer-c/2.0.0', files[0], 'node_modules/@pnpm.e2e/peer-c/package.json'))).toBeTruthy()
   }
+})
+
+test('injected local packages work with global virtual store', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+  ])
+  fs.writeFileSync('project-1/foo.js', '', 'utf8')
+
+  const globalVirtualStoreDir = path.resolve('links')
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  await mutateModules(importers, testDefaults({
+    autoInstallPeers: false,
+    allProjects,
+    enableGlobalVirtualStore: true,
+    dedupeInjectedDeps: false,
+    virtualStoreDir: globalVirtualStoreDir,
+  }))
+
+  // Verify project-2 has project-1 installed
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1'))).toBeTruthy()
+
+  // Verify the modules manifest has injectedDeps pointing to global virtual store
+  const rootModules = assertProject(process.cwd())
+  const modulesState = rootModules.readModulesManifest()
+  expect(modulesState?.injectedDeps?.['project-1']).toBeDefined()
+  expect(modulesState?.injectedDeps?.['project-1'].length).toBeGreaterThan(0)
+  // Injected deps should be in the global virtual store (links directory)
+  const injectedDepLocation = modulesState?.injectedDeps?.['project-1'][0]
+  expect(injectedDepLocation).toContain('links')
+  expect(fs.existsSync(path.join(injectedDepLocation!, 'foo.js'))).toBeTruthy()
 })

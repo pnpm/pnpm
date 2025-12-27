@@ -34,9 +34,9 @@ import {
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
-  extendProjectsWithTargetDirs,
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
+import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
 import {
   type LogBase,
   logger,
@@ -92,6 +92,7 @@ import {
 } from '@pnpm/deps.graph-builder'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
+export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
 
 export type { HoistingLimits }
 
@@ -344,7 +345,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     graph,
     hierarchy,
     hoistedLocations,
-    pkgLocationsByDepPath,
+    injectionTargetsByDepPath,
     prevGraph,
     symlinkedDirectDependenciesByImporterId,
   } = await (
@@ -574,11 +575,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
-  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
-    pkgLocationsByDepPath,
-    virtualStoreDir,
-    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-  })
+  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath)
 
   if (opts.enableModulesDir !== false) {
     const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})

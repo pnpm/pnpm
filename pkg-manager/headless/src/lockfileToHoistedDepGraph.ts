@@ -89,7 +89,8 @@ async function _lockfileToHoistedDepGraph (
     ...opts,
     lockfile,
     graph,
-    pkgLocationsByDepPath: {},
+    pkgLocationsByDepPath: {} as Record<string, string[]>,
+    injectionTargetsByDepPath: new Map<string, string[]>(),
     hoistedLocations: {} as Record<string, string[]>,
   }
   const hierarchy = {
@@ -120,9 +121,9 @@ async function _lockfileToHoistedDepGraph (
     directDependenciesByImporterId,
     graph,
     hierarchy,
-    pkgLocationsByDepPath: fetchDepsOpts.pkgLocationsByDepPath,
     symlinkedDirectDependenciesByImporterId,
     hoistedLocations: fetchDepsOpts.hoistedLocations,
+    injectionTargetsByDepPath: fetchDepsOpts.injectionTargetsByDepPath,
   }
 }
 
@@ -159,6 +160,7 @@ async function fetchDeps (
     graph: DependenciesGraph
     lockfile: LockfileObject
     pkgLocationsByDepPath: Record<string, string[]>
+    injectionTargetsByDepPath: Map<string, string[]>
     hoistedLocations: Record<string, string[]>
   } & LockfileToHoistedDepGraphOptions,
   modules: string,
@@ -261,6 +263,15 @@ async function fetchDeps (
       opts.pkgLocationsByDepPath[depPath] = []
     }
     opts.pkgLocationsByDepPath[depPath].push(dir)
+    // Track directory deps for injected workspace packages
+    if ('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) {
+      const locations = opts.injectionTargetsByDepPath.get(depPath)
+      if (locations) {
+        locations.push(dir)
+      } else {
+        opts.injectionTargetsByDepPath.set(depPath, [dir])
+      }
+    }
     depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)
     if (!opts.hoistedLocations[depPath]) {
       opts.hoistedLocations[depPath] = []
