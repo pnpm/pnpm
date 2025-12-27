@@ -66,7 +66,8 @@ export async function getRegisteredProjects (storeDir: string): Promise<string[]
       )
     }
 
-    const absoluteTarget = path.isAbsolute(target) ? target : path.resolve(path.dirname(linkPath), target)
+    // Normalize to remove any trailing slashes (Windows junctions may include them)
+    const absoluteTarget = path.normalize(path.isAbsolute(target) ? target : path.resolve(path.dirname(linkPath), target))
 
     // Check if project still exists
     try {
