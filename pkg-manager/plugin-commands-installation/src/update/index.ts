@@ -11,7 +11,7 @@ import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { PnpmError } from '@pnpm/error'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
-import { type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
+import { type IncludedDependencies, type ProjectRootDir, type PackageVulnerabilityAudit } from '@pnpm/types'
 import enquirer from 'enquirer'
 import chalk from 'chalk'
 import { pick, pluck, unnest } from 'ramda'
@@ -164,6 +164,7 @@ dependencies is not found inside the workspace',
 export type UpdateCommandOptions = InstallCommandOptions & {
   interactive?: boolean
   latest?: boolean
+  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
 export async function handler (

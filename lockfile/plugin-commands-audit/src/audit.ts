@@ -1,4 +1,4 @@
-import { audit, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts } from '@pnpm/audit'
+import { audit, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts } from '@pnpm/audit'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config'
@@ -6,20 +6,15 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { type Registries } from '@pnpm/types'
+import { update, type InstallCommandOptions } from '@pnpm/plugin-commands-installation'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
 import { difference, pick, pickBy } from 'ramda'
 import renderHelp from 'render-help'
 import { fix } from './fix.js'
+import { fixWithUpdate } from './fixWithUpdate.js'
 import { ignore } from './ignore.js'
-
-// eslint-disable
-const AUDIT_LEVEL_NUMBER = {
-  low: 0,
-  moderate: 1,
-  high: 2,
-  critical: 3,
-} satisfies Record<AuditLevelString, AuditLevelNumber>
+import { AUDIT_LEVEL_SEVERITY } from './severity.js'
 
 const AUDIT_COLOR = {
   low: chalk.bold,
@@ -41,10 +36,9 @@ const AUDIT_TABLE_OPTIONS = {
 
 const MAX_PATHS_COUNT = 3
 
-export const rcOptionsTypes = cliOptionsTypes
-
-export function cliOptionsTypes (): Record<string, unknown> {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
+    ...update.rcOptionsTypes(),
     ...pick([
       'dev',
       'json',
@@ -54,10 +48,21 @@ export function cliOptionsTypes (): Record<string, unknown> {
       'registry',
     ], allTypes),
     'audit-level': ['low', 'moderate', 'high', 'critical'],
-    fix: Boolean,
+    'audit-registry': String,
+    fix: [Boolean, 'override', 'update'],
     'ignore-registry-errors': Boolean,
     ignore: [String, Array],
     'ignore-unfixable': Boolean,
+  }
+}
+
+export function cliOptionsTypes (): Record<string, unknown> {
+  return {
+    ...pick([
+      'recursive',
+      'workspace',
+    ], update.cliOptionsTypes()),
+    ...rcOptionsTypes(),
   }
 }
 
@@ -83,6 +88,10 @@ export function help (): string {
           {
             description: 'Output audit report in JSON format',
             name: '--json',
+          },
+          {
+            description: 'Registry URL to use for audit requests',
+            name: '--audit-registry <url>',
           },
           {
             description: 'Only print advisories with severity greater than or equal to one of the following: low|moderate|high|critical. Default: low',
@@ -124,7 +133,8 @@ export function help (): string {
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
-  fix?: boolean
+  fix?: boolean | 'override' | 'update'
+  auditRegistry?: string
   ignoreRegistryErrors?: boolean
   json?: boolean
   lockfileDir?: string
@@ -156,7 +166,9 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
 | 'rootProjectManifestDir'
 | 'virtualStoreDirMaxLength'
 | 'workspaceDir'
->
+> & InstallCommandOptions
+
+const DEFAULT_FIX_METHOD = 'override'
 
 export async function handler (opts: AuditOptions): Promise<{ exitCode: number, output: string }> {
   const lockfileDir = opts.lockfileDir ?? opts.dir
@@ -187,7 +199,7 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
       },
       include,
       lockfileDir,
-      registry: opts.registries.default,
+      registry: opts.auditRegistry ?? opts.registries.default,
       retry: {
         factor: opts.fetchRetryFactor,
         maxTimeout: opts.fetchRetryMaxtimeout,
@@ -207,7 +219,25 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
 
     throw err
   }
-  if (opts.fix) {
+  let fixMethod: 'update' | 'override' | undefined
+  if (opts.fix === 'update' || opts.fix === 'override') {
+    fixMethod = opts.fix
+  } else if (opts.fix === true) {
+    fixMethod = DEFAULT_FIX_METHOD
+  } else if (!opts.fix) {
+    fixMethod = undefined
+  } else {
+    throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${opts.fix as string}`)
+  }
+  if (fixMethod === 'update') {
+    await fixWithUpdate(auditReport, opts)
+    // TODO: return info about what was updated
+    return {
+      exitCode: 0,
+      output: 'Packages were updated to fix vulnerabilities.',
+    }
+  }
+  if (fixMethod === 'override') {
     const newOverrides = await fix(auditReport, opts)
     if (Object.values(newOverrides).length === 0) {
       return {
@@ -285,11 +315,11 @@ ${newIgnores.join('\n')}`,
   }
 
   let output = ''
-  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
+  const auditLevel = AUDIT_LEVEL_SEVERITY[opts.auditLevel ?? 'low']
   let advisories = Object.values(auditReport.advisories)
   advisories = advisories
-    .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
-    .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
+    .filter(({ severity }) => AUDIT_LEVEL_SEVERITY[severity] >= auditLevel)
+    .sort((a1, a2) => AUDIT_LEVEL_SEVERITY[a2.severity] - AUDIT_LEVEL_SEVERITY[a1.severity])
   for (const advisory of advisories) {
     const paths = advisory.findings.map(({ paths }) => paths).flat()
     output += table([

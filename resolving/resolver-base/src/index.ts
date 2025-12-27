@@ -4,6 +4,7 @@ import {
   type PkgResolutionId,
   type PinnedVersion,
   type PackageVersionPolicy,
+  type PackageVulnerabilityAudit,
   type TrustPolicy,
 } from '@pnpm/types'
 
@@ -129,6 +130,7 @@ export interface ResolveOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
+  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
 export type WantedDependency = {
