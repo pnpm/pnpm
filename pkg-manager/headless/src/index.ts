@@ -34,9 +34,9 @@ import {
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
-  extendProjectsWithTargetDirs,
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
+import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
 import {
   type LogBase,
   logger,
@@ -86,6 +86,7 @@ import {
 } from '@pnpm/deps.graph-builder'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
+export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
 
 export type { HoistingLimits }
 
@@ -569,10 +570,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
-  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
-    directoryDepsByDepPath,
-    virtualStoreDir,
-    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, {
+    directoryDepsByDepPath: directoryDepsByDepPath ?? new Map(),
   })
 
   if (opts.enableModulesDir !== false) {

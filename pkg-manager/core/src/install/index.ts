@@ -25,7 +25,7 @@ import {
 } from '@pnpm/lockfile.settings-checker'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
-import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
+import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/headless'
 import {
   makeNodeRequireOption,
   runLifecycleHook,
@@ -44,7 +44,6 @@ import {
   type CatalogSnapshots,
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
-import { extendProjectsWithTargetDirs } from '@pnpm/lockfile.utils'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
@@ -1505,10 +1504,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }
 
-    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, newLockfile, {
+    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, {
       directoryDepsByDepPath,
-      virtualStoreDir: ctx.virtualStoreDir,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
     const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
