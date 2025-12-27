@@ -262,11 +262,11 @@ export async function handler (
     if (opts.argv.original.includes('--allow-build')) {
       throw new PnpmError('ALLOW_BUILD_MISSING_PACKAGE', 'The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
     }
-    if (opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies?.length) {
-      const overlapDependencies = opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.filter((dep) => opts.allowBuild?.includes(dep))
+    if (opts.ignoredBuiltDependencies?.length) {
+      const overlapDependencies = opts.ignoredBuiltDependencies.filter((dep) => opts.allowBuild?.includes(dep))
       if (overlapDependencies.length) {
         throw new PnpmError('OVERRIDING_IGNORED_BUILT_DEPENDENCIES', `The following dependencies are ignored by the root project, but are allowed to be built by the current command: ${overlapDependencies.join(', ')}`, {
-          hint: 'If you are sure you want to allow those dependencies to run installation scripts, remove them from the pnpm.ignoredBuiltDependencies list.',
+          hint: 'If you are sure you want to allow those dependencies to run installation scripts, remove them from the ignoredBuiltDependencies list in pnpm-workspace.yaml.',
         })
       }
     }

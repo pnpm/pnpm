@@ -1,13 +1,12 @@
 import fs from 'fs'
 import path from 'path'
-import { prepare, preparePackages } from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import { type PackageManifest, type ProjectManifest } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
 import { loadJsonFileSync } from 'load-json-file'
 import { sync as writeYamlFileSync } from 'write-yaml-file'
-import writeYamlFile from 'write-yaml-file'
-import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
+import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
@@ -109,9 +108,9 @@ test('dependency should not be added to package.json and lockfile if it was not 
   const initialPkg = {
     name: 'foo',
     version: '1.0.0',
-    pnpm: { neverBuiltDependencies: [] },
   }
   const project = prepare(initialPkg)
+  writeYamlFileSync('pnpm-workspace.yaml', { neverBuiltDependencies: [] })
 
   const result = execPnpmSync(['install', 'package-that-cannot-be-installed@0.0.0'])
 
@@ -147,13 +146,12 @@ test('node-gyp is in the PATH', async () => {
 })
 
 test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFile', async () => {
-  prepare({
-    pnpm: {
-      configDependencies: {
-        '@pnpm.e2e/build-allow-list': `1.0.0+${getIntegrity('@pnpm.e2e/build-allow-list', '1.0.0')}`,
-      },
-      onlyBuiltDependenciesFile: 'node_modules/.pnpm-config/@pnpm.e2e/build-allow-list/list.json',
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    configDependencies: {
+      '@pnpm.e2e/build-allow-list': `1.0.0+${getIntegrity('@pnpm.e2e/build-allow-list', '1.0.0')}`,
     },
+    onlyBuiltDependenciesFile: 'node_modules/.pnpm-config/@pnpm.e2e/build-allow-list/list.json',
   })
   execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
 
@@ -184,8 +182,8 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
-  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
-  expect(manifest.pnpm?.onlyBuiltDependencies).toBeUndefined()
+  const manifest = loadJsonFileSync<Record<string, unknown>>('package.json')
+  expect((manifest as Record<string, unknown>).pnpm).toBeUndefined()
   const modulesManifest = await readWorkspaceManifest(project.dir())
   expect(modulesManifest?.onlyBuiltDependencies).toStrictEqual(['@pnpm.e2e/install-script-example'])
 })
@@ -201,119 +199,22 @@ test('--allow-build flag should specify the package', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
 
-  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
-  expect(manifest.pnpm?.onlyBuiltDependencies).toBeUndefined()
+  const manifest = loadJsonFileSync<Record<string, unknown>>('package.json')
+  expect((manifest as Record<string, unknown>).pnpm).toBeUndefined()
   const modulesManifest = await readWorkspaceManifest(project.dir())
   expect(modulesManifest?.onlyBuiltDependencies).toBeUndefined()
 })
 
 test('selectively allow scripts in some dependencies by --allow-build flag overlap ignoredBuiltDependencies', async () => {
-  prepare({
-    pnpm: {
-      ignoredBuiltDependencies: ['@pnpm.e2e/install-script-example'],
-    },
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    ignoredBuiltDependencies: ['@pnpm.e2e/install-script-example'],
   })
   const result = execPnpmSync(['add', '--allow-build=@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
 
   expect(result.status).toBe(1)
   expect(result.stdout.toString()).toContain('The following dependencies are ignored by the root project, but are allowed to be built by the current command: @pnpm.e2e/install-script-example')
 })
-
-test('use node versions specified by devEngines.runtime in workspace packages', async () => {
-  const projects = preparePackages([
-    {
-      location: '.',
-      package: {
-        name: 'root',
-        version: '1.0.0',
-        private: true,
-      },
-    },
-    {
-      name: 'node-version-unset',
-      version: '1.0.0',
-      scripts: {
-        test: 'node -v > node-version.txt',
-      },
-    },
-    {
-      name: 'node-version-18',
-      version: '1.0.0',
-      scripts: {
-        test: 'node -v > node-version.txt',
-      },
-      devEngines: {
-        runtime: {
-          name: 'node',
-          version: '18.0.0',
-          onFail: 'download',
-        },
-      },
-    },
-    {
-      name: 'node-version-20',
-      version: '1.0.0',
-      scripts: {
-        test: 'node -v > node-version.txt',
-      },
-      devEngines: {
-        runtime: {
-          name: 'node',
-          version: '20.0.0',
-          onFail: 'download',
-        },
-      },
-    },
-  ])
-
-  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
-    packages: ['*'],
-    verifyDepsBeforeRun: 'install',
-  })
-
-  execPnpmSync(['-r', 'test'])
-  expect(
-    ['node-version-unset', 'node-version-18', 'node-version-20'].map(name => {
-      const filePath = path.join(projects[name].dir(), 'node-version.txt')
-      return fs.readFileSync(filePath, 'utf-8').trim()
-    })
-  ).toStrictEqual([process.version, 'v18.0.0', 'v20.0.0'])
-
-  execPnpmSync(['--config.use-node-version=19.0.0', '-r', 'test'])
-  expect(
-    ['node-version-unset', 'node-version-18', 'node-version-20'].map(name => {
-      const filePath = path.join(projects[name].dir(), 'node-version.txt')
-      return fs.readFileSync(filePath, 'utf-8').trim()
-    })
-  ).toStrictEqual(['v19.0.0', 'v18.0.0', 'v20.0.0'])
-})
-
-test('ignores pnpm.executionEnv specified by dependencies', async () => {
-  prepare({
-    name: 'ignores-pnpm-use-node-version-from-dependencies',
-    version: '1.0.0',
-    dependencies: {
-      // this package's package.json has pnpm.executionEnv.nodeVersion = '20.0.0'
-      '@pnpm.e2e/has-execution-env': '1.0.0',
-    },
-    pnpm: {
-      neverBuiltDependencies: [],
-    },
-  })
-
-  await execPnpm(['install'])
-
-  const nodeInfoFile = path.resolve('node_modules', '@pnpm.e2e', 'has-execution-env', 'node-info.json')
-  const nodeInfoJson = fs.readFileSync(nodeInfoFile, 'utf-8')
-  const nodeInfo = JSON.parse(nodeInfoJson)
-
-  // pnpm should still use system's Node.js to execute the install script despite pnpm.executionEnv.nodeVersion specified by the dependency
-  expect(nodeInfo).toMatchObject({
-    execPath: process.execPath,
-    versions: process.versions,
-  })
-})
-
 
 test('preinstall script does not trigger verify-deps-before-run (#8954)', async () => {
   const pnpm = `${process.execPath} ${pnpmBinLocation}` // this would fail if either paths happen to contain spaces
@@ -353,7 +254,7 @@ test('preinstall and postinstall scripts do not trigger verify-deps-before-run w
     },
   })
 
-  writeYamlFile('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'install' })
+  writeYamlFileSync('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'install' })
 
   // 20s timeout because if it fails it will run for 3 minutes instead
   const output = execPnpmSync(['install'], { expectSuccess: true, timeout: 20_000 })

@@ -783,12 +783,10 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
       ...await filterPackagesFromDir(process.cwd(), [{ namePattern: '*' }]),
       dir: process.cwd(),
       recursive: true,
+      requiredScripts: ['build'],
       rootProjectManifest: {
         name: 'test-workspaces',
         private: true,
-        pnpm: {
-          requiredScripts: ['build'],
-        },
       },
       workspaceDir: process.cwd(),
     }, ['build'])

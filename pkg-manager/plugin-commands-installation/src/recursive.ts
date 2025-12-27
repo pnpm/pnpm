@@ -10,7 +10,6 @@ import {
   type OptionsFromRootManifest,
   type ProjectConfig,
   createProjectConfigRecord,
-  getOptionsFromRootManifest,
   getWorkspaceConcurrency,
 } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -85,6 +84,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'tag'
 | 'cleanupUnusedCatalogs'
 | 'packageConfigs'
+| 'updateConfig'
 > & {
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
@@ -181,7 +181,7 @@ export async function recursive (
   let updateMatch: UpdateDepsMatcher | null
   if (cmdFullName === 'update') {
     if (params.length === 0) {
-      const ignoreDeps = manifestsByPath[opts.workspaceDir as ProjectRootDir]?.manifest?.pnpm?.updateConfig?.ignoreDependencies
+      const ignoreDeps = opts.updateConfig?.ignoreDependencies
       if (ignoreDeps?.length) {
         params = makeIgnorePatterns(ignoreDeps)
       }

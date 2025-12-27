@@ -500,21 +500,12 @@ describe('patch and commit', () => {
   })
 
   test('if the patch file is not existed when patching, should throw an error', async () => {
-    const { writeProjectManifest, manifest } = await readProjectManifest(process.cwd())
-    await writeProjectManifest({
-      ...manifest,
-      pnpm: {
-        patchedDependencies: {
-          'is-positive@1.0.0': 'patches/not-found.patch',
-        },
+    await expect(patch.handler({
+      ...defaultPatchOption,
+      patchedDependencies: {
+        'is-positive@1.0.0': 'patches/not-found.patch',
       },
-    })
-
-    try {
-      await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
-    } catch (err: any) { // eslint-disable-line
-      expect(err.code).toBe('ERR_PNPM_PATCH_FILE_NOT_FOUND')
-    }
+    }, ['is-positive@1.0.0'])).rejects.toThrow('Unable to find patch file')
   })
 
   test('should ignore patch files with --ignore-patches', async () => {
@@ -1044,8 +1035,9 @@ describe('patch and commit in workspaces', () => {
       frozenLockfile: false,
     }, [patchDir])
 
+    // pnpm field should not exist in package.json since settings are in workspace manifest
     const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toBeUndefined()
+    expect((manifest as Record<string, unknown>)['pnpm']).toBeUndefined()
     const workspaceManifest = await readWorkspaceManifest(process.cwd())
     expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
@@ -1109,7 +1101,7 @@ describe('patch and commit in workspaces', () => {
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toBeUndefined()
+    expect((manifest as Record<string, unknown>)['pnpm']).toBeUndefined()
     const workspaceManifest = await readWorkspaceManifest(process.cwd())
     expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
@@ -1256,7 +1248,7 @@ describe('patch and commit in workspaces', () => {
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toBeUndefined()
+    expect((manifest as Record<string, unknown>)['pnpm']).toBeUndefined()
     const workspaceManifest = await readWorkspaceManifest(process.cwd())
     expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'hi@1.0.0': 'patches/hi@1.0.0.patch',
@@ -1356,51 +1348,56 @@ describe('patch-remove', () => {
     })
   })
   test('patch-remove should work as expected', async () => {
-    const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
-    manifest.pnpm = {
+    // Write to workspace manifest instead of package.json pnpm field
+    writeYamlFile('pnpm-workspace.yaml', {
+      packages: ['.'],
       patchedDependencies: {
         'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
       },
-    }
-    await writeProjectManifest(manifest)
+    })
     fs.mkdirSync(path.join(process.cwd(), 'patches'))
     fs.writeFileSync(path.join(process.cwd(), 'patches/is-positive@1.0.0.patch'), 'test patch content', 'utf8')
 
+    const { manifest } = await readProjectManifest(process.cwd())
     await patchRemove.handler({
       ...defaultPatchRemoveOption,
       rootProjectManifest: manifest,
-      patchedDependencies: manifest.pnpm.patchedDependencies,
+      patchedDependencies: {
+        'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+      },
     }, ['is-positive@1.0.0'])
 
-    const { manifest: newManifest } = await readProjectManifest(process.cwd())
-    expect(newManifest!.pnpm!).toBeUndefined()
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toBeUndefined()
     expect(fs.existsSync(path.join(process.cwd(), 'patches/is-positive@1.0.0.patch'))).toBe(false)
     expect(fs.existsSync(path.join(process.cwd(), 'patches'))).toBe(false)
   })
 
   test('prompt to select patches that to be removed', async () => {
-    const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
-    manifest.pnpm = {
-      patchedDependencies: {
-        'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
-        'chalk@4.1.2': 'patches/chalk@4.1.2.patch',
-      },
+    const patchedDependencies = {
+      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+      'chalk@4.1.2': 'patches/chalk@4.1.2.patch',
     }
-    await writeProjectManifest(manifest)
+    // Write to workspace manifest instead of package.json pnpm field
+    writeYamlFile('pnpm-workspace.yaml', {
+      packages: ['.'],
+      patchedDependencies,
+    })
     prompt.mockResolvedValue({
       patches: ['is-positive@1.0.0', 'chalk@4.1.2'],
     })
+    const { manifest } = await readProjectManifest(process.cwd())
     await patchRemove.handler({
       ...defaultPatchRemoveOption,
       rootProjectManifest: manifest,
-      patchedDependencies: manifest.pnpm.patchedDependencies,
+      patchedDependencies,
     }, [])
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((prompt.mock.calls[0][0] as any).choices).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
     prompt.mockClear()
 
-    const { manifest: newManifest } = await readProjectManifest(process.cwd())
-    expect(newManifest!.pnpm!).toBeUndefined()
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toBeUndefined()
   })
 
   test('should throw error when there is no patch to remove', async () => {

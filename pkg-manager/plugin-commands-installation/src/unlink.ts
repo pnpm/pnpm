@@ -1,6 +1,6 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { writeSettings, type WriteSettingsOptions } from '@pnpm/config.config-writer'
+import { writeSettings } from '@pnpm/config.config-writer'
 import renderHelp from 'render-help'
 import * as install from './install.js'
 
