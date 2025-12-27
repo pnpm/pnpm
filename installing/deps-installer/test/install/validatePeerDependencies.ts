@@ -55,7 +55,6 @@ test('overrides are not prevented from replacing peerDependencies with local lin
     peerDependencies: {
       'is-positive': '^1.0.0',
     },
-    pnpm: { overrides },
   }, testDefaults({ overrides }))
 
   expect(await readWantedLockfile('.', { ignoreIncompatible: false })).toMatchObject({
@@ -95,7 +94,6 @@ test("empty overrides don't disable peer dependencies validation", async () => {
       peerDependencies: {
         foo: 'link:foo',
       },
-      pnpm: { overrides },
     }, testDefaults({ overrides }))
   )
 

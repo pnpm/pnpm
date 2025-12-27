@@ -1,5 +1,6 @@
 import { preparePackages } from '@pnpm/prepare'
 
+
 import { execPnpm } from '../utils/index.js'
 
 test('`pnpm recursive rebuild` specific dependencies', async () => {
@@ -31,6 +32,11 @@ test('`pnpm recursive rebuild` specific dependencies', async () => {
       version: '1.0.0',
     },
   ])
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    neverBuiltDependencies: [],
+  })
 
   await execPnpm(['recursive', 'install', '--ignore-scripts'])
 
