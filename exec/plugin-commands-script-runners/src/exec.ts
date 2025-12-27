@@ -7,7 +7,6 @@ import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { sortPackages } from '@pnpm/sort-packages'
 import { type Project, type ProjectsGraph, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
 import execa from 'execa'
@@ -222,15 +221,12 @@ export async function handler (
 
   let exitCode = 0
   const mapPrefixToPrependPaths: Record<ProjectRootDir, string[]> = {}
-  await Promise.all(chunks.flat().map(async prefix => {
-    const executionEnv = await prepareExecutionEnv(opts, {
-      extraBinPaths: opts.extraBinPaths,
-    })
+  for (const prefix of chunks.flat()) {
     mapPrefixToPrependPaths[prefix] = [
       './node_modules/.bin',
-      ...executionEnv.extraBinPaths,
+      ...(opts.extraBinPaths ?? []),
     ]
-  }))
+  }
   const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
