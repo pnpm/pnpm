@@ -29,8 +29,17 @@ export function unwrapPackageName (alias: string, originalBareSpecifier: string)
   }
 
   const npmAliasSpecifierValue = originalBareSpecifier.slice(4)
-
   const index = npmAliasSpecifierValue.lastIndexOf('@')
+
+  // If the "@" character isn't found or is the first character, then
+  // this alias is just a package name without a spec. Examples:
+  // "npm:is-positive", "npm:@pnpm/lockfile.fs"
+  //
+  // In this case, the bare specifier will be "*".
+  if (index === -1 || index === 0) {
+    return { pkgName: npmAliasSpecifierValue, bareSpecifier: '*' }
+  }
+
   const bareSpecifier = npmAliasSpecifierValue.slice(index + 1)
   const pkgName = npmAliasSpecifierValue.substring(0, index)
 
