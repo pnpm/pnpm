@@ -1227,6 +1227,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
       trustPolicy: opts.trustPolicy,
       trustPolicyExclude: opts.trustPolicyExclude,
+      trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
       blockExoticSubdeps: opts.blockExoticSubdeps,
     }
   )

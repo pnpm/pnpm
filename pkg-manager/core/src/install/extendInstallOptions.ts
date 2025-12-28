@@ -170,6 +170,7 @@ export interface StrictInstallOptions {
   minimumReleaseAgeExclude?: string[]
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
+  trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
 }
 
