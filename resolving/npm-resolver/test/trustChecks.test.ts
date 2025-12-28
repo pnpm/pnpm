@@ -488,7 +488,7 @@ describe('failIfTrustDowngraded with trustPolicyExclude', () => {
     }
 
     expect(() => {
-      failIfTrustDowngraded(meta, '3.0.0', createPackageVersionPolicy(['foo@3.0.0']))
+      failIfTrustDowngraded(meta, '3.0.0', { trustPolicyExclude: createPackageVersionPolicy(['foo@3.0.0']) })
     }).not.toThrow()
 
     expect(() => {
@@ -533,7 +533,7 @@ describe('failIfTrustDowngraded with trustPolicyExclude', () => {
     }
 
     expect(() => {
-      failIfTrustDowngraded(meta, '3.0.0', createPackageVersionPolicy(['bar']))
+      failIfTrustDowngraded(meta, '3.0.0', { trustPolicyExclude: createPackageVersionPolicy(['bar']) })
     }).not.toThrow()
   })
 
@@ -555,7 +555,7 @@ describe('failIfTrustDowngraded with trustPolicyExclude', () => {
     }
 
     expect(() => {
-      failIfTrustDowngraded(meta, '1.0.0', createPackageVersionPolicy(['baz@1.0.0']))
+      failIfTrustDowngraded(meta, '1.0.0', { trustPolicyExclude: createPackageVersionPolicy(['baz@1.0.0']) })
     }).not.toThrow()
   })
 
@@ -585,7 +585,7 @@ describe('failIfTrustDowngraded with trustPolicyExclude', () => {
     }
 
     expect(() => {
-      failIfTrustDowngraded(meta, '2.0.0', createPackageVersionPolicy(['qux']))
+      failIfTrustDowngraded(meta, '2.0.0', { trustPolicyExclude: createPackageVersionPolicy(['qux']) })
     }).not.toThrow()
   })
 })
@@ -625,7 +625,7 @@ describe('failIfTrustDowngraded with trustPolicyIgnoreAfter', () => {
     }
 
     expect(() => {
-      failIfTrustDowngraded(meta, '3.0.0', undefined, 60 * 24 * 30) // 30 days)
+      failIfTrustDowngraded(meta, '3.0.0', { trustPolicyIgnoreAfter: 60 * 24 * 30 }) // 30 days
     }).not.toThrow()
 
     expect(() => {

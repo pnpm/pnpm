@@ -14,11 +14,13 @@ const TRUST_RANK = {
 export function failIfTrustDowngraded (
   meta: PackageMeta,
   version: string,
-  trustPolicyExclude?: PackageVersionPolicy,
-  trustPolicyIgnoreAfter?: number
+  opts?: {
+    trustPolicyExclude?: PackageVersionPolicy
+    trustPolicyIgnoreAfter?: number
+  }
 ): void {
-  if (trustPolicyExclude) {
-    const excludeResult = trustPolicyExclude(meta.name)
+  if (opts?.trustPolicyExclude) {
+    const excludeResult = opts.trustPolicyExclude(meta.name)
     if (excludeResult === true) {
       return
     }
@@ -38,10 +40,10 @@ export function failIfTrustDowngraded (
   }
 
   const versionDate = new Date(versionPublishedAt)
-  if (trustPolicyIgnoreAfter) {
+  if (opts?.trustPolicyIgnoreAfter) {
     const now = new Date()
     const minutesSincePublish = (now.getTime() - versionDate.getTime()) / (1000 * 60)
-    if (minutesSincePublish > trustPolicyIgnoreAfter) {
+    if (minutesSincePublish > opts.trustPolicyIgnoreAfter) {
       return
     }
   }

@@ -10,4 +10,4 @@
 "pnpm": minor
 ---
 
-Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago.
+Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
