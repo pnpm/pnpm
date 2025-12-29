@@ -91,7 +91,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
     : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
 
   // Resolve symlink for global virtual store
-  if (depPath && opts.modulesDir && opts.alias && opts.virtualStoreDir && path.isAbsolute(opts.virtualStoreDir)) {
+  if (depPath && opts.modulesDir && opts.alias && opts.virtualStoreDir && !opts.virtualStoreDir.startsWith(opts.modulesDir)) {
     const symlinkPath = path.join(opts.modulesDir, opts.alias)
     try {
       fullPackagePath = fs.realpathSync(symlinkPath)
