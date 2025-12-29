@@ -612,6 +612,13 @@ export async function getConfig (opts: {
     pnpmConfig.enableGlobalVirtualStore = false
   }
 
+  // The yes option is only meant to be a CLI option. Remove it from the
+  // returned pnpm config.
+  delete (pnpmConfig as { yes?: boolean }).yes
+  if (cliOptions.yes) {
+    pnpmConfig.autoConfirmAllPrompts = true
+  }
+
   transformPathKeys(pnpmConfig, os.homedir())
 
   return { config: pnpmConfig, warnings }
