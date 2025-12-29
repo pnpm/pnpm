@@ -8,7 +8,7 @@ import { sync as writeYamlFile } from 'write-yaml-file'
 test('updateWorkspaceManifest adds a new setting', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, { packages: ['*'] })
+  writeYamlFile(filePath, { packages: ['*'], onlyBuiltDependencies: [] })
   await updateWorkspaceManifest(dir, {
     updatedFields: { onlyBuiltDependencies: [] },
   })
