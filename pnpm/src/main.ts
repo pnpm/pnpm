@@ -120,7 +120,11 @@ export async function main (inputArgv: string[]): Promise<void> {
       if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm' && cmd !== 'self-update') {
         await switchCliVersion(config)
       } else if (!cmd || !skipPackageManagerCheckForCommand.has(cmd)) {
-        checkPackageManager(config.wantedPackageManager, config)
+        if (cliOptions.global) {
+          globalWarn('Using --global skips the package manager check for this project')
+        } else {
+          checkPackageManager(config.wantedPackageManager, config)
+        }
       }
     }
     if (isDlxOrCreateCommand) {
