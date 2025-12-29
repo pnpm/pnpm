@@ -186,7 +186,8 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
   expect(manifest.pnpm?.onlyBuiltDependencies).toStrictEqual(undefined)
   const modulesManifest = await readWorkspaceManifest(project.dir())
-  expect(modulesManifest?.onlyBuiltDependencies).toStrictEqual(['@pnpm.e2e/install-script-example'])
+  expect(modulesManifest?.onlyBuiltDependencies).toBeUndefined()
+  expect(modulesManifest?.allowBuilds).toStrictEqual({ '@pnpm.e2e/install-script-example': true })
 })
 
 test('--allow-build flag should specify the package', async () => {
