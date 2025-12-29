@@ -29,6 +29,7 @@ export function unwrapPackageName (alias: string, originalBareSpecifier: string)
   }
 
   const npmAliasSpecifierValue = originalBareSpecifier.slice(4)
+
   const index = npmAliasSpecifierValue.lastIndexOf('@')
 
   // If the "@" character isn't found or is the first character, then
