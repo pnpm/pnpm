@@ -1135,7 +1135,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       pnpm:
-        specifier: 'workspace:'
+        specifier: workspace:*
         version: link:../../pnpm
       ts-jest-resolver:
         specifier: 'catalog:'
