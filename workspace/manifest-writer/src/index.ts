@@ -40,7 +40,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
 
   // If the current manifest has allowBuilds, convert old fields to allowBuilds format
   const updatedFields = { ...opts.updatedFields }
-  if (manifest.allowBuilds != null && (updatedFields.onlyBuiltDependencies != null || updatedFields.ignoredBuiltDependencies != null)) {
+  if (manifest.allowBuilds != null || (manifest.onlyBuiltDependencies == null && manifest.ignoredBuiltDependencies == null)) {
     const allowBuilds: Record<string, boolean | string> = { ...manifest.allowBuilds }
 
     // Convert onlyBuiltDependencies to allowBuilds with true values
@@ -58,7 +58,9 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     }
 
     // Update allowBuilds instead of the old fields
-    updatedFields.allowBuilds = allowBuilds
+    if (manifest.allowBuilds != null || Object.keys(allowBuilds).length > 0) {
+      updatedFields.allowBuilds = allowBuilds
+    }
     delete updatedFields.onlyBuiltDependencies
     delete updatedFields.ignoredBuiltDependencies
   }
