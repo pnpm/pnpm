@@ -1191,6 +1191,58 @@ describe('add', () => {
     })
   })
 
+  // Regression test for https://github.com/pnpm/pnpm/issues/9759
+  test('adding new usage of default catalog does not mutate catalog entries', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+      {
+        name: 'project1',
+        dependencies: {
+          '@pnpm.e2e/foo': 'catalog:',
+        },
+      },
+      {
+        name: 'project2',
+      },
+    ])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '^100.0.0' },
+    }
+
+    await mutateModules(installProjects(projects), {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    })
+
+    await addDependenciesToPackage(
+      projects['project2' as ProjectId],
+      ['@pnpm.e2e/foo'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project2'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs,
+      })
+
+    const lockfile = readLockfile()
+
+    // This is the specific condition we're regression testing for. The
+    // specifier used in the original catalog entry should not be modified.
+    expect(lockfile.catalogs.default['@pnpm.e2e/foo'].specifier).toEqual(catalogs.default['@pnpm.e2e/foo'])
+
+    // Sanity check that the rest of the lockfile has expected contents.
+    expect(readLockfile()).toMatchObject({
+      catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^100.0.0', version: '100.0.0' } } },
+      importers: {
+        project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '100.0.0' } } },
+        project2: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '100.0.0' } } },
+      },
+      packages: { '@pnpm.e2e/foo@100.0.0': expect.any(Object) },
+    })
+  })
+
   test('adding specific version equal to catalog version will use catalog if present', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
