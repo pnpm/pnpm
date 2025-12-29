@@ -30,7 +30,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
-    "update-responses": "ts-node test/utils/responses/update.ts"
+    "update-responses": "node test/utils/responses/update.ts"
   },
   "dependencies": {
     "@pnpm/audit": "workspace:*",
