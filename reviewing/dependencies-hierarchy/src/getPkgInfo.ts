@@ -1,4 +1,5 @@
 import path from 'path'
+import fs from 'fs'
 import {
   type PackageSnapshot,
   type PackageSnapshots,
@@ -39,6 +40,11 @@ export interface GetPkgInfoOpts {
    * version.
    */
   readonly rewriteLinkVersionDir?: string
+
+  /**
+   * The node_modules directory to resolve symlinks from when using global virtual store.
+   */
+  readonly modulesDir?: string
 }
 
 export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readManifest: () => DependencyManifest } {
@@ -80,9 +86,19 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
   if (!version) {
     version = opts.ref
   }
-  const fullPackagePath = depPath
+  let fullPackagePath = depPath
     ? path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules', name)
     : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
+
+  // Resolve symlink for global virtual store
+  if (depPath && opts.modulesDir && opts.alias && opts.virtualStoreDir && !opts.virtualStoreDir.endsWith('.pnpm')) {
+    const symlinkPath = path.join(opts.modulesDir, opts.alias)
+    try {
+      fullPackagePath = fs.realpathSync(symlinkPath)
+    } catch {
+      // Fallback to constructed path if symlink doesn't exist
+    }
+  }
 
   if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {
     version = `link:${normalizePath(path.relative(opts.rewriteLinkVersionDir, fullPackagePath))}`

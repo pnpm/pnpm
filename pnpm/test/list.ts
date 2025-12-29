@@ -1,4 +1,5 @@
 import fs from 'fs'
+import path from 'path'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils/index.js'
@@ -41,4 +42,32 @@ function hasPeerA (context) {
   expect(result.stdout.toString()).toMatch(`dependencies:
 @pnpm.e2e/abc 1.0.0
   @pnpm.e2e/peer-a@^1.0.0`)
+})
+
+test('pnpm list returns correct paths with global virtual store', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+  const storeDir = path.resolve('store')
+  writeYamlFile('pnpm-workspace.yaml', {
+    ci: false, // enableGlobalVirtualStore is always disabled in CI
+    enableGlobalVirtualStore: true,
+    storeDir,
+    privateHoistPattern: '*',
+  })
+  await execPnpm(['install'])
+
+  const { stdout } = execPnpmSync(['list', '--json'])
+  const listResult = JSON.parse(stdout.toString())
+
+  expect(listResult).toHaveLength(1)
+  expect(listResult[0].dependencies).toBeDefined()
+
+  const pkgPath = listResult[0].dependencies['@pnpm.e2e/pkg-with-1-dep'].path
+
+  // Verify the path actually exists
+  expect(fs.existsSync(pkgPath)).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgPath, 'package.json'))).toBeTruthy()
 })

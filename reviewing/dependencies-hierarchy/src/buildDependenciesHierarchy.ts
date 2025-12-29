@@ -148,6 +148,7 @@ async function dependenciesHierarchyForPackage (
     wantedPackages: wantedLockfile?.packages ?? {},
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    modulesDir,
   })
   const parentId: TreeNodeId = { type: 'importer', importerId }
   const result: DependenciesHierarchy = {}
@@ -168,6 +169,7 @@ async function dependenciesHierarchyForPackage (
         wantedPackages: wantedLockfile?.packages ?? {},
         virtualStoreDir: opts.virtualStoreDir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        modulesDir,
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.({
