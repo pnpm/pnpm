@@ -621,12 +621,6 @@ export async function getConfig (opts: {
     pnpmConfig.dev = true
   }
 
-  if (pnpmConfig.dangerouslyAllowAllBuilds) {
-    if (pnpmConfig.neverBuiltDependencies && pnpmConfig.neverBuiltDependencies.length > 0) {
-      warnings.push('You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.')
-    }
-    pnpmConfig.neverBuiltDependencies = []
-  }
   if (pnpmConfig.ci) {
     // Using a global virtual store in CI makes little sense,
     // as there is never a warm cache in that environment.

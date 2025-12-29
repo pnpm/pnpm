@@ -45,30 +45,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     shouldBeUpdated = removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? []) || shouldBeUpdated
   }
 
-  // If the current manifest has allowBuilds, convert old fields to allowBuilds format
   const updatedFields = { ...opts.updatedFields }
-  if (manifest.allowBuilds != null && (updatedFields.onlyBuiltDependencies != null || updatedFields.ignoredBuiltDependencies != null)) {
-    const allowBuilds: Record<string, boolean | string> = { ...manifest.allowBuilds }
-
-    // Convert onlyBuiltDependencies to allowBuilds with true values
-    if (updatedFields.onlyBuiltDependencies != null) {
-      for (const pattern of updatedFields.onlyBuiltDependencies) {
-        allowBuilds[pattern] = true
-      }
-    }
-
-    // Convert ignoredBuiltDependencies to allowBuilds with false values
-    if (updatedFields.ignoredBuiltDependencies != null) {
-      for (const pattern of updatedFields.ignoredBuiltDependencies) {
-        allowBuilds[pattern] = false
-      }
-    }
-
-    // Update allowBuilds instead of the old fields
-    updatedFields.allowBuilds = allowBuilds
-    delete updatedFields.onlyBuiltDependencies
-    delete updatedFields.ignoredBuiltDependencies
-  }
 
   for (const [key, value] of Object.entries(updatedFields)) {
     if (!equals(manifest[key as keyof WorkspaceManifest], value)) {

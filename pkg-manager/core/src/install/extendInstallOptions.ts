@@ -72,9 +72,7 @@ export interface StrictInstallOptions {
   verifyStoreIntegrity: boolean
   engineStrict: boolean
   ignoredBuiltDependencies?: string[]
-  neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
   nodeExecPath?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion?: string
@@ -291,11 +289,8 @@ export function extendOptions (
       }
     }
   }
-  if (opts.neverBuiltDependencies == null && opts.onlyBuiltDependencies == null && opts.onlyBuiltDependenciesFile == null) {
+  if (opts.onlyBuiltDependencies == null) {
     opts.onlyBuiltDependencies = []
-  }
-  if (opts.onlyBuiltDependencies && opts.neverBuiltDependencies) {
-    throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies')
   }
   const defaultOpts = defaults(opts)
   const extendedOpts: ProcessedInstallOptions = {
