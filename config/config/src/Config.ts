@@ -98,7 +98,6 @@ export interface Config extends OptionsFromRootManifest {
   ignoreCurrentSpecifiers?: boolean
   recursive?: boolean
   enablePrePostScripts?: boolean
-  useNodeVersion?: string
   useStderr?: boolean
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   preferSymlinkedExecutables?: boolean
@@ -237,6 +236,7 @@ export interface Config extends OptionsFromRootManifest {
   fetchMinSpeedKiBps?: number
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
+  trustPolicyIgnoreAfter?: number
 
   packageConfigs?: ProjectConfigSet
 }

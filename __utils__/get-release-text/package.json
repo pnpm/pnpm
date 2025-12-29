@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "write-release-text": "node --loader ts-node/esm src/main.ts",
+    "write-release-text": "node src/main.ts",
     "lint": "eslint src/**/*.ts"
   },
   "dependencies": {

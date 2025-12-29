@@ -17,7 +17,6 @@ import {
   type PeerDependencyRules,
   type ReadPackageHook,
   type Registries,
-  type PrepareExecutionEnv,
   type TrustPolicy,
 } from '@pnpm/types'
 import { type CustomResolver, type CustomFetcher, type PreResolutionHookContext } from '@pnpm/hooks.types'
@@ -165,7 +164,6 @@ export interface StrictInstallOptions {
   hoistWorkspacePackages?: boolean
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
-  prepareExecutionEnv?: PrepareExecutionEnv
   returnListOfDepsRequiringBuild?: boolean
   injectWorkspacePackages?: boolean
   ci?: boolean
@@ -173,6 +171,7 @@ export interface StrictInstallOptions {
   minimumReleaseAgeExclude?: string[]
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
+  trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
 }
 

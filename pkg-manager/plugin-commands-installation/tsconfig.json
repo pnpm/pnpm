@@ -55,9 +55,6 @@
       "path": "../../deps/status"
     },
     {
-      "path": "../../env/plugin-commands-env"
-    },
-    {
       "path": "../../exec/plugin-commands-rebuild"
     },
     {

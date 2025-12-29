@@ -2,7 +2,6 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
@@ -65,6 +64,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'strict-peer-dependencies',
     'trust-policy',
     'trust-policy-exclude',
+    'trust-policy-ignore-after',
     'offline',
     'only',
     'optional',
@@ -212,6 +212,10 @@ by any dependencies, so it is an emulation of a flat node_modules',
           {
             description: 'Exclude specific packages from trust policy checks',
             name: '--trust-policy-exclude <package-spec>',
+          },
+          {
+            description: 'Ignore trust downgrades for packages published more than specified minutes ago',
+            name: '--trust-policy-ignore-after <minutes>',
           },
           {
             description: 'Starts a store server in the background. The store server will keep running after installation is done. To stop the store server, run `pnpm server stop`',
@@ -367,7 +371,6 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
     ),
     include,
     includeDirect: include,
-    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
     fetchFullMetadata: getFetchFullMetadata(opts),
   }
   if (opts.resolutionOnly) {

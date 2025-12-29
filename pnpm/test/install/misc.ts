@@ -563,3 +563,15 @@ test('install fails when trust evidence of an optional dependency is downgraded'
   expect(result.stdout.toString()).toContain('ERR_PNPM_TRUST_DOWNGRADE')
   expect(result.status).toBe(1)
 })
+
+test('install does not fail when the trust evidence of a package is downgraded but the trust-policy-ignore-after is set', async () => {
+  const project = prepare()
+  const result = execPnpmSync([
+    'add',
+    '@pnpm/e2e.test-provenance@0.0.5',
+    '--trust-policy=no-downgrade',
+    '--trust-policy-ignore-after=1440', // 1 day
+  ])
+  expect(result.status).toBe(0)
+  project.has('@pnpm/e2e.test-provenance')
+})

@@ -58,11 +58,11 @@
   },
   "unpkg": "dist/pnpm.mjs",
   "scripts": {
-    "bundle": "pnpm --config.useNodeVersion=24.6.0 exec ts-node bundle.ts",
+    "bundle": "pnpm --config.useNodeVersion=24.6.0 node bundle.ts",
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && publish-packed --prune --npm-client=pnpm --dest=dist",
     "postpublish": "publish-packed",

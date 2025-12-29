@@ -53,6 +53,7 @@ import pDefer from 'p-defer'
 import pShare from 'promise-share'
 import { pickBy, omit, zipWith } from 'ramda'
 import semver from 'semver'
+import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies.js'
 import { safeIntersect } from './mergePeers.js'
 import { type NodeId, nextNodeId } from './nextNodeId.js'
@@ -185,6 +186,7 @@ export interface ResolutionContext {
   publishedByExclude?: PackageVersionPolicy
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
 }
 
@@ -1305,13 +1307,18 @@ async function resolveDependency (
       optional: true,
     }
   }
+
+  // Normalize the `preferredVersion` (singular) and `preferredVersions`
+  // (plural) options. If the singular option is passed through, it'll be used
+  // instead of the plural option.
+  const preferredVersions = !options.updateRequested && options.preferredVersion != null
+    ? getExactSinglePreferredVersions(wantedDependency, options.preferredVersion)
+    : options.preferredVersions
+
   try {
     const calcSpecifier = options.currentDepth === 0
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version)
-    }
-    if (!options.updateRequested && options.preferredVersion != null) {
-      wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       allowBuild: ctx.allowBuild,
@@ -1332,7 +1339,7 @@ async function resolveDependency (
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
-      preferredVersions: options.preferredVersions,
+      preferredVersions,
       preferWorkspacePackages: ctx.preferWorkspacePackages,
       projectDir: (
         options.currentDepth > 0 &&
@@ -1343,6 +1350,7 @@ async function resolveDependency (
       skipFetch: ctx.dryRun,
       trustPolicy: ctx.trustPolicy,
       trustPolicyExclude: ctx.trustPolicyExclude,
+      trustPolicyIgnoreAfter: ctx.trustPolicyIgnoreAfter,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
