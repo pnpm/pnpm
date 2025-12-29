@@ -349,6 +349,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   const files: string[] = []
   if (manifest.name === CLI_PKG_NAME || manifest.name?.endsWith('/pnpm')) {
     files.push('dist')
+    files.push('!dist/**/*.map')
     files.push('bin')
   } else {
     // the order is important
