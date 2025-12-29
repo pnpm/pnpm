@@ -36,7 +36,7 @@ export async function checkCustomResolverForceResolve (
 
         if (canResolve && customResolver.shouldForceResolve) {
           // eslint-disable-next-line no-await-in-loop
-          const shouldForce = await customResolver.shouldForceResolve(wantedDependency)
+          const shouldForce = await customResolver.shouldForceResolve(wantedDependency, wantedLockfile)
 
           if (shouldForce) {
             return true

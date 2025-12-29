@@ -11,6 +11,8 @@ import {
 
 import pLimit from 'p-limit'
 import pShare from 'promise-share'
+import { omit } from 'ramda'
+import v8 from 'v8'
 import { v4 as uuidv4 } from 'uuid'
 
 export interface StoreServerController extends StoreController {
@@ -66,8 +68,8 @@ function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: str
       url = url.replace('http://unix:', 'unix:')
     }
     const response = await fetch(url, {
-      body: JSON.stringify(body),
-      headers: { 'Content-Type': 'application/json' },
+      body: v8.serialize(body),
+      headers: { 'Content-Type': 'application/octet-stream' },
       method: 'POST',
       retry: {
         retries: 100,
@@ -76,7 +78,8 @@ function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: str
     if (!response.ok) {
       throw await response.json()
     }
-    const json = await response.json() as any // eslint-disable-line
+    const arrayBuffer = await response.arrayBuffer()
+    const json = v8.deserialize(Buffer.from(arrayBuffer)) as any // eslint-disable-line
     if (json.error) {
       throw json.error
     }
@@ -93,7 +96,7 @@ async function requestPackage (
   const msgId = uuidv4()
   const packageResponseBody = await limitedFetch(`${remotePrefix}/requestPackage`, {
     msgId,
-    options,
+    options: omit(['allowBuild', 'onFetchError'], options),
     wantedDependency,
   })
   if (options.skipFetch === true) {
@@ -121,7 +124,7 @@ async function fetchPackage (
 
   const fetchResponseBody = await limitedFetch(`${remotePrefix}/fetchPackage`, {
     msgId,
-    options,
+    options: omit(['allowBuild', 'onFetchError'], options),
   }) as object & { filesIndexFile: string, inStoreLocation: string }
   const fetching = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
     msgId,

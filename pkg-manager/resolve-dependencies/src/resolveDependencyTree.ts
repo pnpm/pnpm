@@ -8,6 +8,7 @@ import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
 import {
+  type AllowBuild,
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PinnedVersion,
@@ -102,6 +103,7 @@ export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<
 }
 
 export interface ResolveDependenciesOptions {
+  allowBuild?: AllowBuild
   autoInstallPeers?: boolean
   autoInstallPeersFromHighestMatch?: boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
@@ -131,6 +133,7 @@ export interface ResolveDependenciesOptions {
   storeController: StoreController
   tag: string
   virtualStoreDir: string
+  globalVirtualStoreDir: string
   virtualStoreDirMaxLength: number
   wantedLockfile: LockfileObject
   workspacePackages: WorkspacePackages
@@ -140,6 +143,8 @@ export interface ResolveDependenciesOptions {
   minimumReleaseAgeExclude?: string[]
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
+  trustPolicyIgnoreAfter?: number
+  blockExoticSubdeps?: boolean
 }
 
 export interface ResolveDependencyTreeResult {
@@ -162,6 +167,7 @@ export async function resolveDependencyTree<T> (
   const wantedToBeSkippedPackageIds = new Set<PkgResolutionId>()
   const autoInstallPeers = opts.autoInstallPeers === true
   const ctx: ResolutionContext = {
+    allowBuild: opts.allowBuild,
     autoInstallPeers,
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
@@ -204,6 +210,8 @@ export async function resolveDependencyTree<T> (
     publishedByExclude: opts.minimumReleaseAgeExclude ? createPackageVersionPolicyByExclude(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude') : undefined,
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyByExclude(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+    blockExoticSubdeps: opts.blockExoticSubdeps,
   }
 
   function createPackageVersionPolicyByExclude (patterns: string[], key: string): PackageVersionPolicy {

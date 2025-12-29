@@ -17,7 +17,6 @@ import {
   type PeerDependencyRules,
   type ReadPackageHook,
   type Registries,
-  type PrepareExecutionEnv,
   type TrustPolicy,
 } from '@pnpm/types'
 import { type CustomResolver, type CustomFetcher, type PreResolutionHookContext } from '@pnpm/hooks.types'
@@ -116,6 +115,7 @@ export interface StrictInstallOptions {
   workspacePackages?: WorkspacePackages
   pruneStore: boolean
   virtualStoreDir?: string
+  globalVirtualStoreDir: string
   dir: string
   symlink: boolean
   enableModulesDir: boolean
@@ -164,7 +164,6 @@ export interface StrictInstallOptions {
   hoistWorkspacePackages?: boolean
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
-  prepareExecutionEnv?: PrepareExecutionEnv
   returnListOfDepsRequiringBuild?: boolean
   injectWorkspacePackages?: boolean
   ci?: boolean
@@ -172,6 +171,8 @@ export interface StrictInstallOptions {
   minimumReleaseAgeExclude?: string[]
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
+  trustPolicyIgnoreAfter?: number
+  blockExoticSubdeps?: boolean
 }
 
 export type InstallOptions =
@@ -271,6 +272,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     excludeLinksFromLockfile: false,
     virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
+    blockExoticSubdeps: false,
   } as StrictInstallOptions
 }
 
@@ -325,5 +327,8 @@ export function extendOptions (
   if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
     extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
   }
+  extendedOpts.globalVirtualStoreDir = extendedOpts.enableGlobalVirtualStore
+    ? extendedOpts.virtualStoreDir!
+    : path.join(extendedOpts.storeDir, 'links')
   return extendedOpts
 }

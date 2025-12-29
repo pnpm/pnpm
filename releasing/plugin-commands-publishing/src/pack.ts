@@ -8,6 +8,7 @@ import { readProjectManifest } from '@pnpm/cli-utils'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
 import { packlist } from '@pnpm/fs.packlist'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { type Hooks } from '@pnpm/pnpmfile'
 import { type ProjectManifest, type Project, type ProjectRootDir, type ProjectsGraph, type DependencyManifest } from '@pnpm/types'
 import { glob } from 'tinyglobby'
 import { pick } from 'ramda'
@@ -38,6 +39,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     out: String,
     recursive: Boolean,
     ...pick([
+      'dry-run',
       'pack-destination',
       'pack-gzip-level',
       'json',
@@ -57,6 +59,10 @@ export function help (): string {
         title: 'Options',
 
         list: [
+          {
+            description: 'Does everything `pnpm pack` would do except actually writing the tarball to disk.',
+            name: '--dry-run',
+          },
           {
             description: 'Directory in which `pnpm pack` will save tarballs. The default is the current working directory.',
             name: '--pack-destination <dir>',
@@ -93,6 +99,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'nodeLinker'
 > & Partial<Pick<Config, 'extraBinPaths'
 | 'extraEnv'
+| 'hooks'
 | 'recursive'
 | 'selectedProjectsGraph'
 | 'workspaceConcurrency'
@@ -101,6 +108,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
   argv: {
     original: string[]
   }
+  dryRun?: boolean
   engineStrict?: boolean
   packDestination?: string
   out?: string
@@ -233,6 +241,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     manifest,
     embedReadme: opts.embedReadme,
     catalogs: opts.catalogs ?? {},
+    hooks: opts.hooks,
   })
   const files = await packlist(dir, {
     packageJsonCache: {
@@ -250,21 +259,23 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   const destDir = packDestination
     ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
     : dir
-  await fs.promises.mkdir(destDir, { recursive: true })
-  await packPkg({
-    destFile: path.join(destDir, tarballName),
-    filesMap,
-    modulesDir: path.join(opts.dir, 'node_modules'),
-    packGzipLevel: opts.packGzipLevel,
-    manifest: publishManifest,
-    bins: [
-      ...(await getBinsFromPackageManifest(publishManifest as DependencyManifest, dir)).map(({ path }) => path),
-      ...(manifest.publishConfig?.executableFiles ?? [])
-        .map((executableFile) => path.join(dir, executableFile)),
-    ],
-  })
-  if (!opts.ignoreScripts) {
-    await _runScriptsIfPresent(['postpack'], entryManifest)
+  if (!opts.dryRun) {
+    await fs.promises.mkdir(destDir, { recursive: true })
+    await packPkg({
+      destFile: path.join(destDir, tarballName),
+      filesMap,
+      modulesDir: path.join(opts.dir, 'node_modules'),
+      packGzipLevel: opts.packGzipLevel,
+      manifest: publishManifest,
+      bins: [
+        ...(await getBinsFromPackageManifest(publishManifest as DependencyManifest, dir)).map(({ path }) => path),
+        ...(manifest.publishConfig?.executableFiles ?? [])
+          .map((executableFile) => path.join(dir, executableFile)),
+      ],
+    })
+    if (!opts.ignoreScripts) {
+      await _runScriptsIfPresent(['postpack'], entryManifest)
+    }
   }
   let packedTarballPath
   if (opts.dir !== destDir) {
@@ -347,11 +358,13 @@ async function createPublishManifest (opts: {
   modulesDir: string
   manifest: ProjectManifest
   catalogs: Catalogs
+  hooks?: Hooks
 }): Promise<ProjectManifest> {
-  const { projectDir, embedReadme, modulesDir, manifest, catalogs } = opts
+  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks } = opts
   const readmeFile = embedReadme ? await readReadmeFile(projectDir) : undefined
   return createExportableManifest(projectDir, manifest, {
     catalogs,
+    hooks,
     readmeFile,
     modulesDir,
   })

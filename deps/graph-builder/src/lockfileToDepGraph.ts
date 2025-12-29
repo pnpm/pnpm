@@ -13,7 +13,14 @@ import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
 import { type PatchInfo } from '@pnpm/patching.types'
-import { type DepPath, type SupportedArchitectures, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
+import {
+  type DepPath,
+  type SupportedArchitectures,
+  type Registries,
+  type PkgIdWithPatchHash,
+  type ProjectId,
+  type AllowBuild,
+} from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
   type FetchResponse,
@@ -53,6 +60,7 @@ export interface DependenciesGraph {
 }
 
 export interface LockfileToDepGraphOptions {
+  allowBuild?: AllowBuild
   autoInstallPeers: boolean
   enableGlobalVirtualStore?: boolean
   engineStrict: boolean
@@ -70,6 +78,7 @@ export interface LockfileToDepGraphOptions {
   skipped: Set<DepPath>
   storeController: StoreController
   storeDir: string
+  globalVirtualStoreDir: string
   virtualStoreDir: string
   supportedArchitectures?: SupportedArchitectures
   virtualStoreDirMaxLength: number
@@ -90,7 +99,7 @@ export interface LockfileToDepGraphResult {
   hoistedLocations?: Record<string, string[]>
   symlinkedDirectDependenciesByImporterId?: DirectDependenciesByImporterId
   prevGraph?: DependenciesGraph
-  pkgLocationsByDepPath?: Record<string, string[]>
+  injectionTargetsByDepPath: Map<string, string[]>
 }
 
 /**
@@ -110,6 +119,7 @@ export async function lockfileToDepGraph (
   const {
     graph,
     locationByDepPath,
+    injectionTargetsByDepPath,
   } = await buildGraphFromPackages(lockfile, currentLockfile, opts)
 
   const _getChildrenPaths = getChildrenPaths.bind(null, {
@@ -147,7 +157,7 @@ export async function lockfileToDepGraph (
     directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
   }
 
-  return { graph, directDependenciesByImporterId }
+  return { graph, directDependenciesByImporterId, injectionTargetsByDepPath }
 }
 
 async function buildGraphFromPackages (
@@ -157,16 +167,19 @@ async function buildGraphFromPackages (
 ): Promise<{
     graph: DependenciesGraph
     locationByDepPath: Record<string, string>
+    injectionTargetsByDepPath: Map<string, string[]>
   }> {
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
   const locationByDepPath: Record<string, string> = {}
+  // Only populated for directory deps (injected workspace packages)
+  const injectionTargetsByDepPath = new Map<string, string[]>()
 
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
   const pkgSnapshotsWithLocations = iteratePkgsForVirtualStore(lockfile, opts)
 
-  for (const { dirNameInVirtualStore, pkgMeta } of pkgSnapshotsWithLocations) {
+  for (const { dirInVirtualStore, pkgMeta } of pkgSnapshotsWithLocations) {
     promises.push((async () => {
       const { pkgIdWithPatchHash, name: pkgName, version: pkgVersion, depPath, pkgSnapshot } = pkgMeta
       if (opts.skipped.has(depPath)) return
@@ -192,15 +205,20 @@ async function buildGraphFromPackages (
         return
       }
 
-      const depIsPresent = !('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) &&
+      const isDirectoryDep = 'directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null
+      const depIsPresent = !isDirectoryDep &&
         currentPackages[depPath] &&
         equals(currentPackages[depPath].dependencies, pkgSnapshot.dependencies)
 
       const depIntegrityIsUnchanged = isIntegrityEqual(pkgSnapshot.resolution, currentPackages[depPath]?.resolution)
 
-      const modules = path.join(opts.virtualStoreDir, dirNameInVirtualStore, 'node_modules')
+      const modules = path.join(dirInVirtualStore, 'node_modules')
       const dir = path.join(modules, pkgName)
       locationByDepPath[depPath] = dir
+      // Track directory deps for injected workspace packages
+      if (isDirectoryDep) {
+        injectionTargetsByDepPath.set(depPath, [dir])
+      }
 
       let dirExists: boolean | undefined
       if (
@@ -230,6 +248,7 @@ async function buildGraphFromPackages (
 
         try {
           fetchResponse = await opts.storeController.fetchPackage({
+            allowBuild: opts.allowBuild,
             force: false,
             lockfileDir: opts.lockfileDir,
             ignoreScripts: opts.ignoreScripts,
@@ -263,7 +282,7 @@ async function buildGraphFromPackages (
     })())
   }
   await Promise.all(promises)
-  return { graph, locationByDepPath }
+  return { graph, locationByDepPath, injectionTargetsByDepPath }
 }
 
 interface GetChildrenPathsContext {

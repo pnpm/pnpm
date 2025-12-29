@@ -209,6 +209,7 @@ async function resolveAndFetch (
       defaultTag: options.defaultTag,
       trustPolicy: options.trustPolicy,
       trustPolicyExclude: options.trustPolicyExclude,
+      trustPolicyIgnoreAfter: options.trustPolicyIgnoreAfter,
       publishedBy: options.publishedBy,
       publishedByExclude: options.publishedByExclude,
       pickLowestVersion: options.pickLowestVersion,
@@ -265,17 +266,17 @@ async function resolveAndFetch (
 
   const isInstallable = (
     ctx.force === true ||
-      (
-        manifest == null
-          ? undefined
-          : packageIsInstallable(id, manifest, {
-            engineStrict: ctx.engineStrict,
-            lockfileDir: options.lockfileDir,
-            nodeVersion: ctx.nodeVersion,
-            optional: wantedDependency.optional === true,
-            supportedArchitectures: options.supportedArchitectures,
-          })
-      )
+    (
+      manifest == null
+        ? undefined
+        : packageIsInstallable(id, manifest, {
+          engineStrict: ctx.engineStrict,
+          lockfileDir: options.lockfileDir,
+          nodeVersion: ctx.nodeVersion,
+          optional: wantedDependency.optional === true,
+          supportedArchitectures: options.supportedArchitectures,
+        })
+    )
   )
   // We can skip fetching the package only if the manifest
   // is present after resolution
@@ -299,6 +300,7 @@ async function resolveAndFetch (
 
   const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
   const fetchResult = ctx.fetchPackageToStore({
+    allowBuild: options.allowBuild,
     fetchRawManifest: true,
     force: forceFetch,
     ignoreScripts: options.ignoreScripts,
@@ -316,7 +318,12 @@ async function resolveAndFetch (
   })
 
   if (!manifest) {
-    manifest = (await fetchResult.fetching()).bundledManifest
+    const fetchedResult = await fetchResult.fetching()
+    manifest = fetchedResult.bundledManifest
+    // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
+    if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
+      (resolution as TarballResolution).integrity = fetchedResult.integrity
+    }
   }
   return {
     body: {
@@ -499,12 +506,12 @@ function fetchToStore (
   if (opts.fetchRawManifest && !result.fetchRawManifest) {
     result.fetching = removeKeyOnFail(
       result.fetching.then(async ({ files }) => {
-        if (!files.filesIndex['package.json']) return {
+        if (!files.filesIndex.get('package.json')) return {
           files,
           bundledManifest: undefined,
         }
         if (files.unprocessed) {
-          const { integrity, mode } = files.filesIndex['package.json']
+          const { integrity, mode } = files.filesIndex.get('package.json')!
           const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
           return {
             files,
@@ -513,7 +520,7 @@ function fetchToStore (
         }
         return {
           files,
-          bundledManifest: await readBundledManifest(files.filesIndex['package.json']),
+          bundledManifest: await readBundledManifest(files.filesIndex.get('package.json')!),
         }
       })
     )
@@ -618,6 +625,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
         opts.pkg.id,
         resolution,
         {
+          allowBuild: opts.allowBuild,
           filesIndexFile,
           lockfileDir: opts.lockfileDir,
           readManifest: opts.fetchRawManifest,
@@ -643,9 +651,10 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
         }
       ), { priority })
 
-      if (isLocalTarballDep && (opts.pkg.resolution as TarballResolution).integrity) {
+      const integrity = (opts.pkg.resolution as TarballResolution).integrity ?? fetchedPackage.integrity
+      if (isLocalTarballDep && integrity) {
         await fs.mkdir(target, { recursive: true })
-        await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), (opts.pkg.resolution as TarballResolution).integrity!, 'utf8')
+        await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), integrity, 'utf8')
       }
 
       fetching.resolve({
@@ -656,6 +665,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
           requiresBuild: fetchedPackage.requiresBuild,
         },
         bundledManifest: fetchedPackage.manifest == null ? fetchedPackage.manifest : normalizeBundledManifest(fetchedPackage.manifest),
+        integrity,
       })
     } catch (err: any) { // eslint-disable-line
       fetching.reject(err)

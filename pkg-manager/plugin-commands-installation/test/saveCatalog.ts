@@ -120,7 +120,7 @@ test('saveCatalogName works with different protocols', async () => {
           },
           'is-positive': {
             specifier: 'catalog:',
-            version: 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6',
+            version: 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678',
           },
         },
       },

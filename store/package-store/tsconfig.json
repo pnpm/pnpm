@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../crypto/hash"
+    },
+    {
       "path": "../../fetching/fetcher-base"
     },
     {
@@ -20,6 +23,9 @@
     },
     {
       "path": "../../hooks/types"
+    },
+    {
+      "path": "../../packages/error"
     },
     {
       "path": "../../packages/logger"

@@ -92,26 +92,40 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   graph: DepsGraph<DepPath>,
   pkgMetaIterator: PkgMetaIterator<T>
 ): IterableIterator<HashedDepPath<T>> {
-  const _calcDepGraphHash = calcDepGraphHash.bind(null, graph, {})
+  const _calcGraphNodeHash = calcGraphNodeHash.bind(null, { graph, cache: {} })
   for (const pkgMeta of pkgMetaIterator) {
-    const { name, version, depPath } = pkgMeta
-    const state = {
-      // Unfortunately, we need to include the engine name in the hash,
-      // even though it's only required for packages that are built,
-      // or have dependencies that are built.
-      // We can't know for sure whether a package needs to be built
-      // before it's fetched from the registry.
-      // However, we fetch and write packages to node_modules in random order for performance,
-      // so we can't determine at this stage which dependencies will be built.
-      engine: ENGINE_NAME,
-      deps: _calcDepGraphHash(new Set(), depPath),
-    }
-    const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
     yield {
-      hash: `${name}/${version}/${hexDigest}`,
+      hash: _calcGraphNodeHash(pkgMeta),
       pkgMeta,
     }
   }
+}
+
+export function calcGraphNodeHash<T extends PkgMeta> (
+  { graph, cache }: {
+    graph: DepsGraph<DepPath>
+    cache: DepsStateCache
+  },
+  pkgMeta: T
+): string {
+  const { name, version, depPath } = pkgMeta
+  const state = {
+    // Unfortunately, we need to include the engine name in the hash,
+    // even though it's only required for packages that are built,
+    // or have dependencies that are built.
+    // We can't know for sure whether a package needs to be built
+    // before it's fetched from the registry.
+    // However, we fetch and write packages to node_modules in random order for performance,
+    // so we can't determine at this stage which dependencies will be built.
+    engine: ENGINE_NAME,
+    deps: calcDepGraphHash(graph, cache, new Set(), depPath),
+  }
+  const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
+  // Use @/ prefix for unscoped packages to maintain uniform 4-level directory depth
+  // Scoped: @scope/pkg/version/hash
+  // Unscoped: @/pkg/version/hash
+  const prefix = name.startsWith('@') ? '' : '@/'
+  return `${prefix}${name}/${version}/${hexDigest}`
 }
 
 export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath> {

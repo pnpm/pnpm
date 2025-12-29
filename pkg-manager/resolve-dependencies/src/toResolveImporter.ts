@@ -10,6 +10,7 @@ import { type ImporterToResolve } from './index.js'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
 import { type ImporterToResolveGeneric } from './resolveDependencyTree.js'
 import { safeIsInnerLink } from './safeIsInnerLink.js'
+import { unwrapPackageName } from './unwrapPackageName.js'
 import { validatePeerDependencies } from './validatePeerDependencies.js'
 
 export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGeneric<{ isNew?: boolean }> {
@@ -25,6 +26,7 @@ export async function toResolveImporter (
     lockfileOnly: boolean
     preferredVersions?: PreferredVersions
     virtualStoreDir: string
+    globalVirtualStoreDir: string
     workspacePackages: WorkspacePackages
     updateToLatest?: boolean
     noDependencySelectors: boolean
@@ -38,6 +40,7 @@ export async function toResolveImporter (
     modulesDir: project.modulesDir,
     projectDir: project.rootDir,
     virtualStoreDir: opts.virtualStoreDir,
+    globalVirtualStoreDir: opts.globalVirtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })
   const defaultUpdateDepth = (project.update === true || (project.updateMatching != null)) ? opts.defaultUpdateDepth : -1
@@ -98,6 +101,7 @@ async function partitionLinkedPackages (
     lockfileOnly: boolean
     modulesDir: string
     virtualStoreDir: string
+    globalVirtualStoreDir: string
     workspacePackages?: WorkspacePackages
   }
 ): Promise<WantedDependency[]> {
@@ -116,6 +120,7 @@ async function partitionLinkedPackages (
       hideAlienModules: !opts.lockfileOnly,
       projectDir: opts.projectDir,
       virtualStoreDir: opts.virtualStoreDir,
+      globalVirtualStoreDir: opts.globalVirtualStoreDir,
     })
     if (isInnerLink === true) {
       nonLinkedDependencies.push(dependency)
@@ -145,22 +150,18 @@ function getVersionSpecsByRealNames (deps: Dependencies): VersionSpecsByRealName
   const acc: VersionSpecsByRealNames = {}
   for (const depName in deps) {
     const currentBareSpecifier = deps[depName]
-    if (currentBareSpecifier.startsWith('npm:')) {
-      const bareSpecifier = currentBareSpecifier.slice(4)
-      const index = bareSpecifier.lastIndexOf('@')
-      const spec = bareSpecifier.slice(index + 1)
-      const selector = getVerSelType(spec)
-      if (selector != null) {
-        const pkgName = bareSpecifier.substring(0, index)
-        acc[pkgName] = acc[pkgName] || {}
-        acc[pkgName][selector.normalized] = selector.type
-      }
-    } else if (!currentBareSpecifier.includes(':')) { // we really care only about semver specs
-      const selector = getVerSelType(currentBareSpecifier)
-      if (selector != null) {
-        acc[depName] = acc[depName] || {}
-        acc[depName][selector.normalized] = selector.type
-      }
+
+    const { pkgName, bareSpecifier } = unwrapPackageName(depName, currentBareSpecifier)
+
+    // we really care only about semver specs
+    if (bareSpecifier.includes(':')) {
+      continue
+    }
+
+    const selector = getVerSelType(bareSpecifier)
+    if (selector != null) {
+      acc[pkgName] = acc[pkgName] || {}
+      acc[pkgName][selector.normalized] = selector.type
     }
   }
   return acc

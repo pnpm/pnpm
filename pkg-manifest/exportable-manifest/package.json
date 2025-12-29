@@ -28,7 +28,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",
@@ -43,6 +43,7 @@
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/exportable-manifest": "workspace:*",
+    "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",

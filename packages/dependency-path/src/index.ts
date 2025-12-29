@@ -211,3 +211,9 @@ export function createPeerDepGraphHash (peerIds: PeerId[], maxLength: number = 1
   }
   return `(${dirName})`
 }
+
+const RUNTIME_DEP_PATH_RE = /^(?:node|bun|deno)@runtime:/
+
+export function isRuntimeDepPath (depPath: DepPath): boolean {
+  return RUNTIME_DEP_PATH_RE.test(depPath)
+}

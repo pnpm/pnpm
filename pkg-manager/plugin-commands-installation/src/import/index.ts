@@ -63,14 +63,16 @@ interface YarnPackageLock {
   [name: string]: YarnLockPackage
 }
 
-enum YarnLockType {
-  yarn = 'yarn',
-  yarn2 = 'yarn2'
-}
+const YarnLockType = {
+  yarn: 'yarn',
+  yarn2: 'yarn2',
+} as const
+
+type YarnLockType = (typeof YarnLockType)[keyof typeof YarnLockType]
 
 // copy from yarn v1
 interface YarnLock2Struct {
-  type: YarnLockType.yarn2
+  type: typeof YarnLockType.yarn2
   object: YarnPackageLock
 }
 

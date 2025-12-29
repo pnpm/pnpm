@@ -67,19 +67,20 @@ function availableParallelism (): number {
 }
 
 interface AddFilesResult {
-  filesIndex: Record<string, string>
+  filesIndex: Map<string, string>
   manifest: DependencyManifest
   requiresBuild: boolean
+  integrity?: string
 }
 
-type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest'>
 
 export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
+  return new Promise<{ filesIndex: Map<string, string>, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
@@ -96,6 +97,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
+      appendManifest: opts.appendManifest,
       files: opts.files,
     })
   })
@@ -135,7 +137,7 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
   }
 }
 
-type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
+type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest'> & {
   url: string
 }
 
@@ -144,7 +146,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
+  return new Promise<AddFilesResult>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
@@ -168,6 +170,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
+      appendManifest: opts.appendManifest,
     })
   })
 }

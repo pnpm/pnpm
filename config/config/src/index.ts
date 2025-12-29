@@ -31,6 +31,7 @@ import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import {
   type Config,
   type ConfigWithDeprecatedSettings,
+  type ProjectConfig,
   type UniversalOptions,
   type VerifyDepsBeforeRun,
   type WantedPackageManager,
@@ -48,10 +49,22 @@ import {
 export { types }
 
 export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
-export * from './readLocalConfig.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 
-export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
+export {
+  ProjectConfigInvalidValueTypeError,
+  ProjectConfigIsNotAnObjectError,
+  ProjectConfigUnsupportedFieldError,
+  ProjectConfigsArrayItemIsNotAnObjectError,
+  ProjectConfigsArrayItemMatchIsNotAnArrayError,
+  ProjectConfigsArrayItemMatchIsNotDefinedError,
+  ProjectConfigsIsNeitherObjectNorArrayError,
+  ProjectConfigsMatchItemIsNotAStringError,
+  type CreateProjectConfigRecordOptions,
+  createProjectConfigRecord,
+} from './projectConfig.js'
+
+export type { Config, ProjectConfig, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
 
 export { isIniConfigKey } from './auth.js'
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
@@ -190,13 +203,14 @@ export async function getConfig (opts: {
     'public-hoist-pattern': [],
     'recursive-install': true,
     registry: npmDefaults.registry,
+    'block-exotic-subdeps': true,
     'resolution-mode': 'highest',
     'resolve-peers-from-workspace-root': true,
     'save-peer': false,
     'save-catalog-name': undefined,
     'save-workspace-protocol': 'rolling',
     'scripts-prepend-node-path': false,
-    'strict-dep-builds': false,
+    'strict-dep-builds': true,
     'side-effects-cache': true,
     symlink: true,
     'shared-workspace-lockfile': true,
@@ -430,7 +444,7 @@ export async function getConfig (opts: {
     // TODO: should we throw some error or print some warning here?
     if (value === undefined) continue
 
-    if (key in cliOptions || kebabCase(key) in cliOptions) continue
+    if (Object.hasOwn(cliOptions, key) || Object.hasOwn(cliOptions, kebabCase(key))) continue
 
     // @ts-expect-error
     pnpmConfig[key] = value

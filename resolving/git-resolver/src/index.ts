@@ -4,6 +4,7 @@ import semver from 'semver'
 import { parseBareSpecifier, type HostedPackageSpec } from './parseBareSpecifier.js'
 import { createGitHostedPkgId } from './createGitHostedPkgId.js'
 import { type AgentOptions } from '@pnpm/network.agent'
+import { PnpmError } from '@pnpm/error'
 
 export { createGitHostedPkgId }
 
@@ -82,11 +83,11 @@ function resolveVTags (vTags: string[], range: string): string | null {
 
 async function getRepoRefs (repo: string, ref: string | null): Promise<Record<string, string>> {
   const gitArgs = [repo]
-  if (ref !== 'HEAD') {
-    gitArgs.unshift('--refs')
-  }
   if (ref) {
     gitArgs.push(ref)
+    // Also request the peeled ref for annotated tags (e.g., refs/tags/v1.0.0^{})
+    // This is needed because annotated tags have their own SHA, and we need the commit SHA they point to
+    gitArgs.push(`${ref}^{}`)
   }
   // graceful-git by default retries 10 times, reduce to single retry
   const result = await git(['ls-remote', ...gitArgs], { retries: 1 })
@@ -99,16 +100,21 @@ async function getRepoRefs (repo: string, ref: string | null): Promise<Record<st
 }
 
 async function resolveRef (repo: string, ref: string, range?: string): Promise<string> {
-  if (ref.match(/^[0-9a-f]{7,40}$/) != null) {
+  const committish = ref.match(/^[0-9a-f]{7,40}$/) !== null
+  if (committish && ref.length === 40) {
     return ref
   }
-  const refs = await getRepoRefs(repo, range ? null : ref)
-  return resolveRefFromRefs(refs, repo, ref, range)
+  const refs = await getRepoRefs(repo, (range ?? committish) ? null : ref)
+  const result = resolveRefFromRefs(refs, repo, ref, committish, range)
+  if (committish && !result.startsWith(ref)) {
+    throw new PnpmError('GIT_AMBIGUOUS_REF', `resolved commit ${result} from commit-ish reference ${ref}`)
+  }
+  return result
 }
 
-function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref: string, range?: string): string {
+function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref: string, committish: boolean, range?: string): string {
   if (!range) {
-    const commitId =
+    let commitId =
       refs[ref] ||
       refs[`refs/${ref}`] ||
       refs[`refs/tags/${ref}^{}`] || // prefer annotated tags
@@ -116,12 +122,19 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
       refs[`refs/heads/${ref}`]
 
     if (!commitId) {
-      throw new Error(`Could not resolve ${ref} to a commit of ${repo}.`)
+      // check for a partial commit
+      // Use Set to deduplicate since multiple refs can point to the same commit
+      const commits = committish ? [...new Set(Object.values(refs).filter((value: string) => value.startsWith(ref)))] : []
+      if (commits.length === 1) {
+        commitId = commits[0]
+      } else {
+        throw new Error(`Could not resolve ${ref} to a commit of ${repo}.`)
+      }
     }
 
     return commitId
   } else {
-    const vTags =
+    const vTags = [...new Set(
       Object.keys(refs)
         // using the same semantics of version tags as https://github.com/zkat/pacote
         .filter((key: string) => /^refs\/tags\/v?\d+\.\d+\.\d+(?:[-+].+)?(?:\^\{\})?$/.test(key))
@@ -131,10 +144,11 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
             .replace(/\^\{\}$/, '') // accept annotated tags
         })
         .filter((key: string) => semver.valid(key, true))
+    )]
     const refVTag = resolveVTags(vTags, range)
     const commitId = refVTag &&
       (refs[`refs/tags/${refVTag}^{}`] || // prefer annotated tags
-      refs[`refs/tags/${refVTag}`])
+        refs[`refs/tags/${refVTag}`])
 
     if (!commitId) {
       throw new Error(`Could not resolve ${range} to a commit of ${repo}. Available versions are: ${vTags.join(', ')}`)

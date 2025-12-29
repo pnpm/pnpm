@@ -13,8 +13,9 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir, type PrepareExecutionEnv } from '@pnpm/types'
+import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir } from '@pnpm/types'
 import {
+  IgnoredBuildsError,
   install,
   mutateModulesInSingleProject,
   type MutateModulesOptions,
@@ -26,7 +27,6 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
-import { IgnoredBuildsError } from './errors.js'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { getNodeExecPath } from './nodeExecPath.js'
@@ -134,7 +134,6 @@ export type InstallDepsOptions = Pick<Config,
   dedupe?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
-  prepareExecutionEnv: PrepareExecutionEnv
   fetchFullMetadata?: boolean
   pruneLockfileImporters?: boolean
   pnpmfile: string[]
@@ -343,7 +342,7 @@ when running add/update with the --workspace option')
         configDependencies: opts.configDependencies,
       })
     }
-    if (opts.strictDepBuilds && ignoredBuilds?.length) {
+    if (opts.strictDepBuilds && ignoredBuilds?.size) {
       throw new IgnoredBuildsError(ignoredBuilds)
     }
     return
@@ -364,7 +363,7 @@ when running add/update with the --workspace option')
       }),
     ])
   }
-  if (opts.strictDepBuilds && ignoredBuilds?.length) {
+  if (opts.strictDepBuilds && ignoredBuilds?.size) {
     throw new IgnoredBuildsError(ignoredBuilds)
   }
 

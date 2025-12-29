@@ -1,5 +1,3 @@
-import { type ExecutionEnv } from './env.js'
-
 export type Dependencies = Record<string, string>
 
 export type PackageBin = string | { [commandName: string]: string }
@@ -153,9 +151,10 @@ export interface AuditConfig {
 
 export interface PnpmSettings {
   configDependencies?: ConfigDependencies
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
+  neverBuiltDependencies?: string[] // deprecated
+  onlyBuiltDependencies?: string[] // deprecated
+  onlyBuiltDependenciesFile?: string // deprecated
+  allowBuilds?: Record<string, boolean | string>
   ignoredBuiltDependencies?: string[]
   overrides?: Record<string, string>
   packageExtensions?: Record<string, PackageExtension>
@@ -172,7 +171,6 @@ export interface PnpmSettings {
   auditConfig?: AuditConfig
   requiredScripts?: string[]
   supportedArchitectures?: SupportedArchitectures
-  executionEnv?: ExecutionEnv
 }
 
 export interface ProjectManifest extends BaseManifest {

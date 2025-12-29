@@ -63,7 +63,7 @@ export async function getManifest (
     })
     return resolution?.manifest ?? null
   } catch (err) {
-    if ((err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION' && opts.publishedBy) {
+    if ((err as { code?: string }).code === 'ERR_PNPM_NO_MATURE_MATCHING_VERSION' && opts.publishedBy) {
       // No versions found that meet the minimumReleaseAge requirement
       return null
     }

@@ -160,7 +160,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
   const { files: integrityFile } = readV8FileStrictSync<PackageFilesIndex>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
-  const packageFiles = Object.keys(integrityFile).sort()
+  const packageFiles = Array.from(integrityFile.keys()).sort()
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
@@ -193,6 +193,7 @@ test('not top-level packages should find the plugins they use', async () => {
       test: 'standard',
     },
   })
+  fs.writeFileSync('pnpm-workspace.yaml', 'allowBuilds: { "es5-ext": false }', 'utf8')
 
   await execPnpm(['install', 'standard@8.6.0'])
 
@@ -561,4 +562,16 @@ test('install fails when trust evidence of an optional dependency is downgraded'
   ])
   expect(result.stdout.toString()).toContain('ERR_PNPM_TRUST_DOWNGRADE')
   expect(result.status).toBe(1)
+})
+
+test('install does not fail when the trust evidence of a package is downgraded but the trust-policy-ignore-after is set', async () => {
+  const project = prepare()
+  const result = execPnpmSync([
+    'add',
+    '@pnpm/e2e.test-provenance@0.0.5',
+    '--trust-policy=no-downgrade',
+    '--trust-policy-ignore-after=1440', // 1 day
+  ])
+  expect(result.status).toBe(0)
+  project.has('@pnpm/e2e.test-provenance')
 })

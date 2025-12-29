@@ -88,8 +88,8 @@ test('rebuilds dependencies', async () => {
       }),
     },
   })}`
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-postinstall.js'])
-  delete cacheIntegrity!.sideEffects![sideEffectsKey].added!['generated-by-postinstall.js']
+  expect(cacheIntegrity.sideEffects!.get(sideEffectsKey)!.added!.has('generated-by-postinstall.js')).toBeTruthy()
+  cacheIntegrity!.sideEffects!.get(sideEffectsKey)!.added!.delete('generated-by-postinstall.js')
 })
 
 test('skipIfHasSideEffectsCache', async () => {
@@ -112,17 +112,17 @@ test('skipIfHasSideEffectsCache', async () => {
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   let cacheIntegrity = readV8FileSync<PackageFilesIndex>(cacheIntegrityPath)!
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
-  cacheIntegrity.sideEffects = {
-    [sideEffectsKey]: {
-      added: {
-        foo: {
+  cacheIntegrity.sideEffects = new Map([
+    [sideEffectsKey, {
+      added: new Map([
+        ['foo', {
           integrity: 'bar',
           mode: 1,
           size: 1,
-        },
-      },
-    },
-  }
+        }],
+      ]),
+    }],
+  ])
   fs.writeFileSync(cacheIntegrityPath, v8.serialize(cacheIntegrity))
 
   let modules = project.readModulesManifest()
@@ -147,7 +147,7 @@ test('skipIfHasSideEffectsCache', async () => {
 
   cacheIntegrity = readV8FileSync<PackageFilesIndex>(cacheIntegrityPath)!
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'foo'])
+  expect(cacheIntegrity.sideEffects!.get(sideEffectsKey)!.added!.get('foo')).toBeTruthy()
 })
 
 test('rebuild does not fail when a linked package is present', async () => {
@@ -244,10 +244,13 @@ test('rebuild with pending option', async () => {
   ])
 
   let modules = project.readModulesManifest()
-  expect(modules!.pendingBuilds).toStrictEqual([
-    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
-    'install-scripts-example-for-pnpm@https://codeload.github.com/pnpm-e2e/install-scripts-example/tar.gz/b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b',
-  ])
+  expect(modules!.pendingBuilds).toHaveLength(2)
+  expect(modules!.pendingBuilds[0]).toBe('@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  // We are not doing an exact match here because when we hit rate limits, sometimes it gets resolved to
+  // install-scripts-example-for-pnpm@git+https://github.com/pnpm-e2e/install-scripts-example.git#b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b
+  // not to
+  // install-scripts-example-for-pnpm@https://codeload.github.com/pnpm-e2e/install-scripts-example/tar.gz/b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b
+  expect(modules!.pendingBuilds[1]).toMatch(/^install-scripts-example-for-pnpm@.*b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b.*/)
 
   project.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
   project.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')

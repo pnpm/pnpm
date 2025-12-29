@@ -28,7 +28,7 @@
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "tsc --build && pnpm run lint --fix",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:*",

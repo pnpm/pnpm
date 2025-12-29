@@ -6,6 +6,7 @@ import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
 import ssri from 'ssri'
+import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
 
 const BIG_ONE = BigInt(1) as unknown
 
@@ -15,7 +16,12 @@ export interface PruneOptions {
 }
 
 export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
-  const cafsDir = path.join(storeDir, 'files')
+  // 1. First, prune the global virtual store
+  // This must happen BEFORE pruning the CAS, because removing packages from
+  // the virtual store will reduce hard link counts on files in the CAS
+  await pruneGlobalVirtualStore(storeDir)
+
+  // 2. Clean up metadata cache
   const metadataDirs = await getSubdirsSafely(cacheDir)
   await Promise.all(metadataDirs.map(async (metadataDir) => {
     if (!metadataDir.startsWith('metadata')) return
@@ -29,6 +35,9 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
   }))
   await rimraf(path.join(storeDir, 'tmp'))
   globalInfo('Removed all cached metadata files')
+
+  // 3. Prune the content-addressable store (CAS)
+  const cafsDir = path.join(storeDir, 'files')
   const pkgIndexFiles = [] as string[]
   const indexDir = path.join(storeDir, 'index')
   await Promise.all((await getSubdirsSafely(indexDir)).map(async (dir) => {
@@ -72,11 +81,12 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
   }))
   globalInfo(`Removed ${fileCounter} file${fileCounter === 1 ? '' : 's'}`)
 
+  // 4. Clean up orphaned package index files
   let pkgCounter = 0
   await Promise.all(pkgIndexFiles.map(async (pkgIndexFilePath) => {
     const { files: pkgFilesIndex } = await readV8FileStrictAsync<PackageFilesIndex>(pkgIndexFilePath)
     // TODO: implement prune of Node.js packages, they don't have a package.json file
-    if (pkgFilesIndex['package.json'] && removedHashes.has(pkgFilesIndex['package.json'].integrity)) {
+    if (pkgFilesIndex.has('package.json') && removedHashes.has(pkgFilesIndex.get('package.json')!.integrity)) {
       await fs.unlink(pkgIndexFilePath)
       pkgCounter++
     }
