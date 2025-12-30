@@ -192,3 +192,31 @@ test("cleanOrphans deletes dirs that don't contain `link` and subdirs that aren'
   // expecting directory that doesn't contain `link` to be deleted.
   expect(fs.existsSync(path.join(cacheDir, 'dlx', createCacheKey('bar')))).toBe(false)
 })
+
+test('cleanExpiredDlxCache ignores files in the dlx cache directory', async () => {
+  prepareEmpty()
+
+  const cacheDir = path.resolve('cache')
+  const dlxCacheMaxAge = 0
+  const now = new Date()
+
+  // Create a directory that should be cleaned
+  createSampleDlxCacheItem(cacheDir, 'foo', now, 1)
+
+  // Create a file in the dlx directory (simulating the bug/noise)
+  const dlxDir = path.join(cacheDir, 'dlx')
+  fsOriginal.mkdirSync(dlxDir, { recursive: true })
+  fsOriginal.writeFileSync(path.join(dlxDir, 'some-random-file'), 'hello')
+
+  await cleanExpiredDlxCache({
+    cacheDir,
+    dlxCacheMaxAge,
+    now,
+  })
+
+  // The directory should be gone (cleaned)
+  expect(fsOriginal.existsSync(path.join(dlxDir, createCacheKey('foo')))).toBeFalsy()
+
+  // The file should still be there (ignored)
+  expect(fsOriginal.existsSync(path.join(dlxDir, 'some-random-file'))).toBeTruthy()
+})
