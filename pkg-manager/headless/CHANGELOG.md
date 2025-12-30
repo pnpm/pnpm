@@ -1,5 +1,38 @@
 # @pnpm/headless
 
+## 1010.1.0
+
+### Minor Changes
+
+- 9a2393f: Export extendProjectsWithTargetDirs.
+
+### Patch Changes
+
+- 9a2393f: Fixed injected local packages to work correctly with the global virtual store [#10366](https://github.com/pnpm/pnpm/pull/10366).
+
+  When using `nodeLinker: 'isolated'` with `enableGlobalVirtualStore: true`, injected workspace packages now use the correct hash-based paths from the global virtual store instead of project-relative paths.
+
+- Updated dependencies [3f2c5f4]
+- Updated dependencies [512f188]
+- Updated dependencies [9a2393f]
+- Updated dependencies [afb8a3d]
+- Updated dependencies [9a2393f]
+  - @pnpm/package-requester@1011.1.0
+  - @pnpm/store-controller-types@1004.5.0
+  - @pnpm/builder.policy@1000.1.0
+  - @pnpm/deps.graph-builder@1002.3.8
+  - @pnpm/calc-dep-state@1003.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/build-modules@1007.0.1
+  - @pnpm/lifecycle@1001.0.32
+  - @pnpm/modules-cleaner@1001.0.31
+  - @pnpm/lockfile.filtering@1001.0.28
+  - @pnpm/lockfile.fs@1001.1.28
+  - @pnpm/lockfile-to-pnp@1001.0.30
+  - @pnpm/real-hoist@1001.0.27
+  - @pnpm/worker@1000.6.1
+  - @pnpm/symlink-dependency@1000.0.16
+
 ## 1010.0.0
 
 ### Patch Changes

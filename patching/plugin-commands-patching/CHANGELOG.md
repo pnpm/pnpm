@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.31
+
+### Patch Changes
+
+- Updated dependencies [3f2c5f4]
+- Updated dependencies [99e1ada]
+- Updated dependencies [9a2393f]
+  - @pnpm/plugin-commands-installation@1004.9.0
+  - @pnpm/config@1004.9.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/cli-utils@1001.2.18
+  - @pnpm/store-connection-manager@1002.3.9
+  - @pnpm/lockfile.fs@1001.1.28
+  - @pnpm/config.config-writer@1000.0.20
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/patching.apply-patch@1000.0.7
+
 ## 1000.3.30
 
 ### Patch Changes

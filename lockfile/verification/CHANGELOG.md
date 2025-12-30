@@ -1,5 +1,18 @@
 # @pnpm/lockfile.verification
 
+## 1001.2.16
+
+### Patch Changes
+
+- Updated dependencies [3f2c5f4]
+- Updated dependencies [0958027]
+- Updated dependencies [9a2393f]
+  - @pnpm/resolver-base@1005.4.0
+  - @pnpm/get-context@1001.2.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/lockfile.types@1002.0.8
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1001.2.15
 
 ### Patch Changes

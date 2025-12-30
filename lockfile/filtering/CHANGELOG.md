@@ -1,5 +1,14 @@
 # @pnpm/filter-lockfile
 
+## 1001.0.28
+
+### Patch Changes
+
+- Updated dependencies [9a2393f]
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/lockfile.types@1002.0.8
+  - @pnpm/lockfile.walker@1001.0.23
+
 ## 1001.0.27
 
 ### Patch Changes

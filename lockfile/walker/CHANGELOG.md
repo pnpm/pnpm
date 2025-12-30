@@ -1,5 +1,11 @@
 # @pnpm/lockfile-walker
 
+## 1001.0.23
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1002.0.8
+
 ## 1001.0.22
 
 ### Patch Changes

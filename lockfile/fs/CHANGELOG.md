@@ -1,5 +1,14 @@
 # @pnpm/lockfile-file
 
+## 1001.1.28
+
+### Patch Changes
+
+- Updated dependencies [9a2393f]
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/lockfile.types@1002.0.8
+  - @pnpm/lockfile.merger@1001.0.18
+
 ## 1001.1.27
 
 ### Patch Changes

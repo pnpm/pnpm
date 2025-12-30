@@ -1,5 +1,18 @@
 # @pnpm/lockfile-utils
 
+## 1004.0.0
+
+### Major Changes
+
+- 9a2393f: Remove extendProjectsWithTargetDirs.
+
+### Patch Changes
+
+- Updated dependencies [3f2c5f4]
+  - @pnpm/resolver-base@1005.4.0
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/lockfile.types@1002.0.8
+
 ## 1003.0.9
 
 ### Patch Changes

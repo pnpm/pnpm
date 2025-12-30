@@ -1,5 +1,51 @@
 # @pnpm/core
 
+## 1016.1.0
+
+### Minor Changes
+
+- 3f2c5f4: Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
+
+### Patch Changes
+
+- 9a2393f: Fixed injected local packages to work correctly with the global virtual store [#10366](https://github.com/pnpm/pnpm/pull/10366).
+
+  When using `nodeLinker: 'isolated'` with `enableGlobalVirtualStore: true`, injected workspace packages now use the correct hash-based paths from the global virtual store instead of project-relative paths.
+
+- Updated dependencies [3f2c5f4]
+- Updated dependencies [9a2393f]
+- Updated dependencies [512f188]
+- Updated dependencies [9a2393f]
+- Updated dependencies [0958027]
+- Updated dependencies [afb8a3d]
+- Updated dependencies [9a2393f]
+- Updated dependencies [6eb43b3]
+  - @pnpm/resolve-dependencies@1008.7.0
+  - @pnpm/package-requester@1011.1.0
+  - @pnpm/store-controller-types@1004.5.0
+  - @pnpm/resolver-base@1005.4.0
+  - @pnpm/headless@1010.1.0
+  - @pnpm/builder.policy@1000.1.0
+  - @pnpm/get-context@1001.2.0
+  - @pnpm/calc-dep-state@1003.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/build-modules@1007.0.1
+  - @pnpm/lifecycle@1001.0.32
+  - @pnpm/plugin-commands-rebuild@1008.0.1
+  - @pnpm/modules-cleaner@1001.0.31
+  - @pnpm/lockfile.preferred-versions@1000.0.29
+  - @pnpm/lockfile.verification@1001.2.16
+  - @pnpm/lockfile.filtering@1001.0.28
+  - @pnpm/lockfile.fs@1001.1.28
+  - @pnpm/lockfile-to-pnp@1001.0.30
+  - @pnpm/worker@1000.6.1
+  - @pnpm/hooks.types@1001.0.18
+  - @pnpm/lockfile.pruner@1001.0.24
+  - @pnpm/lockfile.settings-checker@1001.0.23
+  - @pnpm/lockfile.walker@1001.0.23
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/symlink-dependency@1000.0.16
+
 ## 1016.0.0
 
 ### Patch Changes

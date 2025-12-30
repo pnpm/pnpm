@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.55
+
+### Patch Changes
+
+- 1c10533: `pnpm store prune` should not fail if the dlx cache directory has files, not only directories [#10384](https://github.com/pnpm/pnpm/pull/10384)
+- Updated dependencies [3f2c5f4]
+- Updated dependencies [99e1ada]
+- Updated dependencies [0958027]
+- Updated dependencies [9a2393f]
+  - @pnpm/store-controller-types@1004.5.0
+  - @pnpm/config@1004.9.0
+  - @pnpm/get-context@1001.2.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/store.cafs@1000.1.1
+  - @pnpm/cli-utils@1001.2.18
+  - @pnpm/store-connection-manager@1002.3.9
+
 ## 1000.0.54
 
 ### Patch Changes

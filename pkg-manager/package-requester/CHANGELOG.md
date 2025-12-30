@@ -1,5 +1,21 @@
 # @pnpm/package-requester
 
+## 1011.1.0
+
+### Minor Changes
+
+- 3f2c5f4: Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
+
+### Patch Changes
+
+- Updated dependencies [3f2c5f4]
+  - @pnpm/store-controller-types@1004.5.0
+  - @pnpm/resolver-base@1005.4.0
+  - @pnpm/store.cafs@1000.1.1
+  - @pnpm/fetcher-base@1001.2.1
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/worker@1000.6.1
+
 ## 1011.0.0
 
 ### Patch Changes

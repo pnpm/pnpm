@@ -1,5 +1,35 @@
 # @pnpm/package-store
 
+## 1007.1.0
+
+### Minor Changes
+
+- 0958027: Added project registry for global virtual store prune support.
+
+  Projects using the store are now registered via symlinks in `{storeDir}/v10/projects/`. This enables `pnpm store prune` to track which packages are still in use by active projects and safely remove unused packages from the global virtual store.
+
+- 0958027: Added mark-and-sweep garbage collection for global virtual store.
+
+  `pnpm store prune` now removes unused packages from the global virtual store's `links/` directory. The algorithm:
+
+  1. Scans all registered projects for symlinks pointing to the store
+  2. Walks transitive dependencies to mark reachable packages
+  3. Removes any package directories not marked as reachable
+
+  This includes support for workspace monorepos - all `node_modules` directories within a project (including those in workspace packages) are scanned.
+
+### Patch Changes
+
+- Updated dependencies [3f2c5f4]
+  - @pnpm/package-requester@1011.1.0
+  - @pnpm/store-controller-types@1004.5.0
+  - @pnpm/resolver-base@1005.4.0
+  - @pnpm/store.cafs@1000.1.1
+  - @pnpm/create-cafs-store@1000.0.28
+  - @pnpm/fetcher-base@1001.2.1
+  - @pnpm/worker@1000.6.1
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1007.0.0
 
 ### Patch Changes

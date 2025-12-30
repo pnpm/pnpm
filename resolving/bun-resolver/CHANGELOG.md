@@ -1,5 +1,17 @@
 # @pnpm/resolving.bun-resolver
 
+## 1005.0.1
+
+### Patch Changes
+
+- Updated dependencies [3f2c5f4]
+  - @pnpm/resolver-base@1005.4.0
+  - @pnpm/npm-resolver@1005.1.0
+  - @pnpm/fetcher-base@1001.2.1
+  - @pnpm/worker@1000.6.1
+  - @pnpm/node.fetcher@1001.0.17
+  - @pnpm/fetching.binary-fetcher@1005.0.1
+
 ## 1005.0.0
 
 ### Patch Changes

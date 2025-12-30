@@ -1,5 +1,21 @@
 # @pnpm/deps.graph-builder
 
+## 1002.3.8
+
+### Patch Changes
+
+- 9a2393f: Fixed injected local packages to work correctly with the global virtual store [#10366](https://github.com/pnpm/pnpm/pull/10366).
+
+  When using `nodeLinker: 'isolated'` with `enableGlobalVirtualStore: true`, injected workspace packages now use the correct hash-based paths from the global virtual store instead of project-relative paths.
+
+- Updated dependencies [3f2c5f4]
+- Updated dependencies [afb8a3d]
+- Updated dependencies [9a2393f]
+  - @pnpm/store-controller-types@1004.5.0
+  - @pnpm/calc-dep-state@1003.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/lockfile.fs@1001.1.28
+
 ## 1002.3.7
 
 ### Patch Changes

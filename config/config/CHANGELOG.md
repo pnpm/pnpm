@@ -1,5 +1,16 @@
 # @pnpm/config
 
+## 1004.9.0
+
+### Minor Changes
+
+- 3f2c5f4: Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
+
+### Patch Changes
+
+- 99e1ada: Throw an error if the value of the `tokenHelper` or `<url>:tokenHelper` setting contains an environment variable.
+  - @pnpm/pnpmfile@1002.1.10
+
 ## 1004.8.1
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # @pnpm/resolve-dependencies
 
+## 1008.7.0
+
+### Minor Changes
+
+- 3f2c5f4: Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
+
+### Patch Changes
+
+- 6eb43b3: Fixed a bug ([#9759](https://github.com/pnpm/pnpm/issues/9759)) where `pnpm add` would incorrectly modify a catalog entry in `pnpm-workspace.yaml` to its exact version.
+- Updated dependencies [3f2c5f4]
+- Updated dependencies [afb8a3d]
+- Updated dependencies [9a2393f]
+  - @pnpm/store-controller-types@1004.5.0
+  - @pnpm/resolver-base@1005.4.0
+  - @pnpm/npm-resolver@1005.1.0
+  - @pnpm/calc-dep-state@1003.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.29
+  - @pnpm/lockfile.types@1002.0.8
+  - @pnpm/lockfile.pruner@1001.0.24
+
 ## 1008.6.2
 
 ### Patch Changes

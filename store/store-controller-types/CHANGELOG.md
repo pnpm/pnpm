@@ -1,5 +1,17 @@
 # @pnpm/store-controller-types
 
+## 1004.5.0
+
+### Minor Changes
+
+- 3f2c5f4: Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
+
+### Patch Changes
+
+- Updated dependencies [3f2c5f4]
+  - @pnpm/resolver-base@1005.4.0
+  - @pnpm/fetcher-base@1001.2.1
+
 ## 1004.4.1
 
 ### Patch Changes

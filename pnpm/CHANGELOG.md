@@ -1,5 +1,33 @@
 # pnpm
 
+## 10.27.0
+
+### Minor Changes
+
+- Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
+- Added project registry for global virtual store prune support.
+
+  Projects using the store are now registered via symlinks in `{storeDir}/v10/projects/`. This enables `pnpm store prune` to track which packages are still in use by active projects and safely remove unused packages from the global virtual store.
+
+- **Semi-breaking.** Changed the location of unscoped packages in the virtual global store. They will now be stored under a directory named `@` to maintain a uniform 4-level directory depth.
+- Added mark-and-sweep garbage collection for global virtual store.
+
+  `pnpm store prune` now removes unused packages from the global virtual store's `links/` directory. The algorithm:
+
+  1. Scans all registered projects for symlinks pointing to the store
+  2. Walks transitive dependencies to mark reachable packages
+  3. Removes any package directories not marked as reachable
+
+  This includes support for workspace monorepos - all `node_modules` directories within a project (including those in workspace packages) are scanned.
+
+### Patch Changes
+
+- Throw an error if the value of the `tokenHelper` or `<url>:tokenHelper` setting contains an environment variable.
+- Git dependencies with build scripts should respect the `dangerouslyAllowAllBuilds` settings [#10376](https://github.com/pnpm/pnpm/issues/10376).
+- Skip the package manager check when running with --global and a project packageManager is configured, and warn that the check is skipped.
+- `pnpm store prune` should not fail if the dlx cache directory has files, not only directories [#10384](https://github.com/pnpm/pnpm/pull/10384)
+- Fixed a bug ([#9759](https://github.com/pnpm/pnpm/issues/9759)) where `pnpm add` would incorrectly modify a catalog entry in `pnpm-workspace.yaml` to its exact version.
+
 ## 10.26.2
 
 ### Patch Changes

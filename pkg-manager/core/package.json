@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/core",
-  "version": "1016.0.0",
+  "version": "1016.1.0",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",

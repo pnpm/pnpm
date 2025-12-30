@@ -1,5 +1,23 @@
 # @pnpm/get-context
 
+## 1001.2.0
+
+### Minor Changes
+
+- 0958027: Added project registry for global virtual store prune support.
+
+  Projects using the store are now registered via symlinks in `{storeDir}/v10/projects/`. This enables `pnpm store prune` to track which packages are still in use by active projects and safely remove unused packages from the global virtual store.
+
+### Patch Changes
+
+- Updated dependencies [3f2c5f4]
+- Updated dependencies [0958027]
+- Updated dependencies [0958027]
+  - @pnpm/resolver-base@1005.4.0
+  - @pnpm/package-store@1007.1.0
+  - @pnpm/lockfile.fs@1001.1.28
+  - @pnpm/read-projects-context@1000.0.31
+
 ## 1001.1.14
 
 ### Patch Changes

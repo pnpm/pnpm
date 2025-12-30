@@ -1,5 +1,11 @@
 # @pnpm/builder.policy
 
+## 1000.1.0
+
+### Minor Changes
+
+- 512f188: Git dependencies with build scripts should respect the `dangerouslyAllowAllBuilds` settings [#10376](https://github.com/pnpm/pnpm/issues/10376).
+
 ## 1000.0.4
 
 ### Patch Changes
