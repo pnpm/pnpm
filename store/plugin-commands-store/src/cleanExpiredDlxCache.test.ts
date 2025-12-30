@@ -213,8 +213,8 @@ test('cleanExpiredDlxCache ignores files in the dlx cache directory', async () =
 
   // Create a file in the dlx directory (simulating the bug/noise)
   const dlxDir = path.join(cacheDir, 'dlx')
-  fsOriginal.mkdirSync(dlxDir, { recursive: true })
-  fsOriginal.writeFileSync(path.join(dlxDir, 'some-random-file'), 'hello')
+  fs.mkdirSync(dlxDir, { recursive: true })
+  fs.writeFileSync(path.join(dlxDir, 'some-random-file'), 'hello')
 
   await cleanExpiredDlxCache({
     cacheDir,
@@ -223,8 +223,8 @@ test('cleanExpiredDlxCache ignores files in the dlx cache directory', async () =
   })
 
   // The directory should be gone (cleaned)
-  expect(fsOriginal.existsSync(path.join(dlxDir, createCacheKey('foo')))).toBeFalsy()
+  expect(fs.existsSync(path.join(dlxDir, createCacheKey('foo')))).toBeFalsy()
 
   // The file should still be there (ignored)
-  expect(fsOriginal.existsSync(path.join(dlxDir, 'some-random-file'))).toBeTruthy()
+  expect(fs.existsSync(path.join(dlxDir, 'some-random-file'))).toBeTruthy()
 })
