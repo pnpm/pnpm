@@ -62,7 +62,7 @@ export function loadToken (helperPath: string, settingName: string): string {
     throw new PnpmError('BAD_TOKEN_HELPER_PATH', `${settingName} must be an absolute path, without arguments`)
   }
 
-  const spawnResult = spawnSync(helperPath, { shell: true })
+  const spawnResult = spawnSync(helperPath)
 
   if (spawnResult.status !== 0) {
     throw new PnpmError('TOKEN_HELPER_ERROR_STATUS', `Error running "${helperPath}" as a token helper, configured as ${settingName}. Exit code ${spawnResult.status?.toString() ?? ''}`)
