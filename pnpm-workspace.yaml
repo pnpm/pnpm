@@ -106,7 +106,6 @@ catalog:
   '@types/is-windows': ^1.0.2
   '@types/isexe': 2.0.2
   '@types/jest': ^30.0.0
-  '@types/js-yaml': ^4.0.9
   '@types/lodash.kebabcase': 4.1.9
   '@types/lodash.throttle': 4.1.7
   '@types/micromatch': ^4.0.9
@@ -216,7 +215,6 @@ catalog:
   isexe: 2.0.0
   jest: ^30.0.5
   jest-diff: ^30.1.1
-  js-yaml: npm:@zkochan/js-yaml@0.0.10
   json5: ^2.2.3
   keyv: 4.5.4
   lcov-result-merger: ^3.3.0
@@ -315,6 +313,7 @@ catalog:
   write-json5-file: ^3.1.0
   write-package: 7.2.0
   write-yaml-file: ^5.0.0
+  yaml: ^2.8.1
   yaml-tag: 1.1.0
   yazl: ^3.3.1
 
@@ -368,7 +367,7 @@ overrides:
   http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
   js-yaml@<3.14.2: '^3.14.2'
-  js-yaml@^4.0.0: 'catalog:'
+  js-yaml@^4.0.0: 'npm:@zkochan/js-yaml@0.0.10'
   json5@<2.2.2: 'catalog:'
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   jws@<3.2.3: '^3.2.3'

@@ -45,12 +45,12 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "comver-to-semver": "catalog:",
-    "js-yaml": "catalog:",
     "normalize-path": "catalog:",
     "ramda": "catalog:",
     "semver": "catalog:",
     "strip-bom": "catalog:",
-    "write-file-atomic": "catalog:"
+    "write-file-atomic": "catalog:",
+    "yaml": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -59,7 +59,6 @@
     "@jest/globals": "catalog:",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@types/js-yaml": "catalog:",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",

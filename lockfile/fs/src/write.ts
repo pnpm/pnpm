@@ -3,13 +3,12 @@ import path from 'path'
 import { type LockfileObject, type LockfileFile } from '@pnpm/lockfile.types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
-import yaml from 'js-yaml'
 import { isEmpty } from 'ramda'
 import writeFileAtomicCB from 'write-file-atomic'
 import { lockfileLogger as logger } from './logger.js'
-import { sortLockfileKeys } from './sortLockfileKeys.js'
 import { getWantedLockfileName } from './lockfileName.js'
 import { convertToLockfileFile } from './lockfileFormatConverters.js'
+import { stringifyLockfile } from './stringifyLockfile.js'
 
 async function writeFileAtomic (filename: string, data: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
@@ -17,14 +16,6 @@ async function writeFileAtomic (filename: string, data: string): Promise<void> {
       (err != null) ? reject(err) : resolve()
     })
   })
-}
-
-const LOCKFILE_YAML_FORMAT = {
-  blankLines: true,
-  lineWidth: -1, // This is setting line width to never wrap
-  noCompatMode: true,
-  noRefs: true,
-  sortKeys: false,
 }
 
 export async function writeWantedLockfile (
@@ -67,13 +58,8 @@ export function writeLockfileFile (
   lockfilePath: string,
   wantedLockfile: LockfileFile
 ): Promise<void> {
-  const yamlDoc = yamlStringify(wantedLockfile)
+  const yamlDoc = stringifyLockfile(wantedLockfile)
   return writeFileAtomic(lockfilePath, yamlDoc)
-}
-
-function yamlStringify (lockfile: LockfileFile) {
-  const sortedLockfile = sortLockfileKeys(lockfile as LockfileFile)
-  return yaml.dump(sortedLockfile, LOCKFILE_YAML_FORMAT)
 }
 
 export function isEmptyLockfile (lockfile: LockfileObject): boolean {
@@ -95,7 +81,7 @@ export async function writeLockfiles (
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
   const wantedLockfileToStringify = convertToLockfileFile(opts.wantedLockfile)
-  const yamlDoc = yamlStringify(wantedLockfileToStringify)
+  const yamlDoc = stringifyLockfile(wantedLockfileToStringify)
 
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files
@@ -121,7 +107,7 @@ export async function writeLockfiles (
   })
 
   const currentLockfileToStringify = convertToLockfileFile(opts.currentLockfile)
-  const currentYamlDoc = yamlStringify(currentLockfileToStringify)
+  const currentYamlDoc = stringifyLockfile(currentLockfileToStringify)
 
   await Promise.all([
     writeFileAtomic(wantedLockfilePath, yamlDoc),

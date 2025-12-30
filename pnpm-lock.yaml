@@ -144,9 +144,6 @@ catalogs:
     '@types/jest':
       specifier: ^30.0.0
       version: 30.0.0
-    '@types/js-yaml':
-      specifier: ^4.0.9
-      version: 4.0.9
     '@types/lodash.kebabcase':
       specifier: 4.1.9
       version: 4.1.9
@@ -474,9 +471,6 @@ catalogs:
     jest-diff:
       specifier: ^30.1.1
       version: 30.1.1
-    js-yaml:
-      specifier: npm:@zkochan/js-yaml@0.0.10
-      version: 0.0.10
     json5:
       specifier: ^2.2.3
       version: 2.2.3
@@ -771,6 +765,9 @@ catalogs:
     write-yaml-file:
       specifier: ^5.0.0
       version: 5.0.0
+    yaml:
+      specifier: ^2.8.1
+      version: 2.8.1
     yaml-tag:
       specifier: 1.1.0
       version: 1.1.0
@@ -3834,9 +3831,6 @@ importers:
       comver-to-semver:
         specifier: 'catalog:'
         version: 1.0.0
-      js-yaml:
-        specifier: 'catalog:'
-        version: '@zkochan/js-yaml@0.0.10'
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -3852,6 +3846,9 @@ importers:
       write-file-atomic:
         specifier: 'catalog:'
         version: 6.0.0
+      yaml:
+        specifier: 'catalog:'
+        version: 2.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -3862,9 +3859,6 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
-      '@types/js-yaml':
-        specifier: 'catalog:'
-        version: 4.0.9
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
@@ -11029,9 +11023,6 @@ packages:
 
   '@types/jest@30.0.0':
     resolution: {integrity: sha512-XTYugzhuwqWjws0CVz8QpM36+T+Dz5mTEBKhNs/esGLnCIlGdRy+Dq78NRjd7ls7r8BC8ZRMOrKlkO1hU0JOwA==}
-
-  '@types/js-yaml@4.0.9':
-    resolution: {integrity: sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg==}
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -19369,8 +19360,6 @@ snapshots:
     dependencies:
       expect: 30.0.5
       pretty-format: 30.0.5
-
-  '@types/js-yaml@4.0.9': {}
 
   '@types/json-schema@7.0.15': {}
 
