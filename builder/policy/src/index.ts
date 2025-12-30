@@ -4,11 +4,13 @@ import fs from 'fs'
 
 export function createAllowBuildFunction (
   opts: {
+    dangerouslyAllowAllBuilds?: boolean
     neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
     onlyBuiltDependenciesFile?: string
   }
 ): undefined | AllowBuild {
+  if (opts.dangerouslyAllowAllBuilds) return () => true
   if (opts.onlyBuiltDependenciesFile != null || opts.onlyBuiltDependencies != null) {
     const onlyBuiltDeps = opts.onlyBuiltDependencies ?? []
     if (opts.onlyBuiltDependenciesFile) {
