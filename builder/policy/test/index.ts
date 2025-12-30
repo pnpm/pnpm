@@ -23,3 +23,11 @@ it('should not allow patterns in onlyBuiltDependencies', () => {
 it('should return undefined if no policy is set', () => {
   expect(createAllowBuildFunction({})).toBeUndefined()
 })
+
+it('should allow everything when dangerouslyAllowAllBuilds is true', () => {
+  const allowBuild = createAllowBuildFunction({
+    dangerouslyAllowAllBuilds: true,
+  })
+  expect(typeof allowBuild).toBe('function')
+  expect(allowBuild!('foo', '1.0.0')).toBeTruthy()
+})

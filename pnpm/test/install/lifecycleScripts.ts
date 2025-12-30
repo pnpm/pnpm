@@ -299,3 +299,14 @@ test('the list of ignored builds is preserved after a repeat install', async () 
     'esbuild@0.25.0',
   ])
 })
+
+test('git dependencies with preparation scripts should be installed when dangerouslyAllowAllBuilds is true', async () => {
+  prepare({})
+  await writeYamlFile('pnpm-workspace.yaml', { dangerouslyAllowAllBuilds: true })
+
+  // 'test-git-fetch' has a prepare script that builds the package.
+  const result = execPnpmSync(['add', 'https://github.com/pnpm/test-git-fetch.git#8b333f12d5357f4f25a654c305c826294cb073bf'])
+
+  expect(result.status).toBe(0)
+  expect(fs.existsSync('node_modules/test-git-fetch/dist/index.js')).toBeTruthy()
+})
