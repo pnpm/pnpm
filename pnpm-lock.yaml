@@ -1198,6 +1198,12 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
+      tar:
+        specifier: 'catalog:'
+        version: 6.2.1
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.14
     devDependencies:
       '@pnpm/logger':
         specifier: 'catalog:'
@@ -1208,6 +1214,9 @@ importers:
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
+      '@types/tar':
+        specifier: 'catalog:'
+        version: 6.1.13
 
   __utils__/test-fixtures:
     dependencies:

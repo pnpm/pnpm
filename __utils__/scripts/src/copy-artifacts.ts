@@ -2,6 +2,9 @@ import fs from 'fs'
 import * as execa from 'execa'
 import path from 'path'
 import makeEmptyDir from 'make-empty-dir'
+import stream from 'stream'
+import tar from 'tar'
+import { glob } from 'tinyglobby'
 
 const repoRoot = path.join(import.meta.dirname, '../../..')
 const dest = path.join(repoRoot, 'dist')
@@ -23,6 +26,7 @@ const artifactsDir = path.join(repoRoot, 'pnpm/artifacts')
   copyArtifact('macos-arm64/pnpm', 'pnpm-macos-arm64')
   copyArtifact('win-x64/pnpm.exe', 'pnpm-win-x64.exe')
   copyArtifact('win-arm64/pnpm.exe', 'pnpm-win-arm64.exe')
+  await createSourceMapsArchive()
 })()
 
 function copyArtifact (srcName: string, destName: string): void {
@@ -31,4 +35,18 @@ function copyArtifact (srcName: string, destName: string): void {
   } catch (err) {
     console.log(err)
   }
+}
+
+async function createSourceMapsArchive () {
+  const pnpmDistDir = path.join(repoRoot, 'pnpm/dist')
+
+  // The tar.create function can accept a filter callback function, but this
+  // approach ends up adding empty directories to the archive. Using tinyglobby
+  // instead.
+  const mapFiles = await glob('**/*.map', { cwd: pnpmDistDir })
+
+  await stream.promises.pipeline(
+    tar.create({ gzip: true, cwd: pnpmDistDir }, mapFiles),
+    fs.createWriteStream(path.join(dest, 'source-maps.tgz'))
+  )
 }
