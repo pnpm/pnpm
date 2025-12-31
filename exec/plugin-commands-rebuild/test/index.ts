@@ -12,6 +12,7 @@ import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import execa from 'execa'
 import sinon from 'sinon'
+import { sync as writeYamlFileSync } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
@@ -403,4 +404,35 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
   }, [])
 })
 
+test('rebuild respects allowBuilds: false', async () => {
+  const project = prepare({})
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
 
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': false },
+  })
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
+    '--config.enableGlobalVirtualStore=false',
+  ])
+
+  const modulesManifest = project.readModulesManifest()
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    cacheDir,
+    dir: process.cwd(),
+    pending: false,
+    registries: modulesManifest!.registries!,
+    storeDir,
+  }, [])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+})

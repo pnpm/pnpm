@@ -153,7 +153,6 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
-  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
   const modulesManifest = await readWorkspaceManifest(project.dir())
   expect(modulesManifest?.allowBuilds).toStrictEqual({ '@pnpm.e2e/install-script-example': true })
 })
@@ -169,8 +168,8 @@ test('--allow-build flag should specify the package', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
 
-  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
   const modulesManifest = await readWorkspaceManifest(project.dir())
+  expect(modulesManifest?.allowBuilds).toBeUndefined()
 })
 
 test('preinstall script does not trigger verify-deps-before-run (#8954)', async () => {

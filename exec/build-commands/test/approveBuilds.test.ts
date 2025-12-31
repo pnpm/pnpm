@@ -4,12 +4,10 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { type ApproveBuildsCommandOpts } from '@pnpm/exec.build-commands'
 import { type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { prepare } from '@pnpm/prepare'
-import { type ProjectManifest } from '@pnpm/types'
 import { getConfig } from '@pnpm/config'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { jest } from '@jest/globals'
-import { loadJsonFileSync } from 'load-json-file'
 import { omit } from 'ramda'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { writePackageSync } from 'write-package'
@@ -156,8 +154,6 @@ test("works when root project manifest doesn't exist in a workspace", async () =
     },
   })
 })
-
-
 
 test('should approve builds with package.json that has no onlyBuiltDependencies and ignoredBuiltDependencies fields defined', async () => {
   const temp = tempDir()
