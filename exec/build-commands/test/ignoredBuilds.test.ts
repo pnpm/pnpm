@@ -54,7 +54,7 @@ test('ignoredBuilds lists explicitly ignored dependencies', async () => {
     modulesDir,
     rootProjectManifest: {
       pnpm: {
-        ignoredBuiltDependencies: ['bar'],
+        allowBuilds: { bar: false },
       },
     },
   })
@@ -74,7 +74,7 @@ test('ignoredBuilds lists both automatically and explicitly ignored dependencies
     modulesDir,
     rootProjectManifest: {
       pnpm: {
-        ignoredBuiltDependencies: ['qar', 'zoo'],
+        allowBuilds: { qar: false, zoo: false },
       },
     },
   })
@@ -89,7 +89,7 @@ test('ignoredBuilds prints an info message when there is no node_modules', async
     modulesDir,
     rootProjectManifest: {
       pnpm: {
-        ignoredBuiltDependencies: ['qar', 'zoo'],
+        allowBuilds: { qar: false, zoo: false },
       },
     },
   })

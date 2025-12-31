@@ -1252,9 +1252,7 @@ test('dependencies of workspace projects are built during headless installation'
     {
       location: '.',
       package: {
-        pnpm: {
-          neverBuiltDependencies: [],
-        },
+        pnpm: {},
       },
     },
     {
@@ -1890,9 +1888,7 @@ test('deploy should keep files created by lifecycle scripts', async () => {
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {
-        neverBuiltDependencies: [],
-      },
+      pnpm: {},
     },
     'project-0': {
       name: 'project-0',
@@ -1941,9 +1937,7 @@ test('rebuild in a directory created with "pnpm deploy" and with "pnpm.neverBuil
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {
-        neverBuiltDependencies: [],
-      },
+      pnpm: {},
     },
     'project-0': {
       name: 'project-0',

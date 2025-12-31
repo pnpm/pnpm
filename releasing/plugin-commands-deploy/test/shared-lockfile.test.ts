@@ -278,7 +278,7 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
       version: '0.0.0',
       private: true,
       pnpm: {
-        onlyBuiltDependencies: ['from-root'],
+        allowBuilds: { 'from-root': true },
         overrides: {
           'is-positive': '2.0.0',
         },
@@ -292,7 +292,7 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
         'is-positive': '3.1.0',
       },
       pnpm: {
-        onlyBuiltDependencies: ['from-project-0'],
+        allowBuilds: { 'from-project-0': true },
         overrides: {
           'is-positive': '=1.0.0',
         },
@@ -344,7 +344,7 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
 
   const manifest = readPackageJson('deploy') as ProjectManifest
   expect(manifest.pnpm).toStrictEqual({
-    onlyBuiltDependencies: preparedManifests.root.pnpm!.onlyBuiltDependencies,
+    allowBuilds: preparedManifests.root.pnpm!.allowBuilds,
   } as ProjectManifest['pnpm'])
 
   expect(readPackageJson('deploy/node_modules/is-positive/')).toHaveProperty(['version'], preparedManifests.root.pnpm!.overrides!['is-positive'])
@@ -1079,9 +1079,7 @@ test('deploy with a shared lockfile should keep files created by lifecycle scrip
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {
-        neverBuiltDependencies: [],
-      },
+      pnpm: {},
     },
     'project-0': {
       name: 'project-0',

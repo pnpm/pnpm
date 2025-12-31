@@ -403,48 +403,4 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
   }, [])
 })
 
-test('never build neverBuiltDependencies', async () => {
-  const project = prepare({
-    pnpm: {
-      neverBuiltDependencies: [],
-    },
-  })
-  const cacheDir = path.resolve('cache')
-  const storeDir = path.resolve('store')
 
-  await execa('node', [
-    pnpmBin,
-    'add',
-    '@pnpm.e2e/install-script-example@1.0.0',
-    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
-    `--registry=${REGISTRY}`,
-    `--store-dir=${storeDir}`,
-    `--cache-dir=${cacheDir}`,
-    '--config.enableGlobalVirtualStore=false',
-  ])
-
-  const modulesManifest = project.readModulesManifest()
-  await rebuild.handler(
-    {
-      ...DEFAULT_OPTS,
-      neverBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
-      cacheDir,
-      dir: process.cwd(),
-      pending: false,
-      registries: modulesManifest!.registries!,
-      storeDir,
-    },
-    []
-  )
-
-  expect(
-    fs.existsSync(
-      'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-prepare.js'
-    )
-  ).toBeFalsy()
-  expect(
-    fs.existsSync(
-      'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
-    )
-  ).toBeTruthy()
-})

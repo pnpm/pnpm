@@ -93,25 +93,19 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   const buildPackages = result.map(({ value }: { value: string }) => value)
   const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
   const updatedSettings: PnpmSettings = {}
+  const allowBuilds: Record<string, boolean> = {}
   if (ignoredPackages.length) {
-    if (opts.ignoredBuiltDependencies == null) {
-      updatedSettings.ignoredBuiltDependencies = sortUniqueStrings(ignoredPackages)
-    } else {
-      updatedSettings.ignoredBuiltDependencies = sortUniqueStrings([
-        ...opts.ignoredBuiltDependencies,
-        ...ignoredPackages,
-      ])
+    for (const pkg of ignoredPackages) {
+      allowBuilds[pkg] = false
     }
   }
   if (buildPackages.length) {
-    if (opts.onlyBuiltDependencies == null) {
-      updatedSettings.onlyBuiltDependencies = sortUniqueStrings(buildPackages)
-    } else {
-      updatedSettings.onlyBuiltDependencies = sortUniqueStrings([
-        ...opts.onlyBuiltDependencies,
-        ...buildPackages,
-      ])
+    for (const pkg of buildPackages) {
+      allowBuilds[pkg] = true
     }
+  }
+  if (Object.keys(allowBuilds).length > 0) {
+    updatedSettings.allowBuilds = allowBuilds
   }
   if (buildPackages.length) {
     const confirmed = await enquirer.prompt<{ build: boolean }>({
@@ -135,7 +129,6 @@ Do you approve?`,
   if (buildPackages.length) {
     return rebuild.handler({
       ...opts,
-      onlyBuiltDependencies: updatedSettings.onlyBuiltDependencies,
     }, buildPackages)
   } else if (modulesManifest) {
     delete modulesManifest.ignoredBuilds

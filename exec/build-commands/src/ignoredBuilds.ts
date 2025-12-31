@@ -22,7 +22,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
 }
 
 export async function handler (opts: IgnoredBuildsCommandOpts): Promise<string> {
-  const ignoredBuiltDependencies = opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies ?? []
+  const allowBuilds = opts.rootProjectManifest?.pnpm?.allowBuilds ?? {}
+  const ignoredBuiltDependencies = Object.keys(allowBuilds).filter(pkg => allowBuilds[pkg] === false)
   let { automaticallyIgnoredBuilds } = await getAutomaticallyIgnoredBuilds(opts)
   if (automaticallyIgnoredBuilds) {
     automaticallyIgnoredBuilds = automaticallyIgnoredBuilds

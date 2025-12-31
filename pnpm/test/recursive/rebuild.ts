@@ -6,9 +6,7 @@ test('`pnpm recursive rebuild` specific dependencies', async () => {
     {
       location: '.',
       package: {
-        pnpm: {
-          neverBuiltDependencies: [],
-        },
+        pnpm: {},
       },
     },
     {
