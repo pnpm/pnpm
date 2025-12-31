@@ -350,8 +350,6 @@ minimumReleaseAgeExclude:
 
 nodeVersion: 20.19.4
 
-optimisticRepeatInstall: true
-
 overrides:
   '@yarnpkg/fslib@2': '3'
   '@cypress/request@3.0.9>qs': ^6.14.1
