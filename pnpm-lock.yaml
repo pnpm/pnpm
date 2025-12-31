@@ -808,7 +808,7 @@ overrides:
   validator@<13.15.22: '>=13.15.22'
   yaml@<2.2.2: '>=2.2.2'
 
-packageExtensionsChecksum: sha256-1qxck4M+gjHKVxNHtl5ISCI+egyJsA5Hru0aRTpMm9I=
+packageExtensionsChecksum: sha256-lmBPyWzHNw8gbRqEpxT6ldK5ugCM4Vdq+YN0qS3Pb+o=
 
 pnpmfileChecksum: sha256-mx8+uzkaD2WO2V3h9zTchFZZX3QdTTMrkVNvy8svgCY=
 
@@ -828,6 +828,9 @@ patchedDependencies:
   mdast-util-to-string@2.0.0:
     hash: 78bd3240806e30c963b9f930251eb10b9940e506f7cc8910fb3d17d7867956a2
     path: __patches__/mdast-util-to-string@2.0.0.patch
+  write-yaml-file:
+    hash: bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea
+    path: __patches__/write-yaml-file.patch
 
 importers:
 
@@ -1159,7 +1162,7 @@ importers:
         version: 7.2.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
     devDependencies:
       '@pnpm/prepare':
         specifier: workspace:*
@@ -1765,7 +1768,7 @@ importers:
         version: 7.0.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   config/config-writer:
     dependencies:
@@ -2006,7 +2009,7 @@ importers:
         version: 4.0.1
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -2582,7 +2585,7 @@ importers:
         version: 7.2.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   exec/build-modules:
     dependencies:
@@ -2880,7 +2883,7 @@ importers:
         version: 16.1.3
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   exec/plugin-commands-script-runners:
     dependencies:
@@ -3031,7 +3034,7 @@ importers:
         version: 1.0.2
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   exec/pnpm-cli-runner:
     dependencies:
@@ -3791,7 +3794,7 @@ importers:
         version: 3.0.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
       yaml-tag:
         specifier: 'catalog:'
         version: 1.1.0
@@ -3876,7 +3879,7 @@ importers:
         version: 3.0.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
       yaml-tag:
         specifier: 'catalog:'
         version: 1.1.0
@@ -4163,7 +4166,7 @@ importers:
         version: 3.0.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
       yaml-tag:
         specifier: 'catalog:'
         version: 1.1.0
@@ -4892,7 +4895,7 @@ importers:
         version: 3.0.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   patching/types:
     devDependencies:
@@ -5254,7 +5257,7 @@ importers:
         version: 6.0.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   pkg-manager/direct-dep-linker:
     dependencies:
@@ -5701,7 +5704,7 @@ importers:
         version: 2.1.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
     devDependencies:
       '@pnpm/modules-yaml':
         specifier: workspace:*
@@ -6113,7 +6116,7 @@ importers:
         version: 7.2.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   pkg-manager/read-projects-context:
     dependencies:
@@ -6397,7 +6400,7 @@ importers:
         version: 7.0.6
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   pkg-manifest/manifest-utils:
     dependencies:
@@ -6517,7 +6520,7 @@ importers:
         version: 6.0.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
     devDependencies:
       '@pnpm/write-project-manifest':
         specifier: workspace:*
@@ -6837,7 +6840,7 @@ importers:
         version: 7.2.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
     optionalDependencies:
       node-gyp:
         specifier: ^11.1.0
@@ -7044,7 +7047,7 @@ importers:
         version: 0.29.12
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   releasing/plugin-commands-publishing:
     dependencies:
@@ -7213,7 +7216,7 @@ importers:
         version: 6.2.1
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   resolving/bun-resolver:
     dependencies:
@@ -8011,7 +8014,7 @@ importers:
         version: safe-execa@0.2.0
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   reviewing/plugin-commands-outdated:
     dependencies:
@@ -9076,7 +9079,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       write-yaml-file:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
     devDependencies:
       '@pnpm/fs.find-packages':
         specifier: workspace:*
@@ -18904,7 +18907,7 @@ snapshots:
       rimraf: 3.0.2
       tempy: 1.0.1
       verdaccio: 6.1.6(encoding@0.1.13)(typanion@3.14.0)
-      write-yaml-file: 4.2.0
+      write-yaml-file: 4.2.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   '@pnpm/render-peer-issues@1000.0.6':
     dependencies:
@@ -19130,7 +19133,7 @@ snapshots:
       '@pnpm/object.key-sorting': 1000.0.1
       '@pnpm/workspace.read-manifest': 1000.1.5
       ramda: '@pnpm/ramda@0.28.1'
-      write-yaml-file: 5.0.0
+      write-yaml-file: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   '@pnpm/workspace.read-manifest@1000.1.1':
     dependencies:
@@ -19154,7 +19157,7 @@ snapshots:
       '@pnpm/types': 1000.2.1
       json5: 2.2.3
       write-file-atomic: 5.0.1
-      write-yaml-file: 5.0.0
+      write-yaml-file: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   '@pnpm/write-project-manifest@1000.0.8':
     dependencies:
@@ -19162,7 +19165,7 @@ snapshots:
       '@pnpm/types': 1000.6.0
       json5: 2.2.3
       write-file-atomic: 5.0.1
-      write-yaml-file: 5.0.0
+      write-yaml-file: 5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea)
 
   '@postman/form-data@3.1.1':
     dependencies:
@@ -25906,15 +25909,17 @@ snapshots:
       type-fest: 0.4.1
       write-json-file: 3.2.0
 
-  write-yaml-file@4.2.0:
+  write-yaml-file@4.2.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea):
     dependencies:
       js-yaml: '@zkochan/js-yaml@0.0.10'
       write-file-atomic: 3.0.3
+      yaml: 2.8.1
 
-  write-yaml-file@5.0.0:
+  write-yaml-file@5.0.0(patch_hash=bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea):
     dependencies:
       js-yaml: '@zkochan/js-yaml@0.0.10'
       write-file-atomic: 5.0.1
+      yaml: 2.8.1
 
   xdg-basedir@5.1.0: {}
 

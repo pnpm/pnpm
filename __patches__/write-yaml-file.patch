@@ -1,0 +1,22 @@
+diff --git a/index.js b/index.js
+index 83fa9034fc01c6637bc079b0fc50e67cb696bd85..9f1b48ee783e9788d01c6a18d8fede408e71fb7d 100644
+--- a/index.js
++++ b/index.js
+@@ -2,7 +2,7 @@
+ const path = require('path')
+ const fs = require('fs')
+ const writeFileAtomic = require('write-file-atomic')
+-const YAML = require('js-yaml')
++const YAML = require('yaml')
+ 
+ const main = (fn, fp, data, opts) => {
+   if (!fp) {
+@@ -15,7 +15,7 @@ const main = (fn, fp, data, opts) => {
+ 
+   opts = opts || {}
+ 
+-  const yaml = YAML.dump(data, opts)
++  const yaml = YAML.stringify(data, opts)
+ 
+   return fn(fp, yaml, { mode: opts.mode })
+ }

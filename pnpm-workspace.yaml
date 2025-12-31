@@ -402,6 +402,9 @@ packageExtensions:
   remark-stringify:
     peerDependencies:
       unified: '*'
+  write-yaml-file:
+    dependencies:
+      yaml: ^2.8.1
 
 patchedDependencies:
   '@pnpm/npm-lifecycle': __patches__/@pnpm__npm-lifecycle.patch
@@ -409,6 +412,7 @@ patchedDependencies:
   '@yarnpkg/parsers': __patches__/@yarnpkg__parsers.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
+  write-yaml-file: __patches__/write-yaml-file.patch
 
 patchesDir: __patches__
 
