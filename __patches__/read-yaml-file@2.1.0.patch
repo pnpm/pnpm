@@ -1,0 +1,19 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+deleted file mode 100644
+index 27e7ca269cbfffc57641d531401741a6e7a0b9f4..0000000000000000000000000000000000000000
+diff --git a/index.js b/index.js
+index 3dd0d8f9653d040e0f0f219def8f89f566b7daa5..df8ee6b9ab6f3ea30bf7ed5a9f36f43f3fdfae21 100644
+--- a/index.js
++++ b/index.js
+@@ -2,9 +2,9 @@
+ 
+ const fs = require('fs')
+ const stripBom = require('strip-bom')
+-const yaml = require('js-yaml')
++const yaml = require('yaml')
+ 
+-const parse = data => yaml.load(stripBom(data))
++const parse = data => yaml.parse(stripBom(data))
+ 
+ const readYamlFile = fp => fs.promises.readFile(fp, 'utf8').then(data => parse(data))
+ 

@@ -396,6 +396,9 @@ packageExtensions:
   jest-circus:
     dependencies:
       slash: '3'
+  read-yaml-file:
+    dependencies:
+      yaml: ^2.8.1
   remark-parse:
     peerDependencies:
       unified: '*'
@@ -412,6 +415,8 @@ patchedDependencies:
   '@yarnpkg/parsers': __patches__/@yarnpkg__parsers.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
+  read-yaml-file@1.1.0: __patches__/read-yaml-file@1.1.0.patch
+  read-yaml-file@2.1.0: __patches__/read-yaml-file@2.1.0.patch
   write-yaml-file: __patches__/write-yaml-file.patch
 
 patchesDir: __patches__

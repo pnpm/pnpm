@@ -1,0 +1,16 @@
+diff --git a/index.js b/index.js
+index bcb70193b4bf60c5a1d021a6756adf5f81d67ac6..bbf43172e55631f464e24839650bb05ef63cb665 100644
+--- a/index.js
++++ b/index.js
+@@ -3,9 +3,9 @@
+ const fs = require('graceful-fs')
+ const pify = require('pify')
+ const stripBom = require('strip-bom')
+-const yaml = require('js-yaml')
++const yaml = require('yaml')
+ 
+-const parse = data => yaml.safeLoad(stripBom(data))
++const parse = data => yaml.parse(stripBom(data))
+ 
+ const readYamlFile = fp => pify(fs.readFile)(fp, 'utf8').then(data => parse(data))
+ 
