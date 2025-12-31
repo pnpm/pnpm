@@ -1,0 +1,20 @@
+diff --git a/lib/index.d.ts b/lib/index.d.ts
+index 40c8d389c5f81f60a496ce9792626b42c5bb06db..04103ca6f1b872804f8b1ec781cf251e96e70dac 100644
+--- a/lib/index.d.ts
++++ b/lib/index.d.ts
+@@ -3,4 +3,3 @@ export type { ArithmeticExpression, ArithmeticPrimary } from './grammars/shell';
+ export { parseShell, stringifyShell, stringifyArgument, stringifyArgumentSegment, stringifyArithmeticExpression, stringifyCommand, stringifyCommandChain, stringifyCommandChainThen, stringifyCommandLine, stringifyCommandLineThen, stringifyEnvSegment, stringifyRedirectArgument, stringifyShellLine, stringifyValueArgument, } from './shell';
+ export { parseResolution, stringifyResolution } from './resolution';
+ export type { Resolution } from './resolution';
+-export { parseSyml, stringifySyml } from './syml';
+diff --git a/lib/index.js b/lib/index.js
+index c2088ed779fcf248b5d0bc54a827c6a478d00696..3af5791f99545582caa10f20d7396a6d79a8ae8c 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -19,6 +19,3 @@ Object.defineProperty(exports, "stringifyValueArgument", { enumerable: true, get
+ var resolution_1 = require("./resolution");
+ Object.defineProperty(exports, "parseResolution", { enumerable: true, get: function () { return resolution_1.parseResolution; } });
+ Object.defineProperty(exports, "stringifyResolution", { enumerable: true, get: function () { return resolution_1.stringifyResolution; } });
+-var syml_1 = require("./syml");
+-Object.defineProperty(exports, "parseSyml", { enumerable: true, get: function () { return syml_1.parseSyml; } });
+-Object.defineProperty(exports, "stringifySyml", { enumerable: true, get: function () { return syml_1.stringifySyml; } });

@@ -819,6 +819,9 @@ patchedDependencies:
   '@yao-pkg/pkg':
     hash: ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e
     path: __patches__/pkg.patch
+  '@yarnpkg/parsers':
+    hash: 48d06b9f0cd769c001fc975241c4c4573d0cbe84df362f8ac6885d1c5019eaff
+    path: __patches__/@yarnpkg__parsers.patch
   graceful-fs@4.2.11:
     hash: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
     path: __patches__/graceful-fs@4.2.11.patch
@@ -19868,7 +19871,7 @@ snapshots:
       '@types/treeify': 1.0.3
       '@yarnpkg/fslib': 3.1.2
       '@yarnpkg/libzip': 3.2.1(@yarnpkg/fslib@3.1.2)
-      '@yarnpkg/parsers': 3.0.3
+      '@yarnpkg/parsers': 3.0.3(patch_hash=48d06b9f0cd769c001fc975241c4c4573d0cbe84df362f8ac6885d1c5019eaff)
       '@yarnpkg/shell': 4.1.2(typanion@3.14.0)
       camelcase: 5.3.1
       chalk: 3.0.0
@@ -19899,7 +19902,7 @@ snapshots:
       '@types/treeify': 1.0.3
       '@yarnpkg/fslib': 3.1.2
       '@yarnpkg/libzip': 3.2.1(@yarnpkg/fslib@3.1.2)
-      '@yarnpkg/parsers': 3.0.3
+      '@yarnpkg/parsers': 3.0.3(patch_hash=48d06b9f0cd769c001fc975241c4c4573d0cbe84df362f8ac6885d1c5019eaff)
       '@yarnpkg/shell': 4.1.2(typanion@3.14.0)
       camelcase: 5.3.1
       chalk: 3.0.0
@@ -19947,7 +19950,7 @@ snapshots:
     transitivePeerDependencies:
       - typanion
 
-  '@yarnpkg/parsers@3.0.3':
+  '@yarnpkg/parsers@3.0.3(patch_hash=48d06b9f0cd769c001fc975241c4c4573d0cbe84df362f8ac6885d1c5019eaff)':
     dependencies:
       js-yaml: 3.14.2
       tslib: 2.8.1
@@ -19965,7 +19968,7 @@ snapshots:
   '@yarnpkg/shell@4.0.0(typanion@3.14.0)':
     dependencies:
       '@yarnpkg/fslib': 3.1.2
-      '@yarnpkg/parsers': 3.0.3
+      '@yarnpkg/parsers': 3.0.3(patch_hash=48d06b9f0cd769c001fc975241c4c4573d0cbe84df362f8ac6885d1c5019eaff)
       chalk: 3.0.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
       cross-spawn: 7.0.6
@@ -19978,7 +19981,7 @@ snapshots:
   '@yarnpkg/shell@4.1.2(typanion@3.14.0)':
     dependencies:
       '@yarnpkg/fslib': 3.1.2
-      '@yarnpkg/parsers': 3.0.3
+      '@yarnpkg/parsers': 3.0.3(patch_hash=48d06b9f0cd769c001fc975241c4c4573d0cbe84df362f8ac6885d1c5019eaff)
       chalk: 3.0.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
       cross-spawn: 7.0.6
