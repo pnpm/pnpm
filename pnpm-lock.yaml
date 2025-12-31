@@ -808,7 +808,7 @@ overrides:
   validator@<13.15.22: '>=13.15.22'
   yaml@<2.2.2: '>=2.2.2'
 
-packageExtensionsChecksum: sha256-YahTvzK4MLConjfs3k17VHOogml59gGyNcOZyp5fFS8=
+packageExtensionsChecksum: sha256-3cXHWOWj7O+pRtH1Qg07Sp9zngb7JQctjcmdkbVRc2I=
 
 pnpmfileChecksum: sha256-mx8+uzkaD2WO2V3h9zTchFZZX3QdTTMrkVNvy8svgCY=
 
@@ -834,6 +834,9 @@ patchedDependencies:
   read-yaml-file@2.1.0:
     hash: 9c7a2a99755c0e23ddbf672398b3ba26a42e4e9206909345f898de145ecce0b1
     path: __patches__/read-yaml-file@2.1.0.patch
+  which-pm:
+    hash: 67ae9635234d3e0cbb599b0b86479e63dfcfaaccd1c9760ba48555b20b84cbb4
+    path: __patches__/which-pm.patch
   write-yaml-file:
     hash: bf2a118b75453842ccd4cc20eb292c566e7b984b177d250d2cae46d176bf86ea
     path: __patches__/write-yaml-file.patch
@@ -24162,7 +24165,7 @@ snapshots:
       find-up: 5.0.0
       find-yarn-workspace-root2: 1.2.16
       path-exists: 4.0.0
-      which-pm: 2.2.0
+      which-pm: 2.2.0(patch_hash=67ae9635234d3e0cbb599b0b86479e63dfcfaaccd1c9760ba48555b20b84cbb4)
 
   prelude-ls@1.2.1: {}
 
@@ -25785,10 +25788,11 @@ snapshots:
       is-weakmap: 2.0.2
       is-weakset: 2.0.4
 
-  which-pm@2.2.0:
+  which-pm@2.2.0(patch_hash=67ae9635234d3e0cbb599b0b86479e63dfcfaaccd1c9760ba48555b20b84cbb4):
     dependencies:
       load-yaml-file: 0.2.0
       path-exists: 4.0.0
+      read-yaml-file: 2.1.0(patch_hash=9c7a2a99755c0e23ddbf672398b3ba26a42e4e9206909345f898de145ecce0b1)
 
   which-typed-array@1.1.19:
     dependencies:

@@ -405,6 +405,9 @@ packageExtensions:
   remark-stringify:
     peerDependencies:
       unified: '*'
+  which-pm:
+    dependencies:
+      read-yaml-file: ^2.1.0
   write-yaml-file:
     dependencies:
       yaml: ^2.8.1
@@ -417,6 +420,7 @@ patchedDependencies:
   mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
   read-yaml-file@1.1.0: __patches__/read-yaml-file@1.1.0.patch
   read-yaml-file@2.1.0: __patches__/read-yaml-file@2.1.0.patch
+  which-pm: __patches__/which-pm.patch
   write-yaml-file: __patches__/write-yaml-file.patch
 
 patchesDir: __patches__

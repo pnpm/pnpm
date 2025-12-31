@@ -1,0 +1,22 @@
+diff --git a/index.js b/index.js
+index 68564b22117410429d45d66c9b355d418ac285f3..4f433d64384dd4dd5b57444a3fccf385cf31978b 100644
+--- a/index.js
++++ b/index.js
+@@ -1,7 +1,7 @@
+ 'use strict'
+ const path = require('path')
+ const pathExists = require('path-exists')
+-const loadYamlFile = require('load-yaml-file')
++const readYamlFile = require('read-yaml-file')
+ 
+ module.exports = async function (pkgPath) {
+   const modulesPath = path.join(pkgPath, 'node_modules')
+@@ -11,7 +11,7 @@ module.exports = async function (pkgPath) {
+   if (await pathExists(path.join(pkgPath, 'bun.lockb'))) return { name: 'bun' }
+ 
+   try {
+-    const modules = await loadYamlFile(path.join(modulesPath, '.modules.yaml'))
++    const modules = await readYamlFile(path.join(modulesPath, '.modules.yaml'))
+     return toNameAndVersion(modules.packageManager)
+   } catch (err) {
+     if (err.code !== 'ENOENT') throw err
