@@ -305,3 +305,61 @@ test('when publish some package throws an error, exit code should be non-zero', 
 
   expect(result?.exitCode).toBe(1)
 })
+
+test('recursive publish runs script with Node.js version specified by devEngines.runtime', async () => {
+  preparePackages([
+    {
+      name: 'test-publish-node-version-unset',
+      version: '1.0.0',
+      scripts: {
+        prepublishOnly: 'node -v > node-version.txt',
+      },
+    },
+    {
+      name: 'test-publish-node-version-18',
+      version: '1.0.0',
+      scripts: {
+        prepublishOnly: 'node -v > node-version.txt',
+      },
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '18.0.0',
+          onFail: 'download',
+        },
+      },
+    },
+    {
+      name: 'test-publish-node-version-20',
+      version: '1.0.0',
+      scripts: {
+        prepublishOnly: 'node -v > node-version.txt',
+      },
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '20.0.0',
+          onFail: 'download',
+        },
+      },
+    },
+  ])
+
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await filterPackagesFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    dryRun: true,
+    pnpmHomeDir: process.cwd(),
+    recursive: true,
+  }, [])
+
+  expect(
+    ['unset', '18', '20']
+      .map(suffix => `test-publish-node-version-${suffix}`)
+      .map(name => path.resolve(name, 'node-version.txt'))
+      .map(nodeVersionFile => fs.readFileSync(nodeVersionFile, 'utf-8').trim())
+  ).toStrictEqual([process.version, 'v18.0.0', 'v20.0.0'])
+})

@@ -41,7 +41,7 @@ import { parseEnvVars } from './env.js'
 import { type WorkspaceManifest, readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { types } from './types.js'
-import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
@@ -49,6 +49,7 @@ import {
 export { types }
 
 export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export * from './readLocalConfig.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 
 export {
@@ -394,9 +395,6 @@ export async function getConfig (opts: {
       }
       if (pnpmConfig.rootProjectManifest.packageManager) {
         pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
-      }
-      if (pnpmConfig.rootProjectManifest) {
-        Object.assign(pnpmConfig, getOptionsFromRootManifest(pnpmConfig.rootProjectManifestDir, pnpmConfig.rootProjectManifest))
       }
     }
 

@@ -3,7 +3,7 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import { checkDepsStatus } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
@@ -216,7 +216,6 @@ when running add/update with the --workspace option')
         params,
         {
           ...opts,
-          ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
           forceHoistPattern,
           forcePublicHoistPattern,
           allProjectsGraph,
@@ -249,7 +248,6 @@ when running add/update with the --workspace option')
 
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest)),
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository

@@ -5,7 +5,7 @@ import { type PackageManifest, type ProjectManifest } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
 import { loadJsonFileSync } from 'load-json-file'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFileSync } from 'write-yaml-file'
 import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
@@ -108,9 +108,9 @@ test('dependency should not be added to package.json and lockfile if it was not 
   const initialPkg = {
     name: 'foo',
     version: '1.0.0',
-    pnpm: { neverBuiltDependencies: [] },
   }
   const project = prepare(initialPkg)
+  writeYamlFileSync('pnpm-workspace.yaml', { neverBuiltDependencies: [] })
 
   const result = execPnpmSync(['install', 'package-that-cannot-be-installed@0.0.0'])
 
@@ -146,13 +146,12 @@ test('node-gyp is in the PATH', async () => {
 })
 
 test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFile', async () => {
-  prepare({
-    pnpm: {
-      configDependencies: {
-        '@pnpm.e2e/build-allow-list': `1.0.0+${getIntegrity('@pnpm.e2e/build-allow-list', '1.0.0')}`,
-      },
-      onlyBuiltDependenciesFile: 'node_modules/.pnpm-config/@pnpm.e2e/build-allow-list/list.json',
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    configDependencies: {
+      '@pnpm.e2e/build-allow-list': `1.0.0+${getIntegrity('@pnpm.e2e/build-allow-list', '1.0.0')}`,
     },
+    onlyBuiltDependenciesFile: 'node_modules/.pnpm-config/@pnpm.e2e/build-allow-list/list.json',
   })
   execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
 
@@ -183,8 +182,8 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
-  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
-  expect(manifest.pnpm?.onlyBuiltDependencies).toBeUndefined()
+  const manifest = loadJsonFileSync<Record<string, unknown>>('package.json')
+  expect((manifest as Record<string, unknown>).pnpm).toBeUndefined()
   const modulesManifest = await readWorkspaceManifest(project.dir())
   expect(modulesManifest?.onlyBuiltDependencies).toBeUndefined()
   expect(modulesManifest?.allowBuilds).toStrictEqual({ '@pnpm.e2e/install-script-example': true })
@@ -201,17 +200,16 @@ test('--allow-build flag should specify the package', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
 
-  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
-  expect(manifest.pnpm?.onlyBuiltDependencies).toBeUndefined()
+  const manifest = loadJsonFileSync<Record<string, unknown>>('package.json')
+  expect((manifest as Record<string, unknown>).pnpm).toBeUndefined()
   const modulesManifest = await readWorkspaceManifest(project.dir())
   expect(modulesManifest?.onlyBuiltDependencies).toBeUndefined()
 })
 
 test('selectively allow scripts in some dependencies by --allow-build flag overlap ignoredBuiltDependencies', async () => {
-  prepare({
-    pnpm: {
-      ignoredBuiltDependencies: ['@pnpm.e2e/install-script-example'],
-    },
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    ignoredBuiltDependencies: ['@pnpm.e2e/install-script-example'],
   })
   const result = execPnpmSync(['add', '--allow-build=@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
 
@@ -257,7 +255,7 @@ test('preinstall and postinstall scripts do not trigger verify-deps-before-run w
     },
   })
 
-  await writeYamlFile('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'install' })
+  writeYamlFileSync('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'install' })
 
   // 20s timeout because if it fails it will run for 3 minutes instead
   const output = execPnpmSync(['install'], { expectSuccess: true, timeout: 20_000 })

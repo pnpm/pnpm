@@ -10,7 +10,7 @@ import {
 } from '@pnpm/store-connection-manager'
 import gfs from '@pnpm/graceful-fs'
 import { install, type InstallOptions } from '@pnpm/core'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type ProjectsGraph, type Project } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
@@ -176,10 +176,8 @@ export async function handler (
 
   const store = await createOrConnectStoreController(opts)
   const manifest = await readProjectManifestOnly(opts.dir)
-  const manifestOpts = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}
   const installOpts = {
     ...opts,
-    ...manifestOpts,
     lockfileOnly: true,
     preferredVersions,
     storeController: store.ctrl,

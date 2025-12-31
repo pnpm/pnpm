@@ -132,7 +132,6 @@ test('deploy with a shared lockfile after full install', async () => {
     },
     files: ['index.js'],
     optionalDependencies: {},
-    pnpm: {},
   }
 
   // deploy prod only

@@ -70,9 +70,6 @@ function checkNonRootProjectManifest ({ manifest, rootDir }: Project): void {
       warn(field)
     }
   }
-  for (const field in manifest.pnpm) {
-    warn(`pnpm.${field}`)
-  }
 }
 
 function printNonRootFieldWarning (prefix: string, propertyPath: string): void {

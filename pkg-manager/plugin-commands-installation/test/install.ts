@@ -67,13 +67,6 @@ describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchit
       dependencies: {
         '@pnpm.e2e/support-different-architectures': '1.0.0',
       },
-      pnpm: {
-        supportedArchitectures: {
-          os: ['linux'],
-          cpu: ['x64'],
-          libc: [libc],
-        },
-      },
     }
 
     prepare(rootProjectManifest)
@@ -82,6 +75,11 @@ describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchit
       ...DEFAULT_OPTS,
       rootProjectManifest,
       dir: process.cwd(),
+      supportedArchitectures: {
+        os: ['linux'],
+        cpu: ['x64'],
+        libc: [libc],
+      },
     })
 
     const pkgDirs = fs.readdirSync(path.resolve('node_modules', '.pnpm'))
