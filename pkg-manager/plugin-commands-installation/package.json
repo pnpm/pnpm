@@ -73,7 +73,6 @@
     "@pnpm/write-project-manifest": "workspace:*",
     "@yarnpkg/core": "catalog:",
     "@yarnpkg/lockfile": "catalog:",
-    "@yarnpkg/parsers": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
@@ -87,7 +86,8 @@
     "ramda": "catalog:",
     "render-help": "catalog:",
     "version-selector-type": "catalog:",
-    "which": "catalog:"
+    "which": "catalog:",
+    "yaml": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

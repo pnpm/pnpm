@@ -22,9 +22,9 @@ import renderHelp from 'render-help'
 import yarnLockfileLib from '@yarnpkg/lockfile'
 import { type LockFileObject } from '@yarnpkg/lockfile'
 import * as structUtils from '@yarnpkg/core/structUtils'
-import { parseSyml } from '@yarnpkg/parsers'
 import { recursive } from '../recursive.js'
 import { yarnLockFileKeyNormalizer } from './yarnUtil.js'
+import yaml from 'yaml'
 
 interface NpmPackageLock {
   dependencies: LockedPackagesMap
@@ -212,7 +212,7 @@ async function readYarnLockFile (dir: string): Promise<LockFileObject> {
 }
 
 function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
-  const parseYarnLock = parseSyml(lockFileContents)
+  const parseYarnLock = yaml.parse(lockFileContents)
 
   delete parseYarnLock.__metadata
   const dependencies: YarnPackageLock = {}

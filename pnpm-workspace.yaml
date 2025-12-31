@@ -140,7 +140,6 @@ catalog:
   '@yarnpkg/extensions': 2.0.3
   '@yarnpkg/lockfile': ^1.1.0
   '@yarnpkg/nm': 4.0.5
-  '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
   '@zkochan/cmd-shim': ^7.0.0
   '@zkochan/diable': ^1.0.2
