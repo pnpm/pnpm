@@ -1291,7 +1291,7 @@ packages:
     level: 'warn',
     name: 'pnpm',
     prefix: process.cwd(),
-    message: expect.stringMatching(/^Ignoring broken lockfile at .* duplicated mapping key/),
+    message: expect.stringMatching(/^Ignoring broken lockfile at .* Map keys must be unique/),
   }))
 })
 
@@ -1319,7 +1319,7 @@ packages:
         '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
       },
     }, testDefaults({ frozenLockfile: true }))
-  ).rejects.toThrow(/^The lockfile at .* is broken: duplicated mapping key/)
+  ).rejects.toThrow(/^The lockfile at .* is broken: Map keys must be unique/)
 })
 
 test('a broken private lockfile is ignored', async () => {
@@ -1358,7 +1358,7 @@ packages:
     level: 'warn',
     name: 'pnpm',
     prefix: process.cwd(),
-    message: expect.stringMatching(/^Ignoring broken lockfile at .* duplicated mapping key/),
+    message: expect.stringMatching(/^Ignoring broken lockfile at .* Map keys must be unique/),
   }))
 })
 
