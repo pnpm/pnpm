@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { build } from 'esbuild'
 
 /**
@@ -5,10 +7,10 @@ import { build } from 'esbuild'
  * Unfortunately, we need to do this because otherwise corepack wouldn't be able to install
  * pnpm with reflink support. Reflink is only unpacking the pnpm tarball and does no additional actions.
  */
-;(async () => {
+(async () => {
   try {
     const banner = { js: `import { createRequire as _cr } from 'module';const require = _cr(import.meta.url); const __filename = import.meta.filename; const __dirname = import.meta.dirname` }
-    await build({
+    const mainBuildResult = await build({
       entryPoints: ['lib/pnpm.js'],
       bundle: true,
       platform: 'node',
@@ -39,9 +41,10 @@ import { build } from 'esbuild'
       loader: {
         '.node': 'copy',
       },
+      metafile: true
     })
 
-    await build({
+    const workerBuildResult = await build({
       entryPoints: ['../worker/lib/worker.js'],
       bundle: true,
       platform: 'node',
@@ -52,7 +55,15 @@ import { build } from 'esbuild'
       loader: {
         '.node': 'copy',
       },
+      metafile: true,
     })
+
+    const statsDir = path.join(import.meta.dirname, 'stats')
+    await fs.promises.mkdir(statsDir, { recursive: true })
+    await Promise.all([
+      fs.promises.writeFile(path.join(statsDir, 'meta.json'), JSON.stringify(mainBuildResult.metafile)),
+      fs.promises.writeFile(path.join(statsDir, 'meta-worker.json'), JSON.stringify(workerBuildResult.metafile)),
+    ])
   } catch (err) {
     console.error(err)
     process.exit(1)
