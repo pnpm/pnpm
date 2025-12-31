@@ -249,9 +249,6 @@ catalogs:
     '@yarnpkg/nm':
       specifier: 4.0.5
       version: 4.0.5
-    '@yarnpkg/parsers':
-      specifier: 3.0.3
-      version: 3.0.3
     '@yarnpkg/pnp':
       specifier: ^4.0.8
       version: 4.0.8
@@ -5987,9 +5984,6 @@ importers:
       '@yarnpkg/lockfile':
         specifier: 'catalog:'
         version: 1.1.0
-      '@yarnpkg/parsers':
-        specifier: 'catalog:'
-        version: 3.0.3
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -6032,6 +6026,9 @@ importers:
       which:
         specifier: 'catalog:'
         version: '@pnpm/which@3.0.1'
+      yaml:
+        specifier: 'catalog:'
+        version: 2.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
