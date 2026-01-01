@@ -144,6 +144,7 @@ export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
   resumeFrom?: string
   reportSummary?: boolean
   implicitlyFellbackFromRun?: boolean
+  userExecutionCwd?: string
 } & Pick<Config,
 | 'bin'
 | 'dir'
@@ -247,10 +248,11 @@ export async function handler (
             userAgent: opts.userAgent,
           })
           const [cmd, ...args] = params
+          const cwd = opts.implicitlyFellbackFromRun && opts.userExecutionCwd ? opts.userExecutionCwd : prefix
           if (reporterShowPrefix) {
             const manifest = await readProjectManifestOnly(prefix)
             const child = execa(cmd, args, {
-              cwd: prefix,
+              cwd,
               env,
               stdio: 'pipe',
               shell: opts.shellMode ?? false,
@@ -284,7 +286,7 @@ export async function handler (
             await child
           } else {
             await execa(cmd, args, {
-              cwd: prefix,
+              cwd,
               env,
               stdio: 'inherit',
               shell: opts.shellMode ?? false,
