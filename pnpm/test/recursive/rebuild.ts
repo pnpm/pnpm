@@ -40,7 +40,7 @@ test('`pnpm recursive rebuild` specific dependencies', async () => {
   projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 
-  await execPnpm(['recursive', 'rebuild', 'install-scripts-example-for-pnpm'])
+  await execPnpm(['recursive', 'rebuild', 'install-scripts-example-for-pnpm', '--config.dangerouslyAllowAllBuilds=true'])
 
   projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
