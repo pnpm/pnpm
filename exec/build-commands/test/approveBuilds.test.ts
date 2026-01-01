@@ -86,9 +86,6 @@ test('approve selected build', async () => {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
       '@pnpm.e2e/install-script-example': '*',
     },
-    pnpm: {
-      overrides: {},
-    },
   })
 
   await approveSomeBuilds()

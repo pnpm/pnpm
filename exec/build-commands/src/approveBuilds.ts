@@ -129,6 +129,10 @@ Do you approve?`,
   if (buildPackages.length) {
     return rebuild.handler({
       ...opts,
+      onlyBuiltDependencies: [
+        ...opts.onlyBuiltDependencies ?? [],
+        ...buildPackages,
+      ],
     }, buildPackages)
   } else if (modulesManifest) {
     delete modulesManifest.ignoredBuilds
