@@ -3,8 +3,15 @@ import { type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.typ
 import { type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
-import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
+
+function isGitHostedPkgUrl (url: string): boolean {
+  return (
+    url.startsWith('https://codeload.github.com/') ||
+    url.startsWith('https://bitbucket.org/') ||
+    url.startsWith('https://gitlab.com/')
+  ) && url.includes('tar.gz')
+}
 
 export function pkgSnapshotToResolution (
   depPath: string,

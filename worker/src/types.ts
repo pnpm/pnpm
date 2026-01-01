@@ -1,5 +1,6 @@
 import { type PackageFilesResponse } from '@pnpm/cafs-types'
 import { type DependencyManifest } from '@pnpm/types'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 
 export interface PkgNameVersion {
   name?: string
@@ -68,4 +69,11 @@ export interface HardLinkDirMessage {
   type: 'hardLinkDir'
   src: string
   destDirs: string[]
+}
+
+export interface WriteLockfileMessage {
+  type: 'writeLockfile'
+  lockfileFilename: string
+  pkgPath: string
+  lockfile: LockfileObject
 }

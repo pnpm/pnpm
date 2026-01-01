@@ -29,7 +29,9 @@ import {
   type TarballExtractMessage,
   type HardLinkDirMessage,
   type InitStoreMessage,
+  type WriteLockfileMessage,
 } from './types.js'
+import { convertToLockfileFile, writeLockfileFile, type LockfileObject } from '@pnpm/lockfile.fs'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([a-z0-9+/=]+)$/i
 
@@ -53,6 +55,7 @@ async function handleMessage (
   | SymlinkAllModulesMessage
   | HardLinkDirMessage
   | InitStoreMessage
+  | WriteLockfileMessage
   | false
 ): Promise<void> {
   if (message === false) {
@@ -128,6 +131,11 @@ async function handleMessage (
     }
     case 'hardLinkDir': {
       hardLinkDir(message.src, message.destDirs)
+      parentPort!.postMessage({ status: 'success' })
+      break
+    }
+    case 'writeLockfile': {
+      await writeLockfile(message.lockfileFilename, message.pkgPath, message.lockfile)
       parentPort!.postMessage({ status: 'success' })
       break
     }
@@ -402,4 +410,15 @@ function writeV8File (filePath: string, data: unknown): void {
   const temp = `${filePath.slice(0, -9)}${process.pid}`
   gfs.writeFileSync(temp, v8.serialize(data))
   optimisticRenameOverwrite(temp, filePath)
+}
+
+function writeLockfile (
+  lockfileFilename: string,
+  pkgPath: string,
+  wantedLockfile: LockfileObject
+): Promise<void> {
+  const lockfilePath = path.join(pkgPath, lockfileFilename)
+
+  const lockfileToStringify = convertToLockfileFile(wantedLockfile)
+  return writeLockfileFile(lockfilePath, lockfileToStringify)
 }

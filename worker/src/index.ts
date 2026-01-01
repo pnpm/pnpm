@@ -15,6 +15,7 @@ import {
   type SymlinkAllModulesMessage,
   type HardLinkDirMessage,
 } from './types.js'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 
 let workerPool: WorkerPool | undefined
 
@@ -324,6 +325,33 @@ export async function initStoreDir (storeDir: string): Promise<void> {
     localWorker.postMessage({
       type: 'init-store',
       storeDir,
+    })
+  })
+}
+
+export async function writeLockfile (
+  lockfileFilename: string,
+  pkgPath: string,
+  lockfile: LockfileObject
+): Promise<void> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<void>((resolve, reject) => {
+    localWorker.once('message', ({ status, error }) => {
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError(error.code ?? 'WRITE_LOCKFILE_FAIL', error.message as string))
+        return
+      }
+      resolve()
+    })
+    localWorker.postMessage({
+      type: 'writeLockfile',
+      lockfileFilename,
+      pkgPath,
+      lockfile,
     })
   })
 }

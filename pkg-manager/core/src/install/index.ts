@@ -37,10 +37,10 @@ import {
   type ProjectSnapshot,
   type LockfileObject,
   writeCurrentLockfile,
-  writeLockfiles,
   writeWantedLockfile,
   cleanGitBranchLockfiles,
   type CatalogSnapshots,
+  getWantedLockfileName,
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
@@ -91,6 +91,7 @@ import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
 import semver from 'semver'
 import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError.js'
+import { writeLockfile } from '@pnpm/worker'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -1769,4 +1770,22 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
     }
   }
   return extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
+}
+
+export async function writeLockfiles (
+  opts: {
+    wantedLockfile: LockfileObject
+    wantedLockfileDir: string
+    currentLockfile: LockfileObject
+    currentLockfileDir: string
+    useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
+  }
+): Promise<void> {
+  const wantedLockfileName: string = await getWantedLockfileName(opts)
+
+  await Promise.all([
+    writeLockfile(wantedLockfileName, opts.wantedLockfileDir, opts.wantedLockfile),
+    writeLockfile('lock.yaml', opts.currentLockfileDir, opts.currentLockfile),
+  ])
 }

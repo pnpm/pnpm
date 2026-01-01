@@ -26,10 +26,10 @@ import {
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
+  getWantedLockfileName,
   type LockfileObject,
   readCurrentLockfile,
   readWantedLockfile,
-  writeLockfiles,
   writeCurrentLockfile,
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
@@ -71,7 +71,7 @@ import {
   type ProjectRootDir,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
-import { symlinkAllModules } from '@pnpm/worker'
+import { symlinkAllModules, writeLockfile } from '@pnpm/worker'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'
@@ -980,4 +980,22 @@ async function linkAllModules (
       name: depNode.name,
     })),
   })
+}
+
+export async function writeLockfiles (
+  opts: {
+    wantedLockfile: LockfileObject
+    wantedLockfileDir: string
+    currentLockfile: LockfileObject
+    currentLockfileDir: string
+    useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
+  }
+): Promise<void> {
+  const wantedLockfileName: string = await getWantedLockfileName(opts)
+
+  await Promise.all([
+    writeLockfile(wantedLockfileName, opts.wantedLockfileDir, opts.wantedLockfile),
+    writeLockfile('lock.yaml', opts.currentLockfileDir, opts.currentLockfile),
+  ])
 }

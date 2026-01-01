@@ -39,6 +39,7 @@
     "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
     "@rushstack/worker-pool": "catalog:",

@@ -52,7 +52,7 @@ export async function writeCurrentLockfile (
   return writeLockfile('lock.yaml', virtualStoreDir, currentLockfile)
 }
 
-async function writeLockfile (
+export async function writeLockfile (
   lockfileFilename: string,
   pkgPath: string,
   wantedLockfile: LockfileObject
