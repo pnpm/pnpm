@@ -106,9 +106,9 @@ test('dependency should not be added to package.json and lockfile if it was not 
   const initialPkg = {
     name: 'foo',
     version: '1.0.0',
-    pnpm: {},
   }
   const project = prepare(initialPkg)
+  await writeYamlFile('pnpm-workspace.yaml', { allowBuilds: { 'package-that-cannot-be-installed': true } })
 
   const result = execPnpmSync(['install', 'package-that-cannot-be-installed@0.0.0'])
 

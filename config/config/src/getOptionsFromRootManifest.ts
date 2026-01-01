@@ -83,6 +83,7 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
   }
 
   if (pnpmSettings.allowBuilds) {
+    settings.allowBuilds = pnpmSettings.allowBuilds
     settings.onlyBuiltDependencies ??= []
     settings.ignoredBuiltDependencies ??= []
     for (const [packagePattern, build] of Object.entries(pnpmSettings.allowBuilds)) {

@@ -30,11 +30,17 @@ export interface CreateDeployFilesOptions {
   selectedProjectManifest: ProjectManifest
   projectId: ProjectId
   rootProjectManifestDir: string
+  allowBuilds?: Record<string, boolean | string>
+}
+
+export interface DeployWorkspaceManifest {
+  allowBuilds?: Record<string, boolean | string>
 }
 
 export interface DeployFiles {
   lockfile: LockfileObject
   manifest: ProjectManifest
+  workspaceManifest?: DeployWorkspaceManifest
 }
 
 export function createDeployFiles ({
@@ -46,6 +52,7 @@ export function createDeployFiles ({
   selectedProjectManifest,
   projectId,
   rootProjectManifestDir,
+  allowBuilds,
 }: CreateDeployFilesOptions): DeployFiles {
   const deployedProjectRealPath = path.resolve(lockfileDir, projectId)
   const inputSnapshot = lockfile.importers[projectId]
@@ -157,6 +164,12 @@ export function createDeployFiles ({
         hash: patchInfo.hash,
         path: relativePath,
       }
+    }
+  }
+
+  if (allowBuilds) {
+    result.workspaceManifest = {
+      allowBuilds,
     }
   }
 

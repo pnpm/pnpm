@@ -5,6 +5,7 @@ import { LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
+import writeYamlFile from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
@@ -101,6 +102,11 @@ test('run lifecycle events of global packages in correct working directory', asy
   const globalPkgDir = path.join(pnpmHome, 'global', String(LAYOUT_VERSION))
   fs.mkdirSync(globalPkgDir, { recursive: true })
   fs.writeFileSync(path.join(globalPkgDir, 'package.json'), JSON.stringify({}))
+  writeYamlFile.sync(path.join(globalPkgDir, 'pnpm-workspace.yaml'), {
+    allowBuilds: {
+      '@pnpm.e2e/postinstall-calls-pnpm': true,
+    },
+  })
 
   const env = {
     [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
