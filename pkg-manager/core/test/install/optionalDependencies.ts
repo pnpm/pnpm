@@ -578,7 +578,9 @@ test('fail on a package with failing postinstall if the package is both an optio
           '@pnpm.e2e/has-failing-postinstall-dep': '1.0.0',
         },
       },
-      testDefaults({})
+      testDefaults({
+        onlyBuiltDependencies: ['@pnpm.e2e/has-failing-postinstall-dep', '@pnpm.e2e/failing-postinstall'],
+      })
     )
   ).rejects.toThrow()
 })
