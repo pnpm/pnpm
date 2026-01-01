@@ -879,3 +879,40 @@ test('pnpm exec --workspace-root when command not found', async () => {
 
   expect(error?.failures[0].message).toBe('Command "command-that-does-not-exist" not found')
 })
+
+test('exec should respect the caller\'s current working directory', async () => {
+  prepare({
+    name: 'root',
+    version: '1.0.0',
+  })
+
+  const projectRoot = process.cwd()
+  fs.mkdirSync('some-directory')
+  const subdirPath = path.join(projectRoot, 'some-directory')
+
+  const cmdFile = 'cwd.txt'
+  const cmdFilePath = path.join(subdirPath, cmdFile)
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: projectRoot,
+    implicitlyFellbackFromRun: true,
+    userExecutionCwd: subdirPath,
+    recursive: false,
+    selectedProjectsGraph: {
+      [projectRoot]: {
+        dependencies: [],
+        package: {
+          rootDir: projectRoot as ProjectRootDir,
+          rootDirRealPath: projectRoot as ProjectRootDirRealPath,
+          writeProjectManifest: async () => {},
+          manifest: {
+            name: 'root',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+  }, ['node', '-e', `require('fs').writeFileSync('${cmdFilePath}', process.cwd(), 'utf8')`])
+
+  expect(fs.readFileSync(cmdFilePath, 'utf8')).toBe(subdirPath)
+})
