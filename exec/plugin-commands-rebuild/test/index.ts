@@ -12,7 +12,6 @@ import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import execa from 'execa'
 import sinon from 'sinon'
-import { sync as writeYamlFileSync } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
@@ -51,6 +50,7 @@ test('rebuilds dependencies', async () => {
     pending: false,
     registries: modulesManifest!.registries!,
     storeDir,
+    onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example', 'test-git-fetch'],
   }, [])
 
   modules = project.readModulesManifest()
@@ -140,6 +140,7 @@ test('skipIfHasSideEffectsCache', async () => {
     registries: modulesManifest!.registries!,
     skipIfHasSideEffectsCache: true,
     storeDir,
+    onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
   }, [])
 
   modules = project.readModulesManifest()
@@ -177,6 +178,7 @@ test('rebuild does not fail when a linked package is present', async () => {
     pending: false,
     registries: modulesManifest!.registries!,
     storeDir,
+    onlyBuiltDependencies: ['local-pkg', 'is-positive'],
   }, [])
 
   // see related issue https://github.com/pnpm/pnpm/issues/1155
@@ -207,6 +209,7 @@ test('rebuilds specific dependencies', async () => {
     pending: false,
     registries: modulesManifest!.registries!,
     storeDir,
+    onlyBuiltDependencies: ['install-scripts-example-for-pnpm'],
   }, ['install-scripts-example-for-pnpm'])
 
   project.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -266,6 +269,7 @@ test('rebuild with pending option', async () => {
     pending: true,
     registries: modules!.registries!,
     storeDir,
+    onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example', 'install-scripts-example-for-pnpm'],
   }, [])
 
   modules = project.readModulesManifest()
@@ -319,6 +323,7 @@ test('rebuild dependencies in correct order', async () => {
     pending: false,
     registries: modules!.registries!,
     storeDir,
+    onlyBuiltDependencies: ['@pnpm.e2e/with-postinstall-a', '@pnpm.e2e/with-postinstall-b'],
   }, [])
 
   modules = project.readModulesManifest()
@@ -360,6 +365,7 @@ test('rebuild links bins', async () => {
     pending: true,
     registries: modules!.registries!,
     storeDir,
+    onlyBuiltDependencies: ['@pnpm.e2e/has-generated-bins-as-dep', '@pnpm.e2e/generated-bins'],
   }, [])
 
   project.isExecutable('.bin/cmd1')
@@ -401,38 +407,6 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
     registries: modules!.registries!,
     reporter,
     storeDir,
+    onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/not-compatible-with-any-os'],
   }, [])
-})
-
-test('rebuild respects allowBuilds: false', async () => {
-  const project = prepare({})
-  const cacheDir = path.resolve('cache')
-  const storeDir = path.resolve('store')
-
-  writeYamlFileSync('pnpm-workspace.yaml', {
-    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': false },
-  })
-
-  await execa('node', [
-    pnpmBin,
-    'add',
-    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
-    `--registry=${REGISTRY}`,
-    `--store-dir=${storeDir}`,
-    `--cache-dir=${cacheDir}`,
-    '--config.enableGlobalVirtualStore=false',
-  ])
-
-  const modulesManifest = project.readModulesManifest()
-  await rebuild.handler({
-    ...DEFAULT_OPTS,
-    cacheDir,
-    dir: process.cwd(),
-    pending: false,
-    registries: modulesManifest!.registries!,
-    storeDir,
-  }, [])
-
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
 })
