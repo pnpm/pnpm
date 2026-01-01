@@ -1115,6 +1115,7 @@ test('deploy with a shared lockfile should keep files created by lifecycle scrip
     rootProjectManifestDir: process.cwd(),
     recursive: true,
     lockfileDir: process.cwd(),
+    onlyBuiltDependencies: ['@pnpm.e2e/install-script-example'],
     workspaceDir: process.cwd(),
   })
   expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
@@ -1130,6 +1131,7 @@ test('deploy with a shared lockfile should keep files created by lifecycle scrip
     selectedProjectsGraph,
     sharedWorkspaceLockfile: true,
     lockfileDir: process.cwd(),
+    onlyBuiltDependencies: ['@pnpm.e2e/install-script-example'],
     workspaceDir: process.cwd(),
   }, ['deploy'])
 
