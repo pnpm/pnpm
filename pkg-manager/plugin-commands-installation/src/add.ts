@@ -287,6 +287,17 @@ export async function handler (
         },
       })
     }
+    // Pass the allowed packages to onlyBuiltDependencies so they can build during this install
+    return installDeps({
+      ...opts,
+      onlyBuiltDependencies: [
+        ...opts.onlyBuiltDependencies ?? [],
+        ...opts.allowBuild,
+      ],
+      fetchFullMetadata: getFetchFullMetadata(opts),
+      include,
+      includeDirect: include,
+    }, params)
   }
   return installDeps({
     ...opts,

@@ -186,6 +186,11 @@ test('getOptionsFromRootManifest() converts allowBuilds', () => {
     },
   })
   expect(options).toStrictEqual({
+    allowBuilds: {
+      foo: true,
+      bar: false,
+      qar: 'warn',
+    },
     onlyBuiltDependencies: ['foo'],
     ignoredBuiltDependencies: ['bar'],
   })

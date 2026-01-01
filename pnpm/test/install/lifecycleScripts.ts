@@ -261,3 +261,15 @@ test('git dependencies with preparation scripts should be installed when dangero
   expect(result.status).toBe(0)
   expect(fs.existsSync('node_modules/test-git-fetch/dist/index.js')).toBeTruthy()
 })
+
+test('--allow-build flag should error when conflicting with allowBuilds: false', async () => {
+  prepare({
+    pnpm: {
+      allowBuilds: { '@pnpm.e2e/install-script-example': false },
+    },
+  })
+  const result = execPnpmSync(['add', '--allow-build=@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('The following dependencies are ignored by the root project, but are allowed to be built by the current command: @pnpm.e2e/install-script-example')
+})
