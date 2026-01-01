@@ -443,7 +443,6 @@ test('scripts have access to unlisted bins when hoisting is used', async () => {
   expect(project.requireModule('@pnpm.e2e/pkg-that-calls-unlisted-dep-in-hooks/output.json')).toStrictEqual(['Hello world!'])
 })
 
-
 test('selectively allow scripts in some dependencies by onlyBuiltDependencies', async () => {
   prepareEmpty()
   const reporter = sinon.spy()
