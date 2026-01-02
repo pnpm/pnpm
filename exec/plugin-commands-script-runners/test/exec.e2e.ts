@@ -887,7 +887,7 @@ test('exec should respect the caller\'s current working directory', async () => 
   })
 
   const projectRoot = process.cwd()
-  fs.mkdirSync('some-directory')
+  fs.mkdirSync('some-directory', { recursive: true })
   const subdirPath = path.join(projectRoot, 'some-directory')
 
   const cmdFile = 'cwd.txt'
@@ -912,7 +912,7 @@ test('exec should respect the caller\'s current working directory', async () => 
         },
       },
     },
-  }, ['node', '-e', `require('fs').writeFileSync('${cmdFilePath}', process.cwd(), 'utf8')`])
+  }, ['node', '-e', `require('fs').writeFileSync(${JSON.stringify(cmdFilePath)}, process.cwd(), 'utf8')`])
 
   expect(fs.readFileSync(cmdFilePath, 'utf8')).toBe(subdirPath)
 })
