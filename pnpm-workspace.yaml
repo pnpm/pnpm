@@ -40,6 +40,7 @@ packages:
   - store/*
   - text/*
   - workspace/*
+  - yaml/*
   - '!**/example/**'
   - '!**/test/**'
   - '!resolving/local-resolver/example-package/**'
@@ -315,6 +316,7 @@ catalog:
   write-json5-file: ^3.1.0
   write-package: 7.2.0
   write-yaml-file: ^5.0.0
+  yaml: ^2.8.1
   yaml-tag: 1.1.0
   yazl: ^3.3.1
 

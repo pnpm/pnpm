@@ -1,0 +1,47 @@
+{
+  "name": "@pnpm/yaml.document-sync",
+  "version": "1000.0.0",
+  "description": "Update a YAML document to match the contents of an in-memory object.",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "patch",
+    "yaml"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/yaml/document-sync",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/yaml/document-sync#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "test": "pnpm run compile && pnpm run _test",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "pnpm run compile",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
+  },
+  "dependencies": {
+    "yaml": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/yaml.document-sync": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}
