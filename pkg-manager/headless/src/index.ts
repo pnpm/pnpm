@@ -105,7 +105,6 @@ export interface Project {
 export interface HeadlessOptions {
   ignorePatchFailures?: boolean
   allowBuilds?: Record<string, boolean | string>
-  onlyBuiltDependenciesFile?: string
   autoInstallPeers?: boolean
   childConcurrency?: number
   currentLockfile?: LockfileObject
