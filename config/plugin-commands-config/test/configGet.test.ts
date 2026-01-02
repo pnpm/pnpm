@@ -107,7 +107,7 @@ describe('config get with a property path', () => {
   // TODO: change `rawConfig` into camelCase (to emulate pnpm-workspace.yaml)
   const rawConfig = {
     'dlx-cache-max-age': '1234',
-    'only-built-dependencies': ['foo', 'bar'],
+    'allow-builds': { foo: true, bar: true },
     packageExtensions: {
       '@babel/parser': {
         peerDependencies: {
@@ -135,7 +135,7 @@ describe('config get with a property path', () => {
 
       expect(JSON.parse(getOutputString(getResult))).toStrictEqual({
         dlxCacheMaxAge: rawConfig['dlx-cache-max-age'],
-        onlyBuiltDependencies: rawConfig['only-built-dependencies'],
+        allowBuilds: rawConfig['allow-builds'],
         packageExtensions: rawConfig.packageExtensions,
       })
     })
@@ -143,10 +143,10 @@ describe('config get with a property path', () => {
     test.each([
       ['dlx-cache-max-age', rawConfig['dlx-cache-max-age']],
       ['dlxCacheMaxAge', rawConfig['dlx-cache-max-age']],
-      ['only-built-dependencies', rawConfig['only-built-dependencies']],
-      ['onlyBuiltDependencies', rawConfig['only-built-dependencies']],
-      ['onlyBuiltDependencies[0]', rawConfig['only-built-dependencies'][0]],
-      ['onlyBuiltDependencies[1]', rawConfig['only-built-dependencies'][1]],
+      ['allow-builds', rawConfig['allow-builds']],
+      ['allowBuilds', rawConfig['allow-builds']],
+      ['allowBuilds.foo', rawConfig['allow-builds'].foo],
+      ['allowBuilds.bar', rawConfig['allow-builds'].bar],
       ['packageExtensions', rawConfig.packageExtensions],
       ['packageExtensions["@babel/parser"]', rawConfig.packageExtensions['@babel/parser']],
       ['packageExtensions["@babel/parser"].peerDependencies', rawConfig.packageExtensions['@babel/parser'].peerDependencies],
@@ -173,7 +173,7 @@ describe('config get with a property path', () => {
       // TODO: change `rawConfig` into camelCase and replace this object with just `rawConfig`.
       ['', {
         dlxCacheMaxAge: rawConfig['dlx-cache-max-age'],
-        onlyBuiltDependencies: rawConfig['only-built-dependencies'],
+        allowBuilds: rawConfig['allow-builds'],
         packageExtensions: rawConfig.packageExtensions,
       }],
 
@@ -199,8 +199,8 @@ describe('config get with a property path', () => {
     test.each([
       ['dlx-cache-max-age', rawConfig['dlx-cache-max-age']],
       ['dlxCacheMaxAge', rawConfig['dlx-cache-max-age']],
-      ['onlyBuiltDependencies[0]', rawConfig['only-built-dependencies'][0]],
-      ['onlyBuiltDependencies[1]', rawConfig['only-built-dependencies'][1]],
+      ['allowBuilds.foo', 'true'],
+      ['allowBuilds.bar', 'true'],
       ['package-extensions', 'undefined'], // it cannot be defined by rc, it can't be kebab-case
       ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', rawConfig.packageExtensions['@babel/parser'].peerDependencies['@babel/types']],
       ['packageExtensions["jest-circus"].dependencies.slash', rawConfig.packageExtensions['jest-circus'].dependencies.slash],

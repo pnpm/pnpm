@@ -200,9 +200,9 @@ test('.npmrc does not load pnpm settings', async () => {
   expect(config.rawConfig['dlx-cache-max-age']).toBeUndefined()
   expect(config.rawConfig['dlxCacheMaxAge']).toBeUndefined()
   expect(config.dlxCacheMaxAge).toBe(24 * 60) // TODO: refactor to make defaultOptions importable
-  expect(config.rawConfig['only-built-dependencies']).toBeUndefined()
-  expect(config.rawConfig['onlyBuiltDependencies']).toBeUndefined()
-  expect(config.onlyBuiltDependencies).toBeUndefined()
+  expect(config.rawConfig['allow-builds']).toBeUndefined()
+  expect(config.rawConfig['allowBuilds']).toBeUndefined()
+  expect(config.allowBuilds).toBeUndefined()
   expect(config.rawConfig.packages).toBeUndefined()
 })
 
@@ -1227,8 +1227,8 @@ test('settings from pnpm-workspace.yaml are read', async () => {
     },
   })
 
-  expect(config.onlyBuiltDependencies).toStrictEqual(['foo'])
-  expect(config.rawConfig['only-built-dependencies']).toStrictEqual(['foo'])
+  expect(config.allowBuilds).toStrictEqual({ foo: true })
+  expect(config.rawConfig['allow-builds']).toStrictEqual({ foo: true })
 })
 
 test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect', async () => {
@@ -1289,7 +1289,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
       pnpm_config_fetch_retries: '100',
       pnpm_config_hoist_pattern: '["react", "react-dom"]',
       pnpm_config_use_node_version: '22.0.0',
-      pnpm_config_only_built_dependencies: '["is-number", "is-positive", "is-negative"]',
+      pnpm_config_allow_builds: '{"is-number": true, "is-positive": true, "is-negative": false}',
       pnpm_config_registry: 'https://registry.example.com',
     },
     packageManager: {
@@ -1300,7 +1300,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
   })
   expect(config.fetchRetries).toBe(100)
   expect(config.hoistPattern).toStrictEqual(['react', 'react-dom'])
-  expect(config.onlyBuiltDependencies).toStrictEqual(['is-number', 'is-positive', 'is-negative'])
+  expect(config.allowBuilds).toStrictEqual({ 'is-number': true, 'is-positive': true, 'is-negative': false })
   expect(config.registry).toBe('https://registry.example.com/')
   expect(config.registries.default).toBe('https://registry.example.com/')
 })

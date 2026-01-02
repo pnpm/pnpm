@@ -95,7 +95,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'shellEmulator'
 | 'tag'
-| 'onlyBuiltDependencies'
+| 'allowBuilds'
 | 'optional'
 | 'workspaceConcurrency'
 | 'workspaceDir'
@@ -214,17 +214,19 @@ when running add/update with the --workspace option')
       }).graph
 
       const recursiveRootManifestOpts = getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {})
+      // Merge allowBuilds from manifest and opts
+      const mergedAllowBuilds = recursiveRootManifestOpts.allowBuilds != null || opts.allowBuilds != null
+        ? {
+          ...recursiveRootManifestOpts.allowBuilds,
+          ...opts.allowBuilds,
+        }
+        : undefined
       await recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
           ...opts,
           ...recursiveRootManifestOpts,
-          // Preserve onlyBuiltDependencies from opts if explicitly passed (e.g., from --allow-build flag)
-          // and merge with any from the manifest
-          onlyBuiltDependencies: [
-            ...recursiveRootManifestOpts.onlyBuiltDependencies ?? [],
-            ...opts.onlyBuiltDependencies ?? [],
-          ],
+          allowBuilds: mergedAllowBuilds,
           forceHoistPattern,
           forcePublicHoistPattern,
           allProjectsGraph,
@@ -256,15 +258,17 @@ when running add/update with the --workspace option')
   }
 
   const rootManifestOpts = getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest))
+  // Merge allowBuilds from manifest and opts
+  const mergedAllowBuilds = rootManifestOpts.allowBuilds != null || opts.allowBuilds != null
+    ? {
+      ...rootManifestOpts.allowBuilds,
+      ...opts.allowBuilds,
+    }
+    : undefined
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
     ...rootManifestOpts,
-    // Preserve onlyBuiltDependencies from opts if explicitly passed (e.g., from --allow-build flag)
-    // and merge with any from the manifest
-    onlyBuiltDependencies: [
-      ...rootManifestOpts.onlyBuiltDependencies ?? [],
-      ...opts.onlyBuiltDependencies ?? [],
-    ],
+    allowBuilds: mergedAllowBuilds,
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository

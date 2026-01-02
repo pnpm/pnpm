@@ -36,11 +36,11 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
   if (!opts.allowBuild?.(manifest.name, manifest.version)) {
     throw new PnpmError(
       'GIT_DEP_PREPARE_NOT_ALLOWED',
-      `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "onlyBuiltDependencies" allowlist.`,
+      `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "allowBuilds" allowlist.`,
       {
-        hint: `Add the package to "onlyBuiltDependencies" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
-onlyBuiltDependencies:
-  - "${manifest.name}"`,
+        hint: `Add the package to "allowBuilds" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
+allowBuilds:
+  ${manifest.name}: true`,
       }
     )
   }

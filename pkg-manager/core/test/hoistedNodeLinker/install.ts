@@ -188,7 +188,7 @@ test('run pre/postinstall scripts. bin files should be linked in a hoisted node_
       fastUnpack: false,
       nodeLinker: 'hoisted',
       targetDependenciesField: 'devDependencies',
-      onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+      allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
     })
   )
 
@@ -217,7 +217,7 @@ test('running install scripts in a workspace that has no root project', async ()
     },
     mutation: 'install',
     rootDir: path.resolve('project-1') as ProjectRootDir,
-  }, testDefaults({ fastUnpack: false, nodeLinker: 'hoisted', onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'] }))
+  }, testDefaults({ fastUnpack: false, nodeLinker: 'hoisted', allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true } }))
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
 })

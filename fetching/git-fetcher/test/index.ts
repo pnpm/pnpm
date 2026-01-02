@@ -260,7 +260,7 @@ test('block git package with prepare script', async () => {
         allowBuild: () => false,
         filesIndexFile: path.join(storeDir, 'index.json'),
       })
-  ).rejects.toThrow('The git-hosted package "@pnpm.e2e/prepare-script-works@1.0.0" needs to execute build scripts but is not in the "onlyBuiltDependencies" allowlist')
+  ).rejects.toThrow('The git-hosted package "@pnpm.e2e/prepare-script-works@1.0.0" needs to execute build scripts but is not in the "allowBuilds" allowlist')
 })
 
 test('allow git package with prepare script', async () => {
