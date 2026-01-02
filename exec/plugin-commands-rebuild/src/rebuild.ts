@@ -89,6 +89,7 @@ export type RebuildCommandOpts = Pick<Config,
 | 'scriptsPrependNodePath'
 | 'shellEmulator'
 | 'workspaceDir'
+| 'allowBuilds'
 > &
 CreateStoreControllerOptions &
 {

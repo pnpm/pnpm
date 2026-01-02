@@ -91,7 +91,9 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
   const buildPackages = result.map(({ value }: { value: string }) => value)
   const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
-  const allowBuilds: Record<string, boolean> = {}
+  const allowBuilds: Record<string, boolean | string> = {
+    ...opts.allowBuilds,
+  }
   if (ignoredPackages.length) {
     for (const pkg of [...ignoredPackages, ...opts.ignoredBuiltDependencies ?? []]) {
       allowBuilds[pkg] = false
@@ -118,7 +120,7 @@ Do you approve?`,
       return
     }
   } else {
-    globalInfo('All packages were added to ignoredBuiltDependencies.')
+    globalInfo('All packages were added to allowBuilds.')
   }
   await writeSettings({
     ...opts,
