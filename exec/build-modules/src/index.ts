@@ -66,7 +66,7 @@ export async function buildModules<T extends string> (
   const chunks = buildSequence<T>(depGraph, rootDepPaths)
   if (!chunks.length) return {}
   const ignoredBuilds = new Set<DepPath>()
-  const allowBuild = opts.allowBuild ?? (() => true)
+  const allowBuild = opts.allowBuild ?? (() => undefined)
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
