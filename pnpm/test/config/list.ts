@@ -18,24 +18,25 @@ test('pnpm config list reads npm options but ignores other settings from .npmrc'
 
     // pnpm options
     'dlx-cache-max-age=1234',
-    'only-built-dependencies[]=foo',
-    'only-built-dependencies[]=bar',
+    'trust-policy-exclude[]=foo',
+    'trust-policy-exclude[]=bar',
     'packages[]=baz',
     'packages[]=qux',
   ].join('\n'))
 
   const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
-  expect(JSON.parse(stdout.toString())).toMatchObject({
+  const list = JSON.parse(stdout.toString())
+  expect(list).toMatchObject({
     '//my-org.registry.example.com:username': '(protected)',
     '//my-org.registry.example.com:_authToken': '(protected)',
     '@my-org:registry': 'https://my-org.registry.example.com',
     '@jsr:registry': 'https://not-actually-jsr.example.com',
   } as Partial<Config>)
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlxCacheMaxAge'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['allow-builds'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['allowBuilds'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packages'])
+  expect(list).not.toHaveProperty(['dlx-cache-max-age'])
+  expect(list).not.toHaveProperty(['dlxCacheMaxAge'])
+  expect(list).not.toHaveProperty(['trust-policy-exclude'])
+  expect(list).not.toHaveProperty(['trustPolicyExclude'])
+  expect(list).not.toHaveProperty(['packages'])
 })
 
 test('pnpm config list reads workspace-specific settings from pnpm-workspace.yaml', () => {

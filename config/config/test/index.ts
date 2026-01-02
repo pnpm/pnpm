@@ -169,8 +169,8 @@ test('.npmrc does not load pnpm settings', async () => {
 
     // pnpm options
     'dlx-cache-max-age=1234',
-    'only-built-dependencies[]=foo',
-    'only-built-dependencies[]=bar',
+    'trust-policy-exclude[]=foo',
+    'trust-policy-exclude[]=bar',
     'packages[]=baz',
     'packages[]=qux',
   ].join('\n')
@@ -200,9 +200,9 @@ test('.npmrc does not load pnpm settings', async () => {
   expect(config.rawConfig['dlx-cache-max-age']).toBeUndefined()
   expect(config.rawConfig['dlxCacheMaxAge']).toBeUndefined()
   expect(config.dlxCacheMaxAge).toBe(24 * 60) // TODO: refactor to make defaultOptions importable
-  expect(config.rawConfig['allow-builds']).toBeUndefined()
-  expect(config.rawConfig['allowBuilds']).toBeUndefined()
-  expect(config.allowBuilds).toBeUndefined()
+  expect(config.rawConfig['trust-policy-exclude']).toBeUndefined()
+  expect(config.rawConfig['trustPolicyExclude']).toBeUndefined()
+  expect(config.trustPolicyExclude).toBeUndefined()
   expect(config.rawConfig.packages).toBeUndefined()
 })
 
