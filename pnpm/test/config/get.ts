@@ -18,8 +18,8 @@ test('pnpm config get reads npm options but ignores other settings from .npmrc',
 
     // pnpm options
     'dlx-cache-max-age=1234',
-    'allow-builds[foo]=true',
-    'allow-builds[bar]=true',
+    'trust-policy-exclude[]=foo',
+    'trust-policy-exclude[]=bar',
     'packages[]=baz',
     'packages[]=qux',
   ].join('\n'))
@@ -45,12 +45,12 @@ test('pnpm config get reads npm options but ignores other settings from .npmrc',
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', 'allow-builds'], { expectSuccess: true })
+    const { stdout } = execPnpmSync(['config', 'get', 'trust-policy-exclude'], { expectSuccess: true })
     expect(stdout.toString().trim()).toBe('undefined')
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', 'allowBuilds'], { expectSuccess: true })
+    const { stdout } = execPnpmSync(['config', 'get', 'trustPolicyExclude'], { expectSuccess: true })
     expect(stdout.toString().trim()).toBe('undefined')
   }
 
@@ -64,7 +64,7 @@ test('pnpm config get reads workspace-specific settings from pnpm-workspace.yaml
   prepare()
   writeYamlFile('pnpm-workspace.yaml', {
     dlxCacheMaxAge: 1234,
-    allowBuilds: { foo: true, bar: true },
+    trustPolicyExclude: ['foo', 'bar'],
     packages: ['baz', 'qux'],
   })
 
@@ -79,13 +79,13 @@ test('pnpm config get reads workspace-specific settings from pnpm-workspace.yaml
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', '--json', 'allow-builds'], { expectSuccess: true })
-    expect(JSON.parse(stdout.toString())).toStrictEqual({ foo: true, bar: true })
+    const { stdout } = execPnpmSync(['config', 'get', '--json', 'trust-policy-exclude'], { expectSuccess: true })
+    expect(JSON.parse(stdout.toString())).toStrictEqual(['foo', 'bar'])
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', '--json', 'allowBuilds'], { expectSuccess: true })
-    expect(JSON.parse(stdout.toString())).toStrictEqual({ foo: true, bar: true })
+    const { stdout } = execPnpmSync(['config', 'get', '--json', 'trustPolicyExclude'], { expectSuccess: true })
+    expect(JSON.parse(stdout.toString())).toStrictEqual(['foo', 'bar'])
   }
 
   {
@@ -98,7 +98,7 @@ test('pnpm config get ignores non camelCase settings from pnpm-workspace.yaml', 
   prepare()
   writeYamlFile('pnpm-workspace.yaml', {
     'dlx-cache-max-age': 1234,
-    'allow-builds': { foo: true, bar: true },
+    'trust-policy-exclude': ['foo', 'bar'],
   })
 
   {
@@ -112,12 +112,12 @@ test('pnpm config get ignores non camelCase settings from pnpm-workspace.yaml', 
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', 'allow-builds'], { expectSuccess: true })
+    const { stdout } = execPnpmSync(['config', 'get', 'trust-policy-exclude'], { expectSuccess: true })
     expect(stdout.toString().trim()).toBe('undefined')
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', 'allowBuilds'], { expectSuccess: true })
+    const { stdout } = execPnpmSync(['config', 'get', 'trustPolicyExclude'], { expectSuccess: true })
     expect(stdout.toString().trim()).toBe('undefined')
   }
 })
@@ -201,7 +201,7 @@ test('pnpm config get "" gives exactly the same result as pnpm config list', () 
   prepare()
   writeYamlFile('pnpm-workspace.yaml', {
     dlxCacheMaxAge: 1234,
-    allowBuilds: { foo: true, bar: true },
+    trustPolicyExclude: ['foo', 'bar'],
     packages: ['baz', 'qux'],
     packageExtensions: {
       '@babel/parser': {
