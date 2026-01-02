@@ -2,7 +2,7 @@ import { type Config } from '@pnpm/config'
 import renderHelp from 'render-help'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type IgnoredBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'lockfileDir'>
+export type IgnoredBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'ignoredBuiltDependencies' | 'lockfileDir'>
 
 export const commandNames = ['ignored-builds']
 
@@ -22,8 +22,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 }
 
 export async function handler (opts: IgnoredBuildsCommandOpts): Promise<string> {
-  const allowBuilds = opts.rootProjectManifest?.pnpm?.allowBuilds ?? {}
-  const ignoredBuiltDependencies = Object.keys(allowBuilds).filter(pkg => allowBuilds[pkg] === false)
+  const ignoredBuiltDependencies = opts.ignoredBuiltDependencies ?? []
   let { automaticallyIgnoredBuilds } = await getAutomaticallyIgnoredBuilds(opts)
   if (automaticallyIgnoredBuilds) {
     automaticallyIgnoredBuilds = automaticallyIgnoredBuilds
@@ -36,12 +35,15 @@ export async function handler (opts: IgnoredBuildsCommandOpts): Promise<string> 
     output += '  None'
   } else {
     output += `  ${automaticallyIgnoredBuilds.join('\n  ')}
-hint: To allow the execution of build scripts for a package, add its name to "pnpm.onlyBuiltDependencies" in your "package.json", then run "pnpm rebuild".
-hint: If you don't want to build a package, add it to the "pnpm.ignoredBuiltDependencies" list.`
+hint: To allow the execution of build scripts for a package, add its name to "allowBuilds" and set to "true", then run "pnpm rebuild".
+hint: For example:
+hint: allowBuilds:
+hint:   esbuild: true
+hint: If you don't want to build a package, set it to "false" instead.`
   }
   output += '\n'
   if (ignoredBuiltDependencies.length) {
-    output += `\nExplicitly ignored package builds (via pnpm.ignoredBuiltDependencies):\n  ${ignoredBuiltDependencies.join('\n  ')}\n`
+    output += `\nExplicitly ignored package builds (via allowBuilds):\n  ${ignoredBuiltDependencies.join('\n  ')}\n`
   }
   return output
 }

@@ -66,7 +66,6 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
       settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
     }
   }
-
   if (pnpmSettings.patchedDependencies) {
     settings.patchedDependencies = { ...pnpmSettings.patchedDependencies }
     for (const [dep, patchFile] of Object.entries(pnpmSettings.patchedDependencies)) {

@@ -2,7 +2,6 @@ import { type Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { type PnpmSettings } from '@pnpm/types'
 import renderHelp from 'render-help'
 import enquirer from 'enquirer'
 import chalk from 'chalk'
@@ -92,19 +91,21 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
   const buildPackages = result.map(({ value }: { value: string }) => value)
   const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
-  const updatedSettings: PnpmSettings = {}
   const allowBuilds: Record<string, boolean> = {}
   if (ignoredPackages.length) {
     for (const pkg of [...ignoredPackages, ...opts.ignoredBuiltDependencies ?? []]) {
       allowBuilds[pkg] = false
     }
   }
-  if (buildPackages.length) {
-    for (const pkg of [...buildPackages, ...opts.onlyBuiltDependencies ?? []]) {
+  const onlyBuiltDependencies = [
+    ...opts.onlyBuiltDependencies ?? [],
+    ...buildPackages,
+  ]
+  if (onlyBuiltDependencies.length) {
+    for (const pkg of onlyBuiltDependencies) {
       allowBuilds[pkg] = true
     }
   }
-  updatedSettings.allowBuilds = allowBuilds
   if (buildPackages.length) {
     const confirmed = await enquirer.prompt<{ build: boolean }>({
       type: 'confirm',
@@ -122,15 +123,12 @@ Do you approve?`,
   await writeSettings({
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-    updatedSettings,
+    updatedSettings: { allowBuilds },
   })
   if (buildPackages.length) {
     return rebuild.handler({
       ...opts,
-      onlyBuiltDependencies: [
-        ...opts.onlyBuiltDependencies ?? [],
-        ...buildPackages,
-      ],
+      onlyBuiltDependencies,
     }, buildPackages)
   } else if (modulesManifest) {
     delete modulesManifest.ignoredBuilds

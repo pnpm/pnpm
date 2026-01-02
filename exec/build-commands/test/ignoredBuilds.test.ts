@@ -36,7 +36,7 @@ test('ignoredBuilds lists automatically ignored dependencies', async () => {
   const output = await ignoredBuilds.handler({
     dir,
     modulesDir,
-    rootProjectManifest: {},
+    ignoredBuiltDependencies: [],
   })
   expect(output).toMatchSnapshot()
 })
@@ -52,11 +52,7 @@ test('ignoredBuilds lists explicitly ignored dependencies', async () => {
   const output = await ignoredBuilds.handler({
     dir,
     modulesDir,
-    rootProjectManifest: {
-      pnpm: {
-        allowBuilds: { bar: false },
-      },
-    },
+    ignoredBuiltDependencies: ['bar'],
   })
   expect(output).toMatchSnapshot()
 })
@@ -72,11 +68,7 @@ test('ignoredBuilds lists both automatically and explicitly ignored dependencies
   const output = await ignoredBuilds.handler({
     dir,
     modulesDir,
-    rootProjectManifest: {
-      pnpm: {
-        allowBuilds: { qar: false, zoo: false },
-      },
-    },
+    ignoredBuiltDependencies: ['qar', 'zoo'],
   })
   expect(output).toMatchSnapshot()
 })
@@ -87,11 +79,7 @@ test('ignoredBuilds prints an info message when there is no node_modules', async
   const output = await ignoredBuilds.handler({
     dir,
     modulesDir,
-    rootProjectManifest: {
-      pnpm: {
-        allowBuilds: { qar: false, zoo: false },
-      },
-    },
+    ignoredBuiltDependencies: ['qar', 'zoo'],
   })
   expect(output).toMatchSnapshot()
 })
