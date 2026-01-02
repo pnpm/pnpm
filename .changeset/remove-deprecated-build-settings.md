@@ -1,13 +1,4 @@
 ---
-"@pnpm/types": major
-"@pnpm/config": major
-"@pnpm/core": major
-"@pnpm/headless": major
-"@pnpm/builder.policy": major
-"@pnpm/exec.build-commands": major
-"@pnpm/plugin-commands-installation": major
-"@pnpm/plugin-commands-rebuild": major
-"@pnpm/workspace.manifest-writer": major
 "pnpm": major
 ---
 
@@ -17,16 +8,17 @@ Use the `allowBuilds` setting instead. It is a map where keys are package name p
 - `true` means the package is allowed to run build scripts
 - `false` means the package is explicitly denied from running build scripts
 
+Same as before, by default, none of the packages in the dependencies are allowed to run scripts. If a package has postinstall scripts and it isn't declared in `allowBuilds`, an error is printed.
+
 Before:
 ```yaml
-pnpm:
-  onlyBuiltDependencies:
-    - electron
-  onlyBuiltDependenciesFile: 'allowed-builds.json'
-  neverBuiltDependencies:
-    - core-js
-  ignoredBuiltDependencies:
-    - esbuild
+onlyBuiltDependencies:
+  - electron
+onlyBuiltDependenciesFile: 'allowed-builds.json'
+neverBuiltDependencies:
+  - core-js
+ignoredBuiltDependencies:
+  - esbuild
 ```
 
 After:
