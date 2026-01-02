@@ -1079,7 +1079,6 @@ test('deploy with a shared lockfile should keep files created by lifecycle scrip
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {},
     },
     'project-0': {
       name: 'project-0',

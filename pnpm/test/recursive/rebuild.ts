@@ -5,9 +5,7 @@ test('`pnpm recursive rebuild` specific dependencies', async () => {
   const projects = preparePackages([
     {
       location: '.',
-      package: {
-        pnpm: {},
-      },
+      package: {},
     },
     {
       name: 'project-1',
