@@ -445,7 +445,7 @@ test('scripts have access to unlisted bins when hoisting is used', async () => {
 
 test('selectively ignore scripts in some dependencies by allowBuilds (not others)', async () => {
   prepareEmpty()
-  const allowBuilds = ['@pnpm.e2e/install-script-example']
+  const allowBuilds = { '@pnpm.e2e/install-script-example': true }
   const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
     testDefaults({ fastUnpack: false, allowBuilds })
