@@ -58,6 +58,7 @@ test('pnpm recursive rebuild', async () => {
     registries: modulesManifest!.registries!,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
+    onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
   }, [])
 
   projects['project-1'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
@@ -136,6 +137,7 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
     selectedProjectsGraph,
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
+    onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
   }, [])
 
   rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
@@ -215,13 +217,14 @@ test('rebuild multiple packages in correct order', async () => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
+    onlyBuiltDependencies: ['project-1', 'project-2', 'project-3'],
   }, [])
 
   expect(server1.getLines()).toStrictEqual(['project-1', 'project-2'])
   expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
 })
 
-test('never build neverBuiltDependencies', async () => {
+test('only build onlyBuiltDependencies (not others)', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -285,7 +288,7 @@ test('never build neverBuiltDependencies', async () => {
   await rebuild.handler(
     {
       ...DEFAULT_OPTS,
-      neverBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+      onlyBuiltDependencies: ['@pnpm.e2e/install-script-example'],
       allProjects,
       dir: process.cwd(),
       recursive: true,

@@ -370,11 +370,9 @@ export async function mutateModules (
   if (!opts.ignoreScripts && ignoredBuilds?.size) {
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds)
   }
-  if (!opts.neverBuiltDependencies) {
-    ignoredScriptsLogger.debug({
-      packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
-    })
-  }
+  ignoredScriptsLogger.debug({
+    packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
+  })
 
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
@@ -1085,7 +1083,6 @@ type InstallFunction = (
     patchedDependencies?: PatchGroupRecord
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
-    neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     updateLockfileMinorVersion: boolean

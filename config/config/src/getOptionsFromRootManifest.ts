@@ -17,9 +17,7 @@ export type OptionsFromRootManifest = {
   allowUnusedPatches?: boolean
   ignorePatchFailures?: boolean
   overrides?: Record<string, string>
-  neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
   ignoredBuiltDependencies?: string[]
   packageExtensions?: Record<string, PackageExtension>
   ignoredOptionalDependencies?: string[]
@@ -37,15 +35,9 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       'allowUnusedPatches',
       'allowedDeprecatedVersions',
       'auditConfig',
-      'auditConfig',
-      'auditConfig',
       'configDependencies',
       'ignorePatchFailures',
-      'ignoredBuiltDependencies',
       'ignoredOptionalDependencies',
-      'neverBuiltDependencies',
-      'onlyBuiltDependencies',
-      'onlyBuiltDependenciesFile',
       'overrides',
       'packageExtensions',
       'patchedDependencies',
@@ -74,9 +66,6 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
       settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
     }
   }
-  if (pnpmSettings.onlyBuiltDependenciesFile && manifestDir != null) {
-    settings.onlyBuiltDependenciesFile = path.join(manifestDir, pnpmSettings.onlyBuiltDependenciesFile)
-  }
   if (pnpmSettings.patchedDependencies) {
     settings.patchedDependencies = { ...pnpmSettings.patchedDependencies }
     for (const [dep, patchFile] of Object.entries(pnpmSettings.patchedDependencies)) {
@@ -93,6 +82,7 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
   }
 
   if (pnpmSettings.allowBuilds) {
+    settings.allowBuilds = pnpmSettings.allowBuilds
     settings.onlyBuiltDependencies ??= []
     settings.ignoredBuiltDependencies ??= []
     for (const [packagePattern, build] of Object.entries(pnpmSettings.allowBuilds)) {

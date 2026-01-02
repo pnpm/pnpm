@@ -1281,38 +1281,6 @@ test('settings gitBranchLockfile in pnpm-workspace.yaml should take effect', asy
   expect(config.rawConfig['git-branch-lockfile']).toBe(true)
 })
 
-test('when dangerouslyAllowAllBuilds is set to true neverBuiltDependencies is set to an empty array', async () => {
-  const { config } = await getConfig({
-    cliOptions: {
-      'dangerously-allow-all-builds': true,
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-
-  expect(config.neverBuiltDependencies).toStrictEqual([])
-})
-
-test('when dangerouslyAllowAllBuilds is set to true and neverBuiltDependencies not empty, a warning is returned', async () => {
-  const workspaceDir = f.find('never-built-dependencies')
-  process.chdir(workspaceDir)
-  const { config, warnings } = await getConfig({
-    cliOptions: {
-      'dangerously-allow-all-builds': true,
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-    workspaceDir,
-  })
-
-  expect(config.neverBuiltDependencies).toStrictEqual([])
-  expect(warnings).toStrictEqual(['You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.'])
-})
-
 test('loads setting from environment variable pnpm_config_*', async () => {
   prepareEmpty()
   const { config } = await getConfig({

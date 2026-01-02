@@ -8,13 +8,13 @@ import { sync as writeYamlFile } from 'write-yaml-file'
 test('updateWorkspaceManifest adds a new setting', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, { packages: ['*'], onlyBuiltDependencies: [] })
+  writeYamlFile(filePath, { packages: ['*'], allowBuilds: {} })
   await updateWorkspaceManifest(dir, {
-    updatedFields: { onlyBuiltDependencies: [] },
+    updatedFields: { allowBuilds: {} },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     packages: ['*'],
-    onlyBuiltDependencies: [],
+    allowBuilds: {},
   })
 })
 
@@ -48,14 +48,13 @@ test('updateWorkspaceManifest updates allowBuilds', async () => {
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   writeYamlFile(filePath, { packages: ['*'], allowBuilds: { qar: 'warn' } })
   await updateWorkspaceManifest(dir, {
-    updatedFields: { onlyBuiltDependencies: ['foo'], ignoredBuiltDependencies: ['bar'] },
+    updatedFields: { allowBuilds: { foo: true, bar: false } },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     packages: ['*'],
     allowBuilds: {
       bar: false,
       foo: true,
-      qar: 'warn',
     },
   })
 })

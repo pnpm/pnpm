@@ -412,6 +412,17 @@ export async function getConfig (opts: {
           workspaceManifest,
         })
       }
+    } else if (cliOptions['global']) {
+      // For global installs, read settings from pnpm-workspace.yaml in the global package directory
+      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.globalPkgDir)
+      if (workspaceManifest) {
+        addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+          configFromCliOpts,
+          projectManifest: pnpmConfig.rootProjectManifest,
+          workspaceDir: pnpmConfig.globalPkgDir,
+          workspaceManifest,
+        })
+      }
     }
   }
 
@@ -459,13 +470,8 @@ export async function getConfig (opts: {
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
 
-  if (opts.cliOptions['global']) {
-    extractAndRemoveDependencyBuildOptions(pnpmConfig)
+  if (!hasDependencyBuildOptions(pnpmConfig)) {
     Object.assign(pnpmConfig, globalDepsBuildConfig)
-  } else {
-    if (!hasDependencyBuildOptions(pnpmConfig)) {
-      Object.assign(pnpmConfig, globalDepsBuildConfig)
-    }
   }
   if (opts.cliOptions['save-peer']) {
     if (opts.cliOptions['save-prod']) {
@@ -621,12 +627,6 @@ export async function getConfig (opts: {
     pnpmConfig.dev = true
   }
 
-  if (pnpmConfig.dangerouslyAllowAllBuilds) {
-    if (pnpmConfig.neverBuiltDependencies && pnpmConfig.neverBuiltDependencies.length > 0) {
-      warnings.push('You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.')
-    }
-    pnpmConfig.neverBuiltDependencies = []
-  }
   if (pnpmConfig.ci) {
     // Using a global virtual store in CI makes little sense,
     // as there is never a warm cache in that environment.
