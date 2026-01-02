@@ -12,10 +12,13 @@ export function createAllowBuildFunction (
     const allowedBuilds = new Set<string>()
     const disallowedBuilds = new Set<string>()
     for (const [pkg, value] of Object.entries(opts.allowBuilds)) {
-      if (value === true) {
+      switch (value) {
+      case true:
         allowedBuilds.add(pkg)
-      } else if (value === false) {
+        break
+      case false:
         disallowedBuilds.add(pkg)
+        break
       }
     }
     const expandedAllowed = expandPackageVersionSpecs(Array.from(allowedBuilds))
