@@ -71,8 +71,7 @@ export interface StrictInstallOptions {
   rawConfig: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
   verifyStoreIntegrity: boolean
   engineStrict: boolean
-  ignoredBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
+  allowBuilds?: Record<string, boolean | string>
   nodeExecPath?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion?: string
@@ -289,9 +288,7 @@ export function extendOptions (
       }
     }
   }
-  if (opts.onlyBuiltDependencies == null) {
-    opts.onlyBuiltDependencies = []
-  }
+
   const defaultOpts = defaults(opts)
   const extendedOpts: ProcessedInstallOptions = {
     ...defaultOpts,

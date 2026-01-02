@@ -95,7 +95,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'shellEmulator'
 | 'tag'
-| 'onlyBuiltDependencies'
+| 'allowBuilds'
 | 'optional'
 | 'workspaceConcurrency'
 | 'workspaceDir'
@@ -219,12 +219,10 @@ when running add/update with the --workspace option')
         {
           ...opts,
           ...recursiveRootManifestOpts,
-          // Preserve onlyBuiltDependencies from opts if explicitly passed (e.g., from --allow-build flag)
-          // and merge with any from the manifest
-          onlyBuiltDependencies: [
-            ...recursiveRootManifestOpts.onlyBuiltDependencies ?? [],
-            ...opts.onlyBuiltDependencies ?? [],
-          ],
+          allowBuilds: {
+            ...recursiveRootManifestOpts.allowBuilds,
+            ...opts.allowBuilds,
+          },
           forceHoistPattern,
           forcePublicHoistPattern,
           allProjectsGraph,
@@ -259,12 +257,10 @@ when running add/update with the --workspace option')
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
     ...rootManifestOpts,
-    // Preserve onlyBuiltDependencies from opts if explicitly passed (e.g., from --allow-build flag)
-    // and merge with any from the manifest
-    onlyBuiltDependencies: [
-      ...rootManifestOpts.onlyBuiltDependencies ?? [],
-      ...opts.onlyBuiltDependencies ?? [],
-    ],
+    allowBuilds: {
+      ...rootManifestOpts.allowBuilds,
+      ...opts.allowBuilds,
+    },
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository

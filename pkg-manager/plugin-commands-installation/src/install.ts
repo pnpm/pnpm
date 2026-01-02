@@ -323,7 +323,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'sort'
 | 'sharedWorkspaceLockfile'
 | 'tag'
-| 'onlyBuiltDependencies'
+| 'allowBuilds'
 | 'optional'
 | 'virtualStoreDir'
 | 'workspaceConcurrency'

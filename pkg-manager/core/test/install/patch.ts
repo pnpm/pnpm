@@ -25,7 +25,7 @@ test('patch package with exact version', async () => {
   }
   const opts = testDefaults({
     neverBuiltDependencies: undefined,
-    onlyBuiltDependencies: [],
+    allowBuilds: {},
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -123,7 +123,7 @@ test('patch package with version range', async () => {
   }
   const opts = testDefaults({
     neverBuiltDependencies: undefined,
-    onlyBuiltDependencies: [],
+    allowBuilds: {},
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -382,7 +382,7 @@ test('patch package when scripts are ignored', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
 })
 
-test('patch package when the package is not in onlyBuiltDependencies list', async () => {
+test('patch package when the package is not in allowBuilds list', async () => {
   const project = prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
@@ -395,7 +395,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
     sideEffectsCacheWrite: true,
     patchedDependencies,
     neverBuiltDependencies: undefined,
-    onlyBuiltDependencies: [],
+    allowBuilds: {},
   }, {}, {}, { packageImportMethod: 'hardlink' })
   await install({
     dependencies: {
@@ -466,7 +466,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     neverBuiltDependencies: undefined,
-    onlyBuiltDependencies: [],
+    allowBuilds: {},
     offline: true,
   }, {}, {}, { packageImportMethod: 'hardlink' }))
 

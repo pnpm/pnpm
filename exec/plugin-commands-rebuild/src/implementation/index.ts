@@ -316,11 +316,14 @@ async function _rebuild (
   }
 
   const ignoredPkgs = new Set<DepPath>()
-  const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
+  const _allowBuild = createAllowBuildFunction(opts) ?? (() => undefined)
   const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
-    if (_allowBuild(pkgName, version)) return true
-    if (!opts.ignoredBuiltDependencies?.includes(pkgName)) {
+    switch (_allowBuild(pkgName, version)) {
+    case true: return true
+    case undefined: {
       ignoredPkgs.add(depPath)
+      break
+    }
     }
     return false
   }

@@ -368,7 +368,7 @@ test('installing Node.js runtime, when it is set via the engines field of a depe
     ['@pnpm.e2e/cli-with-node-engine@1.0.0'],
     testDefaults({
       fastUnpack: false,
-      onlyBuiltDependencies: ['@pnpm.e2e/cli-with-node-engine'],
+      allowBuilds: { '@pnpm.e2e/cli-with-node-engine': true },
       neverBuiltDependencies: undefined,
     })
   )
