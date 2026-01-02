@@ -337,7 +337,12 @@ test('run pre/postinstall scripts', async () => {
   let prefix = f.prepare('deps-have-lifecycle-scripts')
   await using server = await createTestIpcServer(path.join(prefix, 'test.sock'))
 
-  await headlessInstall(await testDefaults({ lockfileDir: prefix }))
+  await headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
+  }))
 
   const project = assertProject(prefix)
   const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -677,6 +682,9 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
   }, {}, {}, { packageImportMethod: 'copy' })
   await headlessInstall(opts)
 
@@ -706,6 +714,9 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
     sideEffectsCacheWrite: true,
     storeDir: opts.storeDir,
     verifyStoreIntegrity: false,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
   }, {}, {}, { packageImportMethod: 'copy' })
   await headlessInstall(opts2)
 
