@@ -369,7 +369,7 @@ export async function mutateModules (
 
   let ignoredBuilds = result.ignoredBuilds
   if (!opts.ignoreScripts && ignoredBuilds?.size) {
-    ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, result.allowBuild)
+    ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, allowBuild)
   }
   ignoredScriptsLogger.debug({
     packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
@@ -388,7 +388,6 @@ export async function mutateModules (
   }
 
   interface InnerInstallResult {
-    readonly allowBuild?: AllowBuild
     readonly updatedCatalogs?: Catalogs
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
@@ -677,7 +676,6 @@ export async function mutateModules (
     })
 
     return {
-      allowBuild,
       updatedCatalogs: result.updatedCatalogs,
       updatedProjects: result.projects,
       stats: result.stats,
@@ -799,7 +797,6 @@ Note that in CI environments, this setting is enabled by default.`,
       // The lockfile will only be changed if the workspace will have new projects with no dependencies.
       await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
       return {
-        allowBuild,
         updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
         ignoredBuilds: undefined,
       }
@@ -848,7 +845,6 @@ Note that in CI environments, this setting is enabled by default.`,
         })
       }
       return {
-        allowBuild,
         updatedProjects: projects.map((mutatedProject) => {
           const project = ctx.projects[mutatedProject.rootDir]
           return {
