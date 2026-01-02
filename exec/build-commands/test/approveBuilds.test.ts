@@ -25,7 +25,7 @@ type _ApproveBuildsOptions = Partial<ApproveBuildsCommandOpts & RebuildCommandOp
 async function approveSomeBuilds (opts?: _ApproveBuildsOptions) {
   const cliOptions = {
     argv: [],
-    dir: process.cwd(),
+    dir: opts?.workspaceDir ?? process.cwd(),
     registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
   }
   const config = {
@@ -173,6 +173,46 @@ test('should approve builds with package.json that has no onlyBuiltDependencies 
     allowBuilds: {
       '@pnpm.e2e/install-script-example': false,
       '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
+  })
+})
+
+test('should retain existing allowBuilds entries when approving builds', async () => {
+  const temp = tempDir()
+
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/install-script-example': '*',
+    },
+  }, {
+    tempDir: temp,
+  })
+
+  const workspaceManifestFile = path.join(temp, 'pnpm-workspace.yaml')
+  writeYamlFile(workspaceManifestFile, {
+    packages: ['packages/*'],
+    allowBuilds: {
+      '@pnpm.e2e/test': false,
+      '@pnpm.e2e/install-script-example': true,
+    },
+  })
+  await approveSomeBuilds(
+    {
+      workspaceDir: temp,
+      rootProjectManifestDir: temp,
+      allowBuilds: {
+        '@pnpm.e2e/test': false,
+        '@pnpm.e2e/install-script-example': true,
+      },
+    })
+
+  expect(readYamlFile(workspaceManifestFile)).toStrictEqual({
+    packages: ['packages/*'],
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': false,
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+      '@pnpm.e2e/test': false,
     },
   })
 })
