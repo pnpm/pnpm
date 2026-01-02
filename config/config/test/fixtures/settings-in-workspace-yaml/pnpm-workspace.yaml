@@ -4,3 +4,6 @@ allowBuilds:
 sharedWorkspaceLockfile: false
 shamefullyHoist: true
 gitBranchLockfile: true
+trustPolicyExclude:
+  - foo
+  - bar

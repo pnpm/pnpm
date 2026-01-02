@@ -1227,8 +1227,8 @@ test('settings from pnpm-workspace.yaml are read', async () => {
     },
   })
 
-  expect(config.allowBuilds).toStrictEqual({ foo: true })
-  expect(config.rawConfig['allow-builds']).toStrictEqual({ foo: true })
+  expect(config.trustPolicyExclude).toStrictEqual(['foo', 'bar'])
+  expect(config.rawConfig['trust-policy-exclude']).toStrictEqual(['foo', 'bar'])
 })
 
 test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect', async () => {
@@ -1289,7 +1289,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
       pnpm_config_fetch_retries: '100',
       pnpm_config_hoist_pattern: '["react", "react-dom"]',
       pnpm_config_use_node_version: '22.0.0',
-      pnpm_config_allow_builds: '{"is-number": true, "is-positive": true, "is-negative": false}',
+      pnpm_config_trust_policy_exclude: '["foo", "bar"]',
       pnpm_config_registry: 'https://registry.example.com',
     },
     packageManager: {
@@ -1300,7 +1300,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
   })
   expect(config.fetchRetries).toBe(100)
   expect(config.hoistPattern).toStrictEqual(['react', 'react-dom'])
-  expect(config.allowBuilds).toStrictEqual({ 'is-number': true, 'is-positive': true, 'is-negative': false })
+  expect(config.trustPolicyExclude).toStrictEqual(['foo', 'bar'])
   expect(config.registry).toBe('https://registry.example.com/')
   expect(config.registries.default).toBe('https://registry.example.com/')
 })
