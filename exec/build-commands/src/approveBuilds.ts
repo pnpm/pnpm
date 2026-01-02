@@ -2,7 +2,6 @@ import { type Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { type PnpmSettings } from '@pnpm/types'
 import renderHelp from 'render-help'
 import enquirer from 'enquirer'
 import chalk from 'chalk'
@@ -92,8 +91,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
   const buildPackages = result.map(({ value }: { value: string }) => value)
   const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
-  const updatedSettings: PnpmSettings = {}
-  const allowBuilds: Record<string, boolean> = {}
+  const allowBuilds: Record<string, boolean | string> = { ...opts.allowBuilds }
   if (ignoredPackages.length) {
     for (const pkg of ignoredPackages) {
       allowBuilds[pkg] = false
@@ -103,9 +101,6 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     for (const pkg of buildPackages) {
       allowBuilds[pkg] = true
     }
-  }
-  if (Object.keys(allowBuilds).length > 0) {
-    updatedSettings.allowBuilds = allowBuilds
   }
   if (buildPackages.length) {
     const confirmed = await enquirer.prompt<{ build: boolean }>({
@@ -124,16 +119,12 @@ Do you approve?`,
   await writeSettings({
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-    updatedSettings,
+    updatedSettings: { allowBuilds },
   })
   if (buildPackages.length) {
-    const updatedAllowBuilds = { ...opts.allowBuilds }
-    for (const pkg of buildPackages) {
-      updatedAllowBuilds[pkg] = true
-    }
     return rebuild.handler({
       ...opts,
-      allowBuilds: updatedAllowBuilds,
+      allowBuilds,
     }, buildPackages)
   } else if (modulesManifest) {
     delete modulesManifest.ignoredBuilds
