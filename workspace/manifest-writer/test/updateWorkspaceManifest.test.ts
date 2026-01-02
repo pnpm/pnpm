@@ -55,7 +55,6 @@ test('updateWorkspaceManifest updates allowBuilds', async () => {
     allowBuilds: {
       bar: false,
       foo: true,
-      qar: 'warn',
     },
   })
 })

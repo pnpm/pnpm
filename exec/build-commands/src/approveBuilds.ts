@@ -95,18 +95,16 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   const updatedSettings: PnpmSettings = {}
   const allowBuilds: Record<string, boolean> = {}
   if (ignoredPackages.length) {
-    for (const pkg of ignoredPackages) {
+    for (const pkg of [...ignoredPackages, ...opts.ignoredBuiltDependencies ?? []]) {
       allowBuilds[pkg] = false
     }
   }
   if (buildPackages.length) {
-    for (const pkg of buildPackages) {
+    for (const pkg of [...buildPackages, ...opts.onlyBuiltDependencies ?? []]) {
       allowBuilds[pkg] = true
     }
   }
-  if (Object.keys(allowBuilds).length > 0) {
-    updatedSettings.allowBuilds = allowBuilds
-  }
+  updatedSettings.allowBuilds = allowBuilds
   if (buildPackages.length) {
     const confirmed = await enquirer.prompt<{ build: boolean }>({
       type: 'confirm',
