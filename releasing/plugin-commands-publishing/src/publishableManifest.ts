@@ -1,23 +1,42 @@
-import { type ProjectManifest } from "@pnpm/types"
-import { PnpmError } from "@pnpm/error"
+import { type ProjectManifest } from '@pnpm/types'
+import { PnpmError } from '@pnpm/error'
+import { omit } from 'ramda'
 
-// TODO: transform the `engines` field
+// TODO: transform `bin`
 
-export interface PublishableManifest extends ProjectManifest {
-  name: string
-  version: string
-  bundleDependencies?: never // for the sake of simplicity, pnpm refuses to transform this field for now
-  bundledDependencies?: never // for the sake of simplicity, pnpm refuses to transform this field for now
-}
+type RequiredField = 'name' | 'version'
+type BundleDependencies = 'bundleDependencies' | 'bundledDependencies'
+type EngineField = 'engines'
 
-export function assertPublishableManifest (manifest: ProjectManifest): asserts manifest is PublishableManifest {
+type OnlyRequiredFields = Required<Pick<ProjectManifest, RequiredField>>
+
+type OmittedField = BundleDependencies | EngineField
+type ManifestWithOmissions = Omit<ProjectManifest, OmittedField>
+
+export type PublishableManifest =
+& ManifestWithOmissions
+& OnlyRequiredFields
+& Partial<Record<BundleDependencies, never>>
+& Partial<Record<EngineField, Record<string, string>>>
+
+const omitRuntime = omit(['runtime'])
+
+export function publishableManifest (manifest: ProjectManifest): PublishableManifest {
   if (!manifest.name) throw new MissingRequiredFieldError('name')
   if (!manifest.version) throw new MissingRequiredFieldError('version')
   if (manifest.bundleDependencies) throw new UnsupportedBundleDepsError('bundleDependencies')
   if (manifest.bundledDependencies) throw new UnsupportedBundleDepsError('bundledDependencies')
+
+  const { engines, ...rest } = manifest
+
+  const publishableEngines: Record<string, string> | undefined = engines ? omitRuntime(engines) : undefined
+  return {
+    ...rest as OnlyRequiredFields,
+    engines: publishableEngines,
+  }
 }
 
-export class MissingRequiredFieldError<Field extends 'name' | 'version'> extends PnpmError {
+export class MissingRequiredFieldError<Field extends RequiredField> extends PnpmError {
   readonly field: Field
   constructor (field: Field) {
     super('PUBLISH_MISSING_REQUIRED_FIELD', `Missing required field: ${field}`)
