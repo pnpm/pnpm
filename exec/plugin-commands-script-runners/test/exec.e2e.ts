@@ -916,3 +916,26 @@ test('exec should respect the caller\'s current working directory', async () => 
 
   expect(fs.readFileSync(cmdFilePath, 'utf8')).toBe(subdirPath)
 })
+
+test('exec should ignore user execution cwd in recursive mode', async () => {
+  preparePackages([
+    { name: 'pkg-a', version: '1.0.0' },
+    { name: 'pkg-b', version: '1.0.0' },
+  ])
+
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const userExecutionCwd = path.join(process.cwd(), 'caller-cwd')
+  fs.mkdirSync(userExecutionCwd, { recursive: true })
+
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: true,
+    implicitlyFellbackFromRun: true,
+    userExecutionCwd,
+    selectedProjectsGraph,
+  }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pkg-cwd.txt\', process.cwd(), \'utf8\')'])
+
+  expect(fs.readFileSync(path.join('pkg-a', 'pkg-cwd.txt'), 'utf8')).toBe(path.resolve('pkg-a'))
+  expect(fs.readFileSync(path.join('pkg-b', 'pkg-cwd.txt'), 'utf8')).toBe(path.resolve('pkg-b'))
+})
