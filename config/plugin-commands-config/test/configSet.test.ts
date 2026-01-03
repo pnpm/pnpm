@@ -287,7 +287,7 @@ test('config set registry setting in project .npmrc file', async () => {
       '@my-company:registry': 'https://registry.my-company.example.com/',
     },
     globalYaml: {
-      onlyBuiltDependencies: ['foo', 'bar'],
+      allowBuilds: { foo: true, bar: true },
     },
     localRc: {
       '@local:registry': 'https://localhost:7777/',
@@ -324,7 +324,7 @@ test('config set npm-compatible setting in project .npmrc file', async () => {
       '@my-company:registry': 'https://registry.my-company.example.com/',
     },
     globalYaml: {
-      onlyBuiltDependencies: ['foo', 'bar'],
+      allowBuilds: { foo: true, bar: true },
     },
     localRc: {
       '@local:registry': 'https://localhost:7777/',
@@ -361,7 +361,7 @@ test('config set pnpm-specific setting in project pnpm-workspace.yaml file', asy
       '@my-company:registry': 'https://registry.my-company.example.com/',
     },
     globalYaml: {
-      onlyBuiltDependencies: ['foo', 'bar'],
+      allowBuilds: { foo: true, bar: true },
     },
     localRc: {
       '@local:registry': 'https://localhost:7777/',
@@ -398,7 +398,7 @@ test('config set key=value', async () => {
       '@my-company:registry': 'https://registry.my-company.example.com/',
     },
     globalYaml: {
-      onlyBuiltDependencies: ['foo', 'bar'],
+      allowBuilds: { foo: true, bar: true },
     },
     localRc: {
       '@local:registry': 'https://localhost:7777/',
@@ -434,7 +434,7 @@ test('config set key=value, when value contains a "="', async () => {
       '@my-company:registry': 'https://registry.my-company.example.com/',
     },
     globalYaml: {
-      onlyBuiltDependencies: ['foo', 'bar'],
+      allowBuilds: { foo: true, bar: true },
     },
     localRc: {
       '@local:registry': 'https://localhost:7777/',

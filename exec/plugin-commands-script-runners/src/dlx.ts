@@ -126,7 +126,7 @@ export async function handler (
       bin: path.join(cachedDir, 'node_modules/.bin'),
       dir: cachedDir,
       lockfileDir: cachedDir,
-      onlyBuiltDependencies: [...resolvedPkgAliases, ...(opts.allowBuild ?? [])],
+      allowBuilds: Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true])),
       rootProjectManifestDir: cachedDir,
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,

@@ -9,7 +9,7 @@ import { rebuild, type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { writeSettings } from '@pnpm/config.config-writer'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'onlyBuiltDependencies' | 'ignoredBuiltDependencies' | 'allowBuilds'>
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds'>
 
 export const commandNames = ['approve-builds']
 
@@ -91,20 +91,14 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
   const buildPackages = result.map(({ value }: { value: string }) => value)
   const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
-  const allowBuilds: Record<string, boolean | string> = {
-    ...opts.allowBuilds,
-  }
+  const allowBuilds: Record<string, boolean | string> = { ...opts.allowBuilds }
   if (ignoredPackages.length) {
-    for (const pkg of [...ignoredPackages, ...opts.ignoredBuiltDependencies ?? []]) {
+    for (const pkg of ignoredPackages) {
       allowBuilds[pkg] = false
     }
   }
-  const onlyBuiltDependencies = [
-    ...opts.onlyBuiltDependencies ?? [],
-    ...buildPackages,
-  ]
-  if (onlyBuiltDependencies.length) {
-    for (const pkg of onlyBuiltDependencies) {
+  if (buildPackages.length) {
+    for (const pkg of buildPackages) {
       allowBuilds[pkg] = true
     }
   }
@@ -120,7 +114,7 @@ Do you approve?`,
       return
     }
   } else {
-    globalInfo('All packages were added to allowBuilds.')
+    globalInfo('All packages were added to allowBuilds with value false.')
   }
   await writeSettings({
     ...opts,
@@ -130,7 +124,7 @@ Do you approve?`,
   if (buildPackages.length) {
     return rebuild.handler({
       ...opts,
-      onlyBuiltDependencies,
+      allowBuilds,
     }, buildPackages)
   } else if (modulesManifest) {
     delete modulesManifest.ignoredBuilds

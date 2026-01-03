@@ -264,9 +264,9 @@ export async function handler (
       throw new PnpmError('ALLOW_BUILD_MISSING_PACKAGE', 'The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
     }
     if (opts.rootProjectManifest?.pnpm?.allowBuilds) {
-      const ignoredBuiltDependencies = Object.keys(opts.rootProjectManifest.pnpm.allowBuilds)
+      const disallowedBuilds = Object.keys(opts.rootProjectManifest.pnpm.allowBuilds)
         .filter(pkg => opts.rootProjectManifest!.pnpm!.allowBuilds![pkg] === false)
-      const overlapDependencies = ignoredBuiltDependencies.filter((dep) => opts.allowBuild?.includes(dep))
+      const overlapDependencies = disallowedBuilds.filter((dep) => opts.allowBuild?.includes(dep))
       if (overlapDependencies.length) {
         throw new PnpmError('OVERRIDING_IGNORED_BUILT_DEPENDENCIES', `The following dependencies are ignored by the root project, but are allowed to be built by the current command: ${overlapDependencies.join(', ')}`, {
           hint: 'If you are sure you want to allow those dependencies to run installation scripts, remove them from the pnpm.allowBuilds list (or change their value to true).',
@@ -287,13 +287,14 @@ export async function handler (
         },
       })
     }
-    // Pass the allowed packages to onlyBuiltDependencies so they can build during this install
+    // Pass the allowed packages to allowBuilds so they can build during this install
+    const mergedAllowBuilds = { ...opts.allowBuilds }
+    for (const pkg of opts.allowBuild) {
+      mergedAllowBuilds[pkg] = true
+    }
     return installDeps({
       ...opts,
-      onlyBuiltDependencies: [
-        ...opts.onlyBuiltDependencies ?? [],
-        ...opts.allowBuild,
-      ],
+      allowBuilds: mergedAllowBuilds,
       fetchFullMetadata: getFetchFullMetadata(opts),
       include,
       includeDirect: include,

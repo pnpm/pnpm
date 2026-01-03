@@ -58,7 +58,7 @@ test('pnpm recursive rebuild', async () => {
     registries: modulesManifest!.registries!,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-    onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, [])
 
   projects['project-1'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
@@ -137,7 +137,7 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
     selectedProjectsGraph,
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
-    onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, [])
 
   rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
@@ -217,14 +217,14 @@ test('rebuild multiple packages in correct order', async () => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-    onlyBuiltDependencies: ['project-1', 'project-2', 'project-3'],
+    allowBuilds: { 'project-1': true, 'project-2': true, 'project-3': true },
   }, [])
 
   expect(server1.getLines()).toStrictEqual(['project-1', 'project-2'])
   expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
 })
 
-test('only build onlyBuiltDependencies (not others)', async () => {
+test('only build allowBuilds (not others)', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -288,7 +288,7 @@ test('only build onlyBuiltDependencies (not others)', async () => {
   await rebuild.handler(
     {
       ...DEFAULT_OPTS,
-      onlyBuiltDependencies: ['@pnpm.e2e/install-script-example'],
+      allowBuilds: { '@pnpm.e2e/install-script-example': true },
       allProjects,
       dir: process.cwd(),
       recursive: true,
@@ -319,7 +319,7 @@ test('only build onlyBuiltDependencies (not others)', async () => {
   )
 })
 
-test('only build onlyBuiltDependencies', async () => {
+test('only build allowBuilds', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -383,7 +383,7 @@ test('only build onlyBuiltDependencies', async () => {
   await rebuild.handler(
     {
       ...DEFAULT_OPTS,
-      onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+      allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
       allProjects,
       dir: process.cwd(),
       recursive: true,

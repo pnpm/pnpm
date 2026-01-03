@@ -17,8 +17,6 @@ export type OptionsFromRootManifest = {
   allowUnusedPatches?: boolean
   ignorePatchFailures?: boolean
   overrides?: Record<string, string>
-  onlyBuiltDependencies?: string[]
-  ignoredBuiltDependencies?: string[]
   packageExtensions?: Record<string, PackageExtension>
   ignoredOptionalDependencies?: string[]
   patchedDependencies?: Record<string, string>
@@ -57,7 +55,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
 }
 
 export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
-  const renamedKeys = ['allowNonAppliedPatches', 'allowBuilds'] as const satisfies Array<keyof PnpmSettings>
+  const renamedKeys = ['allowNonAppliedPatches'] as const satisfies Array<keyof PnpmSettings>
   const settings: OptionsFromRootManifest = omit(renamedKeys, replaceEnvInSettings(pnpmSettings))
   if (settings.overrides) {
     if (Object.keys(settings.overrides).length === 0) {
@@ -79,22 +77,6 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
   }
   if (pnpmSettings.ignorePatchFailures != null) {
     settings.ignorePatchFailures = pnpmSettings.ignorePatchFailures
-  }
-
-  if (pnpmSettings.allowBuilds) {
-    settings.allowBuilds = pnpmSettings.allowBuilds
-    settings.onlyBuiltDependencies ??= []
-    settings.ignoredBuiltDependencies ??= []
-    for (const [packagePattern, build] of Object.entries(pnpmSettings.allowBuilds)) {
-      switch (build) {
-      case true:
-        settings.onlyBuiltDependencies.push(packagePattern)
-        break
-      case false:
-        settings.ignoredBuiltDependencies.push(packagePattern)
-        break
-      }
-    }
   }
 
   return settings
