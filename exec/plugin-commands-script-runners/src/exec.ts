@@ -248,7 +248,7 @@ export async function handler (
             userAgent: opts.userAgent,
           })
           const [cmd, ...args] = params
-          const cwd = opts.implicitlyFellbackFromRun && opts.userExecutionCwd ? opts.userExecutionCwd : prefix
+          const cwd = opts.implicitlyFellbackFromRun && opts.userExecutionCwd && !opts.recursive ? opts.userExecutionCwd : prefix
           if (reporterShowPrefix) {
             const manifest = await readProjectManifestOnly(prefix)
             const child = execa(cmd, args, {
