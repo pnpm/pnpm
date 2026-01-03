@@ -25,7 +25,7 @@ type _ApproveBuildsOptions = Partial<ApproveBuildsCommandOpts & RebuildCommandOp
 async function approveSomeBuilds (opts?: _ApproveBuildsOptions) {
   const cliOptions = {
     argv: [],
-    dir: opts?.workspaceDir ?? process.cwd(),
+    dir: process.cwd(),
     registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
   }
   const config = {
