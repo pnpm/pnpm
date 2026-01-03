@@ -40,6 +40,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       'packageExtensions',
       'patchedDependencies',
       'peerDependencyRules',
+      'requiredScripts',
       'supportedArchitectures',
       'updateConfig',
     ], manifest.pnpm ?? {}),

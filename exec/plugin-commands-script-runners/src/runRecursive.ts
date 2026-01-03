@@ -25,6 +25,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'unsafePerm'
 | 'pnpmHomeDir'
 | 'rawConfig'
+| 'requiredScripts'
 | 'rootProjectManifest'
 | 'scriptsPrependNodePath'
 | 'scriptShell'
@@ -73,7 +74,7 @@ export async function runRecursive (
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
 
-  const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
+  const requiredScripts = opts.requiredScripts ?? []
   if (requiredScripts.includes(scriptName)) {
     const missingScriptPackages: string[] = packageChunks
       .flat()
