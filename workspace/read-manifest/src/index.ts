@@ -52,7 +52,7 @@ async function readManifestRaw (dir: string, cfgFileName: ConfigFileName): Promi
   }
 }
 
-function validateWorkspaceManifest (manifest: unknown): asserts manifest is WorkspaceManifest | undefined {
+export function validateWorkspaceManifest (manifest: unknown): asserts manifest is WorkspaceManifest | undefined {
   if (manifest === undefined || manifest === null) {
     // Empty or null manifest is ok
     return
