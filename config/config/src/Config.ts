@@ -236,7 +236,6 @@ export interface Config extends OptionsFromRootManifest {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
-  requiredScripts?: string[]
 
   packageConfigs?: ProjectConfigSet
 }
