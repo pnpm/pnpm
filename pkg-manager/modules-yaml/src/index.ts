@@ -108,10 +108,7 @@ export interface StrictModules extends Modules {
 
 export async function writeModulesManifest (
   modulesDir: string,
-  modules: StrictModules,
-  opts?: {
-    makeModulesDir?: boolean
-  }
+  modules: StrictModules
 ): Promise<void> {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   const saveModules = { ...modules, ignoredBuilds: modules.ignoredBuilds ? Array.from(modules.ignoredBuilds) : undefined }
@@ -134,12 +131,6 @@ export async function writeModulesManifest (
   if (!isWindows()) {
     saveModules.virtualStoreDir = path.relative(modulesDir, saveModules.virtualStoreDir)
   }
-  try {
-    if (opts?.makeModulesDir) {
-      await fs.mkdir(path.dirname(modulesYamlPath), { recursive: true })
-    }
-    await fs.writeFile(modulesYamlPath, JSON.stringify(saveModules, null, 2))
-  } catch (err: any) { // eslint-disable-line
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
-  }
+  await fs.mkdir(modulesDir, { recursive: true })
+  await fs.writeFile(modulesYamlPath, JSON.stringify(saveModules, null, 2))
 }

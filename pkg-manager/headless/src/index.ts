@@ -635,8 +635,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       storeDir: opts.storeDir,
       virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    }, {
-      makeModulesDir: Object.keys(filteredLockfile.packages ?? {}).length > 0,
     })
     const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
     if (opts.useLockfile) {
