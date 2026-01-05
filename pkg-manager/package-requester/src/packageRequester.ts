@@ -140,7 +140,11 @@ export function createPackageRequester (
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.pnpmVersion,
     force: opts.force,
+    fetchingLockerForManifest: new Map(),
     fetchPackageToStore,
+    getIndexFilePathInCafs,
+    getFilePathByModeInCafs,
+    readPkgFromCafs,
     requestsQueue,
     resolve: opts.resolve,
     storeDir: opts.storeDir,
@@ -163,6 +167,13 @@ async function resolveAndFetch (
     force?: boolean
     nodeVersion?: string
     pnpmVersion?: string
+    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
+    getFilePathByModeInCafs: (integrity: string, mode: number) => string
+    fetchingLockerForManifest: Map<string, Promise<BundledManifest | undefined>>
+    readPkgFromCafs: (
+      filesIndexFile: string,
+      readManifest?: boolean
+    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
     resolve: ResolveFunction
     fetchPackageToStore: FetchPackageToStoreFunction
@@ -182,6 +193,23 @@ async function resolveAndFetch (
   let updated = false
   let resolvedVia: string | undefined
   let publishedAt: string | undefined
+
+  async function getPackageManifestFromCafs (resolution: Resolution, pkgId?: string): Promise<BundledManifest | undefined> {
+    if (resolution.type != null || resolution.integrity == null || pkgId == null) {
+      return undefined
+    }
+
+    const indexFilePathInCafs = ctx.getIndexFilePathInCafs(resolution.integrity, pkgId)
+    const existingRequest = ctx.fetchingLockerForManifest.get(indexFilePathInCafs)
+
+    if (existingRequest != null) {
+      return existingRequest
+    }
+
+    const request = ctx.readPkgFromCafs(indexFilePathInCafs, true).then(pkg => pkg.manifest)
+    ctx.fetchingLockerForManifest.set(indexFilePathInCafs, request)
+    return request
+  }
 
   async function performResolution () {
     // When skipResolution is set but a resolution is still performed due to
@@ -241,13 +269,28 @@ async function resolveAndFetch (
     alias = resolveResult.alias
   }
 
-  // When fetching is skipped, resolution cannot be skipped.
-  // We need the package's manifest when doing `lockfile-only` installs.
-  // When we don't fetch, the only way to get the package's manifest is via resolving it.
+  // When fetching is skipped, we still need the package's manifest for
+  // lockfile-only installs.
+  //
+  // The package manifest could be retrieved from CAFS if the package has been
+  // fetched previously. Otherwise we'll need to perform a resolution.
   //
   // The resolution step is never skipped for local dependencies.
   if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:')) || wantedDependency.optional === true) {
-    await performResolution()
+    // If the manifest for this package is in the store, retrieving it from the
+    // Content-Addressable File Store will be significantly faster than fetching
+    // it from metadata. This is because package metadata contains the
+    // package.json contents of a package across all of its versions, which
+    // takes a long time to parse.
+    if (skipResolution && !pkgId?.startsWith('file:') && wantedDependency.optional !== true) {
+      manifest = await getPackageManifestFromCafs(resolution, pkgId)
+    }
+
+    // However, if the optimization above isn't possible or the package has
+    // never been added to the CAFS, we'll need to perform a resolution.
+    if (manifest == null) {
+      await performResolution()
+    }
   }
 
   const id = pkgId!
