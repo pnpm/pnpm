@@ -29,7 +29,7 @@ async function writeManifestFile (dir: string, fileName: FileName, manifest: yam
   await writeFileAtomic(path.join(dir, fileName), manifestStr)
 }
 
-async function readManifestRaw (file: string) {
+async function readManifestRaw (file: string): Promise<string | undefined> {
   try {
     return (await fs.promises.readFile(file)).toString()
   } catch (err) {
