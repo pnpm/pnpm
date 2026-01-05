@@ -165,6 +165,63 @@ test('request package but skip fetching, when resolution is already available', 
   expect(pkgResponse.fetching).toBeFalsy()
 })
 
+test('request package but skip fetching, when resolution is already available and manifest is in store', async () => {
+  const storeDir = '.store'
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+  expect(typeof requestPackage).toBe('function')
+
+  const projectDir = temporaryDirectory()
+
+  const requestOpts: RequestPackageOptions = {
+    currentPkg: {
+      id: 'is-positive@1.0.0' as PkgResolutionId,
+      resolution: {
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+    },
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    update: false,
+  }
+
+  // Perform a request without skipFetch to populate the CAFS store.
+  await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, requestOpts)
+
+  // The second request may be able to reuse the package manifest present in the CAFS store.
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, { ...requestOpts, skipFetch: true }) as PackageResponse & {
+    body: {
+      latest: string
+      manifest: { name: string }
+    }
+  }
+
+  expect(pkgResponse).toBeTruthy()
+  expect(pkgResponse.body).toBeTruthy()
+
+  expect(pkgResponse.body.id).toBe('is-positive@1.0.0')
+  expect(pkgResponse.body.isLocal).toBe(false)
+  expect(pkgResponse.body.manifest.name).toBe('is-positive')
+  expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
+  expect(pkgResponse.body.resolution).toStrictEqual({
+    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+  })
+
+  expect(pkgResponse.fetching).toBeFalsy()
+})
+
 test('refetch local tarball if its integrity has changed', async () => {
   const projectDir = temporaryDirectory()
   const tarballPath = path.join(projectDir, 'tarball.tgz')
