@@ -119,11 +119,13 @@ export function createPackageRequester (
 
   const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
+  const getFilePathByModeInCafs = _getFilePathByModeInCafs.bind(null, opts.storeDir)
+  const readPkgFromCafs = _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity)
   const fetchPackageToStore = fetchToStore.bind(null, {
-    readPkgFromCafs: _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity),
+    readPkgFromCafs,
     fetch,
     fetchingLocker: new Map(),
-    getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, opts.storeDir),
+    getFilePathByModeInCafs,
     getIndexFilePathInCafs,
     requestsQueue: Object.assign(requestsQueue, {
       counter: 0,
