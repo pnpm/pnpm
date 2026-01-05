@@ -88,7 +88,6 @@ export interface ImporterToResolve extends Importer<{
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
   update?: boolean
-  updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest: boolean
   targetDependenciesField?: DependenciesField
@@ -129,7 +128,6 @@ export async function resolveDependencies (
     preferredVersions: opts.preferredVersions,
     virtualStoreDir: opts.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
-    updateToLatest: importers.some(project => project.updateToLatest),
     noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
   })
   const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
@@ -283,10 +281,10 @@ export async function resolveDependencies (
 
   let updatedCatalogs: Record<string, Record<string, string>> | undefined
   for (const project of projectsToResolve) {
-    if (!project.updatePackageManifest && !project.updateToLatest) continue
+    if (!project.updatePackageManifest) continue
     const resolvedImporter = resolvedImporters[project.id]
     for (let i = 0; i < resolvedImporter.directDependencies.length; i++) {
-      if (project.wantedDependencies[i]?.updateSpec !== true) continue
+      if (project.wantedDependencies[i]?.updateSpec == null) continue
       const dep = resolvedImporter.directDependencies[i]
       if (dep.catalogLookup == null) continue
       updatedCatalogs ??= {}
