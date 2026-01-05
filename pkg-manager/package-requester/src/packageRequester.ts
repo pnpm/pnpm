@@ -183,12 +183,7 @@ async function resolveAndFetch (
   let resolvedVia: string | undefined
   let publishedAt: string | undefined
 
-  // When fetching is skipped, resolution cannot be skipped.
-  // We need the package's manifest when doing `lockfile-only` installs.
-  // When we don't fetch, the only way to get the package's manifest is via resolving it.
-  //
-  // The resolution step is never skipped for local dependencies.
-  if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:')) || wantedDependency.optional === true) {
+  async function performResolution () {
     // When skipResolution is set but a resolution is still performed due to
     // options.skipFetch, it's necessary to make sure the resolution doesn't
     // accidentally return a newer version of the package. When skipFetch is
@@ -244,6 +239,15 @@ async function resolveAndFetch (
     pkgId = resolveResult.id
     normalizedBareSpecifier = resolveResult.normalizedBareSpecifier
     alias = resolveResult.alias
+  }
+
+  // When fetching is skipped, resolution cannot be skipped.
+  // We need the package's manifest when doing `lockfile-only` installs.
+  // When we don't fetch, the only way to get the package's manifest is via resolving it.
+  //
+  // The resolution step is never skipped for local dependencies.
+  if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:')) || wantedDependency.optional === true) {
+    await performResolution()
   }
 
   const id = pkgId!
