@@ -286,6 +286,7 @@ test('peer dependencies are updated with pnpm upgrade --latest when autoInstallP
     allowNew: false,
     autoInstallPeers: true,
     update: true,
+    updateToLatest: true,
   }))
 
   lockfile = project.readLockfile()
