@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/yaml.document-sync",
-  "version": "1000.0.0",
+  "version": "1000.0.0-0",
   "description": "Update a YAML document to match the contents of an in-memory object.",
   "keywords": [
     "pnpm",
