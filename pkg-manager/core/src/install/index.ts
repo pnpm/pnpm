@@ -567,12 +567,7 @@ export async function mutateModules (
         ? {}
         : {
           ...getAllDependenciesFromManifest(project.manifest),
-          ...(opts.autoInstallPeers
-            ? Object.fromEntries(
-              Object.entries(project.manifest.peerDependencies ?? {})
-                .filter(([_, spec]) => spec.startsWith('catalog:'))
-            )
-            : {}),
+          ...(opts.autoInstallPeers ? project.manifest.peerDependencies ?? {} : {}),
         }
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
