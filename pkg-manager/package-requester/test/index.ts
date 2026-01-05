@@ -75,7 +75,7 @@ test('request package', async () => {
 })
 
 test('request package but skip fetching', async () => {
-  const storeDir = '.store'
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
@@ -114,7 +114,7 @@ test('request package but skip fetching', async () => {
 })
 
 test('request package but skip fetching, when resolution is already available', async () => {
-  const storeDir = '.store'
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
@@ -166,7 +166,7 @@ test('request package but skip fetching, when resolution is already available', 
 })
 
 test('request package but skip fetching, when resolution is already available and manifest is in store', async () => {
-  const storeDir = '.store'
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
@@ -810,7 +810,7 @@ test('refetch package to store if it has been modified', async () => {
 })
 
 test('do not fetch an optional package that is not installable', async () => {
-  const storeDir = '.store'
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
