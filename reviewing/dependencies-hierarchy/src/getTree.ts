@@ -140,7 +140,6 @@ function getTreeHelper (
       wantedPackages: opts.wantedPackages,
       virtualStoreDir: opts.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-      modulesDir: opts.modulesDir,
     })
     let circular: boolean
     const matchedSearched = opts.search?.({
