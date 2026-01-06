@@ -22,7 +22,7 @@ module.exports = {
   },
 }`, 'utf8')
 
-  const { hooks } = await requireHooks(process.cwd(), { tryLoadDefaultPnpmfile: true })
+  const { hooks } = requireHooks(process.cwd(), { tryLoadDefaultPnpmfile: true })
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
@@ -51,7 +51,7 @@ module.exports = {
   },
 }`, 'utf8')
 
-  const { hooks } = await requireHooks(process.cwd(), { tryLoadDefaultPnpmfile: true })
+  const { hooks } = requireHooks(process.cwd(), { tryLoadDefaultPnpmfile: true })
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
@@ -82,7 +82,7 @@ module.exports = {
 }`, 'utf8')
   writeYamlFile('pnpm-workspace.yaml', { pnpmfile: pnpmfiles })
 
-  const { hooks } = await requireHooks(process.cwd(), { pnpmfiles })
+  const { hooks } = requireHooks(process.cwd(), { pnpmfiles })
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
