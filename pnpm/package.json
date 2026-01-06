@@ -47,6 +47,7 @@
   },
   "files": [
     "dist",
+    "!dist/**/*.map",
     "bin"
   ],
   "bin": {
@@ -184,6 +185,7 @@
   "pnpm": {
     "overrides": {
       "@yarnpkg/fslib@2": "3",
+      "@cypress/request@3.0.9>qs": "^6.14.1",
       "body-parser@<2.2.1": "^2.2.1",
       "clipanion": "3.2.0-rc.6",
       "cookie@<0.7.0": ">=0.7.0",
@@ -206,6 +208,7 @@
       "path-to-regexp@<0.1.12": "^0.1.12",
       "path-to-regexp@>=4.0.0 <6.3.0": ">=6.3.0",
       "path-to-regexp@>=7.0.0 <8.0.0": ">=8.0.0",
+      "postman-request>qs": "^6.14.1",
       "request": "npm:postman-request@2.88.1-postman.40",
       "semver@<7.5.2": "^7.7.2",
       "send@<0.19.0": "^0.19.0",

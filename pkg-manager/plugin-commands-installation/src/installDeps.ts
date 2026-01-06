@@ -95,6 +95,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'shellEmulator'
 | 'tag'
+| 'allowBuilds'
 | 'optional'
 | 'workspaceConcurrency'
 | 'workspaceDir'
@@ -212,11 +213,16 @@ when running add/update with the --workspace option')
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
 
+      const recursiveRootManifestOpts = getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {})
       await recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
           ...opts,
-          ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
+          ...recursiveRootManifestOpts,
+          allowBuilds: {
+            ...recursiveRootManifestOpts.allowBuilds,
+            ...opts.allowBuilds,
+          },
           forceHoistPattern,
           forcePublicHoistPattern,
           allProjectsGraph,
@@ -247,9 +253,14 @@ when running add/update with the --workspace option')
     manifest = {}
   }
 
+  const rootManifestOpts = getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest))
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest)),
+    ...rootManifestOpts,
+    allowBuilds: {
+      ...rootManifestOpts.allowBuilds,
+      ...opts.allowBuilds,
+    },
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository

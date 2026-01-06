@@ -70,8 +70,8 @@ catalogs:
       specifier: ^0.3.1
       version: 0.3.1
     '@pnpm/npm-conf':
-      specifier: 3.0.1
-      version: 3.0.1
+      specifier: 3.0.2
+      version: 3.0.2
     '@pnpm/npm-lifecycle':
       specifier: ^1001.0.0
       version: 1001.0.0
@@ -771,6 +771,9 @@ catalogs:
     write-yaml-file:
       specifier: ^5.0.0
       version: 5.0.0
+    yaml:
+      specifier: ^2.8.1
+      version: 2.8.1
     yaml-tag:
       specifier: 1.1.0
       version: 1.1.0
@@ -780,6 +783,7 @@ catalogs:
 
 overrides:
   '@yarnpkg/fslib@2': '3'
+  '@cypress/request@3.0.9>qs': ^6.14.1
   body-parser@<2.2.1: ^2.2.1
   clipanion: 3.2.0-rc.6
   cookie@<0.7.0: '>=0.7.0'
@@ -802,6 +806,7 @@ overrides:
   path-to-regexp@<0.1.12: ^0.1.12
   path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
   path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
+  postman-request>qs: ^6.14.1
   request: npm:postman-request@2.88.1-postman.40
   semver@<7.5.2: ^7.7.2
   send@<0.19.0: ^0.19.0
@@ -1135,7 +1140,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       pnpm:
-        specifier: 'workspace:'
+        specifier: workspace:*
         version: link:../../pnpm
       ts-jest-resolver:
         specifier: 'catalog:'
@@ -1198,6 +1203,12 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
+      tar:
+        specifier: 'catalog:'
+        version: 6.2.1
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.14
     devDependencies:
       '@pnpm/logger':
         specifier: 'catalog:'
@@ -1208,6 +1219,9 @@ importers:
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
+      '@types/tar':
+        specifier: 'catalog:'
+        version: 6.1.13
 
   __utils__/test-fixtures:
     dependencies:
@@ -1669,7 +1683,7 @@ importers:
         version: link:../../packages/naming-cases
       '@pnpm/npm-conf':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -4967,9 +4981,6 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
-      '@pnpm/config.version-policy':
-        specifier: workspace:*
-        version: link:../../config/version-policy
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -7009,6 +7020,9 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -7037,9 +7051,6 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
-      write-yaml-file:
-        specifier: 'catalog:'
-        version: 5.0.0
 
   releasing/plugin-commands-publishing:
     dependencies:
@@ -9066,12 +9077,18 @@ importers:
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../read-manifest
+      '@pnpm/yaml.document-sync':
+        specifier: workspace:*
+        version: link:../../yaml/document-sync
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
-      write-yaml-file:
+      write-file-atomic:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 6.0.0
+      yaml:
+        specifier: 'catalog:'
+        version: 2.8.1
     devDependencies:
       '@pnpm/fs.find-packages':
         specifier: workspace:*
@@ -9088,9 +9105,15 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+      '@types/write-file-atomic':
+        specifier: 'catalog:'
+        version: 4.0.3
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
 
   workspace/pkgs-graph:
     dependencies:
@@ -9201,6 +9224,16 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+
+  yaml/document-sync:
+    dependencies:
+      yaml:
+        specifier: 'catalog:'
+        version: 2.8.1
+    devDependencies:
+      '@pnpm/yaml.document-sync':
+        specifier: workspace:*
+        version: 'link:'
 
 packages:
 
@@ -10528,8 +10561,8 @@ packages:
     resolution: {integrity: sha512-LdFkv/+4ONkQ9ZyE8ihC2L2RcPjvNcOTQq6pvvvZp8KeDYATCJeJX7gpHZF3Bx1XvUSU35dyF9Q9dS+JShtOFA==}
     engines: {node: '>=12'}
 
-  '@pnpm/npm-conf@3.0.1':
-    resolution: {integrity: sha512-Y3yZmbs0OqZcb2lB6eq7mFEtwvGG0xeMnhQeI+rkAUH0RHkoS69iXAIb2Q+DgsaFEryQH6hrcc+HFPsLzS/yIg==}
+  '@pnpm/npm-conf@3.0.2':
+    resolution: {integrity: sha512-h104Kh26rR8tm+a3Qkc5S4VLYint3FE48as7+/5oCEcKR2idC/pF1G6AhIXKI+eHPJa/3J9i5z0Al47IeGHPkA==}
     engines: {node: '>=12'}
 
   '@pnpm/npm-lifecycle@1000.0.4':
@@ -15285,12 +15318,8 @@ packages:
   pure-rand@7.0.1:
     resolution: {integrity: sha512-oTUZM/NAZS8p7ANR3SHh30kXB+zK2r2BPcEn/awJIbOvq82WoMN4p62AWWp3Hhw50G0xMsw1mhIBLqHw64EcNQ==}
 
-  qs@6.14.0:
-    resolution: {integrity: sha512-YWWTjgABSKcvs/nWBi9PycY/JiPJqOD4JA6o9Sej2AtvSGarXxKC3OQSk4pAarbdQlKAh5D4FCQkJNkW+GAn3w==}
-    engines: {node: '>=0.6'}
-
-  qs@6.5.3:
-    resolution: {integrity: sha512-qxXIEh4pCGfHICj1mAJQ2/2XVZkjCDTcEgfoSQxc/fYivUZxTkk7L3bDBJSoNrEzXI17oUO5Dp07ktqE5KzczA==}
+  qs@6.14.1:
+    resolution: {integrity: sha512-4EK3+xJl8Ts67nLYNwqw/dsFVnCf+qR7RgXSK9jEEm9unao3njwMDdmsdvoKBKHzxd7tCYz5e5M+SnMjdtXGQQ==}
     engines: {node: '>=0.6'}
 
   quansync@0.2.11:
@@ -17521,7 +17550,7 @@ snapshots:
       json-stringify-safe: 5.0.1
       mime-types: 2.1.35
       performance-now: 2.1.0
-      qs: 6.14.0
+      qs: 6.14.1
       safe-buffer: 5.2.1
       tough-cookie: 5.1.2
       tunnel-agent: 0.6.0
@@ -18405,7 +18434,7 @@ snapshots:
       '@pnpm/fs.packlist': 2.0.0
       '@pnpm/logger': 1001.0.0
       '@pnpm/prepare-package': 1000.0.16(@pnpm/logger@1001.0.0)(typanion@3.14.0)
-      '@pnpm/worker': 1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30)
+      '@pnpm/worker': 1000.1.7(@pnpm/logger@packages+logger)(@types/node@22.15.30)
       '@zkochan/rimraf': 3.0.2
       execa: safe-execa@0.1.2
     transitivePeerDependencies:
@@ -18540,7 +18569,7 @@ snapshots:
       '@pnpm/find-workspace-dir': 1000.1.0
       '@pnpm/logger': 1001.0.0
       '@pnpm/types': 1000.6.0
-      '@pnpm/worker': 1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30)
+      '@pnpm/worker': 1000.1.7(@pnpm/logger@packages+logger)(@types/node@22.15.30)
       '@pnpm/workspace.find-packages': 1000.0.25(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30))(typanion@3.14.0)
       '@pnpm/workspace.read-manifest': 1000.1.5
       load-json-file: 7.0.1
@@ -18602,7 +18631,7 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@pnpm/npm-conf@3.0.1':
+  '@pnpm/npm-conf@3.0.2':
     dependencies:
       '@pnpm/config.env-replace': 1.1.0
       '@pnpm/network.ca-file': 1.0.2
@@ -18746,7 +18775,7 @@ snapshots:
       '@pnpm/store-controller-types': 1003.0.2
       '@pnpm/store.cafs': 1000.0.13
       '@pnpm/types': 1000.6.0
-      '@pnpm/worker': 1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30)
+      '@pnpm/worker': 1000.1.7(@pnpm/logger@packages+logger)(@types/node@22.15.30)
       p-defer: 3.0.0
       p-limit: 3.1.0
       p-queue: 6.6.2
@@ -18765,7 +18794,7 @@ snapshots:
       '@pnpm/store-controller-types': 1003.0.2
       '@pnpm/store.cafs': 1000.0.13
       '@pnpm/types': 1000.6.0
-      '@pnpm/worker': 1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30)
+      '@pnpm/worker': 1000.1.7(@pnpm/logger@packages+logger)(@types/node@22.15.30)
       '@zkochan/rimraf': 3.0.2
       load-json-file: 6.2.0
       ramda: '@pnpm/ramda@0.28.1'
@@ -19044,7 +19073,7 @@ snapshots:
       '@pnpm/graceful-fs': 1000.0.0
       '@pnpm/logger': 1001.0.0
       '@pnpm/prepare-package': 1000.0.16(@pnpm/logger@1001.0.0)(typanion@3.14.0)
-      '@pnpm/worker': 1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30)
+      '@pnpm/worker': 1000.1.7(@pnpm/logger@packages+logger)(@types/node@22.15.30)
       '@zkochan/retry': 0.2.0
       lodash.throttle: 4.1.1
       p-map-values: 1.0.0
@@ -19083,7 +19112,7 @@ snapshots:
     dependencies:
       isexe: 2.0.0
 
-  '@pnpm/worker@1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30)':
+  '@pnpm/worker@1000.1.7(@pnpm/logger@packages+logger)(@types/node@22.15.30)':
     dependencies:
       '@pnpm/cafs-types': 1000.0.0
       '@pnpm/create-cafs-store': 1000.0.14(@pnpm/logger@1001.0.0)
@@ -19092,7 +19121,7 @@ snapshots:
       '@pnpm/exec.pkg-requires-build': 1000.0.8
       '@pnpm/fs.hard-link-dir': 1000.0.1(@pnpm/logger@1001.0.0)
       '@pnpm/graceful-fs': 1000.0.0
-      '@pnpm/logger': 1001.0.0
+      '@pnpm/logger': link:packages/logger
       '@pnpm/store.cafs': 1000.0.13
       '@pnpm/symlink-dependency': 1000.0.9(@pnpm/logger@1001.0.0)
       '@rushstack/worker-pool': 0.4.9(@types/node@22.15.30)
@@ -20397,7 +20426,7 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.7.0
       on-finished: 2.4.1
-      qs: 6.14.0
+      qs: 6.14.1
       raw-body: 3.0.2
       type-is: 2.0.1
     transitivePeerDependencies:
@@ -21625,7 +21654,7 @@ snapshots:
       parseurl: 1.3.3
       path-to-regexp: 0.1.12
       proxy-addr: 2.0.7
-      qs: 6.14.0
+      qs: 6.14.1
       range-parser: 1.2.1
       safe-buffer: 5.2.1
       send: 0.19.0
@@ -24132,7 +24161,7 @@ snapshots:
       mime-types: 2.1.35
       oauth-sign: 0.9.0
       performance-now: 2.1.0
-      qs: 6.5.3
+      qs: 6.14.1
       safe-buffer: 5.2.1
       stream-length: 1.0.2
       uuid: 8.3.2
@@ -24281,11 +24310,9 @@ snapshots:
 
   pure-rand@7.0.1: {}
 
-  qs@6.14.0:
+  qs@6.14.1:
     dependencies:
       side-channel: 1.1.0
-
-  qs@6.5.3: {}
 
   quansync@0.2.11: {}
 

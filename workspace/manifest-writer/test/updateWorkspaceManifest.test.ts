@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare-temp-dir'
@@ -8,13 +9,13 @@ import { sync as writeYamlFile } from 'write-yaml-file'
 test('updateWorkspaceManifest adds a new setting', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, { packages: ['*'] })
+  writeYamlFile(filePath, { packages: ['*'], allowBuilds: {} })
   await updateWorkspaceManifest(dir, {
-    updatedFields: { onlyBuiltDependencies: [] },
+    updatedFields: { allowBuilds: {} },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     packages: ['*'],
-    onlyBuiltDependencies: [],
+    allowBuilds: {},
   })
 })
 
@@ -43,19 +44,57 @@ test('updateWorkspaceManifest updates an existing setting', async () => {
   })
 })
 
+// This test is intentionally minimal and doesn't exhaustively cover every case
+// of comment preservation in pnpm-workspace.yaml.
+//
+// The tests in @pnpm/yaml.document-sync should cover more cases and be
+// sufficient. It's likely not necessary to duplicate the tests in that package.
+test('updateWorkspaceManifest preserves comments', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+
+  const manifest = `\
+packages:
+  - '*'
+
+overrides:
+  bar: '2'
+  # This comment on foo should be preserved
+  foo: '3'
+`
+
+  const expected = `\
+packages:
+  - '*'
+
+overrides:
+  bar: '3'
+  baz: '1'
+  # This comment on foo should be preserved
+  foo: '2'
+`
+
+  fs.writeFileSync(filePath, manifest)
+
+  await updateWorkspaceManifest(dir, {
+    updatedFields: { overrides: { foo: '2', bar: '3', baz: '1' } },
+  })
+
+  expect(fs.readFileSync(filePath).toString()).toStrictEqual(expected)
+})
+
 test('updateWorkspaceManifest updates allowBuilds', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   writeYamlFile(filePath, { packages: ['*'], allowBuilds: { qar: 'warn' } })
   await updateWorkspaceManifest(dir, {
-    updatedFields: { onlyBuiltDependencies: ['foo'], ignoredBuiltDependencies: ['bar'] },
+    updatedFields: { allowBuilds: { foo: true, bar: false } },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     packages: ['*'],
     allowBuilds: {
       bar: false,
       foo: true,
-      qar: 'warn',
     },
   })
 })

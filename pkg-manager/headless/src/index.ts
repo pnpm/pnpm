@@ -104,10 +104,7 @@ export interface Project {
 
 export interface HeadlessOptions {
   ignorePatchFailures?: boolean
-  neverBuiltDependencies?: string[]
-  ignoredBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
+  allowBuilds?: Record<string, boolean | string>
   autoInstallPeers?: boolean
   childConcurrency?: number
   currentLockfile?: LockfileObject
@@ -539,7 +536,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       allowBuild,
-      ignoredBuiltDependencies: opts.ignoredBuiltDependencies,
       ignorePatchFailures: opts.ignorePatchFailures,
       childConcurrency: opts.childConcurrency,
       extraBinPaths,

@@ -183,7 +183,6 @@ export interface Config extends OptionsFromRootManifest {
   embedReadme?: boolean
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean
-  onlyBuiltDependencies?: string[]
   allowBuilds?: Record<string, boolean | string>
   dedupePeerDependents?: boolean
   patchesDir?: string

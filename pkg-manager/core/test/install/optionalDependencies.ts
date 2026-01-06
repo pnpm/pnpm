@@ -578,7 +578,9 @@ test('fail on a package with failing postinstall if the package is both an optio
           '@pnpm.e2e/has-failing-postinstall-dep': '1.0.0',
         },
       },
-      testDefaults({})
+      testDefaults({
+        allowBuilds: { '@pnpm.e2e/has-failing-postinstall-dep': true, '@pnpm.e2e/failing-postinstall': true },
+      })
     )
   ).rejects.toThrow()
 })

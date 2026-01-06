@@ -263,28 +263,42 @@ export async function handler (
     if (opts.argv.original.includes('--allow-build')) {
       throw new PnpmError('ALLOW_BUILD_MISSING_PACKAGE', 'The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
     }
-    if (opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies?.length) {
-      const overlapDependencies = opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.filter((dep) => opts.allowBuild?.includes(dep))
+    if (opts.rootProjectManifest?.pnpm?.allowBuilds) {
+      const disallowedBuilds = Object.keys(opts.rootProjectManifest.pnpm.allowBuilds)
+        .filter(pkg => opts.rootProjectManifest!.pnpm!.allowBuilds![pkg] === false)
+      const overlapDependencies = disallowedBuilds.filter((dep) => opts.allowBuild?.includes(dep))
       if (overlapDependencies.length) {
         throw new PnpmError('OVERRIDING_IGNORED_BUILT_DEPENDENCIES', `The following dependencies are ignored by the root project, but are allowed to be built by the current command: ${overlapDependencies.join(', ')}`, {
-          hint: 'If you are sure you want to allow those dependencies to run installation scripts, remove them from the pnpm.ignoredBuiltDependencies list.',
+          hint: 'If you are sure you want to allow those dependencies to run installation scripts, remove them from the pnpm.allowBuilds list (or change their value to true).',
         })
       }
     }
-    opts.onlyBuiltDependencies = Array.from(new Set([
-      ...(opts.onlyBuiltDependencies ?? []),
-      ...opts.allowBuild,
-    ])).sort((a, b) => a.localeCompare(b))
+    const allowBuilds: Record<string, boolean> = {}
+    for (const pkg of opts.allowBuild) {
+      allowBuilds[pkg] = true
+    }
     if (opts.rootProjectManifestDir) {
       opts.rootProjectManifest = opts.rootProjectManifest ?? {}
       await writeSettings({
         ...opts,
         workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
         updatedSettings: {
-          onlyBuiltDependencies: opts.onlyBuiltDependencies,
+          allowBuilds,
         },
       })
     }
+    // Pass the allowed packages to allowBuilds so they can build during this install
+    const mergedAllowBuilds = { ...opts.allowBuilds }
+    for (const pkg of opts.allowBuild) {
+      mergedAllowBuilds[pkg] = true
+    }
+    return installDeps({
+      ...opts,
+      allowBuilds: mergedAllowBuilds,
+      fetchFullMetadata: getFetchFullMetadata(opts),
+      include,
+      includeDirect: include,
+    }, params)
   }
   return installDeps({
     ...opts,

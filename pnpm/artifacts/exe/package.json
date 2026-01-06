@@ -18,7 +18,7 @@
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",
-    "prepublishOnly": "pnpm --filter=pnpm run compile && ts-node ./scripts/build-artifacts.ts"
+    "prepublishOnly": "pnpm --filter=pnpm run compile && node ./scripts/build-artifacts.ts"
   },
   "optionalDependencies": {
     "@pnpm/linux-arm64": "workspace:*",

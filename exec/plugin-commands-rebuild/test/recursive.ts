@@ -58,6 +58,7 @@ test('pnpm recursive rebuild', async () => {
     registries: modulesManifest!.registries!,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, [])
 
   projects['project-1'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
@@ -136,6 +137,7 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
     selectedProjectsGraph,
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, [])
 
   rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
@@ -215,13 +217,14 @@ test('rebuild multiple packages in correct order', async () => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
+    allowBuilds: { 'project-1': true, 'project-2': true, 'project-3': true },
   }, [])
 
   expect(server1.getLines()).toStrictEqual(['project-1', 'project-2'])
   expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
 })
 
-test('never build neverBuiltDependencies', async () => {
+test('only build allowBuilds (not others)', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -285,7 +288,7 @@ test('never build neverBuiltDependencies', async () => {
   await rebuild.handler(
     {
       ...DEFAULT_OPTS,
-      neverBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+      allowBuilds: { '@pnpm.e2e/install-script-example': true },
       allProjects,
       dir: process.cwd(),
       recursive: true,
@@ -316,7 +319,7 @@ test('never build neverBuiltDependencies', async () => {
   )
 })
 
-test('only build onlyBuiltDependencies', async () => {
+test('only build allowBuilds', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -380,7 +383,7 @@ test('only build onlyBuiltDependencies', async () => {
   await rebuild.handler(
     {
       ...DEFAULT_OPTS,
-      onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+      allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
       allProjects,
       dir: process.cwd(),
       recursive: true,

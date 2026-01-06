@@ -822,7 +822,7 @@ test('peer bins are linked', async () => {
 test('run pre/postinstall scripts of each variations of packages with peer dependencies', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
   prepareEmpty()
-  await addDependenciesToPackage({}, ['@pnpm.e2e/parent-of-pkg-with-events-and-peers', '@pnpm.e2e/pkg-with-events-and-peers', '@pnpm.e2e/peer-c@2.0.0'], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/parent-of-pkg-with-events-and-peers', '@pnpm.e2e/pkg-with-events-and-peers', '@pnpm.e2e/peer-c@2.0.0'], testDefaults({ fastUnpack: false, allowBuilds: { '@pnpm.e2e/pkg-with-events-and-peers': true } }))
 
   const pkgVariation1 = path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-events-and-peers@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules')
   await okFile(path.join(pkgVariation1, '@pnpm.e2e/pkg-with-events-and-peers', 'generated-by-preinstall.js'))

@@ -99,7 +99,6 @@ export const excludedPnpmKeys = [
   'modules-dir',
   'node-linker',
   'offline',
-  'only-built-dependencies',
   'pack-destination',
   'pack-gzip-level',
   'patches-dir',

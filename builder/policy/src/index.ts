@@ -1,25 +1,38 @@
 import { type AllowBuild } from '@pnpm/types'
 import { expandPackageVersionSpecs } from '@pnpm/config.version-policy'
-import fs from 'fs'
 
 export function createAllowBuildFunction (
   opts: {
-    neverBuiltDependencies?: string[]
-    onlyBuiltDependencies?: string[]
-    onlyBuiltDependenciesFile?: string
+    dangerouslyAllowAllBuilds?: boolean
+    allowBuilds?: Record<string, boolean | string>
   }
 ): undefined | AllowBuild {
-  if (opts.onlyBuiltDependenciesFile != null || opts.onlyBuiltDependencies != null) {
-    const onlyBuiltDeps = opts.onlyBuiltDependencies ?? []
-    if (opts.onlyBuiltDependenciesFile) {
-      onlyBuiltDeps.push(...JSON.parse(fs.readFileSync(opts.onlyBuiltDependenciesFile, 'utf8')))
+  if (opts.dangerouslyAllowAllBuilds) return () => true
+  if (opts.allowBuilds != null) {
+    const allowedBuilds = new Set<string>()
+    const disallowedBuilds = new Set<string>()
+    for (const [pkg, value] of Object.entries(opts.allowBuilds)) {
+      switch (value) {
+      case true:
+        allowedBuilds.add(pkg)
+        break
+      case false:
+        disallowedBuilds.add(pkg)
+        break
+      }
     }
-    const onlyBuiltDependencies = expandPackageVersionSpecs(onlyBuiltDeps)
-    return (pkgName, version) => onlyBuiltDependencies.has(pkgName) || onlyBuiltDependencies.has(`${pkgName}@${version}`)
-  }
-  if (opts.neverBuiltDependencies != null && opts.neverBuiltDependencies.length > 0) {
-    const neverBuiltDependencies = new Set(opts.neverBuiltDependencies)
-    return (pkgName) => !neverBuiltDependencies.has(pkgName)
+    const expandedAllowed = expandPackageVersionSpecs(Array.from(allowedBuilds))
+    const expandedDisallowed = expandPackageVersionSpecs(Array.from(disallowedBuilds))
+    return (pkgName, version) => {
+      const pkgWithVersion = `${pkgName}@${version}`
+      if (expandedDisallowed.has(pkgName) || expandedDisallowed.has(pkgWithVersion)) {
+        return false
+      }
+      if (expandedAllowed.has(pkgName) || expandedAllowed.has(pkgWithVersion)) {
+        return true
+      }
+      return undefined
+    }
   }
   return undefined
 }

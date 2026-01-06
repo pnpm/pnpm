@@ -40,6 +40,7 @@ packages:
   - store/*
   - text/*
   - workspace/*
+  - yaml/*
   - '!**/example/**'
   - '!**/test/**'
   - '!resolving/local-resolver/example-package/**'
@@ -81,7 +82,7 @@ catalog:
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/network.agent': ^2.0.3
   '@pnpm/nopt': ^0.3.1
-  '@pnpm/npm-conf': 3.0.1
+  '@pnpm/npm-conf': 3.0.2
   '@pnpm/npm-lifecycle': ^1001.0.0
   '@pnpm/npm-package-arg': ^2.0.0
   '@pnpm/os.env.path-extender': ^2.0.3
@@ -315,6 +316,7 @@ catalog:
   write-json5-file: ^3.1.0
   write-package: 7.2.0
   write-yaml-file: ^5.0.0
+  yaml: ^2.8.1
   yaml-tag: 1.1.0
   yazl: ^3.3.1
 
@@ -354,6 +356,7 @@ optimisticRepeatInstall: true
 
 overrides:
   '@yarnpkg/fslib@2': '3'
+  '@cypress/request@3.0.9>qs': ^6.14.1
   body-parser@<2.2.1: '^2.2.1'
   clipanion: 3.2.0-rc.6
   cookie@<0.7.0: '>=0.7.0'
@@ -376,6 +379,7 @@ overrides:
   path-to-regexp@<0.1.12: ^0.1.12
   path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
   path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
+  postman-request>qs: ^6.14.1
   request: npm:postman-request@2.88.1-postman.40
   semver@<7.5.2: 'catalog:'
   send@<0.19.0: ^0.19.0

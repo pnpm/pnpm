@@ -4,7 +4,6 @@ import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
-import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -65,6 +64,7 @@ import {
 } from '@pnpm/resolver-base'
 import {
   type DepPath,
+  type AllowBuild,
   type DependenciesField,
   type DependencyManifest,
   type IgnoredBuilds,
@@ -268,6 +268,7 @@ export async function mutateModules (
   }
 
   const opts = extendOptions(maybeOpts)
+  const allowBuild = createAllowBuildFunction(opts)
 
   if (!opts.include.dependencies && opts.include.optionalDependencies) {
     throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
@@ -368,13 +369,11 @@ export async function mutateModules (
 
   let ignoredBuilds = result.ignoredBuilds
   if (!opts.ignoreScripts && ignoredBuilds?.size) {
-    ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds)
+    ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, allowBuild)
   }
-  if (!opts.neverBuiltDependencies) {
-    ignoredScriptsLogger.debug({
-      packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
-    })
-  }
+  ignoredScriptsLogger.debug({
+    packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
+  })
 
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
@@ -666,6 +665,7 @@ export async function mutateModules (
     )
     const result = await installInContext(projectsToInstall, ctx, {
       ...opts,
+      allowBuild,
       currentLockfileIsUpToDate: !ctx.existsNonEmptyWantedLockfile || ctx.currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
       needsFullResolution,
@@ -883,22 +883,24 @@ Note that in CI environments, this setting is enabled by default.`,
   }
 }
 
-async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previousIgnoredBuilds: IgnoredBuilds): Promise<Set<DepPath>> {
-  if (!opts.onlyBuiltDependencies?.length) {
+async function runUnignoredDependencyBuilds (
+  opts: StrictInstallOptions,
+  previousIgnoredBuilds: IgnoredBuilds,
+  allowBuild?: AllowBuild
+): Promise<Set<DepPath>> {
+  if (!allowBuild) {
     return previousIgnoredBuilds
   }
-  const onlyBuiltDeps = createPackageVersionPolicy(opts.onlyBuiltDependencies)
-  const pkgsToBuild = Array.from(previousIgnoredBuilds).flatMap((ignoredPkg) => {
-    const ignoredPkgName = dp.parse(ignoredPkg).name
-    if (!ignoredPkgName) return []
-    const matchResult = onlyBuiltDeps(ignoredPkgName)
-    if (matchResult === true) {
-      return [ignoredPkgName]
-    } else if (Array.isArray(matchResult)) {
-      return matchResult.map(version => `${ignoredPkgName}@${version}`)
+  const pkgsToBuild: string[] = []
+  for (const ignoredPkg of previousIgnoredBuilds) {
+    const parsed = dp.parse(ignoredPkg)
+    if (!parsed.name || !parsed.version) continue
+    const allowed = allowBuild(parsed.name, parsed.version)
+    if (allowed === true) {
+      // Package is explicitly allowed - rebuild it
+      pkgsToBuild.push(`${parsed.name}@${parsed.version}`)
     }
-    return []
-  })
+  }
   if (pkgsToBuild.length) {
     return (await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
       ...opts,
@@ -1082,11 +1084,10 @@ type InstallFunction = (
   projects: ImporterToUpdate[],
   ctx: PnpmContext,
   opts: Omit<StrictInstallOptions, 'patchedDependencies'> & {
+    allowBuild?: AllowBuild
     patchedDependencies?: PatchGroupRecord
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
-    neverBuiltDependencies?: string[]
-    onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
@@ -1181,7 +1182,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     forgetResolutionsOfAllPrevWantedDeps(ctx.wantedLockfile)
   }
 
-  const allowBuild = createAllowBuildFunction(opts)
   let {
     dependenciesGraph,
     dependenciesByProjectId,
@@ -1195,7 +1195,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   } = await resolveDependencies(
     projects,
     {
-      allowBuild,
+      allowBuild: opts.allowBuild,
       allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
       allowUnusedPatches: opts.allowUnusedPatches,
       autoInstallPeers: opts.autoInstallPeers,
@@ -1304,7 +1304,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       projects,
       dependenciesGraph,
       {
-        allowBuild,
+        allowBuild: opts.allowBuild,
         currentLockfile: ctx.currentLockfile,
         dedupeDirectDeps: opts.dedupeDirectDeps,
         dependenciesByProjectId,
@@ -1375,9 +1375,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           }
         }
         ignoredBuilds = (await buildModules(dependenciesGraph, rootNodes, {
-          allowBuild,
+          allowBuild: opts.allowBuild,
           ignorePatchFailures: opts.ignorePatchFailures,
-          ignoredBuiltDependencies: opts.ignoredBuiltDependencies,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
           depsToBuild: new Set(result.newDepPaths),

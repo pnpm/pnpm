@@ -79,6 +79,7 @@ test('using side effects cache', async () => {
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, {}, {}, { packageImportMethod: 'copy' })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
@@ -111,6 +112,7 @@ test('using side effects cache', async () => {
     sideEffectsCacheWrite: true,
     storeDir: opts.storeDir,
     verifyStoreIntegrity: false,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, {}, {}, { packageImportMethod: 'copy' })
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts2)
 
@@ -159,6 +161,7 @@ test('uploading errors do not interrupt installation', async () => {
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   })
   opts.storeController.upload = async () => {
     throw new Error('an unexpected error')
@@ -179,6 +182,7 @@ test('a postinstall script does not modify the original sources added to the sto
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
+    allowBuilds: { '@pnpm/postinstall-modifies-source': true },
   }, {}, {}, { packageImportMethod: 'hardlink' })
   await addDependenciesToPackage({}, ['@pnpm/postinstall-modifies-source@1.0.0'], opts)
 
@@ -211,6 +215,7 @@ test('a corrupted side-effects cache is ignored', async () => {
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
@@ -242,6 +247,7 @@ test('a corrupted side-effects cache is ignored', async () => {
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     storeDir: opts.storeDir,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   })
   await install(manifest, opts2)
 

@@ -35,7 +35,6 @@ export function testDefaults<T> (
   })
   const result = {
     cacheDir,
-    neverBuiltDependencies: [] as string[],
     registries: {
       default: registry,
     },

@@ -74,7 +74,6 @@ export const pnpmTypes = {
   noproxy: String,
   'npm-path': String,
   offline: Boolean,
-  'only-built-dependencies': [String, Array],
   'pack-destination': String,
   'pack-gzip-level': Number,
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],

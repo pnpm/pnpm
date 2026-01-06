@@ -3,6 +3,7 @@ import path from 'path'
 import { pick } from 'ramda'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as configTypes } from '@pnpm/config'
+import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
@@ -12,6 +13,7 @@ import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
+import writeYamlFile from 'write-yaml-file'
 import { deployHook } from './deployHook.js'
 import { logger, globalWarn } from '@pnpm/logger'
 import { type Project } from '@pnpm/types'
@@ -78,7 +80,7 @@ export function help (): string {
 
 export type DeployOptions =
   & Omit<install.InstallCommandOptions, 'useLockfile'>
-  & Pick<Config, 'forceLegacyDeploy'>
+  & Pick<Config, 'allowBuilds' | 'forceLegacyDeploy'>
 
 export async function handler (opts: DeployOptions, params: string[]): Promise<void> {
   if (!opts.workspaceDir) {
@@ -240,15 +242,22 @@ async function deployFromSharedLockfile (
     selectedProjectManifest: selectedProject.manifest,
     projectId,
     rootProjectManifestDir,
+    allowBuilds: opts.allowBuilds,
   })
 
-  await Promise.all([
+  const filesToWrite: Array<Promise<void>> = [
     fs.promises.writeFile(
       path.join(deployDir, 'package.json'),
       JSON.stringify(deployFiles.manifest, undefined, 2) + '\n'
     ),
     writeWantedLockfile(deployDir, deployFiles.lockfile),
-  ])
+  ]
+  if (deployFiles.workspaceManifest) {
+    filesToWrite.push(
+      writeYamlFile(path.join(deployDir, WORKSPACE_MANIFEST_FILENAME), deployFiles.workspaceManifest)
+    )
+  }
+  await Promise.all(filesToWrite)
 
   try {
     await install.handler({

@@ -97,7 +97,7 @@ CreateStoreControllerOptions &
   pending: boolean
   skipIfHasSideEffectsCache?: boolean
   neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
+  allowBuilds?: Record<string, boolean | string>
 }
 
 export async function handler (
