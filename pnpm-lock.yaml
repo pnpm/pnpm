@@ -9077,12 +9077,18 @@ importers:
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../read-manifest
+      '@pnpm/yaml.document-sync':
+        specifier: workspace:*
+        version: link:../../yaml/document-sync
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
-      write-yaml-file:
+      write-file-atomic:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 6.0.0
+      yaml:
+        specifier: 'catalog:'
+        version: 2.8.1
     devDependencies:
       '@pnpm/fs.find-packages':
         specifier: workspace:*
@@ -9099,9 +9105,15 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+      '@types/write-file-atomic':
+        specifier: 'catalog:'
+        version: 4.0.3
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
 
   workspace/pkgs-graph:
     dependencies:
