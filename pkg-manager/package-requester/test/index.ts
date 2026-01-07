@@ -168,18 +168,19 @@ test('request package but skip fetching, when resolution is already available', 
 test('request package but skip fetching, when resolution is already available and manifest is in store', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
-  const requestPackage = createPackageRequester({
-    resolve,
+  const resolveMockFn = jest.fn(resolve)
+  const projectDir = temporaryDirectory()
+
+  const createPackageRequesterOptions = {
+    resolve: resolveMockFn,
     fetchers,
     cafs,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
     virtualStoreDirMaxLength: 120,
-  })
-  expect(typeof requestPackage).toBe('function')
-
-  const projectDir = temporaryDirectory()
+  }
+  const requestPackage = createPackageRequester(createPackageRequesterOptions)
 
   const requestOpts: RequestPackageOptions = {
     currentPkg: {
@@ -196,23 +197,39 @@ test('request package but skip fetching, when resolution is already available an
     update: false,
   }
 
+  // Check that the test setup in this function is correct by performing a
+  // preliminary request with the skipFetch option.
+  //
+  // Since the store has not yet been populated, the package manifest for this
+  // function will need to be retrieved through a resolve call.
+  await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, { ...requestOpts, skipFetch: true })
+  expect(resolveMockFn).toHaveBeenCalledTimes(1)
+
   // Perform a request without skipFetch to populate the CAFS store.
   await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, requestOpts)
 
-  // The second request may be able to reuse the package manifest present in the CAFS store.
-  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, { ...requestOpts, skipFetch: true }) as PackageResponse & {
-    body: {
-      latest: string
-      manifest: { name: string }
-    }
-  }
+  // The final request should reuse the package manifest present in the CAFS
+  // store. The resolve function should not be called. If it is called, the
+  // optimization this test is checking for regressed.
+  //
+  // We need to create a new package request function for this test to reset the
+  // fetching lockers used internally within the package requester function.
+  // Otherwise the requestPackage function will use a prior cached store lookup
+  // that resolved to undefined.
+  resolveMockFn.mockClear()
+  const requestPackage2 = createPackageRequester(createPackageRequesterOptions)
+  const pkgResponse = await requestPackage2({ alias: 'is-positive', bareSpecifier: '1.0.0' }, { ...requestOpts, skipFetch: true })
+  expect(resolveMockFn).not.toHaveBeenCalled()
 
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
+  // Since the package wasn't resolved, the resolvedVia field should be undefined.
+  expect(pkgResponse.body.resolvedVia).toBeUndefined()
+
   expect(pkgResponse.body.id).toBe('is-positive@1.0.0')
   expect(pkgResponse.body.isLocal).toBe(false)
-  expect(pkgResponse.body.manifest.name).toBe('is-positive')
+  expect(pkgResponse.body.manifest?.name).toBe('is-positive')
   expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
