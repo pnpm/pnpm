@@ -22,6 +22,9 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../hooks/pnpmfile"
+    },
+    {
       "path": "../../packages/error"
     },
     {

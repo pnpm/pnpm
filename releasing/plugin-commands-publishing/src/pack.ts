@@ -8,6 +8,7 @@ import { readProjectManifest } from '@pnpm/cli-utils'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
 import { packlist } from '@pnpm/fs.packlist'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { type Hooks } from '@pnpm/pnpmfile'
 import { type ProjectManifest, type Project, type ProjectRootDir, type ProjectsGraph, type DependencyManifest } from '@pnpm/types'
 import { glob } from 'tinyglobby'
 import pick from 'ramda/src/pick'
@@ -98,6 +99,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'nodeLinker'
 > & Partial<Pick<Config, 'extraBinPaths'
 | 'extraEnv'
+| 'hooks'
 | 'recursive'
 | 'selectedProjectsGraph'
 | 'workspaceConcurrency'
@@ -239,6 +241,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     manifest,
     embedReadme: opts.embedReadme,
     catalogs: opts.catalogs ?? {},
+    hooks: opts.hooks,
   })
   const files = await packlist(dir, {
     packageJsonCache: {
@@ -355,11 +358,13 @@ async function createPublishManifest (opts: {
   modulesDir: string
   manifest: ProjectManifest
   catalogs: Catalogs
+  hooks?: Hooks
 }): Promise<ProjectManifest> {
-  const { projectDir, embedReadme, modulesDir, manifest, catalogs } = opts
+  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks } = opts
   const readmeFile = embedReadme ? await readReadmeFile(projectDir) : undefined
   return createExportableManifest(projectDir, manifest, {
     catalogs,
+    hooks,
     readmeFile,
     modulesDir,
   })

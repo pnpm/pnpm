@@ -66,6 +66,9 @@ export function requirePnpmfile (pnpmFilePath: string, prefix: string): { pnpmfi
         }
         return newPkg
       }
+      if (pnpmfile?.hooks?.beforePacking && typeof pnpmfile.hooks.beforePacking !== 'function') {
+        throw new TypeError('hooks.beforePacking should be a function')
+      }
     }
     return { pnpmfileModule: pnpmfile }
   } catch (err: unknown) {

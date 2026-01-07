@@ -75,6 +75,7 @@
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-publishing": "workspace:*",
+    "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-ipc-server": "workspace:*",
