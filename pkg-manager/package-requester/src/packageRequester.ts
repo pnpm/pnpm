@@ -207,6 +207,7 @@ async function resolveAndFetch (
     }
 
     const request = ctx.readPkgFromCafs(indexFilePathInCafs, true).then(getVerifiedManifest)
+    ctx.fetchingLockerForManifest.set(indexFilePathInCafs, request)
     return request
   }
 
