@@ -148,7 +148,6 @@ export function createPackageRequester (
     force: opts.force,
     fetchPackageToStore,
     peekPackageFromStore,
-    getFilePathByModeInCafs,
     requestsQueue,
     resolve: opts.resolve,
     storeDir: opts.storeDir,
@@ -171,7 +170,6 @@ async function resolveAndFetch (
     force?: boolean
     nodeVersion?: string
     pnpmVersion?: string
-    getFilePathByModeInCafs: (integrity: string, mode: number) => string
     requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
     resolve: ResolveFunction
     fetchPackageToStore: FetchPackageToStoreFunction
