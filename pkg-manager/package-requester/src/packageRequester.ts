@@ -139,6 +139,7 @@ export function createPackageRequester (
     getIndexFilePathInCafs,
     readPkgFromCafs,
     fetchingLockerForPeek: new Map(),
+    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
   })
   const requestPackage = resolveAndFetch.bind(null, {
     engineStrict: opts.engineStrict,
@@ -174,7 +175,10 @@ async function resolveAndFetch (
     requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
     resolve: ResolveFunction
     fetchPackageToStore: FetchPackageToStoreFunction
-    peekPackageFromStore: (resolutionIntegrity: string, pkgId: string) => Promise<PeekFromStoreResult | undefined>
+    peekPackageFromStore: (pkg: PkgNameVersion & {
+      id: string
+      resolution: Resolution
+    }) => Promise<PeekFromStoreResult | undefined>
     storeDir: string
   },
   wantedDependency: WantedDependency & { optional?: boolean },
@@ -263,8 +267,12 @@ async function resolveAndFetch (
     // it from metadata. This is because package metadata contains the
     // package.json contents of a package across all of its versions, which
     // takes a long time to parse.
-    if (skipResolution && !pkgId?.startsWith('file:') && wantedDependency.optional !== true && resolution.type == null && resolution.integrity != null && pkgId != null) {
-      const pkg = await ctx.peekPackageFromStore(resolution.integrity, pkgId)
+    if (skipResolution && !pkgId?.startsWith('file:') && wantedDependency.optional !== true && pkgId != null) {
+      const pkg = await ctx.peekPackageFromStore({
+        ...options.expectedPkg,
+        id: pkgId,
+        resolution,
+      })
       manifest = pkg?.bundledManifest
     }
 
@@ -595,34 +603,7 @@ function fetchToStore (
       ) {
         const { verified, pkgFilesIndex, manifest, requiresBuild } = await ctx.readPkgFromCafs(filesIndexFile, opts.fetchRawManifest)
         if (verified) {
-          if (
-            (
-              pkgFilesIndex.name != null &&
-              opts.pkg?.name != null &&
-              pkgFilesIndex.name.toLowerCase() !== opts.pkg.name.toLowerCase()
-            ) ||
-            (
-              pkgFilesIndex.version != null &&
-              opts.pkg?.version != null &&
-              // We used to not normalize the package versions before writing them to the lockfile and store.
-              // So it may happen that the version will be in different formats.
-              // For instance, v1.0.0 and 1.0.0
-              // Hence, we need to use semver.eq() to compare them.
-              !equalOrSemverEqual(pkgFilesIndex.version, opts.pkg.version)
-            )
-          ) {
-            const msg = `Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store.`
-            const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. \
-Expected package: ${opts.pkg.name}@${opts.pkg.version}. \
-Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
-            if (ctx.strictStorePkgContentCheck ?? true) {
-              throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
-                hint: `${hint}\n\nIf you want to ignore this issue, set the strict-store-pkg-content-check to false.`,
-              })
-            } else {
-              globalWarn(`${msg} ${hint}`)
-            }
-          }
+          checkPackageMismatch({ pkgFilesIndex, pkg: opts.pkg, strictStorePkgContentCheck: ctx.strictStorePkgContentCheck })
           fetching.resolve({
             files: {
               unprocessed: true,
@@ -725,11 +706,20 @@ async function peekFromStore (
     ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     fetchingLockerForPeek: Map<string, Promise<PeekFromStoreResult | undefined>>
+    strictStorePkgContentCheck: boolean | undefined
   },
-  resolutionIntegrity: string,
-  pkgId: string
+  pkg: PkgNameVersion & {
+    id: string
+    resolution: Resolution
+  }
 ): Promise<PeekFromStoreResult | undefined> {
-  const indexFilePathInCafs = ctx.getIndexFilePathInCafs(resolutionIntegrity, pkgId)
+  // This function only supports TarballResolution requests with a present
+  // integrity.
+  if (pkg.resolution.type != null || pkg.resolution.integrity == null) {
+    return undefined
+  }
+
+  const indexFilePathInCafs = ctx.getIndexFilePathInCafs(pkg.resolution.integrity, pkg.id)
   const existingRequest = ctx.fetchingLockerForPeek.get(indexFilePathInCafs)
 
   if (existingRequest != null) {
@@ -744,6 +734,8 @@ async function peekFromStore (
       if (!verified) {
         return undefined
       }
+
+      checkPackageMismatch({ pkgFilesIndex, pkg, strictStorePkgContentCheck: ctx.strictStorePkgContentCheck })
 
       return {
         files: {
@@ -764,6 +756,46 @@ async function peekFromStore (
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {
   return pickBundledManifest(await readPackageJson(pkgJsonPath) as DependencyManifest)
+}
+
+function checkPackageMismatch (
+  { pkgFilesIndex, pkg, strictStorePkgContentCheck }: {
+    pkgFilesIndex: PackageFilesIndex
+    pkg?: PkgNameVersion & {
+      id: string
+      resolution: Resolution
+    }
+    strictStorePkgContentCheck: boolean | undefined
+  }
+) {
+  if (
+    (
+      pkgFilesIndex.name != null &&
+      pkg?.name != null &&
+      pkgFilesIndex.name.toLowerCase() !== pkg.name.toLowerCase()
+    ) ||
+    (
+      pkgFilesIndex.version != null &&
+      pkg?.version != null &&
+      // We used to not normalize the package versions before writing them to the lockfile and store.
+      // So it may happen that the version will be in different formats.
+      // For instance, v1.0.0 and 1.0.0
+      // Hence, we need to use semver.eq() to compare them.
+      !equalOrSemverEqual(pkgFilesIndex.version, pkg.version)
+    )
+  ) {
+    const msg = `Package name mismatch found while reading ${JSON.stringify(pkg.resolution)} from the store.`
+    const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. \
+Expected package: ${pkg.name}@${pkg.version}. \
+Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
+    if (strictStorePkgContentCheck ?? true) {
+      throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
+        hint: `${hint}\n\nIf you want to ignore this issue, set the strict-store-pkg-content-check to false.`,
+      })
+    } else {
+      globalWarn(`${msg} ${hint}`)
+    }
+  }
 }
 
 async function tarballIsUpToDate (
