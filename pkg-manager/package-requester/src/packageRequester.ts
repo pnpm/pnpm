@@ -14,7 +14,7 @@ import {
   type FetchOptions,
   type FetchResult,
 } from '@pnpm/fetcher-base'
-import { type Cafs } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFilesResponse } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
@@ -135,16 +135,19 @@ export function createPackageRequester (
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
   })
+  const peekPackageFromStore = peekFromStore.bind(null, {
+    getIndexFilePathInCafs,
+    readPkgFromCafs,
+    fetchingLockerForPeek: new Map(),
+  })
   const requestPackage = resolveAndFetch.bind(null, {
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.pnpmVersion,
     force: opts.force,
-    fetchingLockerForManifest: new Map(),
     fetchPackageToStore,
-    getIndexFilePathInCafs,
+    peekPackageFromStore,
     getFilePathByModeInCafs,
-    readPkgFromCafs,
     requestsQueue,
     resolve: opts.resolve,
     storeDir: opts.storeDir,
@@ -167,16 +170,11 @@ async function resolveAndFetch (
     force?: boolean
     nodeVersion?: string
     pnpmVersion?: string
-    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     getFilePathByModeInCafs: (integrity: string, mode: number) => string
-    fetchingLockerForManifest: Map<string, Promise<BundledManifest | undefined>>
-    readPkgFromCafs: (
-      filesIndexFile: string,
-      readManifest?: boolean
-    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
     resolve: ResolveFunction
     fetchPackageToStore: FetchPackageToStoreFunction
+    peekPackageFromStore: (resolutionIntegrity: string, pkgId: string) => Promise<PeekFromStoreResult | undefined>
     storeDir: string
   },
   wantedDependency: WantedDependency & { optional?: boolean },
@@ -193,34 +191,6 @@ async function resolveAndFetch (
   let updated = false
   let resolvedVia: string | undefined
   let publishedAt: string | undefined
-
-  async function getPackageManifestFromCafs (resolution: Resolution, pkgId?: string): Promise<BundledManifest | undefined> {
-    if (resolution.type != null || resolution.integrity == null || pkgId == null) {
-      return undefined
-    }
-
-    const indexFilePathInCafs = ctx.getIndexFilePathInCafs(resolution.integrity, pkgId)
-    const existingRequest = ctx.fetchingLockerForManifest.get(indexFilePathInCafs)
-
-    if (existingRequest != null) {
-      return existingRequest
-    }
-
-    const request = ctx.readPkgFromCafs(indexFilePathInCafs, true).then(getVerifiedManifest)
-    ctx.fetchingLockerForManifest.set(indexFilePathInCafs, request)
-    return request
-  }
-
-  function getVerifiedManifest ({ verified, manifest }: { verified: boolean, manifest?: DependencyManifest }): BundledManifest | undefined {
-    // Only return manifests that pass the files integrity check. If the
-    // manifest is corrupted or out of date in the store, it's probably better
-    // to fall back to a resolution for the correct manifest.
-    if (!verified || manifest == null) {
-      return undefined
-    }
-
-    return normalizeBundledManifest(manifest)
-  }
 
   async function performResolution () {
     // When skipResolution is set but a resolution is still performed due to
@@ -293,8 +263,9 @@ async function resolveAndFetch (
     // it from metadata. This is because package metadata contains the
     // package.json contents of a package across all of its versions, which
     // takes a long time to parse.
-    if (skipResolution && !pkgId?.startsWith('file:') && wantedDependency.optional !== true) {
-      manifest = await getPackageManifestFromCafs(resolution, pkgId)
+    if (skipResolution && !pkgId?.startsWith('file:') && wantedDependency.optional !== true && resolution.type == null && resolution.integrity != null && pkgId != null) {
+      const pkg = await ctx.peekPackageFromStore(resolution.integrity, pkgId)
+      manifest = pkg?.bundledManifest
     }
 
     // However, if the optimization above isn't possible or the package has
@@ -731,6 +702,64 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
       fetching.reject(err)
     }
   }
+}
+
+interface PeekFromStoreResult {
+  readonly bundledManifest?: BundledManifest
+  readonly files: PackageFilesResponse
+}
+
+/**
+ * Look up requests from the store without mutating it. This is related to
+ * {@link fetchToStore}, but does not perform a fetch if the lookup was not
+ * found.
+ *
+ * This function will return undefined if the package was found in the store,
+ * but fails integrity checks.
+ */
+async function peekFromStore (
+  ctx: {
+    readPkgFromCafs: (
+      filesIndexFile: string,
+      readManifest?: boolean
+    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
+    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
+    fetchingLockerForPeek: Map<string, Promise<PeekFromStoreResult | undefined>>
+  },
+  resolutionIntegrity: string,
+  pkgId: string
+): Promise<PeekFromStoreResult | undefined> {
+  const indexFilePathInCafs = ctx.getIndexFilePathInCafs(resolutionIntegrity, pkgId)
+  const existingRequest = ctx.fetchingLockerForPeek.get(indexFilePathInCafs)
+
+  if (existingRequest != null) {
+    return existingRequest
+  }
+
+  const request = ctx.readPkgFromCafs(indexFilePathInCafs, true)
+    .then(({ pkgFilesIndex, manifest, requiresBuild, verified }): PeekFromStoreResult | undefined => {
+      // If the files in the store are corrupted or out of date, it's better to
+      // fail the peek result and allow the caller to fall back to a resolution
+      // or proper fetch.
+      if (!verified) {
+        return undefined
+      }
+
+      return {
+        files: {
+          unprocessed: true,
+          resolvedFrom: 'store',
+          filesIndex: pkgFilesIndex.files,
+          sideEffects: pkgFilesIndex.sideEffects,
+          requiresBuild,
+        },
+        bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
+      }
+    })
+
+  ctx.fetchingLockerForPeek.set(indexFilePathInCafs, request)
+
+  return request
 }
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {
