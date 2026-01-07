@@ -14,7 +14,7 @@ import {
   type FetchOptions,
   type FetchResult,
 } from '@pnpm/fetcher-base'
-import { type Cafs } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFilesResponse } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
@@ -119,11 +119,13 @@ export function createPackageRequester (
 
   const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
+  const getFilePathByModeInCafs = _getFilePathByModeInCafs.bind(null, opts.storeDir)
+  const readPkgFromCafs = _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity)
   const fetchPackageToStore = fetchToStore.bind(null, {
-    readPkgFromCafs: _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity),
+    readPkgFromCafs,
     fetch,
     fetchingLocker: new Map(),
-    getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, opts.storeDir),
+    getFilePathByModeInCafs,
     getIndexFilePathInCafs,
     requestsQueue: Object.assign(requestsQueue, {
       counter: 0,
@@ -133,12 +135,19 @@ export function createPackageRequester (
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
   })
+  const peekPackageFromStore = peekFromStore.bind(null, {
+    getIndexFilePathInCafs,
+    readPkgFromCafs,
+    fetchingLockerForPeek: new Map(),
+    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
+  })
   const requestPackage = resolveAndFetch.bind(null, {
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.pnpmVersion,
     force: opts.force,
     fetchPackageToStore,
+    peekPackageFromStore,
     requestsQueue,
     resolve: opts.resolve,
     storeDir: opts.storeDir,
@@ -164,6 +173,10 @@ async function resolveAndFetch (
     requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
     resolve: ResolveFunction
     fetchPackageToStore: FetchPackageToStoreFunction
+    peekPackageFromStore: (pkg: PkgNameVersion & {
+      id: string
+      resolution: Resolution
+    }) => Promise<PeekFromStoreResult | undefined>
     storeDir: string
   },
   wantedDependency: WantedDependency & { optional?: boolean },
@@ -181,12 +194,7 @@ async function resolveAndFetch (
   let resolvedVia: string | undefined
   let publishedAt: string | undefined
 
-  // When fetching is skipped, resolution cannot be skipped.
-  // We need the package's manifest when doing `lockfile-only` installs.
-  // When we don't fetch, the only way to get the package's manifest is via resolving it.
-  //
-  // The resolution step is never skipped for local dependencies.
-  if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:')) || wantedDependency.optional === true) {
+  async function performResolution () {
     // When skipResolution is set but a resolution is still performed due to
     // options.skipFetch, it's necessary to make sure the resolution doesn't
     // accidentally return a newer version of the package. When skipFetch is
@@ -242,6 +250,35 @@ async function resolveAndFetch (
     pkgId = resolveResult.id
     normalizedBareSpecifier = resolveResult.normalizedBareSpecifier
     alias = resolveResult.alias
+  }
+
+  // When fetching is skipped, we still need the package's manifest for
+  // lockfile-only installs.
+  //
+  // The package manifest could be retrieved from CAFS if the package has been
+  // fetched previously. Otherwise we'll need to perform a resolution.
+  //
+  // The resolution step is never skipped for local dependencies.
+  if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:')) || wantedDependency.optional === true) {
+    // If the manifest for this package is in the store, retrieving it from the
+    // Content-Addressable File Store will be significantly faster than fetching
+    // it from metadata. This is because package metadata contains the
+    // package.json contents of a package across all of its versions, which
+    // takes a long time to parse.
+    if (skipResolution && !pkgId?.startsWith('file:') && wantedDependency.optional !== true && pkgId != null) {
+      const pkg = await ctx.peekPackageFromStore({
+        ...options.expectedPkg,
+        id: pkgId,
+        resolution,
+      })
+      manifest = pkg?.bundledManifest
+    }
+
+    // However, if the optimization above isn't possible or the package has
+    // never been added to the CAFS, we'll need to perform a resolution.
+    if (manifest == null) {
+      await performResolution()
+    }
   }
 
   const id = pkgId!
@@ -564,34 +601,7 @@ function fetchToStore (
       ) {
         const { verified, pkgFilesIndex, manifest, requiresBuild } = await ctx.readPkgFromCafs(filesIndexFile, opts.fetchRawManifest)
         if (verified) {
-          if (
-            (
-              pkgFilesIndex.name != null &&
-              opts.pkg?.name != null &&
-              pkgFilesIndex.name.toLowerCase() !== opts.pkg.name.toLowerCase()
-            ) ||
-            (
-              pkgFilesIndex.version != null &&
-              opts.pkg?.version != null &&
-              // We used to not normalize the package versions before writing them to the lockfile and store.
-              // So it may happen that the version will be in different formats.
-              // For instance, v1.0.0 and 1.0.0
-              // Hence, we need to use semver.eq() to compare them.
-              !equalOrSemverEqual(pkgFilesIndex.version, opts.pkg.version)
-            )
-          ) {
-            const msg = `Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store.`
-            const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. \
-Expected package: ${opts.pkg.name}@${opts.pkg.version}. \
-Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
-            if (ctx.strictStorePkgContentCheck ?? true) {
-              throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
-                hint: `${hint}\n\nIf you want to ignore this issue, set the strict-store-pkg-content-check to false.`,
-              })
-            } else {
-              globalWarn(`${msg} ${hint}`)
-            }
-          }
+          checkPackageMismatch({ pkgFilesIndex, pkg: opts.pkg, strictStorePkgContentCheck: ctx.strictStorePkgContentCheck })
           fetching.resolve({
             files: {
               unprocessed: true,
@@ -673,8 +683,117 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
   }
 }
 
+interface PeekFromStoreResult {
+  readonly bundledManifest?: BundledManifest
+  readonly files: PackageFilesResponse
+}
+
+/**
+ * Look up requests from the store without mutating it. This is related to
+ * {@link fetchToStore}, but does not perform a fetch if the lookup was not
+ * found.
+ *
+ * This function will return undefined if the package was found in the store,
+ * but fails integrity checks.
+ */
+async function peekFromStore (
+  ctx: {
+    readPkgFromCafs: (
+      filesIndexFile: string,
+      readManifest?: boolean
+    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
+    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
+    fetchingLockerForPeek: Map<string, Promise<PeekFromStoreResult | undefined>>
+    strictStorePkgContentCheck: boolean | undefined
+  },
+  pkg: PkgNameVersion & {
+    id: string
+    resolution: Resolution
+  }
+): Promise<PeekFromStoreResult | undefined> {
+  // This function only supports TarballResolution requests with a present
+  // integrity.
+  if (pkg.resolution.type != null || pkg.resolution.integrity == null) {
+    return undefined
+  }
+
+  const indexFilePathInCafs = ctx.getIndexFilePathInCafs(pkg.resolution.integrity, pkg.id)
+  const existingRequest = ctx.fetchingLockerForPeek.get(indexFilePathInCafs)
+
+  if (existingRequest != null) {
+    return existingRequest
+  }
+
+  const request = ctx.readPkgFromCafs(indexFilePathInCafs, true)
+    .then(({ pkgFilesIndex, manifest, requiresBuild, verified }): PeekFromStoreResult | undefined => {
+      // If the files in the store are corrupted or out of date, it's better to
+      // fail the peek result and allow the caller to fall back to a resolution
+      // or proper fetch.
+      if (!verified) {
+        return undefined
+      }
+
+      checkPackageMismatch({ pkgFilesIndex, pkg, strictStorePkgContentCheck: ctx.strictStorePkgContentCheck })
+
+      return {
+        files: {
+          unprocessed: true,
+          resolvedFrom: 'store',
+          filesIndex: pkgFilesIndex.files,
+          sideEffects: pkgFilesIndex.sideEffects,
+          requiresBuild,
+        },
+        bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
+      }
+    })
+
+  ctx.fetchingLockerForPeek.set(indexFilePathInCafs, request)
+
+  return request
+}
+
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {
   return pickBundledManifest(await readPackageJson(pkgJsonPath) as DependencyManifest)
+}
+
+function checkPackageMismatch (
+  { pkgFilesIndex, pkg, strictStorePkgContentCheck }: {
+    pkgFilesIndex: PackageFilesIndex
+    pkg?: PkgNameVersion & {
+      id: string
+      resolution: Resolution
+    }
+    strictStorePkgContentCheck: boolean | undefined
+  }
+) {
+  if (
+    (
+      pkgFilesIndex.name != null &&
+      pkg?.name != null &&
+      pkgFilesIndex.name.toLowerCase() !== pkg.name.toLowerCase()
+    ) ||
+    (
+      pkgFilesIndex.version != null &&
+      pkg?.version != null &&
+      // We used to not normalize the package versions before writing them to the lockfile and store.
+      // So it may happen that the version will be in different formats.
+      // For instance, v1.0.0 and 1.0.0
+      // Hence, we need to use semver.eq() to compare them.
+      !equalOrSemverEqual(pkgFilesIndex.version, pkg.version)
+    )
+  ) {
+    const msg = `Package name mismatch found while reading ${JSON.stringify(pkg.resolution)} from the store.`
+    const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. \
+Expected package: ${pkg.name}@${pkg.version}. \
+Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
+    if (strictStorePkgContentCheck ?? true) {
+      throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
+        hint: `${hint}\n\nIf you want to ignore this issue, set the strict-store-pkg-content-check to false.`,
+      })
+    } else {
+      globalWarn(`${msg} ${hint}`)
+    }
+  }
 }
 
 async function tarballIsUpToDate (
