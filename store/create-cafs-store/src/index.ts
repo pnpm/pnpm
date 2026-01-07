@@ -15,6 +15,7 @@ import {
 } from '@pnpm/store-controller-types'
 import memoize from 'memoize'
 import pathTemp from 'path-temp'
+import { map as mapValues } from 'ramda'
 
 export { type CafsLocker }
 
@@ -82,13 +83,13 @@ function getFlatMap (
   storeDir: string,
   filesResponse: PackageFilesResponse,
   targetEngine?: string
-): { filesMap: Map<string, string>, isBuilt: boolean } {
+): { filesMap: Record<string, string>, isBuilt: boolean } {
   let isBuilt!: boolean
   let filesIndex!: PackageFiles
-  if (targetEngine && filesResponse.sideEffects?.has(targetEngine)) {
-    filesIndex = applySideEffectsDiff(filesResponse.filesIndex as PackageFiles, filesResponse.sideEffects.get(targetEngine)!)
+  if (targetEngine && ((filesResponse.sideEffects?.[targetEngine]) != null)) {
+    filesIndex = applySideEffectsDiff(filesResponse.filesIndex as PackageFiles, filesResponse.sideEffects?.[targetEngine])
     isBuilt = true
-  } else if (filesResponse.unprocessed !== true) {
+  } else if (!filesResponse.unprocessed) {
     return {
       filesMap: filesResponse.filesIndex,
       isBuilt: false,
@@ -97,18 +98,15 @@ function getFlatMap (
     filesIndex = filesResponse.filesIndex
     isBuilt = false
   }
-  const filesMap = new Map<string, string>()
-  for (const [fileName, { integrity, mode }] of filesIndex) {
-    filesMap.set(fileName, getFilePathByModeInCafs(storeDir, integrity, mode))
-  }
+  const filesMap = mapValues(({ integrity, mode }) => getFilePathByModeInCafs(storeDir, integrity, mode), filesIndex)
   return { filesMap, isBuilt }
 }
 
 function applySideEffectsDiff (baseFiles: PackageFiles, { added, deleted }: SideEffectsDiff): PackageFiles {
-  const filesWithSideEffects: PackageFiles = new Map(added)
-  for (const [fileName, fileInfo] of baseFiles) {
-    if (!deleted?.includes(fileName) && !filesWithSideEffects.has(fileName)) {
-      filesWithSideEffects.set(fileName, fileInfo)
+  const filesWithSideEffects: PackageFiles = { ...added }
+  for (const fileName in baseFiles) {
+    if (!deleted?.includes(fileName) && !filesWithSideEffects[fileName]) {
+      filesWithSideEffects[fileName] = baseFiles[fileName]
     }
   }
   return filesWithSideEffects

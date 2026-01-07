@@ -35,7 +35,7 @@ export type FetchFromDirOptions = Omit<DirectoryFetcherOptions, 'lockfileDir'> &
 
 export interface FetchResult {
   local: true
-  filesIndex: Map<string, string>
+  filesIndex: Record<string, string>
   filesStats?: Record<string, Stats | null>
   packageImportMethod: 'hardlink'
   manifest: DependencyManifest
@@ -75,7 +75,7 @@ async function _fetchAllFilesFromDir (
   dir: string,
   relativeDir = ''
 ): Promise<Pick<FetchResult, 'filesIndex' | 'filesStats'>> {
-  const filesIndex = new Map<string, string>()
+  const filesIndex: Record<string, string> = {}
   const filesStats: Record<string, Stats | null> = {}
   const files = await fs.readdir(dir)
   await Promise.all(files
@@ -87,12 +87,10 @@ async function _fetchAllFilesFromDir (
       const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
       if (stat.isDirectory()) {
         const subFetchResult = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
-        for (const [key, value] of subFetchResult.filesIndex) {
-          filesIndex.set(key, value)
-        }
+        Object.assign(filesIndex, subFetchResult.filesIndex)
         Object.assign(filesStats, subFetchResult.filesStats)
       } else {
-        filesIndex.set(relativeSubdir, filePath)
+        filesIndex[relativeSubdir] = filePath
         filesStats[relativeSubdir] = fileStatResult.stat
       }
     })
@@ -144,7 +142,7 @@ async function fileStat (filePath: string): Promise<FileStatResult | null> {
 
 async function fetchPackageFilesFromDir (dir: string): Promise<FetchResult> {
   const files = await packlist(dir)
-  const filesIndex = new Map<string, string>(files.map((file) => [file, path.join(dir, file)]))
+  const filesIndex: Record<string, string> = Object.fromEntries(files.map((file) => [file, path.join(dir, file)]))
   // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
   // Safe read was added to support the Bit workspace in which the components have no package.json files.
   // Related PR in Bit: https://github.com/teambit/bit/pull/5251

@@ -303,17 +303,17 @@ async function resolveAndFetch (
 
   const isInstallable = (
     ctx.force === true ||
-    (
-      manifest == null
-        ? undefined
-        : packageIsInstallable(id, manifest, {
-          engineStrict: ctx.engineStrict,
-          lockfileDir: options.lockfileDir,
-          nodeVersion: ctx.nodeVersion,
-          optional: wantedDependency.optional === true,
-          supportedArchitectures: options.supportedArchitectures,
-        })
-    )
+      (
+        manifest == null
+          ? undefined
+          : packageIsInstallable(id, manifest, {
+            engineStrict: ctx.engineStrict,
+            lockfileDir: options.lockfileDir,
+            nodeVersion: ctx.nodeVersion,
+            optional: wantedDependency.optional === true,
+            supportedArchitectures: options.supportedArchitectures,
+          })
+      )
   )
   // We can skip fetching the package only if the manifest
   // is present after resolution
@@ -543,12 +543,12 @@ function fetchToStore (
   if (opts.fetchRawManifest && !result.fetchRawManifest) {
     result.fetching = removeKeyOnFail(
       result.fetching.then(async ({ files }) => {
-        if (!files.filesIndex.get('package.json')) return {
+        if (!files.filesIndex['package.json']) return {
           files,
           bundledManifest: undefined,
         }
         if (files.unprocessed) {
-          const { integrity, mode } = files.filesIndex.get('package.json')!
+          const { integrity, mode } = files.filesIndex['package.json']
           const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
           return {
             files,
@@ -557,7 +557,7 @@ function fetchToStore (
         }
         return {
           files,
-          bundledManifest: await readBundledManifest(files.filesIndex.get('package.json')!),
+          bundledManifest: await readBundledManifest(files.filesIndex['package.json']),
         }
       })
     )

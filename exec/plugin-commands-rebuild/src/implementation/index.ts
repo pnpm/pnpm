@@ -365,7 +365,7 @@ async function _rebuild (
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
               includeDepGraphHash: true,
             })
-            if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
+            if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
               pkgsThatWereRebuilt.add(depPath)
               return
             }
@@ -376,7 +376,7 @@ async function _rebuild (
         if (pgkManifest != null) {
           // This won't return the correct result for packages with binding.gyp as we don't pass the filesIndex to the function.
           // However, currently rebuild doesn't work for such packages at all, which should be fixed.
-          requiresBuild = pkgRequiresBuild(pgkManifest, new Map())
+          requiresBuild = pkgRequiresBuild(pgkManifest, {})
         }
 
         const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version, depPath) && await runPostinstallHooks({

@@ -12,10 +12,10 @@ test('importIndexedDir() keepModulesDir merges node_modules', async () => {
   fs.writeFileSync(path.join(tmp, 'dest/node_modules/b/index.js'), 'module.exports = 1')
 
   const newDir = path.join(tmp, 'dest')
-  const filenames = new Map([
-    ['node_modules/a/index.js', path.join(tmp, 'src/node_modules/a/index.js')],
-  ])
+  const filenames = {
+    'node_modules/a/index.js': path.join(tmp, 'src/node_modules/a/index.js'),
+  }
   importIndexedDir(fs.linkSync, newDir, filenames, { keepModulesDir: true })
 
-  expect(fs.readdirSync(path.join(newDir, 'node_modules')).sort()).toEqual(['a', 'b'])
+  expect(fs.readdirSync(path.join(newDir, 'node_modules'))).toEqual(['a', 'b'])
 })

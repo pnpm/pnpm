@@ -132,7 +132,7 @@ test('applies a patch on a directory', async () => {
 
   const sourceFetchResult = await fetchFromDir('source', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultBefore = await fetchFromDir('target', { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultBefore.filesIndex.keys()).sort()).not.toStrictEqual(Array.from(sourceFetchResult.filesIndex.keys()).sort())
+  expect(Object.keys(targetFetchResultBefore.filesIndex).sort()).not.toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
   expect(
     filesToModify
       .map(suffix => `target/${suffix}`)
@@ -148,8 +148,8 @@ test('applies a patch on a directory', async () => {
   await applyPatch(optimizedDirPath, path.resolve('source'), path.resolve('target'))
 
   const targetFetchResultAfter = await fetchFromDir('target', { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultAfter.filesIndex.keys()).sort()).toStrictEqual(Array.from(sourceFetchResult.filesIndex.keys()).sort())
-  expect(Array.from(targetFetchResultAfter.filesIndex.keys()).sort()).not.toStrictEqual(Array.from(targetFetchResultBefore.filesIndex.keys()).sort())
+  expect(Object.keys(targetFetchResultAfter.filesIndex).sort()).toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Object.keys(targetFetchResultAfter.filesIndex).sort()).not.toStrictEqual(Object.keys(targetFetchResultBefore.filesIndex).sort())
   expect(
     filesToModify
       .map(suffix => `target/${suffix}`)

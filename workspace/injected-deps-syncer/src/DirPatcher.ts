@@ -128,7 +128,7 @@ export type ExtendFilesMapStats = Pick<fs.Stats, 'ino' | 'isFile' | 'isDirectory
 
 export interface ExtendFilesMapOptions {
   /** Map relative path of each file to their real path */
-  filesIndex: Map<string, string>
+  filesIndex: Record<string, string>
   /** Map relative path of each file to their stats */
   filesStats?: Record<string, ExtendFilesMapStats | null>
 }
@@ -150,7 +150,7 @@ export async function extendFilesMap ({ filesIndex, filesStats }: ExtendFilesMap
     }
   }
 
-  await Promise.all(Array.from(filesIndex.entries()).map(async ([relativePath, realPath]) => {
+  await Promise.all(Object.entries(filesIndex).map(async ([relativePath, realPath]) => {
     const stats = filesStats?.[relativePath] ?? await fs.promises.stat(realPath)
     if (stats.isFile()) {
       addInodeAndAncestors(relativePath, stats.ino)

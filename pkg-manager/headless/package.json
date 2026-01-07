@@ -81,7 +81,6 @@
     "@jest/globals": "catalog:",
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/headless": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",

@@ -49,11 +49,11 @@ export function checkPkgFilesIntegrity (
     // We verify all side effects cache. We could optimize it to verify only the side effects cache
     // that satisfies the current os/arch/platform.
     // However, it likely won't make a big difference.
-    for (const [sideEffectName, { added }] of pkgIndex.sideEffects) {
+    for (const [sideEffectName, { added }] of Object.entries(pkgIndex.sideEffects)) {
       if (added) {
         const { passed } = _checkFilesIntegrity(added)
         if (!passed) {
-          pkgIndex.sideEffects!.delete(sideEffectName)
+          delete pkgIndex.sideEffects![sideEffectName]
         }
       }
     }
@@ -69,7 +69,7 @@ function checkFilesIntegrity (
 ): VerifyResult {
   let allVerified = true
   let manifest: DependencyManifest | undefined
-  for (const [f, fstat] of files) {
+  for (const [f, fstat] of Object.entries(files)) {
     if (!fstat.integrity) {
       throw new Error(`Integrity checksum is missing for ${f}`)
     }

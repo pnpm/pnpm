@@ -103,7 +103,7 @@ test('optimally synchronizes source and target', async () => {
 
   const sourceFetchResult = await fetchFromDir(sourceDir, { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultBefore = await fetchFromDir(targetDir, { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultBefore.filesIndex.keys()).sort()).not.toStrictEqual(Array.from(sourceFetchResult.filesIndex.keys()).sort())
+  expect(Object.keys(targetFetchResultBefore.filesIndex).sort()).not.toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
   expect(
     filesToModify
       .map(suffix => path.resolve(targetDir, suffix))
@@ -128,8 +128,8 @@ test('optimally synchronizes source and target', async () => {
   await patchers[0].apply()
 
   const targetFetchResultAfter = await fetchFromDir(targetDir, { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultAfter.filesIndex.keys()).sort()).toStrictEqual(Array.from(sourceFetchResult.filesIndex.keys()).sort())
-  expect(Array.from(targetFetchResultAfter.filesIndex.keys()).sort()).not.toStrictEqual(Array.from(targetFetchResultBefore.filesIndex.keys()).sort())
+  expect(Object.keys(targetFetchResultAfter.filesIndex).sort()).toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Object.keys(targetFetchResultAfter.filesIndex).sort()).not.toStrictEqual(Object.keys(targetFetchResultBefore.filesIndex).sort())
   expect(
     filesToModify
       .map(suffix => path.resolve(targetDir, suffix))
@@ -200,20 +200,19 @@ test('multiple patchers', async () => {
   const targetFetchResultBefore1 = await fetchFromDir('target1', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultBefore2 = await fetchFromDir('target2', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultBefore3 = await fetchFromDir('target3', { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  const expected = Array.from(sourceFetchResult.filesIndex.keys()).sort()
-  expect(Array.from(targetFetchResultBefore1.filesIndex.keys()).sort()).not.toStrictEqual(expected)
-  expect(Array.from(targetFetchResultBefore2.filesIndex.keys()).sort()).not.toStrictEqual(expected)
-  expect(Array.from(targetFetchResultBefore3.filesIndex.keys()).sort()).not.toStrictEqual(expected)
-  expect(Array.from(targetFetchResultBefore1.filesIndex.keys()).sort()).toStrictEqual([])
-  expect(Array.from(targetFetchResultBefore2.filesIndex.keys()).sort()).toStrictEqual([])
-  expect(Array.from(targetFetchResultBefore3.filesIndex.keys()).sort()).toStrictEqual([])
+  expect(Object.keys(targetFetchResultBefore1.filesIndex).sort()).not.toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Object.keys(targetFetchResultBefore2.filesIndex).sort()).not.toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Object.keys(targetFetchResultBefore3.filesIndex).sort()).not.toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Object.keys(targetFetchResultBefore1.filesIndex).sort()).toStrictEqual([])
+  expect(Object.keys(targetFetchResultBefore2.filesIndex).sort()).toStrictEqual([])
+  expect(Object.keys(targetFetchResultBefore3.filesIndex).sort()).toStrictEqual([])
 
   await Promise.all(patchers.map(patcher => patcher.apply()))
 
   const targetFetchResultAfter1 = await fetchFromDir('target1', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultAfter2 = await fetchFromDir('target2', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultAfter3 = await fetchFromDir('target3', { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultAfter1.filesIndex.keys()).sort()).toStrictEqual(expected)
-  expect(Array.from(targetFetchResultAfter2.filesIndex.keys()).sort()).toStrictEqual(expected)
-  expect(Array.from(targetFetchResultAfter3.filesIndex.keys()).sort()).toStrictEqual(expected)
+  expect(Object.keys(targetFetchResultAfter1.filesIndex).sort()).toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Object.keys(targetFetchResultAfter2.filesIndex).sort()).toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Object.keys(targetFetchResultAfter3.filesIndex).sort()).toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
 })

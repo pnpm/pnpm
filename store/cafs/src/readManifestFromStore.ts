@@ -5,7 +5,7 @@ import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 import { parseJsonBufferSync } from './parseJson.js'
 
 export function readManifestFromStore (storeDir: string, pkgIndex: PackageFilesIndex): PackageManifest | undefined {
-  const pkg = pkgIndex.files.get('package.json')
+  const pkg = pkgIndex.files['package.json']
   if (pkg) {
     const fileName = getFilePathByModeInCafs(storeDir, pkg.integrity, pkg.mode)
     return parseJsonBufferSync(gfs.readFileSync(fileName)) as PackageManifest

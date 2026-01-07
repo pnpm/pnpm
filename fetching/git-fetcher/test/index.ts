@@ -48,7 +48,7 @@ test('fetch', async () => {
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
-  expect(filesIndex.has('package.json')).toBeTruthy()
+  expect(filesIndex['package.json']).toBeTruthy()
   expect(manifest?.name).toBe('is-positive')
 })
 
@@ -67,7 +67,7 @@ test('fetch a package from Git sub folder', async () => {
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
-  expect(filesIndex.has('public/index.html')).toBeTruthy()
+  expect(filesIndex['public/index.html']).toBeTruthy()
 })
 
 test('prevent directory traversal attack when using Git sub folder', async () => {
@@ -129,7 +129,7 @@ test('fetch a package from Git that has a prepare script', async () => {
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
-  expect(filesIndex.has('dist/index.js')).toBeTruthy()
+  expect(filesIndex['dist/index.js']).toBeTruthy()
 })
 
 // Test case for https://github.com/pnpm/pnpm/issues/1866
@@ -148,7 +148,7 @@ test('fetch a package without a package.json', async () => {
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
-  expect(filesIndex.has('denolib.json')).toBeTruthy()
+  expect(filesIndex['denolib.json']).toBeTruthy()
 })
 
 // Covers the regression reported in https://github.com/pnpm/pnpm/issues/4064
@@ -191,7 +191,7 @@ test('still able to shallow fetch for allowed hosts', async () => {
     // Discard final argument as it passes temporary directory
     expect(calls[i].slice(0, -1)).toEqual(expectedCalls[i])
   }
-  expect(filesIndex.has('package.json')).toBeTruthy()
+  expect(filesIndex['package.json']).toBeTruthy()
   expect(manifest?.name).toBe('is-positive')
 })
 
@@ -241,8 +241,8 @@ test('do not build the package when scripts are ignored', async () => {
     }, {
       filesIndexFile: path.join(storeDir, 'index.json'),
     })
-  expect(filesIndex.has('package.json')).toBeTruthy()
-  expect(filesIndex.has('prepare.txt')).toBeFalsy()
+  expect(filesIndex['package.json']).toBeTruthy()
+  expect(filesIndex['prepare.txt']).toBeFalsy()
   expect(globalWarn).toHaveBeenCalledWith('The git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-works.git" has to be built but the build scripts were ignored.')
 })
 
@@ -278,7 +278,7 @@ test('allow git package with prepare script', async () => {
       allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-works',
       filesIndexFile: path.join(storeDir, 'index.json'),
     })
-  expect(filesIndex.has('package.json')).toBeTruthy()
+  expect(filesIndex['package.json']).toBeTruthy()
   // Note: prepare.txt is in .gitignore so it won't be in the files index
   // The fact that no error was thrown proves the prepare script was allowed to run
 })
@@ -301,7 +301,7 @@ test('fetch only the included files', async () => {
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
-  expect(Array.from(filesIndex.keys()).sort()).toStrictEqual([
+  expect(Object.keys(filesIndex).sort()).toStrictEqual([
     'README.md',
     'dist/index.js',
     'package.json',

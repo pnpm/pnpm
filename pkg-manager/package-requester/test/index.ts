@@ -3,7 +3,6 @@ import fs from 'fs'
 import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
 import { createCafsStore } from '@pnpm/create-cafs-store'
@@ -13,6 +12,7 @@ import delay from 'delay'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { restartWorkerPool } from '@pnpm/worker'
 import { jest } from '@jest/globals'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import { temporaryDirectory } from 'tempy'
@@ -70,7 +70,7 @@ test('request package', async () => {
   })
 
   const { files } = await pkgResponse.fetching!()
-  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 })
 
@@ -456,12 +456,12 @@ test('fetchPackageToStore()', async () => {
 
   const { files, bundledManifest } = await fetchResult.fetching()
   expect(bundledManifest).toBeTruthy() // we always read the bundled manifest
-  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 
-  const indexFile = readV8FileStrictSync<PackageFilesIndex>(fetchResult.filesIndexFile)
+  const indexFile = loadJsonFileSync<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
-  expect(typeof indexFile.files.get('package.json')!.checkedAt).toBeTruthy()
+  expect(typeof indexFile.files['package.json'].checkedAt).toBeTruthy()
 
   const fetchResult2 = packageRequester.fetchPackageToStore({
     fetchRawManifest: true,
@@ -544,9 +544,9 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[0]
     const { files } = await fetchResult.fetching()
 
-    ino1 = fs.statSync(files.filesIndex.get('package.json') as string).ino
+    ino1 = fs.statSync(files.filesIndex['package.json'] as string).ino
 
-    expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.resolvedFrom).toBe('remote')
   }
 
@@ -554,9 +554,9 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[1]
     const { files } = await fetchResult.fetching()
 
-    ino2 = fs.statSync(files.filesIndex.get('package.json') as string).ino
+    ino2 = fs.statSync(files.filesIndex['package.json'] as string).ino
 
-    expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.resolvedFrom).toBe('remote')
   }
 
@@ -623,7 +623,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     },
   })
   const { files } = await fetchResult.fetching()
-  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 
   expect(nock.isDone()).toBeTruthy()
@@ -773,7 +773,7 @@ test('refetch package to store if it has been modified', async () => {
     })
 
     const { filesIndex } = (await fetchResult.fetching()).files
-    indexJsFile = filesIndex.get('index.js') as string
+    indexJsFile = filesIndex['index.js'] as string
   }
 
   // We should restart the workers otherwise the locker cache will still try to read the file

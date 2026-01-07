@@ -32,7 +32,7 @@ export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions
 export interface FetchResult {
   local?: boolean
   manifest?: DependencyManifest
-  filesIndex: Map<string, string>
+  filesIndex: Record<string, string>
   requiresBuild: boolean
   integrity?: string
 }
@@ -45,7 +45,7 @@ export interface GitFetcherOptions {
 }
 
 export interface GitFetcherResult {
-  filesIndex: Map<string, string>
+  filesIndex: Record<string, string>
   manifest?: DependencyManifest
   requiresBuild: boolean
 }
@@ -61,7 +61,7 @@ export interface DirectoryFetcherOptions {
 
 export interface DirectoryFetcherResult {
   local: true
-  filesIndex: Map<string, string>
+  filesIndex: Record<string, string>
   packageImportMethod: 'hardlink'
   manifest?: DependencyManifest
   requiresBuild: boolean

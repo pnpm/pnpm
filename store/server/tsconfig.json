@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../fs/v8-file"
-    },
-    {
       "path": "../../network/fetch"
     },
     {
@@ -26,9 +23,6 @@
     },
     {
       "path": "../../pkg-manager/package-requester"
-    },
-    {
-      "path": "../cafs"
     },
     {
       "path": "../package-store"

@@ -34,7 +34,6 @@
     "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
@@ -42,8 +41,8 @@
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "chalk": "catalog:",
+    "load-json-file": "catalog:",
     "render-help": "catalog:"
   },
   "devDependencies": {

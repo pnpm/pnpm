@@ -25,6 +25,7 @@ export async function writePnpFile (
     dependencyTreeRoots: [],
     ignorePattern: undefined,
     packageRegistry,
+    pnpZipBackend: 'js',
     shebang: undefined,
   })
   await fs.writeFile(path.join(opts.lockfileDir, '.pnp.cjs'), loaderFile, 'utf8')

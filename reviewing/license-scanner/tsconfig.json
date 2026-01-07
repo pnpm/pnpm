@@ -16,9 +16,6 @@
       "path": "../../fetching/directory-fetcher"
     },
     {
-      "path": "../../fs/v8-file"
-    },
-    {
       "path": "../../lockfile/detect-dep-types"
     },
     {

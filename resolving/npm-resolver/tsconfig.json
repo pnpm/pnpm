@@ -25,9 +25,6 @@
       "path": "../../fs/graceful-fs"
     },
     {
-      "path": "../../fs/v8-file"
-    },
-    {
       "path": "../../network/fetch"
     },
     {

@@ -52,13 +52,13 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
 }
 
 interface PrepareGitHostedPkgResult {
-  filesIndex: Map<string, string>
+  filesIndex: Record<string, string>
   manifest?: DependencyManifest
   ignoredBuild: boolean
 }
 
 async function prepareGitHostedPkg (
-  filesIndex: Map<string, string>,
+  filesIndex: Record<string, string>,
   cafs: Cafs,
   filesIndexFileNonBuilt: string,
   filesIndexFile: string,
@@ -80,7 +80,7 @@ async function prepareGitHostedPkg (
     allowBuild: fetcherOpts.allowBuild,
   }, tempLocation, resolution.path ?? '')
   const files = await packlist(pkgDir)
-  if (!resolution.path && files.length === filesIndex.size) {
+  if (!resolution.path && files.length === Object.keys(filesIndex).length) {
     if (!shouldBeBuilt) {
       if (filesIndexFileNonBuilt !== filesIndexFile) {
         await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)

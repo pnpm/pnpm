@@ -26,9 +26,9 @@ test('without provided stats', async () => {
     'foo/bar.txt',
     'foo_bar.txt',
   ]
-  const filesIndex = new Map<string, string>()
+  const filesIndex: Record<string, string> = {}
   for (const filePath of filePaths) {
-    filesIndex.set(filePath, path.resolve(filePath))
+    filesIndex[filePath] = path.resolve(filePath)
     fs.mkdirSync(path.dirname(filePath), { recursive: true })
     fs.writeFileSync(filePath, '')
   }
@@ -51,7 +51,7 @@ test('without provided stats', async () => {
   } as InodeMap)
 
   for (const filePath of filePaths) {
-    expect(statMethod).toHaveBeenCalledWith(filesIndex.get(filePath))
+    expect(statMethod).toHaveBeenCalledWith(filesIndex[filePath])
   }
 })
 
@@ -66,11 +66,11 @@ test('with provided stats', async () => {
     'foo/bar.txt',
     'foo_bar.txt',
   ]
-  const filesIndex = new Map<string, string>()
+  const filesIndex: Record<string, string> = {}
   const filesStats: Record<string, ExtendFilesMapStats> = {}
   let ino = startingIno
   for (const filePath of filePaths) {
-    filesIndex.set(filePath, path.resolve(filePath))
+    filesIndex[filePath] = path.resolve(filePath)
     filesStats[filePath] = {
       ino,
       isDirectory: () => false,

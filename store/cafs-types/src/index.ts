@@ -1,7 +1,7 @@
 import type { IntegrityLike } from 'ssri'
 import type { DependencyManifest } from '@pnpm/types'
 
-export type PackageFiles = Map<string, PackageFileInfo>
+export type PackageFiles = Record<string, PackageFileInfo>
 
 export interface PackageFileInfo {
   checkedAt?: number // Nullable for backward compatibility
@@ -10,7 +10,7 @@ export interface PackageFileInfo {
   size: number
 }
 
-export type SideEffects = Map<string, SideEffectsDiff>
+export type SideEffects = Record<string, SideEffectsDiff>
 
 export interface SideEffectsDiff {
   deleted?: string[]
@@ -26,7 +26,7 @@ export type PackageFilesResponse = {
   requiresBuild: boolean
 } & ({
   unprocessed?: false
-  filesIndex: Map<string, string>
+  filesIndex: Record<string, string>
 } | {
   unprocessed: true
   filesIndex: PackageFiles
@@ -53,10 +53,12 @@ export type ImportPackageFunctionAsync = (
 
 export type FileType = 'exec' | 'nonexec' | 'index'
 
-export type FilesIndex = Map<string, {
-  mode: number
-  size: number
-} & FileWriteResult>
+export interface FilesIndex {
+  [filename: string]: {
+    mode: number
+    size: number
+  } & FileWriteResult
+}
 
 export interface FileWriteResult {
   checkedAt: number

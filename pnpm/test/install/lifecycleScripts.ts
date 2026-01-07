@@ -245,7 +245,7 @@ test('the list of ignored builds is preserved after a repeat install', async () 
   expect(result.stdout.toString()).toContain('Ignored build scripts:')
 
   const modulesManifest = project.readModulesManifest()
-  expect(Array.from(modulesManifest!.ignoredBuilds!).sort()).toStrictEqual([
+  expect(Array.from(modulesManifest!.ignoredBuilds!).sort((a, b) => a.localeCompare(b))).toStrictEqual([
     '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
     'esbuild@0.25.0',
   ])

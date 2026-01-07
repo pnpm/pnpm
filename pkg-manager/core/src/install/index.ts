@@ -896,7 +896,7 @@ async function runUnignoredDependencyBuilds (
     const parsed = dp.parse(ignoredPkg)
     if (!parsed.name || !parsed.version) continue
     const allowed = allowBuild(parsed.name, parsed.version)
-    if (allowed === true) {
+    if (allowed) {
       // Package is explicitly allowed - rebuild it
       pkgsToBuild.push(`${parsed.name}@${parsed.version}`)
     }

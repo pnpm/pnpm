@@ -38,7 +38,6 @@
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/registry.pkg-metadata-filter": "workspace:*",
@@ -50,6 +49,7 @@
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@zkochan/retry": "catalog:",
     "encode-registry": "catalog:",
+    "load-json-file": "catalog:",
     "lru-cache": "catalog:",
     "normalize-path": "catalog:",
     "p-limit": "catalog:",
@@ -76,7 +76,6 @@
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
-    "load-json-file": "catalog:",
     "nock": "catalog:",
     "tempy": "catalog:"
   },

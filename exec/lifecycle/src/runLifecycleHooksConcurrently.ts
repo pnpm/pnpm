@@ -74,19 +74,22 @@ export async function runLifecycleHooksConcurrently (
         await Promise.all(
           targetDirs.map(async (targetDir) => {
             const targetModulesDir = path.join(targetDir, 'node_modules')
-            const newFilesIndex = new Map(filesResponse.filesIndex)
+            const nodeModulesIndex = {}
             if (fs.existsSync(targetModulesDir)) {
               // If the target directory contains a node_modules directory
               // (it may happen when the hoisted node linker is used)
               // then we need to preserve this node_modules.
               // So we scan this node_modules directory and  pass it as part of the new package.
-              await scanDir('node_modules', targetModulesDir, targetModulesDir, newFilesIndex)
+              await scanDir('node_modules', targetModulesDir, targetModulesDir, nodeModulesIndex)
             }
             return opts.storeController.importPackage(targetDir, {
               filesResponse: {
                 resolvedFrom: 'local-dir',
                 ...filesResponse,
-                filesIndex: newFilesIndex,
+                filesIndex: {
+                  ...filesResponse.filesIndex,
+                  ...nodeModulesIndex,
+                },
               },
               force: false,
             })
@@ -98,7 +101,7 @@ export async function runLifecycleHooksConcurrently (
   await runGroups(childConcurrency, groups)
 }
 
-async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Map<string, string>): Promise<void> {
+async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Record<string, string>): Promise<void> {
   const files = await fs.promises.readdir(currentDir)
   await Promise.all(files.map(async (file) => {
     const fullPath = path.join(currentDir, file)
@@ -108,7 +111,7 @@ async function scanDir (prefix: string, rootDir: string, currentDir: string, ind
     }
     if (stat.isFile()) {
       const relativePath = path.relative(rootDir, fullPath)
-      index.set(path.join(prefix, relativePath), fullPath)
+      index[path.join(prefix, relativePath)] = fullPath
     }
   }))
 }

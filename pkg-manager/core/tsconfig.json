@@ -70,9 +70,6 @@
       "path": "../../fs/symlink-dependency"
     },
     {
-      "path": "../../fs/v8-file"
-    },
-    {
       "path": "../../hooks/read-package-hook"
     },
     {

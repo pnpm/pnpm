@@ -12,11 +12,11 @@ import {
   type PackageFileInfo,
   type PackageFilesIndex,
 } from '@pnpm/store.cafs'
+import { loadJsonFile } from 'load-json-file'
 import { PnpmError } from '@pnpm/error'
 import { type LicensePackage } from './licenses.js'
 import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile.utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
 
 const limitPkgReads = pLimit(4)
 
@@ -155,7 +155,7 @@ async function parseLicense (
   pkg: {
     manifest: PackageManifest
     files:
-    | { local: true, files: Map<string, string> }
+    | { local: true, files: Record<string, string> }
     | { local: false, files: PackageFiles }
   },
   opts: { storeDir: string }
@@ -173,9 +173,9 @@ async function parseLicense (
   // check if we discovered a license, if not attempt to parse the LICENSE file
   if (!license || /see license/i.test(license)) {
     const { files: pkgFileIndex } = pkg.files
-    const licenseFile = LICENSE_FILES.find((licenseFile) => pkgFileIndex.has(licenseFile))
+    const licenseFile = LICENSE_FILES.find((licenseFile) => licenseFile in pkgFileIndex)
     if (licenseFile) {
-      const licensePackageFileInfo = pkgFileIndex.get(licenseFile)
+      const licensePackageFileInfo = pkgFileIndex[licenseFile]
       let licenseContents: Buffer | undefined
       if (pkg.files.local) {
         licenseContents = await readFile(licensePackageFileInfo as string)
@@ -216,7 +216,7 @@ async function readLicenseFileFromCafs (storeDir: string, { integrity, mode }: P
 
 export type ReadPackageIndexFileResult =
   | { local: false, files: PackageFiles }
-  | { local: true, files: Map<string, string> }
+  | { local: true, files: Record<string, string> }
 
 export interface ReadPackageIndexFileOptions {
   storeDir: string
@@ -276,7 +276,7 @@ export async function readPackageIndexFile (
   }
 
   try {
-    const { files } = await readV8FileStrictAsync<PackageFilesIndex>(pkgIndexFilePath)
+    const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
     return {
       local: false,
       files,
@@ -344,10 +344,13 @@ export async function getPkgInfo (
   // Fetch the package manifest
   let packageManifestDir!: string
   if (packageFileIndexInfo.local) {
-    packageManifestDir = packageFileIndexInfo.files.get('package.json') as string
+    packageManifestDir = packageFileIndexInfo.files['package.json']
   } else {
-    const packageFileIndex = packageFileIndexInfo.files
-    const packageManifestFile = packageFileIndex.get('package.json') as PackageFileInfo
+    const packageFileIndex = packageFileIndexInfo.files as Record<
+    string,
+    PackageFileInfo
+    >
+    const packageManifestFile = packageFileIndex['package.json']
     packageManifestDir = getFilePathByModeInCafs(
       opts.storeDir,
       packageManifestFile.integrity,

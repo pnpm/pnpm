@@ -223,7 +223,7 @@ test("don't fail when integrity check of local file succeeds", async () => {
     pkg,
   })
 
-  expect(typeof filesIndex.get('package.json')).toBe('string')
+  expect(typeof filesIndex['package.json']).toBe('string')
 })
 
 test("don't fail when fetching a local tarball in offline mode", async () => {
@@ -250,7 +250,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
     pkg,
   })
 
-  expect(typeof filesIndex.get('package.json')).toBe('string')
+  expect(typeof filesIndex['package.json']).toBe('string')
 })
 
 test('fail when trying to fetch a non-local tarball in offline mode', async () => {
@@ -464,7 +464,7 @@ test('take only the files included in the package, when fetching a git-hosted pa
     pkg,
   })
 
-  expect(Array.from(result.filesIndex.keys()).sort()).toStrictEqual([
+  expect(Object.keys(result.filesIndex).sort()).toStrictEqual([
     'README.md',
     'dist/index.js',
     'package.json',
@@ -515,8 +515,8 @@ test('do not build the package when scripts are ignored', async () => {
     pkg,
   })
 
-  expect(filesIndex.has('package.json')).toBeTruthy()
-  expect(filesIndex.has('prepare.txt')).toBeFalsy()
+  expect(filesIndex).toHaveProperty(['package.json'])
+  expect(filesIndex).not.toHaveProperty(['prepare.txt'])
   expect(globalWarn).toHaveBeenCalledWith(`The git-hosted package fetched from "${tarball}" has to be built but the build scripts were ignored.`)
 })
 
@@ -532,7 +532,7 @@ test('when extracting files with the same name, pick the last ones', async () =>
     readManifest: true,
     pkg,
   })
-  const pkgJson = JSON.parse(fs.readFileSync(filesIndex.get('package.json')!, 'utf8'))
+  const pkgJson = JSON.parse(fs.readFileSync(filesIndex['package.json'], 'utf8'))
   expect(pkgJson.name).toBe('pkg2')
   expect(manifest?.name).toBe('pkg2')
 })
@@ -560,8 +560,8 @@ test('use the subfolder when path is present', async () => {
     pkg,
   })
 
-  expect(filesIndex.has('package.json')).toBeTruthy()
-  expect(filesIndex.has('lerna.json')).toBeFalsy()
+  expect(filesIndex).toHaveProperty(['package.json'])
+  expect(filesIndex).not.toHaveProperty(['lerna.json'])
 })
 
 test('prevent directory traversal attack when path is present', async () => {

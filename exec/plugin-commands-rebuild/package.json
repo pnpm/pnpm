@@ -74,7 +74,6 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare": "workspace:*",

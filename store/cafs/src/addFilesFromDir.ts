@@ -18,7 +18,7 @@ export function addFilesFromDir (
     readManifest?: boolean
   } = {}
 ): AddToStoreResult {
-  const filesIndex = new Map() as FilesIndex
+  const filesIndex: FilesIndex = {}
   let manifest: DependencyManifest | undefined
   let files: File[]
   if (opts.files) {
@@ -50,11 +50,11 @@ export function addFilesFromDir (
     }
     // Remove the file type information (regular file, directory, etc.) and leave just the permission bits (rwx for owner, group, and others)
     const mode = stat.mode & 0o777
-    filesIndex.set(relativePath, {
+    filesIndex[relativePath] = {
       mode,
       size: stat.size,
       ...addBuffer(buffer, mode),
-    })
+    }
   }
   return { manifest, filesIndex }
 }

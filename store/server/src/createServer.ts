@@ -1,7 +1,6 @@
 import assert from 'assert'
 import http, { type IncomingMessage, type Server, type ServerResponse } from 'http'
 import util from 'util'
-import v8 from 'v8'
 import { globalInfo } from '@pnpm/logger'
 import {
   type PkgRequestFetchResult,
@@ -58,16 +57,14 @@ export function createServer (
     }
 
     const bodyPromise = new Promise<RequestBody>((resolve, reject) => {
-      const chunks: Buffer[] = []
-      req.on('data', (chunk) => {
-        chunks.push(chunk)
+      let body: any = '' // eslint-disable-line
+      req.on('data', (data) => {
+        body += data
       })
       req.on('end', async () => {
         try {
-          const bodyBuffer = Buffer.concat(chunks)
-          let body: any // eslint-disable-line
-          if (bodyBuffer.byteLength > 0) {
-            body = v8.deserialize(bodyBuffer)
+          if (body.length > 0) {
+            body = JSON.parse(body)
           } else {
             body = {}
           }
@@ -88,10 +85,10 @@ export function createServer (
           if (pkgResponse.fetching) {
             filesPromises[body.msgId] = pkgResponse.fetching
           }
-          res.end(v8.serialize(pkgResponse.body))
+          res.end(JSON.stringify(pkgResponse.body))
         } catch (err: unknown) {
           assert(util.types.isNativeError(err))
-          res.end(v8.serialize({
+          res.end(JSON.stringify({
             error: {
               message: err.message,
               ...JSON.parse(JSON.stringify(err)),
@@ -105,10 +102,10 @@ export function createServer (
           body = await bodyPromise
           const pkgResponse = (store.fetchPackage as FetchPackageToStoreFunction)(body.options as any) // eslint-disable-line
           filesPromises[body.msgId] = pkgResponse.fetching
-          res.end(v8.serialize({ filesIndexFile: pkgResponse.filesIndexFile }))
+          res.end(JSON.stringify({ filesIndexFile: pkgResponse.filesIndexFile }))
         } catch (err: unknown) {
           assert(util.types.isNativeError(err))
-          res.end(v8.serialize({
+          res.end(JSON.stringify({
             error: {
               message: err.message,
               ...JSON.parse(JSON.stringify(err)),
@@ -121,7 +118,7 @@ export function createServer (
         body = await bodyPromise
         const filesResponse = await filesPromises[body.msgId]()
         delete filesPromises[body.msgId]
-        res.end(v8.serialize(filesResponse))
+        res.end(JSON.stringify(filesResponse))
         break
       }
       case '/prune':
@@ -132,7 +129,7 @@ export function createServer (
       case '/importPackage': {
         const importPackageBody = (await bodyPromise) as any // eslint-disable-line @typescript-eslint/no-explicit-any
         await store.importPackage(importPackageBody.to, importPackageBody.opts)
-        res.end(v8.serialize('OK'))
+        res.end(JSON.stringify('OK'))
         break
       }
       case '/upload': {
@@ -144,7 +141,7 @@ export function createServer (
         }
         const uploadBody = (await bodyPromise) as any // eslint-disable-line @typescript-eslint/no-explicit-any
         await lock(uploadBody.builtPkgLocation, async () => store.upload(uploadBody.builtPkgLocation, uploadBody.opts))
-        res.end(v8.serialize('OK'))
+        res.end(JSON.stringify('OK'))
         break
       }
       case '/stop':
@@ -155,20 +152,20 @@ export function createServer (
         }
         globalInfo('Got request to stop the server')
         await close()
-        res.end(v8.serialize('OK'))
+        res.end(JSON.stringify('OK'))
         globalInfo('Server stopped')
         break
       default: {
         res.statusCode = 404
         const error = { error: `${req.url!} does not match any route` }
-        res.end(v8.serialize(error))
+        res.end(JSON.stringify(error))
       }
       }
     } catch (e: any) { // eslint-disable-line
       res.statusCode = 503
       const jsonErr = JSON.parse(JSON.stringify(e))
       jsonErr.message = e.message
-      res.end(v8.serialize(jsonErr))
+      res.end(JSON.stringify(jsonErr))
     }
   })
 

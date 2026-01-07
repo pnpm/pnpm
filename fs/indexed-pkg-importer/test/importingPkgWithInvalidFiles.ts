@@ -8,10 +8,10 @@ test('importing a package with invalid files', () => {
   const importPackage = createIndexedPkgImporter('copy')
   const target = path.resolve('target')
   importPackage(target, {
-    filesMap: new Map([
-      ['foo?bar/qar>zoo.txt', import.meta.filename],
-      ['1*2.txt', import.meta.filename],
-    ]),
+    filesMap: {
+      'foo?bar/qar>zoo.txt': import.meta.filename,
+      '1*2.txt': import.meta.filename,
+    },
     force: false,
     resolvedFrom: 'remote',
   })
