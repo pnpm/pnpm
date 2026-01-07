@@ -49,7 +49,7 @@ describe.skip('projectRegistry', () => {
     })
 
     it('does not create symlink when store is inside project directory', async () => {
-      const projectDir = temporaryDirectory()
+      const projectDir = tempy.directory()
       const storeDir = path.join(projectDir, 'node_modules', '.pnpm-store')
       await fs.mkdir(storeDir, { recursive: true })
 
