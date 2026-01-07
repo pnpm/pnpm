@@ -206,9 +206,19 @@ async function resolveAndFetch (
       return existingRequest
     }
 
-    const request = ctx.readPkgFromCafs(indexFilePathInCafs, true).then(pkg => pkg.manifest)
-    ctx.fetchingLockerForManifest.set(indexFilePathInCafs, request)
+    const request = ctx.readPkgFromCafs(indexFilePathInCafs, true).then(getVerifiedManifest)
     return request
+  }
+
+  function getVerifiedManifest ({ verified, manifest }: { verified: boolean, manifest?: DependencyManifest }): BundledManifest | undefined {
+    // Only return manifests that pass the files integrity check. If the
+    // manifest is corrupted or out of date in the store, it's probably better
+    // to fall back to a resolution for the correct manifest.
+    if (!verified || manifest == null) {
+      return undefined
+    }
+
+    return normalizeBundledManifest(manifest)
   }
 
   async function performResolution () {
