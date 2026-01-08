@@ -3,6 +3,7 @@ import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { type DirDiff, DIR, applyPatch } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm
@@ -132,7 +133,7 @@ test('applies a patch on a directory', async () => {
 
   const sourceFetchResult = await fetchFromDir('source', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultBefore = await fetchFromDir('target', { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultBefore.filesIndex.keys()).sort()).not.toStrictEqual(Array.from(sourceFetchResult.filesIndex.keys()).sort())
+  expect(Array.from(targetFetchResultBefore.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(Array.from(sourceFetchResult.filesMap.keys()).sort((a, b) => lexCompare(a, b)))
   expect(
     filesToModify
       .map(suffix => `target/${suffix}`)
@@ -148,8 +149,8 @@ test('applies a patch on a directory', async () => {
   await applyPatch(optimizedDirPath, path.resolve('source'), path.resolve('target'))
 
   const targetFetchResultAfter = await fetchFromDir('target', { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultAfter.filesIndex.keys()).sort()).toStrictEqual(Array.from(sourceFetchResult.filesIndex.keys()).sort())
-  expect(Array.from(targetFetchResultAfter.filesIndex.keys()).sort()).not.toStrictEqual(Array.from(targetFetchResultBefore.filesIndex.keys()).sort())
+  expect(Array.from(targetFetchResultAfter.filesMap.keys()).sort(lexCompare)).toStrictEqual(Array.from(sourceFetchResult.filesMap.keys()).sort((a, b) => lexCompare(a, b)))
+  expect(Array.from(targetFetchResultAfter.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(Array.from(targetFetchResultBefore.filesMap.keys()).sort((a, b) => lexCompare(a, b)))
   expect(
     filesToModify
       .map(suffix => `target/${suffix}`)

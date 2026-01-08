@@ -7,6 +7,7 @@ import {
   type WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
+  type FilesMap,
   type ImportPackageFunction,
   type ImportPackageFunctionAsync,
   type PackageFileInfo,
@@ -23,7 +24,7 @@ import {
   type TrustPolicy,
 } from '@pnpm/types'
 
-export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync }
+export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync, FilesMap }
 
 export * from '@pnpm/resolver-base'
 export type BundledManifest = Pick<
@@ -175,8 +176,6 @@ export interface PackageResponse {
     }
   )
 }
-
-export type FilesMap = Map<string, string>
 
 export interface ImportOptions {
   disableRelinkLocalDirDeps?: boolean

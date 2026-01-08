@@ -40,6 +40,9 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
+      "path": "../../store/cafs-types"
+    },
+    {
       "path": "../../store/store-controller-types"
     }
   ]

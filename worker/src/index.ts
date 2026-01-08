@@ -5,7 +5,7 @@ import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool.js'
 import { PnpmError } from '@pnpm/error'
 import { execSync } from 'child_process'
 import isWindows from 'is-windows'
-import { type PackageFilesResponse } from '@pnpm/cafs-types'
+import { type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
 import { type DependencyManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { globalWarn } from '@pnpm/logger'
@@ -68,7 +68,7 @@ function availableParallelism (): number {
 }
 
 interface AddFilesResult {
-  filesIndex: Map<string, string>
+  filesMap: FilesMap
   manifest: DependencyManifest
   requiresBuild: boolean
   integrity?: string
@@ -81,7 +81,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ filesIndex: Map<string, string>, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
+  return new Promise<{ filesMap: FilesMap, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
