@@ -6,6 +6,11 @@ type RequiredField = 'name' | 'version'
 type Input = Pick<ProjectManifest, RequiredField>
 type Output = Pick<ExportedManifest, RequiredField>
 
+export function transformRequiredFields<Manifest> (manifest: Manifest & Input): Manifest & Output {
+  validateRequiredFields(manifest)
+  return manifest
+}
+
 export function validateRequiredFields<Manifest> (manifest: Manifest & Input): asserts manifest is Manifest & Output {
   if (!manifest.name) throw new MissingRequiredFieldError('name')
   if (!manifest.version) throw new MissingRequiredFieldError('version')
