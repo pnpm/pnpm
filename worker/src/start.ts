@@ -132,7 +132,7 @@ async function handleMessage (
           const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
           if (strictStorePkgContentCheck ?? true) {
             throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
-              hint: `${hint}\n\nIf you want to ignore this issue, write to pnpm-workspace.yaml: settings: { strict-store-pkg-content-check: false }`, // Using a generic hint as we don't know config location
+              hint: `${hint}\n\nIf you want to ignore this issue, set strictStorePkgContentCheck to false in your configuration`,
             })
           } else {
             warnings.push(`${msg} ${hint}`)
