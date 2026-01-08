@@ -128,10 +128,11 @@ async function handleMessage (
           pkgFilesIndex: {
             name: pkgFilesIndex.name,
             version: pkgFilesIndex.version,
-            files: filesMap,
+            filesIndex: filesMap,
             sideEffects: pkgFilesIndex.sideEffects,
+            resolvedFrom: 'store',
+            requiresBuild,
           },
-          requiresBuild,
         },
       })
       break

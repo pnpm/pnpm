@@ -20,6 +20,8 @@ export interface SideEffectsDiff {
 export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
 
 export interface PackageFilesResponse {
+  name?: string
+  version?: string
   resolvedFrom: ResolvedFrom
   filesIndex: Map<string, string>
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'

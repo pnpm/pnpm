@@ -5,7 +5,7 @@ import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool.js'
 import { PnpmError } from '@pnpm/error'
 import { execSync } from 'child_process'
 import isWindows from 'is-windows'
-import { type SideEffects } from '@pnpm/cafs-types'
+import { type PackageFilesResponse } from '@pnpm/cafs-types'
 import { type DependencyManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 import {
@@ -175,13 +175,6 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
   })
 }
 
-export interface ProcessedPkgFilesIndex {
-  name?: string
-  version?: string
-  files: Map<string, string>
-  sideEffects?: SideEffects
-}
-
 export async function readPkgFromCafs (
   storeDir: string,
   verifyStoreIntegrity: boolean,
@@ -189,9 +182,8 @@ export async function readPkgFromCafs (
   readManifest?: boolean
 ): Promise<{
     verified: boolean
-    pkgFilesIndex: ProcessedPkgFilesIndex
+    pkgFilesIndex: PackageFilesResponse
     manifest?: DependencyManifest
-    requiresBuild: boolean
   }> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
