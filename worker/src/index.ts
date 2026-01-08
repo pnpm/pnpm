@@ -8,6 +8,7 @@ import isWindows from 'is-windows'
 import { type PackageFilesResponse } from '@pnpm/cafs-types'
 import { type DependencyManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
+import { globalWarn } from '@pnpm/logger'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
@@ -175,14 +176,24 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
   })
 }
 
-export async function readPkgFromCafs (
-  storeDir: string,
-  verifyStoreIntegrity: boolean,
-  filesIndexFile: string,
+export interface ReadPkgFromCafsContext {
+  storeDir: string
+  verifyStoreIntegrity: boolean
+  strictStorePkgContentCheck?: boolean
+}
+
+export interface ReadPkgFromCafsOptions {
   readManifest?: boolean
+  pkg?: { name?: string, version?: string }
+}
+
+export async function readPkgFromCafs (
+  ctx: ReadPkgFromCafsContext,
+  filesIndexFile: string,
+  opts?: ReadPkgFromCafsOptions
 ): Promise<{
     verified: boolean
-    pkgFilesIndex: PackageFilesResponse
+    files: PackageFilesResponse
     manifest?: DependencyManifest
   }> {
   if (!workerPool) {
@@ -196,14 +207,18 @@ export async function readPkgFromCafs (
         reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string))
         return
       }
+      if (value.warnings) {
+        for (const warning of value.warnings) {
+          globalWarn(warning)
+        }
+      }
       resolve(value)
     })
     localWorker.postMessage({
       type: 'readPkgFromCafs',
-      storeDir,
       filesIndexFile,
-      readManifest,
-      verifyStoreIntegrity,
+      ...ctx,
+      ...opts,
     })
   })
 }

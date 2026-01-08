@@ -43,7 +43,8 @@
     "@pnpm/symlink-dependency": "workspace:*",
     "@rushstack/worker-pool": "catalog:",
     "is-windows": "catalog:",
-    "p-limit": "catalog:"
+    "p-limit": "catalog:",
+    "semver": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -52,7 +53,8 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
-    "@types/is-windows": "catalog:"
+    "@types/is-windows": "catalog:",
+    "@types/semver": "catalog:"
   },
   "engines": {
     "node": ">=20.19"

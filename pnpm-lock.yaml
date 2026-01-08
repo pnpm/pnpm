@@ -8876,6 +8876,9 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 7.1.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.2
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -8889,6 +8892,9 @@ importers:
       '@types/is-windows':
         specifier: 'catalog:'
         version: 1.0.2
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
 
   workspace/filter-packages-from-dir:
     dependencies:

@@ -1,8 +1,10 @@
 import crypto from 'crypto'
+import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import v8 from 'v8'
 import path from 'path'
 import fs from 'fs'
 import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
+import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/graceful-fs'
 import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
@@ -78,7 +80,7 @@ async function handleMessage (
       break
     }
     case 'readPkgFromCafs': {
-      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
+      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity, pkg, strictStorePkgContentCheck } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
         pkgFilesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
@@ -111,6 +113,33 @@ async function handleMessage (
         }
       }
       const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, pkgFilesIndex.files)
+
+      const warnings: string[] = []
+      if (pkg) {
+        if (
+          (
+            pkgFilesIndex.name != null &&
+            pkg.name != null &&
+            pkgFilesIndex.name.toLowerCase() !== pkg.name.toLowerCase()
+          ) ||
+          (
+            pkgFilesIndex.version != null &&
+            pkg.version != null &&
+            !equalOrSemverEqual(pkgFilesIndex.version, pkg.version)
+          )
+        ) {
+          const msg = 'Package name mismatch found while reading from the store.'
+          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${pkg.name}@${pkg.version}. Actual package in the store: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
+          if (strictStorePkgContentCheck ?? true) {
+            throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
+              hint: `${hint}\n\nIf you want to ignore this issue, write to pnpm-workspace.yaml: settings: { strict-store-pkg-content-check: false }`, // Using a generic hint as we don't know config location
+            })
+          } else {
+            warnings.push(`${msg} ${hint}`)
+          }
+        }
+      }
+
       // Convert PackageFiles to Map<string, string>
       if (!cafsCache.has(storeDir)) {
         cafsCache.set(storeDir, createCafs(storeDir))
@@ -125,9 +154,8 @@ async function handleMessage (
         value: {
           verified: verifyResult.passed,
           manifest: verifyResult.manifest,
-          pkgFilesIndex: {
-            name: pkgFilesIndex.name,
-            version: pkgFilesIndex.version,
+          warnings,
+          files: {
             filesIndex: filesMap,
             sideEffects: pkgFilesIndex.sideEffects,
             resolvedFrom: 'store',
