@@ -36,6 +36,9 @@ catalogs:
     '@jest/globals':
       specifier: 30.0.5
       version: 30.0.5
+    '@npm/types':
+      specifier: ^2.1.0
+      version: 2.1.0
     '@pnpm/byline':
       specifier: ^1.0.0
       version: 1.0.0
@@ -6350,6 +6353,9 @@ importers:
 
   pkg-manifest/exportable-manifest:
     dependencies:
+      '@npm/types':
+        specifier: 'catalog:'
+        version: 2.1.0
       '@pnpm/catalogs.resolver':
         specifier: workspace:*
         version: link:../../catalogs/resolver
@@ -10181,6 +10187,10 @@ packages:
 
   '@npm/types@1.0.2':
     resolution: {integrity: sha512-KXZccTDEnWqNrrx6JjpJKU/wJvNeg9BDgjS0XhmlZab7br921HtyVbsYzJr4L+xIvjdJ20Wh9dgxgCI2a5CEQw==}
+
+  '@npm/types@2.1.0':
+    resolution: {integrity: sha512-humQVe2BrWR7Yum5hGDYBnIPnnZJvKSOH/I4QN1ZL2bdb4c4zQHaHupEJ3cOkSJ07G3YfN793ptbNh196BWLgA==}
+    engines: {node: '>=18.6.0'}
 
   '@npmcli/agent@3.0.0':
     resolution: {integrity: sha512-S79NdEgDQd/NGCay6TCoVzXSj74skRZIKJcpJjC5lOq34SZzyI6MqtiiWoiVWoVrTcGjNeC4ipbh1VIHlpfF5Q==}
@@ -18138,6 +18148,8 @@ snapshots:
       fastq: 1.19.1
 
   '@npm/types@1.0.2': {}
+
+  '@npm/types@2.1.0': {}
 
   '@npmcli/agent@3.0.0':
     dependencies:

@@ -1,4 +1,5 @@
 import path from 'path'
+import { type PackageJSON as ExportedManifest } from '@npm/types'
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
@@ -10,6 +11,8 @@ import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig.js'
 import { validateRequiredFields } from './requiredFields.js'
+
+export { ExportedManifest }
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',

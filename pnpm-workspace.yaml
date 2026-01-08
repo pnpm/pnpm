@@ -70,6 +70,7 @@ catalog:
   '@eslint/eslintrc': 3.1.0
   '@eslint/js': 9.9.1
   '@jest/globals': 30.0.5
+  '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
   '@pnpm/colorize-semver-diff': ^1.0.1
   '@pnpm/config.env-replace': ^3.0.2
