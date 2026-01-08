@@ -32,6 +32,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/exec.pkg-requires-build": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
@@ -47,6 +48,7 @@
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "@zkochan/rimraf": "catalog:"
   },
   "engines": {

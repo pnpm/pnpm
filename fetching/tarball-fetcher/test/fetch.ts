@@ -6,6 +6,7 @@ import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { fixtures } from '@pnpm/test-fixtures'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import nock from 'nock'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
@@ -109,7 +110,7 @@ test('retry when tarball size does not match content-length', async () => {
     pkg,
   })
 
-  expect(result.filesIndex).toBeTruthy()
+  expect(result.filesMap).toBeTruthy()
   expect(nock.isDone()).toBeTruthy()
 })
 
@@ -217,13 +218,13 @@ test("don't fail when integrity check of local file succeeds", async () => {
     tarball: 'file:tar.tgz',
   }
 
-  const { filesIndex } = await fetch.localTarball(cafs, resolution, {
+  const { filesMap } = await fetch.localTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
   })
 
-  expect(typeof filesIndex.get('package.json')).toBe('string')
+  expect(typeof filesMap.get('package.json')).toBe('string')
 })
 
 test("don't fail when fetching a local tarball in offline mode", async () => {
@@ -244,13 +245,13 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
       retries: 1,
     },
   })
-  const { filesIndex } = await fetch.localTarball(cafs, resolution, {
+  const { filesMap } = await fetch.localTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
   })
 
-  expect(typeof filesIndex.get('package.json')).toBe('string')
+  expect(typeof filesMap.get('package.json')).toBe('string')
 })
 
 test('fail when trying to fetch a non-local tarball in offline mode', async () => {
@@ -435,7 +436,7 @@ test('fetch a big repository', async () => {
     pkg,
   })
 
-  expect(result.filesIndex).toBeTruthy()
+  expect(result.filesMap).toBeTruthy()
 })
 
 test('fail when preparing a git-hosted package', async () => {
@@ -464,7 +465,7 @@ test('take only the files included in the package, when fetching a git-hosted pa
     pkg,
   })
 
-  expect(Array.from(result.filesIndex.keys()).sort()).toStrictEqual([
+  expect(Array.from(result.filesMap.keys()).sort(lexCompare)).toStrictEqual([
     'README.md',
     'dist/index.js',
     'package.json',
@@ -509,14 +510,14 @@ test('do not build the package when scripts are ignored', async () => {
       retries: 1,
     },
   })
-  const { filesIndex } = await fetch.gitHostedTarball(cafs, resolution, {
+  const { filesMap } = await fetch.gitHostedTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
   })
 
-  expect(filesIndex.has('package.json')).toBeTruthy()
-  expect(filesIndex.has('prepare.txt')).toBeFalsy()
+  expect(filesMap.has('package.json')).toBeTruthy()
+  expect(filesMap.has('prepare.txt')).toBeFalsy()
   expect(globalWarn).toHaveBeenCalledWith(`The git-hosted package fetched from "${tarball}" has to be built but the build scripts were ignored.`)
 })
 
@@ -526,13 +527,13 @@ test('when extracting files with the same name, pick the last ones', async () =>
     tarball: `file:${tar}`,
   }
 
-  const { filesIndex, manifest } = await fetch.localTarball(cafs, resolution, {
+  const { filesMap, manifest } = await fetch.localTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     readManifest: true,
     pkg,
   })
-  const pkgJson = JSON.parse(fs.readFileSync(filesIndex.get('package.json')!, 'utf8'))
+  const pkgJson = JSON.parse(fs.readFileSync(filesMap.get('package.json')!, 'utf8'))
   expect(pkgJson.name).toBe('pkg2')
   expect(manifest?.name).toBe('pkg2')
 })
@@ -554,14 +555,14 @@ test('use the subfolder when path is present', async () => {
       retries: 1,
     },
   })
-  const { filesIndex } = await fetch.gitHostedTarball(cafs, resolution, {
+  const { filesMap } = await fetch.gitHostedTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
   })
 
-  expect(filesIndex.has('package.json')).toBeTruthy()
-  expect(filesIndex.has('lerna.json')).toBeFalsy()
+  expect(filesMap.has('package.json')).toBeTruthy()
+  expect(filesMap.has('lerna.json')).toBeFalsy()
 })
 
 test('prevent directory traversal attack when path is present', async () => {

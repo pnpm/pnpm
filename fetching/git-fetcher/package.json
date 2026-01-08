@@ -50,6 +50,7 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {

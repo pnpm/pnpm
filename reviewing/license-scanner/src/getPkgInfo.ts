@@ -246,7 +246,7 @@ export async function readPackageIndexFile (
     )
     return {
       local: true,
-      files: localInfo.filesIndex,
+      files: localInfo.filesMap,
     }
   }
 

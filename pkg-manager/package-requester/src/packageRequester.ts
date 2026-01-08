@@ -545,13 +545,13 @@ function fetchToStore (
   if (opts.fetchRawManifest && !result.fetchRawManifest) {
     result.fetching = removeKeyOnFail(
       result.fetching.then(async ({ files }) => {
-        if (!files.filesIndex.has('package.json')) return {
+        if (!files.filesMap.has('package.json')) return {
           files,
           bundledManifest: undefined,
         }
         return {
           files,
-          bundledManifest: await readBundledManifest(files.filesIndex.get('package.json')!),
+          bundledManifest: await readBundledManifest(files.filesMap.get('package.json')!),
         }
       })
     )
@@ -604,7 +604,7 @@ function fetchToStore (
           })
           return
         }
-        if ((files?.filesIndex) != null) {
+        if ((files?.filesMap) != null) {
           packageRequestLogger.warn({
             message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
             prefix: opts.lockfileDir,
@@ -660,7 +660,7 @@ function fetchToStore (
       fetching.resolve({
         files: {
           resolvedFrom: fetchedPackage.local ? 'local-dir' : 'remote',
-          filesIndex: fetchedPackage.filesIndex,
+          filesMap: fetchedPackage.filesMap,
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
           requiresBuild: fetchedPackage.requiresBuild,
         },

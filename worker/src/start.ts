@@ -5,7 +5,7 @@ import fs from 'fs'
 import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/graceful-fs'
-import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff, type FilesMap } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
@@ -145,7 +145,7 @@ async function handleMessage (
         cafsCache.set(storeDir, createCafs(storeDir))
       }
       const cafs = cafsCache.get(storeDir)!
-      const filesMap = new Map<string, string>()
+      const filesMap: FilesMap = new Map()
       for (const [filename, fileInfo] of pkgFilesIndex.files) {
         filesMap.set(filename, cafs.getFilePathByModeInCafs(fileInfo.integrity, fileInfo.mode))
       }
@@ -156,7 +156,7 @@ async function handleMessage (
           verified: verifyResult.passed,
           manifest: verifyResult.manifest,
           files: {
-            filesIndex: filesMap,
+            filesMap,
             sideEffects: pkgFilesIndex.sideEffects,
             resolvedFrom: 'store',
             requiresBuild,
@@ -220,7 +220,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
   return {
     status: 'success',
     value: {
-      filesIndex: filesMap,
+      filesMap,
       manifest,
       requiresBuild,
       integrity: integrity ?? calcIntegrity(buffer),
@@ -236,7 +236,7 @@ function calcIntegrity (buffer: Buffer): string {
 interface AddFilesFromDirResult {
   status: string
   value: {
-    filesIndex: Map<string, string>
+    filesMap: FilesMap
     manifest?: DependencyManifest
     requiresBuild: boolean
   }
@@ -295,16 +295,16 @@ function addFilesFromDir (
       return {
         status: 'success',
         value: {
-          filesIndex: filesMap,
+          filesMap,
           manifest,
-          requiresBuild: pkgRequiresBuild(manifest, filesIntegrity),
+          requiresBuild: pkgRequiresBuild(manifest, filesMap),
         },
       }
     }
     filesIndex.sideEffects ??= new Map()
     filesIndex.sideEffects.set(sideEffectsCacheKey, calculateDiff(filesIndex.files, filesIntegrity))
     if (filesIndex.requiresBuild == null) {
-      requiresBuild = pkgRequiresBuild(manifest, filesIntegrity)
+      requiresBuild = pkgRequiresBuild(manifest, filesMap)
     } else {
       requiresBuild = filesIndex.requiresBuild
     }
@@ -312,7 +312,7 @@ function addFilesFromDir (
   } else {
     requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
   }
-  return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
+  return { status: 'success', value: { filesMap, manifest, requiresBuild } }
 }
 
 function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
@@ -351,12 +351,12 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
 
 interface ProcessFilesIndexResult {
   filesIntegrity: PackageFiles
-  filesMap: Map<string, string>
+  filesMap: FilesMap
 }
 
 function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
   const filesIntegrity: PackageFiles = new Map()
-  const filesMap = new Map<string, string>()
+  const filesMap: FilesMap = new Map()
   for (const [k, { checkedAt, filePath, integrity, mode, size }] of filesIndex) {
     filesIntegrity.set(k, {
       checkedAt,
