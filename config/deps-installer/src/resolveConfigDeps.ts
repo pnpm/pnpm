@@ -18,6 +18,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.userConfig!, userSettings: opts.userConfig })
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
   const configDependencies = opts.configDependencies ?? {}
+  const pkgTarballs: Record<string, string> = {}
   await Promise.all(configDeps.map(async (configDep) => {
     const wantedDep = parseWantedDependency(configDep)
     if (!wantedDep.alias) {
@@ -32,6 +33,9 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
       throw new PnpmError('BAD_CONFIG_DEP', `Cannot install ${configDep} as configuration dependency because it has no integrity`)
     }
     configDependencies[wantedDep.alias] = `${resolution?.manifest?.version}+${resolution.resolution.integrity}`
+    if (isValidHttpUrl(resolution.resolution.tarball)) {
+      pkgTarballs[wantedDep.alias] = resolution.resolution.tarball
+    }
   }))
   await writeSettings({
     ...opts,
@@ -41,5 +45,20 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
       configDependencies,
     },
   })
+
+  Object.entries(pkgTarballs).forEach(([pkg, tarball]) => {
+    // get-npm-tarball-url cannot determine the tarball URL of a private npm package hosted on GitHub Packages registry
+    // therefore, we need to store the tarball URL separately for installConfigDeps to fetch correctly
+    configDependencies[pkg] += ` ${tarball}`
+  })
   await installConfigDeps(configDependencies, opts)
+}
+
+function isValidHttpUrl (url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
 }
