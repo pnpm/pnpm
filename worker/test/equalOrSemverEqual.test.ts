@@ -1,4 +1,4 @@
-import { equalOrSemverEqual } from '../lib/equalOrSemverEqual.js'
+import { equalOrSemverEqual } from '../../pkg-manager/package-requester/lib/equalOrSemverEqual.js'
 
 test('equalOrSemverEqual()', () => {
   expect(equalOrSemverEqual('a', 'a')).toBeTruthy()

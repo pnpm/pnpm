@@ -1,5 +1,4 @@
 import crypto from 'crypto'
-import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import v8 from 'v8'
 import path from 'path'
 import fs from 'fs'
@@ -23,6 +22,7 @@ import {
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import { type DependencyManifest } from '@pnpm/types'
 import { parentPort } from 'worker_threads'
+import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import {
   type AddDirToStoreMessage,
   type ReadPkgFromCafsMessage,

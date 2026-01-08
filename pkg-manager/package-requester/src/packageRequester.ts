@@ -42,7 +42,12 @@ import {
 import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
 import { type CustomFetcher } from '@pnpm/hooks.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
-import { calcMaxWorkers, readPkgFromCafs as _readPkgFromCafs, type ReadPkgFromCafsOptions } from '@pnpm/worker'
+import {
+  calcMaxWorkers,
+  readPkgFromCafs as _readPkgFromCafs,
+  type ReadPkgFromCafsOptions,
+  type ReadPkgFromCafsResult,
+} from '@pnpm/worker'
 import { familySync } from 'detect-libc'
 import PQueue from 'p-queue'
 import pDefer, { type DeferredPromise } from 'p-defer'
@@ -455,11 +460,7 @@ function fetchToStore (
     readPkgFromCafs: (
       filesIndexFile: string,
       opts?: ReadPkgFromCafsOptions
-    ) => Promise<{
-      verified: boolean
-      files: PackageFilesResponse
-      manifest?: DependencyManifest
-    }>
+    ) => Promise<ReadPkgFromCafsResult>
     fetch: (
       packageId: string,
       resolution: AtomicResolution,
@@ -690,7 +691,7 @@ async function peekFromStore (
     readPkgFromCafs: (
       filesIndexFile: string,
       opts?: ReadPkgFromCafsOptions
-    ) => Promise<{ verified: boolean, files: PackageFilesResponse, manifest?: DependencyManifest }>
+    ) => Promise<ReadPkgFromCafsResult>
     getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     fetchingLockerForPeek: Map<string, Promise<PeekFromStoreResult | undefined>>
   },

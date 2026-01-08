@@ -187,15 +187,17 @@ export interface ReadPkgFromCafsOptions {
   expectedPkg?: { name?: string, version?: string }
 }
 
+export interface ReadPkgFromCafsResult {
+  verified: boolean
+  files: PackageFilesResponse
+  manifest?: DependencyManifest
+}
+
 export async function readPkgFromCafs (
   ctx: ReadPkgFromCafsContext,
   filesIndexFile: string,
   opts?: ReadPkgFromCafsOptions
-): Promise<{
-    verified: boolean
-    files: PackageFilesResponse
-    manifest?: DependencyManifest
-  }> {
+): Promise<ReadPkgFromCafsResult> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
