@@ -26,6 +26,8 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
   const installedConfigDeps: Array<{ name: string, version: string }> = []
   await Promise.all(Object.entries(configDeps).map(async ([pkgName, pkgSpec]) => {
     const configDepPath = path.join(configModulesDir, pkgName)
+    let tarball = '';
+    [pkgSpec, tarball] = pkgSpec.split(' ')
     const sepIndex = pkgSpec.indexOf('+')
     if (sepIndex === -1) {
       throw new PnpmError('CONFIG_DEP_NO_INTEGRITY', `Your config dependency called "${pkgName}" at "pnpm.configDependencies" doesn't have an integrity checksum`, {
@@ -49,17 +51,19 @@ configDependencies:
     }
     installingConfigDepsLogger.debug({ status: 'started' })
     const registry = pickRegistryForPackage(opts.registries, pkgName)
+
     const { fetching } = await opts.store.fetchPackage({
       force: true,
       lockfileDir: opts.rootDir,
       pkg: {
         id: `${pkgName}@${version}`,
         resolution: {
-          tarball: getNpmTarballUrl(pkgName, version, { registry }),
+          tarball: tarball || getNpmTarballUrl(pkgName, version, { registry }),
           integrity,
         },
       },
     })
+
     const { files: filesResponse } = await fetching()
     await opts.store.importPackage(configDepPath, {
       force: true,
