@@ -940,7 +940,7 @@ test('throw exception if the package data in the store differs from the expected
         resolution: pkgResponse.body.resolution,
       },
     })
-    await expect(fetching()).rejects.toThrow(/Package name mismatch found while reading/)
+    await expect(fetching()).rejects.toThrow(/Package name or version mismatch found while reading/)
   }
 
   // Fail when the version of the package is different in the store
@@ -964,7 +964,7 @@ test('throw exception if the package data in the store differs from the expected
         resolution: pkgResponse.body.resolution,
       },
     })
-    await expect(fetching()).rejects.toThrow(/Package name mismatch found while reading/)
+    await expect(fetching()).rejects.toThrow(/Package name or version mismatch found while reading/)
   }
 
   // Do not fail when the versions are the same but written in a different format (1.0.0 is the same as v1.0.0)
