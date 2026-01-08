@@ -80,7 +80,7 @@ async function handleMessage (
       break
     }
     case 'readPkgFromCafs': {
-      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity, pkg, strictStorePkgContentCheck } = message
+      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
         pkgFilesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
@@ -115,21 +115,21 @@ async function handleMessage (
       const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, pkgFilesIndex.files)
 
       const warnings: string[] = []
-      if (pkg) {
+      if (expectedPkg) {
         if (
           (
             pkgFilesIndex.name != null &&
-            pkg.name != null &&
-            pkgFilesIndex.name.toLowerCase() !== pkg.name.toLowerCase()
+            expectedPkg.name != null &&
+            pkgFilesIndex.name.toLowerCase() !== expectedPkg.name.toLowerCase()
           ) ||
           (
             pkgFilesIndex.version != null &&
-            pkg.version != null &&
-            !equalOrSemverEqual(pkgFilesIndex.version, pkg.version)
+            expectedPkg.version != null &&
+            !equalOrSemverEqual(pkgFilesIndex.version, expectedPkg.version)
           )
         ) {
           const msg = 'Package name mismatch found while reading from the store.'
-          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${pkg.name}@${pkg.version}. Actual package in the store: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
+          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
           if (strictStorePkgContentCheck ?? true) {
             throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
               hint: `${hint}\n\nIf you want to ignore this issue, write to pnpm-workspace.yaml: settings: { strict-store-pkg-content-check: false }`, // Using a generic hint as we don't know config location

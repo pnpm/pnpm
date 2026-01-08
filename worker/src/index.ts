@@ -184,7 +184,7 @@ export interface ReadPkgFromCafsContext {
 
 export interface ReadPkgFromCafsOptions {
   readManifest?: boolean
-  pkg?: { name?: string, version?: string }
+  expectedPkg?: { name?: string, version?: string }
 }
 
 export async function readPkgFromCafs (

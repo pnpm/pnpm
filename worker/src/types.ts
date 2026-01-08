@@ -62,7 +62,7 @@ export interface ReadPkgFromCafsMessage {
   filesIndexFile: string
   readManifest: boolean
   verifyStoreIntegrity: boolean
-  pkg?: PkgNameVersion
+  expectedPkg?: PkgNameVersion
   strictStorePkgContentCheck?: boolean
 }
 

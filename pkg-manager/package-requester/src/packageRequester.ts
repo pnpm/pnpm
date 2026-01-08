@@ -599,7 +599,7 @@ function fetchToStore (
       ) {
         const { verified, files, manifest } = await ctx.readPkgFromCafs(filesIndexFile, {
           readManifest: opts.fetchRawManifest,
-          pkg: opts.pkg,
+          expectedPkg: opts.pkg,
         })
         if (verified) {
           fetching.resolve({
@@ -720,7 +720,7 @@ async function peekFromStore (
 
   const request = ctx.readPkgFromCafs(indexFilePathInCafs, {
     readManifest: true,
-    pkg,
+    expectedPkg: pkg,
   })
     .then(({ files, manifest, verified }): PeekFromStoreResult | undefined => {
       // If the files in the store are corrupted or out of date, it's better to
