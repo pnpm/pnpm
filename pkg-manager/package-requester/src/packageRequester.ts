@@ -1,9 +1,7 @@
 import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
 import {
-  getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getIndexFilePathInCafs as _getIndexFilePathInCafs,
-  type PackageFilesIndex,
 } from '@pnpm/store.cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
@@ -16,7 +14,7 @@ import {
 } from '@pnpm/fetcher-base'
 import { type Cafs, type PackageFilesResponse } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
-import { globalWarn, logger } from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {
@@ -44,7 +42,12 @@ import {
 import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
 import { type CustomFetcher } from '@pnpm/hooks.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
-import { calcMaxWorkers, readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
+import {
+  calcMaxWorkers,
+  readPkgFromCafs as _readPkgFromCafs,
+  type ReadPkgFromCafsOptions,
+  type ReadPkgFromCafsResult,
+} from '@pnpm/worker'
 import { familySync } from 'detect-libc'
 import PQueue from 'p-queue'
 import pDefer, { type DeferredPromise } from 'p-defer'
@@ -52,7 +55,6 @@ import pShare from 'promise-share'
 import { pick } from 'ramda'
 import semver from 'semver'
 import ssri from 'ssri'
-import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 
 let currentLibc: 'glibc' | 'musl' | undefined | null
 function getLibcFamilySync () {
@@ -119,13 +121,15 @@ export function createPackageRequester (
 
   const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
-  const getFilePathByModeInCafs = _getFilePathByModeInCafs.bind(null, opts.storeDir)
-  const readPkgFromCafs = _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity)
+  const readPkgFromCafs = _readPkgFromCafs.bind(null, {
+    storeDir: opts.storeDir,
+    verifyStoreIntegrity: opts.verifyStoreIntegrity,
+    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
+  })
   const fetchPackageToStore = fetchToStore.bind(null, {
     readPkgFromCafs,
     fetch,
     fetchingLocker: new Map(),
-    getFilePathByModeInCafs,
     getIndexFilePathInCafs,
     requestsQueue: Object.assign(requestsQueue, {
       counter: 0,
@@ -139,7 +143,6 @@ export function createPackageRequester (
     getIndexFilePathInCafs,
     readPkgFromCafs,
     fetchingLockerForPeek: new Map(),
-    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
   })
   const requestPackage = resolveAndFetch.bind(null, {
     engineStrict: opts.engineStrict,
@@ -456,8 +459,8 @@ function fetchToStore (
   ctx: {
     readPkgFromCafs: (
       filesIndexFile: string,
-      readManifest?: boolean
-    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
+      opts?: ReadPkgFromCafsOptions
+    ) => Promise<ReadPkgFromCafsResult>
     fetch: (
       packageId: string,
       resolution: AtomicResolution,
@@ -465,7 +468,6 @@ function fetchToStore (
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
     getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
-    getFilePathByModeInCafs: (integrity: string, mode: number) => string
     requestsQueue: {
       add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>
       counter: number
@@ -543,17 +545,9 @@ function fetchToStore (
   if (opts.fetchRawManifest && !result.fetchRawManifest) {
     result.fetching = removeKeyOnFail(
       result.fetching.then(async ({ files }) => {
-        if (!files.filesIndex.get('package.json')) return {
+        if (!files.filesIndex.has('package.json')) return {
           files,
           bundledManifest: undefined,
-        }
-        if (files.unprocessed) {
-          const { integrity, mode } = files.filesIndex.get('package.json')!
-          const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
-          return {
-            files,
-            bundledManifest: await readBundledManifest(manifestPath),
-          }
         }
         return {
           files,
@@ -599,22 +593,18 @@ function fetchToStore (
         ) &&
         !isLocalPkg
       ) {
-        const { verified, pkgFilesIndex, manifest, requiresBuild } = await ctx.readPkgFromCafs(filesIndexFile, opts.fetchRawManifest)
+        const { verified, files, manifest } = await ctx.readPkgFromCafs(filesIndexFile, {
+          readManifest: opts.fetchRawManifest,
+          expectedPkg: opts.pkg,
+        })
         if (verified) {
-          checkPackageMismatch({ pkgFilesIndex, pkg: opts.pkg, strictStorePkgContentCheck: ctx.strictStorePkgContentCheck })
           fetching.resolve({
-            files: {
-              unprocessed: true,
-              filesIndex: pkgFilesIndex.files,
-              resolvedFrom: 'store',
-              sideEffects: pkgFilesIndex.sideEffects,
-              requiresBuild,
-            },
+            files,
             bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
           })
           return
         }
-        if ((pkgFilesIndex?.files) != null) {
+        if ((files?.filesIndex) != null) {
           packageRequestLogger.warn({
             message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
             prefix: opts.lockfileDir,
@@ -700,11 +690,10 @@ async function peekFromStore (
   ctx: {
     readPkgFromCafs: (
       filesIndexFile: string,
-      readManifest?: boolean
-    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
+      opts?: ReadPkgFromCafsOptions
+    ) => Promise<ReadPkgFromCafsResult>
     getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     fetchingLockerForPeek: Map<string, Promise<PeekFromStoreResult | undefined>>
-    strictStorePkgContentCheck: boolean | undefined
   },
   pkg: PkgNameVersion & {
     id: string
@@ -724,8 +713,11 @@ async function peekFromStore (
     return existingRequest
   }
 
-  const request = ctx.readPkgFromCafs(indexFilePathInCafs, true)
-    .then(({ pkgFilesIndex, manifest, requiresBuild, verified }): PeekFromStoreResult | undefined => {
+  const request = ctx.readPkgFromCafs(indexFilePathInCafs, {
+    readManifest: true,
+    expectedPkg: pkg,
+  })
+    .then(({ files, manifest, verified }): PeekFromStoreResult | undefined => {
       // If the files in the store are corrupted or out of date, it's better to
       // fail the peek result and allow the caller to fall back to a resolution
       // or proper fetch.
@@ -733,16 +725,8 @@ async function peekFromStore (
         return undefined
       }
 
-      checkPackageMismatch({ pkgFilesIndex, pkg, strictStorePkgContentCheck: ctx.strictStorePkgContentCheck })
-
       return {
-        files: {
-          unprocessed: true,
-          resolvedFrom: 'store',
-          filesIndex: pkgFilesIndex.files,
-          sideEffects: pkgFilesIndex.sideEffects,
-          requiresBuild,
-        },
+        files,
         bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
       }
     })
@@ -754,46 +738,6 @@ async function peekFromStore (
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {
   return pickBundledManifest(await readPackageJson(pkgJsonPath) as DependencyManifest)
-}
-
-function checkPackageMismatch (
-  { pkgFilesIndex, pkg, strictStorePkgContentCheck }: {
-    pkgFilesIndex: PackageFilesIndex
-    pkg?: PkgNameVersion & {
-      id: string
-      resolution: Resolution
-    }
-    strictStorePkgContentCheck: boolean | undefined
-  }
-) {
-  if (
-    (
-      pkgFilesIndex.name != null &&
-      pkg?.name != null &&
-      pkgFilesIndex.name.toLowerCase() !== pkg.name.toLowerCase()
-    ) ||
-    (
-      pkgFilesIndex.version != null &&
-      pkg?.version != null &&
-      // We used to not normalize the package versions before writing them to the lockfile and store.
-      // So it may happen that the version will be in different formats.
-      // For instance, v1.0.0 and 1.0.0
-      // Hence, we need to use semver.eq() to compare them.
-      !equalOrSemverEqual(pkgFilesIndex.version, pkg.version)
-    )
-  ) {
-    const msg = `Package name mismatch found while reading ${JSON.stringify(pkg.resolution)} from the store.`
-    const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. \
-Expected package: ${pkg.name}@${pkg.version}. \
-Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
-    if (strictStorePkgContentCheck ?? true) {
-      throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
-        hint: `${hint}\n\nIf you want to ignore this issue, set the strict-store-pkg-content-check to false.`,
-      })
-    } else {
-      globalWarn(`${msg} ${hint}`)
-    }
-  }
 }
 
 async function tarballIsUpToDate (
