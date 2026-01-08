@@ -206,7 +206,7 @@ export async function readPkgFromCafs (
     localWorker.once('message', ({ status, error, value, warnings }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string))
+        reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string, { hint: error.hint }))
         return
       }
       if (warnings) {

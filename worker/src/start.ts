@@ -181,6 +181,7 @@ async function handleMessage (
       error: {
         code: e.code,
         message: e.message ?? e.toString(),
+        hint: e.hint,
       },
     })
   }
