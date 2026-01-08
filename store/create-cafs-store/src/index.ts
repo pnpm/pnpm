@@ -83,32 +83,32 @@ function getFlatMap (
   filesResponse: PackageFilesResponse,
   targetEngine?: string
 ): { filesMap: Map<string, string>, isBuilt: boolean } {
-  let isBuilt!: boolean
-  let filesIndex!: PackageFiles
   if (targetEngine && filesResponse.sideEffects?.has(targetEngine)) {
-    filesIndex = applySideEffectsDiff(filesResponse.filesIndex as PackageFiles, filesResponse.sideEffects.get(targetEngine)!)
-    isBuilt = true
-  } else if (filesResponse.unprocessed !== true) {
+    const filesIndexWithSideEffects = applySideEffectsDiff(storeDir, filesResponse.filesIndex, filesResponse.sideEffects.get(targetEngine)!)
     return {
-      filesMap: filesResponse.filesIndex,
-      isBuilt: false,
+      filesMap: filesIndexWithSideEffects,
+      isBuilt: true,
     }
-  } else {
-    filesIndex = filesResponse.filesIndex
-    isBuilt = false
   }
-  const filesMap = new Map<string, string>()
-  for (const [fileName, { integrity, mode }] of filesIndex) {
-    filesMap.set(fileName, getFilePathByModeInCafs(storeDir, integrity, mode))
+  return {
+    filesMap: filesResponse.filesIndex,
+    isBuilt: false,
   }
-  return { filesMap, isBuilt }
 }
 
-function applySideEffectsDiff (baseFiles: PackageFiles, { added, deleted }: SideEffectsDiff): PackageFiles {
-  const filesWithSideEffects: PackageFiles = new Map(added)
-  for (const [fileName, fileInfo] of baseFiles) {
+function applySideEffectsDiff (storeDir: string, baseFiles: Map<string, string>, { added, deleted }: SideEffectsDiff): Map<string, string> {
+  const filesWithSideEffects = new Map<string, string>()
+  // Add side effect files (convert from PackageFiles metadata to file paths)
+  if (added) {
+    for (const [name, fileInfo] of Object.entries(added)) {
+      const filePath = getFilePathByModeInCafs(storeDir, fileInfo.integrity, fileInfo.mode)
+      filesWithSideEffects.set(name, filePath)
+    }
+  }
+  // Add base files that weren't deleted
+  for (const [fileName, filePath] of baseFiles) {
     if (!deleted?.includes(fileName) && !filesWithSideEffects.has(fileName)) {
-      filesWithSideEffects.set(fileName, fileInfo)
+      filesWithSideEffects.set(fileName, filePath)
     }
   }
   return filesWithSideEffects

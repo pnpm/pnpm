@@ -14,7 +14,7 @@ import {
   type FetchOptions,
   type FetchResult,
 } from '@pnpm/fetcher-base'
-import { type Cafs, type PackageFilesResponse } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFilesResponse, type SideEffects } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
@@ -44,7 +44,7 @@ import {
 import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
 import { type CustomFetcher } from '@pnpm/hooks.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
-import { calcMaxWorkers, readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
+import { calcMaxWorkers, readPkgFromCafs as _readPkgFromCafs, type ProcessedPkgFilesIndex } from '@pnpm/worker'
 import { familySync } from 'detect-libc'
 import PQueue from 'p-queue'
 import pDefer, { type DeferredPromise } from 'p-defer'
@@ -457,7 +457,12 @@ function fetchToStore (
     readPkgFromCafs: (
       filesIndexFile: string,
       readManifest?: boolean
-    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
+    ) => Promise<{
+      verified: boolean
+      pkgFilesIndex: ProcessedPkgFilesIndex
+      manifest?: DependencyManifest
+      requiresBuild: boolean
+    }>
     fetch: (
       packageId: string,
       resolution: AtomicResolution,
@@ -543,17 +548,9 @@ function fetchToStore (
   if (opts.fetchRawManifest && !result.fetchRawManifest) {
     result.fetching = removeKeyOnFail(
       result.fetching.then(async ({ files }) => {
-        if (!files.filesIndex.get('package.json')) return {
+        if (!files.filesIndex.has('package.json')) return {
           files,
           bundledManifest: undefined,
-        }
-        if (files.unprocessed) {
-          const { integrity, mode } = files.filesIndex.get('package.json')!
-          const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
-          return {
-            files,
-            bundledManifest: await readBundledManifest(manifestPath),
-          }
         }
         return {
           files,
@@ -604,7 +601,6 @@ function fetchToStore (
           checkPackageMismatch({ pkgFilesIndex, pkg: opts.pkg, strictStorePkgContentCheck: ctx.strictStorePkgContentCheck })
           fetching.resolve({
             files: {
-              unprocessed: true,
               filesIndex: pkgFilesIndex.files,
               resolvedFrom: 'store',
               sideEffects: pkgFilesIndex.sideEffects,
@@ -701,7 +697,7 @@ async function peekFromStore (
     readPkgFromCafs: (
       filesIndexFile: string,
       readManifest?: boolean
-    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
+    ) => Promise<{ verified: boolean, pkgFilesIndex: ProcessedPkgFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     fetchingLockerForPeek: Map<string, Promise<PeekFromStoreResult | undefined>>
     strictStorePkgContentCheck: boolean | undefined
@@ -737,7 +733,6 @@ async function peekFromStore (
 
       return {
         files: {
-          unprocessed: true,
           resolvedFrom: 'store',
           filesIndex: pkgFilesIndex.files,
           sideEffects: pkgFilesIndex.sideEffects,
@@ -758,7 +753,7 @@ async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifes
 
 function checkPackageMismatch (
   { pkgFilesIndex, pkg, strictStorePkgContentCheck }: {
-    pkgFilesIndex: PackageFilesIndex
+    pkgFilesIndex: ProcessedPkgFilesIndex
     pkg?: PkgNameVersion & {
       id: string
       resolution: Resolution

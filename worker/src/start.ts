@@ -111,12 +111,26 @@ async function handleMessage (
         }
       }
       const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, pkgFilesIndex.files)
+      // Convert PackageFiles to Map<string, string>
+      if (!cafsCache.has(storeDir)) {
+        cafsCache.set(storeDir, createCafs(storeDir))
+      }
+      const cafs = cafsCache.get(storeDir)!
+      const filesMap = new Map<string, string>()
+      for (const [filename, fileInfo] of Object.entries(pkgFilesIndex.files)) {
+        filesMap.set(filename, cafs.getFilePathByModeInCafs(fileInfo.integrity, fileInfo.mode))
+      }
       parentPort!.postMessage({
         status: 'success',
         value: {
           verified: verifyResult.passed,
           manifest: verifyResult.manifest,
-          pkgFilesIndex,
+          pkgFilesIndex: {
+            name: pkgFilesIndex.name,
+            version: pkgFilesIndex.version,
+            files: filesMap,
+            sideEffects: pkgFilesIndex.sideEffects,
+          },
           requiresBuild,
         },
       })

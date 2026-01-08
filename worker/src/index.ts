@@ -5,7 +5,7 @@ import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool.js'
 import { PnpmError } from '@pnpm/error'
 import { execSync } from 'child_process'
 import isWindows from 'is-windows'
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import { type SideEffects } from '@pnpm/cafs-types'
 import { type DependencyManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 import {
@@ -175,17 +175,29 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
   })
 }
 
+export interface ProcessedPkgFilesIndex {
+  name?: string
+  version?: string
+  files: Map<string, string>
+  sideEffects?: SideEffects
+}
+
 export async function readPkgFromCafs (
   storeDir: string,
   verifyStoreIntegrity: boolean,
   filesIndexFile: string,
   readManifest?: boolean
-): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }> {
+): Promise<{
+    verified: boolean
+    pkgFilesIndex: ProcessedPkgFilesIndex
+    manifest?: DependencyManifest
+    requiresBuild: boolean
+  }> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, requiresBuild: boolean }>((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {

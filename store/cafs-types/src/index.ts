@@ -19,18 +19,13 @@ export interface SideEffectsDiff {
 
 export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
 
-export type PackageFilesResponse = {
+export interface PackageFilesResponse {
   resolvedFrom: ResolvedFrom
+  filesIndex: Map<string, string>
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   sideEffects?: SideEffects
   requiresBuild: boolean
-} & ({
-  unprocessed?: false
-  filesIndex: Map<string, string>
-} | {
-  unprocessed: true
-  filesIndex: PackageFiles
-})
+}
 
 export interface ImportPackageOpts {
   disableRelinkLocalDirDeps?: boolean
