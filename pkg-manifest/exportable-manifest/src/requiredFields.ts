@@ -1,9 +1,12 @@
 import { PnpmError } from '@pnpm/error'
-import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
+import { type ExportedManifest } from './index.js'
 
 type RequiredField = 'name' | 'version'
+type Input = Pick<ProjectManifest, RequiredField>
+type Output = Pick<ExportedManifest, RequiredField>
 
-export function validateRequiredFields (manifest: ProjectManifest): asserts manifest is DependencyManifest {
+export function validateRequiredFields<Manifest> (manifest: Manifest & Input): asserts manifest is Manifest & Output {
   if (!manifest.name) throw new MissingRequiredFieldError('name')
   if (!manifest.version) throw new MissingRequiredFieldError('version')
 }
