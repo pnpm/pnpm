@@ -1,7 +1,6 @@
 import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
 import {
-  getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getIndexFilePathInCafs as _getIndexFilePathInCafs,
 } from '@pnpm/store.cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
@@ -117,7 +116,6 @@ export function createPackageRequester (
 
   const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
-  const getFilePathByModeInCafs = _getFilePathByModeInCafs.bind(null, opts.storeDir)
   const readPkgFromCafs = _readPkgFromCafs.bind(null, {
     storeDir: opts.storeDir,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
@@ -127,7 +125,6 @@ export function createPackageRequester (
     readPkgFromCafs,
     fetch,
     fetchingLocker: new Map(),
-    getFilePathByModeInCafs,
     getIndexFilePathInCafs,
     requestsQueue: Object.assign(requestsQueue, {
       counter: 0,
@@ -141,7 +138,6 @@ export function createPackageRequester (
     getIndexFilePathInCafs,
     readPkgFromCafs,
     fetchingLockerForPeek: new Map(),
-    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
   })
   const requestPackage = resolveAndFetch.bind(null, {
     engineStrict: opts.engineStrict,
@@ -471,7 +467,6 @@ function fetchToStore (
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
     getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
-    getFilePathByModeInCafs: (integrity: string, mode: number) => string
     requestsQueue: {
       add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>
       counter: number
@@ -698,7 +693,6 @@ async function peekFromStore (
     ) => Promise<{ verified: boolean, files: PackageFilesResponse, manifest?: DependencyManifest }>
     getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     fetchingLockerForPeek: Map<string, Promise<PeekFromStoreResult | undefined>>
-    strictStorePkgContentCheck: boolean | undefined
   },
   pkg: PkgNameVersion & {
     id: string

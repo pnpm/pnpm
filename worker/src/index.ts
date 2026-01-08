@@ -201,14 +201,14 @@ export async function readPkgFromCafs (
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }) => {
+    localWorker.once('message', ({ status, error, value, warnings }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string))
         return
       }
-      if (value.warnings) {
-        for (const warning of value.warnings) {
+      if (warnings) {
+        for (const warning of warnings) {
           globalWarn(warning)
         }
       }

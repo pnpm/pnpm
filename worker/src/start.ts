@@ -128,7 +128,7 @@ async function handleMessage (
             !equalOrSemverEqual(pkgFilesIndex.version, expectedPkg.version)
           )
         ) {
-          const msg = 'Package name mismatch found while reading from the store.'
+          const msg = 'Package name or version mismatch found while reading from the store.'
           const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
           if (strictStorePkgContentCheck ?? true) {
             throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
@@ -151,10 +151,10 @@ async function handleMessage (
       }
       parentPort!.postMessage({
         status: 'success',
+        warnings,
         value: {
           verified: verifyResult.passed,
           manifest: verifyResult.manifest,
-          warnings,
           files: {
             filesIndex: filesMap,
             sideEffects: pkgFilesIndex.sideEffects,
