@@ -9,6 +9,7 @@ import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig.js'
+import { validateRequiredFields } from './requiredFields.js'
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
@@ -69,6 +70,8 @@ export async function createExportableManifest (
     // eslint-disable-next-line no-await-in-loop
     publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
+
+  validateRequiredFields(publishManifest)
 
   return publishManifest
 }
