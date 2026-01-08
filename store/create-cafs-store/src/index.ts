@@ -5,7 +5,7 @@ import {
   createCafs,
   getFilePathByModeInCafs,
 } from '@pnpm/store.cafs'
-import { type Cafs, type PackageFilesResponse, type PackageFiles, type SideEffectsDiff } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFilesResponse, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
   type ImportIndexedPackage,
@@ -100,7 +100,7 @@ function applySideEffectsDiff (storeDir: string, baseFiles: Map<string, string>,
   const filesWithSideEffects = new Map<string, string>()
   // Add side effect files (convert from PackageFiles metadata to file paths)
   if (added) {
-    for (const [name, fileInfo] of Object.entries(added)) {
+    for (const [name, fileInfo] of added.entries()) {
       const filePath = getFilePathByModeInCafs(storeDir, fileInfo.integrity, fileInfo.mode)
       filesWithSideEffects.set(name, filePath)
     }

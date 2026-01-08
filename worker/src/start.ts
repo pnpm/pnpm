@@ -117,7 +117,7 @@ async function handleMessage (
       }
       const cafs = cafsCache.get(storeDir)!
       const filesMap = new Map<string, string>()
-      for (const [filename, fileInfo] of Object.entries(pkgFilesIndex.files)) {
+      for (const [filename, fileInfo] of pkgFilesIndex.files) {
         filesMap.set(filename, cafs.getFilePathByModeInCafs(fileInfo.integrity, fileInfo.mode))
       }
       parentPort!.postMessage({
