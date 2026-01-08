@@ -104,7 +104,7 @@ test('optimally synchronizes source and target', async () => {
 
   const sourceFetchResult = await fetchFromDir(sourceDir, { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultBefore = await fetchFromDir(targetDir, { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultBefore.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(Array.from(sourceFetchResult.filesMap.keys()).sort((a, b) => lexCompare(a, b)))
+  expect(Array.from(targetFetchResultBefore.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(Array.from(sourceFetchResult.filesMap.keys()).sort(lexCompare))
   expect(
     filesToModify
       .map(suffix => path.resolve(targetDir, suffix))
@@ -129,8 +129,8 @@ test('optimally synchronizes source and target', async () => {
   await patchers[0].apply()
 
   const targetFetchResultAfter = await fetchFromDir(targetDir, { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultAfter.filesMap.keys()).sort((a, b) => lexCompare(a, b))).toStrictEqual(Array.from(sourceFetchResult.filesMap.keys()).sort((a, b) => lexCompare(a, b)))
-  expect(Array.from(targetFetchResultAfter.filesMap.keys()).sort((a, b) => lexCompare(a, b))).not.toStrictEqual(Array.from(targetFetchResultBefore.filesMap.keys()).sort((a, b) => lexCompare(a, b)))
+  expect(Array.from(targetFetchResultAfter.filesMap.keys()).sort(lexCompare)).toStrictEqual(Array.from(sourceFetchResult.filesMap.keys()).sort(lexCompare))
+  expect(Array.from(targetFetchResultAfter.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(Array.from(targetFetchResultBefore.filesMap.keys()).sort(lexCompare))
   expect(
     filesToModify
       .map(suffix => path.resolve(targetDir, suffix))
