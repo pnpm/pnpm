@@ -4,6 +4,8 @@ import { omit } from 'ramda'
 
 // TODO: transform `bin`
 
+// TODO: remove this file in favor of exportable-manifest
+
 type RequiredField = 'name' | 'version'
 type BundleDependencies = 'bundleDependencies' | 'bundledDependencies'
 type EngineField = 'engines'
