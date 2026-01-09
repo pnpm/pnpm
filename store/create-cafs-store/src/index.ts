@@ -3,9 +3,8 @@ import path from 'path'
 import {
   type CafsLocker,
   createCafs,
-  getFilePathByModeInCafs,
 } from '@pnpm/store.cafs'
-import { type Cafs, type PackageFilesResponse, type SideEffectsDiff, type FilesMap } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
   type ImportIndexedPackage,
@@ -83,10 +82,11 @@ function getFlatMap (
   filesResponse: PackageFilesResponse,
   targetEngine?: string
 ): { filesMap: FilesMap, isBuilt: boolean } {
-  if (targetEngine && filesResponse.sideEffects?.has(targetEngine)) {
-    const filesIndexWithSideEffects = applySideEffectsDiff(storeDir, filesResponse.filesMap, filesResponse.sideEffects.get(targetEngine)!)
+  if (targetEngine && filesResponse.sideEffectsMaps?.has(targetEngine)) {
+    const sideEffectMap = filesResponse.sideEffectsMaps.get(targetEngine)!
+    const filesMap = applySideEffectsDiffWithMaps(filesResponse.filesMap, sideEffectMap)
     return {
-      filesMap: filesIndexWithSideEffects,
+      filesMap,
       isBuilt: true,
     }
   }
@@ -96,12 +96,15 @@ function getFlatMap (
   }
 }
 
-function applySideEffectsDiff (storeDir: string, baseFiles: FilesMap, { added, deleted }: SideEffectsDiff): FilesMap {
+// Apply side effects when we already have file location maps (fast path)
+function applySideEffectsDiffWithMaps (
+  baseFiles: FilesMap,
+  { added, deleted }: { added?: FilesMap, deleted?: string[] }
+): FilesMap {
   const filesWithSideEffects = new Map<string, string>()
-  // Add side effect files (convert from PackageFiles metadata to file paths)
+  // Add side effect files (already have file paths)
   if (added) {
-    for (const [name, fileInfo] of added.entries()) {
-      const filePath = getFilePathByModeInCafs(storeDir, fileInfo.integrity, fileInfo.mode)
+    for (const [name, filePath] of added.entries()) {
       filesWithSideEffects.set(name, filePath)
     }
   }
