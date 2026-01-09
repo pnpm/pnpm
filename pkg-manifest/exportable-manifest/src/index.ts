@@ -1,4 +1,5 @@
 import path from 'path'
+import { type PackageJSON as ExportedManifest } from '@npm/types'
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
@@ -9,6 +10,9 @@ import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig.js'
+import { validateRequiredFields } from './requiredFields.js'
+
+export { ExportedManifest }
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
@@ -69,6 +73,8 @@ export async function createExportableManifest (
     // eslint-disable-next-line no-await-in-loop
     publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
+
+  validateRequiredFields(publishManifest)
 
   return publishManifest
 }
