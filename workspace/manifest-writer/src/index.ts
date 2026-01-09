@@ -115,7 +115,9 @@ function addCatalogs (manifest: Partial<WorkspaceManifest>, newCatalogs: Catalog
       }
 
       targetCatalog ??= {}
-      targetCatalog[dependencyName] = specifier
+      if (targetCatalog[dependencyName] !== specifier) {
+        targetCatalog[dependencyName] = specifier
+      }
     }
 
     if (targetCatalog == null) continue
