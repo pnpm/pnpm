@@ -5,6 +5,7 @@ import { createShortHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import symlinkDir from 'symlink-dir'
+import isSubdir from 'is-subdir'
 
 const PROJECTS_DIR = 'projects'
 
@@ -17,6 +18,10 @@ export function getProjectsRegistryDir (storeDir: string): string {
  * Creates a symlink in {storeDir}/projects/{hash} → {projectDir}
  */
 export async function registerProject (storeDir: string, projectDir: string): Promise<void> {
+  // Avoid creating circular symlinks when the store is inside the project directory
+  if (isSubdir(projectDir, storeDir)) {
+    return
+  }
   const registryDir = getProjectsRegistryDir(storeDir)
   await fs.mkdir(registryDir, { recursive: true })
   const linkPath = path.join(registryDir, createShortHash(projectDir))
