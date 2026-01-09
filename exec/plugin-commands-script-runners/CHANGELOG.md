@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.1.10
+
+### Patch Changes
+
+- f022a1b: It should be possible to declare the `requiredScripts` setting in `pnpm-workspace.yaml` [#10261](https://github.com/pnpm/pnpm/issues/10261).
+- Updated dependencies [f022a1b]
+  - @pnpm/config@1004.9.1
+  - @pnpm/plugin-commands-installation@1004.9.1
+  - @pnpm/cli-utils@1001.2.19
+  - @pnpm/deps.status@1003.0.26
+  - @pnpm/plugin-commands-env@1000.0.55
+  - @pnpm/workspace.injected-deps-syncer@1000.0.28
+  - @pnpm/client@1001.1.15
+
 ## 1001.1.9
 
 ### Patch Changes

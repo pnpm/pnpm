@@ -1,5 +1,13 @@
 # @pnpm/testing.temp-store
 
+## 1000.0.34
+
+### Patch Changes
+
+- Updated dependencies [7e08794]
+  - @pnpm/package-store@1007.1.1
+  - @pnpm/client@1001.1.15
+
 ## 1000.0.33
 
 ### Patch Changes

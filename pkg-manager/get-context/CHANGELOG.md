@@ -1,5 +1,12 @@
 # @pnpm/get-context
 
+## 1001.2.1
+
+### Patch Changes
+
+- Updated dependencies [7e08794]
+  - @pnpm/package-store@1007.1.1
+
 ## 1001.2.0
 
 ### Minor Changes

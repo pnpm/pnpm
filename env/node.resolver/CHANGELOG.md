@@ -1,5 +1,12 @@
 # @pnpm/node.resolver
 
+## 1001.0.15
+
+### Patch Changes
+
+- Updated dependencies [f022a1b]
+  - @pnpm/config@1004.9.1
+
 ## 1001.0.14
 
 ### Patch Changes

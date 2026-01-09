@@ -1,5 +1,17 @@
 # pnpm
 
+## 10.28.0
+
+### Minor Changes
+
+- Add support for a hook called `beforePacking` that can be used to customize the `package.json` contents at publish time [#3816](https://github.com/pnpm/pnpm/issues/3816).
+- In some cases, a filtered install (i.e. `pnpm install --filter ...`) was slower than running `pnpm install` without any filter arguments. This performance regression is now fixed. Filtered installs should be as fast or faster than a full install [#10408](https://github.com/pnpm/pnpm/pull/10408).
+
+### Patch Changes
+
+- Do not add a symlink to the project into the store's project registry if the store is in a subdirectory of the project [#10411](https://github.com/pnpm/pnpm/issues/10411).
+- It should be possible to declare the `requiredScripts` setting in `pnpm-workspace.yaml` [#10261](https://github.com/pnpm/pnpm/issues/10261).
+
 ## 10.27.0
 
 ### Minor Changes

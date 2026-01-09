@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-doctor",
-  "version": "1000.1.52",
+  "version": "1000.1.53",
   "description": "Commands for checks of known common issues ",
   "keywords": [
     "pnpm",

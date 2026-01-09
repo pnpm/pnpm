@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-licenses",
-  "version": "1000.0.55",
+  "version": "1000.0.56",
   "description": "The licenses command of pnpm",
   "keywords": [
     "pnpm",

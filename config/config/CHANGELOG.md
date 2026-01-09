@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1004.9.1
+
+### Patch Changes
+
+- f022a1b: It should be possible to declare the `requiredScripts` setting in `pnpm-workspace.yaml` [#10261](https://github.com/pnpm/pnpm/issues/10261).
+
 ## 1004.9.0
 
 ### Minor Changes

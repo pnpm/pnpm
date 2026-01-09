@@ -1,5 +1,12 @@
 # @pnpm/client
 
+## 1001.1.15
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1001.0.18
+- @pnpm/default-resolver@1002.2.23
+
 ## 1001.1.14
 
 ### Patch Changes

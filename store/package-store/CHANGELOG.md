@@ -1,5 +1,13 @@
 # @pnpm/package-store
 
+## 1007.1.1
+
+### Patch Changes
+
+- 7e08794: Do not add a symlink to the project into the store's project registry if the store is in a subdirectory of the project [#10411](https://github.com/pnpm/pnpm/issues/10411).
+- Updated dependencies [ff4747f]
+  - @pnpm/package-requester@1011.2.0
+
 ## 1007.1.0
 
 ### Minor Changes

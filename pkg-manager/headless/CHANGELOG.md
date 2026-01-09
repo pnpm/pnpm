@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 1010.1.1
+
+### Patch Changes
+
+- Updated dependencies [ff4747f]
+  - @pnpm/package-requester@1011.2.0
+  - @pnpm/build-modules@1007.0.2
+
 ## 1010.1.0
 
 ### Minor Changes

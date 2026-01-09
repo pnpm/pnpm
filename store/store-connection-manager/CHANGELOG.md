@@ -1,5 +1,16 @@
 # @pnpm/store-connection-manager
 
+## 1002.3.10
+
+### Patch Changes
+
+- Updated dependencies [7e08794]
+- Updated dependencies [f022a1b]
+  - @pnpm/package-store@1007.1.1
+  - @pnpm/config@1004.9.1
+  - @pnpm/server@1001.0.18
+  - @pnpm/client@1001.1.15
+
 ## 1002.3.9
 
 ### Patch Changes

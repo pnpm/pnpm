@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.32
+
+### Patch Changes
+
+- Updated dependencies [f022a1b]
+  - @pnpm/config@1004.9.1
+  - @pnpm/plugin-commands-installation@1004.9.1
+  - @pnpm/store-connection-manager@1002.3.10
+  - @pnpm/cli-utils@1001.2.19
+
 ## 1000.3.31
 
 ### Patch Changes
