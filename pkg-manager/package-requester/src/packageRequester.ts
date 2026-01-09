@@ -26,6 +26,7 @@ import {
   type ResolveResult,
   type TarballResolution,
   type AtomicResolution,
+  type CustomResolution,
 } from '@pnpm/resolver-base'
 import {
   type BundledManifest,
@@ -191,7 +192,8 @@ async function resolveAndFetch (
   let alias: string | undefined
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
-  const skipResolution = resolution && !options.update
+  // forceResolve is only set when this dep's custom resolver's shouldForceResolve() returned true
+  const skipResolution = resolution && !options.update && !options.forceResolve
   let forceFetch = false
   let updated = false
   let resolvedVia: string | undefined
@@ -240,11 +242,12 @@ async function resolveAndFetch (
     resolvedVia = resolveResult.resolvedVia
     publishedAt = resolveResult.publishedAt
 
-    // If the integrity of a local tarball dependency has changed,
-    // the local tarball should be unpacked, so a fetch to the store should be forced
+    // If the integrity of a local tarball or custom dependency has changed, the package should be re-fetched
+    const isLocalOrCustomDep = pkgId?.startsWith('file:') === true || (options.currentPkg?.resolution as CustomResolution)?.type?.startsWith('custom:')
     forceFetch = Boolean(
       ((options.currentPkg?.resolution) != null) &&
-      pkgId?.startsWith('file:') &&
+      isLocalOrCustomDep &&
+      (resolveResult.resolution as TarballResolution).integrity &&
       (options.currentPkg?.resolution as TarballResolution).integrity !== (resolveResult.resolution as TarballResolution).integrity
     )
 

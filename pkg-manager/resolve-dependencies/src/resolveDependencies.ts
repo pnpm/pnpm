@@ -150,6 +150,7 @@ export interface ResolutionContext {
   appliedPatches: Set<string>
   updatedSet: Set<string>
   catalogResolver: CatalogResolver
+  customResolverForceResolveDeps: Set<string>
   defaultTag: string
   dryRun: boolean
   forceFullResolution: boolean
@@ -1352,6 +1353,7 @@ async function resolveDependency (
       trustPolicyExclude: ctx.trustPolicyExclude,
       trustPolicyIgnoreAfter: ctx.trustPolicyIgnoreAfter,
       update: options.update,
+      forceResolve: ctx.customResolverForceResolveDeps.has(wantedDependency.alias),
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
       onFetchError: (err: any) => { // eslint-disable-line

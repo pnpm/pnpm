@@ -80,7 +80,7 @@ import pLimit from 'p-limit'
 import { map as mapValues, clone, isEmpty, pipeWith, props } from 'ramda'
 import { parseWantedDependencies } from '../parseWantedDependencies.js'
 import { removeDeps } from '../uninstall/removeDeps.js'
-import { checkCustomResolverForceResolve } from './checkCustomResolverForceResolve.js'
+import { getCustomResolverForceResolveDeps } from './checkCustomResolverForceResolve.js'
 import {
   extendOptions,
   type InstallOptions,
@@ -324,10 +324,10 @@ export async function mutateModules (
     }
   }
 
-  // Check if any custom resolvers want to force resolution for specific dependencies
+  // Check which dependencies have custom resolvers that want to force re-resolution
   // Skip this check when not saving the lockfile (e.g., during deploy) since there's no point
   // in forcing re-resolution if we're not going to persist the results
-  let forceResolutionFromHook = false
+  let customResolverForceResolveDeps = new Set<string>()
   const shouldCheckCustomResolverForceResolve =
     opts.hooks.customResolvers &&
     ctx.existsNonEmptyWantedLockfile &&
@@ -335,7 +335,7 @@ export async function mutateModules (
     opts.saveLockfile
   if (shouldCheckCustomResolverForceResolve) {
     const projects = Object.values(ctx.projects).map(({ id, manifest }) => ({ id, manifest }))
-    forceResolutionFromHook = await checkCustomResolverForceResolve(
+    customResolverForceResolveDeps = await getCustomResolverForceResolveDeps(
       opts.hooks.customResolvers!,
       ctx.wantedLockfile,
       projects
@@ -462,8 +462,7 @@ export async function mutateModules (
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
       !upToDateLockfileMajorVersion ||
-      opts.forceFullResolution ||
-      forceResolutionFromHook
+      opts.forceFullResolution
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
@@ -667,6 +666,7 @@ export async function mutateModules (
       ...opts,
       allowBuild,
       currentLockfileIsUpToDate: !ctx.existsNonEmptyWantedLockfile || ctx.currentLockfileIsUpToDate,
+      customResolverForceResolveDeps,
       makePartialCurrentLockfile,
       needsFullResolution,
       pruneVirtualStore,
@@ -1085,6 +1085,7 @@ type InstallFunction = (
   ctx: PnpmContext,
   opts: Omit<StrictInstallOptions, 'patchedDependencies'> & {
     allowBuild?: AllowBuild
+    customResolverForceResolveDeps: Set<string>
     patchedDependencies?: PatchGroupRecord
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
@@ -1202,6 +1203,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
       catalogs: opts.catalogs,
       currentLockfile: ctx.currentLockfile,
+      customResolverForceResolveDeps: opts.customResolverForceResolveDeps,
       defaultUpdateDepth: opts.depth,
       dedupeDirectDeps: opts.dedupeDirectDeps,
       dedupeInjectedDeps: opts.dedupeInjectedDeps,
