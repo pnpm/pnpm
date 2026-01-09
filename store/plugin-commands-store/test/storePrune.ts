@@ -427,8 +427,9 @@ describe('global virtual store prune', () => {
         'is-positive': '1.0.0',
       },
     })
-    const cacheDir = path.resolve('cache')
-    const storeDir = path.resolve('store')
+    // Store should be OUTSIDE the project directory to ensure proper project registration
+    const cacheDir = path.resolve('..', 'cache')
+    const storeDir = path.resolve('..', 'store')
 
     // Install with global virtual store enabled
     await execa('node', [
