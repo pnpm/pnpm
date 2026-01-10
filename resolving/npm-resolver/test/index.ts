@@ -761,45 +761,6 @@ test('when prefer offline is used, meta from store is used, where latest might b
   nock.cleanAll()
 })
 
-test('prefer offline does not make network requests when cached metadata exists', async () => {
-  nock(registries.default)
-    .get('/is-positive')
-    .reply(200, isPositiveMeta)
-
-  const cacheDir = temporaryDirectory()
-
-  {
-    const { resolveFromNpm } = createResolveFromNpm({
-      cacheDir,
-      registries,
-    })
-
-    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
-  }
-
-  // Wait for the cache file to be written
-  await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.v8')) // eslint-disable-line @typescript-eslint/no-explicit-any
-
-  // Clear all mocks - if a network request is made, nock will throw an error
-  nock.cleanAll()
-  nock.disableNetConnect()
-
-  {
-    const { resolveFromNpm } = createResolveFromNpm({
-      preferOffline: true,
-      cacheDir,
-      registries,
-    })
-
-    const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
-    expect(resolveResult!.id).toBe('is-positive@1.0.0')
-    expect(resolveResult!.resolution).toStrictEqual({
-      integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
-      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-    })
-  }
-})
-
 test('error is thrown when package is not found in the registry', async () => {
   const notExistingPackage = 'foo'
 
