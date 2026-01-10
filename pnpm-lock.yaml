@@ -7526,9 +7526,15 @@ importers:
       '@pnpm/resolving.jsr-specifier-parser':
         specifier: workspace:*
         version: link:../jsr-specifier-parser
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
       '@pnpm/workspace.spec-parser':
         specifier: workspace:*
         version: link:../../workspace/spec-parser

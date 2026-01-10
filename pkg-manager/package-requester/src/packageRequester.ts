@@ -12,7 +12,7 @@ import {
   type FetchOptions,
   type FetchResult,
 } from '@pnpm/fetcher-base'
-import { type Cafs, type PackageFilesResponse } from '@pnpm/cafs-types'
+import { type Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
@@ -139,18 +139,12 @@ export function createPackageRequester (
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
   })
-  const peekPackageFromStore = peekFromStore.bind(null, {
-    getIndexFilePathInCafs,
-    readPkgFromCafs,
-    fetchingLockerForPeek: new Map(),
-  })
   const requestPackage = resolveAndFetch.bind(null, {
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.pnpmVersion,
     force: opts.force,
     fetchPackageToStore,
-    peekPackageFromStore,
     requestsQueue,
     resolve: opts.resolve,
     storeDir: opts.storeDir,
@@ -176,10 +170,6 @@ async function resolveAndFetch (
     requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
     resolve: ResolveFunction
     fetchPackageToStore: FetchPackageToStoreFunction
-    peekPackageFromStore: (pkg: PkgNameVersion & {
-      id: string
-      resolution: Resolution
-    }) => Promise<PeekFromStoreResult | undefined>
     storeDir: string
   },
   wantedDependency: WantedDependency & { optional?: boolean },
@@ -240,7 +230,6 @@ async function resolveAndFetch (
           resolution: options.currentPkg.resolution,
         }
         : undefined,
-      peekedManifest,
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest
@@ -263,23 +252,8 @@ async function resolveAndFetch (
     alias = resolveResult.alias
   }
 
-  // Optimization: Try to peek the manifest from the store for all packages.
-  // This retrieves it from the Content-Addressable File Store, which is
-  // significantly faster than fetching from metadata.
-  //
-  // The resolver receives this and decides whether to use it or not.
-  let peekedManifest: DependencyManifest | undefined
-  if (resolution && wantedDependency.optional !== true && pkgId != null) {
-    const pkg = await ctx.peekPackageFromStore({
-      ...options.expectedPkg,
-      id: pkgId,
-      resolution,
-    })
-    peekedManifest = pkg?.bundledManifest
-  }
-
   // Always call the resolver.
-  // The resolver has complete autonomy based on currentPkg and peckedManifest.
+  // The resolver now handles peeking manifests from the store internally.
   await performResolution()
 
   const id = pkgId!
@@ -670,69 +644,6 @@ function fetchToStore (
       fetching.reject(err)
     }
   }
-}
-
-interface PeekFromStoreResult {
-  readonly bundledManifest?: BundledManifest
-  readonly files: PackageFilesResponse
-}
-
-/**
- * Look up requests from the store without mutating it. This is related to
- * {@link fetchToStore}, but does not perform a fetch if the lookup was not
- * found.
- *
- * This function will return undefined if the package was found in the store,
- * but fails integrity checks.
- */
-async function peekFromStore (
-  ctx: {
-    readPkgFromCafs: (
-      filesIndexFile: string,
-      opts?: ReadPkgFromCafsOptions
-    ) => Promise<ReadPkgFromCafsResult>
-    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
-    fetchingLockerForPeek: Map<string, Promise<PeekFromStoreResult | undefined>>
-  },
-  pkg: PkgNameVersion & {
-    id: string
-    resolution: Resolution
-  }
-): Promise<PeekFromStoreResult | undefined> {
-  // This function only supports TarballResolution requests with a present
-  // integrity.
-  if (pkg.resolution.type != null || pkg.resolution.integrity == null) {
-    return undefined
-  }
-
-  const indexFilePathInCafs = ctx.getIndexFilePathInCafs(pkg.resolution.integrity, pkg.id)
-  const existingRequest = ctx.fetchingLockerForPeek.get(indexFilePathInCafs)
-
-  if (existingRequest != null) {
-    return existingRequest
-  }
-
-  const request = ctx.readPkgFromCafs(indexFilePathInCafs, {
-    readManifest: true,
-    expectedPkg: pkg,
-  })
-    .then(({ files, manifest, verified }): PeekFromStoreResult | undefined => {
-      // If the files in the store are corrupted or out of date, it's better to
-      // fail the peek result and allow the caller to fall back to a resolution
-      // or proper fetch.
-      if (!verified) {
-        return undefined
-      }
-
-      return {
-        files,
-        bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
-      }
-    })
-
-  ctx.fetchingLockerForPeek.set(indexFilePathInCafs, request)
-
-  return request
 }
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {

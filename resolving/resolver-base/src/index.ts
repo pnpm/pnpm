@@ -136,7 +136,6 @@ export interface ResolveOptions {
     version?: string
     resolution: Resolution
   }
-  peekedManifest?: DependencyManifest
 }
 
 export type WantedDependency = {

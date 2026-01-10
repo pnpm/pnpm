@@ -29,6 +29,7 @@ const authConfig = { registry }
 const { resolve, fetchers } = createClient({
   authConfig,
   cacheDir: '.store',
+  storeDir: '.store',
   rawConfig: {},
   registries,
 })
@@ -208,9 +209,8 @@ test('request package but skip fetching, when resolution is already available an
   // Perform a request without skipFetch to populate the CAFS store.
   await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, requestOpts)
 
-  // The final request should reuse the package manifest present in the CAFS store
-  // by passing it to the resolver as peekedManifest. The resolver is now ALWAYS called,
-  // but receives the peeked manifest and can decide whether to use it.
+  // The npm-resolver now handles manifest peeking internally when storeDir is provided.
+  // The package-requester no longer passes peekedManifest to the resolver.
   //
   // We need to create a new package request function for this test to reset the
   // fetching lockers used internally within the package requester function.
@@ -220,16 +220,8 @@ test('request package but skip fetching, when resolution is already available an
   const requestPackage2 = createPackageRequester(createPackageRequesterOptions)
   const pkgResponse = await requestPackage2({ alias: 'is-positive', bareSpecifier: '1.0.0' }, { ...requestOpts, skipFetch: true })
 
-  // Resolver should be called with the peeked manifest
+  // Resolver should be called
   expect(resolveMockFn).toHaveBeenCalledTimes(1)
-  const resolveCallArgs = resolveMockFn.mock.calls[0]
-  expect(resolveCallArgs[1]).toHaveProperty('peekedManifest')
-  expect(resolveCallArgs[1].peekedManifest).toEqual({
-    engines: { node: '>=0.10.0' },
-    name: 'is-positive',
-    scripts: { test: 'node test.js' },
-    version: '1.0.0',
-  })
 
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
@@ -587,6 +579,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     rawConfig: {},
     retry: { retries: 0 },
     cacheDir: '.pnpm',
+    storeDir: '.store',
     registries,
   })
 

@@ -32,6 +32,7 @@ test('custom resolver intercepts matching packages', async () => {
     preferOffline: false,
     retry: {},
     timeout: 60000,
+    storeDir: '.store',
     registries: { default: 'https://registry.npmjs.org/' },
   })
 
@@ -77,6 +78,7 @@ test('custom resolver with synchronous methods', async () => {
     preferOffline: false,
     retry: {},
     timeout: 60000,
+    storeDir: '.store',
     registries: { default: 'https://registry.npmjs.org/' },
   })
 
@@ -121,6 +123,7 @@ test('multiple custom resolvers - first matching wins', async () => {
     preferOffline: false,
     retry: {},
     timeout: 60000,
+    storeDir: '.store',
     registries: { default: 'https://registry.npmjs.org/' },
   })
 
@@ -154,6 +157,7 @@ test('custom resolver error handling', async () => {
     preferOffline: false,
     retry: {},
     timeout: 60000,
+    storeDir: '.store',
     registries: { default: 'https://registry.npmjs.org/' },
   })
 
@@ -178,6 +182,7 @@ test('preferredVersions are passed to custom resolver', async () => {
     preferOffline: false,
     retry: {},
     timeout: 60000,
+    storeDir: '.store',
     registries: { default: 'https://registry.npmjs.org/' },
   })
 
@@ -211,6 +216,7 @@ test('custom resolver can intercept any protocol', async () => {
     preferOffline: false,
     retry: {},
     timeout: 60000,
+    storeDir: '.store',
     registries: { default: 'https://registry.npmjs.org/' },
   })
 
@@ -242,6 +248,7 @@ test('custom resolver falls through when not supported', async () => {
     preferOffline: false,
     retry: {},
     timeout: 60000,
+    storeDir: '.store',
     registries: { default: 'https://registry.npmjs.org/' },
   })
 
@@ -275,6 +282,7 @@ test('custom resolver can override npm registry resolution', async () => {
     preferOffline: false,
     retry: {},
     timeout: 60000,
+    storeDir: '.store',
     registries: { default: 'https://registry.npmjs.org/' },
   })
 
@@ -315,6 +323,7 @@ test('custom custom fetcher: reuse local tarball fetcher', async () => {
     retry: {},
     timeout: 60000,
     registries: { default: 'https://registry.npmjs.org/' },
+    storeDir: '.store',
   })
 
   const result = await resolve(
@@ -352,6 +361,7 @@ test('custom custom fetcher: reuse remote tarball downloader', async () => {
     retry: {},
     timeout: 60000,
     registries: { default: 'https://registry.npmjs.org/' },
+    storeDir: '.store',
   })
 
   const result = await resolve(
@@ -393,6 +403,7 @@ test('custom custom fetcher: wrap npm registry with custom logic', async () => {
     retry: {},
     timeout: 60000,
     registries: { default: 'https://registry.npmjs.org/' },
+    storeDir: '.store',
   })
 
   const result = await resolve(
