@@ -96,6 +96,7 @@ test('workspace deps are replaced', async () => {
       baz: 'workspace:baz@^',
       foo: 'workspace:*',
       qux: 'workspace:^',
+      quux: 'workspace:',
       waldo: 'workspace:^',
       xerox: 'workspace:../xerox',
       xeroxAlias: 'workspace:../xerox',
@@ -128,6 +129,10 @@ test('workspace deps are replaced', async () => {
       version: '1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay',
     },
     {
+      name: 'quux',
+      version: '7.8.9',
+    },
+    {
       name: 'waldo',
       version: '1.9.0',
     },
@@ -151,6 +156,7 @@ test('workspace deps are replaced', async () => {
       baz: '^1.2.3',
       foo: '4.5.6',
       qux: '^1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay',
+      quux: '7.8.9',
       waldo: '^1.9.0',
       xerox: '4.5.6',
       xeroxAlias: 'npm:xerox@4.5.6',
