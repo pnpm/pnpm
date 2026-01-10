@@ -272,8 +272,6 @@ async function resolveAndFetch (
   if (resolution && wantedDependency.optional !== true && pkgId != null) {
     const pkg = await ctx.peekPackageFromStore({
       ...options.expectedPkg,
-      name: options.currentPkg?.name,
-      version: options.currentPkg?.version,
       id: pkgId,
       resolution,
     })
