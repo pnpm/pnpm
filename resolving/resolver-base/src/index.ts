@@ -130,6 +130,13 @@ export interface ResolveOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
+  currentPkg?: {
+    id: PkgResolutionId
+    name?: string
+    version?: string
+    resolution: Resolution
+  }
+  peekedManifest?: DependencyManifest
 }
 
 export type WantedDependency = {

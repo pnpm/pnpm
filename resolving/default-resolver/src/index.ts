@@ -71,6 +71,7 @@ async function resolveFromCustomResolvers (
         lockfileDir: opts.lockfileDir,
         projectDir: opts.projectDir,
         preferredVersions: (opts.preferredVersions ?? {}) as unknown as Record<string, string>,
+        currentPkg: opts.currentPkg,
       })
       return {
         ...result,
@@ -108,7 +109,7 @@ export function createResolver (
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
-          await resolveFromGit(wantedDependency as { bareSpecifier: string }) ??
+          await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
           await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
         )) ??
         await _resolveNodeRuntime(wantedDependency) ??

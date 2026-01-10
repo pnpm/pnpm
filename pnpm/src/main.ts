@@ -107,6 +107,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (cmd === 'link' && cliParams.length === 0) {
       cliOptions.global = true
     }
+
     config = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
@@ -256,6 +257,9 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
     config.allProjects = filterResults.allProjects
     config.workspaceDir = wsDir
+  } else if (workspaceDir && (cmd === 'run' || cmd === 'exec')) {
+    // OPTIMIZATION: Skip expensive workspace filtering for simple run/exec commands
+    config.workspaceDir = workspaceDir
   }
 
   let { output, exitCode }: { output?: string | null, exitCode: number } = await (async () => {
