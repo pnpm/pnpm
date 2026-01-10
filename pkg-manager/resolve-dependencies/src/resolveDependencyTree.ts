@@ -110,6 +110,7 @@ export interface ResolveDependenciesOptions {
   allowUnusedPatches: boolean
   catalogs?: Catalogs
   currentLockfile: LockfileObject
+  customResolverForceResolveDeps?: Set<string>
   dedupePeerDependents?: boolean
   dryRun: boolean
   engineStrict: boolean
@@ -174,6 +175,7 @@ export async function resolveDependencyTree<T> (
     catalogResolver: resolveFromCatalog.bind(null, opts.catalogs ?? {}),
     childrenByParentId: {} as ChildrenByParentId,
     currentLockfile: opts.currentLockfile,
+    customResolverForceResolveDeps: opts.customResolverForceResolveDeps ?? new Set(),
     defaultTag: opts.tag,
     dependenciesTree: new Map() as DependenciesTree<ResolvedPackage>,
     dryRun: opts.dryRun,

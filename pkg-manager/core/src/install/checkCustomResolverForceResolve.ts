@@ -8,19 +8,20 @@ export interface ProjectWithManifest {
 }
 
 /**
- * Check if any custom resolver requires force re-resolution for dependencies in the lockfile.
- * This is a pure function extracted from the install flow for testability.
+ * Check which dependencies have custom resolvers that require force re-resolution.
  *
  * @param customResolvers - Array of custom resolvers to check
  * @param wantedLockfile - Current lockfile
  * @param projects - Projects with their manifests
- * @returns Promise<boolean> - true if any custom resolver requires force re-resolution
+ * @returns Promise<Set<string>> - Set of dependency aliases that need force re-resolution
  */
-export async function checkCustomResolverForceResolve (
+export async function getCustomResolverForceResolveDeps (
   customResolvers: CustomResolver[],
   wantedLockfile: LockfileObject,
   projects: ProjectWithManifest[]
-): Promise<boolean> {
+): Promise<Set<string>> {
+  const forceResolveDeps = new Set<string>()
+
   for (const project of projects) {
     const allDeps = getAllDependenciesFromManifest(project.manifest)
 
@@ -39,14 +40,14 @@ export async function checkCustomResolverForceResolve (
           const shouldForce = await customResolver.shouldForceResolve(wantedDependency, wantedLockfile)
 
           if (shouldForce) {
-            return true
+            forceResolveDeps.add(depName)
           }
         }
       }
     }
   }
 
-  return false
+  return forceResolveDeps
 }
 
 function getAllDependenciesFromManifest (manifest: {

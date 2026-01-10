@@ -884,12 +884,12 @@ test('fetch a git package without a package.json', async () => {
       lockfileDir: projectDir,
       preferredVersions: {},
       projectDir,
-    }) as PackageResponse & { body: { manifest: { name: string } } }
+    })
 
     expect(pkgResponse.body).toBeTruthy()
-    expect(pkgResponse.body.manifest).toBeUndefined()
-    expect(pkgResponse.body.isInstallable).toBeFalsy()
-    expect(pkgResponse.body.id).toBe(`https://codeload.github.com/${repo}/tar.gz/${commit}`)
+    expect(pkgResponse.body!.manifest).toBeUndefined()
+    expect(pkgResponse.body!.isInstallable).toBeFalsy()
+    expect(pkgResponse.body!.id).toBe(`https://codeload.github.com/${repo}/tar.gz/${commit}`)
   }
 })
 
@@ -1174,4 +1174,191 @@ test('HTTP tarball without integrity gets integrity computed during fetch', asyn
   // The resolution should now include an integrity hash computed during fetch
   expect(pkgResponse.body.resolution).toHaveProperty('integrity')
   expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
+})
+
+test('respects forceResolve option for custom dependency resolution', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+
+  let resolveCallCount = 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const customResolve = async (_wantedDependency: any, _opts: any) => {
+    resolveCallCount++
+    return {
+      id: 'custom-pkg@1.0.0' as PkgResolutionId,
+      resolution: {
+        type: 'custom:test' as const,
+        integrity: 'sha512-newhash000000000000000000000000000000000000000000000000000000000000000000000000000000==',
+        customData: 'test',
+      },
+      resolvedVia: 'custom-resolver',
+      manifest: {
+        name: 'custom-pkg',
+        version: '1.0.0',
+      },
+    }
+  }
+
+  const requestPackage = createPackageRequester({
+    resolve: customResolve as typeof resolve,
+    fetchers,
+    cafs,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+
+  // First request without currentPkg - should resolve
+  await requestPackage(
+    { alias: 'custom-pkg', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      skipFetch: true,
+    }
+  )
+  expect(resolveCallCount).toBe(1)
+
+  // Second request with existing custom resolution and forceResolve=true - should resolve
+  resolveCallCount = 0
+  await requestPackage(
+    { alias: 'custom-pkg', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      skipFetch: true,
+      forceResolve: true,
+      currentPkg: {
+        id: 'custom-pkg@1.0.0' as PkgResolutionId,
+        resolution: {
+          type: 'custom:test',
+          integrity: 'sha512-oldhash000000000000000000000000000000000000000000000000000000000000000000000000000000==',
+          customData: 'test',
+        },
+      },
+    }
+  )
+
+  // Resolution should happen when forceResolve is true
+  expect(resolveCallCount).toBe(1)
+})
+
+test('marks custom dependency as updated when integrity changes', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const customResolve = async (_wantedDependency: any, _opts: any) => {
+    return {
+      id: 'custom-pkg@1.0.0' as PkgResolutionId,
+      resolution: {
+        type: 'custom:test' as const,
+        integrity: 'sha512-newhash000000000000000000000000000000000000000000000000000000000000000000000000000000==',
+        customData: 'updated',
+      },
+      resolvedVia: 'custom-resolver',
+      manifest: {
+        name: 'custom-pkg',
+        version: '1.0.0',
+      },
+    }
+  }
+
+  const requestPackage = createPackageRequester({
+    resolve: customResolve as typeof resolve,
+    fetchers,
+    cafs,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+
+  // Request with existing custom resolution that has different integrity
+  const response = await requestPackage(
+    { alias: 'custom-pkg', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      skipFetch: true,
+      forceResolve: true,
+      currentPkg: {
+        id: 'custom-pkg@1.0.0' as PkgResolutionId,
+        resolution: {
+          type: 'custom:test',
+          integrity: 'sha512-oldhash000000000000000000000000000000000000000000000000000000000000000000000000000000==', // Different from resolved integrity
+          customData: 'old',
+        },
+      },
+    }
+  )
+
+  // Should be marked as updated due to integrity change
+  expect(response.body.updated).toBe(true)
+})
+
+test('does not mark custom dependency as updated when integrity is same', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const customResolve = async (_wantedDependency: any, _opts: any) => {
+    return {
+      id: 'custom-pkg@1.0.0' as PkgResolutionId,
+      resolution: {
+        type: 'custom:test' as const,
+        integrity: 'sha512-samehash00000000000000000000000000000000000000000000000000000000000000000000000000000==',
+        customData: 'test',
+      },
+      resolvedVia: 'custom-resolver',
+      manifest: {
+        name: 'custom-pkg',
+        version: '1.0.0',
+      },
+    }
+  }
+
+  const requestPackage = createPackageRequester({
+    resolve: customResolve as typeof resolve,
+    fetchers,
+    cafs,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+
+  // Request with existing custom resolution that has same integrity
+  const response = await requestPackage(
+    { alias: 'custom-pkg', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      skipFetch: true,
+      forceResolve: true,
+      currentPkg: {
+        id: 'custom-pkg@1.0.0' as PkgResolutionId,
+        resolution: {
+          type: 'custom:test',
+          integrity: 'sha512-samehash00000000000000000000000000000000000000000000000000000000000000000000000000000==', // Same as resolved integrity
+          customData: 'test',
+        },
+      },
+    }
+  )
+
+  // Should NOT be marked as updated since integrity is the same
+  expect(response.body.updated).toBe(false)
 })
