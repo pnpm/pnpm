@@ -36,6 +36,11 @@ export const UNIVERSAL_OPTIONS = [
     shortAlias: '-h',
   },
   {
+    description: 'Automatically answer yes to prompts and run non-interactively. Will abort if an undesirable situation occurs and user input is strictly necessary.',
+    name: '--yes',
+    shortAlias: '-y',
+  },
+  {
     description: `Change to directory <dir> (default: ${process.cwd()})`,
     name: '--dir <dir>',
     shortAlias: '-C',

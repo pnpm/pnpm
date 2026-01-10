@@ -55,6 +55,7 @@ export const GLOBAL_OPTIONS = pick([
   'ignore-workspace',
   'workspace-packages',
   'workspace-root',
+  'yes',
   'include-workspace-root',
   'fail-if-no-match',
 ], allTypes)

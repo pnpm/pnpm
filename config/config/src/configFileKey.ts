@@ -155,6 +155,7 @@ export const excludedPnpmKeys = [
   'cpu',
   'libc',
   'os',
+  'yes',
 ] as const satisfies ReadonlyArray<Exclude<PnpmKey, PnpmConfigFileKey>>
 export type ExcludedPnpmKey = typeof excludedPnpmKeys[number]
 
