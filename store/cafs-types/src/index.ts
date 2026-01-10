@@ -25,7 +25,8 @@ export interface PackageFilesResponse {
   resolvedFrom: ResolvedFrom
   filesMap: FilesMap
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-  sideEffects?: SideEffects
+  // Pre-calculated file location maps for side effects, avoiding recalculation during import
+  sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
   requiresBuild: boolean
 }
 

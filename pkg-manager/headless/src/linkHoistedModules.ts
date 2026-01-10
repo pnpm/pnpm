@@ -114,7 +114,7 @@ async function linkAllPkgsInOrder (
 
         depNode.requiresBuild = filesResponse.requiresBuild
         let sideEffectsCacheKey: string | undefined
-        if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+        if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
           if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
             sideEffectsCacheKey = _calcDepState(dir, {
               includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built

@@ -463,7 +463,7 @@ async function linkAllPkgs (
 
       depNode.requiresBuild = files.requiresBuild
       let sideEffectsCacheKey: string | undefined
-      if (opts.sideEffectsCacheRead && files.sideEffects && !isEmpty(files.sideEffects)) {
+      if (opts.sideEffectsCacheRead && files.sideEffectsMaps && !isEmpty(files.sideEffectsMaps)) {
         if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built

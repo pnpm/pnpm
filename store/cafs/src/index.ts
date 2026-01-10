@@ -4,6 +4,7 @@ import { addFilesFromDir } from './addFilesFromDir.js'
 import { addFilesFromTarball } from './addFilesFromTarball.js'
 import {
   checkPkgFilesIntegrity,
+  buildFileMapsFromIndex,
   type PackageFilesIndex,
   type VerifyResult,
 } from './checkPkgFilesIntegrity.js'
@@ -21,6 +22,7 @@ export type { IntegrityLike } from 'ssri'
 
 export {
   checkPkgFilesIntegrity,
+  buildFileMapsFromIndex,
   readManifestFromStore,
   type FileType,
   getFilePathByModeInCafs,
