@@ -136,13 +136,14 @@ async function replaceWorkspaceProtocol (depName: string, depSpec: string, dir: 
     return depSpec
   }
 
-  // Dependencies with bare "*", "^" and "~" versions
-  const versionAliasSpecParts = /^workspace:(.*?)@?([\^~*])$/.exec(depSpec)
+  // Dependencies with bare "*", "^", "~" versions, or no version (workspace:)
+  const versionAliasSpecParts = /^workspace:(?:(.+)@)?([\^~*])?$/.exec(depSpec)
   if (versionAliasSpecParts != null) {
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
     const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName))
 
-    const semverRangeToken = versionAliasSpecParts[2] !== '*' ? versionAliasSpecParts[2] : ''
+    const specifierSuffix: string | undefined = versionAliasSpecParts[2]
+    const semverRangeToken = specifierSuffix === '^' || specifierSuffix === '~' ? specifierSuffix : ''
     if (depName !== manifest.name) {
       return `npm:${manifest.name!}@${semverRangeToken}${manifest.version}`
     }

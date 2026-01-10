@@ -2,6 +2,8 @@ import { workspacePrefToNpm } from '../lib/workspacePrefToNpm.js'
 
 describe('workspacePrefToNpm', () => {
   test('resolve workspace only version aliases', async () => {
+    expect(workspacePrefToNpm('workspace:')).toBe('*')
+    expect(workspacePrefToNpm('workspace:*')).toBe('*')
     expect(workspacePrefToNpm('workspace:^')).toBe('*')
     expect(workspacePrefToNpm('workspace:~')).toBe('*')
   })

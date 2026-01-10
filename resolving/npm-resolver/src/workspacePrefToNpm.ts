@@ -7,7 +7,7 @@ export function workspacePrefToNpm (workspaceBareSpecifier: string): string {
   }
 
   const { alias, version } = parseResult
-  const versionPart = version === '^' || version === '~' ? '*' : version
+  const versionPart = version === '^' || version === '~' || version === '' ? '*' : version
   return alias
     ? `npm:${alias}@${versionPart}`
     : versionPart
