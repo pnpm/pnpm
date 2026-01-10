@@ -13,12 +13,19 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir } from '@pnpm/types'
+import {
+  type IncludedDependencies,
+  type Project,
+  type ProjectsGraph,
+  type ProjectRootDir,
+  type PackageVulnerabilityAudit,
+} from '@pnpm/types'
 import {
   IgnoredBuildsError,
   install,
   mutateModulesInSingleProject,
   type MutateModulesOptions,
+  type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/core'
 import { globalInfo, logger } from '@pnpm/logger'
@@ -128,7 +135,7 @@ export type InstallDepsOptions = Pick<Config,
   lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
   update?: boolean
   updateToLatest?: boolean
-  updateMatching?: (pkgName: string) => boolean
+  updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean
   useBetaCli?: boolean
   recursive?: boolean
@@ -138,6 +145,7 @@ export type InstallDepsOptions = Pick<Config,
   fetchFullMetadata?: boolean
   pruneLockfileImporters?: boolean
   pnpmfile: string[]
+  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 } & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
 
 export async function installDeps (
@@ -283,7 +291,7 @@ when running add/update with the --workspace option')
 
   let updateMatch: UpdateDepsMatcher | null
   let updatePackageManifest = opts.updatePackageManifest
-  let updateMatching: ((pkgName: string) => boolean) | undefined
+  let updateMatching: UpdateMatchingFunction | undefined
   if (opts.update) {
     if (params.length === 0) {
       const ignoreDeps = opts.updateConfig?.ignoreDependencies
@@ -294,6 +302,11 @@ when running add/update with the --workspace option')
     updateMatch = params.length ? createMatcher(params) : null
   } else {
     updateMatch = null
+  }
+  if (opts.packageVulnerabilityAudit != null) {
+    updateMatch = null
+    const { packageVulnerabilityAudit } = opts
+    updateMatching = (pkgName: string, version: string) => packageVulnerabilityAudit.isVulnerable(pkgName, version)
   }
   if (updateMatch != null) {
     params = matchDependencies(updateMatch, manifest, includeDirect)

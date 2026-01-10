@@ -6,14 +6,15 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { type Registries } from '@pnpm/types'
+import { update, type InstallCommandOptions } from '@pnpm/plugin-commands-installation'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
 import { difference, pick, pickBy } from 'ramda'
 import renderHelp from 'render-help'
 import { fix } from './fix.js'
+import { fixWithUpdate } from './fixWithUpdate.js'
 import { ignore } from './ignore.js'
 
-// eslint-disable
 const AUDIT_LEVEL_NUMBER = {
   low: 0,
   moderate: 1,
@@ -41,10 +42,9 @@ const AUDIT_TABLE_OPTIONS = {
 
 const MAX_PATHS_COUNT = 3
 
-export const rcOptionsTypes = cliOptionsTypes
-
-export function cliOptionsTypes (): Record<string, unknown> {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
+    ...update.rcOptionsTypes(),
     ...pick([
       'dev',
       'json',
@@ -54,10 +54,23 @@ export function cliOptionsTypes (): Record<string, unknown> {
       'registry',
     ], allTypes),
     'audit-level': ['low', 'moderate', 'high', 'critical'],
-    fix: Boolean,
+    'audit-registry': String,
+    // For fix, use String instead of a list of allowed string values.
+    // Otherwise, an unexpected value will get coerced to true because of the Boolean type.
+    fix: [String, Boolean],
     'ignore-registry-errors': Boolean,
     ignore: [String, Array],
     'ignore-unfixable': Boolean,
+  }
+}
+
+export function cliOptionsTypes (): Record<string, unknown> {
+  return {
+    ...pick([
+      'recursive',
+      'workspace',
+    ], update.cliOptionsTypes()),
+    ...rcOptionsTypes(),
   }
 }
 
@@ -77,12 +90,16 @@ export function help (): string {
 
         list: [
           {
-            description: 'Add overrides to the package.json file in order to force non-vulnerable versions of the dependencies',
-            name: '--fix',
+            description: 'Fix the audited vulnerabilities using the specified method, which must be one of "override" or "update". "Override" adds overrides to the package.json file in order to force non-vulnerable versions of the dependencies. "Update" attempts to update the vulnerable packages in the lockfile to non-vulnerable versions. If no method is specified, "override" is used by default.',
+            name: '--fix <method>',
           },
           {
             description: 'Output audit report in JSON format',
             name: '--json',
+          },
+          {
+            description: 'Registry URL to use for audit requests',
+            name: '--audit-registry <url>',
           },
           {
             description: 'Only print advisories with severity greater than or equal to one of the following: low|moderate|high|critical. Default: low',
@@ -124,7 +141,8 @@ export function help (): string {
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
-  fix?: boolean
+  fix?: boolean | 'override' | 'update'
+  auditRegistry?: string
   ignoreRegistryErrors?: boolean
   json?: boolean
   lockfileDir?: string
@@ -156,7 +174,9 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
 | 'rootProjectManifestDir'
 | 'virtualStoreDirMaxLength'
 | 'workspaceDir'
->
+> & InstallCommandOptions
+
+const DEFAULT_FIX_METHOD = 'override'
 
 export async function handler (opts: AuditOptions): Promise<{ exitCode: number, output: string }> {
   const lockfileDir = opts.lockfileDir ?? opts.dir
@@ -187,7 +207,7 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
       },
       include,
       lockfileDir,
-      registry: opts.registries.default,
+      registry: opts.auditRegistry ?? opts.registries.default,
       retry: {
         factor: opts.fetchRetryFactor,
         maxTimeout: opts.fetchRetryMaxtimeout,
@@ -207,7 +227,25 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
 
     throw err
   }
-  if (opts.fix) {
+  let fixMethod: 'update' | 'override' | undefined
+  if (opts.fix === 'update' || opts.fix === 'override') {
+    fixMethod = opts.fix
+  } else if (opts.fix === true) {
+    fixMethod = DEFAULT_FIX_METHOD
+  } else if (!opts.fix) {
+    fixMethod = undefined
+  } else {
+    throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${opts.fix as string}. Should be one of "override" or "update"`)
+  }
+  if (fixMethod === 'update') {
+    await fixWithUpdate(auditReport, opts)
+    // TODO: return info about what was updated
+    return {
+      exitCode: 0,
+      output: 'Packages were updated to fix vulnerabilities.',
+    }
+  }
+  if (fixMethod === 'override') {
     const newOverrides = await fix(auditReport, opts)
     if (Object.values(newOverrides).length === 0) {
       return {
