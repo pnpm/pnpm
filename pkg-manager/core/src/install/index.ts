@@ -334,11 +334,9 @@ export async function mutateModules (
     !opts.frozenLockfile &&
     opts.saveLockfile
   if (shouldCheckCustomResolverForceResolve) {
-    const projects = Object.values(ctx.projects).map(({ id, manifest }) => ({ id, manifest }))
     forceResolutionFromHook = await checkCustomResolverForceResolve(
       opts.hooks.customResolvers!,
-      ctx.wantedLockfile,
-      projects
+      ctx.wantedLockfile
     )
   }
 

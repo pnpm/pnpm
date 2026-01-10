@@ -3,7 +3,7 @@ import path from 'path'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DirectoryResolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
+import { type DirectoryResolution, type Resolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
 import { type DependencyManifest } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
 import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier.js'
@@ -28,11 +28,48 @@ export async function resolveFromLocal (
   opts: {
     lockfileDir?: string
     projectDir: string
+    currentPkg?: {
+      id: string
+      resolution: DirectoryResolution | TarballResolution | Resolution
+    }
+    update?: false | 'compatible' | 'latest'
   }
 ): Promise<LocalResolveResult | null> {
   const preserveAbsolutePaths = ctx.preserveAbsolutePaths ?? false
   const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, { preserveAbsolutePaths })
   if (spec == null) return null
+
+  // Skip resolution if we have a current package and not updating
+  if (opts.currentPkg && !opts.update && opts.currentPkg.id === spec.id) {
+    const currentResolution = opts.currentPkg.resolution
+
+    // For file: tarballs, check if integrity changed
+    if (spec.type === 'file' && currentResolution.type == null) {
+      const currentIntegrity = await getTarballIntegrity(spec.fetchSpec)
+      const previousIntegrity = (currentResolution as TarballResolution).integrity
+
+      if (currentIntegrity === previousIntegrity) {
+        // Skip resolution - return existing resolution
+        return {
+          id: spec.id,
+          normalizedBareSpecifier: spec.normalizedBareSpecifier,
+          resolution: currentResolution as TarballResolution,
+          resolvedVia: 'local-filesystem',
+        }
+      }
+    }
+
+    // For directories, if the ID matches, we can skip
+    if (currentResolution.type === 'directory') {
+      return {
+        id: spec.id,
+        normalizedBareSpecifier: spec.normalizedBareSpecifier,
+        resolution: currentResolution,
+        resolvedVia: 'local-filesystem',
+      }
+    }
+  }
+
   if (spec.type === 'file') {
     return {
       id: spec.id,
