@@ -1,4 +1,4 @@
-import { promises as fs, existsSync } from 'fs'
+import { existsSync } from 'fs'
 import path from 'path'
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
@@ -15,8 +15,32 @@ import { pick } from 'ramda'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import { temporaryDirectory } from 'tempy'
+import { readIniFile } from 'read-ini-file'
+import { writeIniFile } from 'write-ini-file'
 import * as pack from './pack.js'
 import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish.js'
+
+// TODO: import from @pnpm/config.env-replace once https://github.com/pnpm/components/pull/25 is merged
+const ENV_EXPR = /(?<!\\)(\\*)\$\{([^${}]+)\}/g
+const ENV_VALUE = /([^:-]+)(:?)-(.+)/
+export function stripEnvFallback (settingValue: string): string {
+  return settingValue.replace(ENV_EXPR, replaceEnvMatchForStrip)
+}
+
+function replaceEnvMatchForStrip (orig: string, escape: string, name: string): string {
+  if (escape.length % 2) {
+    return orig.slice((escape.length + 1) / 2)
+  }
+  const strippedName = getStrippedEnvName(name)
+  return `${escape.slice(escape.length / 2)}\${${strippedName}}`
+}
+
+function getStrippedEnvName (name: string): string {
+  const matched = name.match(ENV_VALUE)
+  if (!matched) return name
+  const [, variableName] = matched
+  return variableName
+}
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -324,15 +348,36 @@ async function copyNpmrc (
   }
 ): Promise<void> {
   const localNpmrc = path.join(dir, '.npmrc')
+  const destPath = path.join(packDestination, '.npmrc')
   if (existsSync(localNpmrc)) {
-    await fs.copyFile(localNpmrc, path.join(packDestination, '.npmrc'))
+    const npmrc = await readIniFile(localNpmrc)
+    const strippedNpmrc = stripNpmrcFallbacks(npmrc)
+    await writeIniFile(destPath, strippedNpmrc)
     return
   }
   if (!workspaceDir) return
   const workspaceNpmrc = path.join(workspaceDir, '.npmrc')
   if (existsSync(workspaceNpmrc)) {
-    await fs.copyFile(workspaceNpmrc, path.join(packDestination, '.npmrc'))
+    const npmrc = await readIniFile(workspaceNpmrc)
+    const strippedNpmrc = stripNpmrcFallbacks(npmrc)
+    await writeIniFile(destPath, strippedNpmrc)
   }
+}
+
+export function stripNpmrcFallbacks (
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  npmrc: Object
+): Record<string, unknown> {
+  const strippedNpmrc: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(npmrc)) {
+    if (typeof value === 'string') {
+      strippedNpmrc[key] = stripEnvFallback(value)
+    } else {
+      strippedNpmrc[key] = value
+    }
+  }
+
+  return strippedNpmrc
 }
 
 export async function runScriptsIfPresent (
