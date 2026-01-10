@@ -13,6 +13,7 @@ import {
   type DirectoryResolution,
   type PkgResolutionId,
   type PreferredVersions,
+  type ResolveOptions,
   type ResolveResult,
   type TarballResolution,
   type WantedDependency,
@@ -234,8 +235,33 @@ export type ResolveFromNpmOptions = {
 async function resolveNpm (
   ctx: ResolveFromNpmContext,
   wantedDependency: WantedDependency,
-  opts: ResolveFromNpmOptions
+  opts: ResolveFromNpmOptions & Partial<Pick<ResolveOptions, 'currentPkg' | 'peekedManifest'>>
 ): Promise<NpmResolveResult | WorkspaceResolveResult | null> {
+  // Fast path: if we have both a peeked manifest from store AND the current resolution,
+  // we can skip the expensive metadata fetch and return immediately
+  if (opts.peekedManifest && opts.currentPkg?.resolution && !opts.update) {
+    const currentResolution = opts.currentPkg.resolution
+    // Only use this optimization for tarball resolutions (npm packages)
+    if ('tarball' in currentResolution && currentResolution.tarball) {
+      const manifest = opts.peekedManifest
+      // Verify the manifest matches what we expect
+      if (manifest.name && manifest.version) {
+        const id = `${manifest.name}@${manifest.version}` as PkgResolutionId
+        // Only return if the ID matches what we have in currentPkg
+        if (id === opts.currentPkg.id) {
+          return {
+            id,
+            latest: manifest.version, // Best we can do without fetching metadata
+            manifest,
+            resolution: currentResolution as TarballResolution,
+            resolvedVia: 'npm-registry',
+            publishedAt: undefined, // Don't have this without metadata
+          }
+        }
+      }
+    }
+  }
+
   const defaultTag = opts.defaultTag ?? 'latest'
   const registry = wantedDependency.alias
     ? pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.bareSpecifier)

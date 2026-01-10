@@ -191,14 +191,13 @@ async function resolveAndFetch (
   let alias: string | undefined
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
-  const skipResolution = resolution && !options.update
   let forceFetch = false
   let updated = false
   let resolvedVia: string | undefined
   let publishedAt: string | undefined
 
   async function performResolution () {
-    // When skipResolution is set but a resolution is still performed due to
+    // When we have a currentPkg but a resolution is still performed due to
     // options.skipFetch, it's necessary to make sure the resolution doesn't
     // accidentally return a newer version of the package. When skipFetch is
     // set, the resolved package shouldn't be different. This is done by
@@ -208,7 +207,7 @@ async function resolveAndFetch (
     // A naive approach would be to change the bare specifier to be the exact
     // version of the current pkg if the bare specifier is a range, but this
     // would cause the version returned for calcSpecifier to be different.
-    const preferredVersions: PreferredVersions = (skipResolution && options.currentPkg?.name != null && options.currentPkg?.version != null)
+    const preferredVersions: PreferredVersions = (resolution && !options.update && options.currentPkg?.name != null && options.currentPkg?.version != null)
       ? {
         ...options.preferredVersions,
         [options.currentPkg.name]: { [options.currentPkg.version]: 'version' },
@@ -233,6 +232,15 @@ async function resolveAndFetch (
       injectWorkspacePackages: options.injectWorkspacePackages,
       calcSpecifier: options.calcSpecifier,
       pinnedVersion: options.pinnedVersion,
+      currentPkg: (options.currentPkg?.id && options.currentPkg?.resolution)
+        ? {
+          id: options.currentPkg.id,
+          name: options.currentPkg.name,
+          version: options.currentPkg.version,
+          resolution: options.currentPkg.resolution,
+        }
+        : undefined,
+      peekedManifest,
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest
@@ -255,34 +263,24 @@ async function resolveAndFetch (
     alias = resolveResult.alias
   }
 
-  // When fetching is skipped, we still need the package's manifest for
-  // lockfile-only installs.
+  // Optimization: Try to peek the manifest from the store for all packages.
+  // This retrieves it from the Content-Addressable File Store, which is
+  // significantly faster than fetching from metadata.
   //
-  // The package manifest could be retrieved from CAFS if the package has been
-  // fetched previously. Otherwise we'll need to perform a resolution.
-  //
-  // The resolution step is never skipped for local dependencies.
-  if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:')) || wantedDependency.optional === true) {
-    // If the manifest for this package is in the store, retrieving it from the
-    // Content-Addressable File Store will be significantly faster than fetching
-    // it from metadata. This is because package metadata contains the
-    // package.json contents of a package across all of its versions, which
-    // takes a long time to parse.
-    if (skipResolution && !pkgId?.startsWith('file:') && wantedDependency.optional !== true && pkgId != null) {
-      const pkg = await ctx.peekPackageFromStore({
-        ...options.expectedPkg,
-        id: pkgId,
-        resolution,
-      })
-      manifest = pkg?.bundledManifest
-    }
-
-    // However, if the optimization above isn't possible or the package has
-    // never been added to the CAFS, we'll need to perform a resolution.
-    if (manifest == null) {
-      await performResolution()
-    }
+  // The resolver receives this and decides whether to use it or not.
+  let peekedManifest: DependencyManifest | undefined
+  if (resolution && wantedDependency.optional !== true && pkgId != null) {
+    const pkg = await ctx.peekPackageFromStore({
+      ...options.expectedPkg,
+      id: pkgId,
+      resolution,
+    })
+    peekedManifest = pkg?.bundledManifest
   }
+
+  // Always call the resolver.
+  // The resolver has complete autonomy based on currentPkg and peckedManifest.
+  await performResolution()
 
   const id = pkgId!
 
@@ -319,8 +317,9 @@ async function resolveAndFetch (
     )
   )
   // We can skip fetching the package only if the manifest
-  // is present after resolution
-  if ((options.skipFetch === true || isInstallable === false) && (manifest != null)) {
+  // is present after resolution AND we're not forcing a fetch
+  // (forceFetch is true when local tarball integrity changed)
+  if ((options.skipFetch === true || isInstallable === false) && !forceFetch && (manifest != null)) {
     return {
       body: {
         id,
