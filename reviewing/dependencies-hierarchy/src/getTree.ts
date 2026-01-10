@@ -24,6 +24,7 @@ interface GetTreeOpts {
   wantedPackages: PackageSnapshots
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
+  modulesDir?: string
 }
 
 interface DependencyInfo {

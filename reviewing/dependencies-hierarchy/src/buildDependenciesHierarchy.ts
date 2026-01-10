@@ -86,7 +86,7 @@ export async function buildDependenciesHierarchy (
     registries,
     search: maybeOpts.search,
     skipped: new Set(modules?.skipped ?? []),
-    modulesDir: maybeOpts.modulesDir,
+    modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
   }
@@ -125,7 +125,9 @@ async function dependenciesHierarchyForPackage (
 
   if (!currentLockfile.importers[importerId]) return {}
 
-  const modulesDir = path.join(projectPath, opts.modulesDir ?? 'node_modules')
+  const modulesDir = opts.modulesDir && path.isAbsolute(opts.modulesDir)
+    ? opts.modulesDir
+    : path.join(projectPath, opts.modulesDir ?? 'node_modules')
 
   const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
   const allDirectDeps = await readModulesDir(modulesDir) ?? []
@@ -148,6 +150,7 @@ async function dependenciesHierarchyForPackage (
     wantedPackages: wantedLockfile?.packages ?? {},
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    modulesDir,
   })
   const parentId: TreeNodeId = { type: 'importer', importerId }
   const result: DependenciesHierarchy = {}
@@ -168,6 +171,7 @@ async function dependenciesHierarchyForPackage (
         wantedPackages: wantedLockfile?.packages ?? {},
         virtualStoreDir: opts.virtualStoreDir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        modulesDir,
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.({
