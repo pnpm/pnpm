@@ -19,6 +19,7 @@ test('configuration dependency is resolved', async () => {
     cacheDir: path.resolve('cache'),
     userConfig: {},
     store: storeController,
+    storeDir: '.store',
   })
 
   const workspaceManifest = readYamlFile<{ configDependencies: Record<string, string> }>('pnpm-workspace.yaml')

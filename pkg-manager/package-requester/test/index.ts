@@ -29,6 +29,7 @@ const authConfig = { registry }
 const { resolve, fetchers } = createClient({
   authConfig,
   cacheDir: '.store',
+  storeDir: '.store',
   rawConfig: {},
   registries,
 })
@@ -208,9 +209,8 @@ test('request package but skip fetching, when resolution is already available an
   // Perform a request without skipFetch to populate the CAFS store.
   await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, requestOpts)
 
-  // The final request should reuse the package manifest present in the CAFS
-  // store. The resolve function should not be called. If it is called, the
-  // optimization this test is checking for regressed.
+  // The npm-resolver now handles manifest peeking internally when storeDir is provided.
+  // The package-requester no longer passes peekedManifest to the resolver.
   //
   // We need to create a new package request function for this test to reset the
   // fetching lockers used internally within the package requester function.
@@ -219,13 +219,15 @@ test('request package but skip fetching, when resolution is already available an
   resolveMockFn.mockClear()
   const requestPackage2 = createPackageRequester(createPackageRequesterOptions)
   const pkgResponse = await requestPackage2({ alias: 'is-positive', bareSpecifier: '1.0.0' }, { ...requestOpts, skipFetch: true })
-  expect(resolveMockFn).not.toHaveBeenCalled()
+
+  // Resolver should be called
+  expect(resolveMockFn).toHaveBeenCalledTimes(1)
 
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  // Since the package wasn't resolved, the resolvedVia field should be undefined.
-  expect(pkgResponse.body.resolvedVia).toBeUndefined()
+  // resolvedVia should be set since we called the resolver
+  expect(pkgResponse.body.resolvedVia).toBe('npm-registry')
 
   expect(pkgResponse.body.id).toBe('is-positive@1.0.0')
   expect(pkgResponse.body.isLocal).toBe(false)
@@ -577,6 +579,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     rawConfig: {},
     retry: { retries: 0 },
     cacheDir: '.pnpm',
+    storeDir: '.store',
     registries,
   })
 

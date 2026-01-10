@@ -48,6 +48,7 @@ test('resolveFromJsr() on jsr', async () => {
 
   const cacheDir = temporaryDirectory()
   const { resolveFromJsr } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -93,6 +94,7 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
 
   const cacheDir = temporaryDirectory()
   const { resolveFromJsr } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -125,6 +127,7 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
 test('resolveFromJsr() on jsr with packages without scope', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromJsr } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })

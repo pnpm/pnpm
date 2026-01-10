@@ -108,7 +108,7 @@ export function createResolver (
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
-          await resolveFromGit(wantedDependency as { bareSpecifier: string }) ??
+          await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
           await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
         )) ??
         await _resolveNodeRuntime(wantedDependency) ??

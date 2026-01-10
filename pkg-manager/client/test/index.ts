@@ -9,6 +9,7 @@ test('createClient()', () => {
     registries: {
       default: 'https://reigstry.npmjs.org/',
     },
+    storeDir: '.store',
   })
   expect(typeof client === 'object').toBeTruthy()
 })
@@ -21,6 +22,7 @@ test('createResolver()', () => {
     registries: {
       default: 'https://reigstry.npmjs.org/',
     },
+    storeDir: '.store',
   })
   expect(typeof resolve === 'function').toBeTruthy()
 })

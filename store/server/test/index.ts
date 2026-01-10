@@ -28,6 +28,7 @@ async function createStoreController (storeDir?: string) {
   const { resolve, fetchers, clearResolutionCache } = createClient({
     authConfig,
     cacheDir,
+    storeDir,
     rawConfig: {},
     registries,
   })

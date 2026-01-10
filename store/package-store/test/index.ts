@@ -15,6 +15,7 @@ describe('store.importPackage()', () => {
     const { resolve, fetchers, clearResolutionCache } = createClient({
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
+      storeDir: path.join(tmp, 'store'),
       rawConfig: {},
       registries: {
         default: registry,
@@ -57,6 +58,7 @@ describe('store.importPackage()', () => {
     const { resolve, fetchers, clearResolutionCache } = createClient({
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
+      storeDir: path.join(tmp, 'store'),
       rawConfig: {},
       registries: {
         default: registry,

@@ -40,6 +40,7 @@ test('fall back to a newer version if there is no version published by the given
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
@@ -69,6 +70,7 @@ test('request metadata when the one in cache does not have a version satisfying 
     .reply(200, badDatesMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
@@ -108,6 +110,7 @@ test('do not pick version that does not satisfy the date requirement even if it 
     .reply(200, fooMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
@@ -131,6 +134,7 @@ test('should skip time field validation for excluded packages', async () => {
     .reply(200, metaWithoutTime)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,

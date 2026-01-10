@@ -54,6 +54,7 @@ test('resolveFromNpm()', async () => {
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -97,6 +98,7 @@ test('resolveFromNpm() strips port 80 from http tarball URLs', async () => {
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -115,6 +117,7 @@ test('resolveFromNpm() does not save mutated meta to the cache', async () => {
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -135,6 +138,7 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -154,6 +158,7 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
 test('relative workspace protocol is skipped', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -171,6 +176,7 @@ test('dry run', async () => {
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -200,6 +206,7 @@ test('resolve to latest when no bareSpecifier specified', async () => {
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -213,6 +220,7 @@ test('resolve to defaultTag when no bareSpecifier specified', async () => {
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -228,6 +236,7 @@ test('resolve to biggest non-deprecated version that satisfies the range', async
     .reply(200, isPositiveMetaWithDeprecated)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -242,6 +251,7 @@ test('resolve to a deprecated version if there are no non-deprecated ones that s
     .reply(200, isPositiveMetaWithDeprecated)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -255,6 +265,7 @@ test('can resolve aliased dependency', async () => {
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -268,6 +279,7 @@ test('can resolve aliased dependency w/o version specifier', async () => {
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -281,6 +293,7 @@ test('can resolve aliased dependency w/o version specifier to default tag', asyn
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -298,6 +311,7 @@ test('can resolve aliased scoped dependency', async () => {
     .reply(200, sindresorhusIsMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -311,6 +325,7 @@ test('can resolve aliased scoped dependency w/o version specifier', async () => 
     .reply(200, sindresorhusIsMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -324,6 +339,7 @@ test('can resolve package with version prefixed with v', async () => {
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -337,6 +353,7 @@ test('can resolve package version loosely', async () => {
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -353,6 +370,7 @@ test("resolves to latest if it's inside the wanted range. Even if there are newe
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -374,6 +392,7 @@ test("resolves to latest if it's inside the preferred range. Even if there are n
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -399,6 +418,7 @@ test("resolve using the wanted range, when it doesn't intersect with the preferr
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -423,6 +443,7 @@ test("use the preferred version if it's inside the wanted range", async () => {
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -448,6 +469,7 @@ test("ignore the preferred version if it's not inside the wanted range", async (
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -471,6 +493,7 @@ test('use the preferred range if it intersects with the wanted range', async () 
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -496,6 +519,7 @@ test('use the preferred range if it intersects with the wanted range (an array o
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -524,6 +548,7 @@ test("ignore the preferred range if it doesn't intersect with the wanted range",
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -550,6 +575,7 @@ test("use the preferred dist-tag if it's inside the wanted range", async () => {
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -576,6 +602,7 @@ test("ignore the preferred dist-tag if it's not inside the wanted range", async 
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -601,6 +628,7 @@ test("prefer a version that is both inside the wanted and preferred ranges. Even
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -621,6 +649,7 @@ test('prefer the version that is matched by more preferred selectors', async () 
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -642,6 +671,7 @@ test('prefer the version that has bigger weight in preferred selectors', async (
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -665,6 +695,7 @@ test('offline resolution fails when package meta not found in the store', async 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     offline: true,
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -685,6 +716,7 @@ test('offline resolution succeeds when package meta is found in the store', asyn
   {
     const { resolveFromNpm } = createResolveFromNpm({
       offline: false,
+      storeDir: temporaryDirectory(),
       cacheDir,
       registries,
     })
@@ -696,6 +728,7 @@ test('offline resolution succeeds when package meta is found in the store', asyn
   {
     const { resolveFromNpm } = createResolveFromNpm({
       offline: true,
+      storeDir: temporaryDirectory(),
       cacheDir,
       registries,
     })
@@ -712,6 +745,7 @@ test('prefer offline resolution does not fail when package meta not found in the
 
   const { resolveFromNpm } = createResolveFromNpm({
     preferOffline: true,
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -732,6 +766,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
 
   {
     const { resolveFromNpm } = createResolveFromNpm({
+      storeDir: temporaryDirectory(),
       cacheDir,
       registries,
     })
@@ -750,6 +785,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
   {
     const { resolveFromNpm } = createResolveFromNpm({
       preferOffline: true,
+      storeDir: temporaryDirectory(),
       cacheDir,
       registries,
     })
@@ -770,6 +806,7 @@ test('prefer offline does not make network requests when cached metadata exists'
 
   {
     const { resolveFromNpm } = createResolveFromNpm({
+      storeDir: temporaryDirectory(),
       cacheDir,
       registries,
     })
@@ -787,6 +824,7 @@ test('prefer offline does not make network requests when cached metadata exists'
   {
     const { resolveFromNpm } = createResolveFromNpm({
       preferOffline: true,
+      storeDir: temporaryDirectory(),
       cacheDir,
       registries,
     })
@@ -808,6 +846,7 @@ test('error is thrown when package is not found in the registry', async () => {
     .reply(404, {})
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -832,6 +871,7 @@ test('error is thrown when registry not responding', async () => {
   const notExistingRegistry = 'http://not-existing.pnpm.io'
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     retry: { retries: 1 },
     registries: {
@@ -850,6 +890,7 @@ test('extra info is shown if package has valid semver appended', async () => {
     .reply(404, {})
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -875,6 +916,7 @@ test('error is thrown when there is no package found for the requested version',
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -895,6 +937,7 @@ test('error is thrown when package needs authorization', async () => {
     .reply(403)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -920,6 +963,7 @@ test('error is thrown when there is no package found for the requested range', a
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -940,6 +984,7 @@ test('error is thrown when there is no package found for the requested tag', asy
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -966,6 +1011,7 @@ test('resolveFromNpm() loads full metadata even if non-full metadata is already 
   {
     const { resolveFromNpm } = createResolveFromNpm({
       fullMetadata: false,
+      storeDir: temporaryDirectory(),
       cacheDir,
       registries,
     })
@@ -976,6 +1022,7 @@ test('resolveFromNpm() loads full metadata even if non-full metadata is already 
   {
     const { resolveFromNpm } = createResolveFromNpm({
       fullMetadata: true,
+      storeDir: temporaryDirectory(),
       cacheDir,
       registries,
     })
@@ -991,6 +1038,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1028,6 +1076,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1060,6 +1109,7 @@ test('resolve from local directory when it matches the latest version of the pac
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1097,6 +1147,7 @@ test('resolve injected dependency from local directory when it matches the lates
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1137,6 +1188,7 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1171,6 +1223,7 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
 test('resolve from local directory when alwaysTryWorkspacePackages is false but workspace: is used', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1204,6 +1257,7 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
 test('resolve from local directory when alwaysTryWorkspacePackages is false but workspace: is used with a different package name', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1243,6 +1297,7 @@ test('use version from the registry if it is newer than the local one', async ()
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -1285,6 +1340,7 @@ test('preferWorkspacePackages: use version from the workspace even if there is n
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -1325,6 +1381,7 @@ test('use local version if it is newer than the latest in the registry', async (
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -1365,6 +1422,7 @@ test('resolve from local directory when package is not found in the registry', a
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1416,6 +1474,7 @@ test('resolve from local directory when package is not found in the registry and
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1467,6 +1526,7 @@ test('resolve from local directory when package is not found in the registry and
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1504,6 +1564,7 @@ test('resolve from local directory when package is not found in the registry and
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1555,6 +1616,7 @@ test('resolve from local directory when the requested version is not found in th
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1588,6 +1650,7 @@ test('resolve from local directory when the requested version is not found in th
 test('workspace protocol: resolve from local directory even when it does not match the latest version of the package', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1625,6 +1688,7 @@ test('workspace protocol: resolve from local package that has a pre-release vers
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1662,6 +1726,7 @@ test("workspace protocol: don't resolve from local package that has a pre-releas
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1691,6 +1756,7 @@ test("workspace protocol: don't resolve from local package that has a pre-releas
 test('workspace protocol: resolution fails if there is no matching local package', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1714,6 +1780,7 @@ test('workspace protocol: resolution fails if there is no matching local package
 test('workspace protocol: resolution fails if there is no matching local package version', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1747,6 +1814,7 @@ test('workspace protocol: resolution fails if there is no matching local package
 test('workspace protocol: resolution fails if there are no local packages', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1766,6 +1834,7 @@ test('workspace protocol: resolution fails if there are no local packages', asyn
 
 test('throws error when package name has "/" but not starts with @scope', async () => {
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
@@ -1782,6 +1851,7 @@ test('resolveFromNpm() should always return the name of the package that is spec
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1821,6 +1891,7 @@ test('request to metadata is retried if the received JSON is broken', async () =
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     retry: { retries: 1 },
+    storeDir: temporaryDirectory(),
     registries,
     cacheDir,
   })
@@ -1836,6 +1907,7 @@ test('request to a package with unpublished versions', async () => {
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1853,6 +1925,7 @@ test('request to a package with no versions', async () => {
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1871,6 +1944,7 @@ test('request to a package with no dist-tags', async () => {
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1888,6 +1962,7 @@ test('resolveFromNpm() does not fail if the meta file contains no integrity info
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1912,6 +1987,7 @@ test('resolveFromNpm() fails if the meta file contains invalid shasum', async ()
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1927,6 +2003,7 @@ test('resolveFromNpm() should normalize the registry', async () => {
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: path.join(cacheDir, 'store'),
     cacheDir,
     registries: {
       default: 'https://reg.com/owner',
@@ -1966,6 +2043,7 @@ test('pick lowest version by * when there are only prerelease versions', async (
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: path.join(cacheDir, 'store'),
     cacheDir,
     registries,
   })
