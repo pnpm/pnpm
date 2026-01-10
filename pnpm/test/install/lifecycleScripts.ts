@@ -4,7 +4,7 @@ import { prepare } from '@pnpm/prepare'
 import { type PackageManifest, type ProjectManifest } from '@pnpm/types'
 import PATH from 'path-name'
 import { loadJsonFileSync } from 'load-json-file'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFileSync } from 'write-yaml-file'
 import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
@@ -108,7 +108,7 @@ test('dependency should not be added to package.json and lockfile if it was not 
     version: '1.0.0',
   }
   const project = prepare(initialPkg)
-  await writeYamlFile('pnpm-workspace.yaml', { allowBuilds: { 'package-that-cannot-be-installed': true } })
+  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { 'package-that-cannot-be-installed': true } })
 
   const result = execPnpmSync(['install', 'package-that-cannot-be-installed@0.0.0'])
 
@@ -208,7 +208,7 @@ test('preinstall and postinstall scripts do not trigger verify-deps-before-run w
     },
   })
 
-  await writeYamlFile('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'install' })
+  writeYamlFileSync('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'install' })
 
   // 20s timeout because if it fails it will run for 3 minutes instead
   const output = execPnpmSync(['install'], { expectSuccess: true, timeout: 20_000 })

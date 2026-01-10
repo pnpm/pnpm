@@ -256,11 +256,6 @@ test('overrides remove dependencies', async () => {
     dependencies: {
       '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
     },
-    pnpm: {
-      overrides: {
-        '@pnpm.e2e/pkg-with-good-optional>is-positive': '-',
-      },
-    },
   }
 
   const project = prepare(manifest)
@@ -270,7 +265,9 @@ test('overrides remove dependencies', async () => {
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({
-    overrides: manifest.pnpm?.overrides,
+    overrides: {
+      '@pnpm.e2e/pkg-with-good-optional>is-positive': '-',
+    },
   }))
 
   // assert that @pnpm.e2e/pkg-with-good-optional@1.0.0 depends on is-positive@1.0.0

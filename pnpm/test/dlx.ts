@@ -55,14 +55,14 @@ test('silent dlx prints the output of the child process only', async () => {
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
-test('dlx ignores configuration in current project package.json', async () => {
-  prepare({
-    pnpm: {
-      patchedDependencies: {
-        'shx@0.3.4': 'this_does_not_exist',
-      },
-    },
-  })
+test('dlx ignores configuration in pnpm-workspace.yaml', async () => {
+  prepare()
+  // Write a pnpm-workspace.yaml with a patchedDependencies that doesn't exist
+  // dlx should ignore this and succeed
+  fs.writeFileSync('pnpm-workspace.yaml', `
+patchedDependencies:
+  shx@0.3.4: this_does_not_exist.patch
+`)
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)

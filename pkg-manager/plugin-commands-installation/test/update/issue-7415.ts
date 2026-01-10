@@ -48,13 +48,7 @@ test('interactive recursive should not error on git specifier override', async (
   preparePackages([
     {
       location: '.',
-      package: {
-        pnpm: {
-          overrides: {
-            'is-negative': 'github:kevva/is-negative#2.1.0',
-          },
-        },
-      },
+      package: {},
     },
     {
       location: './project-1',
@@ -82,6 +76,9 @@ test('interactive recursive should not error on git specifier override', async (
     dir: process.cwd(),
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
+    overrides: {
+      'is-negative': 'github:kevva/is-negative#2.1.0',
+    },
   }
 
   await install.handler({
