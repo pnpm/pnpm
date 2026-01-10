@@ -1,4 +1,4 @@
-import { type TarballResolution, type GitResolution, type PkgResolutionId, type ResolveResult } from '@pnpm/resolver-base'
+import { type TarballResolution, type GitResolution, type PkgResolutionId, type ResolveOptions, type ResolveResult } from '@pnpm/resolver-base'
 import git from 'graceful-git'
 import semver from 'semver'
 import { parseBareSpecifier, type HostedPackageSpec } from './parseBareSpecifier.js'
@@ -16,17 +16,41 @@ export interface GitResolveResult extends ResolveResult {
   resolvedVia: 'git-repository'
 }
 
-export type GitResolver = (wantedDependency: {
-  bareSpecifier: string
-}) => Promise<GitResolveResult | null>
+export type GitResolver = (
+  wantedDependency: { bareSpecifier: string },
+  opts?: Pick<ResolveOptions, 'currentPkg' | 'update'>
+) => Promise<GitResolveResult | null>
 
 export function createGitResolver (
   opts: AgentOptions
 ): GitResolver {
-  return async function resolveGit (wantedDependency): Promise<GitResolveResult | null> {
+  return async function resolveGit (wantedDependency, resolveOpts?): Promise<GitResolveResult | null> {
     const parsedSpec = await parseBareSpecifier(wantedDependency.bareSpecifier, opts)
 
     if (parsedSpec == null) return null
+
+    // Skip resolution if we have currentPkg and not updating
+    if (resolveOpts?.currentPkg && !resolveOpts.update) {
+      const currentResolution = resolveOpts.currentPkg.resolution
+      // Return existing resolution for git packages
+      if ('type' in currentResolution && currentResolution.type === 'git') {
+        return {
+          id: resolveOpts.currentPkg.id,
+          normalizedBareSpecifier: wantedDependency.bareSpecifier, // Preserve original spec
+          resolution: currentResolution as GitResolution,
+          resolvedVia: 'git-repository',
+        }
+      }
+      // Also handle tarballs from git (e.g., GitHub hosted)
+      if ('tarball' in currentResolution && currentResolution.tarball) {
+        return {
+          id: resolveOpts.currentPkg.id,
+          normalizedBareSpecifier: wantedDependency.bareSpecifier, // Preserve original spec
+          resolution: currentResolution as TarballResolution,
+          resolvedVia: 'git-repository',
+        }
+      }
+    }
 
     const bareSpecifier = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
       ? 'HEAD'
