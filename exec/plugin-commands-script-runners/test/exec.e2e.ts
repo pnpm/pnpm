@@ -879,3 +879,63 @@ test('pnpm exec --workspace-root when command not found', async () => {
 
   expect(error?.failures[0].message).toBe('Command "command-that-does-not-exist" not found')
 })
+
+test('exec should respect the caller\'s current working directory', async () => {
+  prepare({
+    name: 'root',
+    version: '1.0.0',
+  })
+
+  const projectRoot = process.cwd()
+  fs.mkdirSync('some-directory', { recursive: true })
+  const subdirPath = path.join(projectRoot, 'some-directory')
+
+  const cmdFile = 'cwd.txt'
+  const cmdFilePath = path.join(subdirPath, cmdFile)
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: projectRoot,
+    implicitlyFellbackFromRun: true,
+    userExecutionCwd: subdirPath,
+    recursive: false,
+    selectedProjectsGraph: {
+      [projectRoot]: {
+        dependencies: [],
+        package: {
+          rootDir: projectRoot as ProjectRootDir,
+          rootDirRealPath: projectRoot as ProjectRootDirRealPath,
+          writeProjectManifest: async () => {},
+          manifest: {
+            name: 'root',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+  }, ['node', '-e', `require('fs').writeFileSync(${JSON.stringify(cmdFilePath)}, process.cwd(), 'utf8')`])
+
+  expect(fs.readFileSync(cmdFilePath, 'utf8')).toBe(subdirPath)
+})
+
+test('exec should ignore user execution cwd in recursive mode', async () => {
+  preparePackages([
+    { name: 'pkg-a', version: '1.0.0' },
+    { name: 'pkg-b', version: '1.0.0' },
+  ])
+
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const userExecutionCwd = path.join(process.cwd(), 'caller-cwd')
+  fs.mkdirSync(userExecutionCwd, { recursive: true })
+
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: true,
+    implicitlyFellbackFromRun: true,
+    userExecutionCwd,
+    selectedProjectsGraph,
+  }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pkg-cwd.txt\', process.cwd(), \'utf8\')'])
+
+  expect(fs.readFileSync(path.join('pkg-a', 'pkg-cwd.txt'), 'utf8')).toBe(path.resolve('pkg-a'))
+  expect(fs.readFileSync(path.join('pkg-b', 'pkg-cwd.txt'), 'utf8')).toBe(path.resolve('pkg-b'))
+})

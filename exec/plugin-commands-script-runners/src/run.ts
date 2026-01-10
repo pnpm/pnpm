@@ -243,6 +243,7 @@ export async function handler (
       return exec({
         selectedProjectsGraph: {},
         implicitlyFellbackFromRun: true,
+        userExecutionCwd: dir,
         ...opts,
       }, params)
     }
