@@ -119,7 +119,7 @@ export {
 
 export interface ResolverFactoryOptions {
   cacheDir: string
-  storeDir: string
+  storeDir?: string
   fullMetadata?: boolean
   filterMetadata?: boolean
   offline?: boolean
@@ -183,28 +183,31 @@ export function createNpmResolver (
   // Create peek function if storeDir is provided
   const storeDir = opts.storeDir
   const peekLockerForPeek = new Map<string, Promise<DependencyManifest | undefined>>()
-  const peekManifestFromStore: ResolveFromNpmContext['peekManifestFromStore'] = async (peekOpts) => {
-    const filesIndexFile = getIndexFilePathInCafs(storeDir, peekOpts.integrity, peekOpts.id)
-    const existingRequest = peekLockerForPeek.get(filesIndexFile)
-    if (existingRequest != null) {
-      return existingRequest
-    }
-    const request = readPkgFromCafs(
-      {
-        storeDir,
-        verifyStoreIntegrity: true,
-      },
-      filesIndexFile,
-      {
-        readManifest: true,
-        expectedPkg: { name: peekOpts.name, version: peekOpts.version },
+  let peekManifestFromStore: ResolveFromNpmContext['peekManifestFromStore'] | undefined
+  if (storeDir) {
+    peekManifestFromStore = async (peekOpts) => {
+      const filesIndexFile = getIndexFilePathInCafs(storeDir, peekOpts.integrity, peekOpts.id)
+      const existingRequest = peekLockerForPeek.get(filesIndexFile)
+      if (existingRequest != null) {
+        return existingRequest
       }
-    ).then(({ manifest, verified }) => {
-      if (!verified) return undefined
-      return manifest
-    }).catch(() => undefined)
-    peekLockerForPeek.set(filesIndexFile, request)
-    return request
+      const request = readPkgFromCafs(
+        {
+          storeDir,
+          verifyStoreIntegrity: true,
+        },
+        filesIndexFile,
+        {
+          readManifest: true,
+          expectedPkg: { name: peekOpts.name, version: peekOpts.version },
+        }
+      ).then(({ manifest, verified }) => {
+        if (!verified) return undefined
+        return manifest
+      }).catch(() => undefined)
+      peekLockerForPeek.set(filesIndexFile, request)
+      return request
+    }
   }
   const ctx: ResolveFromNpmContext = {
     getAuthHeaderValueByURI: getAuthHeader,
@@ -281,36 +284,6 @@ async function resolveNpm (
     }
   }
 ): Promise<NpmResolveResult | WorkspaceResolveResult | null> {
-  // Fast path: if we have a current resolution with integrity, try to peek the manifest from the store.
-  // This avoids the expensive metadata fetch from the registry.
-  if (ctx.peekManifestFromStore && opts.currentPkg?.resolution && !opts.update) {
-    const currentResolution = opts.currentPkg.resolution
-    // Only use this optimization for tarball resolutions with integrity (npm packages)
-    if ('tarball' in currentResolution && currentResolution.integrity) {
-      const manifest = await ctx.peekManifestFromStore({
-        id: opts.currentPkg.id,
-        integrity: currentResolution.integrity,
-        name: opts.currentPkg.name,
-        version: opts.currentPkg.version,
-      })
-      // Verify the manifest matches what we expect
-      if (manifest?.name && manifest?.version) {
-        const id = `${manifest.name}@${manifest.version}` as PkgResolutionId
-        // Only return if the ID matches what we have in currentPkg
-        if (id === opts.currentPkg.id) {
-          return {
-            id,
-            latest: manifest.version, // Best we can do without fetching metadata
-            manifest,
-            resolution: currentResolution as TarballResolution,
-            resolvedVia: 'npm-registry',
-            publishedAt: undefined, // Don't have this without metadata
-          }
-        }
-      }
-    }
-  }
-
   const defaultTag = opts.defaultTag ?? 'latest'
   const registry = wantedDependency.alias
     ? pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.bareSpecifier)
@@ -338,6 +311,37 @@ async function resolveNpm (
     ? parseBareSpecifier(wantedDependency.bareSpecifier, wantedDependency.alias, defaultTag, registry)
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
   if (spec == null) return null
+
+  // Fast path: if we have a current resolution with integrity, try to peek the manifest from the store.
+  // This avoids the expensive metadata fetch from the registry.
+  // We do this AFTER ensuring the spec is valid for this resolver to avoids hijacking other resolvers.
+  if (ctx.peekManifestFromStore && opts.currentPkg?.resolution && !opts.update) {
+    const currentResolution = opts.currentPkg.resolution
+    // Only use this optimization for tarball resolutions with integrity (npm packages)
+    if ('tarball' in currentResolution && currentResolution.integrity) {
+      const manifest = await ctx.peekManifestFromStore({
+        id: opts.currentPkg.id,
+        integrity: currentResolution.integrity,
+        name: opts.currentPkg.name,
+        version: opts.currentPkg.version,
+      })
+      // Verify the manifest matches what we expect
+      if (manifest?.name && manifest?.version) {
+        const id = `${manifest.name}@${manifest.version}` as PkgResolutionId
+        // Only return if the ID matches what we have in currentPkg
+        if (id === opts.currentPkg.id) {
+          return {
+            id,
+            latest: manifest.version, // Best we can do without fetching metadata
+            manifest,
+            resolution: currentResolution as TarballResolution,
+            resolvedVia: 'npm-registry',
+            publishedAt: undefined, // Don't have this without metadata
+          }
+        }
+      }
+    }
+  }
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
