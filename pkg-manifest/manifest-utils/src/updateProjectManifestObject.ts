@@ -1,4 +1,5 @@
 import { packageManifestLogger } from '@pnpm/core-loggers'
+import { isValidPeerRange } from '@pnpm/semver.peer-range'
 import {
   type DependenciesOrPeersField,
   type DependenciesField,
@@ -13,6 +14,30 @@ export interface PackageSpecObject {
   peer?: boolean
   bareSpecifier?: string
   saveType?: DependenciesField
+}
+
+function normalizePeerSpecifier (spec: string): string {
+  if (spec.startsWith('workspace:') || spec.startsWith('catalog:')) return spec
+
+  const protocolMatch = /^([a-z][a-z0-9+.-]*):/i.exec(spec)
+  if (!protocolMatch) return spec
+
+  const protocol = protocolMatch[1].toLowerCase()
+  if (protocol === 'workspace' || protocol === 'catalog') return spec
+
+  const candidate = extractPeerRange(spec.slice(protocolMatch[0].length))
+  return (candidate && isValidPeerRange(candidate)) ? candidate : spec
+}
+
+function extractPeerRange (specWithoutProtocol: string): string | null {
+  if (!specWithoutProtocol) return null
+  if (/^[\^~><=\d]/.test(specWithoutProtocol)) return specWithoutProtocol
+
+  const lastAt = specWithoutProtocol.lastIndexOf('@')
+  if (lastAt > 0 && lastAt < specWithoutProtocol.length - 1) {
+    return specWithoutProtocol.slice(lastAt + 1)
+  }
+  return null
 }
 
 export async function updateProjectManifestObject (
@@ -33,7 +58,7 @@ export async function updateProjectManifestObject (
         }
         if (packageSpec.peer === true) {
           packageManifest.peerDependencies = packageManifest.peerDependencies ?? {}
-          packageManifest.peerDependencies[packageSpec.alias] = spec
+          packageManifest.peerDependencies[packageSpec.alias] = normalizePeerSpecifier(spec)
         }
       }
     } else if (packageSpec.bareSpecifier) {

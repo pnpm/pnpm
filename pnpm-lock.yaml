@@ -6428,6 +6428,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/semver.peer-range':
+        specifier: workspace:*
+        version: link:../../semver/peer-range
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
