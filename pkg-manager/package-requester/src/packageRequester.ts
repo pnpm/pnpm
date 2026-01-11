@@ -175,86 +175,74 @@ async function resolveAndFetch (
   wantedDependency: WantedDependency & { optional?: boolean },
   options: RequestPackageOptions
 ): Promise<PackageResponse> {
-  let latest: string | undefined
-  let manifest: DependencyManifest | undefined
-  let normalizedBareSpecifier: string | undefined
-  let alias: string | undefined
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
-  let forceFetch = false
-  let updated = false
-  let resolvedVia: string | undefined
-  let publishedAt: string | undefined
 
-  async function performResolution () {
-    // When we have a currentPkg but a resolution is still performed due to
-    // options.skipFetch, it's necessary to make sure the resolution doesn't
-    // accidentally return a newer version of the package. When skipFetch is
-    // set, the resolved package shouldn't be different. This is done by
-    // overriding the preferredVersions object to only contain the current
-    // package's version.
-    //
-    // A naive approach would be to change the bare specifier to be the exact
-    // version of the current pkg if the bare specifier is a range, but this
-    // would cause the version returned for calcSpecifier to be different.
-    const preferredVersions: PreferredVersions = (resolution && !options.update && options.currentPkg?.name != null && options.currentPkg?.version != null)
+  // When we have a currentPkg but a resolution is still performed due to
+  // options.skipFetch, it's necessary to make sure the resolution doesn't
+  // accidentally return a newer version of the package. When skipFetch is
+  // set, the resolved package shouldn't be different. This is done by
+  // overriding the preferredVersions object to only contain the current
+  // package's version.
+  //
+  // A naive approach would be to change the bare specifier to be the exact
+  // version of the current pkg if the bare specifier is a range, but this
+  // would cause the version returned for calcSpecifier to be different.
+  const preferredVersions: PreferredVersions = (resolution && !options.update && options.currentPkg?.name != null && options.currentPkg?.version != null)
+    ? {
+      ...options.preferredVersions,
+      [options.currentPkg.name]: { [options.currentPkg.version]: 'version' },
+    }
+    : options.preferredVersions
+
+  const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
+    alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
+    defaultTag: options.defaultTag,
+    trustPolicy: options.trustPolicy,
+    trustPolicyExclude: options.trustPolicyExclude,
+    trustPolicyIgnoreAfter: options.trustPolicyIgnoreAfter,
+    publishedBy: options.publishedBy,
+    publishedByExclude: options.publishedByExclude,
+    pickLowestVersion: options.pickLowestVersion,
+    lockfileDir: options.lockfileDir,
+    preferredVersions,
+    preferWorkspacePackages: options.preferWorkspacePackages,
+    projectDir: options.projectDir,
+    workspacePackages: options.workspacePackages,
+    update: options.update,
+    injectWorkspacePackages: options.injectWorkspacePackages,
+    calcSpecifier: options.calcSpecifier,
+    pinnedVersion: options.pinnedVersion,
+    currentPkg: (options.currentPkg?.id && options.currentPkg?.resolution)
       ? {
-        ...options.preferredVersions,
-        [options.currentPkg.name]: { [options.currentPkg.version]: 'version' },
+        id: options.currentPkg.id,
+        name: options.currentPkg.name,
+        version: options.currentPkg.version,
+        resolution: options.currentPkg.resolution,
       }
-      : options.preferredVersions
+      : undefined,
+  }), { priority: options.downloadPriority })
 
-    const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
-      alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
-      defaultTag: options.defaultTag,
-      trustPolicy: options.trustPolicy,
-      trustPolicyExclude: options.trustPolicyExclude,
-      trustPolicyIgnoreAfter: options.trustPolicyIgnoreAfter,
-      publishedBy: options.publishedBy,
-      publishedByExclude: options.publishedByExclude,
-      pickLowestVersion: options.pickLowestVersion,
-      lockfileDir: options.lockfileDir,
-      preferredVersions,
-      preferWorkspacePackages: options.preferWorkspacePackages,
-      projectDir: options.projectDir,
-      workspacePackages: options.workspacePackages,
-      update: options.update,
-      injectWorkspacePackages: options.injectWorkspacePackages,
-      calcSpecifier: options.calcSpecifier,
-      pinnedVersion: options.pinnedVersion,
-      currentPkg: (options.currentPkg?.id && options.currentPkg?.resolution)
-        ? {
-          id: options.currentPkg.id,
-          name: options.currentPkg.name,
-          version: options.currentPkg.version,
-          resolution: options.currentPkg.resolution,
-        }
-        : undefined,
-    }), { priority: options.downloadPriority })
+  let { manifest } = resolveResult
+  const {
+    latest,
+    resolvedVia,
+    publishedAt,
+    normalizedBareSpecifier,
+    alias,
+  } = resolveResult
 
-    manifest = resolveResult.manifest
-    latest = resolveResult.latest
-    resolvedVia = resolveResult.resolvedVia
-    publishedAt = resolveResult.publishedAt
+  // If the integrity of a local tarball dependency has changed,
+  // the local tarball should be unpacked, so a fetch to the store should be forced
+  const forceFetch = Boolean(
+    ((options.currentPkg?.resolution) != null) &&
+    pkgId?.startsWith('file:') &&
+    (options.currentPkg?.resolution as TarballResolution).integrity !== (resolveResult.resolution as TarballResolution).integrity
+  )
 
-    // If the integrity of a local tarball dependency has changed,
-    // the local tarball should be unpacked, so a fetch to the store should be forced
-    forceFetch = Boolean(
-      ((options.currentPkg?.resolution) != null) &&
-      pkgId?.startsWith('file:') &&
-      (options.currentPkg?.resolution as TarballResolution).integrity !== (resolveResult.resolution as TarballResolution).integrity
-    )
-
-    updated = pkgId !== resolveResult.id || !resolution || forceFetch
-    resolution = resolveResult.resolution
-    pkgId = resolveResult.id
-    normalizedBareSpecifier = resolveResult.normalizedBareSpecifier
-    alias = resolveResult.alias
-  }
-
-  // Always call the resolver.
-  // The resolver now handles peeking manifests from the store internally.
-  await performResolution()
+  const updated = pkgId !== resolveResult.id || !resolution || forceFetch
+  resolution = resolveResult.resolution
+  pkgId = resolveResult.id
 
   const id = pkgId!
 
