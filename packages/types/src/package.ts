@@ -103,7 +103,7 @@ export interface BaseManifest {
     email?: string
   }
   scripts?: PackageScripts
-  config?: object
+  config?: Record<string, unknown>
   engines?: {
     node?: string
     npm?: string
