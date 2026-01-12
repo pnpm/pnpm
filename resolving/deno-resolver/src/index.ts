@@ -5,6 +5,7 @@ import {
   type BinaryResolution,
   type PlatformAssetResolution,
   type PlatformAssetTarget,
+  type ResolveOptions,
   type ResolveResult,
   type VariationsResolution,
   type WantedDependency,
@@ -36,9 +37,19 @@ export async function resolveDenoRuntime (
     offline?: boolean
     resolveFromNpm: NpmResolver
   },
-  wantedDependency: WantedDependency
+  wantedDependency: WantedDependency,
+  opts?: Partial<ResolveOptions>
 ): Promise<DenoRuntimeResolveResult | null> {
   if (wantedDependency.alias !== 'deno' || !wantedDependency.bareSpecifier?.startsWith('runtime:')) return null
+
+  if (opts?.currentPkg && !opts.update) {
+    return {
+      id: opts.currentPkg.id,
+      resolution: opts.currentPkg.resolution as VariationsResolution,
+      resolvedVia: 'github.com/denoland/deno',
+    }
+  }
+
   const versionSpec = wantedDependency.bareSpecifier.substring('runtime:'.length)
   // We use the npm registry for version resolution as it is easier than using the GitHub API for releases,
   // which uses pagination (e.g. https://api.github.com/repos/denoland/deno/releases?per_page=100).

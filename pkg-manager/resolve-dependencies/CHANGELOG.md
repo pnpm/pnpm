@@ -2416,7 +2416,7 @@
 
 ### Patch Changes
 
-- 26413c30c: Report only the first occurence of a deprecated package.
+- 26413c30c: Report only the first occurrence of a deprecated package.
 - Updated dependencies [4d39e4a0c]
   - @pnpm/types@8.1.0
   - @pnpm/core-loggers@7.0.2

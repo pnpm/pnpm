@@ -37,6 +37,7 @@
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@types/normalize-path": "catalog:",
     "normalize-path": "catalog:"

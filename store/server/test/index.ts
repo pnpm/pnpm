@@ -28,6 +28,7 @@ async function createStoreController (storeDir?: string) {
   const { resolve, fetchers, clearResolutionCache } = createClient({
     authConfig,
     cacheDir,
+    storeDir,
     rawConfig: {},
     registries,
   })
@@ -72,7 +73,7 @@ test('server', async () => {
   expect(response.body.manifest!.version).toBe('1.0.0')
 
   expect(files.resolvedFrom).toBe('remote')
-  expect(files.filesIndex.has('package.json')).toBeTruthy()
+  expect(files.filesMap.has('package.json')).toBeTruthy()
 
   await server.close()
   await storeCtrl.close()
@@ -112,7 +113,7 @@ test('fetchPackage', async () => {
   expect(bundledManifest).toBeTruthy()
 
   expect(files.resolvedFrom).toBe('remote')
-  expect(files.filesIndex.has('package.json')).toBeTruthy()
+  expect(files.filesMap.has('package.json')).toBeTruthy()
 
   await server.close()
   await storeCtrl.close()

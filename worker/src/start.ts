@@ -3,8 +3,9 @@ import v8 from 'v8'
 import path from 'path'
 import fs from 'fs'
 import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
+import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/graceful-fs'
-import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff, type FilesMap } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
@@ -21,6 +22,7 @@ import {
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import { type DependencyManifest } from '@pnpm/types'
 import { parentPort } from 'worker_threads'
+import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import {
   type AddDirToStoreMessage,
   type ReadPkgFromCafsMessage,
@@ -78,7 +80,7 @@ async function handleMessage (
       break
     }
     case 'readPkgFromCafs': {
-      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
+      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
         pkgFilesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
@@ -111,13 +113,54 @@ async function handleMessage (
         }
       }
       const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, pkgFilesIndex.files)
+
+      const warnings: string[] = []
+      if (expectedPkg) {
+        if (
+          (
+            pkgFilesIndex.name != null &&
+            expectedPkg.name != null &&
+            pkgFilesIndex.name.toLowerCase() !== expectedPkg.name.toLowerCase()
+          ) ||
+          (
+            pkgFilesIndex.version != null &&
+            expectedPkg.version != null &&
+            !equalOrSemverEqual(pkgFilesIndex.version, expectedPkg.version)
+          )
+        ) {
+          const msg = 'Package name or version mismatch found while reading from the store.'
+          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
+          if (strictStorePkgContentCheck ?? true) {
+            throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
+              hint: `${hint}\n\nIf you want to ignore this issue, set strictStorePkgContentCheck to false in your configuration`,
+            })
+          } else {
+            warnings.push(`${msg} ${hint}`)
+          }
+        }
+      }
+
+      // Convert PackageFiles to Map<string, string>
+      if (!cafsCache.has(storeDir)) {
+        cafsCache.set(storeDir, createCafs(storeDir))
+      }
+      const cafs = cafsCache.get(storeDir)!
+      const filesMap: FilesMap = new Map()
+      for (const [filename, fileInfo] of pkgFilesIndex.files) {
+        filesMap.set(filename, cafs.getFilePathByModeInCafs(fileInfo.integrity, fileInfo.mode))
+      }
       parentPort!.postMessage({
         status: 'success',
+        warnings,
         value: {
           verified: verifyResult.passed,
           manifest: verifyResult.manifest,
-          pkgFilesIndex,
-          requiresBuild,
+          files: {
+            filesMap,
+            sideEffects: pkgFilesIndex.sideEffects,
+            resolvedFrom: 'store',
+            requiresBuild,
+          },
         },
       })
       break
@@ -138,6 +181,7 @@ async function handleMessage (
       error: {
         code: e.code,
         message: e.message ?? e.toString(),
+        hint: e.hint,
       },
     })
   }
@@ -176,7 +220,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
   return {
     status: 'success',
     value: {
-      filesIndex: filesMap,
+      filesMap,
       manifest,
       requiresBuild,
       integrity: integrity ?? calcIntegrity(buffer),
@@ -192,7 +236,7 @@ function calcIntegrity (buffer: Buffer): string {
 interface AddFilesFromDirResult {
   status: string
   value: {
-    filesIndex: Map<string, string>
+    filesMap: FilesMap
     manifest?: DependencyManifest
     requiresBuild: boolean
   }
@@ -251,16 +295,16 @@ function addFilesFromDir (
       return {
         status: 'success',
         value: {
-          filesIndex: filesMap,
+          filesMap,
           manifest,
-          requiresBuild: pkgRequiresBuild(manifest, filesIntegrity),
+          requiresBuild: pkgRequiresBuild(manifest, filesMap),
         },
       }
     }
     filesIndex.sideEffects ??= new Map()
     filesIndex.sideEffects.set(sideEffectsCacheKey, calculateDiff(filesIndex.files, filesIntegrity))
     if (filesIndex.requiresBuild == null) {
-      requiresBuild = pkgRequiresBuild(manifest, filesIntegrity)
+      requiresBuild = pkgRequiresBuild(manifest, filesMap)
     } else {
       requiresBuild = filesIndex.requiresBuild
     }
@@ -268,7 +312,7 @@ function addFilesFromDir (
   } else {
     requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
   }
-  return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
+  return { status: 'success', value: { filesMap, manifest, requiresBuild } }
 }
 
 function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
@@ -307,12 +351,12 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
 
 interface ProcessFilesIndexResult {
   filesIntegrity: PackageFiles
-  filesMap: Map<string, string>
+  filesMap: FilesMap
 }
 
 function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
   const filesIntegrity: PackageFiles = new Map()
-  const filesMap = new Map<string, string>()
+  const filesMap: FilesMap = new Map()
   for (const [k, { checkedAt, filePath, integrity, mode, size }] of filesIndex) {
     filesIntegrity.set(k, {
       checkedAt,

@@ -61,6 +61,7 @@
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "@types/lodash.throttle": "catalog:",
     "@types/ramda": "catalog:",
     "@types/retry": "catalog:",

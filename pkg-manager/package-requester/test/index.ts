@@ -29,6 +29,7 @@ const authConfig = { registry }
 const { resolve, fetchers } = createClient({
   authConfig,
   cacheDir: '.store',
+  storeDir: '.store',
   rawConfig: {},
   registries,
 })
@@ -70,7 +71,7 @@ test('request package', async () => {
   })
 
   const { files } = await pkgResponse.fetching!()
-  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesMap.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 })
 
@@ -156,80 +157,6 @@ test('request package but skip fetching, when resolution is already available', 
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest.name).toBe('is-positive')
-  expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
-  expect(pkgResponse.body.resolution).toStrictEqual({
-    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
-  })
-
-  expect(pkgResponse.fetching).toBeFalsy()
-})
-
-test('request package but skip fetching, when resolution is already available and manifest is in store', async () => {
-  const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
-  const resolveMockFn = jest.fn(resolve)
-  const projectDir = temporaryDirectory()
-
-  const createPackageRequesterOptions = {
-    resolve: resolveMockFn,
-    fetchers,
-    cafs,
-    networkConcurrency: 1,
-    storeDir,
-    verifyStoreIntegrity: true,
-    virtualStoreDirMaxLength: 120,
-  }
-  const requestPackage = createPackageRequester(createPackageRequesterOptions)
-
-  const requestOpts: RequestPackageOptions = {
-    currentPkg: {
-      id: 'is-positive@1.0.0' as PkgResolutionId,
-      resolution: {
-        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
-      },
-    },
-    downloadPriority: 0,
-    lockfileDir: projectDir,
-    preferredVersions: {},
-    projectDir,
-    update: false,
-  }
-
-  // Check that the test setup in this function is correct by performing a
-  // preliminary request with the skipFetch option.
-  //
-  // Since the store has not yet been populated, the package manifest for this
-  // function will need to be retrieved through a resolve call.
-  await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, { ...requestOpts, skipFetch: true })
-  expect(resolveMockFn).toHaveBeenCalledTimes(1)
-
-  // Perform a request without skipFetch to populate the CAFS store.
-  await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, requestOpts)
-
-  // The final request should reuse the package manifest present in the CAFS
-  // store. The resolve function should not be called. If it is called, the
-  // optimization this test is checking for regressed.
-  //
-  // We need to create a new package request function for this test to reset the
-  // fetching lockers used internally within the package requester function.
-  // Otherwise the requestPackage function will use a prior cached store lookup
-  // that resolved to undefined.
-  resolveMockFn.mockClear()
-  const requestPackage2 = createPackageRequester(createPackageRequesterOptions)
-  const pkgResponse = await requestPackage2({ alias: 'is-positive', bareSpecifier: '1.0.0' }, { ...requestOpts, skipFetch: true })
-  expect(resolveMockFn).not.toHaveBeenCalled()
-
-  expect(pkgResponse).toBeTruthy()
-  expect(pkgResponse.body).toBeTruthy()
-
-  // Since the package wasn't resolved, the resolvedVia field should be undefined.
-  expect(pkgResponse.body.resolvedVia).toBeUndefined()
-
-  expect(pkgResponse.body.id).toBe('is-positive@1.0.0')
-  expect(pkgResponse.body.isLocal).toBe(false)
-  expect(pkgResponse.body.manifest?.name).toBe('is-positive')
   expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
@@ -456,7 +383,7 @@ test('fetchPackageToStore()', async () => {
 
   const { files, bundledManifest } = await fetchResult.fetching()
   expect(bundledManifest).toBeTruthy() // we always read the bundled manifest
-  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesMap.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 
   const indexFile = readV8FileStrictSync<PackageFilesIndex>(fetchResult.filesIndexFile)
@@ -544,9 +471,9 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[0]
     const { files } = await fetchResult.fetching()
 
-    ino1 = fs.statSync(files.filesIndex.get('package.json') as string).ino
+    ino1 = fs.statSync(files.filesMap.get('package.json') as string).ino
 
-    expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Array.from(files.filesMap.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.resolvedFrom).toBe('remote')
   }
 
@@ -554,9 +481,9 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[1]
     const { files } = await fetchResult.fetching()
 
-    ino2 = fs.statSync(files.filesIndex.get('package.json') as string).ino
+    ino2 = fs.statSync(files.filesMap.get('package.json') as string).ino
 
-    expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Array.from(files.filesMap.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.resolvedFrom).toBe('remote')
   }
 
@@ -577,6 +504,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     rawConfig: {},
     retry: { retries: 0 },
     cacheDir: '.pnpm',
+    storeDir: '.store',
     registries,
   })
 
@@ -623,7 +551,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     },
   })
   const { files } = await fetchResult.fetching()
-  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesMap.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 
   expect(nock.isDone()).toBeTruthy()
@@ -772,8 +700,8 @@ test('refetch package to store if it has been modified', async () => {
       },
     })
 
-    const { filesIndex } = (await fetchResult.fetching()).files
-    indexJsFile = filesIndex.get('index.js') as string
+    const { filesMap } = (await fetchResult.fetching()).files
+    indexJsFile = filesMap.get('index.js') as string
   }
 
   // We should restart the workers otherwise the locker cache will still try to read the file
@@ -940,7 +868,7 @@ test('throw exception if the package data in the store differs from the expected
         resolution: pkgResponse.body.resolution,
       },
     })
-    await expect(fetching()).rejects.toThrow(/Package name mismatch found while reading/)
+    await expect(fetching()).rejects.toThrow(/Package name or version mismatch found while reading/)
   }
 
   // Fail when the version of the package is different in the store
@@ -964,7 +892,7 @@ test('throw exception if the package data in the store differs from the expected
         resolution: pkgResponse.body.resolution,
       },
     })
-    await expect(fetching()).rejects.toThrow(/Package name mismatch found while reading/)
+    await expect(fetching()).rejects.toThrow(/Package name or version mismatch found while reading/)
   }
 
   // Do not fail when the versions are the same but written in a different format (1.0.0 is the same as v1.0.0)

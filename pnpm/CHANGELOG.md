@@ -1415,7 +1415,7 @@
 
 - Lockfile changes:
 
-  - Lockfile v9 is adopted. This new format has changes for better readability, and better resistence to Git conflicts.
+  - Lockfile v9 is adopted. This new format has changes for better readability, and better resistance to Git conflicts.
   - Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
 
 - Dependency resolution changes:
@@ -2416,7 +2416,7 @@
 
 ### Minor Changes
 
-- New setting supported in the `package.json` that is in the root of the workspace: `pnpm.requiredScripts`. Scripts listed in this array will be required in each project of the worksapce. Otherwise, `pnpm -r run <script name>` will fail [#5569](https://github.com/pnpm/pnpm/issues/5569).
+- New setting supported in the `package.json` that is in the root of the workspace: `pnpm.requiredScripts`. Scripts listed in this array will be required in each project of the workspace. Otherwise, `pnpm -r run <script name>` will fail [#5569](https://github.com/pnpm/pnpm/issues/5569).
 - When the hoisted node linker is used, preserve `node_modules` directories when linking new dependencies. This improves performance, when installing in a project that already has a `node_modules` directory [#5795](https://github.com/pnpm/pnpm/pull/5795).
 - When the hoisted node linker is used, pnpm should not build the same package multiple times during installation. If a package is present at multiple locations because hoisting could not hoist them to a single directory, then the package should only built in one of the locations and copied to the rest [#5814](https://github.com/pnpm/pnpm/pull/5814).
 
