@@ -134,7 +134,7 @@ export interface ResolverFactoryOptions {
 }
 
 export interface NpmResolveResult extends ResolveResult {
-  latest: string
+  latest?: string
   manifest: DependencyManifest
   resolution: TarballResolution
   resolvedVia: 'npm-registry'
@@ -332,7 +332,6 @@ async function resolveNpm (
         if (id === opts.currentPkg.id) {
           return {
             id,
-            latest: manifest.version, // Best we can do without fetching metadata
             manifest,
             resolution: currentResolution as TarballResolution,
             resolvedVia: 'npm-registry',

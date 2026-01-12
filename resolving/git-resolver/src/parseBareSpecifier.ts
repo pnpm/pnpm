@@ -32,10 +32,10 @@ const gitProtocols = new Set([
   'ssh',
 ])
 
-export async function parseBareSpecifier (bareSpecifier: string, opts: AgentOptions): Promise<HostedPackageSpec | null> {
+export function parseBareSpecifier (bareSpecifier: string, opts: AgentOptions): null | (() => Promise<HostedPackageSpec>) {
   const hosted = HostedGit.fromUrl(bareSpecifier)
   if (hosted != null) {
-    return fromHostedGit(hosted, opts)
+    return () => fromHostedGit(hosted, opts)
   }
   const colonsPos = bareSpecifier.indexOf(':')
   if (colonsPos === -1) return null
@@ -46,11 +46,11 @@ export async function parseBareSpecifier (bareSpecifier: string, opts: AgentOpti
     if (!url?.protocol) return null
 
     const hash = (url.hash?.length > 1) ? decodeURIComponent(url.hash.slice(1)) : null
-    return {
+    return async () => ({
       fetchSpec: urlToFetchSpec(url),
       normalizedBareSpecifier: bareSpecifier,
       ...parseGitParams(hash),
-    }
+    })
   }
   return null
 }

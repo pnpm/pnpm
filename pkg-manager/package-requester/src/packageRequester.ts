@@ -196,23 +196,8 @@ async function resolveAndFetch (
     : options.preferredVersions
 
   const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
-    alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
-    defaultTag: options.defaultTag,
-    trustPolicy: options.trustPolicy,
-    trustPolicyExclude: options.trustPolicyExclude,
-    trustPolicyIgnoreAfter: options.trustPolicyIgnoreAfter,
-    publishedBy: options.publishedBy,
-    publishedByExclude: options.publishedByExclude,
-    pickLowestVersion: options.pickLowestVersion,
-    lockfileDir: options.lockfileDir,
+    ...options,
     preferredVersions,
-    preferWorkspacePackages: options.preferWorkspacePackages,
-    projectDir: options.projectDir,
-    workspacePackages: options.workspacePackages,
-    update: options.update,
-    injectWorkspacePackages: options.injectWorkspacePackages,
-    calcSpecifier: options.calcSpecifier,
-    pinnedVersion: options.pinnedVersion,
     currentPkg: (options.currentPkg?.id && options.currentPkg?.resolution)
       ? {
         id: options.currentPkg.id,
