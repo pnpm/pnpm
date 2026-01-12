@@ -239,6 +239,10 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
   const pnpmfile1 = `
     function readPackage (pkg) {
       if (pkg.optionalDependencies) {
+        // Also remove optional deps from dependencies since npm duplicates them there
+        for (const dep of Object.keys(pkg.optionalDependencies)) {
+          delete pkg.dependencies?.[dep]
+        }
         delete pkg.optionalDependencies
       }
       return pkg

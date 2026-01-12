@@ -46,6 +46,7 @@
     "@pnpm/resolve-workspace-range": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@zkochan/retry": "catalog:",
@@ -64,7 +65,8 @@
     "version-selector-type": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/config.version-policy": "workspace:*",

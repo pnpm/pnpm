@@ -55,6 +55,12 @@
       "path": "../../registry/types"
     },
     {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../worker"
+    },
+    {
       "path": "../../workspace/resolve-workspace-range"
     },
     {
