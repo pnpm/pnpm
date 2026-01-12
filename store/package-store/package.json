@@ -57,6 +57,7 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "is-subdir": "catalog:",
+    "load-json-file": "catalog:",
     "ramda": "catalog:",
     "ssri": "catalog:",
     "symlink-dir": "catalog:"

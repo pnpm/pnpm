@@ -44,12 +44,14 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "chalk": "catalog:",
+    "load-json-file": "catalog:",
     "render-help": "catalog:"
   },
   "devDependencies": {
     "@pnpm/plugin-commands-store-inspecting": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "execa": "catalog:",
+    "load-json-file": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {

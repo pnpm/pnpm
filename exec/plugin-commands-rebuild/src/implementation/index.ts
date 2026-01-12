@@ -365,7 +365,7 @@ async function _rebuild (
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
               includeDepGraphHash: true,
             })
-            if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
+            if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
               pkgsThatWereRebuilt.add(depPath)
               return
             }

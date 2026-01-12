@@ -3,7 +3,6 @@ import fs from 'fs'
 import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
 import { createCafsStore } from '@pnpm/create-cafs-store'
@@ -13,6 +12,7 @@ import delay from 'delay'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { restartWorkerPool } from '@pnpm/worker'
 import { jest } from '@jest/globals'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import { temporaryDirectory } from 'tempy'
@@ -386,9 +386,9 @@ test('fetchPackageToStore()', async () => {
   expect(Array.from(files.filesMap.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 
-  const indexFile = readV8FileStrictSync<PackageFilesIndex>(fetchResult.filesIndexFile)
+  const indexFile = loadJsonFileSync<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
-  expect(typeof indexFile.files.get('package.json')!.checkedAt).toBeTruthy()
+  expect(typeof indexFile.files['package.json']!.checkedAt).toBeTruthy()
 
   const fetchResult2 = packageRequester.fetchPackageToStore({
     fetchRawManifest: true,

@@ -1,6 +1,5 @@
 // cspell:ignore ents
 import fs from 'fs'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
@@ -9,6 +8,7 @@ import {
 import { type DepPath } from '@pnpm/types'
 import schemas from 'hyperdrive-schemas'
 import Fuse from 'fuse-native'
+import { loadJsonFileSync } from 'load-json-file'
 import * as cafsExplorer from './cafsExplorer.js'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
 
@@ -48,7 +48,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(-1)
         return
       }
-      const fileInfo = dirEnt.index.files.get(dirEnt.subPath)
+      const fileInfo = dirEnt.index.files[dirEnt.subPath]
       if (!fileInfo) {
         cb(-1)
         return
@@ -112,7 +112,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       if (dirEnt.entryType === 'index') {
         switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
         case 'file': {
-          const { size, mode } = dirEnt.index.files.get(dirEnt.subPath)!
+          const { size, mode } = dirEnt.index.files[dirEnt.subPath]!
           // eslint-disable-next-line n/no-callback-literal
           cb(0, schemas.Stat.file({
             ...STAT_DEFAULT,
@@ -181,11 +181,12 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       const pkgSnapshot = lockfile.packages?.[depPath as DepPath]
       if (pkgSnapshot == null) return undefined
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const indexPath = getIndexFilePathInCafs(storeDir, (pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
+      const pkgIndexFilePath = getIndexFilePathInCafs(storeDir, (pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
+      const pkgIndex = loadJsonFileSync<PackageFilesIndex>(pkgIndexFilePath) // TODO: maybe make it async?
       pkgSnapshotCache.set(depPath, {
         ...nameVer,
         pkgSnapshot,
-        index: readV8FileStrictSync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
+        index: pkgIndex,
       })
     }
     return pkgSnapshotCache.get(depPath)

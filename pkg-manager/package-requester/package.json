@@ -75,6 +75,7 @@
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
     "delay": "catalog:",
+    "load-json-file": "catalog:",
     "nock": "catalog:",
     "normalize-path": "catalog:",
     "tempy": "catalog:"

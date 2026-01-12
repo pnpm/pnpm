@@ -1,10 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
-import v8 from 'v8'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -689,7 +687,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   await headlessInstall(opts)
 
   const cacheIntegrityPath = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const cacheIntegrity = readV8FileStrictSync<PackageFilesIndex>(cacheIntegrityPath)
+  const cacheIntegrity = loadJsonFileSync<PackageFilesIndex>(cacheIntegrityPath)
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -700,11 +698,11 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
       }),
     },
   })}`
-  expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)!.added!.has('generated-by-postinstall.js')).toBeTruthy()
-  cacheIntegrity!.sideEffects!.get(sideEffectsKey)!.added!.delete('generated-by-postinstall.js')
+  expect(cacheIntegrity!.sideEffects![sideEffectsKey].added!['generated-by-postinstall.js']).toBeTruthy()
+  delete cacheIntegrity!.sideEffects![sideEffectsKey].added!['generated-by-postinstall.js']
 
-  expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)!.added!.has('generated-by-preinstall.js')).toBeTruthy()
-  fs.writeFileSync(cacheIntegrityPath, v8.serialize(cacheIntegrity))
+  expect(cacheIntegrity!.sideEffects![sideEffectsKey].added!['generated-by-preinstall.js']).toBeTruthy()
+  fs.writeFileSync(cacheIntegrityPath, JSON.stringify(cacheIntegrity))
 
   prefix = f.prepare('side-effects')
   const opts2 = await testDefaults({

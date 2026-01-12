@@ -2,6 +2,7 @@ import type { IntegrityLike } from 'ssri'
 import type { DependencyManifest } from '@pnpm/types'
 
 export type PackageFiles = Map<string, PackageFileInfo>
+export type PackageFilesRaw = Record<string, PackageFileInfo>
 
 export interface PackageFileInfo {
   checkedAt?: number // Nullable for backward compatibility
@@ -11,6 +12,12 @@ export interface PackageFileInfo {
 }
 
 export type SideEffects = Map<string, SideEffectsDiff>
+export type SideEffectsRaw = Record<string, SideEffectsDiffRaw>
+
+export interface SideEffectsDiffRaw {
+  deleted?: string[]
+  added?: PackageFilesRaw
+}
 
 export interface SideEffectsDiff {
   deleted?: string[]

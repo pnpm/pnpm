@@ -4286,9 +4286,6 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/fs.v8-file':
-        specifier: workspace:*
-        version: link:../../fs/v8-file
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -4310,6 +4307,9 @@ importers:
       hyperdrive-schemas:
         specifier: 'catalog:'
         version: 2.0.0
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -5867,6 +5867,9 @@ importers:
       delay:
         specifier: 'catalog:'
         version: 6.0.0
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
       nock:
         specifier: 'catalog:'
         version: 13.3.4
@@ -7719,9 +7722,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fs.v8-file':
-        specifier: workspace:*
-        version: link:../../fs/v8-file
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../lockfile/detect-dep-types
@@ -7749,6 +7749,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
       p-limit:
         specifier: 'catalog:'
         version: 7.1.0
@@ -8295,6 +8298,9 @@ importers:
       is-subdir:
         specifier: 'catalog:'
         version: 1.2.0
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -8447,6 +8453,9 @@ importers:
       dint:
         specifier: 'catalog:'
         version: 5.1.0
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
       p-filter:
         specifier: 'catalog:'
         version: 4.1.0
@@ -8550,6 +8559,9 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.0
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -8627,6 +8639,9 @@ importers:
       is-port-reachable:
         specifier: 'catalog:'
         version: 4.0.0
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
       node-fetch:
         specifier: 'catalog:'
         version: 3.3.2
@@ -8876,9 +8891,6 @@ importers:
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../fs/hard-link-dir
-      '@pnpm/fs.v8-file':
-        specifier: workspace:*
-        version: link:../fs/v8-file
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../fs/graceful-fs
@@ -8894,6 +8906,9 @@ importers:
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
       p-limit:
         specifier: 'catalog:'
         version: 7.1.0
@@ -18464,7 +18479,7 @@ snapshots:
       '@pnpm/fs.packlist': 2.0.0
       '@pnpm/logger': 1001.0.0
       '@pnpm/prepare-package': 1000.0.16(@pnpm/logger@1001.0.0)(typanion@3.14.0)
-      '@pnpm/worker': 1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30)
+      '@pnpm/worker': 1000.1.7(@pnpm/logger@packages+logger)(@types/node@22.15.30)
       '@zkochan/rimraf': 3.0.2
       execa: safe-execa@0.1.2
     transitivePeerDependencies:
@@ -18599,7 +18614,7 @@ snapshots:
       '@pnpm/find-workspace-dir': 1000.1.0
       '@pnpm/logger': 1001.0.0
       '@pnpm/types': 1000.6.0
-      '@pnpm/worker': 1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30)
+      '@pnpm/worker': 1000.1.7(@pnpm/logger@packages+logger)(@types/node@22.15.30)
       '@pnpm/workspace.find-packages': 1000.0.25(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30))(typanion@3.14.0)
       '@pnpm/workspace.read-manifest': 1000.1.5
       load-json-file: 7.0.1
@@ -18805,7 +18820,7 @@ snapshots:
       '@pnpm/store-controller-types': 1003.0.2
       '@pnpm/store.cafs': 1000.0.13
       '@pnpm/types': 1000.6.0
-      '@pnpm/worker': 1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30)
+      '@pnpm/worker': 1000.1.7(@pnpm/logger@packages+logger)(@types/node@22.15.30)
       p-defer: 3.0.0
       p-limit: 3.1.0
       p-queue: 6.6.2
@@ -18824,7 +18839,7 @@ snapshots:
       '@pnpm/store-controller-types': 1003.0.2
       '@pnpm/store.cafs': 1000.0.13
       '@pnpm/types': 1000.6.0
-      '@pnpm/worker': 1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30)
+      '@pnpm/worker': 1000.1.7(@pnpm/logger@packages+logger)(@types/node@22.15.30)
       '@zkochan/rimraf': 3.0.2
       load-json-file: 6.2.0
       ramda: '@pnpm/ramda@0.28.1'
@@ -19103,7 +19118,7 @@ snapshots:
       '@pnpm/graceful-fs': 1000.0.0
       '@pnpm/logger': 1001.0.0
       '@pnpm/prepare-package': 1000.0.16(@pnpm/logger@1001.0.0)(typanion@3.14.0)
-      '@pnpm/worker': 1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30)
+      '@pnpm/worker': 1000.1.7(@pnpm/logger@packages+logger)(@types/node@22.15.30)
       '@zkochan/retry': 0.2.0
       lodash.throttle: 4.1.1
       p-map-values: 1.0.0
@@ -19142,7 +19157,7 @@ snapshots:
     dependencies:
       isexe: 2.0.0
 
-  '@pnpm/worker@1000.1.7(@pnpm/logger@1001.0.0)(@types/node@22.15.30)':
+  '@pnpm/worker@1000.1.7(@pnpm/logger@packages+logger)(@types/node@22.15.30)':
     dependencies:
       '@pnpm/cafs-types': 1000.0.0
       '@pnpm/create-cafs-store': 1000.0.14(@pnpm/logger@1001.0.0)
@@ -19151,7 +19166,7 @@ snapshots:
       '@pnpm/exec.pkg-requires-build': 1000.0.8
       '@pnpm/fs.hard-link-dir': 1000.0.1(@pnpm/logger@1001.0.0)
       '@pnpm/graceful-fs': 1000.0.0
-      '@pnpm/logger': 1001.0.0
+      '@pnpm/logger': link:packages/logger
       '@pnpm/store.cafs': 1000.0.13
       '@pnpm/symlink-dependency': 1000.0.9(@pnpm/logger@1001.0.0)
       '@rushstack/worker-pool': 0.4.9(@types/node@22.15.30)
