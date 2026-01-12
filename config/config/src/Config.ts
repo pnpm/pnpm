@@ -6,6 +6,7 @@ import {
   type ProjectsGraph,
   type Registries,
   type SslConfig,
+  type TrustPolicy,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
 import { type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
@@ -97,7 +98,6 @@ export interface Config extends OptionsFromRootManifest {
   ignoreCurrentSpecifiers?: boolean
   recursive?: boolean
   enablePrePostScripts?: boolean
-  useNodeVersion?: string
   useStderr?: boolean
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   preferSymlinkedExecutables?: boolean
@@ -183,12 +183,13 @@ export interface Config extends OptionsFromRootManifest {
   embedReadme?: boolean
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean
-  onlyBuiltDependencies?: string[]
+  allowBuilds?: Record<string, boolean | string>
   dedupePeerDependents?: boolean
   patchesDir?: string
   ignoreWorkspaceCycles?: boolean
   disallowWorkspaceCycles?: boolean
   packGzipLevel?: number
+  blockExoticSubdeps?: boolean
 
   registries: Registries
   sslConfigs: Record<string, SslConfig>
@@ -201,7 +202,6 @@ export interface Config extends OptionsFromRootManifest {
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
 
-  globalconfig: string
   hoist: boolean
   packageLock: boolean
   pending: boolean
@@ -233,6 +233,11 @@ export interface Config extends OptionsFromRootManifest {
   minimumReleaseAgeExclude?: string[]
   fetchWarnTimeoutMs?: number
   fetchMinSpeedKiBps?: number
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: string[]
+  trustPolicyIgnoreAfter?: number
+
+  packageConfigs?: ProjectConfigSet
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
@@ -240,3 +245,22 @@ export interface ConfigWithDeprecatedSettings extends Config {
   proxy?: string
   shamefullyFlatten?: boolean
 }
+
+export const PROJECT_CONFIG_FIELDS = [
+  'hoist',
+  'modulesDir',
+  'saveExact',
+  'savePrefix',
+] as const satisfies Array<keyof Config>
+
+export type ProjectConfig = Partial<Pick<Config, typeof PROJECT_CONFIG_FIELDS[number] | 'hoistPattern'>>
+
+/** Simple map from project names to {@link ProjectConfig} */
+export type ProjectConfigRecord = Record<string, ProjectConfig>
+
+/** Map multiple project names to a shared {@link ProjectConfig} */
+export type ProjectConfigMultiMatch = { match: string[] } & ProjectConfig
+
+export type ProjectConfigSet =
+  | ProjectConfigRecord
+  | ProjectConfigMultiMatch[]

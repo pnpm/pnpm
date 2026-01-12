@@ -3,6 +3,7 @@ import path from 'path'
 import util from 'util'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
+import { type FilesMap } from '@pnpm/cafs-types'
 import { logger } from '@pnpm/logger'
 import { packlist } from '@pnpm/fs.packlist'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
@@ -35,7 +36,7 @@ export type FetchFromDirOptions = Omit<DirectoryFetcherOptions, 'lockfileDir'> &
 
 export interface FetchResult {
   local: true
-  filesIndex: Record<string, string>
+  filesMap: FilesMap
   filesStats?: Record<string, Stats | null>
   packageImportMethod: 'hardlink'
   manifest: DependencyManifest
@@ -54,15 +55,15 @@ async function fetchAllFilesFromDir (
   readFileStat: ReadFileStat,
   dir: string
 ): Promise<FetchResult> {
-  const { filesIndex, filesStats } = await _fetchAllFilesFromDir(readFileStat, dir)
+  const { filesMap, filesStats } = await _fetchAllFilesFromDir(readFileStat, dir)
   // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
   // Safe read was added to support the Bit workspace in which the components have no package.json files.
   // Related PR in Bit: https://github.com/teambit/bit/pull/5251
   const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
-  const requiresBuild = pkgRequiresBuild(manifest, filesIndex)
+  const requiresBuild = pkgRequiresBuild(manifest, filesMap)
   return {
     local: true,
-    filesIndex,
+    filesMap,
     filesStats,
     packageImportMethod: 'hardlink',
     manifest,
@@ -74,8 +75,8 @@ async function _fetchAllFilesFromDir (
   readFileStat: ReadFileStat,
   dir: string,
   relativeDir = ''
-): Promise<Pick<FetchResult, 'filesIndex' | 'filesStats'>> {
-  const filesIndex: Record<string, string> = {}
+): Promise<Pick<FetchResult, 'filesMap' | 'filesStats'>> {
+  const filesMap: FilesMap = new Map()
   const filesStats: Record<string, Stats | null> = {}
   const files = await fs.readdir(dir)
   await Promise.all(files
@@ -87,15 +88,17 @@ async function _fetchAllFilesFromDir (
       const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
       if (stat.isDirectory()) {
         const subFetchResult = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
-        Object.assign(filesIndex, subFetchResult.filesIndex)
+        for (const [key, value] of subFetchResult.filesMap) {
+          filesMap.set(key, value)
+        }
         Object.assign(filesStats, subFetchResult.filesStats)
       } else {
-        filesIndex[relativeSubdir] = filePath
+        filesMap.set(relativeSubdir, filePath)
         filesStats[relativeSubdir] = fileStatResult.stat
       }
     })
   )
-  return { filesIndex, filesStats }
+  return { filesMap, filesStats }
 }
 
 interface FileStatResult {
@@ -142,15 +145,15 @@ async function fileStat (filePath: string): Promise<FileStatResult | null> {
 
 async function fetchPackageFilesFromDir (dir: string): Promise<FetchResult> {
   const files = await packlist(dir)
-  const filesIndex: Record<string, string> = Object.fromEntries(files.map((file) => [file, path.join(dir, file)]))
+  const filesMap = new Map<string, string>(files.map((file) => [file, path.join(dir, file)]))
   // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
   // Safe read was added to support the Bit workspace in which the components have no package.json files.
   // Related PR in Bit: https://github.com/teambit/bit/pull/5251
   const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
-  const requiresBuild = pkgRequiresBuild(manifest, filesIndex)
+  const requiresBuild = pkgRequiresBuild(manifest, filesMap)
   return {
     local: true,
-    filesIndex,
+    filesMap,
     packageImportMethod: 'hardlink',
     manifest,
     requiresBuild,

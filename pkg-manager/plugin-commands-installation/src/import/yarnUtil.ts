@@ -43,7 +43,7 @@ const keyNormalizer = (
     }
     break
   case 'patch:':
-    if (range.source && range.selector.indexOf(BUILTIN_PLACEHOLDER) === 0) {
+    if (range.source && range.selector.startsWith(BUILTIN_PLACEHOLDER)) {
       descriptors.push(range.source)
     } else {
       descriptors.push(

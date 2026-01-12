@@ -17,12 +17,12 @@ import {
   type PeerDependencyRules,
   type ReadPackageHook,
   type Registries,
-  type PrepareExecutionEnv,
+  type TrustPolicy,
 } from '@pnpm/types'
+import { type CustomResolver, type CustomFetcher, type PreResolutionHookContext } from '@pnpm/hooks.types'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import { type ReporterFunction } from '../types.js'
-import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
@@ -71,10 +71,7 @@ export interface StrictInstallOptions {
   rawConfig: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
   verifyStoreIntegrity: boolean
   engineStrict: boolean
-  ignoredBuiltDependencies?: string[]
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
+  allowBuilds?: Record<string, boolean | string>
   nodeExecPath?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion?: string
@@ -91,6 +88,8 @@ export interface StrictInstallOptions {
     readPackage?: ReadPackageHook[]
     preResolution?: Array<(ctx: PreResolutionHookContext) => Promise<void>>
     afterAllResolved?: Array<(lockfile: LockfileObject) => LockfileObject | Promise<LockfileObject>>
+    customResolvers?: CustomResolver[]
+    customFetchers?: CustomFetcher[]
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }
   sideEffectsCacheRead: boolean
@@ -113,6 +112,7 @@ export interface StrictInstallOptions {
   workspacePackages?: WorkspacePackages
   pruneStore: boolean
   virtualStoreDir?: string
+  globalVirtualStoreDir: string
   dir: string
   symlink: boolean
   enableModulesDir: boolean
@@ -161,12 +161,15 @@ export interface StrictInstallOptions {
   hoistWorkspacePackages?: boolean
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
-  prepareExecutionEnv?: PrepareExecutionEnv
   returnListOfDepsRequiringBuild?: boolean
   injectWorkspacePackages?: boolean
   ci?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: string[]
+  trustPolicyIgnoreAfter?: number
+  blockExoticSubdeps?: boolean
 }
 
 export type InstallOptions =
@@ -266,6 +269,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     excludeLinksFromLockfile: false,
     virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
+    blockExoticSubdeps: false,
   } as StrictInstallOptions
 }
 
@@ -284,12 +288,7 @@ export function extendOptions (
       }
     }
   }
-  if (opts.neverBuiltDependencies == null && opts.onlyBuiltDependencies == null && opts.onlyBuiltDependenciesFile == null) {
-    opts.onlyBuiltDependencies = []
-  }
-  if (opts.onlyBuiltDependencies && opts.neverBuiltDependencies) {
-    throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies')
-  }
+
   const defaultOpts = defaults(opts)
   const extendedOpts: ProcessedInstallOptions = {
     ...defaultOpts,
@@ -320,5 +319,8 @@ export function extendOptions (
   if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
     extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
   }
+  extendedOpts.globalVirtualStoreDir = extendedOpts.enableGlobalVirtualStore
+    ? extendedOpts.virtualStoreDir!
+    : path.join(extendedOpts.storeDir, 'links')
   return extendedOpts
 }

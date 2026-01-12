@@ -16,10 +16,16 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../config/version-policy"
+    },
+    {
       "path": "../../crypto/hash"
     },
     {
       "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../fs/v8-file"
     },
     {
       "path": "../../network/fetch"

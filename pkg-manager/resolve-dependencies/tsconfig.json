@@ -16,10 +16,13 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../config/matcher"
+      "path": "../../config/version-policy"
     },
     {
       "path": "../../fetching/pick-fetcher"
+    },
+    {
+      "path": "../../hooks/types"
     },
     {
       "path": "../../lockfile/preferred-versions"

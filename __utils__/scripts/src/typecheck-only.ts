@@ -7,9 +7,9 @@ import glob from 'fast-glob'
 import normalizePath from 'normalize-path'
 import path from 'path'
 
-const repoRoot = path.resolve(__dirname, '../../../')
+const repoRoot = path.resolve(import.meta.dirname, '../../../')
 const typeCheckDir = path.resolve(repoRoot, '__typecheck__')
-const typingsDir = path.resolve(__dirname, '__typings__')
+const typingsDir = path.resolve(import.meta.dirname, '__typings__')
 
 async function main (): Promise<void> {
   const workspace = await readWorkspaceManifest(repoRoot)
@@ -53,8 +53,18 @@ async function main (): Promise<void> {
     JSON.stringify(typeCheckTSConfig, undefined, 2)
   )
 
-  execa('tsc', ['--build'], {
-    cwd: typeCheckDir,
+  execa('tsc', ['--build', typeCheckDir], {
+    // The INIT_CWD variable is populated by package managers and points towards
+    // the user's original working directory. It's more useful to run TypeScript
+    // from the user's actual working directory so any type checking errors can
+    // reference files relative to the real CWD. This allows better integration
+    // with terminals. For example, most terminals support Ctrl+Click or
+    // Cmd+Click on file paths printed to directly open them.
+    //
+    // There's intentionally no fallback if INIT_CWD is undefined. In that case,
+    // this script isn't run through a package manager and we can allow the
+    // current working directory used to be the user's real one.
+    cwd: process.env.INIT_CWD,
     stdio: 'inherit',
   })
 }

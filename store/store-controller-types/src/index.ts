@@ -7,6 +7,7 @@ import {
   type WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
+  type FilesMap,
   type ImportPackageFunction,
   type ImportPackageFunctionAsync,
   type PackageFileInfo,
@@ -14,13 +15,16 @@ import {
   type ResolvedFrom,
 } from '@pnpm/cafs-types'
 import {
+  type AllowBuild,
   type SupportedArchitectures,
   type DependencyManifest,
   type PackageManifest,
   type PinnedVersion,
+  type PackageVersionPolicy,
+  type TrustPolicy,
 } from '@pnpm/types'
 
-export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync }
+export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync, FilesMap }
 
 export * from '@pnpm/resolver-base'
 export type BundledManifest = Pick<
@@ -62,6 +66,7 @@ export interface StoreController {
 export interface PkgRequestFetchResult {
   bundledManifest?: BundledManifest
   files: PackageFilesResponse
+  integrity?: string
 }
 
 export interface FetchResponse {
@@ -84,6 +89,7 @@ export interface PkgNameVersion {
 }
 
 export interface FetchPackageToStoreOptions {
+  allowBuild?: AllowBuild
   fetchRawManifest?: boolean
   force: boolean
   ignoreScripts?: boolean
@@ -104,6 +110,7 @@ export type RequestPackageFunction = (
 ) => Promise<PackageResponse>
 
 export interface RequestPackageOptions {
+  allowBuild?: AllowBuild
   alwaysTryWorkspacePackages?: boolean
   currentPkg?: {
     id?: PkgResolutionId
@@ -118,6 +125,7 @@ export interface RequestPackageOptions {
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
   downloadPriority: number
   ignoreScripts?: boolean
   projectDir: string
@@ -134,6 +142,9 @@ export interface RequestPackageOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyIgnoreAfter?: number
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
@@ -165,8 +176,6 @@ export interface PackageResponse {
     }
   )
 }
-
-export type FilesMap = Record<string, string>
 
 export interface ImportOptions {
   disableRelinkLocalDirDeps?: boolean

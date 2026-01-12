@@ -78,6 +78,24 @@ test('pack a package with scoped name', async () => {
   expect(fs.existsSync('pnpm-test-scope-0.0.0.tgz')).toBeTruthy()
 })
 
+test('pack: with dry-run', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    dryRun: true,
+  })
+
+  expect(fs.existsSync('test-publish-package.json-0.0.0.tgz')).toBeFalsy()
+  expect(fs.existsSync('package.json')).toBeTruthy()
+})
+
 test('pack when there is bundledDependencies but without node-linker=hoisted', async () => {
   prepare({
     name: 'bundled-deps-without-node-linker-hoisted',
@@ -238,7 +256,7 @@ const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
   await pack.handler({
     ...DEFAULT_OPTS,
     argv: { original: [] },
-    dir: path.join(__dirname, '../fixtures/has-bin'),
+    dir: path.join(import.meta.dirname, '../fixtures/has-bin'),
     extraBinPaths: [],
     packDestination: process.cwd(),
   })
@@ -265,7 +283,7 @@ test('pack: should embed readme', async () => {
   await pack.handler({
     ...DEFAULT_OPTS,
     argv: { original: [] },
-    dir: path.join(__dirname, '../fixtures/readme'),
+    dir: path.join(import.meta.dirname, '../fixtures/readme'),
     extraBinPaths: [],
     packDestination: process.cwd(),
     embedReadme: true,
@@ -273,7 +291,7 @@ test('pack: should embed readme', async () => {
 
   await tar.x({ file: 'readme-0.0.0.tgz' })
 
-  const pkg = await import(path.resolve('package/package.json'))
+  const { default: pkg } = await import(path.resolve('package/package.json'))
 
   expect(pkg.readme).toBeTruthy()
 })
@@ -284,7 +302,7 @@ test('pack: should not embed readme', async () => {
   await pack.handler({
     ...DEFAULT_OPTS,
     argv: { original: [] },
-    dir: path.join(__dirname, '../fixtures/readme'),
+    dir: path.join(import.meta.dirname, '../fixtures/readme'),
     extraBinPaths: [],
     packDestination: process.cwd(),
     embedReadme: false,
@@ -292,7 +310,7 @@ test('pack: should not embed readme', async () => {
 
   await tar.x({ file: 'readme-0.0.0.tgz' })
 
-  const pkg = await import(path.resolve('package/package.json'))
+  const { default: pkg } = await import(path.resolve('package/package.json'))
 
   expect(pkg.readme).toBeFalsy()
 })
@@ -319,7 +337,7 @@ test('pack: remove publishConfig', async () => {
 
   await tar.x({ file: 'remove-publish-config-0.0.0.tgz' })
 
-  expect((await import(path.resolve('package/package.json'))).default).toStrictEqual({
+  expect((await import(path.resolve('package/package.json'))).default).toEqual({
     name: 'remove-publish-config',
     version: '0.0.0',
     main: 'index.js',
@@ -354,7 +372,7 @@ test('pack should read from the correct node_modules when publishing from a cust
 
   await tar.x({ file: 'custom-publish-dir-0.0.0.tgz' })
 
-  expect((await import(path.resolve('package/package.json'))).default).toStrictEqual({
+  expect((await import(path.resolve('package/package.json'))).default).toEqual({
     name: 'custom-publish-dir',
     version: '0.0.0',
     dependencies: {

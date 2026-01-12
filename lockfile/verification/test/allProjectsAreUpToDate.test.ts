@@ -561,7 +561,7 @@ describe('local tgz file dependency', () => {
 
     // Make the test is set up correctly and the local-tarball.tar created above
     // has the expected integrity hash.
-    await expect(getTarballIntegrity('./local-tarball.tar')).resolves.toEqual('sha512-nQP7gWOhNQ/5HoM/rJmzOgzZt6Wg6k56CyvO/0sMmiS3UkLSmzY5mW8mMrnbspgqpmOW8q/FHyb0YIr4n2A8VQ==')
+    await expect(getTarballIntegrity('./local-tarball.tar')).resolves.toBe('sha512-nQP7gWOhNQ/5HoM/rJmzOgzZt6Wg6k56CyvO/0sMmiS3UkLSmzY5mW8mMrnbspgqpmOW8q/FHyb0YIr4n2A8VQ==')
 
     const lockfileDir = process.cwd()
     expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir })).toBeTruthy()
@@ -671,7 +671,7 @@ describe('local tgz file dependency with peer dependencies', () => {
 
     // Make sure the test is set up correctly and the local-tarball.tar created
     // above has the expected integrity hash.
-    await expect(getTarballIntegrity('./local-tarball.tar')).resolves.toEqual('sha512-dVXphRGPXHhIt6CKeest8Tkbva4FatStRw4PZbJ4zFszWppqAkZureR6mOF0mT/9Drr5wZ5y9tPaqcmsf/a5cw==')
+    await expect(getTarballIntegrity('./local-tarball.tar')).resolves.toBe('sha512-dVXphRGPXHhIt6CKeest8Tkbva4FatStRw4PZbJ4zFszWppqAkZureR6mOF0mT/9Drr5wZ5y9tPaqcmsf/a5cw==')
 
     const lockfileDir = process.cwd()
     expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir })).toBeTruthy()

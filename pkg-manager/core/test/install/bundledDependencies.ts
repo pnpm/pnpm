@@ -3,7 +3,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { addDependenciesToPackage } from '@pnpm/core'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async () => {
   const project = prepareEmpty()
@@ -51,7 +51,7 @@ test('local tarball with bundledDependencies true', async () => {
   const lockfile = project.readLockfile()
   expect(
     lockfile.packages['@pnpm.e2e/pkg-with-bundle-dependencies-true@file:pkg.tgz'].bundledDependencies
-  ).toStrictEqual(
+  ).toBe(
     true
   )
   expect(
@@ -85,7 +85,7 @@ test('installing a package with bundleDependencies set to false (pkg-with-bundle
   const lockfile = project.readLockfile()
   expect(
     typeof lockfile.packages['@pnpm.e2e/pkg-with-bundle-dependencies-false@1.0.0'].bundledDependencies
-  ).toEqual('undefined')
+  ).toBe('undefined')
 })
 
 test('installing a package with bundleDependencies set to true (pkg-with-bundle-dependencies-true)', async () => {

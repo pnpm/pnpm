@@ -1,14 +1,16 @@
 import fs from 'fs'
 import path from 'path'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { install, mutateModules } from '@pnpm/core'
 import { testDefaults } from '../utils/index.js'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { type ProjectRootDir, type ProjectManifest } from '@pnpm/types'
-import { getCurrentBranch } from '@pnpm/git-utils'
+import { jest } from '@jest/globals'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
-jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+
+const { getCurrentBranch } = await import('@pnpm/git-utils')
+const { install, mutateModules } = await import('@pnpm/core')
 
 test('install with git-branch-lockfile = true', async () => {
   prepareEmpty()

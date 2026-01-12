@@ -28,6 +28,8 @@ export function initDefaultReporter (
       hideProgressPrefix?: boolean
       hideLifecycleOutput?: boolean
       hideLifecyclePrefix?: boolean
+      // This is used by Bit CLI
+      approveBuildsInstructionText?: string
     }
     context: {
       argv: string[]
@@ -112,6 +114,8 @@ export function toOutput$ (
       hideProgressPrefix?: boolean
       hideLifecycleOutput?: boolean
       hideLifecyclePrefix?: boolean
+      // This is used by Bit CLI
+      approveBuildsInstructionText?: string
     }
     context: {
       argv: string[]
@@ -283,6 +287,7 @@ export function toOutput$ (
       hideProgressPrefix: opts.reportingOptions?.hideProgressPrefix ?? (cmd === 'dlx'),
       hideLifecycleOutput: opts.reportingOptions?.hideLifecycleOutput,
       hideLifecyclePrefix: opts.reportingOptions?.hideLifecyclePrefix,
+      approveBuildsInstructionText: opts.reportingOptions?.approveBuildsInstructionText,
     }
   )
 

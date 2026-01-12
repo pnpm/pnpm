@@ -17,8 +17,11 @@ const RAW_AUTH_CFG_KEYS = [
 ] satisfies Array<keyof typeof types>
 
 const RAW_AUTH_CFG_KEY_SUFFIXES = [
+  ':ca',
   ':cafile',
+  ':cert',
   ':certfile',
+  ':key',
   ':keyfile',
   ':registry',
   ':tokenHelper',
@@ -39,6 +42,16 @@ const AUTH_CFG_KEYS = [
   'registries',
   'strictSsl',
 ] satisfies Array<keyof Config>
+
+const NPM_AUTH_SETTINGS = [
+  ...RAW_AUTH_CFG_KEYS,
+  '_auth',
+  '_authToken',
+  '_password',
+  'email',
+  'keyfile',
+  'username',
+]
 
 function isRawAuthCfgKey (rawCfgKey: string): boolean {
   if ((RAW_AUTH_CFG_KEYS as string[]).includes(rawCfgKey)) return true
@@ -72,4 +85,25 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
 
 export function inheritAuthConfig (targetCfg: InheritableConfig, authSrcCfg: InheritableConfig): void {
   inheritPickedConfig(targetCfg, authSrcCfg, pickAuthConfig, pickRawAuthConfig)
+}
+
+/**
+ * Whether the config key would be read from an INI config file.
+ */
+export const isIniConfigKey = (key: string): boolean =>
+  key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key)
+
+/**
+ * Filter keys that are allowed to be read from an INI config file.
+ */
+export function pickIniConfig<RawConfig extends Record<string, unknown>> (rawConfig: RawConfig): Partial<RawConfig> {
+  const result: Partial<RawConfig> = {}
+
+  for (const key in rawConfig) {
+    if (isIniConfigKey(key)) {
+      result[key] = rawConfig[key]
+    }
+  }
+
+  return result
 }

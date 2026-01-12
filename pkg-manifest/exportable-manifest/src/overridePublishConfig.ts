@@ -1,10 +1,11 @@
 import { type ProjectManifest } from '@pnpm/types'
-import isEmpty from 'ramda/src/isEmpty'
+import { isEmpty } from 'ramda'
 
 // property keys that are copied from publishConfig into the manifest
 const PUBLISH_CONFIG_WHITELIST = new Set([
   // manifest fields that may make sense to overwrite
   'bin',
+  'engines',
   'type',
   'imports',
   // https://github.com/stereobooster/package.json#package-bundlers

@@ -1,5 +1,3 @@
-import { type ExecutionEnv } from './env.js'
-
 export type Dependencies = Record<string, string>
 
 export type PackageBin = string | { [commandName: string]: string }
@@ -54,19 +52,15 @@ export interface DependenciesMeta {
   }
 }
 
-export interface DevEngineDependency {
+export interface EngineDependency {
   name: string
   version?: string
   onFail?: 'ignore' | 'warn' | 'error' | 'download'
 }
 
-export interface DevEngines {
-  os?: DevEngineDependency | DevEngineDependency[]
-  cpu?: DevEngineDependency | DevEngineDependency[]
-  libc?: DevEngineDependency | DevEngineDependency[]
-  runtime?: DevEngineDependency | DevEngineDependency[]
-  packageManager?: DevEngineDependency | DevEngineDependency[]
-}
+type DevEngineKey = 'os' | 'cpu' | 'libc' | 'runtime' | 'packageManager'
+
+export type DevEngines = Partial<Record<DevEngineKey, EngineDependency | EngineDependency[]>>
 
 export interface PublishConfig extends Record<string, unknown> {
   directory?: string
@@ -114,7 +108,7 @@ export interface BaseManifest {
     node?: string
     npm?: string
     pnpm?: string
-  }
+  } & Pick<DevEngines, 'runtime'>
   devEngines?: DevEngines
   cpu?: string[]
   os?: string[]
@@ -157,10 +151,7 @@ export interface AuditConfig {
 
 export interface PnpmSettings {
   configDependencies?: ConfigDependencies
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
-  ignoredBuiltDependencies?: string[]
+  allowBuilds?: Record<string, boolean | string>
   overrides?: Record<string, string>
   packageExtensions?: Record<string, PackageExtension>
   ignoredOptionalDependencies?: string[]
@@ -176,7 +167,6 @@ export interface PnpmSettings {
   auditConfig?: AuditConfig
   requiredScripts?: string[]
   supportedArchitectures?: SupportedArchitectures
-  executionEnv?: ExecutionEnv
 }
 
 export interface ProjectManifest extends BaseManifest {

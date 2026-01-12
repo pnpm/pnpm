@@ -1,8 +1,6 @@
 import path from 'path'
 import url from 'url'
 import normalizePath from 'normalize-path'
-import pick from 'ramda/src/pick'
-import { USEFUL_NON_ROOT_PNPM_FIELDS } from '@pnpm/constants'
 import * as dp from '@pnpm/dependency-path'
 import {
   type DirectoryResolution,
@@ -32,11 +30,17 @@ export interface CreateDeployFilesOptions {
   selectedProjectManifest: ProjectManifest
   projectId: ProjectId
   rootProjectManifestDir: string
+  allowBuilds?: Record<string, boolean | string>
+}
+
+export interface DeployWorkspaceManifest {
+  allowBuilds?: Record<string, boolean | string>
 }
 
 export interface DeployFiles {
   lockfile: LockfileObject
   manifest: ProjectManifest
+  workspaceManifest?: DeployWorkspaceManifest
 }
 
 export function createDeployFiles ({
@@ -48,6 +52,7 @@ export function createDeployFiles ({
   selectedProjectManifest,
   projectId,
   rootProjectManifestDir,
+  allowBuilds,
 }: CreateDeployFilesOptions): DeployFiles {
   const deployedProjectRealPath = path.resolve(lockfileDir, projectId)
   const inputSnapshot = lockfile.importers[projectId]
@@ -123,6 +128,10 @@ export function createDeployFiles ({
       overrides: undefined, // the effects of the overrides should already be part of the package snapshots
       packageExtensionsChecksum: undefined, // the effects of the package extensions should already be part of the package snapshots
       pnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
+      settings: {
+        ...lockfile.settings,
+        injectWorkspacePackages: undefined, // the effects of injecting workspace packages should already be part of the lockfile
+      },
       importers: {
         ['.' as ProjectId]: targetSnapshot,
       },
@@ -135,7 +144,6 @@ export function createDeployFiles ({
       optionalDependencies: targetSnapshot.optionalDependencies,
       pnpm: {
         ...rootProjectManifest?.pnpm,
-        ...pick(USEFUL_NON_ROOT_PNPM_FIELDS, selectedProjectManifest.pnpm ?? {}),
         overrides: undefined, // the effects of the overrides should already be part of the package snapshots
         patchedDependencies: undefined,
         packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
@@ -159,6 +167,12 @@ export function createDeployFiles ({
     }
   }
 
+  if (allowBuilds) {
+    result.workspaceManifest = {
+      allowBuilds,
+    }
+  }
+
   return result
 }
 
@@ -175,24 +189,29 @@ function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOp
   let outputResolution: LockfileResolution
   if ('integrity' in inputResolution) {
     outputResolution = inputResolution
-  } else if ('tarball' in inputResolution) {
+  } else if ('tarball' in inputResolution && typeof inputResolution.tarball === 'string') {
     outputResolution = { ...inputResolution }
     if (inputResolution.tarball.startsWith('file:')) {
       const inputPath = inputResolution.tarball.slice('file:'.length)
       const resolvedPath = path.resolve(opts.lockfileDir, inputPath)
       const outputPath = normalizePath(path.relative(opts.deployDir, resolvedPath))
       outputResolution.tarball = `file:${outputPath}`
-      if (inputResolution.path) outputResolution.path = outputPath
+      if ('path' in inputResolution && typeof inputResolution.path === 'string') {
+        outputResolution.path = outputPath
+      }
     }
   } else if (inputResolution.type === 'directory') {
-    const resolvedPath = path.resolve(opts.lockfileDir, inputResolution.directory)
+    const dirResolution = inputResolution as DirectoryResolution
+    const resolvedPath = path.resolve(opts.lockfileDir, dirResolution.directory)
     const directory = normalizePath(path.relative(opts.deployDir, resolvedPath))
-    outputResolution = { ...inputResolution, directory }
+    outputResolution = { ...dirResolution, directory }
   } else if (inputResolution.type === 'git' || inputResolution.type === 'variations') {
     outputResolution = inputResolution
+  } else if (inputResolution.type && typeof inputResolution.type === 'string') {
+    // Custom resolution type - pass through as-is
+    outputResolution = inputResolution
   } else {
-    const resolution: never = inputResolution // `never` is the type guard to force fixing this code when adding new type of resolution
-    throw new Error(`Unknown resolution type: ${JSON.stringify(resolution)}`)
+    throw new Error(`Unknown resolution type: ${JSON.stringify(inputResolution)}`)
   }
 
   return {

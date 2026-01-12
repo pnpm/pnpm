@@ -1,19 +1,19 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "1004.6.6",
+  "version": "1004.6.10",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/plugin-commands-installation",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/plugin-commands-installation#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/plugin-commands-installation",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/plugin-commands-installation#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -26,7 +26,7 @@
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
@@ -56,7 +56,6 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
-    "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
@@ -82,7 +81,6 @@
     "get-npm-tarball-url": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
-    "mem": "catalog:",
     "normalize-path": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
@@ -122,11 +120,11 @@
     "symlink-dir": "catalog:",
     "tempy": "catalog:",
     "write-json-file": "catalog:",
-    "write-pkg": "catalog:",
+    "write-package": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

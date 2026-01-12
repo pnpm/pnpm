@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { store } from '@pnpm/plugin-commands-store'
@@ -5,14 +6,14 @@ import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('CLI fails when store status finds modified packages', async () => {
   const project = prepare()
-  const tmp = tempy.directory()
+  const tmp = temporaryDirectory()
   const cacheDir = path.join(tmp, 'cache')
   const storeDir = path.join(tmp, 'store')
 
@@ -47,13 +48,14 @@ test('CLI fails when store status finds modified packages', async () => {
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_MODIFIED_DEPENDENCY')
-  expect(err.modified.length).toBe(1)
+  expect(err.modified).toHaveLength(1)
   expect(err.modified[0]).toMatch(/is-positive/)
 })
 
 test('CLI does not fail when store status does not find modified packages', async () => {
   const project = prepare()
-  const tmp = tempy.directory()
+  fs.writeFileSync('pnpm-workspace.yaml', 'allowBuilds: { "es5-ext": false, "fsevents": true }', 'utf8')
+  const tmp = temporaryDirectory()
   const cacheDir = path.join(tmp, 'cache')
   const storeDir = path.join(tmp, 'store')
 

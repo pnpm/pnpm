@@ -5,6 +5,7 @@ import { LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
+import writeYamlFile from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
@@ -32,6 +33,29 @@ test('global installation', async () => {
 
   const { default: isNegative } = await import(path.join(globalPrefix, 'node_modules', 'is-negative'))
   expect(typeof isNegative).toBe('function')
+})
+
+test('global install warns when project has packageManager configured', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+    packageManager: 'yarn@4.0.0',
+  })
+
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  const { status } = execPnpmSync([
+    'install',
+    '--global',
+    'is-positive',
+    '--config.package-manager-strict=true',
+  ], { env })
+
+  expect(status).toBe(0)
 })
 
 test('global installation to custom directory with --global-dir', async () => {
@@ -77,7 +101,12 @@ test('run lifecycle events of global packages in correct working directory', asy
   const pnpmHome = path.join(global, 'pnpm')
   const globalPkgDir = path.join(pnpmHome, 'global', String(LAYOUT_VERSION))
   fs.mkdirSync(globalPkgDir, { recursive: true })
-  fs.writeFileSync(path.join(globalPkgDir, 'package.json'), JSON.stringify({ pnpm: { neverBuiltDependencies: [] } }))
+  fs.writeFileSync(path.join(globalPkgDir, 'package.json'), JSON.stringify({}))
+  writeYamlFile.sync(path.join(globalPkgDir, 'pnpm-workspace.yaml'), {
+    allowBuilds: {
+      '@pnpm.e2e/postinstall-calls-pnpm': true,
+    },
+  })
 
   const env = {
     [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
@@ -90,7 +119,9 @@ test('run lifecycle events of global packages in correct working directory', asy
   expect(fs.existsSync(path.join(globalPkgDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm/created-by-postinstall'))).toBeTruthy()
 })
 
-test('dangerously-allow-all-builds=true in global config', async () => {
+// CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies
+// TODO: Maybe we should create a yaml config file specifically for `--global`? After all, this test is to serve such use-cases
+test.skip('dangerously-allow-all-builds=true in global config', async () => {
   // the directory structure below applies only to Linux
   if (process.platform !== 'linux') return
 
@@ -99,7 +130,7 @@ test('dangerously-allow-all-builds=true in global config', async () => {
     version: '0.0.0',
     private: true,
     pnpm: {
-      onlyBuiltDependencies: [], // don't allow any dependencies to be built
+      allowBuilds: {}, // don't allow any dependencies to be built
     },
   }
 
@@ -135,7 +166,7 @@ test('dangerously-allow-all-builds=true in global config', async () => {
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 
   // global config should be used if local config did not specify
-  delete manifest.pnpm!.onlyBuiltDependencies
+  delete manifest.pnpm!.allowBuilds
   project.writePackageJson(manifest)
   fs.rmSync('node_modules', { recursive: true })
   fs.rmSync('pnpm-lock.yaml')
@@ -143,7 +174,9 @@ test('dangerously-allow-all-builds=true in global config', async () => {
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
 })
 
-test('dangerously-allow-all-builds=false in global config', async () => {
+// CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies
+// TODO: Maybe we should create a yaml config file specifically for `--global`? After all, this test is to serve such use-cases
+test.skip('dangerously-allow-all-builds=false in global config', async () => {
   // the directory structure below applies only to Linux
   if (process.platform !== 'linux') return
 
@@ -152,7 +185,7 @@ test('dangerously-allow-all-builds=false in global config', async () => {
     version: '0.0.0',
     private: true,
     pnpm: {
-      onlyBuiltDependencies: ['@pnpm.e2e/postinstall-calls-pnpm'],
+      allowBuilds: { '@pnpm.e2e/postinstall-calls-pnpm': true },
     },
   }
 
@@ -188,7 +221,7 @@ test('dangerously-allow-all-builds=false in global config', async () => {
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
 
   // global config should be used if local config did not specify
-  delete manifest.pnpm!.onlyBuiltDependencies
+  delete manifest.pnpm!.allowBuilds
   project.writePackageJson(manifest)
   fs.rmSync('node_modules', { recursive: true })
   fs.rmSync('pnpm-lock.yaml')

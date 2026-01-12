@@ -18,15 +18,21 @@ import {
 import {
   type ResolveFunction,
   type ResolveOptions,
+  type ResolveResult,
   type WantedDependency,
 } from '@pnpm/resolver-base'
 import { type TarballResolveResult, resolveFromTarball } from '@pnpm/tarball-resolver'
+import { type CustomResolver, checkCustomResolverCanResolve } from '@pnpm/hooks.types'
 
 export type {
   PackageMeta,
   PackageMetaCache,
   ResolveFunction,
   ResolverFactoryOptions,
+}
+
+export interface CustomResolverResolveResult extends ResolveResult {
+  resolvedVia: 'custom-resolver'
 }
 
 export type DefaultResolveResult =
@@ -39,14 +45,49 @@ export type DefaultResolveResult =
   | NodeRuntimeResolveResult
   | DenoRuntimeResolveResult
   | BunRuntimeResolveResult
+  | CustomResolverResolveResult
 
 export type DefaultResolver = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<DefaultResolveResult>
+
+async function resolveFromCustomResolvers (
+  customResolvers: CustomResolver[],
+  wantedDependency: WantedDependency,
+  opts: ResolveOptions
+): Promise<DefaultResolveResult | null> {
+  if (!customResolvers || customResolvers.length === 0) {
+    return null
+  }
+
+  for (const customResolver of customResolvers) {
+    // Skip custom resolvers that don't support both canResolve and resolve
+    if (!customResolver.canResolve || !customResolver.resolve) continue
+
+    // eslint-disable-next-line no-await-in-loop
+    const canResolve = await checkCustomResolverCanResolve(customResolver, wantedDependency)
+
+    if (canResolve) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await customResolver.resolve(wantedDependency, {
+        lockfileDir: opts.lockfileDir,
+        projectDir: opts.projectDir,
+        preferredVersions: (opts.preferredVersions ?? {}) as unknown as Record<string, string>,
+      })
+      return {
+        ...result,
+        resolvedVia: 'custom-resolver',
+      } as DefaultResolveResult
+    }
+  }
+
+  return null
+}
 
 export function createResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   pnpmOpts: ResolverFactoryOptions & {
     rawConfig: Record<string, string>
+    customResolvers?: CustomResolver[]
   }
 ): { resolve: DefaultResolver, clearCache: () => void } {
   const { resolveFromNpm, resolveFromJsr, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
@@ -57,15 +98,13 @@ export function createResolver (
   const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig })
   const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
+  const _resolveFromCustomResolvers = pnpmOpts.customResolvers
+    ? resolveFromCustomResolvers.bind(null, pnpmOpts.customResolvers)
+    : null
   return {
     resolve: async (wantedDependency, opts) => {
-      if (wantedDependency.bareSpecifier?.includes(',')) {
-        throw new PnpmError(
-          'INVALID_DEPENDENCY',
-          `The dependency specifier "${wantedDependency.bareSpecifier}" is invalid. It cannot contain commas.`
-        )
-      }
-      const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
+      const resolution = await _resolveFromCustomResolvers?.(wantedDependency, opts) ??
+        await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??

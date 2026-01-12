@@ -7,8 +7,8 @@ import { type ResolveFunction } from '@pnpm/resolver-base'
 import { sortPackages } from '@pnpm/sort-packages'
 import { type Registries, type ProjectRootDir } from '@pnpm/types'
 import pFilter from 'p-filter'
-import pick from 'ramda/src/pick'
-import writeJsonFile from 'write-json-file'
+import { pick } from 'ramda'
+import { writeJsonFile } from 'write-json-file'
 import { publish } from './publish.js'
 
 export type PublishRecursiveOpts = Required<Pick<Config,
@@ -98,6 +98,9 @@ export async function recursivePublish (
     }
     if (opts.dryRun) {
       appendedArgs.push('--dry-run')
+    }
+    if (opts.force) {
+      appendedArgs.push('--force')
     }
     if (opts.cliOptions['otp']) {
       appendedArgs.push(`--otp=${opts.cliOptions['otp'] as string}`)

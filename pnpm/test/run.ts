@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
@@ -121,7 +122,7 @@ test('install-test: install dependencies and runs tests', async () => {
   await execPnpm(['install-test'])
 
   const scriptsRan = (fs.readFileSync('output.txt')).toString()
-  expect(scriptsRan.trim()).toStrictEqual('test')
+  expect(scriptsRan.trim()).toBe('test')
 })
 
 test('silent run only prints the output of the child process', async () => {
@@ -143,11 +144,9 @@ testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
     },
   })
 
-  const npmrc = `
-    prefer-symlinked-executables=true=true
-  `
-
-  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    preferSymlinkedExecutables: true,
+  })
 
   const result = execPnpmSync(['run', 'build'])
 
@@ -161,12 +160,10 @@ testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir
     },
   })
 
-  const npmrc = `
-    virtual-store-dir=/foo/bar
-    prefer-symlinked-executables=true=true
-  `
-
-  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    virtualStoreDir: '/foo/bar',
+    preferSymlinkedExecutables: true,
+  })
 
   const result = execPnpmSync(['run', 'build'])
 
@@ -233,62 +230,4 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
   expect(output).not.toContain('script1: 1')
   expect(output).toContain('2')
   expect(output).not.toContain('script2: 2')
-})
-
-test('recursive run when some packages define different node versions', async () => {
-  preparePackages([
-    {
-      name: 'node-version-unset',
-      scripts: {
-        'print-node-version': 'node -v',
-      },
-    },
-    {
-      name: 'node-version-18',
-      scripts: {
-        'print-node-version': 'node -v',
-      },
-      pnpm: {
-        executionEnv: {
-          nodeVersion: '18.0.0',
-        },
-      },
-    },
-    {
-      name: 'node-version-20',
-      scripts: {
-        'print-node-version': 'node -v',
-      },
-      pnpm: {
-        executionEnv: {
-          nodeVersion: '20.0.0',
-        },
-      },
-    },
-  ])
-
-  const runPrintNodeVersion = (args: string[]) =>
-    execPnpmSync(args)
-      .stdout
-      .toString()
-      .trim()
-      .split('\n')
-      .filter(x => /print-node-version.*v\d+\.\d+\.\d+/.test(x))
-      .sort()
-
-  expect(
-    runPrintNodeVersion(['run', '-r', 'print-node-version'])
-  ).toStrictEqual([
-    'node-version-18 print-node-version: v18.0.0',
-    'node-version-20 print-node-version: v20.0.0',
-    `node-version-unset print-node-version: ${process.version}`,
-  ])
-
-  expect(
-    runPrintNodeVersion(['run', '-r', '--use-node-version=19.0.0', 'print-node-version'])
-  ).toStrictEqual([
-    'node-version-18 print-node-version: v18.0.0',
-    'node-version-20 print-node-version: v20.0.0',
-    'node-version-unset print-node-version: v19.0.0',
-  ])
 })

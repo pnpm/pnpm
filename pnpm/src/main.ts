@@ -16,11 +16,10 @@ import { PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
 import path from 'path'
-import isEmpty from 'ramda/src/isEmpty'
+import { isEmpty } from 'ramda'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import { checkForUpdates } from './checkForUpdates.js'
 import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
@@ -32,6 +31,15 @@ import { switchCliVersion } from './switchCliVersion.js'
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
 loudRejection()
+
+// This prevents the program from crashing when the pipe's read side closes early
+// (e.g., when running `pnpm config list | head`)
+process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') {
+    process.exit(0)
+  }
+  throw err
+})
 
 const DEPRECATED_OPTIONS = new Set([
   'independent-leaves',
@@ -95,7 +103,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
-    const isDlxCommand = cmd === 'dlx'
+    const isDlxOrCreateCommand = cmd === 'dlx' || cmd === 'create'
     if (cmd === 'link' && cliParams.length === 0) {
       cliOptions.global = true
     }
@@ -105,16 +113,20 @@ export async function main (inputArgv: string[]): Promise<void> {
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
-      ignoreNonAuthSettingsFromLocal: isDlxCommand,
+      ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
     }) as typeof config
     if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
       if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm' && cmd !== 'self-update') {
         await switchCliVersion(config)
       } else if (!cmd || !skipPackageManagerCheckForCommand.has(cmd)) {
-        checkPackageManager(config.wantedPackageManager, config)
+        if (cliOptions.global) {
+          globalWarn('Using --global skips the package manager check for this project')
+        } else {
+          checkPackageManager(config.wantedPackageManager, config)
+        }
       }
     }
-    if (isDlxCommand) {
+    if (isDlxOrCreateCommand) {
       config.useStderr = true
     }
     config.argv = argv
@@ -206,7 +218,7 @@ export async function main (inputArgv: string[]): Promise<void> {
 
     const filterResults = await filterPackagesFromDir(wsDir, filters, {
       engineStrict: config.engineStrict,
-      nodeVersion: config.nodeVersion ?? config.useNodeVersion,
+      nodeVersion: config.nodeVersion,
       patterns: config.workspacePackagePatterns,
       linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),
@@ -282,22 +294,6 @@ export async function main (inputArgv: string[]): Promise<void> {
       ),
       ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
     })
-
-    if (config.useNodeVersion != null) {
-      if ('webcontainer' in process.versions) {
-        globalWarn('Automatic installation of different Node.js versions is not supported in WebContainer')
-      } else {
-        config.extraBinPaths = (
-          await prepareExecutionEnv(config, {
-            extraBinPaths: config.extraBinPaths,
-            executionEnv: {
-              nodeVersion: config.useNodeVersion,
-            },
-          })
-        ).extraBinPaths
-        config.nodeVersion = config.useNodeVersion
-      }
-    }
     let result = pnpmCmds[cmd ?? 'help'](
       // TypeScript doesn't currently infer that the type of config
       // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement

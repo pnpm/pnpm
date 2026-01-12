@@ -87,7 +87,7 @@ test('getUpdateChoices()', () => {
             value: '',
           },
           {
-            message: chalk`foo                                                          1.0.0 ❯ {redBright.bold 2.0.0}             https://pnpm.io/ `,
+            message: `foo                                                          1.0.0 ❯ ${chalk.redBright.bold('2.0.0')}             https://pnpm.io/ `,
             value: 'foo',
             name: 'foo',
           },
@@ -104,17 +104,17 @@ test('getUpdateChoices()', () => {
             value: '',
           },
           {
-            message: chalk`qar                                                          1.0.0 ❯ 1.{yellowBright.bold 2.0}                 `,
+            message: `qar                                                          1.0.0 ❯ 1.${chalk.yellowBright.bold('2.0')}                 `,
             name: 'qar',
             value: 'qar',
           },
           {
-            message: chalk`zoo                                                          1.1.0 ❯ 1.{yellowBright.bold 2.0}                 `,
+            message: `zoo                                                          1.1.0 ❯ 1.${chalk.yellowBright.bold('2.0')}                 `,
             name: 'zoo',
             value: 'zoo',
           },
           {
-            message: chalk`foo                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                 `,
+            message: `foo                                                          1.0.1 ❯ 1.${chalk.yellowBright.bold('2.0')}                 `,
             name: 'foo',
             value: 'foo',
           },
@@ -131,7 +131,7 @@ test('getUpdateChoices()', () => {
             value: '',
           },
           {
-            message: chalk`qaz                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                 `,
+            message: `qaz                                                          1.0.1 ❯ 1.${chalk.yellowBright.bold('2.0')}                 `,
             name: 'qaz',
             value: 'qaz',
           },

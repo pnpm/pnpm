@@ -2,11 +2,11 @@ import path from 'path'
 import fsPromises from 'fs/promises'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { type BinaryFetcher, type FetchFunction } from '@pnpm/fetcher-base'
+import { type BinaryFetcher, type FetchFunction, type FetchResult } from '@pnpm/fetcher-base'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import ssri from 'ssri'
 
 export function createBinaryFetcher (ctx: {
@@ -19,40 +19,49 @@ export function createBinaryFetcher (ctx: {
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_BINARY_OFFLINE', `Cannot download binary "${resolution.url}" because offline mode is enabled.`)
     }
-    const version = opts.pkg.version!
+
     const manifest = {
       name: opts.pkg.name!,
-      version,
+      version: opts.pkg.version!,
       bin: resolution.bin,
     }
 
-    if (resolution.archive === 'tarball') {
-      return {
-        ...await ctx.fetchFromRemoteTarball(cafs, {
-          tarball: resolution.url,
-          integrity: resolution.integrity,
-        }, opts),
-        manifest,
-      }
+    let fetchResult!: FetchResult
+    switch (resolution.archive) {
+    case 'tarball': {
+      fetchResult = await ctx.fetchFromRemoteTarball(cafs, {
+        tarball: resolution.url,
+        integrity: resolution.integrity,
+      }, {
+        appendManifest: manifest,
+        ...opts,
+      })
+      break
     }
-    if (resolution.archive === 'zip') {
+    case 'zip': {
       const tempLocation = await cafs.tempDir()
       await downloadAndUnpackZip(ctx.fetch, {
         url: resolution.url,
         integrity: resolution.integrity,
         basename: resolution.prefix ?? '',
       }, tempLocation)
-      return {
-        ...await addFilesFromDir({
-          storeDir: cafs.storeDir,
-          dir: tempLocation,
-          filesIndexFile: opts.filesIndexFile,
-          readManifest: false,
-        }),
-        manifest,
-      }
+      fetchResult = await addFilesFromDir({
+        storeDir: cafs.storeDir,
+        dir: tempLocation,
+        filesIndexFile: opts.filesIndexFile,
+        readManifest: false,
+        appendManifest: manifest,
+      })
+      break
     }
-    throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
+    default: {
+      throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
+    }
+    }
+    return {
+      ...fetchResult,
+      manifest,
+    }
   }
   return {
     binary: fetchBinary,
@@ -78,7 +87,7 @@ export async function downloadAndUnpackZip (
   assetInfo: AssetInfo,
   targetDir: string
 ): Promise<void> {
-  const tmp = path.join(tempy.directory(), 'pnpm.zip')
+  const tmp = path.join(temporaryDirectory(), 'pnpm.zip')
 
   try {
     await downloadWithIntegrityCheck(fetchFromRegistry, assetInfo, tmp)

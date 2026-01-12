@@ -1,7 +1,9 @@
 import fs from 'fs'
 import path from 'path'
+import { type Config } from '@pnpm/config'
 import { STORE_VERSION } from '@pnpm/constants'
 import { preparePackages } from '@pnpm/prepare'
+import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { isCI } from 'ci-info'
@@ -16,7 +18,7 @@ import {
 
 const skipOnWindows = isWindows() ? test.skip : test
 
-test('recursive installation with package-specific .npmrc', async () => {
+test('recursive installation with packageConfigs', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -36,7 +38,13 @@ test('recursive installation with package-specific .npmrc', async () => {
     },
   ])
 
-  fs.writeFileSync('project-2/.npmrc', 'hoist = false', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['*'],
+    packageConfigs: {
+      'project-2': { hoist: false },
+    },
+    sharedWorkspaceLockfile: false,
+  } satisfies Partial<Config> & WorkspaceManifest)
 
   await execPnpm(['recursive', 'install'])
 
@@ -50,7 +58,7 @@ test('recursive installation with package-specific .npmrc', async () => {
   expect(modulesYaml2?.hoistPattern).toBeFalsy()
 })
 
-test('workspace .npmrc is always read', async () => {
+test('workspace packageConfigs is always read', async () => {
   const projects = preparePackages([
     {
       location: 'workspace/project-1',
@@ -79,10 +87,12 @@ test('workspace .npmrc is always read', async () => {
   const storeDir = path.resolve('../store')
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['workspace/*'],
-    shamefullyFlatten: true,
+    packageConfigs: {
+      'project-2': { hoist: false },
+    },
+    shamefullyHoist: true,
     sharedWorkspaceLockfile: false,
-  })
-  fs.writeFileSync('workspace/project-2/.npmrc', 'hoist=false', 'utf8')
+  } satisfies Partial<Config> & WorkspaceManifest)
 
   process.chdir('workspace/project-1')
   await execPnpm(['install', '--store-dir', storeDir, '--filter', '.'])
@@ -314,7 +324,9 @@ test('recursive command with filter from config', async () => {
   ])
 
   fs.writeFileSync('package.json', '{}', 'utf8')
-  fs.writeFileSync('.npmrc', 'filter=project-1 project-2', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    filter: ['project-1', 'project-2'],
+  })
   await execPnpm(['recursive', 'install'])
 
   projects['project-1'].has('is-positive')

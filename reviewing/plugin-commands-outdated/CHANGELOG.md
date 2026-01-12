@@ -1,5 +1,50 @@
 # @pnpm/plugin-commands-outdated
 
+## 1000.0.46
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.2.12
+- @pnpm/outdated@1001.1.1
+- @pnpm/cli-utils@1001.2.8
+
+## 1000.0.45
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+  - @pnpm/types@1000.9.0
+  - @pnpm/outdated@1001.1.0
+  - @pnpm/matcher@1000.1.0
+  - @pnpm/cli-utils@1001.2.7
+  - @pnpm/config@1004.4.2
+  - @pnpm/lockfile.fs@1001.1.21
+  - @pnpm/modules-yaml@1000.3.6
+  - @pnpm/default-resolver@1002.2.11
+
+## 1000.0.44
+
+### Patch Changes
+
+- 270c447: Prevent a table width error in `pnpm outdated --long` [#10040](https://github.com/pnpm/pnpm/issues/10040).
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/cli-utils@1001.2.6
+  - @pnpm/default-resolver@1002.2.10
+  - @pnpm/outdated@1001.0.36
+
+## 1000.0.43
+
+### Patch Changes
+
+- Updated dependencies [39b728a]
+  - @pnpm/outdated@1001.0.35
+  - @pnpm/default-resolver@1002.2.9
+  - @pnpm/cli-utils@1001.2.5
+
 ## 1000.0.42
 
 ### Patch Changes

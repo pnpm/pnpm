@@ -2,6 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { type DirDiff, DIR, applyPatch } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm
@@ -9,9 +11,9 @@ const originalMkdir = fs.promises.mkdir
 const originalLink = fs.promises.link
 
 function mockFsPromises (): Record<'rm' | 'mkdir' | 'link', jest.Mock> {
-  const rm = jest.fn(fs.promises.rm)
-  const mkdir = jest.fn(fs.promises.mkdir)
-  const link = jest.fn(fs.promises.link)
+  const rm = jest.fn(fs.promises.rm) as jest.Mock
+  const mkdir = jest.fn(fs.promises.mkdir) as jest.Mock
+  const link = jest.fn(fs.promises.link) as jest.Mock
   fs.promises.rm = rm as typeof fs.promises.rm
   fs.promises.mkdir = mkdir as typeof fs.promises.mkdir
   fs.promises.link = link as typeof fs.promises.link
@@ -131,7 +133,7 @@ test('applies a patch on a directory', async () => {
 
   const sourceFetchResult = await fetchFromDir('source', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultBefore = await fetchFromDir('target', { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Object.keys(targetFetchResultBefore.filesIndex).sort()).not.toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Array.from(targetFetchResultBefore.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(Array.from(sourceFetchResult.filesMap.keys()).sort(lexCompare))
   expect(
     filesToModify
       .map(suffix => `target/${suffix}`)
@@ -147,8 +149,8 @@ test('applies a patch on a directory', async () => {
   await applyPatch(optimizedDirPath, path.resolve('source'), path.resolve('target'))
 
   const targetFetchResultAfter = await fetchFromDir('target', { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Object.keys(targetFetchResultAfter.filesIndex).sort()).toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
-  expect(Object.keys(targetFetchResultAfter.filesIndex).sort()).not.toStrictEqual(Object.keys(targetFetchResultBefore.filesIndex).sort())
+  expect(Array.from(targetFetchResultAfter.filesMap.keys()).sort(lexCompare)).toStrictEqual(Array.from(sourceFetchResult.filesMap.keys()).sort(lexCompare))
+  expect(Array.from(targetFetchResultAfter.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(Array.from(targetFetchResultBefore.filesMap.keys()).sort(lexCompare))
   expect(
     filesToModify
       .map(suffix => `target/${suffix}`)

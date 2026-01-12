@@ -1,18 +1,18 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
-import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
-// @ts-expect-error
-import { debug } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { jest } from '@jest/globals'
 
-const f = fixtures(__dirname)
-jest.mock('@pnpm/logger', () => {
-  const debug = jest.fn()
-  return ({ debug, logger: () => ({ debug }) })
+const debug = jest.fn()
+jest.unstable_mockModule('@pnpm/logger', () => {
+  return ({ globalWarn: jest.fn(), debug, logger: () => ({ debug }) })
 })
+const { createDirectoryFetcher } = await import('@pnpm/directory-fetcher')
+
+const f = fixtures(import.meta.dirname)
 
 test('fetch including only package files', async () => {
   process.chdir(f.find('simple-pkg'))
@@ -28,10 +28,10 @@ test('fetch including only package files', async () => {
 
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
-  expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
+  expect(fetchResult.filesMap.get('package.json')).toBe(path.resolve('package.json'))
 
   // Only those files are included which would get published
-  expect(Object.keys(fetchResult.filesIndex).sort()).toStrictEqual([
+  expect(Array.from(fetchResult.filesMap.keys()).sort(lexCompare)).toStrictEqual([
     'index.js',
     'package.json',
   ])
@@ -51,10 +51,10 @@ test('fetch including all files', async () => {
 
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
-  expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
+  expect(fetchResult.filesMap.get('package.json')).toBe(path.resolve('package.json'))
 
   // Only those files are included which would get published
-  expect(Object.keys(fetchResult.filesIndex).sort()).toStrictEqual([
+  expect(Array.from(fetchResult.filesMap.keys()).sort(lexCompare)).toStrictEqual([
     'index.js',
     'package.json',
     'test.js',
@@ -74,19 +74,19 @@ test('fetch a directory that has no package.json', async () => {
     readManifest: true,
   })
 
-  expect(fetchResult.manifest).toEqual(undefined)
+  expect(fetchResult.manifest).toBeUndefined()
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
-  expect(fetchResult.filesIndex['index.js']).toBe(path.resolve('index.js'))
+  expect(fetchResult.filesMap.get('index.js')).toBe(path.resolve('index.js'))
 
   // Only those files are included which would get published
-  expect(Object.keys(fetchResult.filesIndex).sort()).toStrictEqual([
+  expect(Array.from(fetchResult.filesMap.keys()).sort(lexCompare)).toStrictEqual([
     'index.js',
   ])
 })
 
 test('fetch does not fail on package with broken symlink', async () => {
-  debug.mockClear()
+  jest.mocked(debug).mockClear()
   process.chdir(f.find('pkg-with-broken-symlink'))
   const fetcher = createDirectoryFetcher()
 
@@ -100,10 +100,10 @@ test('fetch does not fail on package with broken symlink', async () => {
 
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
-  expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
+  expect(fetchResult.filesMap.get('package.json')).toBe(path.resolve('package.json'))
 
   // Only those files are included which would get published
-  expect(Object.keys(fetchResult.filesIndex).sort()).toStrictEqual([
+  expect(Array.from(fetchResult.filesMap.keys()).sort(lexCompare)).toStrictEqual([
     'index.js',
     'package.json',
   ])
@@ -132,9 +132,9 @@ describe('fetch resolves symlinked files to their real locations', () => {
 
     expect(fetchResult.local).toBe(true)
     expect(fetchResult.packageImportMethod).toBe('hardlink')
-    expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
-    expect(fetchResult.filesIndex['index.js']).toBe(indexJsPath)
-    expect(fetchResult.filesIndex['src/index.js']).toBe(path.join(srcPath, 'index.js'))
+    expect(fetchResult.filesMap.get('package.json')).toBe(path.resolve('package.json'))
+    expect(fetchResult.filesMap.get('index.js')).toBe(indexJsPath)
+    expect(fetchResult.filesMap.get('src/index.js')).toBe(path.join(srcPath, 'index.js'))
   })
   test('fetch does not resolve symlinked files to their real locations by default', async () => {
     const fetcher = createDirectoryFetcher()
@@ -149,8 +149,8 @@ describe('fetch resolves symlinked files to their real locations', () => {
 
     expect(fetchResult.local).toBe(true)
     expect(fetchResult.packageImportMethod).toBe('hardlink')
-    expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
-    expect(fetchResult.filesIndex['index.js']).toBe(path.resolve('index.js'))
-    expect(fetchResult.filesIndex['src/index.js']).toBe(path.resolve('src/index.js'))
+    expect(fetchResult.filesMap.get('package.json')).toBe(path.resolve('package.json'))
+    expect(fetchResult.filesMap.get('index.js')).toBe(path.resolve('index.js'))
+    expect(fetchResult.filesMap.get('src/index.js')).toBe(path.resolve('src/index.js'))
   })
 })

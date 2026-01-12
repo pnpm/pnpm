@@ -12,7 +12,7 @@ import {
   execPnpxSync,
 } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 
 test('some commands pass through to npm', () => {
@@ -129,7 +129,7 @@ test('pnpx works', () => {
 
   const result = execPnpxSync(['@pnpm.e2e/hello-world-js-bin'], { env })
 
-  expect(result.stdout.toString()).toEqual('Hello world!\n')
+  expect(result.stdout.toString()).toBe('Hello world!\n')
   expect(result.status).toBe(0)
 })
 
@@ -139,21 +139,6 @@ test('exit code from plugin is used to end the process', () => {
 
   expect(result.status).toBe(1)
   expect(result.stdout.toString()).toMatch(/is-positive/)
-})
-
-test('use the specified Node.js version for running scripts', async () => {
-  prepare({
-    scripts: {
-      test: "node -e \"require('fs').writeFileSync('version',process.version,'utf8')\"",
-    },
-  })
-  fs.writeFileSync('.npmrc', 'use-node-version=14.0.0', 'utf8')
-  await execPnpm(['run', 'test'], {
-    env: {
-      PNPM_HOME: path.resolve('pnpm_home'),
-    },
-  })
-  expect(fs.readFileSync('version', 'utf8')).toBe('v14.0.0')
 })
 
 test('if an unknown command is executed, run it', async () => {

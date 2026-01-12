@@ -1,5 +1,30 @@
 # @pnpm/plugin-commands-setup
 
+## 1000.1.20
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.8
+
+## 1000.1.19
+
+### Patch Changes
+
+- @pnpm/cli-meta@1000.0.11
+- @pnpm/cli-utils@1001.2.7
+
+## 1000.1.18
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.6
+
+## 1000.1.17
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.5
+
 ## 1000.1.16
 
 ### Patch Changes

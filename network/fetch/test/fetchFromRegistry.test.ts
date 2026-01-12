@@ -5,13 +5,17 @@ import nock from 'nock'
 import { ProxyServer } from 'https-proxy-server-express'
 import fs from 'fs'
 
-const CERTS_DIR = path.join(__dirname, '__certs__')
+const CERTS_DIR = path.join(import.meta.dirname, '__certs__')
+
+afterEach(() => {
+  nock.cleanAll()
+})
 
 test('fetchFromRegistry', async () => {
   const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive')
   const metadata = await res.json() as any // eslint-disable-line
-  expect(metadata.name).toEqual('is-positive')
+  expect(metadata.name).toBe('is-positive')
   expect(metadata.versions['1.0.0'].scripts).not.toBeTruthy()
 })
 
@@ -19,7 +23,7 @@ test('fetchFromRegistry fullMetadata', async () => {
   const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
   const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive')
   const metadata = await res.json() as any // eslint-disable-line
-  expect(metadata.name).toEqual('is-positive')
+  expect(metadata.name).toBe('is-positive')
   expect(metadata.versions['1.0.0'].scripts).toBeTruthy()
 })
 
@@ -71,7 +75,7 @@ test('switch to the correct agent for requests on redirect from http: to https:'
   // We can test this on any endpoint that redirects from http: to https:
   const { status } = await fetchFromRegistry('http://pnpm.io/pnpm.js')
 
-  expect(status).toEqual(200)
+  expect(status).toBe(200)
 })
 
 test('fetch from registry with client certificate authentication', async () => {
@@ -102,7 +106,7 @@ test('fetch from registry with client certificate authentication', async () => {
   try {
     const res = await fetchFromRegistry(`https://localhost:${randomPort}/is-positive`)
     const metadata = await res.json() as any // eslint-disable-line
-    expect(metadata.name).toEqual('is-positive')
+    expect(metadata.name).toBe('is-positive')
   } finally {
     await proxyServer.stop()
   }
@@ -137,4 +141,71 @@ test('fail if the client certificate is not provided', async () => {
     await proxyServer.stop()
   }
   expect(err?.code).toMatch(/ECONNRESET|ERR_SSL_TLSV13_ALERT_CERTIFICATE_REQUIRED/)
+})
+
+test('redirect to protocol-relative URL', async () => {
+  nock('http://registry.pnpm.io/')
+    .get('/foo')
+    .reply(302, '', { location: '//registry.other.org/foo' })
+  nock('http://registry.other.org/')
+    .get('/foo')
+    .reply(200, { ok: true })
+
+  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const res = await fetchFromRegistry(
+    'http://registry.pnpm.io/foo'
+  )
+
+  expect(await res.json()).toStrictEqual({ ok: true })
+  expect(nock.isDone()).toBeTruthy()
+})
+
+test('redirect to relative URL', async () => {
+  nock('http://registry.pnpm.io/')
+    .get('/bar/baz')
+    .reply(302, '', { location: '../foo' })
+  nock('http://registry.pnpm.io/')
+    .get('/foo')
+    .reply(200, { ok: true })
+
+  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const res = await fetchFromRegistry(
+    'http://registry.pnpm.io/bar/baz'
+  )
+
+  expect(await res.json()).toStrictEqual({ ok: true })
+  expect(nock.isDone()).toBeTruthy()
+})
+
+test('redirect to relative URL when request pkg.pr.new link', async () => {
+  nock('https://pkg.pr.new/')
+    .get('/vue@14175')
+    .reply(302, '', { location: '/vuejs/core/vue@14182' })
+
+  nock('https://pkg.pr.new/')
+    .get('/vuejs/core/vue@14182')
+    .reply(302, '', { location: '/vuejs/core/vue@82a13bb6faaa9f77a06b57e69e0934b9f620f333' })
+
+  nock('https://pkg.pr.new/')
+    .get('/vuejs/core/vue@82a13bb6faaa9f77a06b57e69e0934b9f620f333')
+    .reply(200, { ok: true })
+
+  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const res = await fetchFromRegistry(
+    'https://pkg.pr.new/vue@14175'
+  )
+
+  expect(await res.json()).toStrictEqual({ ok: true })
+  expect(nock.isDone()).toBeTruthy()
+})
+
+test('redirect without location header throws error', async () => {
+  nock('http://registry.pnpm.io/')
+    .get('/missing-location')
+    .reply(302, 'found')
+
+  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  await expect(fetchFromRegistry(
+    'http://registry.pnpm.io/missing-location'
+  )).rejects.toThrow(/Redirect location header missing/)
 })

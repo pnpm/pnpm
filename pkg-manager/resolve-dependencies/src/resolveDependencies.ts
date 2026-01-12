@@ -31,6 +31,7 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import {
+  type AllowBuild,
   type DepPath,
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
@@ -39,18 +40,20 @@ import {
   type Registries,
   type PkgIdWithPatchHash,
   type PinnedVersion,
+  type PackageVersionPolicy,
+  type TrustPolicy,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
+import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
 import { type PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
-import exists from 'path-exists'
+import { pathExists } from 'path-exists'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
-import pickBy from 'ramda/src/pickBy'
-import omit from 'ramda/src/omit'
-import zipWith from 'ramda/src/zipWith'
+import { pickBy, omit, zipWith } from 'ramda'
 import semver from 'semver'
+import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies.js'
 import { safeIntersect } from './mergePeers.js'
 import { type NodeId, nextNodeId } from './nextNodeId.js'
@@ -59,6 +62,8 @@ import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers.js'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable.js'
 import { type CatalogLookupMetadata } from './resolveDependencyTree.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
+
+export type { WantedDependency }
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
@@ -136,6 +141,7 @@ export interface ChildrenByParentId {
 }
 
 export interface ResolutionContext {
+  allowBuild?: AllowBuild
   allPeerDepNames: Set<string>
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
@@ -177,7 +183,11 @@ export interface ResolutionContext {
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
   maximumPublishedBy?: Date
-  minimumReleaseAgeExclude?: (pkgName: string) => boolean
+  publishedByExclude?: PackageVersionPolicy
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyIgnoreAfter?: number
+  blockExoticSubdeps?: boolean
 }
 
 export interface MissingPeerInfo {
@@ -1275,7 +1285,7 @@ async function resolveDependency (
     currentPkg.depPath &&
     currentPkg.dependencyLockfile &&
     currentPkg.name &&
-    await exists(
+    await pathExists(
       path.join(
         ctx.virtualStoreDir,
         dp.depPathToFilename(currentPkg.depPath, ctx.virtualStoreDirMaxLength),
@@ -1297,26 +1307,21 @@ async function resolveDependency (
       optional: true,
     }
   }
+
+  // Normalize the `preferredVersion` (singular) and `preferredVersions`
+  // (plural) options. If the singular option is passed through, it'll be used
+  // instead of the plural option.
+  const preferredVersions = !options.updateRequested && options.preferredVersion != null
+    ? getExactSinglePreferredVersions(wantedDependency, options.preferredVersion)
+    : options.preferredVersions
+
   try {
     const calcSpecifier = options.currentDepth === 0
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version)
     }
-    if (!options.updateRequested && options.preferredVersion != null) {
-      wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
-    }
-    let publishedBy: Date | undefined
-    if (
-      options.publishedBy &&
-      (
-        ctx.minimumReleaseAgeExclude == null ||
-        wantedDependency.alias == null ||
-        !ctx.minimumReleaseAgeExclude(wantedDependency.alias)
-      )
-    ) {
-      publishedBy = options.publishedBy
-    }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
+      allowBuild: ctx.allowBuild,
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
         ? {
@@ -1329,11 +1334,12 @@ async function resolveDependency (
       expectedPkg: currentPkg,
       defaultTag: ctx.defaultTag,
       ignoreScripts: ctx.ignoreScripts,
-      publishedBy,
+      publishedBy: options.publishedBy,
+      publishedByExclude: ctx.publishedByExclude,
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
-      preferredVersions: options.preferredVersions,
+      preferredVersions,
       preferWorkspacePackages: ctx.preferWorkspacePackages,
       projectDir: (
         options.currentDepth > 0 &&
@@ -1342,6 +1348,9 @@ async function resolveDependency (
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
       skipFetch: ctx.dryRun,
+      trustPolicy: ctx.trustPolicy,
+      trustPolicyExclude: ctx.trustPolicyExclude,
+      trustPolicyIgnoreAfter: ctx.trustPolicyIgnoreAfter,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
@@ -1360,7 +1369,7 @@ async function resolveDependency (
       bareSpecifier: wantedDependency.bareSpecifier,
       version: wantedDependency.alias ? wantedDependency.bareSpecifier : undefined,
     }
-    if (wantedDependency.optional) {
+    if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE' && err.code !== 'ERR_PNPM_NO_MATURE_MATCHING_VERSION') {
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: wantedDependencyDetails,
@@ -1384,6 +1393,22 @@ async function resolveDependency (
       rawSpec: wantedDependency.bareSpecifier,
     },
   })
+
+  // Check if exotic dependencies are disallowed in subdependencies
+  if (
+    ctx.blockExoticSubdeps &&
+    options.currentDepth > 0 &&
+    pkgResponse.body.resolvedVia != null && // This is already coming from the lockfile, we skip the check in this case for now. Should be fixed later.
+    isExoticDep(pkgResponse.body.resolvedVia)
+  ) {
+    const error = new PnpmError(
+      'EXOTIC_SUBDEP',
+      `Exotic dependency "${wantedDependency.alias ?? wantedDependency.bareSpecifier}" (resolved via ${pkgResponse.body.resolvedVia}) is not allowed in subdependencies when blockExoticSubdeps is enabled`
+    )
+    error.prefix = options.prefix
+    error.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
+    throw error
+  }
 
   if (ctx.allPreferredVersions && pkgResponse.body.manifest?.version) {
     if (!ctx.allPreferredVersions[pkgResponse.body.manifest.name]) {
@@ -1422,7 +1447,7 @@ async function resolveDependency (
 
   let prepare!: boolean
   let hasBin!: boolean
-  let pkg: PackageManifest = getManifestFromResponse(pkgResponse, wantedDependency)
+  let pkg: PackageManifest = getManifestFromResponse(pkgResponse, wantedDependency, currentPkg)
   if (!pkg.dependencies) {
     pkg.dependencies = {}
   }
@@ -1444,6 +1469,9 @@ async function resolveDependency (
         ),
       }
     }
+  }
+  if (pkg.engines?.runtime != null) {
+    convertEnginesRuntimeToDependencies(pkg, 'engines', 'dependencies')
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.bareSpecifier}: Missing package name`)
@@ -1506,7 +1534,9 @@ async function resolveDependency (
     ) {
       pkg.deprecated = currentPkg.dependencyLockfile.deprecated
     }
-    hasBin = Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
+    hasBin = (currentPkg.dependencyLockfile?.hasBin != null && !pkg.bin)
+      ? currentPkg.dependencyLockfile.hasBin
+      : Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest
@@ -1649,11 +1679,19 @@ async function resolveDependency (
   }
 }
 
-function getManifestFromResponse (
+export function getManifestFromResponse (
   pkgResponse: PackageResponse,
-  wantedDependency: WantedDependency
+  wantedDependency: WantedDependency,
+  currentPkg?: Partial<InfoFromLockfile>
 ): PackageManifest {
   if (pkgResponse.body.manifest) return pkgResponse.body.manifest
+
+  if (currentPkg?.name && currentPkg?.version) {
+    return {
+      name: currentPkg.name,
+      version: currentPkg.version,
+    }
+  }
   return {
     name: wantedDependency.alias ? wantedDependency.alias : wantedDependency.bareSpecifier.split('/').pop()!,
     version: '0.0.0',
@@ -1765,4 +1803,19 @@ function getCatalogExistingVersionFromSnapshot (
   return existingCatalogResolution?.specifier === catalogLookup.specifier
     ? existingCatalogResolution.version
     : undefined
+}
+
+const NON_EXOTIC_RESOLVED_VIA = new Set([
+  'custom-resolver',
+  'github.com/denoland/deno',
+  'github.com/oven-sh/bun',
+  'jsr-registry',
+  'local-filesystem',
+  'nodejs.org',
+  'npm-registry',
+  'workspace',
+])
+
+function isExoticDep (resolvedVia: string): boolean {
+  return !NON_EXOTIC_RESOLVED_VIA.has(resolvedVia)
 }

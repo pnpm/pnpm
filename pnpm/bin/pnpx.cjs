@@ -1,5 +1,3 @@
 #!/usr/bin/env node
-
-process.argv = [...process.argv.slice(0, 2), 'dlx', ...process.argv.slice(2)]
-
-require('./pnpm.cjs')
+// CommonJS shim for compatibility with older Corepack versions
+import('./pnpx.mjs')

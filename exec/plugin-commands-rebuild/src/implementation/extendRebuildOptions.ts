@@ -4,7 +4,7 @@ import { type LogBase } from '@pnpm/logger'
 import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { type Registries } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 
 export type StrictRebuildOptions = {
   autoInstallPeers: boolean
@@ -46,19 +46,19 @@ export type StrictRebuildOptions = {
   shamefullyHoist: boolean
   deployAllFiles: boolean
   neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
+  allowBuilds?: Record<string, boolean | string>
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
   strictStorePkgContentCheck: boolean
   fetchFullMetadata?: boolean
-} & Pick<Config, 'sslConfigs' | 'onlyBuiltDependencies' | 'onlyBuiltDependenciesFile' | 'neverBuiltDependencies' | 'ignoredBuiltDependencies'>
+} & Pick<Config, 'sslConfigs' | 'allowBuilds'>
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
 Pick<StrictRebuildOptions, 'storeDir' | 'storeController'> & Pick<Config, 'rootProjectManifest' | 'rootProjectManifestDir'>
 
 const defaults = async (opts: RebuildOptions): Promise<StrictRebuildOptions> => {
   const packageManager = opts.packageManager ??
-    await loadJsonFile<{ name: string, version: string }>(path.join(__dirname, '../../package.json'))!
+    await loadJsonFile<{ name: string, version: string }>(path.join(import.meta.dirname, '../../package.json'))!
   const dir = opts.dir ?? process.cwd()
   const lockfileDir = opts.lockfileDir ?? dir
   return {
@@ -106,8 +106,5 @@ export async function extendRebuildOptions (
     ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}),
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
-  if (extendedOpts.neverBuiltDependencies == null && extendedOpts.onlyBuiltDependencies == null && extendedOpts.onlyBuiltDependenciesFile == null) {
-    extendedOpts.onlyBuiltDependencies = []
-  }
   return extendedOpts
 }

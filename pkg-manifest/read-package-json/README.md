@@ -15,7 +15,7 @@ pnpm add @pnpm/read-package-json
 ## Usage
 
 ```ts
-import readPackageJson from '@pnpm/read-package-json'
+import { readPackageJson } from '@pnpm/read-package-json'
 
 const pkgJson = await readPackageJson('package.json')
 ```

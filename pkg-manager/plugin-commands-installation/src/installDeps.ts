@@ -13,8 +13,9 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir, type PrepareExecutionEnv } from '@pnpm/types'
+import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir } from '@pnpm/types'
 import {
+  IgnoredBuildsError,
   install,
   mutateModulesInSingleProject,
   type MutateModulesOptions,
@@ -26,7 +27,6 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
-import { IgnoredBuildsError } from './errors.js'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { getNodeExecPath } from './nodeExecPath.js'
@@ -95,6 +95,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'shellEmulator'
 | 'tag'
+| 'allowBuilds'
 | 'optional'
 | 'workspaceConcurrency'
 | 'workspaceDir'
@@ -134,7 +135,6 @@ export type InstallDepsOptions = Pick<Config,
   dedupe?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
-  prepareExecutionEnv: PrepareExecutionEnv
   fetchFullMetadata?: boolean
   pruneLockfileImporters?: boolean
   pnpmfile: string[]
@@ -213,11 +213,16 @@ when running add/update with the --workspace option')
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
 
+      const recursiveRootManifestOpts = getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {})
       await recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
           ...opts,
-          ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
+          ...recursiveRootManifestOpts,
+          allowBuilds: {
+            ...recursiveRootManifestOpts.allowBuilds,
+            ...opts.allowBuilds,
+          },
           forceHoistPattern,
           forcePublicHoistPattern,
           allProjectsGraph,
@@ -248,9 +253,14 @@ when running add/update with the --workspace option')
     manifest = {}
   }
 
+  const rootManifestOpts = getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest))
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest)),
+    ...rootManifestOpts,
+    allowBuilds: {
+      ...rootManifestOpts.allowBuilds,
+      ...opts.allowBuilds,
+    },
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository
@@ -272,6 +282,8 @@ when running add/update with the --workspace option')
   }
 
   let updateMatch: UpdateDepsMatcher | null
+  let updatePackageManifest = opts.updatePackageManifest
+  let updateMatching: ((pkgName: string) => boolean) | undefined
   if (opts.update) {
     if (params.length === 0) {
       const ignoreDeps = opts.updateConfig?.ignoreDependencies
@@ -291,6 +303,10 @@ when running add/update with the --workspace option')
         throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
           'None of the specified packages were found in the dependencies.')
       }
+      // No direct dependencies matched, so we're updating indirect dependencies only
+      // Don't update package.json in this case, and limit updates to only matching dependencies
+      updatePackageManifest = false
+      updateMatching = (pkgName: string) => updateMatch!(pkgName) != null
     }
   }
 
@@ -337,13 +353,17 @@ when running add/update with the --workspace option')
         configDependencies: opts.configDependencies,
       })
     }
-    if (opts.strictDepBuilds && ignoredBuilds?.length) {
+    if (opts.strictDepBuilds && ignoredBuilds?.size) {
       throw new IgnoredBuildsError(ignoredBuilds)
     }
     return
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
+  const { updatedCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, {
+    ...installOpts,
+    updatePackageManifest,
+    updateMatching,
+  })
   if (opts.update === true && opts.save !== false) {
     await Promise.all([
       writeProjectManifest(updatedManifest),
@@ -354,7 +374,7 @@ when running add/update with the --workspace option')
       }),
     ])
   }
-  if (opts.strictDepBuilds && ignoredBuilds?.length) {
+  if (opts.strictDepBuilds && ignoredBuilds?.size) {
     throw new IgnoredBuildsError(ignoredBuilds)
   }
 

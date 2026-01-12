@@ -1,10 +1,10 @@
 {
   "name": "@pnpm/fs.indexed-pkg-importer",
-  "version": "1000.1.13",
+  "version": "1000.1.14",
   "description": "Replicates indexed directories using hard links, copies, or cloning",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "cache",
     "central storage",
     "global store",
@@ -15,12 +15,12 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/indexed-pkg-importer",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/indexed-pkg-importer#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/fs/indexed-pkg-importer",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/fs/indexed-pkg-importer#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -38,7 +38,7 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest": "rimraf .tmp",
-    "_test": "pnpm pretest && jest",
+    "_test": "pnpm pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
@@ -67,7 +67,7 @@
     "@types/fs-extra": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

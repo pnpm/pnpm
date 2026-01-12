@@ -1,14 +1,15 @@
 {
   "name": "@pnpm/win-x64",
-  "version": "10.18.1",
+  "version": "11.0.0-alpha.2",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm11",
+    "pnpm-artifact"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/win-x64",
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/win-x64#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/win-x64",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/win-x64#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

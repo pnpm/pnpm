@@ -1,50 +1,51 @@
 {
   "name": "@pnpm/worker",
-  "version": "1000.1.14",
+  "version": "1000.3.0",
   "description": "A worker for extracting package taralls to the store",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "tarball"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/worker",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/worker#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/worker",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/worker#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
-    ".": "./lib/index.js"
+    ".": "./lib/index.js",
+    "./start": "./lib/start.js"
   },
   "files": [
     "lib",
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "test": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "test": "pnpm run compile && pnpm run _test",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "dependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
-    "@pnpm/crypto.polyfill": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pkg-requires-build": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
+    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
     "@rushstack/worker-pool": "catalog:",
     "is-windows": "catalog:",
-    "load-json-file": "catalog:",
     "p-limit": "catalog:",
-    "shlex": "catalog:"
+    "semver": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -53,10 +54,11 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
-    "@types/is-windows": "catalog:"
+    "@types/is-windows": "catalog:",
+    "@types/semver": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

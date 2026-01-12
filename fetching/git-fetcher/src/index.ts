@@ -6,6 +6,7 @@ import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import { addFilesFromDir } from '@pnpm/worker'
+import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { URL } from 'url'
@@ -20,11 +21,6 @@ export interface CreateGitFetcherOptions {
 export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: GitFetcher } {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
   const ignoreScripts = createOpts.ignoreScripts ?? false
-  const preparePkg = preparePackage.bind(null, {
-    ignoreScripts: createOpts.ignoreScripts,
-    rawConfig: createOpts.rawConfig,
-    unsafePerm: createOpts.unsafePerm,
-  })
 
   const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
     const tempLocation = await cafs.tempDir()
@@ -36,9 +32,18 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       await execGit(['clone', resolution.repo, tempLocation])
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
+    const receivedCommit = await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation })
+    if (receivedCommit.trim() !== resolution.commit) {
+      throw new PnpmError('GIT_CHECKOUT_FAILED', `received commit ${receivedCommit.trim()} does not match expected value ${resolution.commit}`)
+    }
     let pkgDir: string
     try {
-      const prepareResult = await preparePkg(tempLocation, resolution.path ?? '')
+      const prepareResult = await preparePackage({
+        allowBuild: opts.allowBuild,
+        ignoreScripts: createOpts.ignoreScripts,
+        rawConfig: createOpts.rawConfig,
+        unsafePerm: createOpts.unsafePerm,
+      }, tempLocation, resolution.path ?? '')
       pkgDir = prepareResult.pkgDir
       if (ignoreScripts && prepareResult.shouldBeBuilt) {
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
@@ -85,7 +90,8 @@ function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
 
-async function execGit (args: string[], opts?: object): Promise<void> {
+async function execGit (args: string[], opts?: object): Promise<string> {
   const fullArgs = prefixGitArgs().concat(args || [])
-  await execa('git', fullArgs, opts)
+  const { stdout } = await execa('git', fullArgs, opts)
+  return stdout
 }

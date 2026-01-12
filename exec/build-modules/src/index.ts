@@ -3,7 +3,7 @@ import path from 'path'
 import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { getWorkspaceConcurrency } from '@pnpm/config'
-import { skippedOptionalDependencyLogger, ignoredScriptsLogger } from '@pnpm/core-loggers'
+import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
@@ -11,10 +11,15 @@ import { hardLinkDir } from '@pnpm/worker'
 import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import { type DependencyManifest } from '@pnpm/types'
+import {
+  type AllowBuild,
+  type DependencyManifest,
+  type DepPath,
+  type IgnoredBuilds,
+} from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
-import pickBy from 'ramda/src/pickBy'
-import runGroups from 'run-groups'
+import { pickBy } from 'ramda'
+import { runGroups } from 'run-groups'
 import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence.js'
 
 export type { DepsStateCache }
@@ -23,9 +28,8 @@ export async function buildModules<T extends string> (
   depGraph: DependenciesGraph<T>,
   rootDepPaths: T[],
   opts: {
-    allowBuild?: (pkgName: string) => boolean
+    allowBuild?: AllowBuild
     ignorePatchFailures?: boolean
-    ignoredBuiltDependencies?: string[]
     childConcurrency?: number
     depsToBuild?: Set<string>
     depsStateCache: DepsStateCache
@@ -47,7 +51,7 @@ export async function buildModules<T extends string> (
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
   }
-): Promise<{ ignoredBuilds?: string[] }> {
+): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   if (!rootDepPaths.length) return {}
   const warn = (message: string) => {
     logger.warn({ message, prefix: opts.lockfileDir })
@@ -61,8 +65,8 @@ export async function buildModules<T extends string> (
   }
   const chunks = buildSequence<T>(depGraph, rootDepPaths)
   if (!chunks.length) return {}
-  const ignoredPkgs = new Set<string>()
-  const allowBuild = opts.allowBuild ?? (() => true)
+  const ignoredBuilds = new Set<DepPath>()
+  const allowBuild = opts.allowBuild ?? (() => undefined)
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
@@ -76,9 +80,21 @@ export async function buildModules<T extends string> (
       () => {
         let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
         if (!ignoreScripts) {
-          if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name)) {
-            ignoredPkgs.add(depGraph[depPath].name)
-            ignoreScripts = true
+          const node = depGraph[depPath]
+          if (node.requiresBuild) {
+            const allowed = allowBuild(node.name, node.version)
+            switch (allowed) {
+            case false:
+              // Explicitly disallowed - don't report as ignored
+              ignoreScripts = true
+              break
+            case undefined:
+              // Not in allowlist - report as ignored
+              ignoredBuilds.add(node.depPath)
+              ignoreScripts = true
+              break
+            }
+            // allowed === true means build is permitted
           }
         }
         return buildDependency(depPath, depGraph, {
@@ -89,16 +105,7 @@ export async function buildModules<T extends string> (
     )
   })
   await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)
-  if (opts.ignoredBuiltDependencies?.length) {
-    for (const ignoredBuild of opts.ignoredBuiltDependencies) {
-      // We already ignore the build of this dependency.
-      // No need to report it.
-      ignoredPkgs.delete(ignoredBuild)
-    }
-  }
-  const packageNames = Array.from(ignoredPkgs)
-  ignoredScriptsLogger.debug({ packageNames })
-  return { ignoredBuilds: packageNames }
+  return { ignoredBuilds }
 }
 
 async function buildDependency<T extends string> (
@@ -252,7 +259,7 @@ export async function linkBinsOfDependencies<T extends string> (
   const pkgs = await Promise.all(pkgNodes
     .map(async (dep) => ({
       location: dep.dir,
-      manifest: await dep.fetchingBundledManifest?.() ?? (await safeReadPackageJsonFromDir(dep.dir) as DependencyManifest) ?? {},
+      manifest: (await dep.fetching?.())?.bundledManifest ?? (await safeReadPackageJsonFromDir(dep.dir) as DependencyManifest) ?? {},
     }))
   )
 

@@ -1,15 +1,30 @@
 import fs from 'fs'
 import path from 'path'
-import { deploy } from '@pnpm/plugin-commands-deploy'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
-import { logger, globalWarn } from '@pnpm/logger'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils/index.js'
+import { install } from '@pnpm/plugin-commands-installation'
+
+const original = await import('@pnpm/logger')
+const warn = jest.fn()
+jest.unstable_mockModule('@pnpm/logger', () => {
+  const logger = {
+    ...original.logger,
+    warn,
+  }
+  return {
+    ...original,
+    globalWarn: jest.fn(),
+    logger: Object.assign(() => logger, logger),
+  }
+})
+const { globalWarn } = await import('@pnpm/logger')
+const { deploy } = await import('@pnpm/plugin-commands-deploy')
 
 beforeEach(async () => {
-  const logger = await import('@pnpm/logger')
-  jest.spyOn(logger, 'globalWarn')
+  jest.mocked(globalWarn).mockClear()
 })
 
 afterEach(() => {
@@ -336,8 +351,6 @@ test('deploy fails when the destination directory exists and is not empty', asyn
 })
 
 test('forced deploy succeeds with a warning when destination directory exists and is not empty', async () => {
-  const warnMock = jest.spyOn(logger, 'warn')
-
   preparePackages([
     {
       name: 'project',
@@ -373,7 +386,7 @@ test('forced deploy succeeds with a warning when destination directory exists an
     workspaceDir: process.cwd(),
   }, [deployPath])
 
-  expect(warnMock).toHaveBeenCalledWith({
+  expect(warn).toHaveBeenCalledWith({
     message: expect.stringMatching(/^using --force, deleting deploy pat/),
     prefix: deployFullPath,
   })
@@ -385,7 +398,7 @@ test('forced deploy succeeds with a warning when destination directory exists an
   expect(fs.existsSync('deploy/index.js')).toBeTruthy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 
-  warnMock.mockRestore()
+  warn.mockRestore()
 })
 
 test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDependents', async () => {
@@ -485,4 +498,52 @@ test('deploy works when workspace packages use catalog protocol', async () => {
 
   // Make sure the is-positive cataloged dependency was actually installed.
   expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/is-positive')).toBeTruthy()
+})
+
+test('deploy does not preserve the inject workspace packages settings in the lockfile', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: true,
+    production: true,
+    lockfileOnly: true,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['dist'])
+
+  const project = assertProject(path.resolve('dist'))
+  const lockfile = project.readLockfile()
+  expect(lockfile.settings).not.toHaveProperty('injectWorkspacePackages')
 })

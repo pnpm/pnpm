@@ -11,11 +11,7 @@ import {
   type PackageSnapshots,
 } from '@pnpm/lockfile.types'
 import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
-import isEmpty from 'ramda/src/isEmpty'
-import _mapValues from 'ramda/src/map'
-import omit from 'ramda/src/omit'
-import pickBy from 'ramda/src/pickBy'
-import pick from 'ramda/src/pick'
+import { isEmpty, map as _mapValues, omit, pickBy, pick } from 'ramda'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 
 export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {

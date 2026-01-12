@@ -1,7 +1,9 @@
 // cspell:ignore buildscript
 import fs from 'fs'
 import path from 'path'
+import { type Config } from '@pnpm/config'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
@@ -15,7 +17,7 @@ import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { sync as readYamlFile } from 'read-yaml-file'
 import execa from 'execa'
 import { sync as rimraf } from '@zkochan/rimraf'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import symlink from 'symlink-dir'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils/index.js'
@@ -111,9 +113,9 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
 
   const { default: pkg } = await import(path.resolve('package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
-  expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
-  expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
+  expect(pkg?.devDependencies).toEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
+  expect(pkg?.optionalDependencies).toEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
   projects['project-1'].has('project-2')
   projects['project-1'].has('project-3')
@@ -156,9 +158,9 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
 
   const { default: pkg } = await import(path.resolve('package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
-  expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
-  expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
+  expect(pkg?.devDependencies).toEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
+  expect(pkg?.optionalDependencies).toEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
   projects['project-1'].has('project-2')
   projects['project-1'].has('project-3')
@@ -300,10 +302,10 @@ test('topological order of packages with self-dependencies in monorepo is correc
   expect(server2.getLines()).toStrictEqual(['project-2', 'project-3', 'project-1'])
 })
 
-test('test-pattern is respected by the test script', async () => {
+test('testPattern is respected by the test script', async () => {
   await using server = await createTestIpcServer()
 
-  const remote = tempy.directory()
+  const remote = temporaryDirectory()
 
   const projects: Array<ProjectManifest & { name: string }> = [
     {
@@ -368,8 +370,8 @@ test('test-pattern is respected by the test script', async () => {
   expect(server.getLines().sort()).toEqual(['project-2', 'project-4'])
 })
 
-test('changed-files-ignore-pattern is respected', async () => {
-  const remote = tempy.directory()
+test('changedFilesIgnorePattern is respected', async () => {
+  const remote = temporaryDirectory()
 
   preparePackages([
     {
@@ -403,20 +405,20 @@ test('changed-files-ignore-pattern is respected', async () => {
   await execa('git', ['remote', 'add', 'origin', remote])
   await execa('git', ['push', '-u', 'origin', 'main'])
 
-  const npmrcLines = []
+  const changedFilesIgnorePattern: string[] = []
   fs.writeFileSync('project-2-change-is-never-ignored/index.js', '')
 
-  npmrcLines.push('changed-files-ignore-pattern[]=**/{*.spec.js,*.md}')
+  changedFilesIgnorePattern.push('**/{*.spec.js,*.md}')
   fs.writeFileSync('project-3-ignored-by-pattern/index.spec.js', '')
   fs.writeFileSync('project-3-ignored-by-pattern/README.md', '')
 
-  npmrcLines.push('changed-files-ignore-pattern[]=**/buildscript.js')
+  changedFilesIgnorePattern.push('**/buildscript.js')
   fs.mkdirSync('project-4-ignored-by-pattern/a/b/c', {
     recursive: true,
   })
   fs.writeFileSync('project-4-ignored-by-pattern/a/b/c/buildscript.js', '')
 
-  npmrcLines.push('changed-files-ignore-pattern[]=**/cache/**')
+  changedFilesIgnorePattern.push('**/cache/**')
   fs.mkdirSync('project-5-ignored-by-pattern/cache/a/b', {
     recursive: true,
   })
@@ -433,7 +435,10 @@ test('changed-files-ignore-pattern is respected', async () => {
     '--no-gpg-sign',
   ])
 
-  fs.writeFileSync('.npmrc', npmrcLines.join('\n'), 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    changedFilesIgnorePattern,
+    packages: ['**', '!store/**'],
+  })
   await execPnpm(['install'])
 
   const getChangedProjects = async (opts?: {
@@ -659,17 +664,13 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync(
-    'is-positive/.npmrc',
-    'save-exact = true',
-    'utf8'
-  )
-  fs.writeFileSync(
-    'project-1/.npmrc',
-    'save-prefix = ~',
-    'utf8'
-  )
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    packageConfigs: {
+      'is-positive': { saveExact: true },
+      'project-1': { savePrefix: '~' },
+    },
+  } satisfies Partial<Config> & WorkspaceManifest)
 
   await execPnpm(['recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store'])
 
@@ -1250,11 +1251,7 @@ test('dependencies of workspace projects are built during headless installation'
   const projects = preparePackages([
     {
       location: '.',
-      package: {
-        pnpm: {
-          neverBuiltDependencies: [],
-        },
-      },
+      package: {},
     },
     {
       name: 'project-1',
@@ -1269,6 +1266,9 @@ test('dependencies of workspace projects are built during headless installation'
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     sharedWorkspaceLockfile: false,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
   })
 
   await execPnpm(['install', '--lockfile-only'])
@@ -1650,7 +1650,7 @@ test('directory filtering', async () => {
 
   {
     const { stdout } = execPnpmSync(['list', '--filter=./packages', '--parseable', '--depth=-1'])
-    expect(stdout.toString()).toEqual('')
+    expect(stdout.toString()).toBe('')
   }
   {
     const { stdout } = execPnpmSync(['list', '--filter=./packages/**', '--parseable', '--depth=-1'])
@@ -1889,9 +1889,6 @@ test('deploy should keep files created by lifecycle scripts', async () => {
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {
-        neverBuiltDependencies: [],
-      },
     },
     'project-0': {
       name: 'project-0',
@@ -1913,6 +1910,9 @@ test('deploy should keep files created by lifecycle scripts', async () => {
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     injectWorkspacePackages: true,
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': true,
+    },
   })
 
   const monorepoRoot = process.cwd()
@@ -1940,9 +1940,6 @@ test('rebuild in a directory created with "pnpm deploy" and with "pnpm.neverBuil
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {
-        neverBuiltDependencies: [],
-      },
     },
     'project-0': {
       name: 'project-0',
@@ -1964,6 +1961,9 @@ test('rebuild in a directory created with "pnpm deploy" and with "pnpm.neverBuil
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     injectWorkspacePackages: true,
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': true,
+    },
   })
 
   const monorepoRoot = process.cwd()

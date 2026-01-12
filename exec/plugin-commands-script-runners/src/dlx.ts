@@ -14,7 +14,7 @@ import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { type PackageManifest, type PnpmSettings, type SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import execa from 'execa'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import symlinkDir from 'symlink-dir'
 import { makeEnv } from './makeEnv.js'
@@ -33,7 +33,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
       'cpu',
       'libc',
       'os',
-      'use-node-version',
     ], types),
     'shell-mode': Boolean,
   }
@@ -78,14 +77,20 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
+} & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
 ): Promise<{ exitCode: number }> {
   const pkgs = opts.package ?? [command]
-  const fullMetadata = ((opts.resolutionMode === 'time-based' || Boolean(opts.minimumReleaseAge)) && !opts.registrySupportsTimeField)
+  const fullMetadata = (
+    (
+      opts.resolutionMode === 'time-based' ||
+      Boolean(opts.minimumReleaseAge) ||
+      opts.trustPolicy === 'no-downgrade'
+    ) && !opts.registrySupportsTimeField
+  )
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
@@ -121,7 +126,7 @@ export async function handler (
       bin: path.join(cachedDir, 'node_modules/.bin'),
       dir: cachedDir,
       lockfileDir: cachedDir,
-      onlyBuiltDependencies: [...resolvedPkgAliases, ...(opts.allowBuild ?? [])],
+      allowBuilds: Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true])),
       rootProjectManifestDir: cachedDir,
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,

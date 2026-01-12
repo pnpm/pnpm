@@ -1,13 +1,13 @@
 // cspell:ignore ents
 import fs from 'fs'
+import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
 import { type DepPath } from '@pnpm/types'
-import * as schemas from 'hyperdrive-schemas'
-import loadJsonFile from 'load-json-file'
+import schemas from 'hyperdrive-schemas'
 import Fuse from 'fuse-native'
 import * as cafsExplorer from './cafsExplorer.js'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
@@ -48,7 +48,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(-1)
         return
       }
-      const fileInfo = dirEnt.index.files[dirEnt.subPath]
+      const fileInfo = dirEnt.index.files.get(dirEnt.subPath)
       if (!fileInfo) {
         cb(-1)
         return
@@ -112,7 +112,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       if (dirEnt.entryType === 'index') {
         switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
         case 'file': {
-          const { size, mode } = dirEnt.index.files[dirEnt.subPath]
+          const { size, mode } = dirEnt.index.files.get(dirEnt.subPath)!
           // eslint-disable-next-line n/no-callback-literal
           cb(0, schemas.Stat.file({
             ...STAT_DEFAULT,
@@ -185,7 +185,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       pkgSnapshotCache.set(depPath, {
         ...nameVer,
         pkgSnapshot,
-        index: loadJsonFile.sync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
+        index: readV8FileStrictSync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
       })
     }
     return pkgSnapshotCache.get(depPath)

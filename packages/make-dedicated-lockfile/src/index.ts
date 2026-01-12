@@ -10,7 +10,7 @@ import {
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
-import pickBy from 'ramda/src/pickBy'
+import { pickBy } from 'ramda'
 import renameOverwrite from 'rename-overwrite'
 
 export async function makeDedicatedLockfile (lockfileDir: string, projectDir: string): Promise<void> {
@@ -57,7 +57,7 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   }
 
   try {
-    await pnpmExec([
+    await pnpmExec.default([
       'install',
       '--frozen-lockfile',
       '--lockfile-dir=.',

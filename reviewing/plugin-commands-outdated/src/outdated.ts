@@ -17,8 +17,7 @@ import semverDiff from '@pnpm/semver-diff'
 import { type DependenciesField, type PackageManifest, type ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
-import pick from 'ramda/src/pick'
-import sortWith from 'ramda/src/sortWith'
+import { pick, sortWith } from 'ramda'
 import renderHelp from 'render-help'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import {
@@ -260,25 +259,24 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
     ...sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
       .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
   ]
-  let detailsColumnMaxWidth = 40
+  const tableOptions = {
+    ...TABLE_OPTIONS,
+  }
   if (opts.long) {
-    detailsColumnMaxWidth = outdatedPackages.filter(pkg => pkg.latestManifest && !pkg.latestManifest.deprecated).reduce((maxWidth, pkg) => {
+    const detailsColumnMaxWidth = outdatedPackages.filter(pkg => pkg.latestManifest && !pkg.latestManifest.deprecated).reduce((maxWidth, pkg) => {
       const cellWidth = pkg.latestManifest?.homepage?.length ?? 0
       return Math.max(maxWidth, cellWidth)
-    }, 0)
-  }
-
-  return table(data, {
-    ...TABLE_OPTIONS,
-    columns: {
-      ...TABLE_OPTIONS.columns,
+    }, 40)
+    tableOptions.columns = {
       // Detail column:
       3: {
         width: detailsColumnMaxWidth,
         wrapWord: true,
       },
-    },
-  })
+    }
+  }
+
+  return table(data, tableOptions)
 }
 
 function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortBy?: 'name' }): string {
@@ -352,7 +350,7 @@ export function toOutdatedWithVersionDiff<Pkg extends OutdatedPackage> (outdated
   if (outdated.latestManifest != null) {
     return {
       ...outdated,
-      ...semverDiff(outdated.wanted, outdated.latestManifest.version),
+      ...semverDiff.default(outdated.wanted, outdated.latestManifest.version),
     }
   }
   return {
@@ -384,7 +382,12 @@ export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
       : latestManifest.version
   }
 
-  return colorizeSemverDiff({ change, diff })
+  const versionText = colorizeSemverDiff.default({ change, diff })
+  if (latestManifest.deprecated) {
+    return `${versionText} ${chalk.redBright('(deprecated)')}`
+  }
+
+  return versionText
 }
 
 export function renderDetails ({ latestManifest }: OutdatedPackage): string {

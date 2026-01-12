@@ -167,7 +167,7 @@ async function downloadAndUnpackTarballToDir (
   const indexFileName = `node-${encodeURIComponent(artifactInfo.url)}`
   const filesIndexFile = path.join(opts.storeDir, indexFileName)
 
-  const { filesIndex } = await fetchers.remoteTarball(cafs, {
+  const { filesMap } = await fetchers.remoteTarball(cafs, {
     tarball: artifactInfo.url,
     integrity: artifactInfo.integrity,
   }, {
@@ -178,7 +178,7 @@ async function downloadAndUnpackTarballToDir (
 
   cafs.importPackage(targetDir, {
     filesResponse: {
-      filesIndex: filesIndex as Record<string, string>,
+      filesMap,
       resolvedFrom: 'remote',
       requiresBuild: false,
     },

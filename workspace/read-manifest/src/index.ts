@@ -1,5 +1,5 @@
 import util from 'util'
-import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { type PnpmSettings } from '@pnpm/types'
 import path from 'node:path'
 import readYamlFile from 'read-yaml-file'
@@ -10,6 +10,10 @@ import {
   type WorkspaceNamedCatalogs,
 } from './catalogs.js'
 import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError.js'
+
+export type ConfigFileName =
+  | typeof GLOBAL_CONFIG_YAML_FILENAME
+  | typeof WORKSPACE_MANIFEST_FILENAME
 
 export interface WorkspaceManifest extends PnpmSettings {
   packages: string[]
@@ -28,15 +32,15 @@ export interface WorkspaceManifest extends PnpmSettings {
   catalogs?: WorkspaceNamedCatalogs
 }
 
-export async function readWorkspaceManifest (dir: string): Promise<WorkspaceManifest | undefined> {
-  const manifest = await readManifestRaw(dir)
+export async function readWorkspaceManifest (dir: string, cfgFileName: ConfigFileName = WORKSPACE_MANIFEST_FILENAME): Promise<WorkspaceManifest | undefined> {
+  const manifest = await readManifestRaw(dir, cfgFileName)
   validateWorkspaceManifest(manifest)
   return manifest
 }
 
-async function readManifestRaw (dir: string): Promise<unknown> {
+async function readManifestRaw (dir: string, cfgFileName: ConfigFileName): Promise<unknown> {
   try {
-    return await readYamlFile<WorkspaceManifest>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
+    return await readYamlFile.default<WorkspaceManifest>(path.join(dir, cfgFileName))
   } catch (err: unknown) {
     // File not exists is the same as empty file (undefined)
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
@@ -48,7 +52,7 @@ async function readManifestRaw (dir: string): Promise<unknown> {
   }
 }
 
-function validateWorkspaceManifest (manifest: unknown): asserts manifest is WorkspaceManifest | undefined {
+export function validateWorkspaceManifest (manifest: unknown): asserts manifest is WorkspaceManifest | undefined {
   if (manifest === undefined || manifest === null) {
     // Empty or null manifest is ok
     return

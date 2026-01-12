@@ -4,17 +4,17 @@
   "description": "Types related to the pnpm catalogs feature.",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "types"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/catalogs/types",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/catalogs/types#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/catalogs/types",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/catalogs/types#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -34,7 +34,7 @@
     "@pnpm/catalogs.types": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

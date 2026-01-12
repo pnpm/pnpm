@@ -20,7 +20,8 @@ import {
   type ProjectRootDirRealPath,
 } from '@pnpm/types'
 import pathAbsolute from 'path-absolute'
-import clone from 'ramda/src/clone'
+import { clone } from 'ramda'
+import { registerProject } from '@pnpm/package-store'
 import { readLockfiles } from './readLockfiles.js'
 
 /**
@@ -122,6 +123,9 @@ export async function getContext (
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), opts.lockfileDir)
 
   await fs.mkdir(opts.storeDir, { recursive: true })
+
+  // Register this project for store prune tracking
+  await registerProject(opts.storeDir, opts.lockfileDir)
 
   for (const project of opts.allProjects) {
     packageManifestLogger.debug({
@@ -293,6 +297,9 @@ export async function getContextForSingleImporter (
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
 
   await fs.mkdir(storeDir, { recursive: true })
+
+  // Register this project for store prune tracking
+  await registerProject(storeDir, opts.lockfileDir)
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]

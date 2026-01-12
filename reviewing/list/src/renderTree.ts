@@ -4,8 +4,7 @@ import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
-import sortBy from 'ramda/src/sortBy'
-import ramdaPath from 'ramda/src/path'
+import { sortBy, path as ramdaPath } from 'ramda'
 import { type Ord } from 'ramda'
 import { getPkgInfo } from './getPkgInfo.js'
 import { type PackageDependencyHierarchy } from './types.js'
@@ -145,7 +144,18 @@ export async function toArchyTree (
 
 function printLabel (getPkgColor: GetPkgColor, node: PackageNode): string {
   const color = getPkgColor(node)
-  let txt = `${color(node.name)} ${chalk.gray(node.version)}`
+  let txt: string
+  if (node.alias !== node.name) {
+    // When using npm: protocol alias, display as "alias npm:name@version"
+    // Only add npm: prefix if version doesn't already contain @ (to avoid file:, link:, etc.)
+    if (!node.version.includes('@')) {
+      txt = `${color(node.alias)} ${chalk.gray(`npm:${node.name}@${node.version}`)}`
+    } else {
+      txt = `${color(node.alias)} ${chalk.gray(node.version)}`
+    }
+  } else {
+    txt = `${color(node.name)} ${chalk.gray(node.version)}`
+  }
   if (node.isPeer) {
     txt += ' peer'
   }

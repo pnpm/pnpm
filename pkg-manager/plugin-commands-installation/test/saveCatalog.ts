@@ -4,7 +4,7 @@ import { add } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type LockfileFile } from '@pnpm/lockfile.types'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -28,7 +28,7 @@ test('saveCatalogName creates new workspace manifest with the new catalogs', asy
 
   await add.handler(createOptions(), ['@pnpm.e2e/foo'])
 
-  expect(loadJsonFile('package.json')).toHaveProperty(['dependencies'], {
+  expect(loadJsonFileSync('package.json')).toHaveProperty(['dependencies'], {
     '@pnpm.e2e/foo': 'catalog:',
   })
 
@@ -78,7 +78,7 @@ test('saveCatalogName works with different protocols', async () => {
     'github:kevva/is-positive#97edff6',
   ])
 
-  expect(loadJsonFile('package.json')).toHaveProperty(['dependencies'], {
+  expect(loadJsonFileSync('package.json')).toHaveProperty(['dependencies'], {
     '@pnpm.e2e/foo': 'catalog:',
     '@rus/greet': 'catalog:',
     'is-positive': 'catalog:',
@@ -120,7 +120,7 @@ test('saveCatalogName works with different protocols', async () => {
           },
           'is-positive': {
             specifier: 'catalog:',
-            version: 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6',
+            version: 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678',
           },
         },
       },
@@ -146,7 +146,7 @@ test('saveCatalogName does not work with local dependencies', async () => {
 
   await add.handler(createOptions(), ['../local-dep'])
 
-  expect(loadJsonFile('package.json')).toStrictEqual({
+  expect(loadJsonFileSync('package.json')).toStrictEqual({
     name: 'main',
     version: '0.0.0',
     private: true,
@@ -174,7 +174,7 @@ test('saveCatalogName with non-default name', async () => {
 
   await add.handler(createOptions('my-catalog'), ['@pnpm.e2e/foo'])
 
-  expect(loadJsonFile('package.json')).toHaveProperty(['dependencies'], {
+  expect(loadJsonFileSync('package.json')).toHaveProperty(['dependencies'], {
     '@pnpm.e2e/foo': 'catalog:my-catalog',
   })
 

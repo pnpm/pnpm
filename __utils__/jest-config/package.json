@@ -1,8 +1,9 @@
 {
   "name": "@pnpm/jest-config",
-  "version": "1000.0.3",
+  "version": "1000.0.5",
   "private": true,
   "main": "jest-preset.js",
+  "type": "module",
   "dependencies": {
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/worker": "workspace:*",
@@ -11,10 +12,12 @@
   },
   "devDependencies": {
     "@pnpm/jest-config": "workspace:*",
+    "pnpm": "workspace:*",
     "ts-jest-resolver": "catalog:"
   },
   "keywords": [
     "pnpm",
-    "pnpm10"
-  ]
+    "pnpm11"
+  ],
+  "repository": "https://github.com/pnpm/pnpm/tree/main/__utils__/jest-config"
 }

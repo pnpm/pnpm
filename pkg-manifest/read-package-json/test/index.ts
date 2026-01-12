@@ -2,14 +2,14 @@
 import path from 'path'
 import { readPackageJson, readPackageJsonFromDir } from '@pnpm/read-package-json'
 
-const fixtures = path.join(__dirname, 'fixtures')
+const fixtures = path.join(import.meta.dirname, 'fixtures')
 
 test('readPackageJson()', async () => {
-  expect((await readPackageJson(path.join(__dirname, '..', 'package.json'))).name).toBe('@pnpm/read-package-json')
+  expect((await readPackageJson(path.join(import.meta.dirname, '..', 'package.json'))).name).toBe('@pnpm/read-package-json')
 })
 
 test('fromDir()', async () => {
-  expect((await readPackageJsonFromDir(path.join(__dirname, '..'))).name).toBe('@pnpm/read-package-json')
+  expect((await readPackageJsonFromDir(path.join(import.meta.dirname, '..'))).name).toBe('@pnpm/read-package-json')
 })
 
 test('readPackageJson() throw error when name is invalid', async () => {

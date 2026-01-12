@@ -4,7 +4,8 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
-import clone from 'ramda/src/clone'
+import { jest } from '@jest/globals'
+import { clone } from 'ramda'
 import {
   addDependenciesToPackage,
   mutateModulesInSingleProject,
@@ -34,7 +35,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))).rejects.toThrowError(/Got unexpected checksum for/)
+  }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))).rejects.toThrow(/Got unexpected checksum for/)
 
   await mutateModulesInSingleProject({
     manifest,
@@ -81,7 +82,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
       mutation: 'install',
       rootDir: process.cwd() as ProjectRootDir,
     }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))
-  ).rejects.toThrowError(/Got unexpected checksum/)
+  ).rejects.toThrow(/Got unexpected checksum/)
 
   await mutateModulesInSingleProject({
     manifest,

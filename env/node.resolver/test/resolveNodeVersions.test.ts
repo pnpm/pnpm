@@ -11,7 +11,7 @@ test('resolve specified version list', async () => {
 
 test('resolve latest version', async () => {
   const versions = await resolveNodeVersions(fetch, 'latest')
-  expect(versions.length).toEqual(1)
+  expect(versions).toHaveLength(1)
 })
 
 test('resolve all versions', async () => {

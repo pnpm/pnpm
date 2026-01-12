@@ -1,0 +1,3 @@
+testPattern:
+  - '*.spec.js'
+  - '*.spec.ts'

@@ -28,6 +28,9 @@
       "path": "../../exec/plugin-commands-script-runners"
     },
     {
+      "path": "../../fs/v8-file"
+    },
+    {
       "path": "../../lockfile/fs"
     },
     {
@@ -56,6 +59,9 @@
     },
     {
       "path": "../cafs"
+    },
+    {
+      "path": "../package-store"
     },
     {
       "path": "../store-connection-manager"

@@ -14,7 +14,7 @@ import isWindows from 'is-windows'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 const skipOnWindows = isWindows() ? test.skip : test
 const onlyOnWindows = !isWindows() ? test.skip : test
@@ -579,13 +579,13 @@ test('pnpm run with RegExp script selector should work', async () => {
     rawConfig: {},
   }, ['/^(lint|build):.*/'])
 
-  expect(fs.readFileSync('output-build-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(fs.readFileSync('output-build-b.txt', { encoding: 'utf-8' })).toEqual('b')
-  expect(fs.readFileSync('output-build-c.txt', { encoding: 'utf-8' })).toEqual('c')
+  expect(fs.readFileSync('output-build-a.txt', { encoding: 'utf-8' })).toBe('a')
+  expect(fs.readFileSync('output-build-b.txt', { encoding: 'utf-8' })).toBe('b')
+  expect(fs.readFileSync('output-build-c.txt', { encoding: 'utf-8' })).toBe('c')
 
-  expect(fs.readFileSync('output-lint-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(fs.readFileSync('output-lint-b.txt', { encoding: 'utf-8' })).toEqual('b')
-  expect(fs.readFileSync('output-lint-c.txt', { encoding: 'utf-8' })).toEqual('c')
+  expect(fs.readFileSync('output-lint-a.txt', { encoding: 'utf-8' })).toBe('a')
+  expect(fs.readFileSync('output-lint-b.txt', { encoding: 'utf-8' })).toBe('b')
+  expect(fs.readFileSync('output-lint-c.txt', { encoding: 'utf-8' })).toBe('c')
 })
 
 test('pnpm run with RegExp script selector should work also for pre/post script', async () => {
@@ -607,8 +607,8 @@ test('pnpm run with RegExp script selector should work also for pre/post script'
     enablePrePostScripts: true,
   }, ['/build:.*/'])
 
-  expect(fs.readFileSync('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(fs.readFileSync('output-pre-a.txt', { encoding: 'utf-8' })).toEqual('pre-a')
+  expect(fs.readFileSync('output-a.txt', { encoding: 'utf-8' })).toBe('a')
+  expect(fs.readFileSync('output-pre-a.txt', { encoding: 'utf-8' })).toBe('pre-a')
 })
 
 test('pnpm run with RegExp script selector should work parallel as a default behavior (parallel execution limits number is four)', async () => {
@@ -754,27 +754,5 @@ test('pnpm run without node version', async () => {
     pnpmHomeDir: process.cwd(),
     rawConfig: {},
     workspaceConcurrency: 1,
-  }, ['assert-node-version'])
-})
-
-test('pnpm run with node version', async () => {
-  prepare({
-    scripts: {
-      'assert-node-version': 'node -e "assert.equal(process.version, \'v20.0.0\')"',
-    },
-  })
-
-  await run.handler({
-    ...DEFAULT_OPTS,
-    bin: 'node_modules/.bin',
-    dir: process.cwd(),
-    extraBinPaths: [],
-    extraEnv: {},
-    pnpmHomeDir: process.cwd(),
-    rawConfig: {},
-    workspaceConcurrency: 1,
-    executionEnv: {
-      nodeVersion: '20.0.0',
-    },
   }, ['assert-node-version'])
 })

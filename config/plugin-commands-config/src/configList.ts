@@ -1,11 +1,9 @@
-import { encode } from 'ini'
-import { sortDirectKeys } from '@pnpm/object.key-sorting'
+import { processConfig } from './processConfig.js'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
 
-export async function configList (opts: ConfigCommandOptions): Promise<string> {
-  const sortedConfig = sortDirectKeys(opts.rawConfig)
-  if (opts.json) {
-    return JSON.stringify(sortedConfig, null, 2)
-  }
-  return encode(sortedConfig)
+export type ConfigListOptions = Pick<ConfigCommandOptions, 'rawConfig'>
+
+export async function configList (opts: ConfigListOptions): Promise<string> {
+  const processedConfig = processConfig(opts.rawConfig)
+  return JSON.stringify(processedConfig, undefined, 2)
 }

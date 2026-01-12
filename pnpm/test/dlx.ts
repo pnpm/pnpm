@@ -173,14 +173,14 @@ test('dlx creates cache and store prune cleans cache', async () => {
     '--config.dlx-cache-max-age=50', // big number to avoid false negative should test unexpectedly takes too long to run
   ]
 
-  await Promise.all(Object.entries(commands).map(([cmd, args]) => execPnpm([...settings, 'dlx', cmd, ...args])))
+  await Promise.all(Object.entries(commands).map(([cmd, args]) => execPnpm([...settings, '--allow-build=shx', 'dlx', cmd, ...args])))
 
   // ensure that the dlx cache has certain structure
   const dlxBaseDir = path.resolve('cache', 'dlx')
   const dlxDirs = fs.readdirSync(dlxBaseDir)
-  expect(dlxDirs.length).toEqual(Object.keys(commands).length)
+  expect(dlxDirs).toHaveLength(Object.keys(commands).length)
   for (const dlxDir of dlxDirs) {
-    expect(fs.readdirSync(path.resolve(dlxBaseDir, dlxDir)).length).toBe(2)
+    expect(fs.readdirSync(path.resolve(dlxBaseDir, dlxDir))).toHaveLength(2)
   }
 
   // modify the dates of the cache items
@@ -191,11 +191,11 @@ test('dlx creates cache and store prune cleans cache', async () => {
     [dlxDirs[3]]: 123,
   } satisfies Record<string, number>
   const now = new Date()
-  await Promise.all(Object.entries(ageTable).map(async ([dlxDir, age]) => {
+  Object.entries(ageTable).forEach(([dlxDir, age]) => {
     const newDate = new Date(now.getTime() - age * 60_000)
     const dlxCacheLink = path.resolve('cache', 'dlx', dlxDir, 'pkg')
-    await fs.promises.lutimes(dlxCacheLink, newDate, newDate)
-  }))
+    fs.lutimesSync(dlxCacheLink, newDate, newDate)
+  })
 
   await execPnpm([...settings, 'store', 'prune'])
 
@@ -205,7 +205,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
     fs.readdirSync(path.resolve('cache', 'dlx')).sort()
   ).toStrictEqual(keptDirs)
   for (const keptDir of keptDirs) {
-    expect(fs.readdirSync(path.resolve('cache', 'dlx', keptDir)).length).toBe(2)
+    expect(fs.readdirSync(path.resolve('cache', 'dlx', keptDir))).toHaveLength(2)
   }
 
   await execPnpm([
@@ -215,10 +215,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
     'store', 'prune'])
 
   // test to see if all dlx cache items are deleted
-  expect(
-    fs.readdirSync(path.resolve('cache', 'dlx'))
-      .sort()
-  ).toStrictEqual([])
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([])
 })
 
 test('dlx should ignore non-auth info from .npmrc in the current directory', async () => {
@@ -264,17 +261,18 @@ test('dlx read registry from .npmrc in the current directory', async () => {
   expect(execResult.stdout.toString().trim()).toBe('hello from @pnpm.e2e/needs-auth')
 })
 
-test('dlx uses the node version specified by --use-node-version', async () => {
+test('dlx uses the node version specified by --package=node@runtime:<version>', async () => {
   prepareEmpty()
 
   const pnpmHome = path.resolve('home')
 
   const execResult = execPnpmSync([
-    '--use-node-version=20.0.0',
+    '--package=node@runtime:20.0.0',
+    '--package=@pnpm.e2e/print-node-info',
     `--config.store-dir=${path.resolve('store')}`,
     `--config.cache-dir=${path.resolve('cache')}`,
     'dlx',
-    '@pnpm.e2e/print-node-info',
+    'print-node-info',
   ], {
     env: {
       PNPM_HOME: pnpmHome,
@@ -292,14 +290,8 @@ test('dlx uses the node version specified by --use-node-version', async () => {
     throw err
   }
 
-  expect(nodeInfo).toMatchObject({
-    versions: {
-      node: '20.0.0',
-    },
-    execPath: process.platform === 'win32'
-      ? path.join(pnpmHome, 'nodejs', '20.0.0', 'node.exe')
-      : path.join(pnpmHome, 'nodejs', '20.0.0', 'bin', 'node'),
-  })
+  expect(nodeInfo.versions.node).toBe('20.0.0')
+  expect(nodeInfo.execPath).toContain(path.normalize('links/@/node/20.0.0'))
 })
 
 describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {

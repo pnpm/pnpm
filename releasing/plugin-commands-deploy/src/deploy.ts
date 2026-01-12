@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as configTypes } from '@pnpm/config'
+import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
@@ -12,6 +13,7 @@ import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
+import writeYamlFile from 'write-yaml-file'
 import { deployHook } from './deployHook.js'
 import { logger, globalWarn } from '@pnpm/logger'
 import { type Project } from '@pnpm/types'
@@ -78,7 +80,7 @@ export function help (): string {
 
 export type DeployOptions =
   & Omit<install.InstallCommandOptions, 'useLockfile'>
-  & Pick<Config, 'forceLegacyDeploy'>
+  & Pick<Config, 'allowBuilds' | 'forceLegacyDeploy'>
 
 export async function handler (opts: DeployOptions, params: string[]): Promise<void> {
   if (!opts.workspaceDir) {
@@ -194,9 +196,9 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
 }
 
 async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }): Promise<void> {
-  const { filesIndex } = await fetchFromDir(src, opts)
+  const { filesMap } = await fetchFromDir(src, opts)
   const importPkg = createIndexedPkgImporter('clone-or-copy')
-  importPkg(dest, { filesMap: filesIndex, force: true, resolvedFrom: 'local-dir' })
+  importPkg(dest, { filesMap, force: true, resolvedFrom: 'local-dir' })
 }
 
 async function deployFromSharedLockfile (
@@ -240,15 +242,22 @@ async function deployFromSharedLockfile (
     selectedProjectManifest: selectedProject.manifest,
     projectId,
     rootProjectManifestDir,
+    allowBuilds: opts.allowBuilds,
   })
 
-  await Promise.all([
+  const filesToWrite: Array<Promise<void>> = [
     fs.promises.writeFile(
       path.join(deployDir, 'package.json'),
       JSON.stringify(deployFiles.manifest, undefined, 2) + '\n'
     ),
     writeWantedLockfile(deployDir, deployFiles.lockfile),
-  ])
+  ]
+  if (deployFiles.workspaceManifest) {
+    filesToWrite.push(
+      writeYamlFile(path.join(deployDir, WORKSPACE_MANIFEST_FILENAME), deployFiles.workspaceManifest)
+    )
+  }
+  await Promise.all(filesToWrite)
 
   try {
     await install.handler({
@@ -265,6 +274,7 @@ async function deployFromSharedLockfile (
       modulesDir: undefined,
       confirmModulesPurge: false,
       frozenLockfile: true,
+      injectWorkspacePackages: undefined, // the effects of injecting workspace packages should already be part of the package snapshots
       overrides: undefined, // the effects of the overrides should already be part of the package snapshots
       hooks: {
         ...opts.hooks,

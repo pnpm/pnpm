@@ -7,14 +7,20 @@ import { PnpmError } from '@pnpm/error'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import { type ProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { parseRawConfig } from './utils.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes (): Record<string, unknown> {
-  return pick(['init-type', 'init-package-manager'], allTypes)
+  return {
+    ...pick([
+      'init-package-manager',
+      'init-type',
+    ], allTypes),
+    bare: Boolean,
+  }
 }
 
 export const commandNames = ['init']
@@ -34,6 +40,10 @@ export function help (): string {
             description: 'Pin the project to the current pnpm version by adding a "packageManager" field to package.json',
             name: '--init-package-manager',
           },
+          {
+            description: 'Create a package.json file with the bare minimum of required fields',
+            name: '--bare',
+          },
         ],
       },
     ],
@@ -42,10 +52,17 @@ export function help (): string {
   })
 }
 
-export async function handler (
-  opts: Pick<UniversalOptions, 'rawConfig'> & Pick<Config, 'cliOptions'> & Partial<Pick<Config, 'initPackageManager' | 'initType'>>,
-  params?: string[]
-): Promise<string> {
+export type InitOptions =
+  & Pick<UniversalOptions, 'rawConfig'>
+  & Pick<Config, 'cliOptions'>
+  & Partial<Pick<Config,
+  | 'initPackageManager'
+  | 'initType'
+  >> & {
+    bare?: boolean
+  }
+
+export async function handler (opts: InitOptions, params?: string[]): Promise<string> {
   if (params?.length) {
     throw new PnpmError('INIT_ARG', 'init command does not accept any arguments', {
       hint: `Maybe you wanted to run "pnpm create ${params.join(' ')}"`,
@@ -58,18 +75,20 @@ export async function handler (
   if (fs.existsSync(manifestPath)) {
     throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
   }
-  const manifest: ProjectManifest = {
-    name: path.basename(process.cwd()),
-    version: '1.0.0',
-    description: '',
-    main: 'index.js',
-    scripts: {
-      test: 'echo "Error: no test specified" && exit 1',
-    },
-    keywords: [],
-    author: '',
-    license: 'ISC',
-  }
+  const manifest: ProjectManifest = opts.bare
+    ? {}
+    : {
+      name: path.basename(process.cwd()),
+      version: '1.0.0',
+      description: '',
+      main: 'index.js',
+      scripts: {
+        test: 'echo "Error: no test specified" && exit 1',
+      },
+      keywords: [],
+      author: '',
+      license: 'ISC',
+    }
 
   if (opts.initType === 'module') {
     manifest.type = opts.initType
@@ -83,6 +102,7 @@ export async function handler (
   const priority = Object.fromEntries([
     'name',
     'version',
+    'private',
     'description',
     'main',
     'scripts',

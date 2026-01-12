@@ -16,8 +16,8 @@ test('parse valid workspace spec', () => {
 })
 
 test('parse invalid workspace spec', () => {
-  expect(WorkspaceSpec.parse('npm:foo@0.1.2')).toBe(null)
-  expect(WorkspaceSpec.parse('*')).toBe(null)
+  expect(WorkspaceSpec.parse('npm:foo@0.1.2')).toBeNull()
+  expect(WorkspaceSpec.parse('*')).toBeNull()
 })
 
 test('to string', () => {

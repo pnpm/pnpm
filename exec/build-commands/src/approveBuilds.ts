@@ -2,15 +2,14 @@ import { type Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { type PnpmSettings } from '@pnpm/types'
 import renderHelp from 'render-help'
-import { prompt } from 'enquirer'
+import enquirer from 'enquirer'
 import chalk from 'chalk'
 import { rebuild, type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { writeSettings } from '@pnpm/config.config-writer'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'onlyBuiltDependencies' | 'ignoredBuiltDependencies'>
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds'>
 
 export const commandNames = ['approve-builds']
 
@@ -54,7 +53,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     globalInfo('There are no packages awaiting approval')
     return
   }
-  const { result } = await prompt({
+  const { result } = await enquirer.prompt({
     choices: sortUniqueStrings([...automaticallyIgnoredBuilds]),
     indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       return ` ${choice.enabled ? '●' : '○'}`
@@ -92,29 +91,19 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
   const buildPackages = result.map(({ value }: { value: string }) => value)
   const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
-  const updatedSettings: PnpmSettings = {}
+  const allowBuilds: Record<string, boolean | string> = { ...opts.allowBuilds }
   if (ignoredPackages.length) {
-    if (opts.ignoredBuiltDependencies == null) {
-      updatedSettings.ignoredBuiltDependencies = sortUniqueStrings(ignoredPackages)
-    } else {
-      updatedSettings.ignoredBuiltDependencies = sortUniqueStrings([
-        ...opts.ignoredBuiltDependencies,
-        ...ignoredPackages,
-      ])
+    for (const pkg of ignoredPackages) {
+      allowBuilds[pkg] = false
     }
   }
   if (buildPackages.length) {
-    if (opts.onlyBuiltDependencies == null) {
-      updatedSettings.onlyBuiltDependencies = sortUniqueStrings(buildPackages)
-    } else {
-      updatedSettings.onlyBuiltDependencies = sortUniqueStrings([
-        ...opts.onlyBuiltDependencies,
-        ...buildPackages,
-      ])
+    for (const pkg of buildPackages) {
+      allowBuilds[pkg] = true
     }
   }
   if (buildPackages.length) {
-    const confirmed = await prompt<{ build: boolean }>({
+    const confirmed = await enquirer.prompt<{ build: boolean }>({
       type: 'confirm',
       name: 'build',
       message: `The next packages will now be built: ${buildPackages.join(', ')}.
@@ -125,17 +114,17 @@ Do you approve?`,
       return
     }
   } else {
-    globalInfo('All packages were added to ignoredBuiltDependencies.')
+    globalInfo('All packages were added to allowBuilds with value false.')
   }
   await writeSettings({
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-    updatedSettings,
+    updatedSettings: { allowBuilds },
   })
   if (buildPackages.length) {
     return rebuild.handler({
       ...opts,
-      onlyBuiltDependencies: updatedSettings.onlyBuiltDependencies,
+      allowBuilds,
     }, buildPackages)
   } else if (modulesManifest) {
     delete modulesManifest.ignoredBuilds

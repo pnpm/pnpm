@@ -4,12 +4,25 @@ import util from 'util'
 import fs from 'fs'
 import { globalWarn } from '@pnpm/logger'
 import gfs from '@pnpm/graceful-fs'
+import { sync as renameOverwrite } from 'rename-overwrite'
+import pathTemp from 'path-temp'
 
 export function hardLinkDir (src: string, destDirs: string[]): void {
   if (destDirs.length === 0) return
-  // Don't try to hard link the source directory to itself
-  destDirs = destDirs.filter((destDir) => path.relative(destDir, src) !== '')
-  _hardLinkDir(src, destDirs, true)
+  const filteredDestDirs: string[] = []
+  const tempDestDirs: string[] = []
+  for (const destDir of destDirs) {
+    if (path.relative(destDir, src) === '') {
+      // Don't try to hard link the source directory to itself
+      continue
+    }
+    filteredDestDirs.push(destDir)
+    tempDestDirs.push(pathTemp(path.dirname(destDir)))
+  }
+  _hardLinkDir(src, tempDestDirs, true)
+  for (let i = 0; i < filteredDestDirs.length; i++) {
+    renameOverwrite(tempDestDirs[i], filteredDestDirs[i])
+  }
 }
 
 function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) {
@@ -79,7 +92,12 @@ function linkOrCopy (srcFile: string, destFile: string): void {
   try {
     gfs.linkSync(srcFile, destFile)
   } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EXDEV')) throw err
-    gfs.copyFileSync(srcFile, destFile)
+    // In some container environments (OverlayFS), linkSync throws ENOENT
+    // instead of EXDEV when linking across layers. We must fallback to copy in this case too.
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EXDEV' || err.code === 'ENOENT')) {
+      gfs.copyFileSync(srcFile, destFile)
+    } else {
+      throw err
+    }
   }
 }

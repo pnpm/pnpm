@@ -1,13 +1,14 @@
 import path from 'path'
 import fs from 'fs'
+import util from 'util'
 import chalk from 'chalk'
 
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { safeReadV8FileSync } from '@pnpm/fs.v8-file'
 import { getStorePath } from '@pnpm/store-path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 
-import loadJsonFile from 'load-json-file'
 import renderHelp from 'render-help'
 
 export const PACKAGE_INFO_CLR = chalk.greenBright
@@ -57,28 +58,33 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   for (const { name: dirName } of cafsChildrenDirs) {
     const dirIndexFiles = fs
       .readdirSync(`${indexDir}/${dirName}`)
-      .filter((fileName) => fileName.includes('.json'))
+      .filter((fileName) => fileName.includes('.v8'))
       ?.map((fileName) => `${indexDir}/${dirName}/${fileName}`)
 
     indexFiles.push(...dirIndexFiles)
   }
 
   for (const filesIndexFile of indexFiles) {
-    const pkgFilesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
+    const pkgFilesIndex = safeReadV8FileSync<PackageFilesIndex>(filesIndexFile)
+    if (!pkgFilesIndex) {
+      continue
+    }
 
-    for (const [, file] of Object.entries(pkgFilesIndex.files)) {
-      if (file?.integrity === hash) {
-        result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
+    if (util.types.isMap(pkgFilesIndex.files)) {
+      for (const [, file] of pkgFilesIndex.files) {
+        if (file?.integrity === hash) {
+          result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 
-        // a package is only found once.
-        continue
+          // a package is only found once.
+          continue
+        }
       }
     }
 
-    if (pkgFilesIndex?.sideEffects) {
-      for (const { added } of Object.values(pkgFilesIndex.sideEffects)) {
+    if (pkgFilesIndex?.sideEffects && util.types.isMap(pkgFilesIndex.sideEffects)) {
+      for (const { added } of pkgFilesIndex.sideEffects.values()) {
         if (!added) continue
-        for (const file of Object.values(added)) {
+        for (const file of added.values()) {
           if (file?.integrity === hash) {
             result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 

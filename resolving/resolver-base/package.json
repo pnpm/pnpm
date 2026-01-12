@@ -1,20 +1,20 @@
 {
   "name": "@pnpm/resolver-base",
-  "version": "1005.0.1",
+  "version": "1005.1.0",
   "description": "Types for pnpm-compatible resolvers",
   "keywords": [
     "pnpm",
-    "pnpm10",
+    "pnpm11",
     "resolver"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/resolver-base",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/resolver-base#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/resolving/resolver-base",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/resolving/resolver-base#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -38,7 +38,7 @@
     "@pnpm/resolver-base": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

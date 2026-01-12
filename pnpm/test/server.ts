@@ -7,12 +7,12 @@ import byline from '@pnpm/byline'
 import { STORE_VERSION } from '@pnpm/constants'
 import { type Project, prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import delay, { type ClearablePromise } from 'delay'
+import delay, { clearDelay } from 'delay'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import isWindows from 'is-windows'
 
 import killcb from 'tree-kill'
-import writeJsonFile from 'write-json-file'
+import { writeJsonFileSync } from 'write-json-file'
 import {
   execPnpm,
   execPnpmSync,
@@ -152,6 +152,7 @@ test('stopping server fails when the server disallows stopping via remote call',
 skipOnWindows('uploading cache can be disabled without breaking install', async () => {
   await using setup = prepareServerTest(['--ignore-upload-requests'])
   const { project } = setup
+  fs.writeFileSync('pnpm-workspace.yaml', 'allowBuilds: { "es5-ext": false, "diskusage": true }', 'utf8')
 
   // TODO: remove the delay and run install by connecting it to the store server
   // Can be done once this gets implemented: https://github.com/pnpm/pnpm/issues/1018
@@ -256,13 +257,13 @@ async function testParallelServerStart (
   }
 
   const timeoutMillis = options.timeoutMillis ?? 10000
-  let timeoutPromise: ClearablePromise<void> | null = delay(timeoutMillis)
+  let timeoutPromise: Promise<number> | null = delay(timeoutMillis)
   await Promise.any([
     (async () => {
       await completedPromise
       // Don't fire timeout if all server processes completed for some reason.
       if (timeoutPromise !== null) {
-        timeoutPromise.clear()
+        clearDelay(timeoutPromise)
       }
     })(),
     (async () => {
@@ -333,7 +334,7 @@ test.skip('fail if the store server is run by a different version of pnpm', asyn
   prepare()
 
   const serverJsonPath = path.resolve('..', `store/${STORE_VERSION}/server/server.json`)
-  writeJsonFile.sync(serverJsonPath, { pnpmVersion: '2.0.0' })
+  writeJsonFileSync(serverJsonPath, { pnpmVersion: '2.0.0' })
 
   const result = execPnpmSync(['install', 'is-positive@1.0.0'])
 

@@ -2,21 +2,26 @@
   "name": "@pnpm/scripts",
   "version": "1000.0.0",
   "private": true,
+  "type": "module",
   "dependencies": {
     "@pnpm/workspace.find-packages": "catalog:",
     "@pnpm/workspace.read-manifest": "catalog:",
     "execa": "catalog:",
     "fast-glob": "catalog:",
     "make-empty-dir": "catalog:",
-    "normalize-path": "catalog:"
+    "normalize-path": "catalog:",
+    "tar": "catalog:",
+    "tinyglobby": "catalog:"
   },
   "devDependencies": {
     "@pnpm/logger": "catalog:",
     "@pnpm/scripts": "workspace:*",
-    "@types/normalize-path": "catalog:"
+    "@types/normalize-path": "catalog:",
+    "@types/tar": "catalog:"
   },
   "keywords": [
     "pnpm",
-    "pnpm10"
-  ]
+    "pnpm11"
+  ],
+  "repository": "https://github.com/pnpm/pnpm/tree/main/__utils__/scripts"
 }

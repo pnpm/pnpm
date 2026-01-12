@@ -43,6 +43,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'resolutionMode'
 | 'saveWorkspaceProtocol'
 | 'strictSsl'
+| 'trustPolicy'
 | 'unsafePerm'
 | 'userAgent'
 | 'verifyStoreIntegrity'
@@ -56,9 +57,17 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
 ): Promise<{ ctrl: StoreController, dir: string }> {
-  const fullMetadata = opts.fetchFullMetadata ?? ((opts.resolutionMode === 'time-based' || Boolean(opts.minimumReleaseAge)) && !opts.registrySupportsTimeField)
+  const fullMetadata = opts.fetchFullMetadata ?? (
+    (
+      opts.resolutionMode === 'time-based' ||
+      Boolean(opts.minimumReleaseAge) ||
+      opts.trustPolicy === 'no-downgrade'
+    ) && !opts.registrySupportsTimeField
+  )
   const { resolve, fetchers, clearResolutionCache } = createClient({
     customFetchers: opts.hooks?.fetchers,
+    customResolvers: opts.hooks?.customResolvers,
+    customFetcherHooks: opts.hooks?.customFetchers,
     userConfig: opts.userConfig,
     unsafePerm: opts.unsafePerm,
     authConfig: opts.rawConfig,
@@ -121,6 +130,7 @@ export async function createNewStoreController (
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
       clearResolutionCache,
+      customFetchers: opts.hooks?.customFetchers,
     }),
     dir: opts.storeDir,
   }

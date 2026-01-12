@@ -9,13 +9,12 @@ import { runNpm } from '@pnpm/run-npm'
 import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import { loadToken } from '@pnpm/network.auth-header'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
-import { prompt } from 'enquirer'
+import enquirer from 'enquirer'
 import rimraf from '@zkochan/rimraf'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import * as pack from './pack.js'
 import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish.js'
 
@@ -112,6 +111,46 @@ export function help (): string {
 
 const GIT_CHECKS_HINT = 'If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks".'
 
+/**
+ * Remove pnpm-specific CLI options that npm doesn't recognize.
+ */
+export function removePnpmSpecificOptions (args: string[]): string[] {
+  const booleanOptions = new Set([
+    '--no-git-checks',
+    '--embed-readme',
+    '--no-embed-readme',
+  ])
+
+  const optionsWithValue = new Set([
+    '--publish-branch',
+    '--npm-path',
+  ])
+
+  const result: string[] = []
+  let i = 0
+
+  while (i < args.length) {
+    const arg = args[i]
+
+    if (booleanOptions.has(arg)) {
+      // Skip only the boolean option itself
+      i++
+    } else if (optionsWithValue.has(arg)) {
+      // Skip the option and its value
+      i++
+      // Skip the value if it exists and doesn't look like another option
+      if (i < args.length && args[i][0] !== '-') {
+        i++
+      }
+    } else {
+      result.push(arg)
+      i++
+    }
+  }
+
+  return result
+}
+
 export async function handler (
   opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
     argv: {
@@ -162,7 +201,7 @@ export async function publish (
       )
     }
     if (!branches.includes(currentBranch)) {
-      const { confirm } = await prompt({
+      const { confirm } = await enquirer.prompt({
         message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". \
 Do you want to continue?`,
         name: 'confirm',
@@ -195,16 +234,7 @@ Do you want to continue?`,
   if (dirInParams) {
     args = args.filter(arg => arg !== params[0])
   }
-  const index = args.indexOf('--publish-branch')
-  if (index !== -1) {
-    // If --publish-branch follows with another cli option, only remove this argument
-    // otherwise remove the following argument as well
-    if (args[index + 1]?.[0] === '-') {
-      args.splice(index, 1)
-    } else {
-      args.splice(index, 2)
-    }
-  }
+  args = removePnpmSpecificOptions(args)
 
   if (dirInParams != null && (dirInParams.endsWith('.tgz') || dirInParams?.endsWith('.tar.gz'))) {
     const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args])
@@ -221,7 +251,6 @@ Do you want to continue?`,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
-    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   })
   const { manifest } = await readProjectManifest(dir, opts)
   // Unfortunately, we cannot support postpack at the moment
@@ -236,11 +265,12 @@ Do you want to continue?`,
   // Otherwise, npm would publish the package with the package.json file
   // from the current working directory, ignoring the package.json file
   // that was generated and packed to the tarball.
-  const packDestination = tempy.directory()
+  const packDestination = temporaryDirectory()
   const { tarballPath } = await pack.api({
     ...opts,
     dir,
     packDestination,
+    dryRun: false,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballPath), ...args], {

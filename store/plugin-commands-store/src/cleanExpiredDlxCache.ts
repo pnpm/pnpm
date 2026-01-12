@@ -1,5 +1,4 @@
-import { readdirSync, type Stats } from 'fs'
-import fs from 'fs/promises'
+import { readdirSync, type Stats, promises as fs } from 'fs'
 import path from 'path'
 import util from 'util'
 
@@ -75,7 +74,16 @@ async function getStats (path: string): Promise<Stats | 'ENOENT'> {
 
 function readOptDir (dirPath: string): string[] | null {
   try {
-    return readdirSync(dirPath, 'utf-8')
+    const dirEntries: string[] = []
+    for (const entry of readdirSync(dirPath, {
+      encoding: 'utf-8',
+      withFileTypes: true,
+    })) {
+      if (entry.isDirectory()) {
+        dirEntries.push(entry.name)
+      }
+    }
+    return dirEntries
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return null

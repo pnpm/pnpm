@@ -10,13 +10,10 @@ import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { PnpmError } from '@pnpm/error'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
-import { prompt } from 'enquirer'
+import enquirer from 'enquirer'
 import chalk from 'chalk'
-import pick from 'ramda/src/pick'
-import pluck from 'ramda/src/pluck'
-import unnest from 'ramda/src/unnest'
+import { pick, pluck, unnest } from 'ramda'
 import renderHelp from 'render-help'
 import { type InstallCommandOptions } from '../install.js'
 import { installDeps } from '../installDeps.js'
@@ -215,7 +212,7 @@ async function interactiveUpdate (
     }
     return 'All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json'
   }
-  const { updateDependencies } = await prompt({
+  const { updateDependencies } = await enquirer.prompt({
     choices,
     footer: '\nEnter to start updating. Ctrl-c to cancel.',
     indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -307,7 +304,6 @@ async function update (
       : undefined,
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
-    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   }, dependencies)
 }
 

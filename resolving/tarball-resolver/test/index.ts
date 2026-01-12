@@ -7,7 +7,7 @@ const fetch = createFetchFromRegistry({})
 const resolveFromTarball = _resolveFromTarball.bind(null, fetch)
 
 test('tarball from npm registry (immutable)', async () => {
-  const resolutionResult = await resolveFromTarball({ bareSpecifier: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz' })
+  const resolutionResult = await resolveFromTarball({ bareSpecifier: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz' })
 
   expect(resolutionResult).toStrictEqual({
     id: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
@@ -19,7 +19,7 @@ test('tarball from npm registry (immutable)', async () => {
   })
 })
 test('tarball from npm.jsr.io registry (immutable)', async () => {
-  const resolutionResult = await resolveFromTarball({ bareSpecifier: 'http://npm.jsr.io/~/11/@jsr/luca__flag/1.0.1.tgz' })
+  const resolutionResult = await resolveFromTarball({ bareSpecifier: 'https://npm.jsr.io/~/11/@jsr/luca__flag/1.0.1.tgz' })
 
   expect(resolutionResult).toStrictEqual({
     id: 'https://npm.jsr.io/~/11/@jsr/luca__flag/1.0.1.tgz',
@@ -41,6 +41,42 @@ test('tarball from URL that contain port number', async () => {
     normalizedBareSpecifier: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz',
     resolution: {
       tarball: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz',
+    },
+    resolvedVia: 'url',
+  })
+})
+
+test('tarball from URL with redundant port', async () => {
+  const resolutionResult = await resolveFromTarball({ bareSpecifier: 'https://registry.npmjs.org:443/is-array/-/is-array-1.0.1.tgz' })
+
+  expect(resolutionResult).toStrictEqual({
+    id: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    normalizedBareSpecifier: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    resolution: {
+      tarball: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    },
+    resolvedVia: 'url',
+  })
+})
+
+test('tarball from URL that redirects to a different URL (immutable)', async () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fetch: any = async (url: string) => {
+    if (url === 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz') {
+      return {
+        url: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+        headers: new Map([['cache-control', 'immutable']]),
+      }
+    }
+    return { url }
+  }
+  const resolutionResult = await _resolveFromTarball(fetch, { bareSpecifier: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz' })
+
+  expect(resolutionResult).toStrictEqual({
+    id: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    normalizedBareSpecifier: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    resolution: {
+      tarball: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
     },
     resolvedVia: 'url',
   })
@@ -73,18 +109,18 @@ test('tarballs from GitHub (is-negative)', async () => {
 })
 
 test('ignore direct URLs to repositories', async () => {
-  expect(await resolveFromTarball({ bareSpecifier: 'https://github.com/foo/bar' })).toBe(null)
-  expect(await resolveFromTarball({ bareSpecifier: 'https://github.com/foo/bar/' })).toBe(null)
-  expect(await resolveFromTarball({ bareSpecifier: 'https://gitlab.com/foo/bar' })).toBe(null)
-  expect(await resolveFromTarball({ bareSpecifier: 'https://bitbucket.org/foo/bar' })).toBe(null)
+  expect(await resolveFromTarball({ bareSpecifier: 'https://github.com/foo/bar' })).toBeNull()
+  expect(await resolveFromTarball({ bareSpecifier: 'https://github.com/foo/bar/' })).toBeNull()
+  expect(await resolveFromTarball({ bareSpecifier: 'https://gitlab.com/foo/bar' })).toBeNull()
+  expect(await resolveFromTarball({ bareSpecifier: 'https://bitbucket.org/foo/bar' })).toBeNull()
 })
 
 test('ignore slash in hash', async () => {
   // expect resolve from git.
   let hash = 'path:/packages/simple-react-app'
-  expect(await resolveFromTarball({ bareSpecifier: `RexSkz/test-git-subdir-fetch#${hash}` })).toBe(null)
-  expect(await resolveFromTarball({ bareSpecifier: `RexSkz/test-git-subdir-fetch#${encodeURIComponent(hash)}` })).toBe(null)
+  expect(await resolveFromTarball({ bareSpecifier: `RexSkz/test-git-subdir-fetch#${hash}` })).toBeNull()
+  expect(await resolveFromTarball({ bareSpecifier: `RexSkz/test-git-subdir-fetch#${encodeURIComponent(hash)}` })).toBeNull()
   hash = 'heads/canary'
-  expect(await resolveFromTarball({ bareSpecifier: `zkochan/is-negative#${hash}` })).toBe(null)
-  expect(await resolveFromTarball({ bareSpecifier: `zkochan/is-negative#${encodeURIComponent(hash)}` })).toBe(null)
+  expect(await resolveFromTarball({ bareSpecifier: `zkochan/is-negative#${hash}` })).toBeNull()
+  expect(await resolveFromTarball({ bareSpecifier: `zkochan/is-negative#${encodeURIComponent(hash)}` })).toBeNull()
 })

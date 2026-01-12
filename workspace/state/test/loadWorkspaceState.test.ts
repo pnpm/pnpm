@@ -3,6 +3,7 @@ import fs from 'fs'
 import { logger } from '@pnpm/logger'
 import { type ProjectRootDir } from '@pnpm/types'
 import { prepareEmpty } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import { getFilePath } from '../src/filePath.js'
 import { type WorkspaceState, loadWorkspaceState } from '../src/index.js'
 

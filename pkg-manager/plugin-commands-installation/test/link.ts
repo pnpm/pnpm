@@ -1,19 +1,33 @@
 import fs from 'fs'
 import path from 'path'
-import { install, link } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages, prepareEmpty } from '@pnpm/prepare'
 import { isExecutable, assertProject } from '@pnpm/assert-project'
 import { fixtures } from '@pnpm/test-fixtures'
-import { logger } from '@pnpm/logger'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
 import { sync as readYamlFile } from 'read-yaml-file'
-import writePkg from 'write-pkg'
-import { DEFAULT_OPTS } from './utils/index.js'
+import { writePackageSync } from 'write-package'
 import { type PnpmError } from '@pnpm/error'
+import { jest } from '@jest/globals'
 import { sync as writeYamlFile } from 'write-yaml-file'
+import { DEFAULT_OPTS } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const original = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => {
+  const logger = {
+    ...original.logger,
+    warn: jest.fn(),
+  }
+  return {
+    ...original,
+    logger: Object.assign(() => logger, logger),
+  }
+})
+
+const { logger } = await import('@pnpm/logger')
+const { install, link } = await import('@pnpm/plugin-commands-installation')
+
+const f = fixtures(import.meta.dirname)
 
 test('linking multiple packages', async () => {
   const project = prepare()
@@ -21,8 +35,8 @@ test('linking multiple packages', async () => {
   process.chdir('..')
   const globalDir = path.resolve('global')
 
-  await writePkg('linked-foo', { name: 'linked-foo', version: '1.0.0' })
-  await writePkg('linked-bar', { name: 'linked-bar', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } })
+  writePackageSync('linked-foo', { name: 'linked-foo', version: '1.0.0' })
+  writePackageSync('linked-bar', { name: 'linked-bar', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } })
   fs.writeFileSync('linked-bar/.npmrc', 'shamefully-hoist = true')
 
   process.chdir('linked-foo')
@@ -60,7 +74,7 @@ test('link global bin', async function () {
   process.env[PATH] = `${globalBin}${path.delimiter}${oldPath ?? ''}`
   fs.mkdirSync(globalBin, { recursive: true })
 
-  await writePkg('package-with-bin', { name: 'package-with-bin', version: '1.0.0', bin: 'bin.js' })
+  writePackageSync('package-with-bin', { name: 'package-with-bin', version: '1.0.0', bin: 'bin.js' })
   fs.writeFileSync('package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
 
   process.chdir('package-with-bin')
@@ -89,7 +103,7 @@ test('link a global package to the specified directory', async function () {
   process.env[PATH] = `${globalBin}${path.delimiter}${oldPath ?? ''}`
   fs.mkdirSync(globalBin, { recursive: true })
 
-  await writePkg('global-package-with-bin', { name: 'global-package-with-bin', version: '1.0.0', bin: 'bin.js' })
+  writePackageSync('global-package-with-bin', { name: 'global-package-with-bin', version: '1.0.0', bin: 'bin.js' })
   fs.writeFileSync('global-package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
 
   process.chdir('global-package-with-bin')
@@ -119,7 +133,7 @@ test('link a global package to the specified directory', async function () {
 
   process.env[PATH] = oldPath
 
-  const manifest = loadJsonFile<any>(path.join(projectDir, 'package.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const manifest = loadJsonFileSync<any>(path.join(projectDir, 'package.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(manifest.dependencies).toStrictEqual({ 'global-package-with-bin': '0.0.0' })
   project.has('global-package-with-bin')
 })
@@ -259,12 +273,10 @@ test('link fails if nothing is linked', async () => {
 test('logger warns about peer dependencies when linking', async () => {
   prepare()
 
-  const warnMock = jest.spyOn(logger, 'warn')
-
   process.chdir('..')
   const globalDir = path.resolve('global')
 
-  await writePkg('linked-with-peer-deps', {
+  writePackageSync('linked-with-peer-deps', {
     name: 'linked-with-peer-deps',
     version: '1.0.0',
     peerDependencies: {
@@ -289,24 +301,23 @@ test('logger warns about peer dependencies when linking', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     globalPkgDir: globalDir,
+    rootProjectManifestDir: globalDir,
   }, ['linked-with-peer-deps'])
 
-  expect(warnMock).toHaveBeenCalledWith(expect.objectContaining({
+  expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({
     message: expect.stringContaining('has the following peerDependencies specified in its package.json'),
   }))
 
-  warnMock.mockRestore()
+  jest.mocked(logger.warn).mockRestore()
 })
 
 test('logger should not warn about peer dependencies when it is an empty object', async () => {
   prepare()
 
-  const warnMock = jest.spyOn(logger, 'warn')
-
   process.chdir('..')
   const globalDir = path.resolve('global')
 
-  await writePkg('linked-with-empty-peer-deps', {
+  writePackageSync('linked-with-empty-peer-deps', {
     name: 'linked-with-empty-peer-deps',
     version: '1.0.0',
     peerDependencies: {},
@@ -332,11 +343,11 @@ test('logger should not warn about peer dependencies when it is an empty object'
     rootProjectManifestDir: process.cwd(),
   }, ['linked-with-empty-peer-deps'])
 
-  expect(warnMock).not.toHaveBeenCalledWith(expect.objectContaining({
+  expect(logger.warn).not.toHaveBeenCalledWith(expect.objectContaining({
     message: expect.stringContaining('has the following peerDependencies specified in its package.json'),
   }))
 
-  warnMock.mockRestore()
+  jest.mocked(logger.warn).mockRestore()
 })
 
 test('link: fail when global bin directory is not found', async () => {
@@ -371,7 +382,7 @@ test('relative link from workspace package', async () => {
       '@pnpm.e2e/hello-world-js-bin': '*',
     },
   }
-  await writePkg('workspace/packages/project', rootProjectManifest)
+  writePackageSync('workspace/packages/project', rootProjectManifest)
   const workspaceDir = path.resolve('workspace')
   writeYamlFile(path.join(workspaceDir, 'pnpm-workspace.yaml'), { packages: ['packages/*'] })
 

@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-doctor
 
+## 1000.1.42
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.8
+
+## 1000.1.41
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.7
+- @pnpm/config@1004.4.2
+
+## 1000.1.40
+
+### Patch Changes
+
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/cli-utils@1001.2.6
+
+## 1000.1.39
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.5
+
 ## 1000.1.38
 
 ### Patch Changes

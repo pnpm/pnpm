@@ -5,7 +5,7 @@ import {
   createCafs,
   getFilePathByModeInCafs,
 } from '@pnpm/store.cafs'
-import { type Cafs, type PackageFilesResponse, type PackageFiles, type SideEffectsDiff } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFilesResponse, type SideEffectsDiff, type FilesMap } from '@pnpm/cafs-types'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
   type ImportIndexedPackage,
@@ -13,9 +13,8 @@ import {
   type ImportPackageFunction,
   type ImportPackageFunctionAsync,
 } from '@pnpm/store-controller-types'
-import memoize from 'mem'
+import memoize from 'memoize'
 import pathTemp from 'path-temp'
-import mapValues from 'ramda/src/map'
 
 export { type CafsLocker }
 
@@ -83,30 +82,33 @@ function getFlatMap (
   storeDir: string,
   filesResponse: PackageFilesResponse,
   targetEngine?: string
-): { filesMap: Record<string, string>, isBuilt: boolean } {
-  let isBuilt!: boolean
-  let filesIndex!: PackageFiles
-  if (targetEngine && ((filesResponse.sideEffects?.[targetEngine]) != null)) {
-    filesIndex = applySideEffectsDiff(filesResponse.filesIndex as PackageFiles, filesResponse.sideEffects?.[targetEngine])
-    isBuilt = true
-  } else if (!filesResponse.unprocessed) {
+): { filesMap: FilesMap, isBuilt: boolean } {
+  if (targetEngine && filesResponse.sideEffects?.has(targetEngine)) {
+    const filesIndexWithSideEffects = applySideEffectsDiff(storeDir, filesResponse.filesMap, filesResponse.sideEffects.get(targetEngine)!)
     return {
-      filesMap: filesResponse.filesIndex,
-      isBuilt: false,
+      filesMap: filesIndexWithSideEffects,
+      isBuilt: true,
     }
-  } else {
-    filesIndex = filesResponse.filesIndex
-    isBuilt = false
   }
-  const filesMap = mapValues(({ integrity, mode }) => getFilePathByModeInCafs(storeDir, integrity, mode), filesIndex)
-  return { filesMap, isBuilt }
+  return {
+    filesMap: filesResponse.filesMap,
+    isBuilt: false,
+  }
 }
 
-function applySideEffectsDiff (baseFiles: PackageFiles, { added, deleted }: SideEffectsDiff): PackageFiles {
-  const filesWithSideEffects: PackageFiles = { ...added }
-  for (const fileName in baseFiles) {
-    if (!deleted?.includes(fileName) && !filesWithSideEffects[fileName]) {
-      filesWithSideEffects[fileName] = baseFiles[fileName]
+function applySideEffectsDiff (storeDir: string, baseFiles: FilesMap, { added, deleted }: SideEffectsDiff): FilesMap {
+  const filesWithSideEffects = new Map<string, string>()
+  // Add side effect files (convert from PackageFiles metadata to file paths)
+  if (added) {
+    for (const [name, fileInfo] of added.entries()) {
+      const filePath = getFilePathByModeInCafs(storeDir, fileInfo.integrity, fileInfo.mode)
+      filesWithSideEffects.set(name, filePath)
+    }
+  }
+  // Add base files that weren't deleted
+  for (const [fileName, filePath] of baseFiles) {
+    if (!deleted?.includes(fileName) && !filesWithSideEffects.has(fileName)) {
+      filesWithSideEffects.set(fileName, filePath)
     }
   }
   return filesWithSideEffects

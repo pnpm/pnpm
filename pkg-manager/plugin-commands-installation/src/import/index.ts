@@ -16,10 +16,11 @@ import { type ProjectsGraph, type Project } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import rimraf from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
-import mapValues from 'ramda/src/map'
+import { loadJsonFile } from 'load-json-file'
+import { map as mapValues } from 'ramda'
 import renderHelp from 'render-help'
-import { parse as parseYarnLock, type LockFileObject } from '@yarnpkg/lockfile'
+import yarnLockfileLib from '@yarnpkg/lockfile'
+import { type LockFileObject } from '@yarnpkg/lockfile'
 import * as structUtils from '@yarnpkg/core/structUtils'
 import { parseSyml } from '@yarnpkg/parsers'
 import { recursive } from '../recursive.js'
@@ -62,14 +63,16 @@ interface YarnPackageLock {
   [name: string]: YarnLockPackage
 }
 
-enum YarnLockType {
-  yarn = 'yarn',
-  yarn2 = 'yarn2'
-}
+const YarnLockType = {
+  yarn: 'yarn',
+  yarn2: 'yarn2',
+} as const
+
+type YarnLockType = (typeof YarnLockType)[keyof typeof YarnLockType]
 
 // copy from yarn v1
 interface YarnLock2Struct {
-  type: YarnLockType.yarn2
+  type: typeof YarnLockType.yarn2
   object: YarnPackageLock
 }
 
@@ -190,7 +193,7 @@ async function readYarnLockFile (dir: string): Promise<LockFileObject> {
     const yarnLockFile = await gfs.readFile(path.join(dir, 'yarn.lock'), 'utf8')
     const yarnLockFileType = getYarnLockfileType(yarnLockFile)
     if (yarnLockFileType === YarnLockType.yarn) {
-      const lockJsonFile = parseYarnLock(yarnLockFile)
+      const lockJsonFile = yarnLockfileLib.parse(yarnLockFile)
       if (lockJsonFile.type === 'success') {
         return lockJsonFile.object
       } else {

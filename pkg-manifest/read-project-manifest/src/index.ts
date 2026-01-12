@@ -1,12 +1,12 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { globalWarn } from '@pnpm/logger'
-import { type ProjectManifest, type DevEngineDependency } from '@pnpm/types'
+import { type ProjectManifest, type EngineDependency } from '@pnpm/types'
+import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
 import { extractComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
-import detectIndent from '@gwhitney/detect-indent'
+import detectIndent from 'detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
 import {
@@ -188,7 +188,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
 
 async function readPackageYaml (filePath: string): Promise<ProjectManifest> {
   try {
-    return await readYamlFile<ProjectManifest>(filePath)
+    return await readYamlFile.default<ProjectManifest>(filePath)
   } catch (err: any) { // eslint-disable-line
     if (err.name !== 'YAMLException') throw err
     err.message = `${err.message as string}\nin ${filePath}`
@@ -223,59 +223,57 @@ function createManifestWriter (
 }
 
 function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
-  for (const runtimeName of ['node', 'deno', 'bun']) {
-    if (manifest.devEngines?.runtime && !manifest.devDependencies?.[runtimeName]) {
-      const runtimes = Array.isArray(manifest.devEngines.runtime) ? manifest.devEngines.runtime : [manifest.devEngines.runtime]
-      const runtime = runtimes.find((runtime) => runtime.name === runtimeName)
-      if (runtime && runtime.onFail === 'download') {
-        if ('webcontainer' in process.versions) {
-          globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
-        } else {
-          manifest.devDependencies ??= {}
-          manifest.devDependencies[runtimeName] = `runtime:${runtime.version}`
-        }
-      }
-    }
-  }
+  convertEnginesRuntimeToDependencies(manifest, 'devEngines', 'devDependencies')
+  convertEnginesRuntimeToDependencies(manifest, 'engines', 'dependencies')
   return manifest
 }
 
 function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest {
-  for (const runtimeName of ['node', 'deno', 'bun']) {
-    const nodeDep = manifest.devDependencies?.[runtimeName]
-    if (typeof nodeDep === 'string' && nodeDep.startsWith('runtime:')) {
-      const version = nodeDep.replace(/^runtime:/, '')
-      manifest.devEngines ??= {}
+  convertDependenciesToEnginesRuntime(manifest, 'devDependencies', 'devEngines')
+  convertDependenciesToEnginesRuntime(manifest, 'dependencies', 'engines')
+  return manifest
+}
 
-      const nodeRuntimeEntry: DevEngineDependency = {
+function convertDependenciesToEnginesRuntime (
+  manifest: ProjectManifest,
+  dependenciesFieldName: 'dependencies' | 'devDependencies',
+  enginesFieldName: 'engines' | 'devEngines'
+): void {
+  for (const runtimeName of ['node', 'deno', 'bun']) {
+    const dep = manifest[dependenciesFieldName]?.[runtimeName]
+    if (typeof dep === 'string' && dep.startsWith('runtime:')) {
+      const version = dep.replace(/^runtime:/, '')
+      manifest[enginesFieldName] ??= {}
+
+      const runtimeEntry: EngineDependency = {
         name: runtimeName,
         version,
         onFail: 'download',
       }
 
-      if (!manifest.devEngines.runtime) {
-        manifest.devEngines.runtime = nodeRuntimeEntry
-      } else if (Array.isArray(manifest.devEngines.runtime)) {
-        const existing = manifest.devEngines.runtime.find(({ name }) => name === runtimeName)
+      const enginesField = manifest[enginesFieldName]!
+      if (!enginesField.runtime) {
+        enginesField.runtime = runtimeEntry
+      } else if (Array.isArray(enginesField.runtime)) {
+        const existing = enginesField.runtime.find(({ name }) => name === runtimeName)
         if (existing) {
-          Object.assign(existing, nodeRuntimeEntry)
+          Object.assign(existing, runtimeEntry)
         } else {
-          manifest.devEngines.runtime.push(nodeRuntimeEntry)
+          enginesField.runtime.push(runtimeEntry)
         }
-      } else if (manifest.devEngines.runtime.name === runtimeName) {
-        Object.assign(manifest.devEngines.runtime, nodeRuntimeEntry)
+      } else if (enginesField.runtime.name === runtimeName) {
+        Object.assign(enginesField.runtime, runtimeEntry)
       } else {
-        manifest.devEngines.runtime = [
-          manifest.devEngines.runtime,
-          nodeRuntimeEntry,
+        enginesField.runtime = [
+          enginesField.runtime,
+          runtimeEntry,
         ]
       }
-      if (manifest.devDependencies) {
-        delete manifest.devDependencies[runtimeName]
+      if (manifest[dependenciesFieldName]) {
+        delete manifest[dependenciesFieldName][runtimeName]
       }
     }
   }
-  return manifest
 }
 
 const dependencyKeys = new Set([

@@ -1,5 +1,4 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/plugin-commands-listing'
@@ -9,7 +8,7 @@ import execa from 'execa'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('listing packages', async () => {
   prepare({
@@ -85,8 +84,10 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    sharedWorkspaceLockfile: true,
+    packages: ['**', '!store/**'],
+  })
 
   await execa('node', [pnpmBin, 'recursive', 'install'])
 
@@ -195,4 +196,116 @@ pkg@1.0.0 ${pkgDir}
 
 dependencies:
 dep file:../dep`)
+})
+
+test('listing packages with --lockfile-only', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execa('node', [pnpmBin, 'install', '--lockfile-only'])
+
+  {
+    const output = await list.handler({
+      dev: false,
+      dir: process.cwd(),
+      lockfileOnly: true,
+      optional: false,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, [])
+
+    expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+
+project@0.0.0 ${process.cwd()}
+
+dependencies:
+is-positive 1.0.0`)
+  }
+
+  {
+    const output = await list.handler({
+      dir: process.cwd(),
+      lockfileOnly: true,
+      optional: false,
+      production: false,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, [])
+
+    expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+
+project@0.0.0 ${process.cwd()}
+
+devDependencies:
+is-negative 1.0.0`)
+  }
+
+  {
+    const output = await list.handler({
+      dir: process.cwd(),
+      lockfileOnly: true,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, [])
+
+    expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+
+project@0.0.0 ${process.cwd()}
+
+dependencies:
+is-positive 1.0.0
+
+devDependencies:
+is-negative 1.0.0`)
+  }
+})
+
+test('listing packages with --lockfile-only in JSON format', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await execa('node', [pnpmBin, 'install', '--lockfile-only'])
+
+  const output = await list.handler({
+    dir: process.cwd(),
+    json: true,
+    lockfileOnly: true,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, [])
+
+  const parsedOutput = JSON.parse(output)
+  expect(parsedOutput).toHaveLength(1)
+  expect(parsedOutput[0].name).toBe('project')
+  expect(parsedOutput[0].dependencies).toHaveProperty('is-positive')
+  expect(parsedOutput[0].dependencies['is-positive'].version).toBe('1.0.0')
+})
+
+test('listing specific package with --lockfile-only', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execa('node', [pnpmBin, 'install', '--lockfile-only'])
+
+  const output = await list.handler({
+    dir: process.cwd(),
+    lockfileOnly: true,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['is-positive'])
+
+  expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+
+project@0.0.0 ${process.cwd()}
+
+dependencies:
+is-positive 1.0.0`)
 })

@@ -9,7 +9,7 @@ import { type ProjectRootDir, type DepPath } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test.skip('subsequent installation uses same lockfile directory by default', async () => {
   prepareEmpty()

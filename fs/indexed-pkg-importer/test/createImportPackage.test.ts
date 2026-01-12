@@ -1,13 +1,10 @@
 import fs, { type BigIntStats } from 'fs'
 import path from 'path'
-import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
-import gfs from '@pnpm/graceful-fs'
-import { globalInfo } from '@pnpm/logger'
 import { jest } from '@jest/globals'
 
 const testOnLinuxOnly = (process.platform === 'darwin' || process.platform === 'win32') ? test.skip : test
 
-jest.mock('@pnpm/graceful-fs', () => {
+jest.unstable_mockModule('@pnpm/graceful-fs', () => {
   const { access } = jest.requireActual<typeof fs>('fs')
   const fsMock = {
     access,
@@ -25,16 +22,22 @@ jest.mock('@pnpm/graceful-fs', () => {
     ...fsMock,
   }
 })
-jest.mock('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))
-jest.mock('rename-overwrite', () => ({ sync: jest.fn() }))
-jest.mock('fs-extra', () => ({
-  copySync: jest.fn(),
+jest.unstable_mockModule('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))
+jest.unstable_mockModule('rename-overwrite', () => ({ default: { sync: jest.fn() } }))
+jest.unstable_mockModule('fs-extra', () => ({
+  default: {
+    copySync: jest.fn(),
+  },
 }))
-jest.mock('@pnpm/logger', () => ({
+jest.unstable_mockModule('@pnpm/logger', () => ({
   logger: jest.fn(() => ({ debug: jest.fn() })),
   globalWarn: jest.fn(),
   globalInfo: jest.fn(),
 }))
+
+const { default: gfs } = await import('@pnpm/graceful-fs')
+const { createIndexedPkgImporter } = await import('@pnpm/fs.indexed-pkg-importer')
+const { globalInfo } = await import('@pnpm/logger')
 
 beforeEach(() => {
   jest.mocked(gfs.copyFileSync).mockClear()
@@ -47,10 +50,10 @@ beforeEach(() => {
 testOnLinuxOnly('packageImportMethod=auto: clone files by default', () => {
   const importPackage = createIndexedPkgImporter('auto')
   expect(importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
     force: false,
     resolvedFrom: 'remote',
   })).toBe('clone')
@@ -72,10 +75,10 @@ testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails', () => {
     throw new Error('This file system does not support cloning')
   })
   expect(importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
     force: false,
     resolvedFrom: 'remote',
   })).toBe('hardlink')
@@ -86,10 +89,10 @@ testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails', () => {
 
   // The copy function will not be called again
   expect(importPackage('project2/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
     force: false,
     resolvedFrom: 'remote',
   })).toBe('hardlink')
@@ -111,9 +114,9 @@ testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails and even 
     }
   })
   expect(importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+    ]),
     force: false,
     resolvedFrom: 'remote',
   })).toBe('hardlink')
@@ -133,9 +136,9 @@ testOnLinuxOnly('packageImportMethod=auto: chooses copying if cloning and hard l
     throw new Error('EXDEV: cross-device link not permitted')
   })
   expect(importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+    ]),
     force: false,
     resolvedFrom: 'remote',
   })).toBe('copy')
@@ -152,11 +155,11 @@ testOnLinuxOnly('packageImportMethod=hardlink: fall back to copying if hardlinki
     throw new Error('This file system does not support hard linking')
   })
   expect(importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-      license: 'hash3',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+      ['license', 'hash3'],
+    ]),
     force: false,
     resolvedFrom: 'remote',
   })).toBe('hardlink')
@@ -170,13 +173,13 @@ test('packageImportMethod=hardlink does not relink package from store if package
   const importPackage = createIndexedPkgImporter('hardlink')
   jest.mocked(gfs.statSync).mockReturnValue({ ino: BigInt(1) } as fs.BigIntStats)
   expect(importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
     force: false,
     resolvedFrom: 'store',
-  })).toBe(undefined)
+  })).toBeUndefined()
 })
 
 test('packageImportMethod=hardlink relinks package from store if package.json is not linked from the store', () => {
@@ -184,10 +187,10 @@ test('packageImportMethod=hardlink relinks package from store if package.json is
   let ino = 0
   jest.mocked(gfs.statSync as jest.Mock).mockImplementation(() => ({ ino: ++ino }))
   expect(importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
     force: false,
     resolvedFrom: 'store',
   })).toBe('hardlink')
@@ -201,12 +204,12 @@ test('packageImportMethod=hardlink does not relink package from store if package
     return { ino: BigInt(1) } as BigIntStats
   }) as unknown as typeof gfs.statSync)
   expect(importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+    ]),
     force: false,
     resolvedFrom: 'store',
-  })).toBe(undefined)
+  })).toBeUndefined()
 })
 
 test('packageImportMethod=hardlink links packages when they are not found', () => {
@@ -218,10 +221,10 @@ test('packageImportMethod=hardlink links packages when they are not found', () =
     return { ino: BigInt(0) } as BigIntStats
   }) as unknown as typeof gfs.statSync)
   expect(importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
     force: false,
     resolvedFrom: 'store',
   })).toBe('hardlink')

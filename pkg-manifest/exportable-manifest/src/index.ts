@@ -4,8 +4,9 @@ import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { type Hooks } from '@pnpm/pnpmfile'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
-import omit from 'ramda/src/omit'
+import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig.js'
 
@@ -20,6 +21,7 @@ const PREPUBLISH_SCRIPTS = [
 
 export interface MakePublishManifestOptions {
   catalogs: Catalogs
+  hooks?: Hooks
   modulesDir?: string
   readmeFile?: string
 }
@@ -29,7 +31,7 @@ export async function createExportableManifest (
   originalManifest: ProjectManifest,
   opts: MakePublishManifestOptions
 ): Promise<ProjectManifest> {
-  const publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
+  let publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }
@@ -61,6 +63,11 @@ export async function createExportableManifest (
 
   if (opts?.readmeFile) {
     publishManifest.readme ??= opts.readmeFile
+  }
+
+  for (const hook of opts?.hooks?.beforePacking ?? []) {
+    // eslint-disable-next-line no-await-in-loop
+    publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
 
   return publishManifest
@@ -95,7 +102,7 @@ async function makePublishDependencies (
   { modulesDir, convertDependencyForPublish }: MakePublishDependenciesOpts
 ): Promise<Dependencies | undefined> {
   if (dependencies == null) return dependencies
-  const publishDependencies = await pMapValues(
+  const publishDependencies = await pMapValues.default(
     async (depSpec, depName) => convertDependencyForPublish(depName, depSpec, dir, modulesDir),
     dependencies
   )

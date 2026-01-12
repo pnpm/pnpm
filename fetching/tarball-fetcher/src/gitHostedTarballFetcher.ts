@@ -2,7 +2,7 @@ import assert from 'assert'
 import fs from 'node:fs/promises'
 import util from 'util'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
-import type { Cafs } from '@pnpm/cafs-types'
+import { type Cafs, type FilesMap } from '@pnpm/cafs-types'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
@@ -27,17 +27,17 @@ export interface CreateGitHostedTarballFetcher {
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const tempIndexFile = pathTemp(opts.filesIndexFile)
-    const { filesIndex, manifest, requiresBuild } = await fetchRemoteTarball(cafs, resolution, {
+    const { filesMap, manifest, requiresBuild } = await fetchRemoteTarball(cafs, resolution, {
       ...opts,
       filesIndexFile: tempIndexFile,
     })
     try {
-      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, tempIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
+      const prepareResult = await prepareGitHostedPkg(filesMap, cafs, tempIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
       return {
-        filesIndex: prepareResult.filesIndex,
+        filesMap: prepareResult.filesMap,
         manifest: prepareResult.manifest ?? manifest,
         requiresBuild,
       }
@@ -52,13 +52,13 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
 }
 
 interface PrepareGitHostedPkgResult {
-  filesIndex: Record<string, string>
+  filesMap: FilesMap
   manifest?: DependencyManifest
   ignoredBuild: boolean
 }
 
 async function prepareGitHostedPkg (
-  filesIndex: Record<string, string>,
+  filesMap: FilesMap,
   cafs: Cafs,
   filesIndexFileNonBuilt: string,
   filesIndexFile: string,
@@ -69,27 +69,30 @@ async function prepareGitHostedPkg (
   const tempLocation = await cafs.tempDir()
   cafs.importPackage(tempLocation, {
     filesResponse: {
-      filesIndex,
+      filesMap,
       resolvedFrom: 'remote',
       requiresBuild: false,
     },
     force: true,
   })
-  const { shouldBeBuilt, pkgDir } = await preparePackage(opts, tempLocation, resolution.path ?? '')
+  const { shouldBeBuilt, pkgDir } = await preparePackage({
+    ...opts,
+    allowBuild: fetcherOpts.allowBuild,
+  }, tempLocation, resolution.path ?? '')
   const files = await packlist(pkgDir)
-  if (!resolution.path && files.length === Object.keys(filesIndex).length) {
+  if (!resolution.path && files.length === filesMap.size) {
     if (!shouldBeBuilt) {
       if (filesIndexFileNonBuilt !== filesIndexFile) {
         await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
       }
       return {
-        filesIndex,
+        filesMap,
         ignoredBuild: false,
       }
     }
     if (opts.ignoreScripts) {
       return {
-        filesIndex,
+        filesMap,
         ignoredBuild: true,
       }
     }

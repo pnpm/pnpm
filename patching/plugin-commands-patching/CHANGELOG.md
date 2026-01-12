@@ -1,5 +1,53 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.21
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.8
+- @pnpm/plugin-commands-installation@1004.6.10
+- @pnpm/store-connection-manager@1002.2.4
+
+## 1000.3.20
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/cli-utils@1001.2.7
+  - @pnpm/config@1004.4.2
+  - @pnpm/config.config-writer@1000.0.14
+  - @pnpm/lockfile.fs@1001.1.21
+  - @pnpm/lockfile.utils@1003.0.3
+  - @pnpm/modules-yaml@1000.3.6
+  - @pnpm/plugin-commands-installation@1004.6.9
+  - @pnpm/read-package-json@1000.1.2
+  - @pnpm/read-project-manifest@1001.1.4
+  - @pnpm/workspace.read-manifest@1000.2.5
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/store-connection-manager@1002.2.3
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/patching.apply-patch@1000.0.7
+
+## 1000.3.19
+
+### Patch Changes
+
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/cli-utils@1001.2.6
+  - @pnpm/plugin-commands-installation@1004.6.8
+  - @pnpm/store-connection-manager@1002.2.2
+
+## 1000.3.18
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.6.7
+- @pnpm/store-connection-manager@1002.2.1
+- @pnpm/cli-utils@1001.2.5
+
 ## 1000.3.17
 
 ### Patch Changes

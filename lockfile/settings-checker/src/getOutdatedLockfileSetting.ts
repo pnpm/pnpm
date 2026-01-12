@@ -1,7 +1,10 @@
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { type LockfileObject, type PatchFile } from '@pnpm/lockfile.types'
-import equals from 'ramda/src/equals'
+import { allCatalogsAreUpToDate } from '@pnpm/lockfile.verification'
+import { equals } from 'ramda'
 
 export type ChangedField =
+  | 'catalogs'
   | 'patchedDependencies'
   | 'overrides'
   | 'packageExtensionsChecksum'
@@ -15,6 +18,7 @@ export type ChangedField =
 export function getOutdatedLockfileSetting (
   lockfile: LockfileObject,
   {
+    catalogs,
     overrides,
     packageExtensionsChecksum,
     ignoredOptionalDependencies,
@@ -25,6 +29,7 @@ export function getOutdatedLockfileSetting (
     pnpmfileChecksum,
     injectWorkspacePackages,
   }: {
+    catalogs?: Catalogs
     overrides?: Record<string, string>
     packageExtensionsChecksum?: string
     patchedDependencies?: Record<string, PatchFile>
@@ -36,6 +41,9 @@ export function getOutdatedLockfileSetting (
     injectWorkspacePackages?: boolean
   }
 ): ChangedField | null {
+  if (!allCatalogsAreUpToDate(catalogs ?? {}, lockfile.catalogs)) {
+    return 'catalogs'
+  }
   if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
     return 'overrides'
   }

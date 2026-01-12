@@ -2,8 +2,7 @@ import type * as logs from '@pnpm/core-loggers'
 import { type BaseManifest } from '@pnpm/types'
 import * as Rx from 'rxjs'
 import { filter, map, mapTo, reduce, scan, startWith, take } from 'rxjs/operators'
-import mergeRight from 'ramda/src/mergeRight'
-import difference from 'ramda/src/difference'
+import { mergeRight, difference } from 'ramda'
 
 export interface PackageDiff {
   added: boolean
@@ -15,7 +14,7 @@ export interface PackageDiff {
   latest?: string
 }
 
-export interface Map<T> {
+export interface RecordByString<T> {
   [index: string]: T
 }
 
@@ -28,11 +27,11 @@ export const propertyByDependencyType = {
 } as const
 
 export interface PkgsDiff {
-  dev: Map<PackageDiff>
-  nodeModulesOnly: Map<PackageDiff>
-  optional: Map<PackageDiff>
-  peer: Map<PackageDiff>
-  prod: Map<PackageDiff>
+  dev: RecordByString<PackageDiff>
+  nodeModulesOnly: RecordByString<PackageDiff>
+  optional: RecordByString<PackageDiff>
+  peer: RecordByString<PackageDiff>
+  prod: RecordByString<PackageDiff>
 }
 
 export function getPkgsDiff (

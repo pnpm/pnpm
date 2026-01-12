@@ -8,8 +8,8 @@ import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
-import loadJsonFile from 'load-json-file'
-import writeJsonFile from 'write-json-file'
+import { loadJsonFile } from 'load-json-file'
+import { writeJsonFileSync } from 'write-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 import symlinkDir from 'symlink-dir'
@@ -345,7 +345,7 @@ test('second run of `recursive install` after package.json has been edited manua
     workspaceDir: process.cwd(),
   })
 
-  writeJsonFile.sync('is-negative/package.json', {
+  writeJsonFileSync('is-negative/package.json', {
     name: 'is-negative',
     version: '1.0.0',
 
@@ -532,11 +532,11 @@ test('installing with "workspace=true" should work even if link-workspace-packag
   }, ['project-2'])
 
   {
-    const pkg = await import(path.resolve('project-1/package.json'))
-    expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:2.0.0' })
+    const { default: pkg } = await import(path.resolve('project-1/package.json'))
+    expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:2.0.0' })
   }
   {
-    const pkg = await import(path.resolve('project-2/package.json'))
+    const { default: pkg } = await import(path.resolve('project-2/package.json'))
     expect(pkg.dependencies).toBeFalsy()
   }
 
@@ -573,11 +573,11 @@ test('installing with "workspace=true" should work even if link-workspace-packag
   }, ['project-2'])
 
   {
-    const pkg = await import(path.resolve('project-1/package.json'))
-    expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:*' })
+    const { default: pkg } = await import(path.resolve('project-1/package.json'))
+    expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:*' })
   }
   {
-    const pkg = await import(path.resolve('project-2/package.json'))
+    const { default: pkg } = await import(path.resolve('project-2/package.json'))
     expect(pkg.dependencies).toBeFalsy()
   }
 
@@ -621,7 +621,7 @@ test('recursive install on workspace with custom lockfile-dir', async () => {
   expect(Object.keys(lockfile.importers!)).toStrictEqual(['../project-1', '../project-2'])
 })
 
-test('recursive install in a monorepo with different modules directories', async () => {
+test('recursive install in a monorepo with different modules directories specified by packageConfigs record', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -640,8 +640,6 @@ test('recursive install in a monorepo with different modules directories', async
       },
     },
   ])
-  fs.writeFileSync('project-1/.npmrc', 'modules-dir=modules_1', 'utf8')
-  fs.writeFileSync('project-2/.npmrc', 'modules-dir=modules_2', 'utf8')
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
@@ -652,16 +650,28 @@ test('recursive install in a monorepo with different modules directories', async
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
+    packageConfigs: {
+      'project-1': { modulesDir: 'modules_1' },
+      'project-2': { modulesDir: 'modules_2' },
+    },
   })
 
   projects['project-1'].has('is-positive', 'modules_1')
   projects['project-2'].has('is-positive', 'modules_2')
 })
 
-test('recursive install in a monorepo with parsing env variables', async () => {
+test('recursive install in a monorepo with different modules directories specified by packageConfigs multi match', async () => {
   const projects = preparePackages([
     {
-      name: 'project',
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
       version: '1.0.0',
 
       dependencies: {
@@ -670,10 +680,6 @@ test('recursive install in a monorepo with parsing env variables', async () => {
     },
   ])
 
-  process.env['SOME_NAME'] = 'some_name'
-  // eslint-disable-next-line no-template-curly-in-string
-  fs.writeFileSync('project/.npmrc', 'modules-dir=${SOME_NAME}_modules', 'utf8')
-
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -683,9 +689,14 @@ test('recursive install in a monorepo with parsing env variables', async () => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
+    packageConfigs: [{
+      match: ['project-1', 'project-2'],
+      modulesDir: 'different_node_modules',
+    }],
   })
 
-  projects['project'].has('is-positive', `${process.env['SOME_NAME']}_modules`)
+  projects['project-1'].has('is-positive', 'different_node_modules')
+  projects['project-2'].has('is-positive', 'different_node_modules')
 })
 
 test('prefer-workspace-package', async () => {

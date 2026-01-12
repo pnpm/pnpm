@@ -10,7 +10,7 @@ import { type DepPath, type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { type KeyValuePair } from 'ramda'
-import partition from 'ramda/src/partition'
+import { partition } from 'ramda'
 import { depPathToRef } from './depPathToRef.js'
 import { type ResolvedPackage } from './resolveDependencies.js'
 import { type DependenciesGraph } from './index.js'
@@ -66,6 +66,7 @@ function toLockfileDependency (
     opts.registry,
     opts.lockfileIncludeTarballUrl
   )
+
   const newResolvedDeps = updateResolvedDeps(
     opts.updatedDeps,
     opts.depGraph
