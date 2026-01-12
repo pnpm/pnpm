@@ -82,6 +82,7 @@ export interface ResolveResult {
   resolvedVia: string
   normalizedBareSpecifier?: string
   alias?: string
+  forceFetch?: boolean
 }
 
 export interface WorkspacePackage {

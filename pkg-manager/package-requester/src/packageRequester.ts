@@ -215,17 +215,10 @@ async function resolveAndFetch (
     publishedAt,
     normalizedBareSpecifier,
     alias,
+    forceFetch,
   } = resolveResult
 
-  // If the integrity of a local tarball dependency has changed,
-  // the local tarball should be unpacked, so a fetch to the store should be forced
-  const forceFetch = Boolean(
-    ((options.currentPkg?.resolution) != null) &&
-    pkgId?.startsWith('file:') &&
-    (options.currentPkg?.resolution as TarballResolution).integrity !== (resolveResult.resolution as TarballResolution).integrity
-  )
-
-  const updated = pkgId !== resolveResult.id || !resolution || forceFetch
+  const updated = pkgId !== resolveResult.id || !resolution || forceFetch === true
   resolution = resolveResult.resolution
   pkgId = resolveResult.id
 
@@ -288,7 +281,7 @@ async function resolveAndFetch (
   const fetchResult = ctx.fetchPackageToStore({
     allowBuild: options.allowBuild,
     fetchRawManifest: true,
-    force: forceFetch,
+    force: forceFetch === true,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {

@@ -4,7 +4,7 @@ import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { type DirectoryResolution, type Resolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
-import { type DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest, type PkgResolutionId } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
 import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier.js'
 
@@ -12,7 +12,7 @@ export { type WantedLocalDependency }
 
 export interface LocalResolveResult extends ResolveResult {
   manifest?: DependencyManifest
-  normalizedBareSpecifier: string
+  normalizedBareSpecifier?: string
   resolution: DirectoryResolution | TarballResolution
   resolvedVia: 'local-filesystem'
 }
@@ -29,7 +29,7 @@ export async function resolveFromLocal (
     lockfileDir?: string
     projectDir: string
     currentPkg?: {
-      id: string
+      id: PkgResolutionId
       resolution: DirectoryResolution | TarballResolution | Resolution
     }
     update?: false | 'compatible' | 'latest'
@@ -39,45 +39,31 @@ export async function resolveFromLocal (
   const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, { preserveAbsolutePaths })
   if (spec == null) return null
 
-  // Skip resolution if we have a current package and not updating
-  if (opts.currentPkg && !opts.update && opts.currentPkg.id === spec.id) {
-    const currentResolution = opts.currentPkg.resolution
-
-    // For file: tarballs, check if integrity changed
-    if (spec.type === 'file' && currentResolution.type == null) {
-      const currentIntegrity = await getTarballIntegrity(spec.fetchSpec)
-      const previousIntegrity = (currentResolution as TarballResolution).integrity
-
-      if (currentIntegrity === previousIntegrity) {
-        // Skip resolution - return existing resolution
-        return {
-          id: spec.id,
-          normalizedBareSpecifier: spec.normalizedBareSpecifier,
-          resolution: currentResolution as TarballResolution,
-          resolvedVia: 'local-filesystem',
-        }
-      }
-    }
-
-    // For directories, if the ID matches, we can skip
-    if (currentResolution.type === 'directory') {
-      return {
-        id: spec.id,
-        normalizedBareSpecifier: spec.normalizedBareSpecifier,
-        resolution: currentResolution,
-        resolvedVia: 'local-filesystem',
-      }
-    }
-  }
-
   if (spec.type === 'file') {
+    const integrity = await getTarballIntegrity(spec.fetchSpec)
+    // If the integrity of a local tarball dependency has changed,
+    // the local tarball should be unpacked, so a fetch to the store should be forced
+    const forceFetch = Boolean(
+      opts.currentPkg?.resolution &&
+      (opts.currentPkg.resolution as TarballResolution).integrity !== integrity
+    )
     return {
       id: spec.id,
       normalizedBareSpecifier: spec.normalizedBareSpecifier,
       resolution: {
-        integrity: await getTarballIntegrity(spec.fetchSpec),
+        integrity,
         tarball: spec.id,
       },
+      resolvedVia: 'local-filesystem',
+      forceFetch,
+    }
+  }
+
+  // Skip resolution if we have a current package and not updating
+  if (opts.currentPkg?.resolution && spec.type === 'directory' && !opts.update) {
+    return {
+      id: opts.currentPkg.id,
+      resolution: opts.currentPkg.resolution as DirectoryResolution,
       resolvedVia: 'local-filesystem',
     }
   }

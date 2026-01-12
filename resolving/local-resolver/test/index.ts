@@ -104,6 +104,7 @@ test('resolve file', async () => {
       tarball: 'file:pnpm-local-resolver-0.1.1.tgz',
     },
     resolvedVia: 'local-filesystem',
+    forceFetch: false,
   })
 })
 
@@ -122,6 +123,7 @@ test("resolve file when lockfile directory differs from the package's dir", asyn
       tarball: 'file:tgz/pnpm-local-resolver-0.1.1.tgz',
     },
     resolvedVia: 'local-filesystem',
+    forceFetch: false,
   })
 })
 
@@ -137,6 +139,32 @@ test('resolve tarball specified with file: protocol', async () => {
       tarball: 'file:pnpm-local-resolver-0.1.1.tgz',
     },
     resolvedVia: 'local-filesystem',
+    forceFetch: false,
+  })
+})
+
+test('resolve file with different integrity (forceFetch)', async () => {
+  const wantedDependency = { bareSpecifier: 'file:./pnpm-local-resolver-0.1.1.tgz' }
+  const resolveResult = await resolveFromLocal({}, wantedDependency, {
+    projectDir: TEST_DIR,
+    currentPkg: {
+      id: 'file:pnpm-local-resolver-0.1.1.tgz' as any, // eslint-disable-line
+      resolution: {
+        tarball: 'file:pnpm-local-resolver-0.1.1.tgz',
+        integrity: 'sha512-OLD_INTEGRITY',
+      },
+    },
+  })
+
+  expect(resolveResult).toEqual({
+    id: 'file:pnpm-local-resolver-0.1.1.tgz',
+    normalizedBareSpecifier: 'file:pnpm-local-resolver-0.1.1.tgz',
+    resolution: {
+      integrity: 'sha512-UHd2zKRT/w70KKzFlj4qcT81A1Q0H7NM9uKxLzIZ/VZqJXzt5Hnnp2PYPb5Ezq/hAamoYKIn5g7fuv69kP258w==',
+      tarball: 'file:pnpm-local-resolver-0.1.1.tgz',
+    },
+    resolvedVia: 'local-filesystem',
+    forceFetch: true,
   })
 })
 
