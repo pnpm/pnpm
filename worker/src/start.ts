@@ -12,11 +12,11 @@ import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
   type CafsFunctions,
   checkPkgFilesIntegrity,
+  buildFileMapsFromIndex,
   createCafs,
   type PackageFilesIndex,
   type FilesIndex,
   optimisticRenameOverwrite,
-  readManifestFromStore,
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
@@ -100,20 +100,6 @@ async function handleMessage (
         })
         return
       }
-      let verifyResult: VerifyResult | undefined
-      if (pkgFilesIndex.requiresBuild == null) {
-        readManifest = true
-      }
-      if (verifyStoreIntegrity) {
-        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex, readManifest)
-      } else {
-        verifyResult = {
-          passed: true,
-          manifest: readManifest ? readManifestFromStore(storeDir, pkgFilesIndex) : undefined,
-        }
-      }
-      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, pkgFilesIndex.files)
-
       const warnings: string[] = []
       if (expectedPkg) {
         if (
@@ -139,16 +125,18 @@ async function handleMessage (
           }
         }
       }
+      let verifyResult: VerifyResult | undefined
+      if (pkgFilesIndex.requiresBuild == null) {
+        readManifest = true
+      }
+      // Get file maps and optionally verify
+      if (verifyStoreIntegrity) {
+        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex, readManifest)
+      } else {
+        verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex, readManifest)
+      }
+      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, pkgFilesIndex.files)
 
-      // Convert PackageFiles to Map<string, string>
-      if (!cafsCache.has(storeDir)) {
-        cafsCache.set(storeDir, createCafs(storeDir))
-      }
-      const cafs = cafsCache.get(storeDir)!
-      const filesMap: FilesMap = new Map()
-      for (const [filename, fileInfo] of pkgFilesIndex.files) {
-        filesMap.set(filename, cafs.getFilePathByModeInCafs(fileInfo.integrity, fileInfo.mode))
-      }
       parentPort!.postMessage({
         status: 'success',
         warnings,
@@ -156,8 +144,8 @@ async function handleMessage (
           verified: verifyResult.passed,
           manifest: verifyResult.manifest,
           files: {
-            filesMap,
-            sideEffects: pkgFilesIndex.sideEffects,
+            filesMap: verifyResult.filesMap,
+            sideEffectsMaps: verifyResult.sideEffectsMaps,
             resolvedFrom: 'store',
             requiresBuild,
           },

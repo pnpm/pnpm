@@ -1,12 +1,13 @@
 import fs from 'fs'
 import util from 'util'
-import { type PackageFiles, type PackageFileInfo, type SideEffects } from '@pnpm/cafs-types'
+import { type PackageFiles, type PackageFileInfo, type SideEffects, type FilesMap } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import ssri from 'ssri'
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 import { parseJsonBufferSync } from './parseJson.js'
+import { readManifestFromStore } from './readManifestFromStore.js'
 
 // We track how many files were checked during installation.
 // It should be rare that a files content should be checked.
@@ -18,6 +19,8 @@ global['verifiedFileIntegrity'] = 0
 export interface VerifyResult {
   passed: boolean
   manifest?: DependencyManifest
+  filesMap: FilesMap
+  sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
 }
 
 export interface PackageFilesIndex {
@@ -44,21 +47,77 @@ export function checkPkgFilesIntegrity (
   const verifiedFilesCache = new Set<string>()
   const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir)
   const verified = _checkFilesIntegrity(pkgIndex.files, readManifest)
-  if (!verified) return { passed: false }
+  if (!verified.passed) return verified
+
+  const sideEffectsMaps = new Map<string, { added?: FilesMap, deleted?: string[] }>()
   if (pkgIndex.sideEffects) {
     // We verify all side effects cache. We could optimize it to verify only the side effects cache
     // that satisfies the current os/arch/platform.
     // However, it likely won't make a big difference.
-    for (const [sideEffectName, { added }] of pkgIndex.sideEffects) {
+    for (const [sideEffectName, { added, deleted }] of pkgIndex.sideEffects) {
       if (added) {
-        const { passed } = _checkFilesIntegrity(added)
-        if (!passed) {
+        const result = _checkFilesIntegrity(added)
+        if (!result.passed) {
           pkgIndex.sideEffects!.delete(sideEffectName)
+        } else {
+          sideEffectsMaps.set(sideEffectName, { added: result.filesMap, deleted })
         }
+      } else if (deleted) {
+        sideEffectsMaps.set(sideEffectName, { deleted })
       }
     }
   }
-  return verified
+
+  return {
+    ...verified,
+    sideEffectsMaps: sideEffectsMaps.size > 0 ? sideEffectsMaps : undefined,
+  }
+}
+
+/**
+ * Builds file maps from package index without verification.
+ * This is a lightweight alternative to checkPkgFilesIntegrity when verifyStoreIntegrity is disabled.
+ */
+export function buildFileMapsFromIndex (
+  storeDir: string,
+  pkgIndex: PackageFilesIndex,
+  readManifest?: boolean
+): VerifyResult {
+  const filesMap: FilesMap = new Map()
+
+  for (const [f, fstat] of pkgIndex.files) {
+    const filename = getFilePathByModeInCafs(storeDir, fstat.integrity, fstat.mode)
+    filesMap.set(f, filename)
+  }
+
+  const sideEffectsMaps = new Map<string, { added?: FilesMap, deleted?: string[] }>()
+  if (pkgIndex.sideEffects) {
+    for (const [sideEffectName, { added, deleted }] of pkgIndex.sideEffects) {
+      const sideEffectEntry: { added?: FilesMap, deleted?: string[] } = {}
+
+      if (added) {
+        const addedFilesMap: FilesMap = new Map()
+        for (const [f, fstat] of added) {
+          const filename = getFilePathByModeInCafs(storeDir, fstat.integrity, fstat.mode)
+          addedFilesMap.set(f, filename)
+        }
+        sideEffectEntry.added = addedFilesMap
+      }
+
+      if (deleted) {
+        sideEffectEntry.deleted = deleted
+      }
+
+      sideEffectsMaps.set(sideEffectName, sideEffectEntry)
+    }
+  }
+
+  return {
+    passed: true,
+    manifest: readManifest ? readManifestFromStore(storeDir, pkgIndex) : undefined,
+    filesMap,
+    sideEffectsMaps: sideEffectsMaps.size > 0 ? sideEffectsMaps : undefined,
+  }
 }
 
 function checkFilesIntegrity (
@@ -69,11 +128,15 @@ function checkFilesIntegrity (
 ): VerifyResult {
   let allVerified = true
   let manifest: DependencyManifest | undefined
+  const filesMap: FilesMap = new Map()
+
   for (const [f, fstat] of files) {
     if (!fstat.integrity) {
       throw new Error(`Integrity checksum is missing for ${f}`)
     }
     const filename = getFilePathByModeInCafs(storeDir, fstat.integrity, fstat.mode)
+    filesMap.set(f, filename)
+
     const readFile = readManifest && f === 'package.json'
     if (!readFile && verifiedFilesCache.has(filename)) continue
     const verifyResult = verifyFile(filename, fstat, readFile)
@@ -89,6 +152,7 @@ function checkFilesIntegrity (
   return {
     passed: allVerified,
     manifest,
+    filesMap,
   }
 }
 
@@ -100,7 +164,7 @@ function verifyFile (
   filename: string,
   fstat: FileInfo,
   readManifest?: boolean
-): VerifyResult {
+): Pick<VerifyResult, 'passed' | 'manifest'> {
   const currentFile = checkFile(filename, fstat.checkedAt)
   if (currentFile == null) return { passed: false }
   if (currentFile.isModified) {
@@ -125,7 +189,7 @@ export function verifyFileIntegrity (
   filename: string,
   expectedFile: FileInfo,
   readManifest?: boolean
-): VerifyResult {
+): Pick<VerifyResult, 'passed' | 'manifest'> {
   // @ts-expect-error
   global['verifiedFileIntegrity']++
   try {
