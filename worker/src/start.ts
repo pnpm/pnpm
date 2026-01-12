@@ -144,7 +144,7 @@ async function handleMessage (
           verified: verifyResult.passed,
           manifest: verifyResult.manifest,
           files: {
-            filesMap: verifyResult.filesMap!,
+            filesMap: verifyResult.filesMap,
             sideEffectsMaps: verifyResult.sideEffectsMaps,
             resolvedFrom: 'store',
             requiresBuild,

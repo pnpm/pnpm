@@ -19,7 +19,7 @@ global['verifiedFileIntegrity'] = 0
 export interface VerifyResult {
   passed: boolean
   manifest?: DependencyManifest
-  filesMap?: FilesMap
+  filesMap: FilesMap
   sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
 }
 
@@ -164,7 +164,7 @@ function verifyFile (
   filename: string,
   fstat: FileInfo,
   readManifest?: boolean
-): VerifyResult {
+): Pick<VerifyResult, 'passed' | 'manifest'> {
   const currentFile = checkFile(filename, fstat.checkedAt)
   if (currentFile == null) return { passed: false }
   if (currentFile.isModified) {
@@ -189,7 +189,7 @@ export function verifyFileIntegrity (
   filename: string,
   expectedFile: FileInfo,
   readManifest?: boolean
-): VerifyResult {
+): Pick<VerifyResult, 'passed' | 'manifest'> {
   // @ts-expect-error
   global['verifiedFileIntegrity']++
   try {
