@@ -3,6 +3,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { type Registries } from '@pnpm/types'
 import { type InstallOptions } from '@pnpm/core'
+import { type CustomResolver } from '@pnpm/hooks.types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -12,6 +13,7 @@ export function testDefaults<T> (
     storeDir?: string
     prefix?: string
     registries?: Registries
+    customResolvers?: CustomResolver[]
   },
   resolveOpts?: any, // eslint-disable-line
   fetchOpts?: any, // eslint-disable-line
@@ -28,6 +30,7 @@ export function testDefaults<T> (
     ...opts,
     clientOptions: {
       ...(opts?.registries != null ? { registries: opts.registries } : {}),
+      customResolvers: opts?.customResolvers,
       ...resolveOpts,
       ...fetchOpts,
     },
