@@ -1,0 +1,23 @@
+diff --git a/index.d.ts b/index.d.ts
+index 839644f505530f0f0334d1d4d8ad2148b0f118a0..64ee3435ab4506a4617786c58af9525bc06fcfe9 100644
+--- a/index.d.ts
++++ b/index.d.ts
+@@ -1,4 +1,4 @@
+-import { PackageJson } from "@npm/types";
++import { PackageJSON as PackageJson } from "@npm/types";
+ import { Response } from "node-fetch";
+ import fetch = require("npm-registry-fetch");
+ 
+diff --git a/package.json b/package.json
+index ca2b33e9c28a6b0bacfd681da556ecb9260ff19b..884d50c761e57dd7909048942ab70c9e01568ccd 100644
+--- a/package.json
++++ b/package.json
+@@ -25,7 +25,7 @@
+     },
+     "scripts": {},
+     "dependencies": {
+-        "@npm/types": "^1",
++        "@npm/types": "^2",
+         "@types/node-fetch": "*",
+         "@types/npm-registry-fetch": "*"
+     },
