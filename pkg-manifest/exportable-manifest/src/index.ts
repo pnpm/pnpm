@@ -12,7 +12,7 @@ import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig.js'
 import { validateRequiredFields } from './requiredFields.js'
 
-export { ExportedManifest }
+export { type ExportedManifest }
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
