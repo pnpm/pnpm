@@ -71,6 +71,7 @@ async function resolveFromCustomResolvers (
         lockfileDir: opts.lockfileDir,
         projectDir: opts.projectDir,
         preferredVersions: (opts.preferredVersions ?? {}) as unknown as Record<string, string>,
+        currentPkg: opts.currentPkg,
       })
       return {
         ...result,

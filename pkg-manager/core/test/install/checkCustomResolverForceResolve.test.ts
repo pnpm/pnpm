@@ -1,7 +1,6 @@
-import { checkCustomResolverForceResolve, type ProjectWithManifest } from '../../src/install/checkCustomResolverForceResolve.js'
+import { checkCustomResolverForceResolve } from '../../src/install/checkCustomResolverForceResolve.js'
 import { type CustomResolver } from '@pnpm/hooks.types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
-import { type ProjectId } from '@pnpm/types'
 
 describe('checkCustomResolverForceResolve', () => {
   test('returns false when no custom resolvers provided', async () => {
@@ -9,14 +8,13 @@ describe('checkCustomResolverForceResolve', () => {
       lockfileVersion: '9.0',
       importers: {},
     }
-    const projects: ProjectWithManifest[] = []
 
-    const result = await checkCustomResolverForceResolve([], lockfile, projects)
+    const result = await checkCustomResolverForceResolve([], lockfile)
 
     expect(result).toBe(false)
   })
 
-  test('returns false when no projects provided', async () => {
+  test('returns false when lockfile has no packages', async () => {
     const resolver: CustomResolver = {
       canResolve: () => true,
       shouldForceResolve: () => true,
@@ -26,7 +24,7 @@ describe('checkCustomResolverForceResolve', () => {
       importers: {},
     }
 
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, [])
+    const result = await checkCustomResolverForceResolve([resolver], lockfile)
 
     expect(result).toBe(false)
   })
@@ -38,31 +36,15 @@ describe('checkCustomResolverForceResolve', () => {
     }
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          dependencies: {
-            'test-pkg': '/test-pkg@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      importers: {},
       packages: {
-        '/test-pkg@1.0.0': {
+        'test-pkg@1.0.0': {
           resolution: { tarball: 'http://example.com/test-pkg-1.0.0.tgz', integrity: 'sha512-test' },
         },
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          dependencies: {
-            'test-pkg': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      },
-    ]
 
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, projects)
+    const result = await checkCustomResolverForceResolve([resolver], lockfile)
 
     expect(result).toBe(false)
   })
@@ -74,31 +56,15 @@ describe('checkCustomResolverForceResolve', () => {
     }
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          dependencies: {
-            'test-pkg': '/test-pkg@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      importers: {},
       packages: {
-        '/test-pkg@1.0.0': {
+        'test-pkg@1.0.0': {
           resolution: { tarball: 'http://example.com/test-pkg-1.0.0.tgz', integrity: 'sha512-test' },
         },
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          dependencies: {
-            'test-pkg': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      },
-    ]
 
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, projects)
+    const result = await checkCustomResolverForceResolve([resolver], lockfile)
 
     expect(result).toBe(false)
   })
@@ -110,31 +76,15 @@ describe('checkCustomResolverForceResolve', () => {
     }
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          dependencies: {
-            'test-pkg': '/test-pkg@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      importers: {},
       packages: {
-        '/test-pkg@1.0.0': {
+        'test-pkg@1.0.0': {
           resolution: { tarball: 'http://example.com/test-pkg-1.0.0.tgz', integrity: 'sha512-test' },
         },
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          dependencies: {
-            'test-pkg': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      },
-    ]
 
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, projects)
+    const result = await checkCustomResolverForceResolve([resolver], lockfile)
 
     expect(result).toBe(false)
   })
@@ -146,254 +96,35 @@ describe('checkCustomResolverForceResolve', () => {
     }
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          dependencies: {
-            'test-pkg': '/test-pkg@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      importers: {},
       packages: {
-        '/test-pkg@1.0.0': {
+        'test-pkg@1.0.0': {
           resolution: { tarball: 'http://example.com/test-pkg-1.0.0.tgz', integrity: 'sha512-test' },
         },
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          dependencies: {
-            'test-pkg': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      },
-    ]
 
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, projects)
+    const result = await checkCustomResolverForceResolve([resolver], lockfile)
 
     expect(result).toBe(true)
   })
 
-  test('checks devDependencies', async () => {
+  test('checks scoped packages', async () => {
     const resolver: CustomResolver = {
-      canResolve: (wantedDependency) => wantedDependency.alias === 'dev-pkg',
+      canResolve: (wantedDependency) => wantedDependency.alias === '@scope/pkg',
       shouldForceResolve: () => true,
     }
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          devDependencies: {
-            'dev-pkg': '/dev-pkg@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      importers: {},
       packages: {
-        '/dev-pkg@1.0.0': {
-          resolution: { tarball: 'http://example.com/dev-pkg-1.0.0.tgz', integrity: 'sha512-test' },
+        '@scope/pkg@1.0.0': {
+          resolution: { tarball: 'http://example.com/pkg-1.0.0.tgz', integrity: 'sha512-test' },
         },
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          devDependencies: {
-            'dev-pkg': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    ]
 
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, projects)
-
-    expect(result).toBe(true)
-  })
-
-  test('checks optionalDependencies', async () => {
-    const resolver: CustomResolver = {
-      canResolve: (wantedDependency) => wantedDependency.alias === 'opt-pkg',
-      shouldForceResolve: () => true,
-    }
-    const lockfile: LockfileObject = {
-      lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          optionalDependencies: {
-            'opt-pkg': '/opt-pkg@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      packages: {
-        '/opt-pkg@1.0.0': {
-          resolution: { tarball: 'http://example.com/opt-pkg-1.0.0.tgz', integrity: 'sha512-test' },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          optionalDependencies: {
-            'opt-pkg': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    ]
-
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, projects)
-
-    expect(result).toBe(true)
-  })
-
-  test('checks peerDependencies', async () => {
-    const resolver: CustomResolver = {
-      canResolve: (wantedDependency) => wantedDependency.alias === 'peer-pkg',
-      shouldForceResolve: () => true,
-    }
-    const lockfile: LockfileObject = {
-      lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          peerDependencies: {
-            'peer-pkg': '/peer-pkg@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      packages: {
-        '/peer-pkg@1.0.0': {
-          resolution: { tarball: 'http://example.com/peer-pkg-1.0.0.tgz', integrity: 'sha512-test' },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          peerDependencies: {
-            'peer-pkg': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    ]
-
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, projects)
-
-    expect(result).toBe(true)
-  })
-
-  test('checks all dependency types together', async () => {
-    const resolver: CustomResolver = {
-      canResolve: () => true,
-      shouldForceResolve: (wantedDependency) => wantedDependency.alias === 'peer-pkg',
-    }
-    const lockfile: LockfileObject = {
-      lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          dependencies: {
-            'reg-pkg': '/reg-pkg@1.0.0',
-          },
-          devDependencies: {
-            'dev-pkg': '/dev-pkg@1.0.0',
-          },
-          optionalDependencies: {
-            'opt-pkg': '/opt-pkg@1.0.0',
-          },
-          peerDependencies: {
-            'peer-pkg': '/peer-pkg@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      packages: {
-        '/reg-pkg@1.0.0': {
-          resolution: { tarball: 'http://example.com/reg-pkg@1.0.0.tgz', integrity: 'sha512-test1' },
-        },
-        '/dev-pkg@1.0.0': {
-          resolution: { tarball: 'http://example.com/dev-pkg-1.0.0.tgz', integrity: 'sha512-test2' },
-        },
-        '/opt-pkg@1.0.0': {
-          resolution: { tarball: 'http://example.com/opt-pkg-1.0.0.tgz', integrity: 'sha512-test3' },
-        },
-        '/peer-pkg@1.0.0': {
-          resolution: { tarball: 'http://example.com/peer-pkg-1.0.0.tgz', integrity: 'sha512-test4' },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          dependencies: {
-            'reg-pkg': '1.0.0',
-          },
-          devDependencies: {
-            'dev-pkg': '1.0.0',
-          },
-          optionalDependencies: {
-            'opt-pkg': '1.0.0',
-          },
-          peerDependencies: {
-            'peer-pkg': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    ]
-
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, projects)
-
-    expect(result).toBe(true)
-  })
-
-  test('handles multiple projects', async () => {
-    const resolver: CustomResolver = {
-      canResolve: (wantedDependency) => wantedDependency.alias === 'pkg-b',
-      shouldForceResolve: () => true,
-    }
-    const lockfile: LockfileObject = {
-      lockfileVersion: '9.0',
-      importers: {
-        'project-a': {
-          dependencies: {
-            'pkg-a': '/pkg-a@1.0.0',
-          },
-        },
-        'project-b': {
-          dependencies: {
-            'pkg-b': '/pkg-b@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      packages: {
-        '/pkg-a@1.0.0': {
-          resolution: { tarball: 'http://example.com/pkg-a-1.0.0.tgz', integrity: 'sha512-test1' },
-        },
-        '/pkg-b@1.0.0': {
-          resolution: { tarball: 'http://example.com/pkg-b-1.0.0.tgz', integrity: 'sha512-test2' },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: 'project-a' as ProjectId,
-        manifest: {
-          dependencies: {
-            'pkg-a': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      {
-        id: 'project-b' as ProjectId,
-        manifest: {
-          dependencies: {
-            'pkg-b': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    ]
-
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, projects)
+    const result = await checkCustomResolverForceResolve([resolver], lockfile)
 
     expect(result).toBe(true)
   })
@@ -409,31 +140,15 @@ describe('checkCustomResolverForceResolve', () => {
     }
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          dependencies: {
-            'test-pkg': '/test-pkg@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      importers: {},
       packages: {
-        '/test-pkg@1.0.0': {
+        'test-pkg@1.0.0': {
           resolution: { tarball: 'http://example.com/test-pkg-1.0.0.tgz', integrity: 'sha512-test' },
         },
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          dependencies: {
-            'test-pkg': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      },
-    ]
 
-    const result = await checkCustomResolverForceResolve([resolver1, resolver2], lockfile, projects)
+    const result = await checkCustomResolverForceResolve([resolver1, resolver2], lockfile)
 
     expect(result).toBe(true)
   })
@@ -448,31 +163,15 @@ describe('checkCustomResolverForceResolve', () => {
     }
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          dependencies: {
-            'test-pkg': '/test-pkg@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      importers: {},
       packages: {
-        '/test-pkg@1.0.0': {
+        'test-pkg@1.0.0': {
           resolution: { tarball: 'http://example.com/test-pkg-1.0.0.tgz', integrity: 'sha512-test' },
         },
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          dependencies: {
-            'test-pkg': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      },
-    ]
 
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, projects)
+    const result = await checkCustomResolverForceResolve([resolver], lockfile)
 
     expect(result).toBe(true)
   })
@@ -483,99 +182,38 @@ describe('checkCustomResolverForceResolve', () => {
       canResolve: () => true,
       shouldForceResolve: () => {
         callCount++
-        return callCount === 1 // First call returns true
+        return true // Always returns true
       },
     }
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          dependencies: {
-            pkg1: '/pkg1@1.0.0',
-            pkg2: '/pkg2@1.0.0',
-            pkg3: '/pkg3@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      importers: {},
       packages: {
-        '/pkg1@1.0.0': {
+        'pkg1@1.0.0': {
           resolution: { tarball: 'http://example.com/pkg1-1.0.0.tgz', integrity: 'sha512-test1' },
         },
-        '/pkg2@1.0.0': {
+        'pkg2@1.0.0': {
           resolution: { tarball: 'http://example.com/pkg2-1.0.0.tgz', integrity: 'sha512-test2' },
         },
-        '/pkg3@1.0.0': {
+        'pkg3@1.0.0': {
           resolution: { tarball: 'http://example.com/pkg3-1.0.0.tgz', integrity: 'sha512-test3' },
         },
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          dependencies: {
-            pkg1: '1.0.0',
-            pkg2: '1.0.0',
-            pkg3: '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      },
-    ]
 
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, projects)
+    const result = await checkCustomResolverForceResolve([resolver], lockfile)
 
     expect(result).toBe(true)
     expect(callCount).toBe(1) // Should stop after first true
-  })
-
-  test('returns false when custom resolver has no canResolve method', async () => {
-    const resolver: CustomResolver = {
-      // No canResolve method at all
-      shouldForceResolve: () => true,
-    }
-    const lockfile: LockfileObject = {
-      lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          dependencies: {
-            'test-pkg': '/test-pkg@1.0.0',
-          },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      packages: {
-        '/test-pkg@1.0.0': {
-          resolution: { tarball: 'http://example.com/test-pkg-1.0.0.tgz', integrity: 'sha512-test' },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          dependencies: {
-            'test-pkg': '1.0.0',
-          },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      },
-    ]
-
-    const result = await checkCustomResolverForceResolve([resolver], lockfile, projects)
-
-    expect(result).toBe(false)
   })
 
   test('passes lockfile to shouldForceResolve', async () => {
     let receivedLockfile: LockfileObject | undefined
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          specifiers: { 'test-pkg': '1.0.0' },
-          dependencies: { 'test-pkg': '1.0.0' },
-        },
-      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      importers: {},
       packages: {
-        '/test-pkg@1.0.0': {
+        'test-pkg@1.0.0': {
           resolution: { tarball: 'http://example.com/test-pkg-1.0.0.tgz', integrity: 'sha512-test' },
         },
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -587,17 +225,38 @@ describe('checkCustomResolverForceResolve', () => {
         return false
       },
     }
-    const projects: ProjectWithManifest[] = [
-      {
-        id: '.' as ProjectId,
-        manifest: {
-          dependencies: { 'test-pkg': '1.0.0' },
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      },
-    ]
 
-    await checkCustomResolverForceResolve([resolver], lockfile, projects)
+    await checkCustomResolverForceResolve([resolver], lockfile)
 
     expect(receivedLockfile).toBe(lockfile)
+  })
+
+  test('checks indirect (transitive) dependencies', async () => {
+    const resolver: CustomResolver = {
+      canResolve: (wantedDependency) => wantedDependency.alias === 'indirect-pkg',
+      shouldForceResolve: () => true,
+    }
+    const lockfile: LockfileObject = {
+      lockfileVersion: '9.0',
+      importers: {
+        '.': {
+          specifiers: { 'direct-pkg': '1.0.0' },
+          dependencies: { 'direct-pkg': '1.0.0' },
+        },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      packages: {
+        'direct-pkg@1.0.0': {
+          resolution: { tarball: 'http://example.com/direct-pkg-1.0.0.tgz', integrity: 'sha512-test1' },
+          dependencies: { 'indirect-pkg': '2.0.0' },
+        },
+        'indirect-pkg@2.0.0': {
+          resolution: { tarball: 'http://example.com/indirect-pkg-2.0.0.tgz', integrity: 'sha512-test2' },
+        },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    }
+
+    const result = await checkCustomResolverForceResolve([resolver], lockfile)
+
+    expect(result).toBe(true)
   })
 })

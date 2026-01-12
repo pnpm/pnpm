@@ -414,3 +414,80 @@ test('custom custom fetcher: wrap npm registry with custom logic', async () => {
   expect(result.resolvedVia).toBe('custom-resolver')
   expect('tarball' in result.resolution && result.resolution.tarball).toContain('private-registry.company.com')
 })
+
+test('custom resolver receives currentPkg when provided', async () => {
+  let receivedCurrentPkg: unknown = null
+
+  const customResolver: CustomResolver = {
+    canResolve: (wantedDependency: WantedDependency) => {
+      return wantedDependency.alias === 'test-package'
+    },
+    resolve: async (wantedDependency: WantedDependency, opts) => {
+      receivedCurrentPkg = opts.currentPkg
+      // If currentPkg is provided, return existing resolution
+      if (opts.currentPkg) {
+        return {
+          id: opts.currentPkg.id,
+          resolution: opts.currentPkg.resolution,
+        }
+      }
+      return {
+        id: `custom:${wantedDependency.alias}@1.0.0`,
+        resolution: {
+          type: 'directory',
+          directory: '/test/path',
+        },
+      }
+    },
+  }
+
+  const fetchFromRegistry = async (): Promise<Response> => new Response('')
+  const getAuthHeader = () => undefined
+
+  const { resolve } = createResolver(fetchFromRegistry, getAuthHeader, {
+    customResolvers: [customResolver],
+    rawConfig: {},
+    cacheDir: '/tmp/test-cache',
+    offline: false,
+    preferOffline: false,
+    retry: {},
+    timeout: 60000,
+    registries: { default: 'https://registry.npmjs.org/' },
+  })
+
+  // First call without currentPkg
+  const result1 = await resolve(
+    { alias: 'test-package', bareSpecifier: '1.0.0' },
+    {
+      lockfileDir: '/test',
+      projectDir: '/test',
+      preferredVersions: {},
+    }
+  )
+
+  expect(result1.id).toBe('custom:test-package@1.0.0')
+  expect(receivedCurrentPkg).toBeUndefined()
+
+  // Second call with currentPkg
+  const existingResolution = {
+    type: 'directory' as const,
+    directory: '/existing/path',
+  }
+  const result2 = await resolve(
+    { alias: 'test-package', bareSpecifier: '1.0.0' },
+    {
+      lockfileDir: '/test',
+      projectDir: '/test',
+      preferredVersions: {},
+      currentPkg: {
+        id: 'existing:test-package@1.0.0' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: existingResolution,
+      },
+    }
+  )
+
+  expect(receivedCurrentPkg).toBeTruthy()
+  expect((receivedCurrentPkg as any).id).toBe('existing:test-package@1.0.0') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(result2.id).toBe('existing:test-package@1.0.0')
+  expect(result2.resolution).toBe(existingResolution)
+})

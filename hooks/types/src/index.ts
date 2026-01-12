@@ -32,6 +32,12 @@ export interface ResolveOptions {
   lockfileDir: string
   projectDir: string
   preferredVersions: Record<string, string>
+  currentPkg?: {
+    id: string
+    resolution: Resolution
+    name?: string
+    version?: string
+  }
 }
 
 export interface ResolveResult {
