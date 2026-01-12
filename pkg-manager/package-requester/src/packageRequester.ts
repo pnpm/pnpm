@@ -258,7 +258,7 @@ async function resolveAndFetch (
   )
   // We can skip fetching the package only if the manifest
   // is present after resolution AND we're not forcing a fetch
-  // (forceFetch is true when local tarball integrity changed)
+  // (forceFetch is set by resolvers when package content may have changed)
   if ((options.skipFetch === true || isInstallable === false) && !forceFetch && (manifest != null)) {
     return {
       body: {
