@@ -148,6 +148,7 @@ export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
   implicitlyFellbackFromRun?: boolean
 } & Pick<Config,
 | 'bin'
+| 'cliOptions'
 | 'dir'
 | 'extraBinPaths'
 | 'extraEnv'
@@ -189,7 +190,7 @@ export async function handler (
       chunks = chunks.reverse()
     }
   } else {
-    chunks = [[opts.dir as ProjectRootDir]]
+    chunks = [[(opts.cliOptions.dir ?? process.cwd()) as ProjectRootDir]]
     const project = await tryReadProjectManifest(opts.dir)
     if (project.manifest != null) {
       opts.selectedProjectsGraph = {

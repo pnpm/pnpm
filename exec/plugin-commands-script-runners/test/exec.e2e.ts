@@ -157,6 +157,7 @@ test('exec inside a workspace package', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
+  process.chdir('project-1')
   await exec.handler({
     ...DEFAULT_OPTS,
     dir: path.resolve('project-1'),
