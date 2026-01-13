@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import {
   type IncludedDependencies,
   type Modules,
@@ -52,6 +52,7 @@ export async function validateModules (
   const rootProject = projects.find(({ id }) => id === '.')
   if (opts.virtualStoreDirMaxLength !== modules.virtualStoreDirMaxLength) {
     if (opts.forceNewModules && (rootProject != null)) {
+      globalWarn('This modules directory was created using a different virtual-store-dir-max-length value.')
       await purgeModulesDirsOfImporter(opts, rootProject)
       return { purged: true }
     }
@@ -67,6 +68,7 @@ export async function validateModules (
     !equals(modules.publicHoistPattern, opts.publicHoistPattern || undefined)
   ) {
     if (opts.forceNewModules && (rootProject != null)) {
+      globalWarn('This modules directory was created using a different public-hoist-pattern value.')
       await purgeModulesDirsOfImporter(opts, rootProject)
       return { purged: true }
     }
@@ -91,6 +93,7 @@ export async function validateModules (
       }
     } catch (err: any) { // eslint-disable-line
       if (!opts.forceNewModules) throw err
+      globalWarn(err.message)
       importersToPurge.push(rootProject)
     }
   }
@@ -113,6 +116,7 @@ export async function validateModules (
       }
     } catch (err: any) { // eslint-disable-line
       if (!opts.forceNewModules) throw err
+      globalWarn(err.message)
       importersToPurge.push(project)
     }
   }
