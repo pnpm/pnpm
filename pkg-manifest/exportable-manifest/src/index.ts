@@ -7,7 +7,7 @@ import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { type Hooks } from '@pnpm/pnpmfile'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
-import { omit, pipe } from 'ramda'
+import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
 import { transformBin } from './bin.js'
 import { transformEngines } from './engines.js'
@@ -76,11 +76,7 @@ export async function createExportableManifest (
     publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
 
-  return pipe(
-    transformRequiredFields,
-    transformBin,
-    transformEngines
-  )(publishManifest)
+  return transformEngines(transformBin(transformRequiredFields(publishManifest)))
 }
 
 export type PublishDependencyConverter = (
