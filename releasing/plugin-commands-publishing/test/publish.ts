@@ -263,7 +263,9 @@ test('publish: package with all possible fields in publishConfig', async () => {
     name: 'test-publish-config',
     version: '1.0.0',
 
-    bin: './published-bin.js',
+    bin: {
+      'test-publish-config': './published-bin.js',
+    },
     main: './published.js',
     module: './published.mjs',
     types: './published-types.d.ts',
