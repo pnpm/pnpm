@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "compile": "tsc --build"
+    "compile": "tsgo --build"
   },
   "dependencies": {
     "@pnpm/lockfile.fs": "workspace:*",

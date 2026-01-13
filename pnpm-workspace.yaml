@@ -138,6 +138,7 @@ catalog:
   '@typescript-eslint/eslint-plugin': 6.18.1
   '@typescript-eslint/parser': 6.18.1
   '@typescript-eslint/utils': 6.18.1
+  '@typescript/native-preview': 7.0.0-dev.20260112.1
   '@yarnpkg/core': 4.2.0
   '@yarnpkg/extensions': 2.0.3
   '@yarnpkg/lockfile': ^1.1.0

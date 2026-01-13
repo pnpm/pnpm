@@ -33,7 +33,7 @@
     "prepublishOnly": "pnpm run compile",
     "pretest": "node ../../pnpm/dist/pnpm.mjs install --dir=test/__fixtures__/simple --config.enableGlobalVirtualStore=false",
     "_test": "pnpm pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/config": "workspace:*",
