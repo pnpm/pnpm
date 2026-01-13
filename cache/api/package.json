@@ -33,10 +33,11 @@
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
+    "@pnpm/fetching-types": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "encode-registry": "catalog:",
+    "load-json-file": "catalog:",
     "tinyglobby": "catalog:"
   },
   "peerDependencies": {

@@ -48,7 +48,6 @@
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",

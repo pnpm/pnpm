@@ -45,7 +45,6 @@
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/package-store": "workspace:*",
