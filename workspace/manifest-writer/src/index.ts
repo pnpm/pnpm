@@ -115,9 +115,12 @@ function addCatalogs (manifest: Partial<WorkspaceManifest>, newCatalogs: Catalog
       }
 
       targetCatalog ??= {}
-      if (targetCatalog[dependencyName] !== specifier) {
-        targetCatalog[dependencyName] = specifier
-      }
+      // Only assigning the value if it changed.
+      // This prevents the YAML document from being marked as "modified" when no actual changes are needed,
+      // which helps preserve the original formatting.
+      // if (targetCatalog[dependencyName] !== specifier) {
+      targetCatalog[dependencyName] = specifier
+      // }
     }
 
     if (targetCatalog == null) continue

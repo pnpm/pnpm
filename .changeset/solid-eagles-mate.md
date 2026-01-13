@@ -1,5 +1,6 @@
 ---
-"@pnpm/workspace.manifest-writer": major
+"@pnpm/workspace.manifest-writer": patch
+"pnpm": patch
 ---
 
-preserve YAML formatting (quotes and line breaks) when updating workspace manifest
+Preserve YAML formatting (quotes and line breaks) when updating workspace manifest [#10430](https://github.com/pnpm/pnpm/pull/10430).
