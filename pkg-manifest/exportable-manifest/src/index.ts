@@ -9,6 +9,7 @@ import { type Hooks } from '@pnpm/pnpmfile'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import { omit, pipe } from 'ramda'
 import pMapValues from 'p-map-values'
+import { transformBin } from './bin.js'
 import { transformEngines } from './engines.js'
 import { overridePublishConfig } from './overridePublishConfig.js'
 import { transformRequiredFields } from './requiredFields.js'
@@ -77,6 +78,7 @@ export async function createExportableManifest (
 
   return pipe(
     transformRequiredFields,
+    transformBin,
     transformEngines
   )(publishManifest)
 }

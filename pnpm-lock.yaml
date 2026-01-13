@@ -6362,6 +6362,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/package-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/package-bins
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../read-project-manifest

@@ -34,6 +34,7 @@
     "@npm/types": "catalog:",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/package-bins": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
