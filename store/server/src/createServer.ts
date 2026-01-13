@@ -1,7 +1,7 @@
 import assert from 'assert'
 import http, { type IncomingMessage, type Server, type ServerResponse } from 'http'
 import util from 'util'
-import v8 from 'v8'
+
 import { globalInfo } from '@pnpm/logger'
 import {
   type PkgRequestFetchResult,
@@ -11,6 +11,28 @@ import {
   type FetchPackageToStoreFunction,
 } from '@pnpm/store-controller-types'
 import { locking } from './lock.js'
+
+function replacer (key: unknown, value: unknown) {
+  if (value instanceof Map || Object.prototype.toString.call(value) === '[object Map]') {
+    return {
+      dataType: 'Map',
+      // @ts-expect-error
+      value: Array.from(value.entries()),
+    }
+  }
+  return value
+}
+
+function reviver (key: unknown, value: unknown) {
+  if (typeof value === 'object' && value !== null) {
+    // @ts-expect-error
+    if (value.dataType === 'Map') {
+      // @ts-expect-error
+      return new Map(value.value)
+    }
+  }
+  return value
+}
 
 interface RequestBody {
   msgId: string
@@ -67,7 +89,7 @@ export function createServer (
           const bodyBuffer = Buffer.concat(chunks)
           let body: any // eslint-disable-line
           if (bodyBuffer.byteLength > 0) {
-            body = v8.deserialize(bodyBuffer)
+            body = JSON.parse(bodyBuffer.toString(), reviver)
           } else {
             body = {}
           }
@@ -88,15 +110,15 @@ export function createServer (
           if (pkgResponse.fetching) {
             filesPromises[body.msgId] = pkgResponse.fetching
           }
-          res.end(v8.serialize(pkgResponse.body))
+          res.end(JSON.stringify(pkgResponse.body, replacer))
         } catch (err: unknown) {
           assert(util.types.isNativeError(err))
-          res.end(v8.serialize({
+          res.end(JSON.stringify({
             error: {
               message: err.message,
               ...JSON.parse(JSON.stringify(err)),
             },
-          }))
+          }, replacer))
         }
         break
       }
@@ -105,15 +127,15 @@ export function createServer (
           body = await bodyPromise
           const pkgResponse = (store.fetchPackage as FetchPackageToStoreFunction)(body.options as any) // eslint-disable-line
           filesPromises[body.msgId] = pkgResponse.fetching
-          res.end(v8.serialize({ filesIndexFile: pkgResponse.filesIndexFile }))
+          res.end(JSON.stringify({ filesIndexFile: pkgResponse.filesIndexFile }, replacer))
         } catch (err: unknown) {
           assert(util.types.isNativeError(err))
-          res.end(v8.serialize({
+          res.end(JSON.stringify({
             error: {
               message: err.message,
               ...JSON.parse(JSON.stringify(err)),
             },
-          }))
+          }, replacer))
         }
         break
       }
@@ -121,7 +143,7 @@ export function createServer (
         body = await bodyPromise
         const filesResponse = await filesPromises[body.msgId]()
         delete filesPromises[body.msgId]
-        res.end(v8.serialize(filesResponse))
+        res.end(JSON.stringify(filesResponse, replacer))
         break
       }
       case '/prune':
@@ -132,7 +154,7 @@ export function createServer (
       case '/importPackage': {
         const importPackageBody = (await bodyPromise) as any // eslint-disable-line @typescript-eslint/no-explicit-any
         await store.importPackage(importPackageBody.to, importPackageBody.opts)
-        res.end(v8.serialize('OK'))
+        res.end(JSON.stringify('OK', replacer))
         break
       }
       case '/upload': {
@@ -144,7 +166,7 @@ export function createServer (
         }
         const uploadBody = (await bodyPromise) as any // eslint-disable-line @typescript-eslint/no-explicit-any
         await lock(uploadBody.builtPkgLocation, async () => store.upload(uploadBody.builtPkgLocation, uploadBody.opts))
-        res.end(v8.serialize('OK'))
+        res.end(JSON.stringify('OK', replacer))
         break
       }
       case '/stop':
@@ -155,20 +177,20 @@ export function createServer (
         }
         globalInfo('Got request to stop the server')
         await close()
-        res.end(v8.serialize('OK'))
+        res.end(JSON.stringify('OK', replacer))
         globalInfo('Server stopped')
         break
       default: {
         res.statusCode = 404
         const error = { error: `${req.url!} does not match any route` }
-        res.end(v8.serialize(error))
+        res.end(JSON.stringify(error, replacer))
       }
       }
     } catch (e: any) { // eslint-disable-line
       res.statusCode = 503
       const jsonErr = JSON.parse(JSON.stringify(e))
       jsonErr.message = e.message
-      res.end(v8.serialize(jsonErr))
+      res.end(JSON.stringify(jsonErr, replacer))
     }
   })
 
