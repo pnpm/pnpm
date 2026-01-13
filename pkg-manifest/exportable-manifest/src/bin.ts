@@ -6,7 +6,7 @@ type Input = Pick<ProjectManifest, 'bin'> & Pick<ExportedManifest, 'name'>
 type Output = Pick<ExportedManifest, 'bin' | 'name'>
 
 export function transformBin<Manifest> (manifest: Manifest & Input): Manifest & Output {
-  if (!manifest.bin || typeof manifest.bin === 'object') return manifest as Manifest & Output
+  if (manifest.bin == null || typeof manifest.bin === 'object') return manifest as Manifest & Output
   const { bin, ...rest } = manifest
   return {
     ...rest,
