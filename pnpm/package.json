@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.0.0-alpha.2",
+  "version": "11.0.0-alpha.3",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
