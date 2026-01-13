@@ -43,9 +43,6 @@
       "path": "../../deps/graph-sequencer"
     },
     {
-      "path": "../../fs/v8-file"
-    },
-    {
       "path": "../../lockfile/types"
     },
     {

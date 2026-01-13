@@ -12,8 +12,29 @@ import {
 import pLimit from 'p-limit'
 import pShare from 'promise-share'
 import { omit } from 'ramda'
-import v8 from 'v8'
 import { v4 as uuidv4 } from 'uuid'
+
+function replacer (key: unknown, value: unknown) {
+  if (value instanceof Map || Object.prototype.toString.call(value) === '[object Map]') {
+    return {
+      dataType: 'Map',
+      // @ts-expect-error
+      value: Array.from(value.entries()),
+    }
+  }
+  return value
+}
+
+function reviver (key: unknown, value: unknown) {
+  if (typeof value === 'object' && value !== null) {
+    // @ts-expect-error
+    if (value.dataType === 'Map') {
+      // @ts-expect-error
+      return new Map(value.value)
+    }
+  }
+  return value
+}
 
 export interface StoreServerController extends StoreController {
   stop: () => Promise<void>
@@ -68,8 +89,8 @@ function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: str
       url = url.replace('http://unix:', 'unix:')
     }
     const response = await fetch(url, {
-      body: v8.serialize(body),
-      headers: { 'Content-Type': 'application/octet-stream' },
+      body: JSON.stringify(body, replacer),
+      headers: { 'Content-Type': 'application/json' },
       method: 'POST',
       retry: {
         retries: 100,
@@ -78,8 +99,7 @@ function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: str
     if (!response.ok) {
       throw await response.json()
     }
-    const arrayBuffer = await response.arrayBuffer()
-    const json = v8.deserialize(Buffer.from(arrayBuffer)) as any // eslint-disable-line
+    const json = JSON.parse(await response.text(), reviver) as any // eslint-disable-line
     if (json.error) {
       throw json.error
     }

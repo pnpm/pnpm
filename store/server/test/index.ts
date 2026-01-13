@@ -1,16 +1,15 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
-import v8 from 'v8'
 import getPort from 'get-port'
 import { createClient } from '@pnpm/client'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createPackageStore } from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
 import { type Registries } from '@pnpm/types'
 import fetch from 'node-fetch'
 import { sync as rimraf } from '@zkochan/rimraf'
+import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 import isPortReachable from 'is-port-reachable'
 
@@ -175,10 +174,10 @@ test('server upload', async () => {
   const fakeEngine = 'client-engine'
   const filesIndexFile = path.join(storeDir, 'fake-pkg@1.0.0.json')
 
-  fs.writeFileSync(filesIndexFile, v8.serialize({
+  fs.writeFileSync(filesIndexFile, JSON.stringify({
     name: 'fake-pkg',
     version: '1.0.0',
-    files: new Map(),
+    files: {},
   }))
 
   await storeCtrl.upload(path.join(import.meta.dirname, '__fixtures__/side-effect-fake-dir'), {
@@ -186,8 +185,8 @@ test('server upload', async () => {
     filesIndexFile,
   })
 
-  const cacheIntegrity = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
-  expect(Array.from(cacheIntegrity.sideEffects!.get(fakeEngine)!.added!.keys()).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
+  const cacheIntegrity = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
+  expect(Object.keys(cacheIntegrity.sideEffects![fakeEngine].added!).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
 
   await server.close()
   await storeCtrl.close()
@@ -338,7 +337,7 @@ test('server route not found', async () => {
   const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: 'POST' })
   // Ensure error is correct
   expect(response.status).toBe(404)
-  expect((v8.deserialize(Buffer.from(await response.arrayBuffer())) as any).error).toBeTruthy() // eslint-disable-line
+  expect((await response.json() as any).error).toBeTruthy() // eslint-disable-line
 
   await server.close()
   await storeCtrlForServer.close()

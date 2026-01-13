@@ -1,6 +1,6 @@
 import fs from 'fs'
 import util from 'util'
-import { type PackageFiles, type PackageFileInfo, type SideEffects, type FilesMap } from '@pnpm/cafs-types'
+import { type PackageFilesRaw, type PackageFileInfo, type SideEffectsRaw, type FilesMap } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
@@ -32,8 +32,8 @@ export interface PackageFilesIndex {
   version?: string
   requiresBuild?: boolean
 
-  files: PackageFiles
-  sideEffects?: SideEffects
+  files: PackageFilesRaw
+  sideEffects?: SideEffectsRaw
 }
 
 export function checkPkgFilesIntegrity (
@@ -54,11 +54,12 @@ export function checkPkgFilesIntegrity (
     // We verify all side effects cache. We could optimize it to verify only the side effects cache
     // that satisfies the current os/arch/platform.
     // However, it likely won't make a big difference.
-    for (const [sideEffectName, { added, deleted }] of pkgIndex.sideEffects) {
+    for (const [sideEffectName, { added, deleted }] of Object.entries(pkgIndex.sideEffects)) {
       if (added) {
         const result = _checkFilesIntegrity(added)
         if (!result.passed) {
-          pkgIndex.sideEffects!.delete(sideEffectName)
+          // Skip invalid side effects
+          continue
         } else {
           sideEffectsMaps.set(sideEffectName, { added: result.filesMap, deleted })
         }
@@ -85,19 +86,19 @@ export function buildFileMapsFromIndex (
 ): VerifyResult {
   const filesMap: FilesMap = new Map()
 
-  for (const [f, fstat] of pkgIndex.files) {
+  for (const [f, fstat] of Object.entries(pkgIndex.files)) {
     const filename = getFilePathByModeInCafs(storeDir, fstat.integrity, fstat.mode)
     filesMap.set(f, filename)
   }
 
   const sideEffectsMaps = new Map<string, { added?: FilesMap, deleted?: string[] }>()
   if (pkgIndex.sideEffects) {
-    for (const [sideEffectName, { added, deleted }] of pkgIndex.sideEffects) {
+    for (const [sideEffectName, { added, deleted }] of Object.entries(pkgIndex.sideEffects)) {
       const sideEffectEntry: { added?: FilesMap, deleted?: string[] } = {}
 
       if (added) {
         const addedFilesMap: FilesMap = new Map()
-        for (const [f, fstat] of added) {
+        for (const [f, fstat] of Object.entries(added)) {
           const filename = getFilePathByModeInCafs(storeDir, fstat.integrity, fstat.mode)
           addedFilesMap.set(f, filename)
         }
@@ -123,14 +124,14 @@ export function buildFileMapsFromIndex (
 function checkFilesIntegrity (
   verifiedFilesCache: Set<string>,
   storeDir: string,
-  files: PackageFiles,
+  files: PackageFilesRaw,
   readManifest?: boolean
 ): VerifyResult {
   let allVerified = true
   let manifest: DependencyManifest | undefined
   const filesMap: FilesMap = new Map()
 
-  for (const [f, fstat] of files) {
+  for (const [f, fstat] of Object.entries(files)) {
     if (!fstat.integrity) {
       throw new Error(`Integrity checksum is missing for ${f}`)
     }

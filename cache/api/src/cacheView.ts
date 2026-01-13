@@ -1,10 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import { glob } from 'tinyglobby'
-import { safeReadV8FileSync } from '@pnpm/fs.v8-file'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { type PackageMeta } from '@pnpm/npm-resolver'
 import getRegistryName from 'encode-registry'
+import { loadJsonFileSync } from 'load-json-file'
 
 interface CachedVersions {
   cachedVersions: string[]
@@ -15,13 +15,18 @@ interface CachedVersions {
 
 export async function cacheView (opts: { cacheDir: string, storeDir: string, registry?: string }, packageName: string): Promise<string> {
   const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
-  const metaFilePaths = (await glob(`${prefix}/${packageName}.v8`, {
+  const metaFilePaths = (await glob(`${prefix}/${packageName}.json`, {
     cwd: opts.cacheDir,
     expandDirectories: false,
   })).sort()
   const metaFilesByPath: Record<string, CachedVersions> = {}
   for (const filePath of metaFilePaths) {
-    const metaObject = safeReadV8FileSync<PackageMeta>(path.join(opts.cacheDir, filePath))
+    let metaObject: PackageMeta | null
+    try {
+      metaObject = loadJsonFileSync<PackageMeta>(path.join(opts.cacheDir, filePath))
+    } catch {
+      continue
+    }
     if (!metaObject) continue
     const cachedVersions: string[] = []
     const nonCachedVersions: string[] = []

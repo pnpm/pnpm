@@ -36,7 +36,6 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
@@ -48,6 +47,7 @@
     "@pnpm/types": "workspace:*",
     "archy": "catalog:",
     "dint": "catalog:",
+    "load-json-file": "catalog:",
     "p-filter": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"
