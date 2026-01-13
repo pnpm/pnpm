@@ -46,7 +46,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
       'user-agent': USER_AGENT,
       ...getHeaders({
         auth: opts?.authHeaderValue,
-        fullMetadata: defaultOpts.fullMetadata,
+        fullMetadata: opts?.fullMetadata ?? defaultOpts.fullMetadata,
         userAgent: defaultOpts.userAgent,
       }),
     }

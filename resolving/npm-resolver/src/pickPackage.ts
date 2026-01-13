@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { createHexHash } from '@pnpm/crypto.hash'
+import { FULL_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readMsgpackFile, writeMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { logger } from '@pnpm/logger'
@@ -65,6 +66,7 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   registry: string
   dryRun: boolean
   updateToLatest?: boolean
+  metaDir?: string
 }
 
 const pickPackageFromMetaUsingTimeStrict = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
@@ -83,7 +85,7 @@ function pickPackageFromMetaUsingTime (
 
 export async function pickPackage (
   ctx: {
-    fetch: (pkgName: string, registry: string, authHeaderValue?: string) => Promise<PackageMeta>
+    fetch: (pkgName: string, registry: string, authHeaderValue?: string, fullMetadata?: boolean) => Promise<PackageMeta>
     metaDir: string
     metaCache: PackageMetaCache
     cacheDir: string
@@ -124,7 +126,10 @@ export async function pickPackage (
 
   validatePackageName(spec.name)
 
-  const cachedMeta = ctx.metaCache.get(spec.name)
+  const metaDir = opts.metaDir ?? ctx.metaDir
+  // Cache key must include metaDir to avoid returning abbreviated metadata when full metadata is requested.
+  const cacheKey = `${spec.name}:${metaDir}`
+  const cachedMeta = ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
     return {
       meta: cachedMeta,
@@ -133,7 +138,7 @@ export async function pickPackage (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.cacheDir, ctx.metaDir, registryName, `${encodePkgName(spec.name)}.mpk`)
+  const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.mpk`)
 
   return runLimited(pkgMirror, async (limit) => {
     let metaCachedInStore: PackageMeta | null | undefined
@@ -200,13 +205,14 @@ export async function pickPackage (
     }
 
     try {
-      let meta = await ctx.fetch(spec.name, opts.registry, opts.authHeaderValue)
+      const fullMetadata = metaDir === FULL_META_DIR || metaDir === FULL_FILTERED_META_DIR
+      let meta = await ctx.fetch(spec.name, opts.registry, opts.authHeaderValue, fullMetadata)
       if (ctx.filterMetadata) {
         meta = clearMeta(meta)
       }
       meta.cachedAt = Date.now()
       // only save meta to cache, when it is fresh
-      ctx.metaCache.set(spec.name, meta)
+      ctx.metaCache.set(cacheKey, meta)
       if (!opts.dryRun) {
         // We clone this meta here to avoid saving any mutations that could happen to the meta object.
         const metaClone = structuredClone(meta)

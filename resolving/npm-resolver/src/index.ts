@@ -209,13 +209,14 @@ export function createNpmResolver (
       return request
     }
   }
+  const defaultMetaDir = opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : ABBREVIATED_META_DIR
   const ctx: ResolveFromNpmContext = {
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
       fetch,
       filterMetadata: opts.filterMetadata,
       metaCache,
-      metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : ABBREVIATED_META_DIR,
+      metaDir: defaultMetaDir,
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
@@ -223,6 +224,7 @@ export function createNpmResolver (
     }),
     registries: opts.registries,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+    metaDir: defaultMetaDir,
     peekManifestFromStore,
   }
   return {
@@ -239,6 +241,7 @@ export interface ResolveFromNpmContext {
   getAuthHeaderValueByURI: (registry: string) => string | undefined
   registries: Registries
   saveWorkspaceProtocol?: boolean | 'rolling'
+  metaDir?: string
   peekManifestFromStore?: (opts: {
     id: PkgResolutionId
     integrity: string
@@ -264,6 +267,7 @@ export type ResolveFromNpmOptions = {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
+  optional?: boolean
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -345,9 +349,13 @@ async function resolveNpm (
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
   try {
+    // Use full metadata for optional dependencies to get libc field.
+    // See: https://github.com/pnpm/pnpm/issues/9950
+    const metaDir = opts.optional === true ? FULL_META_DIR : (ctx.metaDir ?? ABBREVIATED_META_DIR)
     pickResult = await ctx.pickPackage(spec, {
       pickLowestVersion: opts.pickLowestVersion,
       publishedBy: opts.publishedBy,
+      metaDir,
       publishedByExclude: opts.publishedByExclude,
       authHeaderValue,
       dryRun: opts.dryRun === true,

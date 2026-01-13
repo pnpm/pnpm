@@ -130,6 +130,7 @@ export interface ResolveOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
+  optional?: boolean
   currentPkg?: {
     id: PkgResolutionId
     name?: string

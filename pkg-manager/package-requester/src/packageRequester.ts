@@ -197,6 +197,7 @@ async function resolveAndFetch (
 
   const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
     ...options,
+    optional: wantedDependency.optional,
     preferredVersions,
     currentPkg: (options.currentPkg?.id && options.currentPkg?.resolution)
       ? {
