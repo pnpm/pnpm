@@ -59,7 +59,7 @@
   },
   "unpkg": "dist/pnpm.mjs",
   "scripts": {
-    "bundle": "pnpm --config.useNodeVersion=24.6.0 node bundle.ts",
+    "bundle": "pnpm dlx node@runtime:24.6.0 bundle.ts",
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
@@ -102,7 +102,6 @@
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/nopt": "catalog:",
     "@pnpm/parse-cli-args": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/plugin-commands-audit": "workspace:*",
     "@pnpm/plugin-commands-completion": "workspace:*",
     "@pnpm/plugin-commands-config": "workspace:*",
@@ -134,6 +133,7 @@
     "@pnpm/tools.path": "workspace:*",
     "@pnpm/tools.plugin-commands-self-updater": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.pkgs-graph": "workspace:*",
@@ -184,8 +184,8 @@
   },
   "pnpm": {
     "overrides": {
-      "@yarnpkg/fslib@2": "3",
       "@cypress/request@3.0.9>qs": "^6.14.1",
+      "@yarnpkg/fslib@2": "3",
       "body-parser@<2.2.1": "^2.2.1",
       "clipanion": "3.2.0-rc.6",
       "cookie@<0.7.0": ">=0.7.0",
