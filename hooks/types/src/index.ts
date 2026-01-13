@@ -43,6 +43,11 @@ export interface ResolveOptions {
 export interface ResolveResult {
   id: string
   resolution: Resolution
+  /**
+   * When true, forces re-fetching the package even if it exists in the store.
+   * Set this when the package content may have changed (e.g., updated tarball).
+   */
+  forceFetch?: boolean
 }
 
 export interface CustomResolver {

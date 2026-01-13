@@ -163,7 +163,7 @@ interface CustomFetcher {
 **Custom Resolver Methods:**
 
 * `canResolve(wantedDependency)` - Returns `true` if this resolver can resolve the given package descriptor
-* `resolve(wantedDependency, opts)` - Resolves a package descriptor to a resolution. Should return an object with `id` and `resolution`
+* `resolve(wantedDependency, opts)` - Resolves a package descriptor to a resolution. Should return an object with `id`, `resolution`, and optionally `forceFetch: true` to force re-fetching even if the package exists in the store
 * `shouldForceResolve(wantedDependency, wantedLockfile)` - Return `true` to trigger full resolution of all packages (skipping the "Lockfile is up to date" optimization). The lockfile contents are provided to enable comparisons with the latest resolved version.
 
 **Custom Fetcher Methods:**
