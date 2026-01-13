@@ -53,6 +53,7 @@ async function main (): Promise<void> {
     JSON.stringify(typeCheckTSConfig, undefined, 2)
   )
 
+  console.log('Running tsc --build...')
   execa('tsc', ['--build', typeCheckDir], {
     // The INIT_CWD variable is populated by package managers and points towards
     // the user's original working directory. It's more useful to run TypeScript
@@ -67,6 +68,7 @@ async function main (): Promise<void> {
     cwd: process.env.INIT_CWD,
     stdio: 'inherit',
   })
+  console.log('Running tsc build done')
 }
 
 main().catch((error: unknown) => {

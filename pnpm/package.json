@@ -59,7 +59,7 @@
   },
   "unpkg": "dist/pnpm.mjs",
   "scripts": {
-    "bundle": "pnpm --config.useNodeVersion=24.6.0 node bundle.ts",
+    "bundle": "pnpm dlx node@runtime:24.6.0 bundle.ts",
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
