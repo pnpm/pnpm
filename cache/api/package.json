@@ -33,7 +33,6 @@
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "encode-registry": "catalog:",

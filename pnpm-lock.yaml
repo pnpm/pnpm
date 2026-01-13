@@ -1281,9 +1281,6 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/fetching-types':
-        specifier: workspace:*
-        version: link:../../network/fetching-types
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver

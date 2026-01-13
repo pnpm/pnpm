@@ -13,9 +13,6 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../network/fetching-types"
-    },
-    {
       "path": "../../packages/constants"
     },
     {

@@ -49,7 +49,7 @@ describe('cache delete', () => {
       pnpmHomeDir: storeDir,
     }, ['list'])
 
-    expect(result).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-negative.v8
-registry.npmjs.org/is-negative.v8`)
+    expect(result).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-negative.json
+registry.npmjs.org/is-negative.json`)
   })
 })

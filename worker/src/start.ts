@@ -131,7 +131,7 @@ async function handleMessage (
       } else {
         verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex, readManifest)
       }
-      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, pkgFilesIndex.files)
+      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, verifyResult.filesMap)
 
       parentPort!.postMessage({
         status: 'success',
