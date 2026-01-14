@@ -116,7 +116,7 @@ export function createResolver (
         await _resolveBunRuntime(wantedDependency)
       if (!resolution) {
         let specifier = `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`
-        if (specifier) {
+        if (specifier !== '') {
           specifier = `"${specifier}"`
         }
         throw new PnpmError(
