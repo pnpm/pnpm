@@ -8,8 +8,7 @@ import { transformPeerDependenciesMeta } from './peerDependenciesMeta.js'
 
 export { type ExportedManifest }
 
-// TODO: change the return type to ExportedManifest
-export type Transform = (manifest: ProjectManifest) => ProjectManifest
+export type Transform = (manifest: ProjectManifest) => ExportedManifest
 export const transform: Transform = pipe(
   transformRequiredFields,
   transformBin,

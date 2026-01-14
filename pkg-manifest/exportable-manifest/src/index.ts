@@ -33,7 +33,7 @@ export async function createExportableManifest (
   dir: string,
   originalManifest: ProjectManifest,
   opts: MakePublishManifestOptions
-): Promise<ProjectManifest> {
+): Promise<ExportedManifest> {
   let publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
