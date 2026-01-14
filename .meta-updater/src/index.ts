@@ -318,8 +318,14 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       scripts._test += ' --detectOpenHandles'
     }
   }
-  scripts.compile = 'tsc --build && pnpm run lint --fix'
+  scripts.compile = 'tsgo --build && pnpm run lint --fix'
   delete scripts.tsc
+  if (scripts.start && scripts.start.includes('tsc --watch')) {
+    scripts.start = scripts.start.replace('tsc --watch', 'tsgo --watch')
+  }
+  if (scripts._compile && scripts._compile.includes('tsc --build')) {
+    scripts._compile = scripts._compile.replace('tsc --build', 'tsgo --build')
+  }
   let homepage: string
   let repository: string | { type: 'git', url: string, directory: 'pnpm' }
   if (manifest.name === CLI_PKG_NAME) {
