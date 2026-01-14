@@ -1163,3 +1163,62 @@ test('HTTP tarball without integrity gets integrity computed during fetch', asyn
   expect(pkgResponse.body.resolution).toHaveProperty('integrity')
   expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
 })
+
+test('should pass optional flag to resolve function', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+
+  let capturedOptional: boolean | undefined
+  const mockResolve: typeof resolve = async (wantedDependency, options) => {
+    capturedOptional = options.optional
+    return resolve(wantedDependency, options)
+  }
+
+  const requestPackage = createPackageRequester({
+    resolve: mockResolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+
+  await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0', optional: true },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(capturedOptional).toBe(true)
+
+  await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0', optional: false },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(capturedOptional).toBe(false)
+
+  await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(capturedOptional).toBeUndefined()
+})
