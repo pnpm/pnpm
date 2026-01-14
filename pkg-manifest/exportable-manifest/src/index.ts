@@ -1,5 +1,4 @@
 import path from 'path'
-import { type PackageJSON as ExportedManifest } from '@npm/types'
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
@@ -9,11 +8,8 @@ import { type Hooks } from '@pnpm/pnpmfile'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
-import { transformBin } from './bin.js'
-import { transformEngines } from './engines.js'
 import { overridePublishConfig } from './overridePublishConfig.js'
-import { transformPeerDependenciesMeta } from './peerDependenciesMeta.js'
-import { transformRequiredFields } from './requiredFields.js'
+import { type ExportedManifest, transform } from './transform/index.js'
 
 export { type ExportedManifest }
 
@@ -77,7 +73,7 @@ export async function createExportableManifest (
     publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
 
-  return transformPeerDependenciesMeta(transformEngines(transformBin(transformRequiredFields(publishManifest))))
+  return transform(publishManifest)
 }
 
 export type PublishDependencyConverter = (
