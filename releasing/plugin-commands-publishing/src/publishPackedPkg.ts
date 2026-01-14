@@ -47,7 +47,7 @@ export class FailedToPublishError extends PnpmError implements PublishErrorPrope
     const trimmedText = text.trim()
     let message = `Failed to publish package ${name}@${version} (status ${statusDisplay})`
     if (trimmedText.includes('\n')) {
-      message += '\nDetails:'
+      message += '\nDetails:\n'
       for (const line of text.trimEnd().split('\n')) {
         message += `    ${line}\n`
       }
