@@ -9,6 +9,9 @@ import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig.js'
+import { type ExportedManifest, transform } from './transform/index.js'
+
+export { type ExportedManifest }
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
@@ -30,7 +33,7 @@ export async function createExportableManifest (
   dir: string,
   originalManifest: ProjectManifest,
   opts: MakePublishManifestOptions
-): Promise<ProjectManifest> {
+): Promise<ExportedManifest> {
   let publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
@@ -70,7 +73,7 @@ export async function createExportableManifest (
     publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
 
-  return publishManifest
+  return transform(publishManifest)
 }
 
 export type PublishDependencyConverter = (
