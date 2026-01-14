@@ -1,6 +1,6 @@
 import { parse as parseDepPath } from '@pnpm/dependency-path'
-import { type CustomResolver, type WantedDependency, checkCustomResolverCanResolve } from '@pnpm/hooks.types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
+import { type CustomResolver, type WantedDependency, checkCustomResolverCanResolve } from '@pnpm/hooks.types'
 
 // Sentinel for Promise.any rejections (not an error condition)
 const SKIP = new Error('skip')
