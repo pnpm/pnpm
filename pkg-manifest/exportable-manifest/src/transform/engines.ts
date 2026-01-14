@@ -4,7 +4,8 @@ import { type ExportedManifest } from './index.js'
 
 type EnginesField = 'engines' | 'devEngines'
 type Input = Pick<ProjectManifest, EnginesField>
-type Output<Manifest extends Input> = Omit<Manifest, EnginesField> & Pick<ExportedManifest, EnginesField>
+type Omitted<Manifest extends Input> = Omit<Manifest, EnginesField>
+type Output<Manifest extends Input> = Omitted<Manifest> & Pick<ExportedManifest, EnginesField>
 
 export function transformEngines<Manifest extends Input> (manifest: Manifest): Output<Manifest> {
   if (!manifest.engines?.runtime) return manifest as Output<Manifest>
@@ -19,13 +20,13 @@ export function transformEngines<Manifest extends Input> (manifest: Manifest): O
   } = manifest
 
   return {
-    ...rest,
+    ...rest as Omitted<Manifest>,
     engines,
     devEngines: {
       ...rest.devEngines,
       runtime,
     },
-  } as Output<Manifest>
+  }
 }
 
 export class DevEnginesRuntimeConflictError extends PnpmError {
