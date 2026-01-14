@@ -12,6 +12,7 @@ import pMapValues from 'p-map-values'
 import { transformBin } from './bin.js'
 import { transformEngines } from './engines.js'
 import { overridePublishConfig } from './overridePublishConfig.js'
+import { transformPeerDependenciesMeta } from './peerDependenciesMeta.js'
 import { transformRequiredFields } from './requiredFields.js'
 
 export { type ExportedManifest }
@@ -76,7 +77,7 @@ export async function createExportableManifest (
     publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
 
-  return transformEngines(transformBin(transformRequiredFields(publishManifest)))
+  return transformPeerDependenciesMeta(transformEngines(transformBin(transformRequiredFields(publishManifest))))
 }
 
 export type PublishDependencyConverter = (
