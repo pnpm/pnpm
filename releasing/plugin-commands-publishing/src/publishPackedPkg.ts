@@ -49,7 +49,7 @@ export class FailedToPublishError extends PnpmError implements PublishErrorPrope
     if (trimmedText.includes('\n')) {
       message += '\nDetails:'
       for (const line of text.trimEnd().split('\n')) {
-        message += `    ${line}`
+        message += `    ${line}\n`
       }
     } else if (trimmedText) {
       message += `: ${trimmedText}`
