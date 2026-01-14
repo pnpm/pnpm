@@ -175,7 +175,7 @@ export interface PnpmSettings {
 
 export interface ProjectManifest extends BaseManifest {
   packageManager?: string
-  workspaces?: string[]
+  workspaces?: string[] // TODO: add Record<string, string> to represent npm (to be compatible with @npm/types)
   pnpm?: PnpmSettings
   private?: boolean
   resolutions?: Record<string, string>
