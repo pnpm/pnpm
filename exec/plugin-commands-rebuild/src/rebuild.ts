@@ -3,7 +3,7 @@ import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { type LogBase } from '@pnpm/logger'
 import {
-  createOrConnectStoreController,
+  createStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import { type ProjectRootDir } from '@pnpm/types'
@@ -108,7 +108,7 @@ export async function handler (
     await recursiveRebuild(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir })
     return
   }
-  const store = await createOrConnectStoreController(opts)
+  const store = await createStoreController(opts)
   const rebuildOpts = Object.assign(opts, {
     sideEffectsCacheRead: opts.sideEffectsCache ?? opts.sideEffectsCacheReadonly,
     sideEffectsCacheWrite: opts.sideEffectsCache,

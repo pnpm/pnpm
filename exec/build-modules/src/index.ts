@@ -179,18 +179,11 @@ async function buildDependency<T extends string> (
         })
       } catch (err: unknown) {
         assert(util.types.isNativeError(err))
-        if (err && 'statusCode' in err && err.statusCode === 403) {
-          logger.warn({
-            message: `The store server disabled upload requests, could not upload ${depNode.dir}`,
-            prefix: opts.lockfileDir,
-          })
-        } else {
-          logger.warn({
-            error: err,
-            message: `An error occurred while uploading ${depNode.dir}`,
-            prefix: opts.lockfileDir,
-          })
-        }
+        logger.warn({
+          error: err,
+          message: `An error occurred while uploading ${depNode.dir}`,
+          prefix: opts.lockfileDir,
+        })
       }
     }
   } catch (err: unknown) {

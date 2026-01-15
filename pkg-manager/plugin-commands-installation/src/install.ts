@@ -69,8 +69,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'only',
     'optional',
     'unsafe-perm',
-    'use-running-store-server',
-    'use-store-server',
     'verify-store-integrity',
     'virtual-store-dir',
   ], allTypes)
@@ -216,14 +214,6 @@ by any dependencies, so it is an emulation of a flat node_modules',
           {
             description: 'Ignore trust downgrades for packages published more than specified minutes ago',
             name: '--trust-policy-ignore-after <minutes>',
-          },
-          {
-            description: 'Starts a store server in the background. The store server will keep running after installation is done. To stop the store server, run `pnpm server stop`',
-            name: '--use-store-server',
-          },
-          {
-            description: 'Only allows installation with a store server. If no store server is running, installation will fail',
-            name: '--use-running-store-server',
           },
           {
             description: 'Clones/hardlinks or copies packages. The selected method depends from the file system',

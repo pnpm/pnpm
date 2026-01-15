@@ -117,7 +117,6 @@
     "@pnpm/plugin-commands-publishing": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/plugin-commands-script-runners": "workspace:*",
-    "@pnpm/plugin-commands-server": "workspace:*",
     "@pnpm/plugin-commands-setup": "workspace:*",
     "@pnpm/plugin-commands-store": "workspace:*",
     "@pnpm/plugin-commands-store-inspecting": "workspace:*",

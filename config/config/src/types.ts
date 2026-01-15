@@ -119,8 +119,6 @@ export const pnpmTypes = {
   'trust-policy-ignore-after': Number,
   'use-beta-cli': Boolean,
   'use-node-version': String,
-  'use-running-store-server': Boolean,
-  'use-store-server': Boolean,
   'use-stderr': Boolean,
   'verify-deps-before-run': Boolean,
   'verify-store-integrity': Boolean,

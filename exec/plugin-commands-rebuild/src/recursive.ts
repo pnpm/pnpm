@@ -11,7 +11,7 @@ import {
 } from '@pnpm/config'
 import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type Project, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { rebuildProjects as rebuildAll, type RebuildOptions, rebuildSelectedPkgs } from './implementation/index.js'
@@ -62,7 +62,7 @@ export async function recursiveRebuild (
     ? sortPackages(opts.selectedProjectsGraph)
     : [Object.keys(opts.selectedProjectsGraph).sort() as ProjectRootDir[]]
 
-  const store = await createOrConnectStoreController(opts)
+  const store = await createStoreController(opts)
 
   const rebuildOpts = Object.assign(opts, {
     ownLifecycleHooksStdio: 'pipe',
