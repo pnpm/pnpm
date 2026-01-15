@@ -25,7 +25,7 @@ import {
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import { createStoreController } from '@pnpm/store-connection-manager'
 import {
   type DepPath,
   type IgnoredBuilds,
@@ -189,7 +189,7 @@ export async function rebuildProjects (
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((depPath) => !pkgsThatWereRebuilt.has(depPath))
 
-  const store = await createOrConnectStoreController(opts)
+  const store = await createStoreController(opts)
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
     extraNodePaths: ctx.extraNodePaths,

@@ -122,13 +122,11 @@ catalog:
   '@types/retry': ^0.12.5
   '@types/rimraf': ^3.0.2
   '@types/semver': 7.5.3
-  '@types/signal-exit': ^3.0.4
   '@types/sinon': ^10.0.20
   '@types/ssri': ^7.1.5
   '@types/tar': ^6.1.13
   '@types/tar-stream': ^2.2.3
   '@types/touch': ^3.1.5
-  '@types/uuid': ^8.3.4
   '@types/validate-npm-package-name': ^4.0.2
   '@types/which': ^2.0.2
   '@types/write-file-atomic': ^4.0.3
@@ -146,7 +144,6 @@ catalog:
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
   '@zkochan/cmd-shim': ^7.0.0
-  '@zkochan/diable': ^1.0.2
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^3.0.2
   '@zkochan/table': ^2.0.1
@@ -212,7 +209,6 @@ catalog:
   ini: 5.0.0
   is-gzip: 2.0.0
   is-inner-link: ^4.0.0
-  is-port-reachable: 4.0.0
   is-subdir: ^1.2.0
   is-windows: ^1.0.2
   isexe: 2.0.0
@@ -257,7 +253,6 @@ catalog:
   preferred-pm: ^3.1.4
   pretty-bytes: ^7.0.1
   pretty-ms: ^9.2.0
-  process-exists: ^5.0.0
   promise-share: ^1.0.0
   proxyquire: ^2.1.3
   ps-list: ^8.1.1
@@ -284,7 +279,6 @@ catalog:
   semver-utils: ^1.1.4
   shlex: ^3.0.0
   shx: ^0.4.0
-  signal-exit: ^4.1.0
   sinon: ^16.1.3
   sort-keys: ^6.0.0
   split-cmd: ^1.1.0
@@ -306,7 +300,6 @@ catalog:
   ts-jest-resolver: 2.0.1
   typescript: 5.9.2
   unified: ^9.2.2
-  uuid: ^9.0.1
   validate-npm-package-name: 6.0.2
   verdaccio: 6.1.6
   version-selector-type: ^3.0.0

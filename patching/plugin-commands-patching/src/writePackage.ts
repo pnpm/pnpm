@@ -1,6 +1,6 @@
 import { type Config } from '@pnpm/config'
 import {
-  createOrConnectStoreController,
+  createStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import type { ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
@@ -8,7 +8,7 @@ import type { ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries'>
 
 export async function writePackage (dep: ParseWantedDependencyResult, dest: string, opts: WritePackageOptions): Promise<void> {
-  const store = await createOrConnectStoreController({
+  const store = await createStoreController({
     ...opts,
     packageImportMethod: 'clone-or-copy',
   })

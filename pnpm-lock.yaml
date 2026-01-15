@@ -189,9 +189,6 @@ catalogs:
     '@types/semver':
       specifier: 7.5.3
       version: 7.5.3
-    '@types/signal-exit':
-      specifier: ^3.0.4
-      version: 3.0.4
     '@types/sinon':
       specifier: ^10.0.20
       version: 10.0.20
@@ -207,9 +204,6 @@ catalogs:
     '@types/touch':
       specifier: ^3.1.5
       version: 3.1.5
-    '@types/uuid':
-      specifier: ^8.3.4
-      version: 8.3.4
     '@types/validate-npm-package-name':
       specifier: ^4.0.2
       version: 4.0.2
@@ -261,9 +255,6 @@ catalogs:
     '@zkochan/cmd-shim':
       specifier: ^7.0.0
       version: 7.0.0
-    '@zkochan/diable':
-      specifier: ^1.0.2
-      version: 1.0.2
     '@zkochan/retry':
       specifier: ^0.2.0
       version: 0.2.0
@@ -459,9 +450,6 @@ catalogs:
     is-inner-link:
       specifier: ^4.0.0
       version: 4.0.0
-    is-port-reachable:
-      specifier: 4.0.0
-      version: 4.0.0
     is-subdir:
       specifier: ^1.2.0
       version: 1.2.0
@@ -594,9 +582,6 @@ catalogs:
     pretty-ms:
       specifier: ^9.2.0
       version: 9.2.0
-    process-exists:
-      specifier: ^5.0.0
-      version: 5.0.0
     promise-share:
       specifier: ^1.0.0
       version: 1.0.0
@@ -675,9 +660,6 @@ catalogs:
     shx:
       specifier: ^0.4.0
       version: 0.4.0
-    signal-exit:
-      specifier: ^4.1.0
-      version: 4.1.0
     sinon:
       specifier: ^16.1.3
       version: 16.1.3
@@ -741,9 +723,6 @@ catalogs:
     unified:
       specifier: ^9.2.2
       version: 9.2.2
-    uuid:
-      specifier: ^9.0.1
-      version: 9.0.1
     validate-npm-package-name:
       specifier: 6.0.2
       version: 6.0.2
@@ -6667,9 +6646,6 @@ importers:
       '@pnpm/plugin-commands-script-runners':
         specifier: workspace:*
         version: link:../exec/plugin-commands-script-runners
-      '@pnpm/plugin-commands-server':
-        specifier: workspace:*
-        version: link:../store/plugin-commands-server
       '@pnpm/plugin-commands-setup':
         specifier: workspace:*
         version: link:../packages/plugin-commands-setup
@@ -8315,76 +8291,6 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
 
-  store/plugin-commands-server:
-    dependencies:
-      '@pnpm/cli-meta':
-        specifier: workspace:*
-        version: link:../../cli/cli-meta
-      '@pnpm/cli-utils':
-        specifier: workspace:*
-        version: link:../../cli/cli-utils
-      '@pnpm/common-cli-options-help':
-        specifier: workspace:*
-        version: link:../../cli/common-cli-options-help
-      '@pnpm/config':
-        specifier: workspace:*
-        version: link:../../config/config
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/server':
-        specifier: workspace:*
-        version: link:../server
-      '@pnpm/store-connection-manager':
-        specifier: workspace:*
-        version: link:../store-connection-manager
-      '@pnpm/store-path':
-        specifier: workspace:*
-        version: link:../store-path
-      '@zkochan/diable':
-        specifier: 'catalog:'
-        version: 1.0.2
-      delay:
-        specifier: 'catalog:'
-        version: 6.0.0
-      get-port:
-        specifier: 'catalog:'
-        version: 7.1.0
-      is-windows:
-        specifier: 'catalog:'
-        version: 1.0.2
-      process-exists:
-        specifier: 'catalog:'
-        version: 5.0.0
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-      render-help:
-        specifier: 'catalog:'
-        version: 1.0.3
-      signal-exit:
-        specifier: 'catalog:'
-        version: 4.1.0
-      tree-kill:
-        specifier: 'catalog:'
-        version: 1.2.2
-    devDependencies:
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@pnpm/plugin-commands-server':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/is-windows':
-        specifier: 'catalog:'
-        version: 1.0.2
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
-      '@types/signal-exit':
-        specifier: 'catalog:'
-        version: 3.0.4
-
   store/plugin-commands-store:
     dependencies:
       '@pnpm/cli-utils':
@@ -8555,73 +8461,6 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
 
-  store/server:
-    dependencies:
-      '@pnpm/fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      p-limit:
-        specifier: 'catalog:'
-        version: 7.1.0
-      promise-share:
-        specifier: 'catalog:'
-        version: 1.0.0
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-      uuid:
-        specifier: 'catalog:'
-        version: 9.0.1
-    devDependencies:
-      '@pnpm/client':
-        specifier: workspace:*
-        version: link:../../pkg-manager/client
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@pnpm/package-requester':
-        specifier: workspace:*
-        version: link:../../pkg-manager/package-requester
-      '@pnpm/package-store':
-        specifier: workspace:*
-        version: link:../package-store
-      '@pnpm/server':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/store.cafs':
-        specifier: workspace:*
-        version: link:../cafs
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
-      '@types/uuid':
-        specifier: 'catalog:'
-        version: 8.3.4
-      '@zkochan/rimraf':
-        specifier: 'catalog:'
-        version: 3.0.2
-      get-port:
-        specifier: 'catalog:'
-        version: 7.1.0
-      is-port-reachable:
-        specifier: 'catalog:'
-        version: 4.0.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
-      node-fetch:
-        specifier: 'catalog:'
-        version: 3.3.2
-      tempy:
-        specifier: 'catalog:'
-        version: 3.0.0
-
   store/store-connection-manager:
     dependencies:
       '@pnpm/cli-meta':
@@ -8633,24 +8472,12 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../package-store
-      '@pnpm/server':
-        specifier: workspace:*
-        version: link:../server
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
-      '@zkochan/diable':
-        specifier: 'catalog:'
-        version: 1.0.2
-      delay:
-        specifier: 'catalog:'
-        version: 6.0.0
       dir-is-case-sensitive:
         specifier: 'catalog:'
         version: 2.0.0
@@ -11151,9 +10978,6 @@ packages:
   '@types/semver@7.7.0':
     resolution: {integrity: sha512-k107IF4+Xr7UHjwDc7Cfd6PRQfbdkiRabXGRjo07b4WyPahFBZCZ1sE+BNxYIJPPg73UkfOsVOLwqVc/6ETrIA==}
 
-  '@types/signal-exit@3.0.4':
-    resolution: {integrity: sha512-e7EUPfU9afHyWc5CXtlqbvVHEshrb05uPlDCenWIbMgtWoFrTuTDVYNLKk6o4X2/4oHTfNqrJX/vaJ3uBhtXTg==}
-
   '@types/sinon@10.0.20':
     resolution: {integrity: sha512-2APKKruFNCAZgx3daAyACGzWuJ028VVCUDk6o2rw/Z4PXT0ogwdV4KUegW0MwVs0Zu59auPXbbuBJHF12Sx1Eg==}
 
@@ -11183,9 +11007,6 @@ packages:
 
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
-
-  '@types/uuid@8.3.4':
-    resolution: {integrity: sha512-c/I8ZRb51j+pYGAu5CrFMRxqZ2ke4y2grEBO5AUjgSkSk+qT2Ea+OdWElz/OiMf5MNpn2b17kuVBwZLQJXzihw==}
 
   '@types/validate-npm-package-name@4.0.2':
     resolution: {integrity: sha512-lrpDziQipxCEeK5kWxvljWYhUvOiB2A9izZd9B2AFarYAkqZshb4lPbRs7zKEic6eGtH8V/2qJW+dPp9OtF6bw==}
@@ -13858,10 +13679,6 @@ packages:
     resolution: {integrity: sha512-+Pgi+vMuUNkJyExiMBt5IlFoMyKnr5zhJ4Uspz58WOhBF5QoIZkFyNHIbBAtHwzVAgk5RtndVNsDRN61/mmDqg==}
     engines: {node: '>=12'}
 
-  is-port-reachable@4.0.0:
-    resolution: {integrity: sha512-9UoipoxYmSk6Xy7QFgRv2HDyaysmgSG75TFQs6S+3pDM7ZhKTF/bskZV+0UlABHzKjNVhPjYCLfeZUEg1wXxig==}
-    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
-
   is-promise@2.2.2:
     resolution: {integrity: sha512-+lP4/6lKUBfQjZ2pdxThZvLUAafmZb8OAxFb8XXtiQmS35INgr85hdOGoEs124ez1FCnZJt6jau/T+alh58QFQ==}
 
@@ -15312,10 +15129,6 @@ packages:
 
   proc-output@1.0.9:
     resolution: {integrity: sha512-XARWwM2pPNU/U8V4OuQNQLyjFqvHk1FRB5sFd1CCyT2vLLfDlLRLE4f6njcvm4Kyek1VzvF8MQRAYK1uLOlZmw==}
-
-  process-exists@5.0.0:
-    resolution: {integrity: sha512-6QPRh5fyHD8MaXr4GYML8K/YY0Sq5dKHGIOrAKS3cYpHQdmygFCcijIu1dVoNKAZ0TWAMoeh8KDK9dF8auBkJA==}
-    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   process-nextick-args@2.0.1:
     resolution: {integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==}
@@ -19582,8 +19395,6 @@ snapshots:
 
   '@types/semver@7.7.0': {}
 
-  '@types/signal-exit@3.0.4': {}
-
   '@types/sinon@10.0.20':
     dependencies:
       '@types/sinonjs__fake-timers': 8.1.5
@@ -19614,8 +19425,6 @@ snapshots:
   '@types/treeify@1.0.3': {}
 
   '@types/unist@2.0.11': {}
-
-  '@types/uuid@8.3.4': {}
 
   '@types/validate-npm-package-name@4.0.2': {}
 
@@ -22709,8 +22518,6 @@ snapshots:
 
   is-plain-obj@4.1.0: {}
 
-  is-port-reachable@4.0.0: {}
-
   is-promise@2.2.2: {}
 
   is-regex@1.2.1:
@@ -24490,10 +24297,6 @@ snapshots:
   proc-log@5.0.0: {}
 
   proc-output@1.0.9: {}
-
-  process-exists@5.0.0:
-    dependencies:
-      ps-list: 8.1.1
 
   process-nextick-args@2.0.1: {}
 
