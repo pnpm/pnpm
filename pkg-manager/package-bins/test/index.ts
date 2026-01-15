@@ -126,3 +126,21 @@ test('get bin from scoped bin name', async () => {
     ]
   )
 })
+
+test('skip scoped bin names with path traversal', async () => {
+  expect(
+    await getBinsFromPackageManifest({
+      name: 'malicious',
+      version: '1.0.0',
+      bin: {
+        '@scope/../../.npmrc': './malicious.js',
+        '@scope/../etc/passwd': './evil.js',
+        '@scope/legit': './good.js',
+      },
+    }, process.cwd())).toStrictEqual([
+    {
+      name: 'legit',
+      path: path.resolve('good.js'),
+    },
+  ])
+})
