@@ -3074,6 +3074,9 @@ importers:
       adm-zip:
         specifier: 'catalog:'
         version: 0.5.16
+      is-subdir:
+        specifier: 'catalog:'
+        version: 1.2.0
       rename-overwrite:
         specifier: 'catalog:'
         version: 6.0.3
@@ -3084,6 +3087,9 @@ importers:
         specifier: 'catalog:'
         version: 1.0.1
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: 'link:'

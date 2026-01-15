@@ -24,8 +24,9 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
@@ -34,6 +35,7 @@
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "adm-zip": "catalog:",
+    "is-subdir": "catalog:",
     "rename-overwrite": "catalog:",
     "ssri": "catalog:",
     "tempy": "catalog:"
@@ -42,9 +44,11 @@
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@types/adm-zip": "catalog:",
-    "@types/ssri": "catalog:"
+    "@types/ssri": "catalog:",
+    "tempy": "catalog:"
   },
   "engines": {
     "node": ">=18.12"
