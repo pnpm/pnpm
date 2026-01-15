@@ -57,6 +57,7 @@
     "enquirer": "catalog:",
     "execa": "catalog:",
     "libnpmpublish": "catalog:",
+    "normalize-registry-url": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",

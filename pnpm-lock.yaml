@@ -7127,6 +7127,9 @@ importers:
       libnpmpublish:
         specifier: 'catalog:'
         version: 11.1.3
+      normalize-registry-url:
+        specifier: 'catalog:'
+        version: 2.0.0
       p-filter:
         specifier: 'catalog:'
         version: 4.1.0
