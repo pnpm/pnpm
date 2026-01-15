@@ -1,5 +1,8 @@
 ---
 "@pnpm/config.deps-installer": minor
+"@pnpm/workspace.state": minor
+"@pnpm/types": minor
+"@pnpm/cli-utils": minor
 "pnpm": minor
 ---
 
