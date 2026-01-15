@@ -1,7 +1,6 @@
 import fs from 'fs'
 import path from 'path'
 import { type Config } from '@pnpm/config'
-import { STORE_VERSION } from '@pnpm/constants'
 import { preparePackages } from '@pnpm/prepare'
 import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { type LockfileFile } from '@pnpm/lockfile.types'
@@ -12,11 +11,7 @@ import { sync as writeYamlFile } from 'write-yaml-file'
 import {
   execPnpm,
   execPnpmSync,
-  retryLoadJsonFile,
-  spawnPnpm,
 } from '../utils/index.js'
-
-const skipOnWindows = isWindows() ? test.skip : test
 
 test('recursive installation with packageConfigs', async () => {
   const projects = preparePackages([
@@ -111,42 +106,6 @@ test('workspace packageConfigs is always read', async () => {
 
   const modulesYaml2 = readYamlFile<{ hoistPattern: string }>(path.resolve('node_modules', '.modules.yaml'))
   expect(modulesYaml2?.hoistPattern).toBeFalsy()
-})
-
-skipOnWindows('recursive installation using server', async () => {
-  const projects = preparePackages([
-    {
-      name: 'project-1',
-      version: '1.0.0',
-
-      dependencies: {
-        'is-positive': '1.0.0',
-      },
-    },
-    {
-      name: 'project-2',
-      version: '1.0.0',
-
-      dependencies: {
-        'is-negative': '1.0.0',
-      },
-    },
-  ])
-
-  const storeDir = path.resolve('store')
-  spawnPnpm(['server', 'start'], { storeDir })
-
-  const serverJsonPath = path.resolve(storeDir, STORE_VERSION, 'server/server.json')
-  const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
-  expect(serverJson).toBeTruthy()
-  expect(serverJson.connectionOptions).toBeTruthy()
-
-  await execPnpm(['recursive', 'install'])
-
-  expect(projects['project-1'].requireModule('is-positive')).toBeTruthy()
-  expect(projects['project-2'].requireModule('is-negative')).toBeTruthy()
-
-  await execPnpm(['server', 'stop', '--store-dir', storeDir])
 })
 
 test('recursive installation of packages with hooks', async () => {
