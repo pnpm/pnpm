@@ -5,7 +5,7 @@ import {
 } from '@pnpm/default-resolver'
 import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { type SslConfig } from '@pnpm/types'
-import { type CustomResolver, type CustomFetcher as CustomFetcherHook } from '@pnpm/hooks.types'
+import { type CustomResolver, type CustomFetcher } from '@pnpm/hooks.types'
 import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
 import type { GitFetcher, DirectoryFetcher, BinaryFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
@@ -19,7 +19,7 @@ export type { ResolveFunction }
 export type ClientOptions = {
   authConfig: Record<string, string>
   customResolvers?: CustomResolver[]
-  customFetcherHooks?: CustomFetcherHook[]
+  customFetchers?: CustomFetcher[]
   ignoreScripts?: boolean
   rawConfig: Record<string, string>
   sslConfigs?: Record<string, SslConfig>
