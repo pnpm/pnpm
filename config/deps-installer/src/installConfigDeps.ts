@@ -1,13 +1,11 @@
 import path from 'path'
-import getNpmTarballUrl from 'get-npm-tarball-url'
 import { installingConfigDepsLogger } from '@pnpm/core-loggers'
-import { PnpmError } from '@pnpm/error'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import rimraf from '@zkochan/rimraf'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type StoreController } from '@pnpm/package-store'
-import { type Registries } from '@pnpm/types'
+import { type ConfigDependencies, type Registries } from '@pnpm/types'
+import { normalizeConfigDeps } from './normalizeConfigDeps.js'
 
 export interface InstallConfigDepsOpts {
   registries: Registries
@@ -15,7 +13,7 @@ export interface InstallConfigDepsOpts {
   store: StoreController
 }
 
-export async function installConfigDeps (configDeps: Record<string, string>, opts: InstallConfigDepsOpts): Promise<void> {
+export async function installConfigDeps (configDeps: ConfigDependencies, opts: InstallConfigDepsOpts): Promise<void> {
   const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
   const existingConfigDeps: string[] = await readModulesDir(configModulesDir) ?? []
   await Promise.all(existingConfigDeps.map(async (existingConfigDep) => {
@@ -23,44 +21,29 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
       await rimraf(path.join(configModulesDir, existingConfigDep))
     }
   }))
-  const installedConfigDeps: Array<{ name: string, version: string }> = []
-  await Promise.all(Object.entries(configDeps).map(async ([pkgName, pkgSpec]) => {
-    const configDepPath = path.join(configModulesDir, pkgName)
-    let tarball = '';
-    [pkgSpec, tarball] = pkgSpec.split(' ')
-    const sepIndex = pkgSpec.indexOf('+')
-    if (sepIndex === -1) {
-      throw new PnpmError('CONFIG_DEP_NO_INTEGRITY', `Your config dependency called "${pkgName}" at "pnpm.configDependencies" doesn't have an integrity checksum`, {
-        hint: `All config dependencies should have their integrity checksum inlined in the version specifier. For example:
 
-pnpm-workspace.yaml:
-configDependencies:
-  my-config: "1.0.0+sha512-Xg0tn4HcfTijTwfDwYlvVCl43V6h4KyVVX2aEm4qdO/PC6L2YvzLHFdmxhoeSA3eslcE6+ZVXHgWwopXYLNq4Q=="
-`,
-      })
-    }
-    const version = pkgSpec.substring(0, sepIndex)
-    const integrity = pkgSpec.substring(sepIndex + 1)
+  const installedConfigDeps: Array<{ name: string, version: string }> = []
+  const normalizedConfigDeps = normalizeConfigDeps(configDeps, {
+    registries: opts.registries,
+  })
+  await Promise.all(Object.entries(normalizedConfigDeps).map(async ([pkgName, pkg]) => {
+    const configDepPath = path.join(configModulesDir, pkgName)
     if (existingConfigDeps.includes(pkgName)) {
       const configDepPkgJson = await safeReadPackageJsonFromDir(configDepPath)
-      if (configDepPkgJson == null || configDepPkgJson.name !== pkgName || configDepPkgJson.version !== version) {
+      if (configDepPkgJson == null || configDepPkgJson.name !== pkgName || configDepPkgJson.version !== pkg.version) {
         await rimraf(configDepPath)
       } else {
         return
       }
     }
     installingConfigDepsLogger.debug({ status: 'started' })
-    const registry = pickRegistryForPackage(opts.registries, pkgName)
 
     const { fetching } = await opts.store.fetchPackage({
       force: true,
       lockfileDir: opts.rootDir,
       pkg: {
-        id: `${pkgName}@${version}`,
-        resolution: {
-          tarball: tarball || getNpmTarballUrl(pkgName, version, { registry }),
-          integrity,
-        },
+        id: `${pkgName}@${pkg.version}`,
+        resolution: pkg.resolution,
       },
     })
 
@@ -72,7 +55,7 @@ configDependencies:
     })
     installedConfigDeps.push({
       name: pkgName,
-      version,
+      version: pkg.version,
     })
   }))
   if (installedConfigDeps.length) {
