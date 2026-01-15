@@ -406,18 +406,11 @@ async function _rebuild (
             })
           } catch (err: unknown) {
             assert(util.types.isNativeError(err))
-            if ('statusCode' in err && err.statusCode === 403) {
-              logger.warn({
-                message: `The store server disabled upload requests, could not upload ${pkgRoot}`,
-                prefix: opts.lockfileDir,
-              })
-            } else {
-              logger.warn({
-                error: err,
-                message: `An error occurred while uploading ${pkgRoot}`,
-                prefix: opts.lockfileDir,
-              })
-            }
+            logger.warn({
+              error: err,
+              message: `An error occurred while uploading ${pkgRoot}`,
+              prefix: opts.lockfileDir,
+            })
           }
         }
         pkgsThatWereRebuilt.add(depPath)
