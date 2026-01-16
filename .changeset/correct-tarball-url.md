@@ -6,6 +6,6 @@
 "pnpm": minor
 ---
 
-correct tarball URL to download private packages from GitHub Packages registry.
+Fixed installation of config dependencies from private registries.
 
-support object type for ConfigDependencies if the tarball URL returned from package metadata is different from the computed one.
+Added support for object type in `configDependencies` when the tarball URL returned from package metadata differs from the computed URL [#10431](https://github.com/pnpm/pnpm/pull/10431).
