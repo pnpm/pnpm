@@ -40,7 +40,11 @@ export async function parseBareSpecifier (bareSpecifier: string, opts: AgentOpti
   const colonsPos = bareSpecifier.indexOf(':')
   if (colonsPos === -1) return null
   const protocol = bareSpecifier.slice(0, colonsPos)
-  if (protocol && gitProtocols.has(protocol.toLocaleLowerCase())) {
+
+  // Also detect http/https URLs ending in .git as git repositories
+  const isGitUrl = gitProtocols.has(protocol.toLocaleLowerCase()) ||
+    ((protocol === 'http' || protocol === 'https') && /\.git(?:#|$)/.test(bareSpecifier))
+  if (protocol && isGitUrl) {
     const correctBareSpecifier = correctUrl(bareSpecifier)
     const url = new URL(correctBareSpecifier)
     if (!url?.protocol) return null

@@ -52,3 +52,24 @@ test.each([
   const parsed = await parseBareSpecifier(input, {})
   expect(parsed?.fetchSpec).toBe(output)
 })
+
+// Test for https:// URLs ending in .git (issue #10468)
+test.each([
+  ['https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git', 'https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git'],
+  ['https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git#6daccff309fca1e7561a43984d42fa4f829ce06d', 'https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git'],
+  ['http://example.com/repo.git', 'http://example.com/repo.git'],
+  ['http://example.com/repo.git#main', 'http://example.com/repo.git'],
+])('plain http/https URLs ending in .git should be recognized: %s', async (input, output) => {
+  const parsed = await parseBareSpecifier(input, {})?.()
+  expect(parsed?.fetchSpec).toBe(output)
+})
+
+// Ensure non-.git https URLs are not recognized as git repos
+test.each([
+  ['https://example.com/package.tar.gz'],
+  ['https://example.com/package.tgz'],
+  ['https://example.com/file'],
+])('plain http/https URLs not ending in .git should not be recognized: %s', async (input) => {
+  const parsed = parseBareSpecifier(input, {})
+  expect(parsed).toBeNull()
+})
