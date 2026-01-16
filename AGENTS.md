@@ -85,20 +85,31 @@ pnpm run lint
 
 ## Contribution Workflow
 
-1.  **Changesets**: If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory. The changeset file should describe the change and specify the packages that are affected with the pending version bump types: patch, minor, or major. For example:
+### Changesets
+
+If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory. The changeset file should describe the change and specify the packages that are affected with the pending version bump types: patch, minor, or major.
+
+**IMPORTANT: Always explicitly include `"pnpm"` in the changeset** with the appropriate version bump (patch, minor, or major). The pnpm CLI will only receive automatic patch bumps from its dependencies, so if your change warrants a minor or major version bump for the CLI, you must specify it explicitly. The changeset description will appear on the release notes page.
+
+Example:
 
 ```
 ---
 "@pnpm/core": minor
-"pnpm": patch
+"pnpm": minor
 ---
 
 Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic protocols in transitive dependencies [#10352](https://github.com/pnpm/pnpm/issues/10352).
 ```
 
-Always specify the "pnpm" package, even if it wasn't directly changed. This text will appear on the release page.
+**Versioning Guidelines for pnpm CLI:**
+- **patch**: Bug fixes, internal refactors, and changes that don't require documentation updates
+- **minor**: New features, settings, or commands that should be documented (anything users should know about)
+- **major**: Breaking changes
 
-2.  **Commit Messages**: Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+### Commit Messages
+
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
     -   `feat`: a new feature
     -   `fix`: a bug fix
     -   `docs`: documentation only changes
