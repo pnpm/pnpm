@@ -1,10 +1,13 @@
 import path from 'path'
 import { getOptionsFromRootManifest, getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest.js'
+import { logger } from '@pnpm/logger'
+import { jest } from '@jest/globals'
 
 const ORIGINAL_ENV = process.env
 
 afterEach(() => {
   process.env = { ...ORIGINAL_ENV }
+  jest.resetAllMocks()
 })
 
 test('getOptionsFromRootManifest() should read "resolutions" field for compatibility with Yarn', () => {
@@ -192,4 +195,34 @@ test('getOptionsFromRootManifest() converts allowBuilds', () => {
       qar: 'warn',
     },
   })
+})
+
+test('getOptionsFromRootManifest() throws an error if cannot resolve an override link to relative path', () => {
+  const spy = jest.spyOn(logger, 'warn').mockImplementation(() => {})
+  getOptionsFromRootManifest(process.cwd(), {
+    dependencies: {
+      bar: '1.0.0',
+    },
+    pnpm: {
+      overrides: {
+        bar: 'link:../test/bar',
+      },
+    },
+  })
+  expect(spy).toHaveBeenCalled()
+})
+
+test('getOptionsFromRootManifest() throws an error if cannot resolve an override link to absolute path', () => {
+  const spy = jest.spyOn(logger, 'warn').mockImplementation(() => {})
+  getOptionsFromRootManifest(process.cwd(), {
+    dependencies: {
+      bar: '1.0.0',
+    },
+    pnpm: {
+      overrides: {
+        bar: 'link:G:/test/bar',
+      },
+    },
+  })
+  expect(spy).toHaveBeenCalled()
 })
