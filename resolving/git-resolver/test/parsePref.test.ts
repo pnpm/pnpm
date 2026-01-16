@@ -60,7 +60,7 @@ test.each([
   ['http://example.com/repo.git', 'http://example.com/repo.git'],
   ['http://example.com/repo.git#main', 'http://example.com/repo.git'],
 ])('plain http/https URLs ending in .git should be recognized: %s', async (input, output) => {
-  const parsed = await parseBareSpecifier(input, {})?.()
+  const parsed = await parseBareSpecifier(input, {})
   expect(parsed?.fetchSpec).toBe(output)
 })
 
@@ -70,6 +70,6 @@ test.each([
   ['https://example.com/package.tgz'],
   ['https://example.com/file'],
 ])('plain http/https URLs not ending in .git should not be recognized: %s', async (input) => {
-  const parsed = parseBareSpecifier(input, {})
+  const parsed = await parseBareSpecifier(input, {})
   expect(parsed).toBeNull()
 })
