@@ -232,7 +232,7 @@ catalog:
   normalize-newline: 3.0.0
   normalize-package-data: ^7.0.1
   normalize-path: ^3.0.0
-  normalize-registry-url: 2.0.0
+  normalize-registry-url: 2.0.1
   npm-packlist: 5.1.3
   object-hash: 3.0.0
   p-defer: ^3.0.0
@@ -337,14 +337,12 @@ managePackageManagerVersions: true
 minimumReleaseAge: 1440 # At least a day
 
 minimumReleaseAgeExclude:
+  - '@pnpm/*'
   - body-parser@2.2.1
   - express@4.22.1
-  - pnpm
-  - '@pnpm/*'
-  - parse-npm-tarball-url@4.0.0
-  - publish-packed@5.0.0
   - glob@11.1.0
   - jws@3.2.3
+  - normalize-registry-url
 
 nodeVersion: 18.18.0
 

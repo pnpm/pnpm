@@ -523,8 +523,8 @@ catalogs:
       specifier: ^3.0.0
       version: 3.0.0
     normalize-registry-url:
-      specifier: 2.0.0
-      version: 2.0.0
+      specifier: 2.0.1
+      version: 2.0.1
     npm-packlist:
       specifier: 5.1.3
       version: 5.1.3
@@ -1677,7 +1677,7 @@ importers:
         version: 4.1.1
       normalize-registry-url:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       path-absolute:
         specifier: 'catalog:'
         version: 1.0.1
@@ -1831,7 +1831,7 @@ importers:
         version: link:../../packages/types
       normalize-registry-url:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -14083,6 +14083,9 @@ packages:
   normalize-registry-url@2.0.0:
     resolution: {integrity: sha512-3e9FwDyRAhbxXw4slm4Tjv40u78yPwMc/WZkACpqNQOs5sM7wic853AeTLkMFEVhivZkclGYlse8iYsklz0Yvg==}
 
+  normalize-registry-url@2.0.1:
+    resolution: {integrity: sha512-Ad5kiOvJFA62l6bkzuekf3AbEyCPweePeGIfU9iHtqem68EVKu2Tr6YM+xmO1dkwTzKgTCqzb3NqfIEtWWbQBg==}
+
   normalize-url@6.1.0:
     resolution: {integrity: sha512-DlL+XwOy3NxAQ8xuC0okPgK46iuVNAK01YN7RueYBqqFeGsBjV9XmCAzAdgt+667bCl5kPh9EqKKDwnaPG1I7A==}
     engines: {node: '>=10'}
@@ -22572,6 +22575,8 @@ snapshots:
   normalize-path@3.0.0: {}
 
   normalize-registry-url@2.0.0: {}
+
+  normalize-registry-url@2.0.1: {}
 
   normalize-url@6.1.0: {}
 
