@@ -31,12 +31,12 @@ function checkOverrides (overrides: Record<string, string>, manifestDir: string 
   Object.keys(overrides).forEach(key => {
     let value = overrides[key]
     if (value.startsWith('link:') || value.startsWith('file:')) {
-      value = value.replace(/^(link:|file:)/, '')
+      value = value.replace(/^(?:link:|file:)/, '')
       const _path = path.isAbsolute(value) ? value : path.resolve(manifestDir, value)
       if (!fs.existsSync(_path)) {
         logger.warn({
           message: `Cannot resolve package ${key} in overrides. The address of the package link is incorrect.`,
-          prefix: process.cwd(),
+          prefix: manifestDir,
         })
       }
     }
