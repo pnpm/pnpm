@@ -71,7 +71,7 @@ test('request package', async () => {
   })
 
   const { files } = await pkgResponse.fetching!()
-  expect(Array.from(files.filesMap.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
   expect(files.resolvedFrom).toBe('remote')
 })
 
@@ -383,7 +383,7 @@ test('fetchPackageToStore()', async () => {
 
   const { files, bundledManifest } = await fetchResult.fetching()
   expect(bundledManifest).toBeTruthy() // we always read the bundled manifest
-  expect(Array.from(files.filesMap.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
   expect(files.resolvedFrom).toBe('remote')
 
   const indexFile = loadJsonFileSync<PackageFilesIndex>(fetchResult.filesIndexFile)
@@ -473,7 +473,7 @@ test('fetchPackageToStore() concurrency check', async () => {
 
     ino1 = fs.statSync(files.filesMap.get('package.json') as string).ino
 
-    expect(Array.from(files.filesMap.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
     expect(files.resolvedFrom).toBe('remote')
   }
 
@@ -483,7 +483,7 @@ test('fetchPackageToStore() concurrency check', async () => {
 
     ino2 = fs.statSync(files.filesMap.get('package.json') as string).ino
 
-    expect(Array.from(files.filesMap.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
     expect(files.resolvedFrom).toBe('remote')
   }
 
@@ -551,7 +551,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     },
   })
   const { files } = await fetchResult.fetching()
-  expect(Array.from(files.filesMap.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
   expect(files.resolvedFrom).toBe('remote')
 
   expect(nock.isDone()).toBeTruthy()
