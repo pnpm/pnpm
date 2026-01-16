@@ -423,7 +423,7 @@ test('`pnpm recursive run` fails when run against a subset of packages and no pa
     { workspaceDir: process.cwd() }
   )
 
-  console.log('recursive run does not fail when if-present is true')
+  // Recursive run does not fail when if-present is true
   await run.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -434,9 +434,8 @@ test('`pnpm recursive run` fails when run against a subset of packages and no pa
     workspaceDir: process.cwd(),
   }, ['this-command-does-not-exist'])
 
-  let err!: PnpmError
-  try {
-    await run.handler({
+  await expect(
+    run.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -444,10 +443,7 @@ test('`pnpm recursive run` fails when run against a subset of packages and no pa
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
     }, ['this-command-does-not-exist'])
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
+  ).rejects.toThrow(/None of the selected packages has a/)
 })
 
 test('"pnpm run --filter <pkg>" without specifying the script name', async () => {
