@@ -20,7 +20,6 @@
     "test-pkgs-branch": "pnpm remove-temp-dir && pnpm --workspace-concurrency=1 --filter=...[origin/main] run --no-sort _test",
     "compile-only": "pnpm dlx node@runtime:24.6.0 __utils__/scripts/src/typecheck-only.ts && pnpm -F pnpm compile",
     "compile": "pnpm compile-only && pnpm run update-manifests",
-    "watch": "pnpm --filter=@pnpm/fetch run compile && pnpm --filter=pnpm run compile --watch",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "pnpm run meta-updater && pnpm install",
     "meta-updater": "pnpm --filter=@pnpm-private/updater compile && pnpm exec meta-updater",
