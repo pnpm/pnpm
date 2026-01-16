@@ -197,7 +197,7 @@ test('getOptionsFromRootManifest() converts allowBuilds', () => {
   })
 })
 
-test('getOptionsFromRootManifest() throws an error if cannot resolve an override link to relative path', () => {
+test('getOptionsFromRootManifest() print warn if cannot resolve an override link to relative path', () => {
   const spy = jest.spyOn(logger, 'warn').mockImplementation(() => {})
   getOptionsFromRootManifest(process.cwd(), {
     dependencies: {
@@ -210,9 +210,13 @@ test('getOptionsFromRootManifest() throws an error if cannot resolve an override
     },
   })
   expect(spy).toHaveBeenCalled()
+  expect(spy).toHaveBeenCalledWith({
+    message: 'Cannot resolve package bar in overrides. The address of the package link is incorrect.',
+    prefix: process.cwd(),
+  })
 })
 
-test('getOptionsFromRootManifest() throws an error if cannot resolve an override link to absolute path', () => {
+test('getOptionsFromRootManifest() print warn if cannot resolve an override link to absolute path', () => {
   const spy = jest.spyOn(logger, 'warn').mockImplementation(() => {})
   getOptionsFromRootManifest(process.cwd(), {
     dependencies: {
@@ -225,4 +229,8 @@ test('getOptionsFromRootManifest() throws an error if cannot resolve an override
     },
   })
   expect(spy).toHaveBeenCalled()
+  expect(spy).toHaveBeenCalledWith({
+    message: 'Cannot resolve package bar in overrides. The address of the package link is incorrect.',
+    prefix: process.cwd(),
+  })
 })

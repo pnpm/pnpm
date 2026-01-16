@@ -27,11 +27,12 @@ export type OptionsFromRootManifest = {
   requiredScripts?: string[]
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'updateConfig'>
 
-function checkOverrides (overrides: Record<string, string>) {
+function checkOverrides (overrides: Record<string, string>, manifestDir: string = process.cwd()): void {
   Object.keys(overrides).forEach(key => {
-    const value = overrides[key]
+    let value = overrides[key]
     if (value.startsWith('link:') || value.startsWith('file:')) {
-      const _path = path.isAbsolute(value) ? value : path.resolve(process.cwd(), value.replace(/^(link:|file:)/, ''))
+      value = value.replace(/^(link:|file:)/, '')
+      const _path = path.isAbsolute(value) ? value : path.resolve(manifestDir, value)
       if (!fs.existsSync(_path)) {
         logger.warn({
           message: `Cannot resolve package ${key} in overrides. The address of the package link is incorrect.`,
@@ -70,7 +71,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
     },
   }, manifest)
   if (settings.overrides) {
-    checkOverrides(settings.overrides)
+    checkOverrides(settings.overrides, manifestDir)
   }
   return settings
 }
