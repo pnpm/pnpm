@@ -59,12 +59,14 @@
     "p-filter": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",
+    "read-ini-file": "catalog:",
     "realpath-missing": "catalog:",
     "render-help": "catalog:",
     "tar-stream": "catalog:",
     "tempy": "catalog:",
     "tinyglobby": "catalog:",
     "validate-npm-package-name": "catalog:",
+    "write-ini-file": "catalog:",
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
