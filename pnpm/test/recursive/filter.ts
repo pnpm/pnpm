@@ -13,7 +13,6 @@ test('pnpm --filter <root> add <pkg> should work', async () => {
     },
   })
 
-  execPnpmSync(['init'])
   fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "."\n')
 
   const result = execPnpmSync(['--filter', 'root', 'add', 'is-positive'])
@@ -33,7 +32,6 @@ test('pnpm --filter . add <pkg> should work', async () => {
     version: '1.0.0',
   })
 
-  execPnpmSync(['init'])
   fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "."\n')
 
   const result = execPnpmSync(['--filter', '.', 'add', 'is-positive'])
