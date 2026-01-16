@@ -412,12 +412,33 @@ function writeFilesIndexFile (
   }
 ): boolean {
   const requiresBuild = pkgRequiresBuild(manifest, files)
+  // Store only essential manifest fields to keep the index file small.
+  // These fields are needed for:
+  // - bin linking: name, version, bin, directories
+  // - requiresBuild detection: scripts (preinstall/install/postinstall)
+  // - runtime node path: engines
+  // Excludes large fields like dependencies, peerDependencies, etc.
+  const essentialManifest = Object.keys(manifest).length > 0
+    ? {
+      name: manifest.name,
+      version: manifest.version,
+      bin: manifest.bin,
+      directories: manifest.directories,
+      engines: manifest.engines,
+      scripts: manifest.scripts
+        ? {
+          preinstall: manifest.scripts.preinstall,
+          install: manifest.scripts.install,
+          postinstall: manifest.scripts.postinstall,
+        }
+        : undefined,
+    }
+    : undefined
   const filesIndex: PackageFilesIndex = {
     name: manifest.name,
     version: manifest.version,
     requiresBuild,
-    // Store the manifest inline to avoid extra filesystem reads during resolution
-    manifest: Object.keys(manifest).length > 0 ? manifest : undefined,
+    manifest: essentialManifest,
     files,
     sideEffects,
   }
