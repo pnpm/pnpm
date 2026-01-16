@@ -31,6 +31,10 @@ export interface PackageFilesIndex {
   name?: string
   version?: string
   requiresBuild?: boolean
+  // The bundled manifest is stored inline to avoid extra filesystem reads
+  // when resolving packages from the store. This is an optimization to
+  // improve filtered install performance.
+  manifest?: Record<string, unknown>
 
   files: PackageFilesRaw
   sideEffects?: SideEffectsRaw

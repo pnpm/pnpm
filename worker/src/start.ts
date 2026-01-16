@@ -122,23 +122,27 @@ async function handleMessage (
         }
       }
       let verifyResult: VerifyResult | undefined
-      if (pkgFilesIndex.requiresBuild == null) {
+      if (pkgFilesIndex.manifest != null) {
+        readManifest = false
+      } else if (pkgFilesIndex.requiresBuild == null) {
         readManifest = true
       }
-      // Get file maps and optionally verify
       if (verifyStoreIntegrity) {
         verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex, readManifest)
       } else {
         verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex, readManifest)
       }
-      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, verifyResult.filesMap)
+      // Use manifest from index file if available (optimization to avoid filesystem reads)
+      // Fall back to verifyResult.manifest for backward compatibility with old index files
+      const manifest = (pkgFilesIndex.manifest as unknown as DependencyManifest | undefined) ?? verifyResult.manifest
+      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(manifest, verifyResult.filesMap)
 
       parentPort!.postMessage({
         status: 'success',
         warnings,
         value: {
           verified: verifyResult.passed,
-          manifest: verifyResult.manifest,
+          manifest,
           files: {
             filesMap: verifyResult.filesMap,
             sideEffectsMaps: verifyResult.sideEffectsMaps,
@@ -412,6 +416,8 @@ function writeFilesIndexFile (
     name: manifest.name,
     version: manifest.version,
     requiresBuild,
+    // Store the manifest inline to avoid extra filesystem reads during resolution
+    manifest: Object.keys(manifest).length > 0 ? manifest : undefined,
     files,
     sideEffects,
   }
