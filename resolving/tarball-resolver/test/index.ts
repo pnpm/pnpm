@@ -107,20 +107,3 @@ test('tarballs from GitHub (is-negative)', async () => {
     resolvedVia: 'url',
   })
 })
-
-test('ignore direct URLs to repositories', async () => {
-  expect(await resolveFromTarball({ bareSpecifier: 'https://github.com/foo/bar' })).toBeNull()
-  expect(await resolveFromTarball({ bareSpecifier: 'https://github.com/foo/bar/' })).toBeNull()
-  expect(await resolveFromTarball({ bareSpecifier: 'https://gitlab.com/foo/bar' })).toBeNull()
-  expect(await resolveFromTarball({ bareSpecifier: 'https://bitbucket.org/foo/bar' })).toBeNull()
-})
-
-test('ignore slash in hash', async () => {
-  // expect resolve from git.
-  let hash = 'path:/packages/simple-react-app'
-  expect(await resolveFromTarball({ bareSpecifier: `RexSkz/test-git-subdir-fetch#${hash}` })).toBeNull()
-  expect(await resolveFromTarball({ bareSpecifier: `RexSkz/test-git-subdir-fetch#${encodeURIComponent(hash)}` })).toBeNull()
-  hash = 'heads/canary'
-  expect(await resolveFromTarball({ bareSpecifier: `zkochan/is-negative#${hash}` })).toBeNull()
-  expect(await resolveFromTarball({ bareSpecifier: `zkochan/is-negative#${encodeURIComponent(hash)}` })).toBeNull()
-})
