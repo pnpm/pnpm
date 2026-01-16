@@ -33,7 +33,6 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
     if (resolution?.resolution == null || !('integrity' in resolution?.resolution)) {
       throw new PnpmError('BAD_CONFIG_DEP', `Cannot install ${configDep} as configuration dependency because it has no integrity`)
     }
-
     const pkgName = wantedDep.alias
     const version = resolution.manifest.version
     const { tarball, integrity } = resolution.resolution

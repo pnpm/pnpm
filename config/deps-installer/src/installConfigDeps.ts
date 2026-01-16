@@ -37,7 +37,6 @@ export async function installConfigDeps (configDeps: ConfigDependencies, opts: I
       }
     }
     installingConfigDepsLogger.debug({ status: 'started' })
-
     const { fetching } = await opts.store.fetchPackage({
       force: true,
       lockfileDir: opts.rootDir,
@@ -46,7 +45,6 @@ export async function installConfigDeps (configDeps: ConfigDependencies, opts: I
         resolution: pkg.resolution,
       },
     })
-
     const { files: filesResponse } = await fetching()
     await opts.store.importPackage(configDepPath, {
       force: true,
