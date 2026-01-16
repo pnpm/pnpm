@@ -4,17 +4,41 @@ This document provides context and instructions for AI agents working on the pnp
 
 ## Repository Structure
 
-The pnpm codebase is a monorepo managed by pnpm itself. Key directories include:
+The pnpm codebase is a monorepo managed by pnpm itself. The root contains functional directories organized by domain:
+
+### Core Directories
 
 -   `pnpm/`: The CLI entry point and main package.
 -   `pkg-manager/`: Core package management logic (installation, linking, etc.).
--   `resolving/`: Dependency resolution logic (resolvers for npm, tarballs, etc.).
+-   `resolving/`: Dependency resolution logic (resolvers for npm, tarballs, git, etc.).
 -   `fetching/`: Package fetching logic.
--   `store/`: Store management logic.
--   `lockfile/`: Lockfile handling and parsing.
--   `cli/`: CLI command implementations and configurations.
+-   `store/`: Store management logic (content-addressable storage).
+-   `lockfile/`: Lockfile handling, parsing, and utilities.
+
+### CLI & Configuration
+
+-   `cli/`: CLI command implementations and infrastructure.
+-   `config/`: Configuration management and parsing.
 -   `hooks/`: pnpm hooks (readPackage, etc.).
--   `configs/`: Configuration management.
+-   `completion/`: Shell completion support.
+
+### Other Functional Directories
+
+-   `network/`: Network-related utilities (proxy, fetch, auth).
+-   `workspace/`: Workspace-related utilities.
+-   `exec/`: Execution-related commands (run, exec, dlx).
+-   `env/`: Node.js environment management.
+-   `cache/`: Cache-related commands and utilities.
+-   `patching/`: Package patching functionality.
+-   `reviewing/`: License and dependency review tools.
+-   `releasing/`: Release and publishing utilities.
+
+### Shared Utilities
+
+-   `packages/`: Shared utility packages (constants, error handling, logger, types, etc.).
+-   `fs/`: Filesystem utilities.
+-   `crypto/`: Cryptographic utilities.
+-   `text/`: Text processing utilities.
 
 ## Setup & Build
 
@@ -29,7 +53,7 @@ pnpm run compile
 
 Never run all tests in the repository as it takes a lot of time.
 
-Run tests for a specific projects instead:
+Run tests for a specific project instead:
 
 ```bash
 # From the project directory
