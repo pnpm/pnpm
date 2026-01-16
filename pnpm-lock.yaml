@@ -5679,6 +5679,9 @@ importers:
 
   pkg-manager/modules-yaml:
     dependencies:
+      '@pnpm/graceful-fs':
+        specifier: workspace:*
+        version: link:../../fs/graceful-fs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5691,9 +5694,6 @@ importers:
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0
-      write-yaml-file:
-        specifier: 'catalog:'
-        version: 5.0.0
     devDependencies:
       '@pnpm/modules-yaml':
         specifier: workspace:*

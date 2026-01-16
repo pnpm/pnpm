@@ -92,7 +92,7 @@ test('readModulesManifest() should not create a node_modules directory if it doe
   expect(fs.existsSync(modulesDir)).toBeFalsy()
 })
 
-test('readModulesManifest() should create a node_modules directory if makeModuleDir is set to true', async () => {
+test('readModulesManifest() should create a node_modules directory', async () => {
   const modulesDir = path.join(temporaryDirectory(), 'node_modules')
   const modulesYaml: StrictModules = {
     hoistedDependencies: {},
@@ -116,7 +116,7 @@ test('readModulesManifest() should create a node_modules directory if makeModule
     virtualStoreDir: path.join(modulesDir, '.pnpm'),
     virtualStoreDirMaxLength: 120,
   }
-  await writeModulesManifest(modulesDir, modulesYaml, { makeModulesDir: true })
+  await writeModulesManifest(modulesDir, modulesYaml)
   expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
 })
 
