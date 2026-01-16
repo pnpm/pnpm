@@ -25,6 +25,7 @@ interface GetTreeOpts {
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
   modulesDir?: string
+  parentDir?: string
 }
 
 interface DependencyInfo {
@@ -90,10 +91,12 @@ function getTreeHelper (
   }
 
   const childTreeMaxDepth = opts.maxDepth - 1
-  const getChildrenTree = getTreeHelper.bind(null, dependenciesCache, {
-    ...opts,
-    maxDepth: childTreeMaxDepth,
-  })
+  const getChildrenTree = (keypath: Keypath, nodeId: TreeNodeId, parentDir: string) =>
+    getTreeHelper(dependenciesCache, {
+      ...opts,
+      maxDepth: childTreeMaxDepth,
+      parentDir,
+    }, keypath, nodeId)
 
   function getPeerDependencies () {
     switch (parentId.type) {
@@ -140,6 +143,8 @@ function getTreeHelper (
       wantedPackages: opts.wantedPackages,
       virtualStoreDir: opts.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      modulesDir: opts.modulesDir,
+      parentDir: opts.parentDir,
     })
     let circular: boolean
     const matchedSearched = opts.search?.({
@@ -172,7 +177,7 @@ function getTreeHelper (
         dependencies = []
       } else {
         const cacheEntry = dependenciesCache.get({ parentId: nodeId, requestedDepth: childTreeMaxDepth })
-        const children = cacheEntry ?? getChildrenTree(keypath.concat(nodeId), nodeId)
+        const children = cacheEntry ?? getChildrenTree(keypath.concat(nodeId), nodeId, packageInfo.path)
 
         if (cacheEntry == null && !children.circular) {
           if (children.height === 'unknown') {

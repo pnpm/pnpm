@@ -59,15 +59,21 @@ test('pnpm list returns correct paths with global virtual store', async () => {
   })
   await execPnpm(['install'])
 
-  const { stdout } = execPnpmSync(['list', '--json'])
+  const { stdout } = execPnpmSync(['list', '--json', '--depth=Infinity'])
   const listResult = JSON.parse(stdout.toString())
 
   expect(listResult).toHaveLength(1)
   expect(listResult[0].dependencies).toBeDefined()
 
+  // Verify top-level dependency path exists
   const pkgPath = listResult[0].dependencies['@pnpm.e2e/pkg-with-1-dep'].path
-
-  // Verify the path actually exists
   expect(fs.existsSync(pkgPath)).toBeTruthy()
   expect(fs.existsSync(path.join(pkgPath, 'package.json'))).toBeTruthy()
+
+  // Verify subdependency path exists (this tests the fix for zkochan's comment)
+  const subDeps = listResult[0].dependencies['@pnpm.e2e/pkg-with-1-dep'].dependencies
+  expect(subDeps).toBeDefined()
+  const subDepPath = subDeps['@pnpm.e2e/dep-of-pkg-with-1-dep'].path
+  expect(fs.existsSync(subDepPath)).toBeTruthy()
+  expect(fs.existsSync(path.join(subDepPath, 'package.json'))).toBeTruthy()
 })

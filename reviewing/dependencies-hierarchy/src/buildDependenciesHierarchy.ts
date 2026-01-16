@@ -134,7 +134,7 @@ async function dependenciesHierarchyForPackage (
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
 
   const depTypes = detectDepTypes(currentLockfile)
-  const getChildrenTree = getTree.bind(null, {
+  const getTreeOpts = {
     currentPackages: currentLockfile.packages ?? {},
     excludePeerDependencies: opts.excludePeerDependencies,
     importers: currentLockfile.importers,
@@ -151,7 +151,9 @@ async function dependenciesHierarchyForPackage (
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir,
-  })
+  }
+  const getChildrenTree = (nodeId: TreeNodeId, parentDir?: string) =>
+    getTree({ ...getTreeOpts, parentDir }, nodeId)
   const parentId: TreeNodeId = { type: 'importer', importerId }
   const result: DependenciesHierarchy = {}
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciesField => opts.include[dependenciesField])) {
@@ -192,7 +194,7 @@ async function dependenciesHierarchyForPackage (
         if ((opts.search != null) && !matchedSearched) continue
         newEntry = packageInfo
       } else {
-        const dependencies = getChildrenTree(nodeId)
+        const dependencies = getChildrenTree(nodeId, packageInfo.path)
         if (dependencies.length > 0) {
           newEntry = {
             ...packageInfo,
