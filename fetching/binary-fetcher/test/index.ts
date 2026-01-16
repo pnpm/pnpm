@@ -2,7 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { temporaryDirectory } from 'tempy'
+import tempy from 'tempy'
 import AdmZip from 'adm-zip'
 import ssri from 'ssri'
 import { downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
@@ -19,7 +19,7 @@ function createMockFetch (zipBuffer: Buffer) {
 describe('extractZipToTarget security', () => {
   describe('prefix path traversal (Attack Vector 2)', () => {
     it('should reject prefix with ../ path traversal', async () => {
-      const targetDir = temporaryDirectory()
+      const targetDir = tempy.directory()
       const zip = new AdmZip()
       zip.addFile('node-v20.0.0/bin/node', Buffer.from('#!/bin/sh\necho "node"'))
       const zipBuffer = zip.toBuffer()
@@ -58,7 +58,7 @@ describe('extractZipToTarget security', () => {
     })
 
     it('should reject absolute path prefix', async () => {
-      const targetDir = temporaryDirectory()
+      const targetDir = tempy.directory()
       const zip = new AdmZip()
       zip.addFile('node-v20.0.0/bin/node', Buffer.from('#!/bin/sh\necho "node"'))
       const zipBuffer = zip.toBuffer()
@@ -86,9 +86,9 @@ describe('extractZipToTarget security', () => {
 
   describe('ZIP entry path traversal (Attack Vector 1)', () => {
     it('should reject ZIP entries with ../ path traversal', async () => {
-      const targetDir = temporaryDirectory()
+      const targetDir = tempy.directory()
       // Load fixture ZIP that has a raw malicious entry path
-      const zipBuffer = fs.readFileSync(path.join(import.meta.dirname, 'fixtures/path-traversal.zip'))
+      const zipBuffer = fs.readFileSync(path.join(__dirname, 'fixtures/path-traversal.zip'))
       const integrity = ssri.fromData(zipBuffer).toString()
 
       const mockFetch = createMockFetch(zipBuffer)
@@ -114,9 +114,9 @@ describe('extractZipToTarget security', () => {
     })
 
     it('should reject ZIP entries with absolute paths', async () => {
-      const targetDir = temporaryDirectory()
+      const targetDir = tempy.directory()
       // Load fixture ZIP that has a raw malicious absolute path entry
-      const zipBuffer = fs.readFileSync(path.join(import.meta.dirname, 'fixtures/absolute-path.zip'))
+      const zipBuffer = fs.readFileSync(path.join(__dirname, 'fixtures/absolute-path.zip'))
       const integrity = ssri.fromData(zipBuffer).toString()
 
       const mockFetch = createMockFetch(zipBuffer)
@@ -143,9 +143,9 @@ describe('extractZipToTarget security', () => {
     const windowsTest = isWindows ? it : it.skip
 
     windowsTest('should reject ZIP entries with backslash path traversal on Windows', async () => {
-      const targetDir = temporaryDirectory()
+      const targetDir = tempy.directory()
       // Load fixture ZIP with Windows-style backslash path traversal
-      const zipBuffer = fs.readFileSync(path.join(import.meta.dirname, 'fixtures/backslash-traversal.zip'))
+      const zipBuffer = fs.readFileSync(path.join(__dirname, 'fixtures/backslash-traversal.zip'))
       const integrity = ssri.fromData(zipBuffer).toString()
 
       const mockFetch = createMockFetch(zipBuffer)
@@ -169,7 +169,7 @@ describe('extractZipToTarget security', () => {
 
   describe('legitimate ZIP extraction', () => {
     it('should successfully extract a normal ZIP file', async () => {
-      const targetDir = temporaryDirectory()
+      const targetDir = tempy.directory()
       const zip = new AdmZip()
       zip.addFile('node-v20.0.0/bin/node', Buffer.from('#!/bin/sh\necho "node"'))
       zip.addFile('node-v20.0.0/README.md', Buffer.from('# Node.js'))
@@ -197,7 +197,7 @@ describe('extractZipToTarget security', () => {
     })
 
     it('should handle empty basename correctly', async () => {
-      const targetDir = temporaryDirectory()
+      const targetDir = tempy.directory()
       const zip = new AdmZip()
       zip.addFile('bin/node', Buffer.from('#!/bin/sh\necho "node"'))
       const zipBuffer = zip.toBuffer()

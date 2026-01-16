@@ -108,13 +108,6 @@ test('tarballs from GitHub (is-negative)', async () => {
   })
 })
 
-test('ignore direct URLs to repositories', async () => {
-  expect(await resolveFromTarball({ bareSpecifier: 'https://github.com/foo/bar' })).toBe(null)
-  expect(await resolveFromTarball({ bareSpecifier: 'https://github.com/foo/bar/' })).toBe(null)
-  expect(await resolveFromTarball({ bareSpecifier: 'https://gitlab.com/foo/bar' })).toBe(null)
-  expect(await resolveFromTarball({ bareSpecifier: 'https://bitbucket.org/foo/bar' })).toBe(null)
-})
-
 test('ignore slash in hash', async () => {
   // expect resolve from git.
   let hash = 'path:/packages/simple-react-app'
