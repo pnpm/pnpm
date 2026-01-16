@@ -32,10 +32,10 @@ function checkOverrides (overrides: Record<string, string>, manifestDir: string 
     let value = overrides[key]
     if (value.startsWith('link:') || value.startsWith('file:')) {
       value = value.replace(/^(?:link:|file:)/, '')
-      const _path = path.isAbsolute(value) ? value : path.resolve(manifestDir, value)
+      const _path = path.join(path.isAbsolute(value) ? value : path.resolve(manifestDir, value), 'package.json')
       if (!fs.existsSync(_path)) {
         logger.warn({
-          message: `Cannot resolve package ${key} in overrides. The address of the package link is incorrect.`,
+          message: `Cannot resolve package "${key}" in overrides. The override path "${overrides[key]}" is not a valid package link.`,
           prefix: manifestDir,
         })
       }

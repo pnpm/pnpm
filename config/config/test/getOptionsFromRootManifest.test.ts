@@ -211,7 +211,7 @@ test('getOptionsFromRootManifest() print warn if cannot resolve an override link
   })
   expect(spy).toHaveBeenCalled()
   expect(spy).toHaveBeenCalledWith({
-    message: 'Cannot resolve package bar in overrides. The address of the package link is incorrect.',
+    message: 'Cannot resolve package "bar" in overrides. The override path "link:../test/bar" is not a valid package link.',
     prefix: process.cwd(),
   })
 })
@@ -230,7 +230,7 @@ test('getOptionsFromRootManifest() print warn if cannot resolve an override link
   })
   expect(spy).toHaveBeenCalled()
   expect(spy).toHaveBeenCalledWith({
-    message: 'Cannot resolve package bar in overrides. The address of the package link is incorrect.',
+    message: 'Cannot resolve package "bar" in overrides. The override path "link:G:/test/bar" is not a valid package link.',
     prefix: process.cwd(),
   })
 })
