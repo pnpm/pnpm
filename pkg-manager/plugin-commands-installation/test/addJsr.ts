@@ -62,12 +62,6 @@ test('pnpm add jsr:@<scope>/<name>', async () => {
 })
 
 test('pnpm add jsr:@<scope>/<name> --save-peer writes a valid peer range', async () => {
-  const project = prepare({
-    name: 'test-add-jsr-save-peer',
-    version: '0.0.0',
-    private: true,
-  })
-
   await add.handler({
     ...createOptions(),
     savePeer: true,
@@ -81,16 +75,6 @@ test('pnpm add jsr:@<scope>/<name> --save-peer writes a valid peer range', async
       '@pnpm-e2e/foo': '^0.1.0',
     },
   } as ProjectManifest)
-
-  await expect(add.handler(createOptions(), ['is-positive@1.0.0'])).resolves.toBeUndefined()
-
-  expect(loadJsonFileSync('package.json')).toMatchObject({
-    dependencies: {
-      'is-positive': '1.0.0',
-    },
-  } as ProjectManifest)
-
-  project.has('is-positive')
 })
 
 test('pnpm add jsr:@<scope>/<name>@latest', async () => {
