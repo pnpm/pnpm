@@ -26,6 +26,8 @@ export async function updateProjectManifest (
         nodeExecPath: wantedDep.nodeExecPath,
         peer: importer.peer,
         bareSpecifier: rdd.catalogLookup?.userSpecifiedBareSpecifier ?? rdd.normalizedBareSpecifier ?? wantedDep.bareSpecifier,
+        resolvedVersion: rdd.version,
+        pinnedVersion: importer.pinnedVersion,
         saveType: importer.targetDependenciesField,
       }
     })
