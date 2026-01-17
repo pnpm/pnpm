@@ -5901,6 +5901,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -5916,6 +5919,9 @@ importers:
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store
+      '@pnpm/parse-overrides':
+        specifier: workspace:*
+        version: link:../../config/parse-overrides
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
