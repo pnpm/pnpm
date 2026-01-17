@@ -289,7 +289,7 @@ catalog:
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
   symlink-dir: ^7.0.0
-  tar: ^6.2.1
+  tar: ^7.5.3
   tar-stream: ^2.2.0
   tempy: 3.0.0
   terminal-link: ^4.0.0
