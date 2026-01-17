@@ -178,7 +178,6 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       const statsPromise = safeStat(path.join(rootProjectManifestDir, 'node_modules'))
       statModulesDir = () => statsPromise
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const _nodeLinkerTypeGuard: 'isolated' | undefined = nodeLinker // static type assertion
       statModulesDir = project => safeStat(path.join(project.rootDir, 'node_modules'))
     }

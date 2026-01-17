@@ -59,7 +59,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
           cb(-1)
           return
         }
-        // eslint-disable-next-line n/no-callback-literal
         cb(0, fd)
       })
     },
@@ -83,7 +82,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(Fuse.ENOENT)
         return
       }
-      // eslint-disable-next-line n/no-callback-literal
       cb(0, dirEnt.target)
     },
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -94,7 +92,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         return
       }
       if (dirEnt.entryType === 'directory' || dirEnt.entryType === 'index' && !dirEnt.subPath) {
-        // eslint-disable-next-line n/no-callback-literal
         cb(0, schemas.Stat.directory({
           ...STAT_DEFAULT,
           size: 1,
@@ -102,7 +99,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         return
       }
       if (dirEnt.entryType === 'symlink') {
-        // eslint-disable-next-line n/no-callback-literal
         cb(0, schemas.Stat.symlink({
           ...STAT_DEFAULT,
           size: 1,
@@ -113,7 +109,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
         case 'file': {
           const { size, mode } = dirEnt.index.files[dirEnt.subPath]!
-          // eslint-disable-next-line n/no-callback-literal
           cb(0, schemas.Stat.file({
             ...STAT_DEFAULT,
             mode,
@@ -122,7 +117,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
           return
         }
         case 'directory':
-        // eslint-disable-next-line n/no-callback-literal
           cb(0, schemas.Stat.directory({
             ...STAT_DEFAULT,
             size: 1,
@@ -145,7 +139,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(Fuse.ENOENT)
         return
       }
-      // eslint-disable-next-line n/no-callback-literal
       cb(0, dirEnts)
       return
     }
@@ -153,7 +146,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       cb(Fuse.ENOENT)
       return
     }
-    // eslint-disable-next-line n/no-callback-literal
     cb(0, Object.keys(dirEnt.entries))
   }
   function getDirEnt (p: string) {

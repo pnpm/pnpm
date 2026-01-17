@@ -258,9 +258,8 @@ ${newIgnores.join('\n')}`,
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   const ignoreGhsas = opts.auditConfig?.ignoreGhsas
   if (ignoreGhsas) {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    auditReport.advisories = pickBy(({ github_advisory_id, severity }) => {
-      if (!ignoreGhsas.includes(github_advisory_id)) {
+    auditReport.advisories = pickBy(({ github_advisory_id: githubAdvisoryId, severity }) => {
+      if (!ignoreGhsas.includes(githubAdvisoryId)) {
         return true
       }
       ignoredVulnerabilities[severity as AuditLevelString] += 1
@@ -321,7 +320,7 @@ function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerab
   if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found\n'
   return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
     Object.entries(vulnerabilities)
-      .filter(([auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
+      .filter(([_auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
       .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount as string} ${auditLevel}${ignoredVulnerabilities[auditLevel as AuditLevelString] > 0 ? ` (${ignoredVulnerabilities[auditLevel as AuditLevelString]} ignored)` : ''}`))
       .join(' | ')
   }`

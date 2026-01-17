@@ -63,7 +63,6 @@ export async function validateModules (
   }
   if (
     opts.forcePublicHoistPattern &&
-    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     !equals(modules.publicHoistPattern, opts.publicHoistPattern || undefined)
   ) {
     if (opts.forceNewModules && (rootProject != null)) {
@@ -81,7 +80,6 @@ export async function validateModules (
 
   if (opts.forceHoistPattern && (rootProject != null)) {
     try {
-      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
       if (!equals(opts.currentHoistPattern, opts.hoistPattern || undefined)) {
         throw new PnpmError(
           'HOIST_PATTERN_DIFF',

@@ -32,7 +32,7 @@ export function help (): string {
 }
 
 export type CatIndexCommandOptions = Pick<
-Config,
+  Config,
 | 'rawConfig'
 | 'pnpmHomeDir'
 | 'storeDir'

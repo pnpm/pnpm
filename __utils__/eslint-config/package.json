@@ -22,22 +22,19 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=12.22.0"
+    "node": ">=18.18.0"
   },
   "repository": "https://github.com/pnpm/pnpm/tree/main/__utils__/eslint-config",
   "scripts": {},
   "dependencies": {
-    "@eslint/eslintrc": "catalog:",
     "@eslint/js": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
+    "@stylistic/eslint-plugin": "catalog:",
     "eslint": "catalog:",
-    "eslint-config-standard-with-typescript": "catalog:",
-    "eslint-plugin-import": "catalog:",
+    "eslint-plugin-import-x": "catalog:",
     "eslint-plugin-n": "catalog:",
-    "eslint-plugin-node": "catalog:",
     "eslint-plugin-promise": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
   },
   "devDependencies": {
     "@pnpm/eslint-config": "workspace:*",
