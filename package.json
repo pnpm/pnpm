@@ -10,7 +10,7 @@
     "prepare-fixtures": "pnpm --dir=__fixtures__ run prepareFixtures",
     "lint": "pnpm run spellcheck && pnpm lint:meta && pnpm run lint:ts",
     "spellcheck": "cspell \"**/*.ts\" \"**/README.md\" \".changeset/*.md\" --no-progress",
-    "lint:ts": "eslint \"**/src/**/*.ts\" \"**/test/**/*.ts\"",
+    "lint:ts": "eslint \"**/src/**/*.ts\" \"**/test/**/*.ts\" --cache",
     "test-main": "pnpm pretest && pnpm lint && pnpm run test-pkgs-main",
     "ci:test-main": "pnpm run prepare-fixtures && pnpm run test-pkgs-main",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
