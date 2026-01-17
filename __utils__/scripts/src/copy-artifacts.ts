@@ -3,7 +3,7 @@ import * as execa from 'execa'
 import path from 'path'
 import makeEmptyDir from 'make-empty-dir'
 import stream from 'stream'
-import tar from 'tar'
+import * as tar from 'tar'
 import { glob } from 'tinyglobby'
 
 const repoRoot = path.join(import.meta.dirname, '../../..')
