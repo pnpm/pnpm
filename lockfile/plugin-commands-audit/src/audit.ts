@@ -258,8 +258,8 @@ ${newIgnores.join('\n')}`,
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   const ignoreGhsas = opts.auditConfig?.ignoreGhsas
   if (ignoreGhsas) {
-    auditReport.advisories = pickBy(({ github_advisory_id, severity }) => {
-      if (!ignoreGhsas.includes(github_advisory_id)) {
+    auditReport.advisories = pickBy(({ github_advisory_id: githubAdvisoryId, severity }) => {
+      if (!ignoreGhsas.includes(githubAdvisoryId)) {
         return true
       }
       ignoredVulnerabilities[severity as AuditLevelString] += 1
