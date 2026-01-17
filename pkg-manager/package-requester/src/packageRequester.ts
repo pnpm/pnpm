@@ -215,7 +215,6 @@ async function resolveAndFetch (
     publishedAt,
     normalizedBareSpecifier,
     alias,
-    forceFetch,
   } = resolveResult
 
   // Check if the integrity has changed between the current and newly resolved package
@@ -225,7 +224,7 @@ async function resolveAndFetch (
   const newIntegrity = 'integrity' in resolveResult.resolution ? resolveResult.resolution.integrity : undefined
   const integrityChanged = previousIntegrity != null && newIntegrity != null && previousIntegrity !== newIntegrity
 
-  const updated = pkgId !== resolveResult.id || !resolution || forceFetch === true || integrityChanged
+  const updated = pkgId !== resolveResult.id || !resolution || integrityChanged
   resolution = resolveResult.resolution
   pkgId = resolveResult.id
 
@@ -264,10 +263,8 @@ async function resolveAndFetch (
     )
   )
   // We can skip fetching the package only if the manifest
-  // is present after resolution AND we're not forcing a fetch
-  // (forceFetch is set by resolvers when package content may have changed,
-  // or integrityChanged is true when the resolved integrity differs from the current one)
-  if ((options.skipFetch === true || isInstallable === false) && !forceFetch && !integrityChanged && (manifest != null)) {
+  // is present after resolution AND the content of the package has not changed
+  if ((options.skipFetch === true || isInstallable === false) && !integrityChanged && (manifest != null)) {
     return {
       body: {
         id,
@@ -289,7 +286,7 @@ async function resolveAndFetch (
   const fetchResult = ctx.fetchPackageToStore({
     allowBuild: options.allowBuild,
     fetchRawManifest: true,
-    force: forceFetch === true || integrityChanged,
+    force: integrityChanged,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
