@@ -10,7 +10,7 @@ const repoRoot = path.join(import.meta.dirname, '../../..')
 const dest = path.join(repoRoot, 'dist')
 const artifactsDir = path.join(repoRoot, 'pnpm/artifacts')
 
-;(async () => { // eslint-disable-line
+;(async () => {
   await makeEmptyDir(dest)
   if (!fs.existsSync(path.join(artifactsDir, 'linux-x64/pnpm'))) {
     execa.sync('pnpm', ['--filter=@pnpm/exe', 'run', 'prepublishOnly'], {

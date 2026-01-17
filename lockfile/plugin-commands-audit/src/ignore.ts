@@ -42,6 +42,5 @@ export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<strin
 }
 
 function filterAdvisoriesWithNoResolutions (advisories: AuditAdvisory[]) {
-  // eslint-disable-next-line @typescript-eslint/naming-convention
   return advisories.filter(({ patched_versions }) => patched_versions === '<0.0.0')
 }

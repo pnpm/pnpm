@@ -115,7 +115,7 @@ export function * parsePropertyPath (propertyPath: string): Generator<string | n
     if (token.type === 'whitespace') continue
     if (token.type === 'unexpected') throw new UnexpectedTokenError(token)
 
-    const _typeGuard: never = token // eslint-disable-line @typescript-eslint/no-unused-vars
+    const _typeGuard: never = token
   }
 
   if (stack) throw new UnexpectedEndOfInputError()

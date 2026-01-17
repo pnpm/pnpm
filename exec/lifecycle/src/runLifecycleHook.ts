@@ -142,7 +142,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   })
   return true
 
-  function npmLog (prefix: string, logId: string, stdtype: string, line: string): void {
+  function npmLog (prefix: string, logId: string, stdtype: string, line: string, ...rest: unknown[]): void {
     switch (stdtype) {
     case 'stdout':
     case 'stderr':
@@ -159,7 +159,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
         // Preventing the pnpm reporter from overriding the project's script output
         return
       }
-      const code = arguments[3] ?? 1
+      const code = (rest[0] as number | undefined) ?? 1
       lifecycleLogger.debug({
         depPath: opts.depPath,
         exitCode: code,

@@ -63,7 +63,7 @@ export function filterPkgMetadataByPublishDate (
           ) {
             bestVersion = candidate
           }
-        } catch (err) {
+        } catch (_err) {
           globalWarn(`Failed to compare semver versions ${candidate} and ${bestVersion} from packument of ${pkgDoc.name}, skipping candidate version.`)
         }
       }

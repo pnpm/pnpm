@@ -108,10 +108,10 @@ export function createPackageRequester (
     customFetchers?: CustomFetcher[]
   }
 ): RequestPackageFunction & {
-    fetchPackageToStore: FetchPackageToStoreFunction
-    getFilesIndexFilePath: GetFilesIndexFilePath
-    requestPackage: RequestPackageFunction
-  } {
+  fetchPackageToStore: FetchPackageToStoreFunction
+  getFilesIndexFilePath: GetFilesIndexFilePath
+  requestPackage: RequestPackageFunction
+} {
   opts = opts || {}
 
   const networkConcurrency = opts.networkConcurrency ?? Math.min(64, Math.max(calcMaxWorkers() * 3, 16))
@@ -429,7 +429,7 @@ function fetchToStore (
     const fetching = pDefer<PkgRequestFetchResult>()
     const { filesIndexFile, target, resolution } = getFilesIndexFilePath(ctx, opts)
 
-    doFetchToStore(filesIndexFile, fetching, target, resolution) // eslint-disable-line
+    doFetchToStore(filesIndexFile, fetching, target, resolution)
 
     ctx.fetchingLocker.set(opts.pkg.id, {
       fetching: removeKeyOnFail(fetching.promise),

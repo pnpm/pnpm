@@ -170,7 +170,7 @@ test('getOptionsFromPnpmSettings() replaces env variables in settings', () => {
   process.env.PNPM_TEST_KEY = 'foo'
   process.env.PNPM_TEST_VALUE = 'bar'
   const options = getOptionsFromPnpmSettings(process.cwd(), {
-    '${PNPM_TEST_KEY}': '${PNPM_TEST_VALUE}', // eslint-disable-line
+    '${PNPM_TEST_KEY}': '${PNPM_TEST_VALUE}',
   } as any) as any // eslint-disable-line
   expect(options.foo).toBe('bar')
 })

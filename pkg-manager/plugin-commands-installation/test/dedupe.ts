@@ -13,6 +13,22 @@ import { DEFAULT_OPTS } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
+const noColor = (str: string) => str
+const diffOptsForLockfile = {
+  // Avoid showing common lines to make the snapshot smaller and less noisy.
+  // https://github.com/facebook/jest/tree/05deb8393c4ad71/packages/jest-diff#example-of-options-to-limit-common-lines
+  contextLines: 3,
+  expand: false,
+
+  // Remove color from snapshots
+  // https://github.com/facebook/jest/tree/05deb8393c4ad71/packages/jest-diff#example-of-options-for-no-colors
+  aColor: noColor,
+  bColor: noColor,
+  changeColor: noColor,
+  commonColor: noColor,
+  patchColor: noColor,
+}
+
 describe('pnpm dedupe', () => {
   test('updates old resolutions from importers block and removes old packages', async () => {
     const { originalLockfile, dedupedLockfile, dedupeCheckError } = await testFixture('workspace-with-lockfile-dupes')
@@ -123,22 +139,6 @@ describe('pnpm dedupe', () => {
     })
   })
 })
-
-const noColor = (str: string) => str
-const diffOptsForLockfile = {
-  // Avoid showing common lines to make the snapshot smaller and less noisy.
-  // https://github.com/facebook/jest/tree/05deb8393c4ad71/packages/jest-diff#example-of-options-to-limit-common-lines
-  contextLines: 3,
-  expand: false,
-
-  // Remove color from snapshots
-  // https://github.com/facebook/jest/tree/05deb8393c4ad71/packages/jest-diff#example-of-options-for-no-colors
-  aColor: noColor,
-  bColor: noColor,
-  changeColor: noColor,
-  commonColor: noColor,
-  patchColor: noColor,
-}
 
 async function testFixture (fixtureName: string) {
   const project = prepare(undefined)

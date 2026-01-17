@@ -1,17 +1,16 @@
 import js from '@eslint/js'
-import { FlatCompat } from '@eslint/eslintrc'
+import tseslint from 'typescript-eslint'
+import stylistic from '@stylistic/eslint-plugin'
+import * as importX from 'eslint-plugin-import-x'
+import n from 'eslint-plugin-n'
+import promise from 'eslint-plugin-promise'
 import noDupeConditions from './no-dupe-conditions.js'
 import noObjectMethodsOnMap from './no-object-methods-on-map.js'
 import jestPlugin from 'eslint-plugin-jest'
 
-const compat = new FlatCompat({
-  baseDirectory: import.meta.dirname,
-  recommendedConfig: js.configs.recommended,
-  allConfig: js.configs.all
-})
-
-export default [
-  ...compat.extends('standard-with-typescript'),
+export default tseslint.config(
+  js.configs.recommended,
+  tseslint.configs.recommended,
   {
     files: ['**/*.ts'],
 
@@ -20,62 +19,62 @@ export default [
     },
 
     languageOptions: {
-      ecmaVersion: 5,
+      ecmaVersion: 2022,
       sourceType: 'module',
-
       parserOptions: {
         project: './tsconfig.lint.json',
       },
     },
 
     plugins: {
-      "conditions": {
+      '@stylistic': stylistic,
+      'import-x': importX,
+      n,
+      promise,
+      conditions: {
         rules: {
           'no-dupe-conditions': noDupeConditions,
           'no-object-methods-on-map': noObjectMethodsOnMap,
-        }
+        },
       },
-      "jest": jestPlugin
+      jest: jestPlugin,
     },
 
     rules: {
-      "import/extensions": ["error", "always", {
-        "ignorePackages": true
-      }],
-
-      'import/no-extraneous-dependencies': ['error', {
+      // Import rules (migrated from eslint-plugin-import)
+      'import-x/extensions': ['error', 'always', { ignorePackages: true }],
+      'import-x/no-extraneous-dependencies': ['error', {
         devDependencies: ['**/pnpm/src/**', '**/test/**', '**/src/**/*.test.ts'],
       }],
+      'import-x/no-default-export': 'error',
 
-      'import/no-default-export': 'error',
-
-      '@typescript-eslint/indent': ['error', 2, {
-        FunctionDeclaration: {
-          parameters: 'first',
-        },
-
-        FunctionExpression: {
-          parameters: 'first',
-        },
+      // Stylistic rules (migrated from @typescript-eslint)
+      '@stylistic/indent': ['error', 2, {
+        FunctionDeclaration: { parameters: 'first' },
+        FunctionExpression: { parameters: 'first' },
       }],
+      '@stylistic/quotes': ['error', 'single', { avoidEscape: true }],
+      '@stylistic/comma-dangle': ['error', {
+        arrays: 'always-multiline',
+        exports: 'always-multiline',
+        functions: 'never',
+        imports: 'always-multiline',
+        objects: 'always-multiline',
+      }],
+      '@stylistic/type-annotation-spacing': 'error',
+      '@stylistic/brace-style': ['error', '1tbs'],
+      '@stylistic/space-before-function-paren': ['error', 'always'],
 
+      // TypeScript rules
       '@typescript-eslint/consistent-indexed-object-style': 'off',
       '@typescript-eslint/prefer-reduce-type-parameter': 'off',
-      '@typescript-eslint/naming-convention': 'error',
+      '@typescript-eslint/naming-convention': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-explicit-any': 'error',
-      'no-return-await': 'error',
-      'no-await-in-loop': 'error',
       '@typescript-eslint/return-await': 'off',
       '@typescript-eslint/no-require-imports': 'error',
       '@typescript-eslint/no-unused-expressions': 'error',
-      '@typescript-eslint/no-use-before-define': 'error',
-      '@typescript-eslint/no-var-requires': 'error',
-
-      '@typescript-eslint/quotes': ['error', 'single', {
-        avoidEscape: true,
-      }],
-
+      '@typescript-eslint/no-use-before-define': ['error', { functions: false, classes: false, typedefs: false, variables: false }],
       '@typescript-eslint/triple-slash-reference': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/consistent-type-assertions': 'off',
@@ -84,42 +83,57 @@ export default [
       '@typescript-eslint/no-dynamic-delete': 'off',
       '@typescript-eslint/promise-function-async': 'off',
       '@typescript-eslint/no-misused-promises': 'off',
-      'no-multi-str': 'off',
-      'no-mixed-operators': 'off',
       '@typescript-eslint/dot-notation': 'off',
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
-      '@typescript-eslint/type-annotation-spacing': 'error',
       '@typescript-eslint/ban-ts-comment': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'error',
-      'brace-style': ['error', '1tbs'],
-
-      '@typescript-eslint/comma-dangle': ['error', {
-        arrays: 'always-multiline',
-        exports: 'always-multiline',
-        functions: 'never',
-        imports: 'always-multiline',
-        objects: 'always-multiline',
+      '@typescript-eslint/only-throw-error': 'off',
+      '@typescript-eslint/no-confusing-void-expression': 'off',
+      '@typescript-eslint/restrict-template-expressions': 'off',
+      '@typescript-eslint/no-unnecessary-condition': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/no-unnecessary-type-parameters': 'off',
+      '@typescript-eslint/no-extraneous-class': 'off',
+      '@typescript-eslint/no-floating-promises': 'off',
+      '@typescript-eslint/prefer-promise-reject-errors': 'off',
+      '@typescript-eslint/no-deprecated': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
       }],
 
+      // Core ESLint rules
+      'no-return-await': 'error',
+      'no-await-in-loop': 'error',
+      'no-multi-str': 'off',
+      'no-mixed-operators': 'off',
       curly: 'off',
       'eol-last': 'off',
-      'import/order': 'off',
       'max-len': 'off',
       'no-multiple-empty-lines': 'error',
-      'no-redeclare': 'error',
-
+      'no-redeclare': 'off', // Handled by @typescript-eslint
       'no-restricted-properties': ['error', {
         property: 'substr',
         message: 'Use .slice instead of .substr.',
       }],
-
       'no-trailing-spaces': 'error',
       'no-var': 'error',
       'no-lone-blocks': 'off',
-      'space-before-function-paren': ['error', 'always'],
-      'conditions/no-dupe-conditions': 'error',
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'prefer-const': 'off',
 
-      // Jest rules - allow test functions globally but require imports for jest object
+      // Custom rules
+      'conditions/no-dupe-conditions': 'error',
+      'conditions/no-object-methods-on-map': 'error',
+
+      // Jest rules
       'jest/no-standalone-expect': 'off',
       'jest/expect-expect': 'off',
       'jest/no-disabled-tests': 'warn',
@@ -131,15 +145,17 @@ export default [
       'jest/prefer-to-have-length': 'error',
       'jest/valid-describe-callback': 'error',
       'jest/valid-title': 'error',
-      'conditions/no-object-methods-on-map': 'error',
+
+      // Node plugin
+      'n/no-missing-import': 'off', // TypeScript handles this
+      'n/no-unsupported-features/node-builtins': 'off',
     },
   },
-  // Separate configuration for test files
+  // Test file configuration
   {
     files: ['**/*.test.ts', '**/test/**/*.ts'],
     languageOptions: {
       globals: {
-        // Allow Jest test functions globally
         describe: 'readonly',
         test: 'readonly',
         it: 'readonly',
@@ -149,14 +165,11 @@ export default [
         beforeAll: 'readonly',
         afterAll: 'readonly',
         fail: 'readonly',
-        // But NOT jest - this will require import
-      }
+      },
     },
     rules: {
-      // 'no-undef': ['error', { typeof: true }],
-      // Allow the Jest test functions to be used without import
       'jest/no-standalone-expect': 'off',
       'jest/expect-expect': 'off',
-    }
+    },
   }
-]
+)

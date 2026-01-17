@@ -87,7 +87,6 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
       fs.mkdirSync(path.dirname(targetPath), { recursive: true })
       await fs.promises.link(sourcePath, targetPath)
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const _: never = value // static type guard
     }
   }

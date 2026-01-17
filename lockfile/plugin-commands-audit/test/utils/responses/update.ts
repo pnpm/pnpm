@@ -26,7 +26,6 @@ async function writeResponse (lockfileDir: string, filename: string, opts: {
   fs.writeFileSync(path.join(import.meta.dirname, filename), JSON.stringify(auditReport, null, 2))
 }
 
-// eslint-disable-next-line
 ; (async () => {
   await writeResponse(f.find('has-vulnerabilities'), 'dev-vulnerabilities-only-response.json', {
     dev: true,
