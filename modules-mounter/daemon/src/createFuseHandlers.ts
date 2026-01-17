@@ -82,7 +82,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(Fuse.ENOENT)
         return
       }
-
       cb(0, dirEnt.target)
     },
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
