@@ -98,3 +98,69 @@ test('peer dependencies honor pinned version when resolved version is available 
     foo: '~1.4.0',
   })
 })
+
+test('peer dependencies derive range from resolved version for jsr protocol', async () => {
+  const manifest = await updateProjectManifestObject('/project', {}, [
+    {
+      alias: 'foo',
+      bareSpecifier: 'jsr:^0.1.0',
+      resolvedVersion: '0.1.0',
+      peer: true,
+      saveType: 'devDependencies',
+    },
+  ])
+
+  expect(manifest.devDependencies).toStrictEqual({
+    foo: 'jsr:^0.1.0',
+  })
+  expect(manifest.peerDependencies).toStrictEqual({
+    foo: '^0.1.0',
+  })
+})
+
+test('peer dependencies keep prerelease resolved version without prefix', async () => {
+  const manifest = await updateProjectManifestObject('/project', {}, [
+    {
+      alias: 'foo',
+      bareSpecifier: 'https://github.com/kevva/is-negative',
+      resolvedVersion: '2.1.0-rc.1',
+      pinnedVersion: 'minor',
+      peer: true,
+      saveType: 'devDependencies',
+    },
+  ])
+
+  expect(manifest.devDependencies).toStrictEqual({
+    foo: 'https://github.com/kevva/is-negative',
+  })
+  expect(manifest.peerDependencies).toStrictEqual({
+    foo: '2.1.0-rc.1',
+  })
+})
+
+test('peer dependencies respect pinned version "patch" and "none"', async () => {
+  const cases = [
+    { pinnedVersion: 'patch' as const, expected: '3.2.1' },
+    { pinnedVersion: 'none' as const, expected: '^3.2.1' },
+  ]
+
+  await Promise.all(cases.map(async ({ pinnedVersion, expected }) => {
+    const manifest = await updateProjectManifestObject('/project', {}, [
+      {
+        alias: 'foo',
+        bareSpecifier: 'https://github.com/kevva/is-negative',
+        resolvedVersion: '3.2.1',
+        pinnedVersion,
+        peer: true,
+        saveType: 'devDependencies',
+      },
+    ])
+
+    expect(manifest.devDependencies).toStrictEqual({
+      foo: 'https://github.com/kevva/is-negative',
+    })
+    expect(manifest.peerDependencies).toStrictEqual({
+      foo: expected,
+    })
+  }))
+})
