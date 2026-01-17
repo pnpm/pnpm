@@ -9,7 +9,7 @@ export async function fix (auditReport: AuditReport, opts: AuditOptions): Promis
   await writeSettings({
     updatedSettings: {
       overrides: {
-        ...opts.overrides,
+        ...(opts.rootProjectManifest?.pnpm?.overrides ?? opts.overrides),
         ...vulnOverrides,
       },
     },
