@@ -37,7 +37,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/fs.packlist": "catalog:",
+    "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
     "@pnpm/types": "workspace:*",

@@ -1767,7 +1767,7 @@ test('workspace protocol: resolution fails if there is no matching local package
 
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
-  expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@workspace:^3.0.0 inside the workspace`)
+  expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@workspace:^3.0.0 inside the workspace. Available versions: 2.0.0`)
 })
 
 test('workspace protocol: resolution fails if there are no local packages', async () => {

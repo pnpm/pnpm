@@ -65,7 +65,7 @@ describe('FUSE handlers', () => {
         'fixtures',
       ].sort())
     })
-    handlers.readdir('/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config/does-not-exist', (returnCode, files) => {
+    handlers.readdir('/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config/does-not-exist', (returnCode, _files) => {
       expect(returnCode).toBe(Fuse.ENOENT)
     })
     handlers.readdir('/.pnpm/is-positive@1.0.0/node_modules/is-positive', (returnCode, files) => {
@@ -90,7 +90,7 @@ describe('FUSE handlers', () => {
       expect(returnCode).toBe(0)
       expect(stat.mode).toBe(16877)
     })
-    handlers.getattr('/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config/index.jsx', (returnCode, stat) => {
+    handlers.getattr('/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config/index.jsx', (returnCode, _stat) => {
       expect(returnCode).toBe(Fuse.ENOENT)
     })
     handlers.getattr('/.pnpm/is-positive@1.0.0/node_modules/is-positive/package.json', (returnCode, stat) => {

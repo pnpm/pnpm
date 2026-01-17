@@ -8,7 +8,6 @@ import {
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
-import { logger } from '@pnpm/logger'
 import { groupStart } from '@pnpm/log.group'
 import { sortPackages } from '@pnpm/sort-packages'
 import pLimit from 'p-limit'
@@ -171,10 +170,12 @@ export async function runRecursive (
             code: 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL',
             prefix,
           })
-          opts.reportSummary && await writeRecursiveSummary({
-            dir: opts.workspaceDir ?? opts.dir,
-            summary: result,
-          })
+          if (opts.reportSummary) {
+            await writeRecursiveSummary({
+              dir: opts.workspaceDir ?? opts.dir,
+              summary: result,
+            })
+          }
 
           throw err
         }
@@ -187,16 +188,15 @@ export async function runRecursive (
     if (allPackagesAreSelected) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
     } else {
-      logger.info({
-        message: `None of the selected packages has a "${scriptName}" script`,
-        prefix: opts.workspaceDir,
-      })
+      throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the selected packages has a "${scriptName}" script`)
     }
   }
-  opts.reportSummary && await writeRecursiveSummary({
-    dir: opts.workspaceDir ?? opts.dir,
-    summary: result,
-  })
+  if (opts.reportSummary) {
+    await writeRecursiveSummary({
+      dir: opts.workspaceDir ?? opts.dir,
+      summary: result,
+    })
+  }
   throwOnCommandFail('pnpm recursive run', result)
 }
 

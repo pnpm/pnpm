@@ -211,7 +211,6 @@ export async function pickPackage (
       if (!opts.dryRun) {
         // We stringify this meta here to avoid saving any mutations that could happen to the meta object.
         const stringifiedMeta = JSON.stringify(meta)
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
             await saveMeta(pkgMirror, stringifiedMeta)

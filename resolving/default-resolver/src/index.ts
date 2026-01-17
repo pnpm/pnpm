@@ -108,17 +108,21 @@ export function createResolver (
         await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (
-          await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
           await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
+          await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
           await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
         )) ??
         await _resolveNodeRuntime(wantedDependency, opts) ??
         await _resolveDenoRuntime(wantedDependency, opts) ??
         await _resolveBunRuntime(wantedDependency, opts)
       if (!resolution) {
+        let specifier = `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`
+        if (specifier !== '') {
+          specifier = `"${specifier}"`
+        }
         throw new PnpmError(
           'SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER',
-          `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''} isn't supported by any available resolver.`)
+          `${specifier} isn't supported by any available resolver.`)
       }
       return resolution
     },

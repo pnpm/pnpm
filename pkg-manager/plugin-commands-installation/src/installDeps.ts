@@ -12,7 +12,7 @@ import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir } from '@pnpm/types'
 import {
   IgnoredBuildsError,
@@ -174,7 +174,7 @@ when running add/update with the --workspace option')
     // @ts-expect-error
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
-  const store = await createOrConnectStoreController(opts)
+  const store = await createStoreController(opts)
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
     devDependencies: true,

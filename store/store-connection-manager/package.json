@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/store-connection-manager",
   "version": "1002.2.4",
-  "description": "Create a direct pnpm store controller or connect to a running store server",
+  "description": "Create a pnpm store controller",
   "keywords": [
     "pnpm",
     "pnpm11"
@@ -34,12 +34,8 @@
     "@pnpm/cli-meta": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
-    "@pnpm/error": "workspace:*",
     "@pnpm/package-store": "workspace:*",
-    "@pnpm/server": "workspace:*",
     "@pnpm/store-path": "workspace:*",
-    "@zkochan/diable": "catalog:",
-    "delay": "catalog:",
     "dir-is-case-sensitive": "catalog:"
   },
   "peerDependencies": {

@@ -77,17 +77,3 @@ export interface Fetchers {
   git: GitFetcher
   binary: BinaryFetcher
 }
-
-interface CustomFetcherFactoryOptions {
-  defaultFetchers: Fetchers
-}
-
-export type CustomFetcherFactory<Fetcher> = (opts: CustomFetcherFactoryOptions) => Fetcher
-
-export interface CustomFetchers {
-  localTarball?: CustomFetcherFactory<FetchFunction>
-  remoteTarball?: CustomFetcherFactory<FetchFunction>
-  gitHostedTarball?: CustomFetcherFactory<FetchFunction>
-  directory?: CustomFetcherFactory<DirectoryFetcher>
-  git?: CustomFetcherFactory<GitFetcher>
-}

@@ -52,7 +52,6 @@ describe('checkCustomResolverForceResolve', () => {
   test('returns false when custom resolver has no shouldForceResolve', async () => {
     const resolver: CustomResolver = {
       canResolve: () => true,
-      // No shouldForceResolve
     }
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
@@ -176,13 +175,16 @@ describe('checkCustomResolverForceResolve', () => {
     expect(result).toBe(true)
   })
 
-  test('short-circuits on first true result', async () => {
-    let callCount = 0
+  test('runs checks in parallel', async () => {
+    const callOrder: string[] = []
     const resolver: CustomResolver = {
       canResolve: () => true,
-      shouldForceResolve: () => {
-        callCount++
-        return true // Always returns true
+      shouldForceResolve: async (depPath) => {
+        // Stagger completion times to verify parallel execution
+        const delay = depPath === 'pkg1@1.0.0' ? 30 : depPath === 'pkg2@1.0.0' ? 20 : 10
+        await new Promise(resolve => setTimeout(resolve, delay))
+        callOrder.push(depPath)
+        return false
       },
     }
     const lockfile: LockfileObject = {
@@ -201,14 +203,15 @@ describe('checkCustomResolverForceResolve', () => {
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     }
 
-    const result = await checkCustomResolverForceResolve([resolver], lockfile)
+    await checkCustomResolverForceResolve([resolver], lockfile)
 
-    expect(result).toBe(true)
-    expect(callCount).toBe(1) // Should stop after first true
+    // If parallel, pkg3 finishes first (10ms), then pkg2 (20ms), then pkg1 (30ms)
+    expect(callOrder).toEqual(['pkg3@1.0.0', 'pkg2@1.0.0', 'pkg1@1.0.0'])
   })
 
-  test('passes lockfile to shouldForceResolve', async () => {
-    let receivedLockfile: LockfileObject | undefined
+  test('passes depPath and pkgSnapshot to shouldForceResolve', async () => {
+    let receivedDepPath: string | undefined
+    let receivedPkgSnapshot: unknown
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
       importers: {},
@@ -220,15 +223,19 @@ describe('checkCustomResolverForceResolve', () => {
     }
     const resolver: CustomResolver = {
       canResolve: () => true,
-      shouldForceResolve: (_wantedDep, wantedLockfile) => {
-        receivedLockfile = wantedLockfile
+      shouldForceResolve: (depPath, pkgSnapshot) => {
+        receivedDepPath = depPath
+        receivedPkgSnapshot = pkgSnapshot
         return false
       },
     }
 
     await checkCustomResolverForceResolve([resolver], lockfile)
 
-    expect(receivedLockfile).toBe(lockfile)
+    expect(receivedDepPath).toBe('test-pkg@1.0.0')
+    expect(receivedPkgSnapshot).toEqual({
+      resolution: { tarball: 'http://example.com/test-pkg-1.0.0.tgz', integrity: 'sha512-test' },
+    })
   })
 
   test('checks indirect (transitive) dependencies', async () => {

@@ -949,7 +949,7 @@ function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): 
   // again.
   if ((wantedLockfile.importers != null) && !isEmpty(wantedLockfile.importers)) {
     wantedLockfile.importers = mapValues(
-      ({ dependencies, devDependencies, optionalDependencies, ...rest }) => rest,
+      ({ dependencies: _dependencies, devDependencies: _devDependencies, optionalDependencies: _optionalDependencies, ...rest }) => rest,
       wantedLockfile.importers)
   }
 
@@ -959,7 +959,7 @@ function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): 
   // are always used.
   if ((wantedLockfile.packages != null) && !isEmpty(wantedLockfile.packages)) {
     wantedLockfile.packages = mapValues(
-      ({ dependencies, optionalDependencies, ...rest }) => rest,
+      ({ dependencies: _dependencies, optionalDependencies: _optionalDependencies, ...rest }) => rest,
       wantedLockfile.packages)
   }
 
