@@ -48,9 +48,6 @@ catalogs:
     '@pnpm/exec':
       specifier: ^2.0.0
       version: 2.0.0
-    '@pnpm/fs.packlist':
-      specifier: 2.0.0
-      version: 2.0.0
     '@pnpm/log.group':
       specifier: 3.0.1
       version: 3.0.1
@@ -3194,8 +3191,8 @@ importers:
         specifier: workspace:*
         version: link:../fetcher-base
       '@pnpm/fs.packlist':
-        specifier: 'catalog:'
-        version: 2.0.0
+        specifier: workspace:*
+        version: link:../../fs/packlist
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
@@ -3292,8 +3289,8 @@ importers:
         specifier: workspace:*
         version: link:../../network/fetching-types
       '@pnpm/fs.packlist':
-        specifier: 'catalog:'
-        version: 2.0.0
+        specifier: workspace:*
+        version: link:../../fs/packlist
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
