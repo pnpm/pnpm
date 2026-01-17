@@ -34,7 +34,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/fs.packlist": "catalog:",
+    "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:"
