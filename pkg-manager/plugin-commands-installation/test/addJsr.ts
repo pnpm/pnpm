@@ -62,6 +62,8 @@ test('pnpm add jsr:@<scope>/<name>', async () => {
 })
 
 test('pnpm add jsr:@<scope>/<name> --save-peer writes a valid peer range', async () => {
+  prepare()
+
   await add.handler({
     ...createOptions(),
     savePeer: true,
