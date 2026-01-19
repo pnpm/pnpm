@@ -69,7 +69,7 @@ test('pnpm add jsr:@<scope>/<name> --save-peer writes a valid peer range', async
     savePeer: true,
   }, ['jsr:@pnpm-e2e/foo'])
 
-  expect(loadJsonFileSync('package.json')).toMatchObject({
+  expect(loadJsonFile('package.json')).toMatchObject({
     devDependencies: {
       '@pnpm-e2e/foo': 'jsr:^0.1.0',
     },
