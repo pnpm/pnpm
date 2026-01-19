@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-setup
 
+## 1000.1.32
+
+### Patch Changes
+
+- Updated dependencies [d75628a]
+  - @pnpm/cli-utils@1001.3.0
+  - @pnpm/cli-meta@1000.0.16
+
 ## 1000.1.31
 
 ### Patch Changes

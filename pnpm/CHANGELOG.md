@@ -1,5 +1,39 @@
 # pnpm
 
+## 10.28.1
+
+### Patch Changes
+
+- Fixed installation of config dependencies from private registries.
+
+  Added support for object type in `configDependencies` when the tarball URL returned from package metadata differs from the computed URL [#10431](https://github.com/pnpm/pnpm/pull/10431).
+
+- Fix path traversal vulnerability in binary fetcher ZIP extraction
+
+  - Validate ZIP entry paths before extraction to prevent writing files outside target directory
+  - Validate BinaryResolution.prefix (basename) to prevent directory escape via crafted prefix
+  - Both attack vectors now throw `ERR_PNPM_PATH_TRAVERSAL` error
+
+- Support plain `http://` and `https://` URLs ending with `.git` as git repository dependencies.
+
+  Previously, URLs like `https://gitea.example.org/user/repo.git#commit` were not recognized as git repositories because they lacked the `git+` prefix (e.g., `git+https://`). This caused issues when installing dependencies from self-hosted git servers like Gitea or Forgejo that don't provide tarball downloads.
+
+  Changes:
+
+  - The git resolver now runs before the tarball resolver, ensuring git URLs are handled by the correct resolver
+  - The git resolver now recognizes plain `http://` and `https://` URLs ending in `.git` as git repositories
+  - Removed the `isRepository` check from the tarball resolver since it's no longer needed with the new resolver order
+
+  Fixes #10468
+
+- `pnpm run -r` and `pnpm run --filter` now fail with a non-zero exit code when no packages have the specified script. Previously, this only failed when all packages were selected. Use `--if-present` to suppress this error [#6844](https://github.com/pnpm/pnpm/issues/6844).
+- Fixed a path traversal vulnerability in tarball extraction on Windows. The path normalization was only checking for `./` but not `.\`. Since backslashes are directory separators on Windows, malicious packages could use paths like `foo\..\..\.npmrc` to write files outside the package directory.
+- When running "pnpm exec" from a subdirectory of a project, don't change the current working directory to the root of the project [#5759](https://github.com/pnpm/pnpm/issues/5759).
+- Fixed a path traversal vulnerability in pnpm's bin linking. Bin names starting with `@` bypassed validation, and after scope normalization, path traversal sequences like `../../` remained intact.
+- Revert Try to avoid making network calls with preferOffline [#10334](https://github.com/pnpm/pnpm/pull/10334).
+- Fix `--save-peer` to write valid semver ranges to `peerDependencies` for protocol-based installs (e.g. `jsr:`) by deriving from resolved versions when available and falling back to `*` if none is available [#10417](https://github.com/pnpm/pnpm/issues/10417).
+- Do not exclude the root workspace project, when it is explicitly selected via a filter [#10465](https://github.com/pnpm/pnpm/pull/10465).
+
 ## 10.28.0
 
 ### Minor Changes

@@ -1,5 +1,15 @@
 # @pnpm/calc-dep-state
 
+## 1003.0.1
+
+### Patch Changes
+
+- Updated dependencies [d75628a]
+  - @pnpm/types@1001.3.0
+  - @pnpm/lockfile.types@1002.0.9
+  - @pnpm/lockfile.utils@1004.0.1
+  - @pnpm/dependency-path@1001.1.9
+
 ## 1003.0.0
 
 ### Major Changes

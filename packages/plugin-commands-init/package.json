@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-init",
-  "version": "1000.3.6",
+  "version": "1000.3.7",
   "description": "Create a package.json file",
   "keywords": [
     "pnpm",

@@ -1,5 +1,14 @@
 # @pnpm/git-fetcher
 
+## 1006.0.2
+
+### Patch Changes
+
+- 15e83b3: `@pnpm/fs.packlist` should be linked from the workspace.
+  - @pnpm/prepare-package@1001.0.3
+  - @pnpm/fetcher-base@1001.2.2
+  - @pnpm/worker@1000.6.2
+
 ## 1006.0.1
 
 ### Patch Changes

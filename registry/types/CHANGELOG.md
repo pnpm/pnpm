@@ -1,5 +1,12 @@
 # @pnpm/registry.types
 
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [d75628a]
+  - @pnpm/types@1001.3.0
+
 ## 1000.1.3
 
 ### Patch Changes

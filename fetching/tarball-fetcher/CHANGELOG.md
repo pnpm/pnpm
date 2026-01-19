@@ -1,5 +1,17 @@
 # @pnpm/tarball-fetcher
 
+## 1006.0.2
+
+### Patch Changes
+
+- 15e83b3: `@pnpm/fs.packlist` should be linked from the workspace.
+- Updated dependencies [d75628a]
+  - @pnpm/types@1001.3.0
+  - @pnpm/prepare-package@1001.0.3
+  - @pnpm/fetcher-base@1001.2.2
+  - @pnpm/core-loggers@1001.0.9
+  - @pnpm/worker@1000.6.2
+
 ## 1006.0.1
 
 ### Patch Changes

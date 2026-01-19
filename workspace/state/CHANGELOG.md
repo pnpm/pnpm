@@ -1,5 +1,19 @@
 # @pnpm/workspace.state
 
+## 1002.1.0
+
+### Minor Changes
+
+- d75628a: Fixed installation of config dependencies from private registries.
+
+  Added support for object type in `configDependencies` when the tarball URL returned from package metadata differs from the computed URL [#10431](https://github.com/pnpm/pnpm/pull/10431).
+
+### Patch Changes
+
+- Updated dependencies [d75628a]
+  - @pnpm/types@1001.3.0
+  - @pnpm/config@1004.9.2
+
 ## 1002.0.17
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/default-reporter
 
+## 1002.1.7
+
+### Patch Changes
+
+- Updated dependencies [d75628a]
+  - @pnpm/types@1001.3.0
+  - @pnpm/cli-meta@1000.0.16
+  - @pnpm/config@1004.9.2
+  - @pnpm/core-loggers@1001.0.9
+  - @pnpm/render-peer-issues@1002.0.10
+
 ## 1002.1.6
 
 ### Patch Changes

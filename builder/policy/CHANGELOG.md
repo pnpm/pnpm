@@ -1,5 +1,13 @@
 # @pnpm/builder.policy
 
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [d75628a]
+  - @pnpm/types@1001.3.0
+  - @pnpm/config.version-policy@1000.0.5
+
 ## 1000.1.0
 
 ### Minor Changes

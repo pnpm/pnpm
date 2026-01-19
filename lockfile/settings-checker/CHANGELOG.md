@@ -1,5 +1,13 @@
 # @pnpm/lockfile.settings-checker
 
+## 1001.0.25
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1002.0.9
+- @pnpm/lockfile.verification@1001.2.18
+- @pnpm/crypto.hash@1000.2.1
+
 ## 1001.0.24
 
 ### Patch Changes

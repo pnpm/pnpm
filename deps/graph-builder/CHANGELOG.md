@@ -1,5 +1,21 @@
 # @pnpm/deps.graph-builder
 
+## 1002.3.9
+
+### Patch Changes
+
+- Updated dependencies [d75628a]
+  - @pnpm/types@1001.3.0
+  - @pnpm/package-is-installable@1000.0.20
+  - @pnpm/lockfile.fs@1001.1.29
+  - @pnpm/lockfile.utils@1004.0.1
+  - @pnpm/calc-dep-state@1003.0.1
+  - @pnpm/core-loggers@1001.0.9
+  - @pnpm/dependency-path@1001.1.9
+  - @pnpm/modules-yaml@1001.0.2
+  - @pnpm/store-controller-types@1004.5.1
+  - @pnpm/patching.config@1001.0.17
+
 ## 1002.3.8
 
 ### Patch Changes

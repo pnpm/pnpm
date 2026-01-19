@@ -1,5 +1,14 @@
 # @pnpm/manifest-utils
 
+## 1002.0.4
+
+### Patch Changes
+
+- d58bdaf: Fix `--save-peer` to write valid semver ranges to `peerDependencies` for protocol-based installs (e.g. `jsr:`) by deriving from resolved versions when available and falling back to `*` if none is available [#10417](https://github.com/pnpm/pnpm/issues/10417).
+- Updated dependencies [d75628a]
+  - @pnpm/types@1001.3.0
+  - @pnpm/core-loggers@1001.0.9
+
 ## 1002.0.3
 
 ### Patch Changes

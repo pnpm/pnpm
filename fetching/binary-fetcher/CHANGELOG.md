@@ -1,5 +1,17 @@
 # @pnpm/fetching.binary-fetcher
 
+## 1005.0.2
+
+### Patch Changes
+
+- 5c382f0: Fix path traversal vulnerability in binary fetcher ZIP extraction
+
+  - Validate ZIP entry paths before extraction to prevent writing files outside target directory
+  - Validate BinaryResolution.prefix (basename) to prevent directory escape via crafted prefix
+  - Both attack vectors now throw `ERR_PNPM_PATH_TRAVERSAL` error
+  - @pnpm/fetcher-base@1001.2.2
+  - @pnpm/worker@1000.6.2
+
 ## 1005.0.1
 
 ### Patch Changes

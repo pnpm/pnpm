@@ -1,5 +1,30 @@
 # @pnpm/resolve-dependencies
 
+## 1008.7.1
+
+### Patch Changes
+
+- d58bdaf: Fix `--save-peer` to write valid semver ranges to `peerDependencies` for protocol-based installs (e.g. `jsr:`) by deriving from resolved versions when available and falling back to `*` if none is available [#10417](https://github.com/pnpm/pnpm/issues/10417).
+- Updated dependencies [d75628a]
+- Updated dependencies [80a6080]
+- Updated dependencies [d58bdaf]
+  - @pnpm/types@1001.3.0
+  - @pnpm/npm-resolver@1005.1.1
+  - @pnpm/manifest-utils@1002.0.4
+  - @pnpm/config.version-policy@1000.0.5
+  - @pnpm/lockfile.preferred-versions@1000.0.30
+  - @pnpm/lockfile.pruner@1001.0.25
+  - @pnpm/lockfile.types@1002.0.9
+  - @pnpm/lockfile.utils@1004.0.1
+  - @pnpm/calc-dep-state@1003.0.1
+  - @pnpm/core-loggers@1001.0.9
+  - @pnpm/dependency-path@1001.1.9
+  - @pnpm/read-package-json@1000.1.7
+  - @pnpm/resolver-base@1005.4.1
+  - @pnpm/store-controller-types@1004.5.1
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/patching.config@1001.0.17
+
 ## 1008.7.0
 
 ### Minor Changes

@@ -1,5 +1,26 @@
 # @pnpm/config.deps-installer
 
+## 1000.1.0
+
+### Minor Changes
+
+- d75628a: Fixed installation of config dependencies from private registries.
+
+  Added support for object type in `configDependencies` when the tarball URL returned from package metadata differs from the computed URL [#10431](https://github.com/pnpm/pnpm/pull/10431).
+
+### Patch Changes
+
+- Updated dependencies [d75628a]
+- Updated dependencies [80a6080]
+  - @pnpm/types@1001.3.0
+  - @pnpm/npm-resolver@1005.1.1
+  - @pnpm/config.config-writer@1000.0.21
+  - @pnpm/pick-registry-for-package@1000.0.16
+  - @pnpm/fetch@1000.2.11
+  - @pnpm/core-loggers@1001.0.9
+  - @pnpm/read-package-json@1000.1.7
+  - @pnpm/package-store@1007.1.2
+
 ## 1000.0.28
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/symlink-dependency",
-  "version": "1000.0.16",
+  "version": "1000.0.17",
   "description": "Symlink a dependency to node_modules",
   "keywords": [
     "pnpm",

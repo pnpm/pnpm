@@ -1,5 +1,12 @@
 # @pnpm/cli-meta
 
+## 1000.0.16
+
+### Patch Changes
+
+- Updated dependencies [d75628a]
+  - @pnpm/types@1001.3.0
+
 ## 1000.0.15
 
 ### Patch Changes

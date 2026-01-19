@@ -1,5 +1,19 @@
 # @pnpm/npm-resolver
 
+## 1005.1.1
+
+### Patch Changes
+
+- 80a6080: Revert Try to avoid making network calls with preferOffline [#10334](https://github.com/pnpm/pnpm/pull/10334).
+- Updated dependencies [d75628a]
+  - @pnpm/types@1001.3.0
+  - @pnpm/pick-registry-for-package@1000.0.16
+  - @pnpm/core-loggers@1001.0.9
+  - @pnpm/registry.types@1000.1.4
+  - @pnpm/resolver-base@1005.4.1
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/registry.pkg-metadata-filter@1000.1.6
+
 ## 1005.1.0
 
 ### Minor Changes

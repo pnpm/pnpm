@@ -1,5 +1,13 @@
 # @pnpm/types
 
+## 1001.3.0
+
+### Minor Changes
+
+- d75628a: Fixed installation of config dependencies from private registries.
+
+  Added support for object type in `configDependencies` when the tarball URL returned from package metadata differs from the computed URL [#10431](https://github.com/pnpm/pnpm/pull/10431).
+
 ## 1001.2.0
 
 ### Minor Changes

@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.1.11
+
+### Patch Changes
+
+- 85416ea: `pnpm run -r` and `pnpm run --filter` now fail with a non-zero exit code when no packages have the specified script. Previously, this only failed when all packages were selected. Use `--if-present` to suppress this error [#6844](https://github.com/pnpm/pnpm/issues/6844).
+- 9cbba28: When running "pnpm exec" from a subdirectory of a project, don't change the current working directory to the root of the project [#5759](https://github.com/pnpm/pnpm/issues/5759).
+- Updated dependencies [d75628a]
+- Updated dependencies [8afbb15]
+  - @pnpm/types@1001.3.0
+  - @pnpm/cli-utils@1001.3.0
+  - @pnpm/package-bins@1000.0.16
+  - @pnpm/plugin-commands-installation@1004.9.2
+  - @pnpm/deps.status@1003.0.27
+  - @pnpm/config@1004.9.2
+  - @pnpm/plugin-commands-env@1000.0.56
+  - @pnpm/lifecycle@1001.0.33
+  - @pnpm/core-loggers@1001.0.9
+  - @pnpm/client@1001.1.16
+  - @pnpm/read-package-json@1000.1.7
+  - @pnpm/read-project-manifest@1001.2.4
+  - @pnpm/workspace.injected-deps-syncer@1000.0.29
+  - @pnpm/sort-packages@1000.0.16
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1001.1.10
 
 ### Patch Changes

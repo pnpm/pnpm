@@ -1,5 +1,13 @@
 # @pnpm/store.cafs
 
+## 1000.1.2
+
+### Patch Changes
+
+- 6ca07ff: Fixed a path traversal vulnerability in tarball extraction on Windows. The path normalization was only checking for `./` but not `.\`. Since backslashes are directory separators on Windows, malicious packages could use paths like `foo\..\..\.npmrc` to write files outside the package directory.
+  - @pnpm/fetcher-base@1001.2.2
+  - @pnpm/store-controller-types@1004.5.1
+
 ## 1000.1.1
 
 ### Patch Changes

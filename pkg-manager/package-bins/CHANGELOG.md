@@ -1,5 +1,13 @@
 # @pnpm/package-bins
 
+## 1000.0.16
+
+### Patch Changes
+
+- 8afbb15: Fixed a path traversal vulnerability in pnpm's bin linking. Bin names starting with `@` bypassed validation, and after scope normalization, path traversal sequences like `../../` remained intact.
+- Updated dependencies [d75628a]
+  - @pnpm/types@1001.3.0
+
 ## 1000.0.15
 
 ### Patch Changes

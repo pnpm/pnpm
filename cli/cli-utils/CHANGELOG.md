@@ -1,5 +1,28 @@
 # @pnpm/cli-utils
 
+## 1001.3.0
+
+### Minor Changes
+
+- d75628a: Fixed installation of config dependencies from private registries.
+
+  Added support for object type in `configDependencies` when the tarball URL returned from package metadata differs from the computed URL [#10431](https://github.com/pnpm/pnpm/pull/10431).
+
+### Patch Changes
+
+- Updated dependencies [d75628a]
+- Updated dependencies [d58bdaf]
+  - @pnpm/config.deps-installer@1000.1.0
+  - @pnpm/types@1001.3.0
+  - @pnpm/manifest-utils@1002.0.4
+  - @pnpm/cli-meta@1000.0.16
+  - @pnpm/default-reporter@1002.1.7
+  - @pnpm/config@1004.9.2
+  - @pnpm/package-is-installable@1000.0.20
+  - @pnpm/pnpmfile@1002.1.11
+  - @pnpm/read-project-manifest@1001.2.4
+  - @pnpm/store-connection-manager@1002.3.11
+
 ## 1001.2.19
 
 ### Patch Changes
