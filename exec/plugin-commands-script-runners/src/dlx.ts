@@ -77,7 +77,7 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
+} & Pick<Config, 'allowBuilds' | 'dangerouslyAllowAllBuilds' | 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -111,22 +111,32 @@ export async function handler (
     })
     return resolved.id
   }))
+  const allowBuildsFromCli = opts.allowBuild ?? []
+  const shouldAllowBuilds = !opts.dangerouslyAllowAllBuilds
   const { cacheLink, cacheExists, cachedDir } = findCache({
     packages: resolvedPkgs,
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
     registries: opts.registries,
-    allowBuild: opts.allowBuild,
+    allowBuild: shouldAllowBuilds ? allowBuildsFromCli : undefined,
     supportedArchitectures: opts.supportedArchitectures,
   })
   if (!cacheExists) {
     fs.mkdirSync(cachedDir, { recursive: true })
+    const allowBuildPackages = shouldAllowBuilds
+      ? [...resolvedPkgAliases, ...allowBuildsFromCli]
+      : []
+    const allowBuilds = shouldAllowBuilds
+      ? (allowBuildPackages.length
+        ? { ...opts.allowBuilds, ...Object.fromEntries(allowBuildPackages.map(pkg => [pkg, true])) }
+        : opts.allowBuilds)
+      : undefined
     await add.handler({
       ...opts,
       bin: path.join(cachedDir, 'node_modules/.bin'),
       dir: cachedDir,
       lockfileDir: cachedDir,
-      allowBuilds: Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true])),
+      allowBuilds,
       rootProjectManifestDir: cachedDir,
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
