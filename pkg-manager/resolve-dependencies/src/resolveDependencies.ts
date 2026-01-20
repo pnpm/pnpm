@@ -1320,6 +1320,15 @@ async function resolveDependency (
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version)
     }
+
+    // The dependency is described in a parent lockfile - we should treat the reference as relative from there
+    if (wantedDependency.pref.startsWith('workspace:') && options.parentPkg?.pkgId?.startsWith('file:')) {
+      const parentRelRoot = options.parentPkg.pkgId.split(':')[1]
+      const depRelParent = wantedDependency.pref.split(':')[1]
+      const depRelRoot = path.normalize(path.join(parentRelRoot, depRelParent))
+      wantedDependency.pref = `workspace:${depRelRoot}`
+    }
+
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       allowBuild: ctx.allowBuild,
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
