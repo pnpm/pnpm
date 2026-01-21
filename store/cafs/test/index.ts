@@ -73,14 +73,14 @@ describe('cafs', () => {
   // Security test: symlinks pointing outside the package root should be rejected
   // This prevents file: and git: dependencies from leaking local data via malicious symlinks
   it('rejects symlinks pointing outside the package directory', () => {
-    const storeDir = temporaryDirectory()
-    const srcDir = temporaryDirectory()
+    const storeDir = tempy.directory()
+    const srcDir = tempy.directory()
 
     // Create a legitimate file inside the package
     fs.writeFileSync(path.join(srcDir, 'legit.txt'), 'legitimate content')
 
     // Create a file outside the package that a malicious symlink tries to leak
-    const outsideDir = temporaryDirectory()
+    const outsideDir = tempy.directory()
     const secretFile = path.join(outsideDir, 'secret.txt')
     fs.writeFileSync(secretFile, 'secret content')
 
@@ -90,22 +90,22 @@ describe('cafs', () => {
     const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
 
     // The legitimate file should be included
-    expect(filesIndex.get('legit.txt')).toBeDefined()
+    expect(filesIndex['legit.txt']).toBeDefined()
 
     // The symlink pointing outside should be skipped (security fix)
-    expect(filesIndex.get('leak.txt')).toBeUndefined()
+    expect(filesIndex['leak.txt']).toBeUndefined()
   })
 
   // Security test: symlinked directories pointing outside the package should be rejected
   it('rejects symlinked directories pointing outside the package', () => {
-    const storeDir = temporaryDirectory()
-    const srcDir = temporaryDirectory()
+    const storeDir = tempy.directory()
+    const srcDir = tempy.directory()
 
     // Create a legitimate file inside the package
     fs.writeFileSync(path.join(srcDir, 'legit.txt'), 'legitimate content')
 
     // Create a directory with secret files outside the package
-    const outsideDir = temporaryDirectory()
+    const outsideDir = tempy.directory()
     fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'secret content')
 
     // Create a symlink to the outside directory
@@ -114,16 +114,16 @@ describe('cafs', () => {
     const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
 
     // The legitimate file should be included
-    expect(filesIndex.get('legit.txt')).toBeDefined()
+    expect(filesIndex['legit.txt']).toBeDefined()
 
     // Files from the symlinked directory pointing outside should NOT be included
-    expect(filesIndex.get('leak-dir/secret.txt')).toBeUndefined()
+    expect(filesIndex['leak-dir/secret.txt']).toBeUndefined()
   })
 
   // Symlinked node_modules at the root should be skipped just like regular node_modules
   it('skips symlinked node_modules directory at root', () => {
-    const storeDir = temporaryDirectory()
-    const srcDir = temporaryDirectory()
+    const storeDir = tempy.directory()
+    const srcDir = tempy.directory()
 
     // Create a legitimate file inside the package
     fs.writeFileSync(path.join(srcDir, 'index.js'), '// code')
@@ -139,12 +139,12 @@ describe('cafs', () => {
     const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
 
     // The legitimate file should be included
-    expect(filesIndex.get('index.js')).toBeDefined()
+    expect(filesIndex['index.js']).toBeDefined()
     // The target files under .deps should be included
-    expect(filesIndex.get('.deps/dep.js')).toBeDefined()
+    expect(filesIndex['.deps/dep.js']).toBeDefined()
 
     // Files from symlinked node_modules at root should NOT be included
-    expect(filesIndex.get('node_modules/dep.js')).toBeUndefined()
+    expect(filesIndex['node_modules/dep.js']).toBeUndefined()
   })
 })
 
