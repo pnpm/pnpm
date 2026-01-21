@@ -85,7 +85,7 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
     return statusCmd(opts) as Promise<undefined>
   case 'path':
     return getStorePath({
-      pkgRoot: opts.dir,
+      pkgRoot: opts.workspaceDir ?? opts.dir,
       storePath: opts.storeDir,
       pnpmHomeDir: opts.pnpmHomeDir,
     })
@@ -116,10 +116,11 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
 async function statusCmd (opts: StoreCommandOptions): Promise<void> {
   const modifiedPkgs = await storeStatus(Object.assign(opts, {
     storeDir: await getStorePath({
-      pkgRoot: opts.dir,
+      pkgRoot: opts.workspaceDir ?? opts.dir,
       storePath: opts.storeDir,
       pnpmHomeDir: opts.pnpmHomeDir,
     }),
+    lockfileDir: opts.workspaceDir ?? opts.dir,
   }))
   if (!modifiedPkgs || (modifiedPkgs.length === 0)) {
     logger.info({
