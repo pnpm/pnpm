@@ -50,6 +50,8 @@ export async function validateModules (
   }
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
+  const fixCmd = opts.global ? 'pnpm install -g' : 'pnpm install'
+  const hint = ` Run "${fixCmd}" to recreate the modules directory.`
   if (opts.virtualStoreDirMaxLength !== modules.virtualStoreDirMaxLength) {
     if (opts.forceNewModules && (rootProject != null)) {
       await purgeModulesDirsOfImporter(opts, rootProject)
@@ -58,7 +60,7 @@ export async function validateModules (
     throw new PnpmError(
       'VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF',
       'This modules directory was created using a different virtual-store-dir-max-length value.' +
-      ' Run "pnpm install" to recreate the modules directory.'
+      hint
     )
   }
   if (
@@ -72,7 +74,7 @@ export async function validateModules (
     throw new PnpmError(
       'PUBLIC_HOIST_PATTERN_DIFF',
       'This modules directory was created using a different public-hoist-pattern value.' +
-      ' Run "pnpm install" to recreate the modules directory.'
+      hint
     )
   }
 
@@ -84,7 +86,7 @@ export async function validateModules (
         throw new PnpmError(
           'HOIST_PATTERN_DIFF',
           'This modules directory was created using a different hoist-pattern value.' +
-          ' Run "pnpm install" to recreate the modules directory.'
+          hint
         )
       }
     } catch (err: any) { // eslint-disable-line
