@@ -5715,6 +5715,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.15.30
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
 
   pkg-manager/package-requester:
     dependencies:

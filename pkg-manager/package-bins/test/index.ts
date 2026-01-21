@@ -144,3 +144,25 @@ test('skip scoped bin names with path traversal', async () => {
     },
   ])
 })
+
+test('skip directories.bin with path traversal', async () => {
+  // Security test: malicious packages can try to escape the package root
+  // using directories.bin to chmod files at arbitrary locations
+  expect(
+    await getBinsFromPackageManifest({
+      name: 'malicious',
+      version: '1.0.0',
+      directories: {
+        bin: '../../../../tmp/target',
+      },
+    }, process.cwd())).toStrictEqual([])
+
+  expect(
+    await getBinsFromPackageManifest({
+      name: 'malicious',
+      version: '1.0.0',
+      directories: {
+        bin: '../../../etc',
+      },
+    }, process.cwd())).toStrictEqual([])
+})
