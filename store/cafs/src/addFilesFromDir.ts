@@ -82,7 +82,7 @@ function getStatIfContained (
     throw err
   }
   if (lstat.isSymbolicLink()) {
-    return getSymlinkStatIfContained(absolutePath, rootDir)
+    return getSymlinkStatIfContained(absolutePath, rootDir)?.stat ?? null
   }
   return lstat
 }
@@ -94,7 +94,7 @@ function getStatIfContained (
 function getSymlinkStatIfContained (
   absolutePath: string,
   rootDir: string
-): Stats | null {
+): { stat: Stats, realPath: string } | null {
   let realPath: string
   try {
     realPath = fs.realpathSync(absolutePath)
@@ -109,50 +109,65 @@ function getSymlinkStatIfContained (
   if (!isSubdir(rootDir, realPath)) {
     return null // Symlink points outside package - skip
   }
-  return fs.statSync(realPath)
+  return { stat: fs.statSync(realPath), realPath }
 }
 
 function findFilesInDir (dir: string, rootDir: string): File[] {
   const files: File[] = []
-  findFiles(files, dir, rootDir)
+  const ctx: FindFilesContext = {
+    filesList: files,
+    rootDir,
+    visited: new Set([rootDir]),
+  }
+  findFiles(ctx, dir, '', rootDir)
   return files
 }
 
+interface FindFilesContext {
+  filesList: File[]
+  rootDir: string
+  visited: Set<string>
+}
+
 function findFiles (
-  filesList: File[],
+  ctx: FindFilesContext,
   dir: string,
-  rootDir: string,
-  relativeDir = ''
+  relativeDir: string,
+  currentRealPath: string
 ): void {
   const files = fs.readdirSync(dir, { withFileTypes: true })
   for (const file of files) {
     const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file.name}`
     const absolutePath = path.join(dir, file.name)
 
-    let isDir: boolean
+    let nextRealDir: string | undefined
 
     // Check symlinks first for defense in depth
     if (file.isSymbolicLink()) {
-      const stat = getSymlinkStatIfContained(absolutePath, rootDir)
-      if (!stat) {
+      const res = getSymlinkStatIfContained(absolutePath, ctx.rootDir)
+      if (!res) {
         continue
       }
-      isDir = stat.isDirectory()
-      if (!isDir) {
-        filesList.push({
+      if (res.stat.isDirectory()) {
+        nextRealDir = res.realPath
+      } else {
+        ctx.filesList.push({
           relativePath: relativeSubdir,
           absolutePath,
-          stat,
+          stat: res.stat,
         })
         continue
       }
-    } else {
-      isDir = file.isDirectory()
+    } else if (file.isDirectory()) {
+      nextRealDir = path.join(currentRealPath, file.name)
     }
 
-    if (isDir) {
+    if (nextRealDir) {
+      if (ctx.visited.has(nextRealDir)) continue
       if (relativeDir !== '' || file.name !== 'node_modules') {
-        findFiles(filesList, absolutePath, rootDir, relativeSubdir)
+        ctx.visited.add(nextRealDir)
+        findFiles(ctx, absolutePath, relativeSubdir, nextRealDir)
+        ctx.visited.delete(nextRealDir)
       }
       continue
     }
@@ -166,11 +181,10 @@ function findFiles (
       }
       throw err
     }
-    filesList.push({
+    ctx.filesList.push({
       relativePath: relativeSubdir,
       absolutePath,
       stat,
     })
   }
 }
-
