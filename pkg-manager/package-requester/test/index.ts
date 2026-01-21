@@ -12,7 +12,7 @@ import delay from 'delay'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { restartWorkerPool } from '@pnpm/worker'
 import { jest } from '@jest/globals'
-import { loadJsonFileSync } from 'load-json-file'
+import { readFileSync as readMsgpackFileSync } from '@pnpm/msgpack-serializer'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import { temporaryDirectory } from 'tempy'
@@ -446,9 +446,9 @@ test('fetchPackageToStore()', async () => {
   expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
   expect(files.resolvedFrom).toBe('remote')
 
-  const indexFile = loadJsonFileSync<PackageFilesIndex>(fetchResult.filesIndexFile)
+  const indexFile = readMsgpackFileSync<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
-  expect(typeof indexFile.files['package.json']!.checkedAt).toBeTruthy()
+  expect(typeof indexFile.files.get('package.json')!.checkedAt).toBeTruthy()
 
   const fetchResult2 = packageRequester.fetchPackageToStore({
     fetchRawManifest: true,

@@ -2,10 +2,10 @@ import {
   type AddToStoreResult,
   type FileWriteResult,
   type PackageFiles,
-  type PackageFilesRaw,
   type PackageFileInfo,
   type FilesIndex,
-  type SideEffectsRaw,
+  type SideEffects,
+  type SideEffectsDiff,
 } from '@pnpm/cafs-types'
 import ssri from 'ssri'
 import { addFilesFromDir } from './addFilesFromDir.js'
@@ -41,8 +41,8 @@ export {
   optimisticRenameOverwrite,
   type FilesIndex,
   type VerifyResult,
-  type PackageFilesRaw,
-  type SideEffectsRaw,
+  type SideEffects,
+  type SideEffectsDiff,
 }
 
 export type CafsLocker = Map<string, number>

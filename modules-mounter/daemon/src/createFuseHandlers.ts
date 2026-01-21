@@ -8,7 +8,7 @@ import {
 import { type DepPath } from '@pnpm/types'
 import schemas from 'hyperdrive-schemas'
 import Fuse from 'fuse-native'
-import { loadJsonFileSync } from 'load-json-file'
+import { readFileSync as readMsgpackFileSync } from '@pnpm/msgpack-serializer'
 import * as cafsExplorer from './cafsExplorer.js'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
 
@@ -48,7 +48,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(-1)
         return
       }
-      const fileInfo = dirEnt.index.files[dirEnt.subPath]
+      const fileInfo = dirEnt.index.files.get(dirEnt.subPath)
       if (!fileInfo) {
         cb(-1)
         return
@@ -108,11 +108,11 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       if (dirEnt.entryType === 'index') {
         switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
         case 'file': {
-          const { size, mode } = dirEnt.index.files[dirEnt.subPath]!
+          const fileInfo = dirEnt.index.files.get(dirEnt.subPath)!
           cb(0, schemas.Stat.file({
             ...STAT_DEFAULT,
-            mode,
-            size,
+            mode: fileInfo.mode,
+            size: fileInfo.size,
           }))
           return
         }
@@ -174,7 +174,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       if (pkgSnapshot == null) return undefined
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const pkgIndexFilePath = getIndexFilePathInCafs(storeDir, (pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
-      const pkgIndex = loadJsonFileSync<PackageFilesIndex>(pkgIndexFilePath) // TODO: maybe make it async?
+      const pkgIndex = readMsgpackFileSync<PackageFilesIndex>(pkgIndexFilePath) // TODO: maybe make it async?
       pkgSnapshotCache.set(depPath, {
         ...nameVer,
         pkgSnapshot,

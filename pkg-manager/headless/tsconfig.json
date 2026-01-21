@@ -40,6 +40,9 @@
       "path": "../../exec/lifecycle"
     },
     {
+      "path": "../../fs/msgpack-serializer"
+    },
+    {
       "path": "../../fs/symlink-dependency"
     },
     {

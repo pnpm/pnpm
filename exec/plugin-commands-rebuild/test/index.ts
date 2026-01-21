@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import { loadJsonFileSync } from 'load-json-file'
+import { readFileSync as readMsgpackFileSync, writeFileSync as writeMsgpackFileSync } from '@pnpm/msgpack-serializer'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME, STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObject } from '@pnpm/crypto.object-hasher'
@@ -77,7 +77,7 @@ test('rebuilds dependencies', async () => {
   }
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const cacheIntegrity = loadJsonFileSync<PackageFilesIndex>(cacheIntegrityPath)!
+  const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)!
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -88,8 +88,8 @@ test('rebuilds dependencies', async () => {
       }),
     },
   })}`
-  expect(cacheIntegrity.sideEffects![sideEffectsKey].added!['generated-by-postinstall.js']).toBeTruthy()
-  delete cacheIntegrity.sideEffects![sideEffectsKey].added!['generated-by-postinstall.js']
+  expect(cacheIntegrity.sideEffects!.get(sideEffectsKey)?.added?.has('generated-by-postinstall.js')).toBeTruthy()
+  cacheIntegrity.sideEffects!.get(sideEffectsKey)!.added!.delete('generated-by-postinstall.js')
 })
 
 test('skipIfHasSideEffectsCache', async () => {
@@ -110,20 +110,20 @@ test('skipIfHasSideEffectsCache', async () => {
   ])
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  let cacheIntegrity = loadJsonFileSync<PackageFilesIndex>(cacheIntegrityPath)!
+  let cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)!
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
-  cacheIntegrity.sideEffects = {
-    [sideEffectsKey]: {
-      added: {
-        foo: {
+  cacheIntegrity.sideEffects = new Map([
+    [sideEffectsKey, {
+      added: new Map([
+        ['foo', {
           integrity: 'bar',
           mode: 1,
           size: 1,
-        },
-      },
-    },
-  }
-  fs.writeFileSync(cacheIntegrityPath, JSON.stringify(cacheIntegrity))
+        }],
+      ]),
+    }],
+  ])
+  writeMsgpackFileSync(cacheIntegrityPath, cacheIntegrity)
 
   let modules = project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
@@ -146,9 +146,9 @@ test('skipIfHasSideEffectsCache', async () => {
   expect(modules).toBeTruthy()
   expect(modules!.pendingBuilds).toHaveLength(0)
 
-  cacheIntegrity = loadJsonFileSync<PackageFilesIndex>(cacheIntegrityPath)!
+  cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)!
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  expect(cacheIntegrity!.sideEffects![sideEffectsKey].added!['foo']).toBeTruthy()
+  expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)?.added?.has('foo')).toBeTruthy()
 })
 
 test('rebuild does not fail when a linked package is present', async () => {

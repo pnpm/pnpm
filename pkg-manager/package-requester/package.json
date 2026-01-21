@@ -66,6 +66,7 @@
     "@pnpm/client": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/msgpack-serializer": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",

@@ -1,10 +1,9 @@
 import crypto from 'crypto'
 import path from 'path'
 import fs from 'fs'
-import { loadJsonFileSync } from 'load-json-file'
+import { readFileSync as readMsgpackFileSync, writeFileSync as writeMsgpackFileSync } from '@pnpm/msgpack-serializer'
 import { PnpmError } from '@pnpm/error'
-import gfs from '@pnpm/graceful-fs'
-import { type Cafs, type PackageFilesRaw, type SideEffectsRaw, type SideEffectsDiffRaw, type FilesMap } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff, type FilesMap } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
@@ -82,7 +81,7 @@ async function handleMessage (
       let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
-        pkgFilesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
+        pkgFilesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
       } catch {
         // ignoring. It is fine if the integrity file is not present. Just refetch the package
       }
@@ -273,7 +272,7 @@ function addFilesFromDir (
   if (sideEffectsCacheKey) {
     let existingFilesIndex!: PackageFilesIndex
     try {
-      existingFilesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
+      existingFilesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
     } catch {
       // If there is no existing index file, then we cannot store the side effects.
       return {
@@ -285,14 +284,16 @@ function addFilesFromDir (
         },
       }
     }
-    existingFilesIndex.sideEffects ??= {}
-    existingFilesIndex.sideEffects[sideEffectsCacheKey] = calculateDiff(existingFilesIndex.files, filesIntegrity)
+    if (!existingFilesIndex.sideEffects) {
+      existingFilesIndex.sideEffects = new Map()
+    }
+    existingFilesIndex.sideEffects.set(sideEffectsCacheKey, calculateDiff(existingFilesIndex.files, filesIntegrity))
     if (existingFilesIndex.requiresBuild == null) {
       requiresBuild = pkgRequiresBuild(manifest, filesMap)
     } else {
       requiresBuild = existingFilesIndex.requiresBuild
     }
-    writeJsonFile(filesIndexFile, existingFilesIndex)
+    writeMsgpackFileSync(filesIndexFile, existingFilesIndex)
   } else {
     requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
   }
@@ -309,45 +310,46 @@ function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifes
   })
 }
 
-function calculateDiff (baseFiles: PackageFilesRaw, sideEffectsFiles: PackageFilesRaw): SideEffectsDiffRaw {
+function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles): SideEffectsDiff {
   const deleted: string[] = []
-  const added: PackageFilesRaw = {}
-  for (const file of new Set([...Object.keys(baseFiles), ...Object.keys(sideEffectsFiles)])) {
-    if (!(file in sideEffectsFiles)) {
+  const added: PackageFiles = new Map()
+  const allFiles = new Set([...baseFiles.keys(), ...sideEffectsFiles.keys()])
+  for (const file of allFiles) {
+    if (!sideEffectsFiles.has(file)) {
       deleted.push(file)
     } else if (
-      !(file in baseFiles) ||
-      baseFiles[file].integrity !== sideEffectsFiles[file].integrity ||
-      baseFiles[file].mode !== sideEffectsFiles[file].mode
+      !baseFiles.has(file) ||
+      baseFiles.get(file)!.integrity !== sideEffectsFiles.get(file)!.integrity ||
+      baseFiles.get(file)!.mode !== sideEffectsFiles.get(file)!.mode
     ) {
-      added[file] = sideEffectsFiles[file]
+      added.set(file, sideEffectsFiles.get(file)!)
     }
   }
-  const diff: SideEffectsDiffRaw = {}
+  const diff: SideEffectsDiff = {}
   if (deleted.length > 0) {
     diff.deleted = deleted
   }
-  if (Object.keys(added).length > 0) {
+  if (added.size > 0) {
     diff.added = added
   }
   return diff
 }
 
 interface ProcessFilesIndexResult {
-  filesIntegrity: PackageFilesRaw
+  filesIntegrity: PackageFiles
   filesMap: FilesMap
 }
 
 function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
-  const filesIntegrity: PackageFilesRaw = {}
+  const filesIntegrity: PackageFiles = new Map()
   const filesMap: FilesMap = new Map()
   for (const [k, { checkedAt, filePath, integrity, mode, size }] of filesIndex) {
-    filesIntegrity[k] = {
+    filesIntegrity.set(k, {
       checkedAt,
       integrity: integrity.toString(), // TODO: use the raw Integrity object
       mode,
       size,
-    }
+    })
     filesMap.set(k, filePath)
   }
   return { filesIntegrity, filesMap }
@@ -403,8 +405,8 @@ function writeFilesIndexFile (
   filesIndexFile: string,
   { manifest, files, sideEffects }: {
     manifest: Partial<DependencyManifest>
-    files: PackageFilesRaw
-    sideEffects?: SideEffectsRaw
+    files: PackageFiles
+    sideEffects?: SideEffects
   }
 ): boolean {
   const requiresBuild = pkgRequiresBuild(manifest, files)
@@ -415,19 +417,19 @@ function writeFilesIndexFile (
     files,
     sideEffects,
   }
-  writeJsonFile(filesIndexFile, filesIndex)
+  writeMsgpackFile(filesIndexFile, filesIndex)
   return requiresBuild
 }
 
-function writeJsonFile (filePath: string, data: unknown): void {
+function writeMsgpackFile (filePath: string, data: unknown): void {
   const targetDir = path.dirname(filePath)
   // TODO: use the API of @pnpm/cafs to write this file
   // There is actually no need to create the directory in 99% of cases.
   // So by using cafs API, we'll improve performance.
   fs.mkdirSync(targetDir, { recursive: true })
-  // We remove the "-index.json" from the end of the temp file name
+  // We remove the "-index.mpk" from the end of the temp file name
   // in order to avoid ENAMETOOLONG errors
-  const temp = `${filePath.slice(0, -11)}${process.pid}`
-  gfs.writeFileSync(temp, JSON.stringify(data))
+  const temp = `${filePath.slice(0, -10)}${process.pid}`
+  writeMsgpackFileSync(temp, data)
   optimisticRenameOverwrite(temp, filePath)
 }

@@ -38,7 +38,7 @@ import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { hardLinkDir } from '@pnpm/worker'
-import { loadJsonFile } from 'load-json-file'
+import { readFile as readMsgpackFile } from '@pnpm/msgpack-serializer'
 import { runGroups } from 'run-groups'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import npa from '@pnpm/npm-package-arg'
@@ -359,13 +359,13 @@ async function _rebuild (
           const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
           let pkgFilesIndex: PackageFilesIndex | undefined
           try {
-            pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+            pkgFilesIndex = await readMsgpackFile<PackageFilesIndex>(filesIndexFile)
           } catch {}
           if (pkgFilesIndex) {
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
               includeDepGraphHash: true,
             })
-            if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
+            if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
               pkgsThatWereRebuilt.add(depPath)
               return
             }

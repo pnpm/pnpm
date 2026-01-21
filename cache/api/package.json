@@ -33,10 +33,10 @@
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/msgpack-serializer": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "encode-registry": "catalog:",
-    "load-json-file": "catalog:",
     "tinyglobby": "catalog:"
   },
   "peerDependencies": {
