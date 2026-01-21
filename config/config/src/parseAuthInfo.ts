@@ -125,7 +125,7 @@ function parseTokenHelper (source: string): TokenHelper {
 export class TokenHelperUnsupportedCharacterError extends PnpmError {
   readonly char: string
   constructor (char: string) {
-    let hint = 'Try wrapping the current command in a script whose name does not contain unsupported character'
+    let hint = 'Try wrapping the current command in a script whose name does not contain unsupported characters'
     if (char === '"' || char === "'") {
       hint = `pnpm does not support quotations in tokenHelper. ${hint}`
     } else if (char === '$' || char === '%') {
