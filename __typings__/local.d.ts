@@ -125,3 +125,8 @@ declare module 'ramda/src/map' {
 
 declare module '@yarnpkg/core/semverUtils'
 declare module '@yarnpkg/core/structUtils'
+
+declare module 'picomatch' {
+  const anything: any
+  export = anything
+}
