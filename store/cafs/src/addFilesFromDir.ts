@@ -139,10 +139,8 @@ function findFiles (
   for (const file of files) {
     const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file.name}`
     const absolutePath = path.join(dir, file.name)
-
     let nextRealDir: string | undefined
 
-    // Check symlinks first for defense in depth
     if (file.isSymbolicLink()) {
       const res = getSymlinkStatIfContained(absolutePath, ctx.rootDir)
       if (!res) {
