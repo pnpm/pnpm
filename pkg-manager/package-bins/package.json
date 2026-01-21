@@ -39,7 +39,8 @@
   },
   "devDependencies": {
     "@pnpm/package-bins": "workspace:*",
-    "@types/node": "catalog:"
+    "@types/node": "catalog:",
+    "tempy": "catalog:"
   },
   "engines": {
     "node": ">=18.12"
