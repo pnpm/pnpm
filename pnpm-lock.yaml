@@ -428,7 +428,7 @@ catalogs:
       version: 2.0.0
     ini:
       specifier: 6.0.0
-      version: 5.0.0
+      version: 6.0.0
     is-gzip:
       specifier: 2.0.0
       version: 2.0.0
@@ -659,7 +659,7 @@ catalogs:
       version: 4.2.0
     ssri:
       specifier: 13.0.0
-      version: 12.0.0
+      version: 13.0.0
     stacktracey:
       specifier: ^2.1.8
       version: 2.1.8
@@ -3366,7 +3366,7 @@ importers:
         version: 13.3.4
       ssri:
         specifier: 'catalog:'
-        version: 12.0.0
+        version: 13.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -5235,7 +5235,7 @@ importers:
         version: 7.0.0
       write-json-file:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 7.0.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -5487,7 +5487,7 @@ importers:
         version: 3.0.0
       write-json-file:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 7.0.0
 
   pkg-manager/hoist:
     dependencies:
@@ -5715,6 +5715,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.15.30
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
 
   pkg-manager/package-requester:
     dependencies:
@@ -6088,7 +6091,7 @@ importers:
         version: 3.0.0
       write-json-file:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 7.0.0
       write-package:
         specifier: 'catalog:'
         version: 7.2.0
@@ -6767,7 +6770,7 @@ importers:
         version: 7.1.0
       ini:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 6.0.0
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -6818,7 +6821,7 @@ importers:
         version: 1.2.2
       write-json-file:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 7.0.0
       write-package:
         specifier: 'catalog:'
         version: 7.2.0
@@ -8397,7 +8400,7 @@ importers:
         version: safe-execa@0.2.0
       ssri:
         specifier: 'catalog:'
-        version: 12.0.0
+        version: 13.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -13354,10 +13357,6 @@ packages:
   ini@4.1.1:
     resolution: {integrity: sha512-QQnnxNyfvmHFIsj7gkPcYymR8Jdw/o7mp5ZFihxn6h8Ci6fh3Dx4E1gPjpQEpIuPo9XVNY/ZUwh4BPMjGyL01g==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
-
-  ini@5.0.0:
-    resolution: {integrity: sha512-+N0ngpO3e7cRUWOJAS7qw0IZIVc6XPrW4MlFBdD066F2L4k1L6ker3hLqSq7iXxU5tgS4WGkIUElWn5vogAEnw==}
-    engines: {node: ^18.17.0 || >=20.5.0}
 
   ini@6.0.0:
     resolution: {integrity: sha512-IBTdIkzZNOpqm7q3dRqJvMaldXjDHWkEDfrwGEQTs5eaQMWV+djAhR+wahyNNMAa+qpbDUhBMVt4ZKNwpPm7xQ==}
@@ -22134,8 +22133,6 @@ snapshots:
   ini@3.0.1: {}
 
   ini@4.1.1: {}
-
-  ini@5.0.0: {}
 
   ini@6.0.0: {}
 

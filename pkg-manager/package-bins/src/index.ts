@@ -14,6 +14,10 @@ export async function getBinsFromPackageManifest (manifest: DependencyManifest, 
   }
   if (manifest.directories?.bin) {
     const binDir = path.join(pkgPath, manifest.directories.bin)
+    // Validate: directories.bin must be within the package root
+    if (!isSubdir(pkgPath, binDir)) {
+      return []
+    }
     const files = await findFiles(binDir)
     return files.map((file) => ({
       name: path.basename(file),
