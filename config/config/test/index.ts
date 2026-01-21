@@ -1380,6 +1380,27 @@ test('warn when directory contains PATH delimiter character', async () => {
   }
 })
 
+test('no warning when directory does not contain PATH delimiter character', async () => {
+  const tempDir = path.join(os.tmpdir(), `pnpm-test-normal-${Date.now()}`)
+  fs.mkdirSync(tempDir, { recursive: true })
+
+  try {
+    const { warnings } = await getConfig({
+      cliOptions: { dir: tempDir },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(warnings).not.toContainEqual(
+      expect.stringContaining('path delimiter character')
+    )
+  } finally {
+    fs.rmSync(tempDir, { recursive: true })
+  }
+})
+
 describe('global config.yaml', () => {
   let XDG_CONFIG_HOME: string | undefined
 
