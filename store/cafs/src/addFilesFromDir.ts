@@ -8,6 +8,7 @@ import {
 } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
+import isSubdir from 'is-subdir'
 import { parseJsonBufferSync } from './parseJson.js'
 
 export function addFilesFromDir (
@@ -21,17 +22,14 @@ export function addFilesFromDir (
   const filesIndex = new Map() as FilesIndex
   let manifest: DependencyManifest | undefined
   let files: File[]
+  // Resolve the package root to a canonical path for security validation
+  const resolvedRoot = fs.realpathSync(dirname)
   if (opts.files) {
     files = []
     for (const file of opts.files) {
       const absolutePath = path.join(dirname, file)
-      let stat: Stats
-      try {
-        stat = fs.statSync(absolutePath)
-      } catch (err: unknown) {
-        if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
-          throw err
-        }
+      const stat = getStatIfContained(absolutePath, resolvedRoot)
+      if (!stat) {
         continue
       }
       files.push({
@@ -41,7 +39,7 @@ export function addFilesFromDir (
       })
     }
   } else {
-    files = findFilesInDir(dirname)
+    files = findFilesInDir(dirname, resolvedRoot)
   }
   for (const { absolutePath, relativePath, stat } of files) {
     const buffer = gfs.readFileSync(absolutePath)
@@ -65,39 +63,108 @@ interface File {
   stat: Stats
 }
 
-function findFilesInDir (dir: string): File[] {
+/**
+ * Resolves a path and validates it stays within the allowed root directory.
+ * If the path is a symlink, resolves it and validates the target.
+ * Returns null if the path is a symlink pointing outside the root, or if target is inaccessible.
+ */
+function getStatIfContained (
+  absolutePath: string,
+  rootDir: string
+): Stats | null {
+  let lstat: Stats
+  try {
+    lstat = fs.lstatSync(absolutePath)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return null
+    }
+    throw err
+  }
+  if (lstat.isSymbolicLink()) {
+    return getSymlinkStatIfContained(absolutePath, rootDir)
+  }
+  return lstat
+}
+
+/**
+ * Validates a known symlink points within the allowed root directory.
+ * Returns null if the symlink points outside the root or if target is inaccessible.
+ */
+function getSymlinkStatIfContained (
+  absolutePath: string,
+  rootDir: string
+): Stats | null {
+  let realPath: string
+  try {
+    realPath = fs.realpathSync(absolutePath)
+  } catch (err: unknown) {
+    // Broken symlink or inaccessible target
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return null
+    }
+    throw err
+  }
+  // isSubdir returns true if realPath is within rootDir OR if they are equal
+  if (!isSubdir(rootDir, realPath)) {
+    return null // Symlink points outside package - skip
+  }
+  return fs.statSync(realPath)
+}
+
+function findFilesInDir (dir: string, rootDir: string): File[] {
   const files: File[] = []
-  findFiles(files, dir)
+  findFiles(files, dir, rootDir)
   return files
 }
 
 function findFiles (
   filesList: File[],
   dir: string,
+  rootDir: string,
   relativeDir = ''
 ): void {
   const files = fs.readdirSync(dir, { withFileTypes: true })
   for (const file of files) {
     const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file.name}`
-    if (file.isDirectory()) {
+    const absolutePath = path.join(dir, file.name)
+
+    let isDir: boolean
+
+    // Check symlinks first for defense in depth
+    if (file.isSymbolicLink()) {
+      const stat = getSymlinkStatIfContained(absolutePath, rootDir)
+      if (!stat) {
+        continue
+      }
+      isDir = stat.isDirectory()
+      if (!isDir) {
+        filesList.push({
+          relativePath: relativeSubdir,
+          absolutePath,
+          stat,
+        })
+        continue
+      }
+    } else {
+      isDir = file.isDirectory()
+    }
+
+    if (isDir) {
       if (relativeDir !== '' || file.name !== 'node_modules') {
-        findFiles(filesList, path.join(dir, file.name), relativeSubdir)
+        findFiles(filesList, absolutePath, rootDir, relativeSubdir)
       }
       continue
     }
-    const absolutePath = path.join(dir, file.name)
+
     let stat: Stats
     try {
       stat = fs.statSync(absolutePath)
-    } catch (err: any) { // eslint-disable-line
-      if (err.code !== 'ENOENT') {
-        throw err
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+        continue
       }
-      continue
-    }
-    if (stat.isDirectory()) {
-      findFiles(filesList, path.join(dir, file.name), relativeSubdir)
-      continue
+      throw err
     }
     filesList.push({
       relativePath: relativeSubdir,
@@ -106,3 +173,4 @@ function findFiles (
     })
   }
 }
+
