@@ -73,6 +73,9 @@ function getAuthUserPass ({
   if (authPairBase64) {
     const pair = atob(authPairBase64)
     const colonIndex = pair.indexOf(':')
+    if (colonIndex < 0) {
+      throw new AuthMissingSeparatorError()
+    }
     const username = pair.slice(0, colonIndex)
     const password = pair.slice(colonIndex + 1)
     return { username, password }
@@ -83,6 +86,14 @@ function getAuthUserPass ({
   }
 
   return undefined
+}
+
+export class AuthMissingSeparatorError extends PnpmError {
+  constructor () {
+    super('AUTH_MISSING_SEPERATOR', 'No seperator found in the decoded form of _auth', {
+      hint: '_auth is a base64 encoded form of <username>:<password> where the colon (:) serves as the seperator',
+    })
+  }
 }
 
 /** Parsed value of `tokenHelper` of each registry in the rc file. */

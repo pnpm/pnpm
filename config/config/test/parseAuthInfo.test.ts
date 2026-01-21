@@ -1,4 +1,9 @@
-import { type AuthInfo, TokenHelperUnsupportedCharacterError, parseAuthInfo } from '../src/parseAuthInfo.js'
+import {
+  type AuthInfo,
+  AuthMissingSeparatorError,
+  TokenHelperUnsupportedCharacterError,
+  parseAuthInfo,
+} from '../src/parseAuthInfo.js'
 
 describe('parseAuthInfo', () => {
   test('empty object', () => {
@@ -31,6 +36,12 @@ describe('parseAuthInfo', () => {
         password: 'bar:baz',
       },
     } as AuthInfo)
+  })
+
+  test('authPairBase64 must have a seperator', () => {
+    expect(() => parseAuthInfo({
+      authPairBase64: btoa('foo'),
+    })).toThrow(new AuthMissingSeparatorError())
   })
 
   test('authUsername and authPassword', () => {
