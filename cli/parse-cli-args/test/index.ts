@@ -4,8 +4,8 @@ import { parseCliArgs } from '@pnpm/parse-cli-args'
 import { temporaryDirectory } from 'tempy'
 
 const DEFAULT_OPTS = {
-  getCommandLongName: (commandName: string) => commandName,
-  getTypesByCommandName: (commandName: string) => ({}),
+  getCommandLongName: (_commandName: string) => _commandName,
+  getTypesByCommandName: (_commandName: string) => ({}),
   renamedOptions: { prefix: 'dir' },
   shorthandsByCommandName: {},
   universalOptionsTypes: {},

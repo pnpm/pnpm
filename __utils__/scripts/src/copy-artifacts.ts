@@ -3,14 +3,14 @@ import * as execa from 'execa'
 import path from 'path'
 import makeEmptyDir from 'make-empty-dir'
 import stream from 'stream'
-import tar from 'tar'
+import * as tar from 'tar'
 import { glob } from 'tinyglobby'
 
 const repoRoot = path.join(import.meta.dirname, '../../..')
 const dest = path.join(repoRoot, 'dist')
 const artifactsDir = path.join(repoRoot, 'pnpm/artifacts')
 
-;(async () => { // eslint-disable-line
+;(async () => {
   await makeEmptyDir(dest)
   if (!fs.existsSync(path.join(artifactsDir, 'linux-x64/pnpm'))) {
     execa.sync('pnpm', ['--filter=@pnpm/exe', 'run', 'prepublishOnly'], {

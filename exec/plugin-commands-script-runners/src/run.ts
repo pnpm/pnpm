@@ -158,6 +158,7 @@ export type RunOpts =
   & { recursive?: boolean }
   & Pick<Config,
   | 'bin'
+  | 'cliOptions'
   | 'verifyDepsBeforeRun'
   | 'dir'
   | 'enablePrePostScripts'

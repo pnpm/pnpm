@@ -27,7 +27,7 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix",
+    "compile": "tsgo --build && pnpm run lint --fix",
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "dependencies": {
@@ -37,6 +37,7 @@
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@types/normalize-path": "catalog:",
     "normalize-path": "catalog:"

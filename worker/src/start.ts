@@ -1,26 +1,27 @@
 import crypto from 'crypto'
-import v8 from 'v8'
 import path from 'path'
 import fs from 'fs'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
+import { loadJsonFileSync } from 'load-json-file'
+import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/graceful-fs'
-import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFilesRaw, type SideEffectsRaw, type SideEffectsDiffRaw, type FilesMap } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
   type CafsFunctions,
   checkPkgFilesIntegrity,
+  buildFileMapsFromIndex,
   createCafs,
   type PackageFilesIndex,
   type FilesIndex,
   optimisticRenameOverwrite,
-  readManifestFromStore,
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import { type DependencyManifest } from '@pnpm/types'
 import { parentPort } from 'worker_threads'
+import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import {
   type AddDirToStoreMessage,
   type ReadPkgFromCafsMessage,
@@ -78,13 +79,10 @@ async function handleMessage (
       break
     }
     case 'readPkgFromCafs': {
-      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
+      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
-        pkgFilesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
-        if (pkgFilesIndex?.files && !(pkgFilesIndex.files instanceof Map)) {
-          pkgFilesIndex = undefined
-        }
+        pkgFilesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
       } catch {
         // ignoring. It is fine if the integrity file is not present. Just refetch the package
       }
@@ -98,26 +96,55 @@ async function handleMessage (
         })
         return
       }
+      const warnings: string[] = []
+      if (expectedPkg) {
+        if (
+          (
+            pkgFilesIndex.name != null &&
+            expectedPkg.name != null &&
+            pkgFilesIndex.name.toLowerCase() !== expectedPkg.name.toLowerCase()
+          ) ||
+          (
+            pkgFilesIndex.version != null &&
+            expectedPkg.version != null &&
+            !equalOrSemverEqual(pkgFilesIndex.version, expectedPkg.version)
+          )
+        ) {
+          const msg = 'Package name or version mismatch found while reading from the store.'
+          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
+          if (strictStorePkgContentCheck ?? true) {
+            throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
+              hint: `${hint}\n\nIf you want to ignore this issue, set strictStorePkgContentCheck to false in your configuration`,
+            })
+          } else {
+            warnings.push(`${msg} ${hint}`)
+          }
+        }
+      }
       let verifyResult: VerifyResult | undefined
       if (pkgFilesIndex.requiresBuild == null) {
         readManifest = true
       }
+      // Get file maps and optionally verify
       if (verifyStoreIntegrity) {
         verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex, readManifest)
       } else {
-        verifyResult = {
-          passed: true,
-          manifest: readManifest ? readManifestFromStore(storeDir, pkgFilesIndex) : undefined,
-        }
+        verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex, readManifest)
       }
-      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, pkgFilesIndex.files)
+      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, verifyResult.filesMap)
+
       parentPort!.postMessage({
         status: 'success',
+        warnings,
         value: {
           verified: verifyResult.passed,
           manifest: verifyResult.manifest,
-          pkgFilesIndex,
-          requiresBuild,
+          files: {
+            filesMap: verifyResult.filesMap,
+            sideEffectsMaps: verifyResult.sideEffectsMaps,
+            resolvedFrom: 'store',
+            requiresBuild,
+          },
         },
       })
       break
@@ -138,6 +165,7 @@ async function handleMessage (
       error: {
         code: e.code,
         message: e.message ?? e.toString(),
+        hint: e.hint,
       },
     })
   }
@@ -176,7 +204,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
   return {
     status: 'success',
     value: {
-      filesIndex: filesMap,
+      filesMap,
       manifest,
       requiresBuild,
       integrity: integrity ?? calcIntegrity(buffer),
@@ -192,7 +220,7 @@ function calcIntegrity (buffer: Buffer): string {
 interface AddFilesFromDirResult {
   status: string
   value: {
-    filesIndex: Map<string, string>
+    filesMap: FilesMap
     manifest?: DependencyManifest
     requiresBuild: boolean
   }
@@ -243,32 +271,32 @@ function addFilesFromDir (
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   let requiresBuild: boolean
   if (sideEffectsCacheKey) {
-    let filesIndex!: PackageFilesIndex
+    let existingFilesIndex!: PackageFilesIndex
     try {
-      filesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
+      existingFilesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
     } catch {
       // If there is no existing index file, then we cannot store the side effects.
       return {
         status: 'success',
         value: {
-          filesIndex: filesMap,
+          filesMap,
           manifest,
-          requiresBuild: pkgRequiresBuild(manifest, filesIntegrity),
+          requiresBuild: pkgRequiresBuild(manifest, filesMap),
         },
       }
     }
-    filesIndex.sideEffects ??= new Map()
-    filesIndex.sideEffects.set(sideEffectsCacheKey, calculateDiff(filesIndex.files, filesIntegrity))
-    if (filesIndex.requiresBuild == null) {
-      requiresBuild = pkgRequiresBuild(manifest, filesIntegrity)
+    existingFilesIndex.sideEffects ??= {}
+    existingFilesIndex.sideEffects[sideEffectsCacheKey] = calculateDiff(existingFilesIndex.files, filesIntegrity)
+    if (existingFilesIndex.requiresBuild == null) {
+      requiresBuild = pkgRequiresBuild(manifest, filesMap)
     } else {
-      requiresBuild = filesIndex.requiresBuild
+      requiresBuild = existingFilesIndex.requiresBuild
     }
-    writeV8File(filesIndexFile, filesIndex)
+    writeJsonFile(filesIndexFile, existingFilesIndex)
   } else {
     requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
   }
-  return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
+  return { status: 'success', value: { filesMap, manifest, requiresBuild } }
 }
 
 function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
@@ -281,45 +309,45 @@ function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifes
   })
 }
 
-function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles): SideEffectsDiff {
+function calculateDiff (baseFiles: PackageFilesRaw, sideEffectsFiles: PackageFilesRaw): SideEffectsDiffRaw {
   const deleted: string[] = []
-  const added: PackageFiles = new Map()
-  for (const file of new Set([...baseFiles.keys(), ...sideEffectsFiles.keys()])) {
-    if (!sideEffectsFiles.has(file)) {
+  const added: PackageFilesRaw = {}
+  for (const file of new Set([...Object.keys(baseFiles), ...Object.keys(sideEffectsFiles)])) {
+    if (!(file in sideEffectsFiles)) {
       deleted.push(file)
     } else if (
-      !baseFiles.has(file) ||
-      baseFiles.get(file)!.integrity !== sideEffectsFiles.get(file)!.integrity ||
-      baseFiles.get(file)!.mode !== sideEffectsFiles.get(file)!.mode
+      !(file in baseFiles) ||
+      baseFiles[file].integrity !== sideEffectsFiles[file].integrity ||
+      baseFiles[file].mode !== sideEffectsFiles[file].mode
     ) {
-      added.set(file, sideEffectsFiles.get(file)!)
+      added[file] = sideEffectsFiles[file]
     }
   }
-  const diff: SideEffectsDiff = {}
+  const diff: SideEffectsDiffRaw = {}
   if (deleted.length > 0) {
     diff.deleted = deleted
   }
-  if (added.size > 0) {
+  if (Object.keys(added).length > 0) {
     diff.added = added
   }
   return diff
 }
 
 interface ProcessFilesIndexResult {
-  filesIntegrity: PackageFiles
-  filesMap: Map<string, string>
+  filesIntegrity: PackageFilesRaw
+  filesMap: FilesMap
 }
 
 function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
-  const filesIntegrity: PackageFiles = new Map()
-  const filesMap = new Map<string, string>()
+  const filesIntegrity: PackageFilesRaw = {}
+  const filesMap: FilesMap = new Map()
   for (const [k, { checkedAt, filePath, integrity, mode, size }] of filesIndex) {
-    filesIntegrity.set(k, {
+    filesIntegrity[k] = {
       checkedAt,
       integrity: integrity.toString(), // TODO: use the raw Integrity object
       mode,
       size,
-    })
+    }
     filesMap.set(k, filePath)
   }
   return { filesIntegrity, filesMap }
@@ -375,8 +403,8 @@ function writeFilesIndexFile (
   filesIndexFile: string,
   { manifest, files, sideEffects }: {
     manifest: Partial<DependencyManifest>
-    files: PackageFiles
-    sideEffects?: SideEffects
+    files: PackageFilesRaw
+    sideEffects?: SideEffectsRaw
   }
 ): boolean {
   const requiresBuild = pkgRequiresBuild(manifest, files)
@@ -387,19 +415,19 @@ function writeFilesIndexFile (
     files,
     sideEffects,
   }
-  writeV8File(filesIndexFile, filesIndex)
+  writeJsonFile(filesIndexFile, filesIndex)
   return requiresBuild
 }
 
-function writeV8File (filePath: string, data: unknown): void {
+function writeJsonFile (filePath: string, data: unknown): void {
   const targetDir = path.dirname(filePath)
   // TODO: use the API of @pnpm/cafs to write this file
   // There is actually no need to create the directory in 99% of cases.
   // So by using cafs API, we'll improve performance.
   fs.mkdirSync(targetDir, { recursive: true })
-  // We remove the "-index.v8" from the end of the temp file name
+  // We remove the "-index.json" from the end of the temp file name
   // in order to avoid ENAMETOOLONG errors
-  const temp = `${filePath.slice(0, -9)}${process.pid}`
-  gfs.writeFileSync(temp, v8.serialize(data))
+  const temp = `${filePath.slice(0, -11)}${process.pid}`
+  gfs.writeFileSync(temp, JSON.stringify(data))
   optimisticRenameOverwrite(temp, filePath)
 }

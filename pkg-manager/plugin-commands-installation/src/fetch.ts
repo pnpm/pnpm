@@ -1,7 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'
 import renderHelp from 'render-help'
@@ -48,7 +48,7 @@ export function help (): string {
 type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
 
 export async function handler (opts: FetchCommandOptions): Promise<void> {
-  const store = await createOrConnectStoreController(opts)
+  const store = await createStoreController(opts)
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,

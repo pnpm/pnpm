@@ -5,7 +5,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
-  createOrConnectStoreController,
+  createStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import gfs from '@pnpm/graceful-fs'
@@ -174,7 +174,7 @@ export async function handler (
     return
   }
 
-  const store = await createOrConnectStoreController(opts)
+  const store = await createStoreController(opts)
   const manifest = await readProjectManifestOnly(opts.dir)
   const manifestOpts = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}
   const installOpts = {

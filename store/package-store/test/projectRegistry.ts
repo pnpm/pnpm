@@ -47,6 +47,18 @@ describe('projectRegistry', () => {
       const entries = await fs.readdir(projectsDir)
       expect(entries).toHaveLength(2)
     })
+
+    it('does not create symlink when store is inside project directory', async () => {
+      const projectDir = temporaryDirectory()
+      const storeDir = path.join(projectDir, 'node_modules', '.pnpm-store')
+      await fs.mkdir(storeDir, { recursive: true })
+
+      await registerProject(storeDir, projectDir)
+
+      // The projects directory should not be created since we skipped registration
+      const projectsDir = path.join(storeDir, 'projects')
+      await expect(fs.readdir(projectsDir)).rejects.toThrow(/ENOENT/)
+    })
   })
 
   describe('getRegisteredProjects()', () => {

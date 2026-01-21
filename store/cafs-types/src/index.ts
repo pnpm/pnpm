@@ -2,6 +2,7 @@ import type { IntegrityLike } from 'ssri'
 import type { DependencyManifest } from '@pnpm/types'
 
 export type PackageFiles = Map<string, PackageFileInfo>
+export type PackageFilesRaw = Record<string, PackageFileInfo>
 
 export interface PackageFileInfo {
   checkedAt?: number // Nullable for backward compatibility
@@ -11,6 +12,12 @@ export interface PackageFileInfo {
 }
 
 export type SideEffects = Map<string, SideEffectsDiff>
+export type SideEffectsRaw = Record<string, SideEffectsDiffRaw>
+
+export interface SideEffectsDiffRaw {
+  deleted?: string[]
+  added?: PackageFilesRaw
+}
 
 export interface SideEffectsDiff {
   deleted?: string[]
@@ -19,18 +26,16 @@ export interface SideEffectsDiff {
 
 export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
 
-export type PackageFilesResponse = {
+export type FilesMap = Map<string, string>
+
+export interface PackageFilesResponse {
   resolvedFrom: ResolvedFrom
+  filesMap: FilesMap
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-  sideEffects?: SideEffects
+  // Pre-calculated file location maps for side effects, avoiding recalculation during import
+  sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
   requiresBuild: boolean
-} & ({
-  unprocessed?: false
-  filesIndex: Map<string, string>
-} | {
-  unprocessed: true
-  filesIndex: PackageFiles
-})
+}
 
 export interface ImportPackageOpts {
   disableRelinkLocalDirDeps?: boolean

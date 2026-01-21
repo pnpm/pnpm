@@ -65,9 +65,8 @@ export async function createNewStoreController (
     ) && !opts.registrySupportsTimeField
   )
   const { resolve, fetchers, clearResolutionCache } = createClient({
-    customFetchers: opts.hooks?.fetchers,
     customResolvers: opts.hooks?.customResolvers,
-    customFetcherHooks: opts.hooks?.customFetchers,
+    customFetchers: opts.hooks?.customFetchers,
     userConfig: opts.userConfig,
     unsafePerm: opts.unsafePerm,
     authConfig: opts.rawConfig,

@@ -575,7 +575,7 @@ test('external dependency using catalog protocol errors', async () => {
       ...options,
       lockfileOnly: true,
     })
-  ).rejects.toThrow("@pnpm.e2e/hello-world-js-bin@catalog:foo isn't supported by any available resolver.")
+  ).rejects.toThrow("\"@pnpm.e2e/hello-world-js-bin@catalog:foo\" isn't supported by any available resolver.")
 })
 
 test('catalog resolutions should be consistent', async () => {

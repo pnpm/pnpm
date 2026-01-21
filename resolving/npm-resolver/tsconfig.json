@@ -25,9 +25,6 @@
       "path": "../../fs/graceful-fs"
     },
     {
-      "path": "../../fs/v8-file"
-    },
-    {
       "path": "../../network/fetch"
     },
     {
@@ -53,6 +50,12 @@
     },
     {
       "path": "../../registry/types"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../worker"
     },
     {
       "path": "../../workspace/resolve-workspace-range"

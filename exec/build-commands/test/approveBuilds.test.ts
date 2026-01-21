@@ -20,9 +20,9 @@ const { approveBuilds } = await import('@pnpm/exec.build-commands')
 
 const prompt = jest.mocked(enquirer.prompt)
 
-type _ApproveBuildsOptions = Partial<ApproveBuildsCommandOpts & RebuildCommandOpts>
+type ApproveBuildsOptions = Partial<ApproveBuildsCommandOpts & RebuildCommandOpts>
 
-async function approveSomeBuilds (opts?: _ApproveBuildsOptions) {
+async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
   const cliOptions = {
     argv: [],
     dir: process.cwd(),
@@ -55,7 +55,7 @@ async function approveSomeBuilds (opts?: _ApproveBuildsOptions) {
   await approveBuilds.handler({ ...config, ...opts })
 }
 
-async function approveNoBuilds (opts?: _ApproveBuildsOptions) {
+async function approveNoBuilds (opts?: ApproveBuildsOptions) {
   const cliOptions = {
     argv: [],
     dir: process.cwd(),

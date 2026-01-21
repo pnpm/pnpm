@@ -15,8 +15,6 @@ export async function resolveFromTarball (
     return null
   }
 
-  if (isRepository(wantedDependency.bareSpecifier)) return null
-
   // The URL is normalized to remove the port if it is the default port of the protocol.
   const normalizedBareSpecifier = new URL(wantedDependency.bareSpecifier).toString()
   let resolvedUrl: string
@@ -37,23 +35,4 @@ export async function resolveFromTarball (
     },
     resolvedVia: 'url',
   }
-}
-
-const GIT_HOSTERS = new Set([
-  'github.com',
-  'gitlab.com',
-  'bitbucket.org',
-])
-
-function isRepository (bareSpecifier: string): boolean {
-  const url = new URL(bareSpecifier)
-  if (url.hash && url.hash.includes('/')) {
-    url.hash = encodeURIComponent(url.hash.substring(1))
-    bareSpecifier = url.href
-  }
-  if (bareSpecifier.endsWith('/')) {
-    bareSpecifier = bareSpecifier.slice(0, -1)
-  }
-  const parts = bareSpecifier.split('/')
-  return (parts.length === 5 && GIT_HOSTERS.has(parts[2]))
 }

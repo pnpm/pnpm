@@ -21,9 +21,13 @@ export class PnpmError extends Error {
   }
 }
 
-export interface FetchErrorResponse { status: number, statusText: string }
+export interface FetchErrorResponse {
+  status: number, statusText: string
+}
 
-export interface FetchErrorRequest { url: string, authHeaderValue?: string }
+export interface FetchErrorRequest {
+  url: string, authHeaderValue?: string
+}
 
 export class FetchError extends PnpmError {
   public readonly response: FetchErrorResponse

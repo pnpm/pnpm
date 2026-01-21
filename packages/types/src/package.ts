@@ -142,7 +142,12 @@ export interface PeerDependencyRules {
 
 export type AllowedDeprecatedVersions = Record<string, string>
 
-export type ConfigDependencies = Record<string, string>
+type VersionWithIntegrity = string
+
+export type ConfigDependencies = Record<string, VersionWithIntegrity | {
+  tarball?: string
+  integrity: VersionWithIntegrity
+}>
 
 export interface AuditConfig {
   ignoreCves?: string[]

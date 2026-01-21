@@ -3,6 +3,7 @@ import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { DirPatcher } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm
@@ -103,7 +104,7 @@ test('optimally synchronizes source and target', async () => {
 
   const sourceFetchResult = await fetchFromDir(sourceDir, { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultBefore = await fetchFromDir(targetDir, { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultBefore.filesIndex.keys()).sort()).not.toStrictEqual(Array.from(sourceFetchResult.filesIndex.keys()).sort())
+  expect(Array.from(targetFetchResultBefore.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(Array.from(sourceFetchResult.filesMap.keys()).sort(lexCompare))
   expect(
     filesToModify
       .map(suffix => path.resolve(targetDir, suffix))
@@ -128,8 +129,8 @@ test('optimally synchronizes source and target', async () => {
   await patchers[0].apply()
 
   const targetFetchResultAfter = await fetchFromDir(targetDir, { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultAfter.filesIndex.keys()).sort()).toStrictEqual(Array.from(sourceFetchResult.filesIndex.keys()).sort())
-  expect(Array.from(targetFetchResultAfter.filesIndex.keys()).sort()).not.toStrictEqual(Array.from(targetFetchResultBefore.filesIndex.keys()).sort())
+  expect(Array.from(targetFetchResultAfter.filesMap.keys()).sort(lexCompare)).toStrictEqual(Array.from(sourceFetchResult.filesMap.keys()).sort(lexCompare))
+  expect(Array.from(targetFetchResultAfter.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(Array.from(targetFetchResultBefore.filesMap.keys()).sort(lexCompare))
   expect(
     filesToModify
       .map(suffix => path.resolve(targetDir, suffix))
@@ -200,20 +201,20 @@ test('multiple patchers', async () => {
   const targetFetchResultBefore1 = await fetchFromDir('target1', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultBefore2 = await fetchFromDir('target2', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultBefore3 = await fetchFromDir('target3', { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  const expected = Array.from(sourceFetchResult.filesIndex.keys()).sort()
-  expect(Array.from(targetFetchResultBefore1.filesIndex.keys()).sort()).not.toStrictEqual(expected)
-  expect(Array.from(targetFetchResultBefore2.filesIndex.keys()).sort()).not.toStrictEqual(expected)
-  expect(Array.from(targetFetchResultBefore3.filesIndex.keys()).sort()).not.toStrictEqual(expected)
-  expect(Array.from(targetFetchResultBefore1.filesIndex.keys()).sort()).toStrictEqual([])
-  expect(Array.from(targetFetchResultBefore2.filesIndex.keys()).sort()).toStrictEqual([])
-  expect(Array.from(targetFetchResultBefore3.filesIndex.keys()).sort()).toStrictEqual([])
+  const expected = Array.from(sourceFetchResult.filesMap.keys()).sort(lexCompare)
+  expect(Array.from(targetFetchResultBefore1.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(expected)
+  expect(Array.from(targetFetchResultBefore2.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(expected)
+  expect(Array.from(targetFetchResultBefore3.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(expected)
+  expect(Array.from(targetFetchResultBefore1.filesMap.keys()).sort(lexCompare)).toStrictEqual([])
+  expect(Array.from(targetFetchResultBefore2.filesMap.keys()).sort(lexCompare)).toStrictEqual([])
+  expect(Array.from(targetFetchResultBefore3.filesMap.keys()).sort(lexCompare)).toStrictEqual([])
 
   await Promise.all(patchers.map(patcher => patcher.apply()))
 
   const targetFetchResultAfter1 = await fetchFromDir('target1', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultAfter2 = await fetchFromDir('target2', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultAfter3 = await fetchFromDir('target3', { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultAfter1.filesIndex.keys()).sort()).toStrictEqual(expected)
-  expect(Array.from(targetFetchResultAfter2.filesIndex.keys()).sort()).toStrictEqual(expected)
-  expect(Array.from(targetFetchResultAfter3.filesIndex.keys()).sort()).toStrictEqual(expected)
+  expect(Array.from(targetFetchResultAfter1.filesMap.keys()).sort(lexCompare)).toStrictEqual(expected)
+  expect(Array.from(targetFetchResultAfter2.filesMap.keys()).sort(lexCompare)).toStrictEqual(expected)
+  expect(Array.from(targetFetchResultAfter3.filesMap.keys()).sort(lexCompare)).toStrictEqual(expected)
 })

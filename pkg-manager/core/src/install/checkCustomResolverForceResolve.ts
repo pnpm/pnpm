@@ -1,64 +1,41 @@
-import { type ProjectId, type ProjectManifest } from '@pnpm/types'
+import { parse as parseDepPath } from '@pnpm/dependency-path'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type CustomResolver, type WantedDependency, checkCustomResolverCanResolve } from '@pnpm/hooks.types'
 
-export interface ProjectWithManifest {
-  id: ProjectId
-  manifest: ProjectManifest
-}
+// Sentinel for Promise.any rejections (not an error condition)
+const SKIP = new Error('skip')
 
-/**
- * Check if any custom resolver requires force re-resolution for dependencies in the lockfile.
- * This is a pure function extracted from the install flow for testability.
- *
- * @param customResolvers - Array of custom resolvers to check
- * @param wantedLockfile - Current lockfile
- * @param projects - Projects with their manifests
- * @returns Promise<boolean> - true if any custom resolver requires force re-resolution
- */
 export async function checkCustomResolverForceResolve (
   customResolvers: CustomResolver[],
-  wantedLockfile: LockfileObject,
-  projects: ProjectWithManifest[]
+  wantedLockfile: LockfileObject
 ): Promise<boolean> {
-  for (const project of projects) {
-    const allDeps = getAllDependenciesFromManifest(project.manifest)
+  if (!wantedLockfile.packages) return false
 
-    for (const [depName, bareSpec] of Object.entries(allDeps)) {
-      const wantedDependency: WantedDependency = {
-        alias: depName,
-        bareSpecifier: bareSpec,
-      }
+  const resolversWithHook = customResolvers.filter(resolver => resolver.shouldForceResolve)
+  if (resolversWithHook.length === 0) return false
 
-      for (const customResolver of customResolvers) {
-        // eslint-disable-next-line no-await-in-loop
-        const canResolve = await checkCustomResolverCanResolve(customResolver, wantedDependency)
+  // Run shouldForceResolve checks in parallel
+  const pendingForceResolveChecks = Object.entries(wantedLockfile.packages).flatMap(([depPath, pkgSnapshot]) => {
+    const { name: alias, version, nonSemverVersion } = parseDepPath(depPath)
+    if (!alias) return []
 
-        if (canResolve && customResolver.shouldForceResolve) {
-          // eslint-disable-next-line no-await-in-loop
-          const shouldForce = await customResolver.shouldForceResolve(wantedDependency, wantedLockfile)
-
-          if (shouldForce) {
-            return true
-          }
-        }
-      }
+    const wantedDependency: WantedDependency = {
+      alias,
+      bareSpecifier: version ?? nonSemverVersion,
     }
-  }
 
-  return false
-}
+    return resolversWithHook.map(async resolver => {
+      const canResolve = await checkCustomResolverCanResolve(resolver, wantedDependency)
+      if (!canResolve) return Promise.reject(SKIP)
+      const result = await resolver.shouldForceResolve!(depPath, pkgSnapshot)
+      return result ? true : Promise.reject(SKIP)
+    })
+  })
 
-function getAllDependenciesFromManifest (manifest: {
-  dependencies?: Record<string, string>
-  devDependencies?: Record<string, string>
-  optionalDependencies?: Record<string, string>
-  peerDependencies?: Record<string, string>
-}): Record<string, string> {
-  return {
-    ...manifest.dependencies,
-    ...manifest.devDependencies,
-    ...manifest.optionalDependencies,
-    ...manifest.peerDependencies,
+  // Return true immediately if any check resolves as true; otherwise, return false
+  try {
+    return await Promise.any(pendingForceResolveChecks)
+  } catch {
+    return false
   }
 }

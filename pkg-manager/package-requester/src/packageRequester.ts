@@ -1,9 +1,7 @@
 import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
 import {
-  getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getIndexFilePathInCafs as _getIndexFilePathInCafs,
-  type PackageFilesIndex,
 } from '@pnpm/store.cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
@@ -16,7 +14,7 @@ import {
 } from '@pnpm/fetcher-base'
 import { type Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
-import { globalWarn, logger } from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {
@@ -44,7 +42,12 @@ import {
 import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
 import { type CustomFetcher } from '@pnpm/hooks.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
-import { calcMaxWorkers, readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
+import {
+  calcMaxWorkers,
+  readPkgFromCafs as _readPkgFromCafs,
+  type ReadPkgFromCafsOptions,
+  type ReadPkgFromCafsResult,
+} from '@pnpm/worker'
 import { familySync } from 'detect-libc'
 import PQueue from 'p-queue'
 import pDefer, { type DeferredPromise } from 'p-defer'
@@ -52,7 +55,6 @@ import pShare from 'promise-share'
 import { pick } from 'ramda'
 import semver from 'semver'
 import ssri from 'ssri'
-import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 
 let currentLibc: 'glibc' | 'musl' | undefined | null
 function getLibcFamilySync () {
@@ -106,10 +108,10 @@ export function createPackageRequester (
     customFetchers?: CustomFetcher[]
   }
 ): RequestPackageFunction & {
-    fetchPackageToStore: FetchPackageToStoreFunction
-    getFilesIndexFilePath: GetFilesIndexFilePath
-    requestPackage: RequestPackageFunction
-  } {
+  fetchPackageToStore: FetchPackageToStoreFunction
+  getFilesIndexFilePath: GetFilesIndexFilePath
+  requestPackage: RequestPackageFunction
+} {
   opts = opts || {}
 
   const networkConcurrency = opts.networkConcurrency ?? Math.min(64, Math.max(calcMaxWorkers() * 3, 16))
@@ -119,11 +121,15 @@ export function createPackageRequester (
 
   const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
+  const readPkgFromCafs = _readPkgFromCafs.bind(null, {
+    storeDir: opts.storeDir,
+    verifyStoreIntegrity: opts.verifyStoreIntegrity,
+    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
+  })
   const fetchPackageToStore = fetchToStore.bind(null, {
-    readPkgFromCafs: _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity),
+    readPkgFromCafs,
     fetch,
     fetchingLocker: new Map(),
-    getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, opts.storeDir),
     getIndexFilePathInCafs,
     requestsQueue: Object.assign(requestsQueue, {
       counter: 0,
@@ -169,80 +175,58 @@ async function resolveAndFetch (
   wantedDependency: WantedDependency & { optional?: boolean },
   options: RequestPackageOptions
 ): Promise<PackageResponse> {
-  let latest: string | undefined
-  let manifest: DependencyManifest | undefined
-  let normalizedBareSpecifier: string | undefined
-  let alias: string | undefined
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
-  const skipResolution = resolution && !options.update
-  let forceFetch = false
-  let updated = false
-  let resolvedVia: string | undefined
-  let publishedAt: string | undefined
 
-  // When fetching is skipped, resolution cannot be skipped.
-  // We need the package's manifest when doing `lockfile-only` installs.
-  // When we don't fetch, the only way to get the package's manifest is via resolving it.
+  // When we have a currentPkg but a resolution is still performed due to
+  // options.skipFetch, it's necessary to make sure the resolution doesn't
+  // accidentally return a newer version of the package. When skipFetch is
+  // set, the resolved package shouldn't be different. This is done by
+  // overriding the preferredVersions object to only contain the current
+  // package's version.
   //
-  // The resolution step is never skipped for local dependencies.
-  if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:')) || wantedDependency.optional === true) {
-    // When skipResolution is set but a resolution is still performed due to
-    // options.skipFetch, it's necessary to make sure the resolution doesn't
-    // accidentally return a newer version of the package. When skipFetch is
-    // set, the resolved package shouldn't be different. This is done by
-    // overriding the preferredVersions object to only contain the current
-    // package's version.
-    //
-    // A naive approach would be to change the bare specifier to be the exact
-    // version of the current pkg if the bare specifier is a range, but this
-    // would cause the version returned for calcSpecifier to be different.
-    const preferredVersions: PreferredVersions = (skipResolution && options.currentPkg?.name != null && options.currentPkg?.version != null)
+  // A naive approach would be to change the bare specifier to be the exact
+  // version of the current pkg if the bare specifier is a range, but this
+  // would cause the version returned for calcSpecifier to be different.
+  const preferredVersions: PreferredVersions = (resolution && !options.update && options.currentPkg?.name != null && options.currentPkg?.version != null)
+    ? {
+      ...options.preferredVersions,
+      [options.currentPkg.name]: { [options.currentPkg.version]: 'version' },
+    }
+    : options.preferredVersions
+
+  const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
+    ...options,
+    preferredVersions,
+    currentPkg: (options.currentPkg?.id && options.currentPkg?.resolution)
       ? {
-        ...options.preferredVersions,
-        [options.currentPkg.name]: { [options.currentPkg.version]: 'version' },
+        id: options.currentPkg.id,
+        name: options.currentPkg.name,
+        version: options.currentPkg.version,
+        resolution: options.currentPkg.resolution,
       }
-      : options.preferredVersions
+      : undefined,
+  }), { priority: options.downloadPriority })
 
-    const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
-      alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
-      defaultTag: options.defaultTag,
-      trustPolicy: options.trustPolicy,
-      trustPolicyExclude: options.trustPolicyExclude,
-      trustPolicyIgnoreAfter: options.trustPolicyIgnoreAfter,
-      publishedBy: options.publishedBy,
-      publishedByExclude: options.publishedByExclude,
-      pickLowestVersion: options.pickLowestVersion,
-      lockfileDir: options.lockfileDir,
-      preferredVersions,
-      preferWorkspacePackages: options.preferWorkspacePackages,
-      projectDir: options.projectDir,
-      workspacePackages: options.workspacePackages,
-      update: options.update,
-      injectWorkspacePackages: options.injectWorkspacePackages,
-      calcSpecifier: options.calcSpecifier,
-      pinnedVersion: options.pinnedVersion,
-    }), { priority: options.downloadPriority })
+  let { manifest } = resolveResult
+  const {
+    latest,
+    resolvedVia,
+    publishedAt,
+    normalizedBareSpecifier,
+    alias,
+  } = resolveResult
 
-    manifest = resolveResult.manifest
-    latest = resolveResult.latest
-    resolvedVia = resolveResult.resolvedVia
-    publishedAt = resolveResult.publishedAt
+  // Check if the integrity has changed between the current and newly resolved package
+  // Use 'in' check to safely access integrity from any resolution type that has it
+  const previousResolution = options.currentPkg?.resolution
+  const previousIntegrity = previousResolution && 'integrity' in previousResolution ? previousResolution.integrity : undefined
+  const newIntegrity = 'integrity' in resolveResult.resolution ? resolveResult.resolution.integrity : undefined
+  const integrityChanged = previousIntegrity != null && newIntegrity != null && previousIntegrity !== newIntegrity
 
-    // If the integrity of a local tarball dependency has changed,
-    // the local tarball should be unpacked, so a fetch to the store should be forced
-    forceFetch = Boolean(
-      ((options.currentPkg?.resolution) != null) &&
-      pkgId?.startsWith('file:') &&
-      (options.currentPkg?.resolution as TarballResolution).integrity !== (resolveResult.resolution as TarballResolution).integrity
-    )
-
-    updated = pkgId !== resolveResult.id || !resolution || forceFetch
-    resolution = resolveResult.resolution
-    pkgId = resolveResult.id
-    normalizedBareSpecifier = resolveResult.normalizedBareSpecifier
-    alias = resolveResult.alias
-  }
+  const updated = pkgId !== resolveResult.id || !resolution || integrityChanged
+  resolution = resolveResult.resolution
+  pkgId = resolveResult.id
 
   const id = pkgId!
 
@@ -279,8 +263,8 @@ async function resolveAndFetch (
     )
   )
   // We can skip fetching the package only if the manifest
-  // is present after resolution
-  if ((options.skipFetch === true || isInstallable === false) && (manifest != null)) {
+  // is present after resolution AND the content of the package has not changed
+  if ((options.skipFetch === true || isInstallable === false) && !integrityChanged && (manifest != null)) {
     return {
       body: {
         id,
@@ -302,7 +286,7 @@ async function resolveAndFetch (
   const fetchResult = ctx.fetchPackageToStore({
     allowBuild: options.allowBuild,
     fetchRawManifest: true,
-    force: forceFetch,
+    force: integrityChanged,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
@@ -419,8 +403,8 @@ function fetchToStore (
   ctx: {
     readPkgFromCafs: (
       filesIndexFile: string,
-      readManifest?: boolean
-    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
+      opts?: ReadPkgFromCafsOptions
+    ) => Promise<ReadPkgFromCafsResult>
     fetch: (
       packageId: string,
       resolution: AtomicResolution,
@@ -428,7 +412,6 @@ function fetchToStore (
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
     getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
-    getFilePathByModeInCafs: (integrity: string, mode: number) => string
     requestsQueue: {
       add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>
       counter: number
@@ -451,7 +434,7 @@ function fetchToStore (
     const fetching = pDefer<PkgRequestFetchResult>()
     const { filesIndexFile, target, resolution } = getFilesIndexFilePath(ctx, opts)
 
-    doFetchToStore(filesIndexFile, fetching, target, resolution) // eslint-disable-line
+    doFetchToStore(filesIndexFile, fetching, target, resolution)
 
     ctx.fetchingLocker.set(opts.pkg.id, {
       fetching: removeKeyOnFail(fetching.promise),
@@ -506,21 +489,13 @@ function fetchToStore (
   if (opts.fetchRawManifest && !result.fetchRawManifest) {
     result.fetching = removeKeyOnFail(
       result.fetching.then(async ({ files }) => {
-        if (!files.filesIndex.get('package.json')) return {
+        if (!files.filesMap.has('package.json')) return {
           files,
           bundledManifest: undefined,
         }
-        if (files.unprocessed) {
-          const { integrity, mode } = files.filesIndex.get('package.json')!
-          const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
-          return {
-            files,
-            bundledManifest: await readBundledManifest(manifestPath),
-          }
-        }
         return {
           files,
-          bundledManifest: await readBundledManifest(files.filesIndex.get('package.json')!),
+          bundledManifest: await readBundledManifest(files.filesMap.get('package.json')!),
         }
       })
     )
@@ -562,49 +537,18 @@ function fetchToStore (
         ) &&
         !isLocalPkg
       ) {
-        const { verified, pkgFilesIndex, manifest, requiresBuild } = await ctx.readPkgFromCafs(filesIndexFile, opts.fetchRawManifest)
+        const { verified, files, manifest } = await ctx.readPkgFromCafs(filesIndexFile, {
+          readManifest: opts.fetchRawManifest,
+          expectedPkg: opts.pkg,
+        })
         if (verified) {
-          if (
-            (
-              pkgFilesIndex.name != null &&
-              opts.pkg?.name != null &&
-              pkgFilesIndex.name.toLowerCase() !== opts.pkg.name.toLowerCase()
-            ) ||
-            (
-              pkgFilesIndex.version != null &&
-              opts.pkg?.version != null &&
-              // We used to not normalize the package versions before writing them to the lockfile and store.
-              // So it may happen that the version will be in different formats.
-              // For instance, v1.0.0 and 1.0.0
-              // Hence, we need to use semver.eq() to compare them.
-              !equalOrSemverEqual(pkgFilesIndex.version, opts.pkg.version)
-            )
-          ) {
-            const msg = `Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store.`
-            const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. \
-Expected package: ${opts.pkg.name}@${opts.pkg.version}. \
-Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
-            if (ctx.strictStorePkgContentCheck ?? true) {
-              throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
-                hint: `${hint}\n\nIf you want to ignore this issue, set the strict-store-pkg-content-check to false.`,
-              })
-            } else {
-              globalWarn(`${msg} ${hint}`)
-            }
-          }
           fetching.resolve({
-            files: {
-              unprocessed: true,
-              filesIndex: pkgFilesIndex.files,
-              resolvedFrom: 'store',
-              sideEffects: pkgFilesIndex.sideEffects,
-              requiresBuild,
-            },
+            files,
             bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
           })
           return
         }
-        if ((pkgFilesIndex?.files) != null) {
+        if ((files?.filesMap) != null) {
           packageRequestLogger.warn({
             message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
             prefix: opts.lockfileDir,
@@ -660,7 +604,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
       fetching.resolve({
         files: {
           resolvedFrom: fetchedPackage.local ? 'local-dir' : 'remote',
-          filesIndex: fetchedPackage.filesIndex,
+          filesMap: fetchedPackage.filesMap,
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
           requiresBuild: fetchedPackage.requiresBuild,
         },

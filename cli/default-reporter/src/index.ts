@@ -8,7 +8,6 @@ import { EOL } from './constants.js'
 import { mergeOutputs } from './mergeOutputs.js'
 import { reporterForClient } from './reporterForClient/index.js'
 import { formatWarn } from './reporterForClient/utils/formatWarn.js'
-import { reporterForServer } from './reporterForServer.js'
 import { type FilterPkgsDiff } from './reporterForClient/reportSummary.js'
 
 export { formatWarn }
@@ -40,14 +39,6 @@ export function initDefaultReporter (
     filterPkgsDiff?: FilterPkgsDiff
   }
 ): () => void {
-  if (opts.context.argv[0] === 'server') {
-    // eslint-disable-next-line
-    const log$ = Rx.fromEvent<logs.Log>(opts.streamParser as any, 'data')
-    const subscription = reporterForServer(log$, opts.context.config)
-    return () => {
-      subscription.unsubscribe()
-    }
-  }
   const proc = opts.context.process ?? process
   const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (proc.stdout.columns && proc.stdout.columns - 2) ?? 80
   const output$ = toOutput$({

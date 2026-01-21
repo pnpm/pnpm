@@ -25,7 +25,7 @@ import {
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import { createStoreController } from '@pnpm/store-connection-manager'
 import {
   type DepPath,
   type IgnoredBuilds,
@@ -189,7 +189,7 @@ export async function rebuildProjects (
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((depPath) => !pkgsThatWereRebuilt.has(depPath))
 
-  const store = await createOrConnectStoreController(opts)
+  const store = await createStoreController(opts)
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
     extraNodePaths: ctx.extraNodePaths,
@@ -365,7 +365,7 @@ async function _rebuild (
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
               includeDepGraphHash: true,
             })
-            if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
+            if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
               pkgsThatWereRebuilt.add(depPath)
               return
             }
@@ -406,18 +406,11 @@ async function _rebuild (
             })
           } catch (err: unknown) {
             assert(util.types.isNativeError(err))
-            if ('statusCode' in err && err.statusCode === 403) {
-              logger.warn({
-                message: `The store server disabled upload requests, could not upload ${pkgRoot}`,
-                prefix: opts.lockfileDir,
-              })
-            } else {
-              logger.warn({
-                error: err,
-                message: `An error occurred while uploading ${pkgRoot}`,
-                prefix: opts.lockfileDir,
-              })
-            }
+            logger.warn({
+              error: err,
+              message: `An error occurred while uploading ${pkgRoot}`,
+              prefix: opts.lockfileDir,
+            })
           }
         }
         pkgsThatWereRebuilt.add(depPath)

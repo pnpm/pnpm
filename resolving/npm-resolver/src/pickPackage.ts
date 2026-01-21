@@ -1,13 +1,12 @@
-import v8 from 'v8'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
 import gfs from '@pnpm/graceful-fs'
 import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import getRegistryName from 'encode-registry'
+import { loadJsonFile } from 'load-json-file'
 import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { pick } from 'ramda'
@@ -135,21 +134,20 @@ export async function pickPackage (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.cacheDir, ctx.metaDir, registryName, `${encodePkgName(spec.name)}.v8`)
+  const pkgMirror = path.join(ctx.cacheDir, ctx.metaDir, registryName, `${encodePkgName(spec.name)}.json`)
 
   return runLimited(pkgMirror, async (limit) => {
     let metaCachedInStore: PackageMeta | null | undefined
     if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
       metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
 
-      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-      if (ctx.offline || ctx.preferOffline) {
+      if (ctx.offline) {
         if (metaCachedInStore != null) return {
           meta: metaCachedInStore,
           pickedPackage: _pickPackageFromMeta(metaCachedInStore),
         }
 
-        if (ctx.offline) throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
+        throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
       if (metaCachedInStore != null) {
@@ -212,8 +210,7 @@ export async function pickPackage (
       ctx.metaCache.set(spec.name, meta)
       if (!opts.dryRun) {
         // We stringify this meta here to avoid saving any mutations that could happen to the meta object.
-        const stringifiedMeta = v8.serialize(meta)
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        const stringifiedMeta = JSON.stringify(meta)
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
             await saveMeta(pkgMirror, stringifiedMeta)
@@ -286,7 +283,7 @@ function encodePkgName (pkgName: string): string {
 
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
-    return await readV8FileStrictAsync<PackageMeta>(pkgMirror)
+    return await loadJsonFile<PackageMeta>(pkgMirror)
   } catch {
     return null
   }
@@ -294,7 +291,7 @@ async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
 
 const createdDirs = new Set<string>()
 
-async function saveMeta (pkgMirror: string, meta: Buffer): Promise<void> {
+async function saveMeta (pkgMirror: string, meta: string): Promise<void> {
   const dir = path.dirname(pkgMirror)
   if (!createdDirs.has(dir)) {
     await fs.mkdir(dir, { recursive: true })

@@ -30,7 +30,7 @@
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",
@@ -38,7 +38,6 @@
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/registry.pkg-metadata-filter": "workspace:*",
@@ -46,10 +45,12 @@
     "@pnpm/resolve-workspace-range": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@zkochan/retry": "catalog:",
     "encode-registry": "catalog:",
+    "load-json-file": "catalog:",
     "lru-cache": "catalog:",
     "normalize-path": "catalog:",
     "p-limit": "catalog:",
@@ -64,7 +65,8 @@
     "version-selector-type": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/config.version-policy": "workspace:*",
@@ -76,7 +78,6 @@
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
-    "load-json-file": "catalog:",
     "nock": "catalog:",
     "tempy": "catalog:"
   },

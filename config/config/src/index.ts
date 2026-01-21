@@ -522,7 +522,6 @@ export async function getConfig (opts: {
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
   }
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
   if (pnpmConfig.hoist === false) {
     delete pnpmConfig.hoistPattern
   }
