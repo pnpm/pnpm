@@ -358,7 +358,7 @@ when running add/update with the --workspace option')
       })
     }
     if (opts.strictDepBuilds && ignoredBuilds?.size) {
-      throw new IgnoredBuildsError(ignoredBuilds)
+      throw new IgnoredBuildsError(ignoredBuilds, { global: opts.global })
     }
     return
   }
@@ -383,7 +383,7 @@ when running add/update with the --workspace option')
     ])
   }
   if (opts.strictDepBuilds && ignoredBuilds?.size) {
-    throw new IgnoredBuildsError(ignoredBuilds)
+    throw new IgnoredBuildsError(ignoredBuilds, { global: opts.global })
   }
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {

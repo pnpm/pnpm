@@ -1731,10 +1731,11 @@ async function linkAllBins (
 }
 
 export class IgnoredBuildsError extends PnpmError {
-  constructor (ignoredBuilds: IgnoredBuilds) {
+  constructor (ignoredBuilds: IgnoredBuilds, opts?: { global?: boolean }) {
     const packageNames = dedupePackageNamesFromIgnoredBuilds(ignoredBuilds)
+    const globalFlag = opts?.global ? ' -g' : ''
     super('IGNORED_BUILDS', `Ignored build scripts: ${packageNames.join(', ')}`, {
-      hint: 'Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.',
+      hint: `Run "pnpm approve-builds${globalFlag}" to pick which dependencies should be allowed to run scripts.`,
     })
   }
 }
