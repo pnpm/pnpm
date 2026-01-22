@@ -72,6 +72,7 @@ export async function createNewStoreController (
     authConfig: opts.rawConfig,
     ca: opts.ca,
     cacheDir: opts.cacheDir,
+    storeDir: opts.storeDir,
     cert: opts.cert,
     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs,
     fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
