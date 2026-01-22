@@ -16,7 +16,7 @@ import ssri, { type IntegrityLike } from 'ssri'
  */
 export const modeIsExecutable = (mode: number): boolean => (mode & 0o111) !== 0
 
-export type FileType = 'exec' | 'nonexec' | 'index'
+export type FileType = 'exec' | 'nonexec'
 
 export function getFilePathByModeInCafs (
   storeDir: string,
@@ -57,7 +57,5 @@ export function contentPathFromHex (fileType: FileType, hex: string): string {
     return `${p}-exec`
   case 'nonexec':
     return p
-  case 'index':
-    return `${p}-index.mpk`
   }
 }

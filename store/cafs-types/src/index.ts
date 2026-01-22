@@ -49,7 +49,7 @@ export type ImportPackageFunctionAsync = (
   opts: ImportPackageOpts
 ) => Promise<{ isBuilt: boolean, importMethod: undefined | string }>
 
-export type FileType = 'exec' | 'nonexec' | 'index'
+export type FileType = 'exec' | 'nonexec'
 
 export type FilesIndex = Map<string, {
   mode: number

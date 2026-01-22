@@ -427,8 +427,8 @@ function writeIndexFile (filePath: string, data: PackageFilesIndex): void {
   // There is actually no need to create the directory in 99% of cases.
   // So by using cafs API, we'll improve performance.
   fs.mkdirSync(targetDir, { recursive: true })
-  // We remove the "-index.mpk" from the end of the temp file name
-  // in order to avoid ENAMETOOLONG errors
+  // Drop the last 10 characters and append the PID to create a shorter unique temp filename.
+  // This avoids ENAMETOOLONG errors on systems with path length limits.
   const temp = `${filePath.slice(0, -10)}${process.pid}`
   writeMsgpackFileSync(temp, data)
   optimisticRenameOverwrite(temp, filePath)

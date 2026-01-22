@@ -326,7 +326,6 @@ gitChecks: false
 
 hoistPattern:
   - jest-runner
-  - picocolors
 
 managePackageManagerVersions: true
 
