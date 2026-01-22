@@ -772,7 +772,7 @@ overrides:
   json5@<2.2.2: ^2.2.3
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   jws@<3.2.3: ^3.2.3
-  lodash@>=4.0.0 <=4.17.22: '>=4.17.23'
+  lodash@>=4.0.0 <=4.17.22: ^4.17.23
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
   path-to-regexp@<0.1.12: ^0.1.12
