@@ -1,12 +1,11 @@
-
 import fs from 'fs'
 import path from 'path'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { temporaryDirectory } from 'tempy'
+import tempy from 'tempy'
 
 test('skip directories.bin with real path traversal', async () => {
   // Create a secret file outside the package directory
-  const tempDir = temporaryDirectory()
+  const tempDir = tempy.directory()
   const secretDir = path.join(tempDir, 'secret')
   fs.mkdirSync(secretDir)
   fs.writeFileSync(path.join(secretDir, 'secret.sh'), 'echo secret')
