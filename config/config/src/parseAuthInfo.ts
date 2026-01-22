@@ -90,8 +90,8 @@ function getAuthUserPass ({
 
 export class AuthMissingSeparatorError extends PnpmError {
   constructor () {
-    super('AUTH_MISSING_SEPERATOR', 'No seperator found in the decoded form of _auth', {
-      hint: '_auth is a base64 encoded form of <username>:<password> where the colon (:) serves as the seperator',
+    super('AUTH_MISSING_SEPARATOR', 'No separator found in the decoded form of _auth', {
+      hint: '_auth is a base64 encoded form of <username>:<password> where the colon (:) serves as the separator',
     })
   }
 }

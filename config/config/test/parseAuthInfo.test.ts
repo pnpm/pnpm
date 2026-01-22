@@ -38,7 +38,7 @@ describe('parseAuthInfo', () => {
     } as AuthInfo)
   })
 
-  test('authPairBase64 must have a seperator', () => {
+  test('authPairBase64 must have a separator', () => {
     expect(() => parseAuthInfo({
       authPairBase64: btoa('foo'),
     })).toThrow(new AuthMissingSeparatorError())
