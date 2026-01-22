@@ -130,7 +130,6 @@ export interface ResolveOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
-  optional?: boolean
   currentPkg?: {
     id: PkgResolutionId
     name?: string
@@ -150,4 +149,4 @@ export type WantedDependency = {
   bareSpecifier?: string
 })
 
-export type ResolveFunction = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<ResolveResult>
+export type ResolveFunction = (wantedDependency: WantedDependency & { optional?: boolean }, opts: ResolveOptions) => Promise<ResolveResult>

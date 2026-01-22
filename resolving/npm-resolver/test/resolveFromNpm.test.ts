@@ -106,13 +106,13 @@ describe('resolveFromNpm', () => {
       registries,
     })
 
-    const wantedDependency: WantedDependency = {
-      alias: '@biomejs/biome',
-      bareSpecifier: '2.3.11',
-    }
     const resolveResult = await resolveFromNpm(
-      wantedDependency,
-      { optional: true }
+      {
+        alias: '@biomejs/biome',
+        bareSpecifier: '2.3.11',
+        optional: true,
+      },
+      {}
     )
 
     expect(resolveResult!.id).toBe('@biomejs/biome@2.3.11')
@@ -166,13 +166,13 @@ describe('resolveFromNpm', () => {
         cacheDir,
         registries,
       })
-      const optionalWantedDep: WantedDependency = {
-        alias: 'test-package',
-        bareSpecifier: '1.0.0',
-      }
       const optionalResult = await resolveFromNpm(
-        optionalWantedDep,
-        { optional: true }
+        {
+          alias: 'test-package',
+          bareSpecifier: '1.0.0',
+          optional: true,
+        },
+        {}
       )
       expect(optionalResult!.id).toBe('test-package@1.0.0')
       expect(optionalResult!.manifest).toBeDefined()
@@ -237,13 +237,13 @@ describe('resolveFromNpm', () => {
         cacheDir,
         registries,
       })
-      const wantedDep: WantedDependency = {
-        alias: 'cache-test',
-        bareSpecifier: '1.0.0',
-      }
       const result = await resolveFromNpm(
-        wantedDep,
-        { optional: true }
+        {
+          alias: 'cache-test',
+          bareSpecifier: '1.0.0',
+          optional: true,
+        },
+        {}
       )
       expect(result!.manifest!.scripts).toBeDefined()
       expect(result!.manifest!.scripts!.test).toBe('jest')

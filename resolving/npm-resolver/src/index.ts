@@ -154,7 +154,7 @@ export interface WorkspaceResolveResult extends ResolveResult {
 }
 
 export type NpmResolver = (
-  wantedDependency: WantedDependency,
+  wantedDependency: WantedDependency & { optional?: boolean },
   opts: ResolveFromNpmOptions
 ) => Promise<NpmResolveResult | JsrResolveResult | WorkspaceResolveResult | null>
 
@@ -209,7 +209,8 @@ export function createNpmResolver (
       return request
     }
   }
-  const defaultMetaDir = opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : ABBREVIATED_META_DIR
+  const fullMetaDir = opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR
+  const defaultMetaDir = opts.fullMetadata ? fullMetaDir : ABBREVIATED_META_DIR
   const ctx: ResolveFromNpmContext = {
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
@@ -225,6 +226,7 @@ export function createNpmResolver (
     registries: opts.registries,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     metaDir: defaultMetaDir,
+    metaDirForOptionalPackages: fullMetaDir,
     peekManifestFromStore,
   }
   return {
@@ -241,7 +243,8 @@ export interface ResolveFromNpmContext {
   getAuthHeaderValueByURI: (registry: string) => string | undefined
   registries: Registries
   saveWorkspaceProtocol?: boolean | 'rolling'
-  metaDir?: string
+  metaDir: string
+  metaDirForOptionalPackages: string
   peekManifestFromStore?: (opts: {
     id: PkgResolutionId
     integrity: string
@@ -267,7 +270,6 @@ export type ResolveFromNpmOptions = {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
-  optional?: boolean
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -278,7 +280,7 @@ export type ResolveFromNpmOptions = {
 
 async function resolveNpm (
   ctx: ResolveFromNpmContext,
-  wantedDependency: WantedDependency,
+  wantedDependency: WantedDependency & { optional?: boolean },
   opts: ResolveFromNpmOptions & {
     currentPkg?: {
       id: PkgResolutionId
@@ -351,7 +353,7 @@ async function resolveNpm (
   try {
     // Use full metadata for optional dependencies to get libc field.
     // See: https://github.com/pnpm/pnpm/issues/9950
-    const metaDir = opts.optional === true ? FULL_META_DIR : (ctx.metaDir ?? ABBREVIATED_META_DIR)
+    const metaDir = wantedDependency.optional === true ? ctx.metaDirForOptionalPackages : ctx.metaDir
     pickResult = await ctx.pickPackage(spec, {
       pickLowestVersion: opts.pickLowestVersion,
       publishedBy: opts.publishedBy,

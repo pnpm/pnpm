@@ -1169,9 +1169,9 @@ test('should pass optional flag to resolve function', async () => {
   const cafs = createCafsStore(storeDir)
 
   let capturedOptional: boolean | undefined
-  const mockResolve: typeof resolve = async (wantedDependency, options) => {
-    capturedOptional = options.optional
-    return resolve(wantedDependency, options)
+  const mockResolve: typeof resolve = async (wantedDependency, _options) => {
+    capturedOptional = wantedDependency.optional
+    return resolve(wantedDependency, _options)
   }
 
   const requestPackage = createPackageRequester({
