@@ -293,7 +293,7 @@ function addFilesFromDir (
     } else {
       requiresBuild = existingFilesIndex.requiresBuild
     }
-    writeMsgpackFileSync(filesIndexFile, existingFilesIndex)
+    writeIndexFile(filesIndexFile, existingFilesIndex)
   } else {
     requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
   }
@@ -417,11 +417,11 @@ function writeFilesIndexFile (
     files,
     sideEffects,
   }
-  writeMsgpackFile(filesIndexFile, filesIndex)
+  writeIndexFile(filesIndexFile, filesIndex)
   return requiresBuild
 }
 
-function writeMsgpackFile (filePath: string, data: unknown): void {
+function writeIndexFile (filePath: string, data: PackageFilesIndex): void {
   const targetDir = path.dirname(filePath)
   // TODO: use the API of @pnpm/cafs to write this file
   // There is actually no need to create the directory in 99% of cases.

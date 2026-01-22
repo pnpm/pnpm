@@ -1,5 +1,5 @@
-import * as fs from 'fs'
 import { Packr } from 'msgpackr'
+import gfs from '@pnpm/graceful-fs'
 
 /**
  * Create a Packr instance with record structure optimization enabled.
@@ -17,14 +17,14 @@ const packr = new Packr({
  */
 export function writeMsgpackFileSync (filePath: string, data: unknown): void {
   const buffer = packr.pack(data)
-  fs.writeFileSync(filePath, buffer)
+  gfs.writeFileSync(filePath, buffer)
 }
 
 /**
  * Read msgpack data from a file (synchronous)
  */
 export function readMsgpackFileSync<T> (filePath: string): T {
-  const buffer = fs.readFileSync(filePath)
+  const buffer = gfs.readFileSync(filePath)
   return packr.unpack(buffer) as T
 }
 
@@ -32,7 +32,7 @@ export function readMsgpackFileSync<T> (filePath: string): T {
  * Read msgpack data from a file (async)
  */
 export async function readMsgpackFile<T> (filePath: string): Promise<T> {
-  const buffer = await fs.promises.readFile(filePath)
+  const buffer = await gfs.readFile(filePath)
   return packr.unpack(buffer) as T
 }
 
@@ -41,5 +41,5 @@ export async function readMsgpackFile<T> (filePath: string): Promise<T> {
  */
 export async function writeMsgpackFile (filePath: string, data: unknown): Promise<void> {
   const buffer = packr.pack(data)
-  await fs.promises.writeFile(filePath, buffer)
+  await gfs.writeFile(filePath, buffer)
 }

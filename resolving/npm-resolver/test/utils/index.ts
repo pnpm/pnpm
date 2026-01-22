@@ -6,7 +6,7 @@ export async function retryLoadMsgpackFile<T> (filePath: string): Promise<T> {
   while (true) {
     await delay(500)
     try {
-      return readMsgpackFile<T>(filePath)
+      return await readMsgpackFile<T>(filePath)
     } catch (err: any) { // eslint-disable-line
       if (retry > 2) throw err
       retry++

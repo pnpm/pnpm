@@ -3498,6 +3498,9 @@ importers:
 
   fs/msgpack-file:
     dependencies:
+      '@pnpm/graceful-fs':
+        specifier: workspace:*
+        version: link:../graceful-fs
       msgpackr:
         specifier: 'catalog:'
         version: 1.11.8
