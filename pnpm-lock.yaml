@@ -772,6 +772,7 @@ overrides:
   json5@<2.2.2: ^2.2.3
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   jws@<3.2.3: ^3.2.3
+  lodash@>=4.0.0 <=4.17.22: '>=4.17.23'
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
   path-to-regexp@<0.1.12: ^0.1.12
@@ -14060,8 +14061,8 @@ packages:
   lodash.upperfirst@4.3.1:
     resolution: {integrity: sha512-sReKOYJIJf74dhJONhU4e0/shzi1trVbSWDOhKYE5XV2O+H7Sb2Dihwuc7xWxVl+DgFPyTqIN3zMfT9cq5iWDg==}
 
-  lodash@4.17.21:
-    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
+  lodash@4.17.23:
+    resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
 
   log-symbols@4.1.0:
     resolution: {integrity: sha512-8XPvpAA8uyhfteu8pIvQxpJZ7SYYdpUivZpGy6sFsBuKRY/7rQGavedeB8aK+Zkyq6upMFVL/9AW6vOYzfRyLg==}
@@ -19587,7 +19588,7 @@ snapshots:
       '@verdaccio/signature': 8.0.0-next-8.11
       debug: 4.4.1
       express: 4.22.1
-      lodash: 4.17.21
+      lodash: 4.17.23
       verdaccio-htpasswd: 13.0.0-next-8.19
     transitivePeerDependencies:
       - supports-color
@@ -19602,7 +19603,7 @@ snapshots:
       '@verdaccio/core': 8.0.0-next-8.19
       debug: 4.4.1
       js-yaml: '@zkochan/js-yaml@0.0.10'
-      lodash: 4.17.21
+      lodash: 4.17.23
       minimatch: 7.4.6
     transitivePeerDependencies:
       - supports-color
@@ -19628,7 +19629,7 @@ snapshots:
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.19
       debug: 4.4.1
-      lodash: 4.17.21
+      lodash: 4.17.23
     transitivePeerDependencies:
       - supports-color
 
@@ -19639,7 +19640,7 @@ snapshots:
       '@verdaccio/streams': 10.2.1
       async: 3.2.4
       debug: 4.3.4
-      lodash: 4.17.21
+      lodash: 4.17.23
       lowdb: 1.0.0
       mkdirp: 1.0.4
     transitivePeerDependencies:
@@ -19658,7 +19659,7 @@ snapshots:
     dependencies:
       colorette: 2.0.20
       dayjs: 1.11.13
-      lodash: 4.17.21
+      lodash: 4.17.23
       on-exit-leak-free: 2.1.2
       pino-abstract-transport: 1.2.0
       sonic-boom: 3.8.1
@@ -19678,7 +19679,7 @@ snapshots:
       debug: 4.4.1
       express: 4.22.1
       express-rate-limit: 5.5.1
-      lodash: 4.17.21
+      lodash: 4.17.23
       lru-cache: 7.18.3
       mime: 2.6.0
     transitivePeerDependencies:
@@ -19715,7 +19716,7 @@ snapshots:
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.19
       debug: 4.4.1
-      lodash: 4.17.21
+      lodash: 4.17.23
       validator: 13.15.23
     transitivePeerDependencies:
       - supports-color
@@ -19723,7 +19724,7 @@ snapshots:
   '@verdaccio/utils@8.1.0-next-8.19':
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.19
-      lodash: 4.17.21
+      lodash: 4.17.23
       minimatch: 7.4.6
 
   '@yao-pkg/pkg-fetch@3.5.24(encoding@0.1.13)':
@@ -19778,7 +19779,7 @@ snapshots:
       dotenv: 16.5.0
       fast-glob: 3.3.3
       got: 11.8.6
-      lodash: 4.17.21
+      lodash: 4.17.23
       micromatch: 4.0.8
       p-limit: 2.3.0
       semver: 7.7.2
@@ -19809,7 +19810,7 @@ snapshots:
       dotenv: 16.5.0
       fast-glob: 3.3.3
       got: 11.8.6
-      lodash: 4.17.21
+      lodash: 4.17.23
       micromatch: 4.0.8
       p-limit: 2.3.0
       semver: 7.7.2
@@ -23116,7 +23117,7 @@ snapshots:
 
   lodash.upperfirst@4.3.1: {}
 
-  lodash@4.17.21: {}
+  lodash@4.17.23: {}
 
   log-symbols@4.1.0:
     dependencies:
@@ -23134,7 +23135,7 @@ snapshots:
     dependencies:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       is-promise: 2.2.2
-      lodash: 4.17.21
+      lodash: 4.17.23
       pify: 3.0.0
       steno: 0.4.4
 
@@ -23468,7 +23469,7 @@ snapshots:
     dependencies:
       debug: 4.4.3
       json-stringify-safe: 5.0.1
-      lodash: 4.17.21
+      lodash: 4.17.23
       propagate: 2.0.1
     transitivePeerDependencies:
       - supports-color
@@ -25536,7 +25537,7 @@ snapshots:
       envinfo: 7.14.0
       express: 4.22.1
       handlebars: 4.7.8
-      lodash: 4.17.21
+      lodash: 4.17.23
       lru-cache: 7.18.3
       mime: 3.0.0
       mkdirp: 1.0.4
