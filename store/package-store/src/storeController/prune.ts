@@ -1,10 +1,10 @@
 import { type Dirent, promises as fs } from 'fs'
 import util from 'util'
 import path from 'path'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
-import { readFile as readMsgpackFile } from '@pnpm/msgpack-serializer'
 import ssri from 'ssri'
 import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
 

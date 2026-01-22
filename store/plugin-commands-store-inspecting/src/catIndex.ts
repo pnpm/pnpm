@@ -4,12 +4,12 @@ import { createResolver } from '@pnpm/client'
 import { type TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { sortDeepKeys } from '@pnpm/object.key-sorting'
 import { getStorePath } from '@pnpm/store-path'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { readFile as readMsgpackFile } from '@pnpm/msgpack-serializer'
 
 import renderHelp from 'render-help'
 

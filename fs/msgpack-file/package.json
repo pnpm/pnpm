@@ -1,6 +1,6 @@
 {
-  "name": "@pnpm/msgpack-serializer",
-  "version": "1000.0.0",
+  "name": "@pnpm/fs.msgpack-file",
+  "version": "1100.0.0-0",
   "description": "Msgpack serialization utilities for pnpm cache files",
   "keywords": [
     "pnpm",
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/fs/msgpack-serializer",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/fs/msgpack-serializer#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/fs/msgpack-file",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/fs/msgpack-file#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -35,7 +35,7 @@
     "msgpackr": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/msgpack-serializer": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
     "tempy": "catalog:"
   },
   "engines": {

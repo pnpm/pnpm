@@ -11,6 +11,7 @@ import {
   type StageLog,
   type StatsLog,
 } from '@pnpm/core-loggers'
+import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readModulesManifest } from '@pnpm/modules-yaml'
@@ -21,7 +22,6 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { jest } from '@jest/globals'
 import { sync as rimraf } from '@zkochan/rimraf'
-import { readFileSync as readMsgpackFileSync, writeFileSync as writeMsgpackFileSync } from '@pnpm/msgpack-serializer'
 import { loadJsonFileSync } from 'load-json-file'
 import sinon from 'sinon'
 import { testDefaults } from './utils/testDefaults.js'

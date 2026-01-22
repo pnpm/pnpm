@@ -33,7 +33,7 @@
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/msgpack-serializer": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "encode-registry": "catalog:",

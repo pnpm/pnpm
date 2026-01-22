@@ -19,7 +19,7 @@
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../fs/msgpack-serializer"
+      "path": "../../fs/msgpack-file"
     },
     {
       "path": "../../hooks/types"

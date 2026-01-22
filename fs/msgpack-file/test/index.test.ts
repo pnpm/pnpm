@@ -1,8 +1,13 @@
 import fs from 'fs'
-import { readFile, readFileSync, writeFile, writeFileSync } from '@pnpm/msgpack-serializer'
+import {
+  readMsgpackFile,
+  readMsgpackFileSync,
+  writeMsgpackFile,
+  writeMsgpackFileSync,
+} from '@pnpm/fs.msgpack-file'
 import { temporaryDirectory } from 'tempy'
 
-describe('msgpack-serializer', () => {
+describe('msgpack-file', () => {
   let tmpDir: string
 
   beforeEach(() => {
@@ -20,10 +25,10 @@ describe('msgpack-serializer', () => {
       },
     }
 
-    writeFileSync(filePath, data)
+    writeMsgpackFileSync(filePath, data)
     expect(fs.existsSync(filePath)).toBe(true)
 
-    const readData = readFileSync(filePath)
+    const readData = readMsgpackFileSync(filePath)
     expect(readData).toEqual(data)
   })
 
@@ -38,10 +43,10 @@ describe('msgpack-serializer', () => {
       },
     }
 
-    await writeFile(filePath, data)
+    await writeMsgpackFile(filePath, data)
     expect(fs.existsSync(filePath)).toBe(true)
 
-    const readData = await readFile(filePath)
+    const readData = await readMsgpackFile(filePath)
     expect(readData).toEqual(data)
   })
 
@@ -52,8 +57,8 @@ describe('msgpack-serializer', () => {
       set: new Set([1, 2, 3, 3]),
     }
 
-    writeFileSync(filePath, data)
-    const readData = readFileSync<any>(filePath) // eslint-disable-line @typescript-eslint/no-explicit-any
+    writeMsgpackFileSync(filePath, data)
+    const readData = readMsgpackFileSync<any>(filePath) // eslint-disable-line @typescript-eslint/no-explicit-any
 
     expect(readData.map).toBeInstanceOf(Map)
     expect(readData.map.get('key1')).toBe('value1')
@@ -71,8 +76,8 @@ describe('msgpack-serializer', () => {
       structure,
     ]
 
-    writeFileSync(filePath, data)
-    const readData = readFileSync<any>(filePath) // eslint-disable-line @typescript-eslint/no-explicit-any
+    writeMsgpackFileSync(filePath, data)
+    const readData = readMsgpackFileSync<any>(filePath) // eslint-disable-line @typescript-eslint/no-explicit-any
 
     expect(readData).toHaveLength(3)
     expect(readData[0]).toEqual(structure)

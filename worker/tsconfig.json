@@ -19,7 +19,7 @@
       "path": "../fs/hard-link-dir"
     },
     {
-      "path": "../fs/msgpack-serializer"
+      "path": "../fs/msgpack-file"
     },
     {
       "path": "../fs/symlink-dependency"

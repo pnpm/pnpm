@@ -25,7 +25,7 @@
       "path": "../../fs/graceful-fs"
     },
     {
-      "path": "../../fs/msgpack-serializer"
+      "path": "../../fs/msgpack-file"
     },
     {
       "path": "../../network/fetch"

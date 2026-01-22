@@ -1,12 +1,12 @@
 import crypto from 'crypto'
 import path from 'path'
 import fs from 'fs'
-import { readFileSync as readMsgpackFileSync, writeFileSync as writeMsgpackFileSync } from '@pnpm/msgpack-serializer'
 import { PnpmError } from '@pnpm/error'
 import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff, type FilesMap } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
+import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import {
   type CafsFunctions,
   checkPkgFilesIntegrity,

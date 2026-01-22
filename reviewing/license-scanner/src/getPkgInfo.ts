@@ -3,6 +3,7 @@ import pathAbsolute from 'path-absolute'
 import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
 import { depPathToFilename, parse } from '@pnpm/dependency-path'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import pLimit from 'p-limit'
 import { type PackageManifest, type Registries } from '@pnpm/types'
 import {
@@ -16,7 +17,6 @@ import { PnpmError } from '@pnpm/error'
 import { type LicensePackage } from './licenses.js'
 import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile.utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { readFile as readMsgpackFile } from '@pnpm/msgpack-serializer'
 
 const limitPkgReads = pLimit(4)
 

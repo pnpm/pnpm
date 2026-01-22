@@ -43,7 +43,7 @@
       "path": "../../deps/graph-sequencer"
     },
     {
-      "path": "../../fs/msgpack-serializer"
+      "path": "../../fs/msgpack-file"
     },
     {
       "path": "../../lockfile/types"

@@ -4,7 +4,7 @@ import { glob } from 'tinyglobby'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { type PackageMeta } from '@pnpm/npm-resolver'
 import getRegistryName from 'encode-registry'
-import { readFileSync as readMsgpackFileSync } from '@pnpm/msgpack-serializer'
+import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 
 interface CachedVersions {
   cachedVersions: string[]

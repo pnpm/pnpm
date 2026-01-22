@@ -1,4 +1,4 @@
-import { readFile as readMsgpackFile } from '@pnpm/msgpack-serializer'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 
 export async function retryLoadMsgpackFile<T> (filePath: string): Promise<T> {
   let retry = 0

@@ -16,7 +16,7 @@
       "path": "../../fetching/directory-fetcher"
     },
     {
-      "path": "../../fs/msgpack-serializer"
+      "path": "../../fs/msgpack-file"
     },
     {
       "path": "../../lockfile/detect-dep-types"

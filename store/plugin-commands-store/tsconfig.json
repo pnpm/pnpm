@@ -28,7 +28,7 @@
       "path": "../../exec/plugin-commands-script-runners"
     },
     {
-      "path": "../../fs/msgpack-serializer"
+      "path": "../../fs/msgpack-file"
     },
     {
       "path": "../../lockfile/fs"

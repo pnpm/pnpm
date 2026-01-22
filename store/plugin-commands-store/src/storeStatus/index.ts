@@ -8,9 +8,9 @@ import {
 } from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { type DepPath } from '@pnpm/types'
 import dint from 'dint'
-import { readFile as readMsgpackFile } from '@pnpm/msgpack-serializer'
 import pFilter from 'p-filter'
 import {
   extendStoreStatusOptions,

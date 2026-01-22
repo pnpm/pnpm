@@ -15,7 +15,7 @@ const packr = new Packr({
 /**
  * Write data to a file in msgpack format (synchronous)
  */
-export function writeFileSync (filePath: string, data: unknown): void {
+export function writeMsgpackFileSync (filePath: string, data: unknown): void {
   const buffer = packr.pack(data)
   fs.writeFileSync(filePath, buffer)
 }
@@ -23,7 +23,7 @@ export function writeFileSync (filePath: string, data: unknown): void {
 /**
  * Read msgpack data from a file (synchronous)
  */
-export function readFileSync<T> (filePath: string): T {
+export function readMsgpackFileSync<T> (filePath: string): T {
   const buffer = fs.readFileSync(filePath)
   return packr.unpack(buffer) as T
 }
@@ -31,7 +31,7 @@ export function readFileSync<T> (filePath: string): T {
 /**
  * Read msgpack data from a file (async)
  */
-export async function readFile<T> (filePath: string): Promise<T> {
+export async function readMsgpackFile<T> (filePath: string): Promise<T> {
   const buffer = await fs.promises.readFile(filePath)
   return packr.unpack(buffer) as T
 }
@@ -39,7 +39,7 @@ export async function readFile<T> (filePath: string): Promise<T> {
 /**
  * Write data to a file in msgpack format (async)
  */
-export async function writeFile (filePath: string, data: unknown): Promise<void> {
+export async function writeMsgpackFile (filePath: string, data: unknown): Promise<void> {
   const buffer = packr.pack(data)
   await fs.promises.writeFile(filePath, buffer)
 }

@@ -1,5 +1,6 @@
 // cspell:ignore ents
 import fs from 'fs'
+import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
@@ -8,7 +9,6 @@ import {
 import { type DepPath } from '@pnpm/types'
 import schemas from 'hyperdrive-schemas'
 import Fuse from 'fuse-native'
-import { readFileSync as readMsgpackFileSync } from '@pnpm/msgpack-serializer'
 import * as cafsExplorer from './cafsExplorer.js'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
 

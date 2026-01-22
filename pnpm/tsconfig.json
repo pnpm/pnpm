@@ -75,7 +75,7 @@
       "path": "../exec/run-npm"
     },
     {
-      "path": "../fs/msgpack-serializer"
+      "path": "../fs/msgpack-file"
     },
     {
       "path": "../lockfile/plugin-commands-audit"

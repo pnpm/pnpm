@@ -100,7 +100,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
-    "@pnpm/msgpack-serializer": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/nopt": "catalog:",
     "@pnpm/parse-cli-args": "workspace:*",
     "@pnpm/plugin-commands-audit": "workspace:*",
