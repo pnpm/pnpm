@@ -1,10 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import { glob } from 'tinyglobby'
+import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { type PackageMeta } from '@pnpm/npm-resolver'
 import getRegistryName from 'encode-registry'
-import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 
 interface CachedVersions {
   cachedVersions: string[]
