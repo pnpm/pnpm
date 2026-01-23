@@ -43,6 +43,9 @@
       "path": "../../deps/graph-sequencer"
     },
     {
+      "path": "../../fs/msgpack-file"
+    },
+    {
       "path": "../../lockfile/types"
     },
     {

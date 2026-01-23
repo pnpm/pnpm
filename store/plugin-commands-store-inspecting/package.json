@@ -34,6 +34,7 @@
     "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
@@ -43,7 +44,6 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "chalk": "catalog:",
-    "load-json-file": "catalog:",
     "render-help": "catalog:"
   },
   "devDependencies": {

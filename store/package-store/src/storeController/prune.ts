@@ -1,10 +1,10 @@
 import { type Dirent, promises as fs } from 'fs'
 import util from 'util'
 import path from 'path'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
-import { loadJsonFile } from 'load-json-file'
 import ssri from 'ssri'
 import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
 
@@ -44,7 +44,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
     const subdir = path.join(indexDir, dir)
     await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
       const filePath = path.join(subdir, fileName)
-      if (fileName.endsWith('.json')) {
+      if (fileName.endsWith('.mpk')) {
         pkgIndexFiles.push(filePath)
       }
     }))
@@ -56,7 +56,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
     const subdir = path.join(cafsDir, dir)
     await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
       const filePath = path.join(subdir, fileName)
-      if (fileName.endsWith('.json')) {
+      if (fileName.endsWith('.mpk')) {
         pkgIndexFiles.push(filePath)
         return
       }
@@ -84,9 +84,10 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
   // 4. Clean up orphaned package index files
   let pkgCounter = 0
   await Promise.all(pkgIndexFiles.map(async (pkgIndexFilePath) => {
-    const { files: pkgFilesIndex } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
+    const pkgFilesIndex = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
+    const pkgJson = pkgFilesIndex.files.get('package.json')
     // TODO: implement prune of Node.js packages, they don't have a package.json file
-    if (pkgFilesIndex['package.json'] && removedHashes.has(pkgFilesIndex['package.json'].integrity)) {
+    if (pkgJson && removedHashes.has(pkgJson.integrity)) {
       await fs.unlink(pkgIndexFilePath)
       pkgCounter++
     }
