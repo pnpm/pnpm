@@ -35,10 +35,8 @@ describe('cafs', () => {
     let addFilesResult = addFiles()
 
     // Modifying the file in the store
-    // Get the hex digest from the integrity object (convert base64 to hex)
     const integrity = addFilesResult.filesIndex.get('foo.txt')!.integrity
-    const hash = Object.values(integrity)[0]?.[0]
-    const hexDigest = Buffer.from(hash!.digest, 'base64').toString('hex')
+    const hexDigest = integrity.hexDigest()
     const filePath = getFilePathByModeInCafs(storeDir, hexDigest, 420)
     fs.appendFileSync(filePath, 'bar')
 

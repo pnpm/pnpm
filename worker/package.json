@@ -45,7 +45,8 @@
     "@rushstack/worker-pool": "catalog:",
     "is-windows": "catalog:",
     "p-limit": "catalog:",
-    "semver": "catalog:"
+    "semver": "catalog:",
+    "ssri": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -55,7 +56,8 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@types/is-windows": "catalog:",
-    "@types/semver": "catalog:"
+    "@types/semver": "catalog:",
+    "@types/ssri": "catalog:"
   },
   "engines": {
     "node": ">=20.19"

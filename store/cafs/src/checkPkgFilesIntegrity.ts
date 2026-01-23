@@ -1,5 +1,6 @@
 import fs from 'fs'
 import util from 'util'
+import { PnpmError } from '@pnpm/error'
 import { type PackageFiles, type PackageFileInfo, type SideEffects, type FilesMap } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
@@ -46,7 +47,7 @@ export function checkPkgFilesIntegrity (
   // but there's a smaller chance that the same file will be checked twice
   // so it's probably not worth the memory (this assumption should be verified)
   const verifiedFilesCache = new Set<string>()
-  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir, pkgIndex.algo)
+  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir, pkgIndex.algo ?? 'sha512')
   const verified = _checkFilesIntegrity(pkgIndex.files, readManifest)
   if (!verified.passed) return verified
 
@@ -135,7 +136,7 @@ function checkFilesIntegrity (
 
   for (const [f, fstat] of files) {
     if (!fstat.digest) {
-      throw new Error(`Integrity checksum is missing for ${f}`)
+      throw new PnpmError('MISSING_CONTENT_DIGEST', `Content digest is missing for ${f}`)
     }
     const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
     filesMap.set(f, filename)

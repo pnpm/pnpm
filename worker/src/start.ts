@@ -19,6 +19,7 @@ import {
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import { type DependencyManifest } from '@pnpm/types'
+import ssri from 'ssri'
 import { parentPort } from 'worker_threads'
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import {
@@ -346,8 +347,7 @@ function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
   const filesMap: FilesMap = new Map()
   let algo: string | undefined
   for (const [k, { checkedAt, filePath, integrity, mode, size }] of filesIndex) {
-    // Get the first hash from the integrity object
-    const hash = Object.values(integrity)[0]?.[0]
+    const hash = ssri.parse(integrity, { single: true })
     if (!hash) {
       throw new PnpmError('INVALID_INTEGRITY', `Invalid integrity for ${k}`)
     }
@@ -356,8 +356,7 @@ function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
     }
     filesIntegrity.set(k, {
       checkedAt,
-      // Convert base64 digest to hex for more efficient file path lookups
-      digest: Buffer.from(hash.digest, 'base64').toString('hex'),
+      digest: hash.hexDigest(),
       mode,
       size,
     })

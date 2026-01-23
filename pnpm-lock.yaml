@@ -8144,6 +8144,9 @@ importers:
 
   store/cafs:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -8761,6 +8764,9 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.7.2
+      ssri:
+        specifier: 'catalog:'
+        version: 13.0.0
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -8777,6 +8783,9 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3
+      '@types/ssri':
+        specifier: 'catalog:'
+        version: 7.1.5
 
   workspace/filter-packages-from-dir:
     dependencies:

@@ -54,6 +54,8 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
     const base64Part = hash.split('-').slice(1).join('-')
     hash = Buffer.from(base64Part, 'base64').toString('hex')
   }
+  // Stored digests are lowercase hex, so normalize the input to lowercase
+  hash = hash.toLowerCase()
   const storeDir = await getStorePath({
     pkgRoot: process.cwd(),
     storePath: opts.storeDir,

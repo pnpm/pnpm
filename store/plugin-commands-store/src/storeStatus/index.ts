@@ -52,7 +52,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     const pkgIndexFilePath = integrity
       ? getIndexFilePathInCafs(storeDir, integrity, id)
       : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.mpk')
-    const { algo, files } = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
+    const { algo = 'sha512', files } = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
     // Transform files to dint format: { integrity: '<algo>-<base64>', size: number }
     const dintFiles: Record<string, { integrity: string, size: number }> = {}
     for (const [filePath, { digest, size }] of files) {

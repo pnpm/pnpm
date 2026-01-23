@@ -3,7 +3,7 @@ import path from 'path'
 import workerThreads from 'worker_threads'
 import util from 'util'
 import renameOverwrite from 'rename-overwrite'
-import type ssri from 'ssri'
+import ssri from 'ssri'
 import { verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
 import { writeFile } from './writeFile.js'
 
@@ -106,9 +106,7 @@ function removeSuffix (filePath: string): string {
 function existsSame (filename: string, integrity: ssri.IntegrityLike): boolean {
   const existingFile = fs.statSync(filename, { throwIfNoEntry: false })
   if (!existingFile) return false
-  // Get the first hash from the integrity object
-  const hash = Object.values(integrity)[0]?.[0]
+  const hash = ssri.parse(integrity, { single: true })
   if (!hash) return false
-  const hexDigest = Buffer.from(hash.digest, 'base64').toString('hex')
-  return verifyFileIntegrity(filename, hexDigest, hash.algorithm).passed
+  return verifyFileIntegrity(filename, hash.hexDigest(), hash.algorithm).passed
 }
