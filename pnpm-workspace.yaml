@@ -50,6 +50,7 @@ allowBuilds:
   esbuild: true
   fuse-native: true
   ghooks: true
+  msgpackr-extract: true
   unrs-resolver: true
 
 auditConfig:
@@ -222,6 +223,7 @@ catalog:
   mdast-util-to-string: ^2.0.0
   memoize: ^10.2.0
   micromatch: ^4.0.8
+  msgpackr: ^1.11.2
   nock: 13.3.4
   node-fetch: ^3.3.2
   normalize-newline: 4.1.0

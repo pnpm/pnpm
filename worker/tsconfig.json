@@ -19,6 +19,9 @@
       "path": "../fs/hard-link-dir"
     },
     {
+      "path": "../fs/msgpack-file"
+    },
+    {
       "path": "../fs/symlink-dependency"
     },
     {

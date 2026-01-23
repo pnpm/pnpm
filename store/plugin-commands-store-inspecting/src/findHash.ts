@@ -4,7 +4,7 @@ import chalk from 'chalk'
 
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { loadJsonFileSync } from 'load-json-file'
+import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { getStorePath } from '@pnpm/store-path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 
@@ -57,7 +57,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   for (const { name: dirName } of cafsChildrenDirs) {
     const dirIndexFiles = fs
       .readdirSync(`${indexDir}/${dirName}`)
-      .filter((fileName) => fileName.includes('.json'))
+      .filter((fileName) => fileName.includes('.mpk'))
       ?.map((fileName) => `${indexDir}/${dirName}/${fileName}`)
 
     indexFiles.push(...dirIndexFiles)
@@ -66,14 +66,14 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   for (const filesIndexFile of indexFiles) {
     let pkgFilesIndex: PackageFilesIndex | undefined
     try {
-      pkgFilesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
+      pkgFilesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
     } catch {
       continue
     }
     if (!pkgFilesIndex) continue
 
     if (pkgFilesIndex.files) {
-      for (const file of Object.values(pkgFilesIndex.files)) {
+      for (const file of pkgFilesIndex.files.values()) {
         if (file?.integrity === hash) {
           result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 
@@ -84,9 +84,9 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
     }
 
     if (pkgFilesIndex.sideEffects) {
-      for (const { added } of Object.values(pkgFilesIndex.sideEffects)) {
+      for (const { added } of pkgFilesIndex.sideEffects.values()) {
         if (!added) continue
-        for (const file of Object.values(added)) {
+        for (const file of added.values()) {
           if (file?.integrity === hash) {
             result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 

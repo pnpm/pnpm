@@ -8,9 +8,9 @@ import {
 } from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { type DepPath } from '@pnpm/types'
 import dint from 'dint'
-import { loadJsonFile } from 'load-json-file'
 import pFilter from 'p-filter'
 import {
   extendStoreStatusOptions,
@@ -51,9 +51,9 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
   const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
     const pkgIndexFilePath = integrity
       ? getIndexFilePathInCafs(storeDir, integrity, id)
-      : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.json')
-    const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
-    return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), files)) === false
+      : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.mpk')
+    const { files } = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
+    return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), Object.fromEntries(files.entries()))) === false
   }, { concurrency: 8 })
 
   if ((reporter != null) && typeof reporter === 'function') {
