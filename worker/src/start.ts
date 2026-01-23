@@ -419,7 +419,6 @@ function writeFilesIndexFile (
   // - bin linking: name, version, bin, directories
   // - requiresBuild detection: scripts (preinstall/install/postinstall)
   // - runtime node path: engines
-  // Excludes large fields like dependencies, peerDependencies, etc.
   const essentialManifest = Object.keys(manifest).length > 0
     ? {
       name: manifest.name,
@@ -427,6 +426,9 @@ function writeFilesIndexFile (
       bin: manifest.bin,
       directories: manifest.directories,
       engines: manifest.engines,
+      os: manifest.os,
+      cpu: manifest.cpu,
+      libc: manifest.libc,
       scripts: manifest.scripts
         ? {
           preinstall: manifest.scripts.preinstall,
@@ -434,6 +436,9 @@ function writeFilesIndexFile (
           postinstall: manifest.scripts.postinstall,
         }
         : undefined,
+      dependencies: manifest.dependencies,
+      optionalDependencies: manifest.optionalDependencies,
+      peerDependencies: manifest.peerDependencies,
     }
     : undefined
   const filesIndex: PackageFilesIndex = {
