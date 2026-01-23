@@ -5,7 +5,6 @@ import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
-import ssri from 'ssri'
 import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
 
 const BIG_ONE = BigInt(1) as unknown
@@ -75,7 +74,10 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
       if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
         await fs.unlink(filePath)
         fileCounter++
-        removedHashes.add(ssri.fromHex(`${dir}${fileName}`, 'sha512').toString())
+        // Store the base64 digest, which matches the format stored in PackageFileInfo.digest
+        // The file name in the store is the hex representation of the hash (with optional -exec suffix)
+        const hexHash = `${dir}${fileName.replace(/-exec$/, '')}`
+        removedHashes.add(Buffer.from(hexHash, 'hex').toString('base64'))
       }
     }))
   }))
@@ -87,7 +89,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
     const pkgFilesIndex = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
     const pkgJson = pkgFilesIndex.files.get('package.json')
     // TODO: implement prune of Node.js packages, they don't have a package.json file
-    if (pkgJson && removedHashes.has(pkgJson.integrity)) {
+    if (pkgJson && removedHashes.has(pkgJson.digest)) {
       await fs.unlink(pkgIndexFilePath)
       pkgCounter++
     }

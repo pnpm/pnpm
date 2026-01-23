@@ -9,6 +9,10 @@ import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 import { parseJsonBufferSync } from './parseJson.js'
 import { readManifestFromStore } from './readManifestFromStore.js'
 
+function createIntegrityObject (algo: string, digest: string): ssri.IntegrityLike {
+  return { [algo]: [{ algorithm: algo, digest }] }
+}
+
 // We track how many files were checked during installation.
 // It should be rare that a files content should be checked.
 // If it happens too frequently, something is wrong.
@@ -31,6 +35,7 @@ export interface PackageFilesIndex {
   name?: string
   version?: string
   requiresBuild?: boolean
+  algo: string
 
   files: PackageFiles
   sideEffects?: SideEffects
@@ -45,7 +50,7 @@ export function checkPkgFilesIntegrity (
   // but there's a smaller chance that the same file will be checked twice
   // so it's probably not worth the memory (this assumption should be verified)
   const verifiedFilesCache = new Set<string>()
-  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir)
+  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir, pkgIndex.algo)
   const verified = _checkFilesIntegrity(pkgIndex.files, readManifest)
   if (!verified.passed) return verified
 
@@ -87,7 +92,7 @@ export function buildFileMapsFromIndex (
   const filesMap: FilesMap = new Map()
 
   for (const [f, fstat] of pkgIndex.files) {
-    const filename = getFilePathByModeInCafs(storeDir, fstat.integrity, fstat.mode)
+    const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
     filesMap.set(f, filename)
   }
 
@@ -99,7 +104,7 @@ export function buildFileMapsFromIndex (
       if (added) {
         const addedFilesMap: FilesMap = new Map()
         for (const [f, fstat] of added) {
-          const filename = getFilePathByModeInCafs(storeDir, fstat.integrity, fstat.mode)
+          const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
           addedFilesMap.set(f, filename)
         }
         sideEffectEntry.added = addedFilesMap
@@ -124,6 +129,7 @@ export function buildFileMapsFromIndex (
 function checkFilesIntegrity (
   verifiedFilesCache: Set<string>,
   storeDir: string,
+  algo: string,
   files: PackageFiles,
   readManifest?: boolean
 ): VerifyResult {
@@ -132,15 +138,15 @@ function checkFilesIntegrity (
   const filesMap: FilesMap = new Map()
 
   for (const [f, fstat] of files) {
-    if (!fstat.integrity) {
+    if (!fstat.digest) {
       throw new Error(`Integrity checksum is missing for ${f}`)
     }
-    const filename = getFilePathByModeInCafs(storeDir, fstat.integrity, fstat.mode)
+    const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
     filesMap.set(f, filename)
 
     const readFile = readManifest && f === 'package.json'
     if (!readFile && verifiedFilesCache.has(filename)) continue
-    const verifyResult = verifyFile(filename, fstat, readFile)
+    const verifyResult = verifyFile(filename, fstat, algo, readFile)
     if (readFile) {
       manifest = verifyResult.manifest
     }
@@ -157,13 +163,12 @@ function checkFilesIntegrity (
   }
 }
 
-type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt'> & {
-  integrity: string | ssri.IntegrityLike
-}
+type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt' | 'digest'>
 
 function verifyFile (
   filename: string,
   fstat: FileInfo,
+  algo: string,
   readManifest?: boolean
 ): Pick<VerifyResult, 'passed' | 'manifest'> {
   const currentFile = checkFile(filename, fstat.checkedAt)
@@ -173,7 +178,7 @@ function verifyFile (
       rimraf.sync(filename)
       return { passed: false }
     }
-    return verifyFileIntegrity(filename, fstat, readManifest)
+    return verifyFileIntegrity(filename, fstat.digest, algo, readManifest)
   }
   if (readManifest) {
     return {
@@ -188,14 +193,16 @@ function verifyFile (
 
 export function verifyFileIntegrity (
   filename: string,
-  expectedFile: FileInfo,
+  digest: string,
+  algo: string,
   readManifest?: boolean
 ): Pick<VerifyResult, 'passed' | 'manifest'> {
   // @ts-expect-error
   global['verifiedFileIntegrity']++
   try {
     const data = gfs.readFileSync(filename)
-    const passed = Boolean(ssri.checkData(data, expectedFile.integrity))
+    const integrity = createIntegrityObject(algo, digest)
+    const passed = Boolean(ssri.checkData(data, integrity))
     if (!passed) {
       gfs.unlinkSync(filename)
       return { passed }

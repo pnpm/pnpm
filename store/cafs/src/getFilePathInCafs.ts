@@ -20,11 +20,12 @@ export type FileType = 'exec' | 'nonexec'
 
 export function getFilePathByModeInCafs (
   storeDir: string,
-  integrity: string | IntegrityLike,
+  digest: string,
   mode: number
 ): string {
   const fileType = modeIsExecutable(mode) ? 'exec' : 'nonexec'
-  return path.join(storeDir, contentPathFromIntegrity(integrity, fileType))
+  const hex = Buffer.from(digest, 'base64').toString('hex')
+  return path.join(storeDir, contentPathFromHex(fileType, hex))
 }
 
 export function getIndexFilePathInCafs (
@@ -40,14 +41,6 @@ export function getIndexFilePathInCafs (
   //    which might not be the case after a poorly resolved Git conflict.
   // 2. Allow the same content to be referenced by different packages or different versions of the same package.
   return path.join(storeDir, `index/${path.join(hex.slice(0, 2), hex.slice(2))}-${pkgId.replace(/[\\/:*?"<>|]/g, '+')}.mpk`)
-}
-
-function contentPathFromIntegrity (
-  integrity: string | IntegrityLike,
-  fileType: FileType
-): string {
-  const sri = ssri.parse(integrity, { single: true })
-  return contentPathFromHex(fileType, sri.hexDigest())
 }
 
 export function contentPathFromHex (fileType: FileType, hex: string): string {

@@ -221,8 +221,8 @@ async function parseLicense (
  * @param opts the options for reading file
  * @returns Promise<Buffer>
  */
-async function readLicenseFileFromCafs (storeDir: string, { integrity, mode }: PackageFileInfo): Promise<Buffer> {
-  const fileName = getFilePathByModeInCafs(storeDir, integrity, mode)
+async function readLicenseFileFromCafs (storeDir: string, { digest, mode }: PackageFileInfo): Promise<Buffer> {
+  const fileName = getFilePathByModeInCafs(storeDir, digest, mode)
   const fileContents = await readFile(fileName)
   return fileContents
 }
@@ -363,7 +363,7 @@ export async function getPkgInfo (
     const packageManifestFile = packageFileIndex.get('package.json') as PackageFileInfo
     packageManifestDir = getFilePathByModeInCafs(
       opts.storeDir,
-      packageManifestFile.integrity,
+      packageManifestFile.digest,
       packageManifestFile.mode
     )
   }

@@ -31,7 +31,7 @@ import {
   type InitStoreMessage,
 } from './types.js'
 
-const INTEGRITY_REGEX: RegExp = /^([^-]+)-([a-z0-9+/=]+)$/i
+const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Z0-9+/=]+)$/i
 
 export function startWorker (): void {
   process.on('uncaughtException', (err) => {
@@ -198,8 +198,8 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
   }
-  const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
+  const { algo, filesIntegrity, filesMap } = processFilesIndex(filesIndex)
+  const requiresBuild = writeFilesIndexFile(filesIndexFile, { algo, manifest: manifest ?? {}, files: filesIntegrity })
   return {
     status: 'success',
     value: {
@@ -267,7 +267,7 @@ function addFilesFromDir (
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
   }
-  const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
+  const { algo, filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   let requiresBuild: boolean
   if (sideEffectsCacheKey) {
     let existingFilesIndex!: PackageFilesIndex
@@ -295,7 +295,7 @@ function addFilesFromDir (
     }
     writeIndexFile(filesIndexFile, existingFilesIndex)
   } else {
-    requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
+    requiresBuild = writeFilesIndexFile(filesIndexFile, { algo, manifest: manifest ?? {}, files: filesIntegrity })
   }
   return { status: 'success', value: { filesMap, manifest, requiresBuild } }
 }
@@ -319,7 +319,7 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
       deleted.push(file)
     } else if (
       !baseFiles.has(file) ||
-      baseFiles.get(file)!.integrity !== sideEffectsFiles.get(file)!.integrity ||
+      baseFiles.get(file)!.digest !== sideEffectsFiles.get(file)!.digest ||
       baseFiles.get(file)!.mode !== sideEffectsFiles.get(file)!.mode
     ) {
       added.set(file, sideEffectsFiles.get(file)!)
@@ -336,6 +336,7 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
 }
 
 interface ProcessFilesIndexResult {
+  algo: string
   filesIntegrity: PackageFiles
   filesMap: FilesMap
 }
@@ -343,16 +344,26 @@ interface ProcessFilesIndexResult {
 function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
   const filesIntegrity: PackageFiles = new Map()
   const filesMap: FilesMap = new Map()
+  let algo: string | undefined
   for (const [k, { checkedAt, filePath, integrity, mode, size }] of filesIndex) {
+    const integrityStr = integrity.toString()
+    const match = integrityStr.match(INTEGRITY_REGEX)
+    if (!match) {
+      throw new Error(`Invalid integrity format: ${integrityStr}`)
+    }
+    const [, fileAlgo, digest] = match
+    if (algo === undefined) {
+      algo = fileAlgo
+    }
     filesIntegrity.set(k, {
       checkedAt,
-      integrity: integrity.toString(), // TODO: use the raw Integrity object
+      digest,
       mode,
       size,
     })
     filesMap.set(k, filePath)
   }
-  return { filesIntegrity, filesMap }
+  return { algo: algo ?? 'sha512', filesIntegrity, filesMap }
 }
 
 interface ImportPackageResult {
@@ -403,7 +414,8 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success'
 
 function writeFilesIndexFile (
   filesIndexFile: string,
-  { manifest, files, sideEffects }: {
+  { algo, manifest, files, sideEffects }: {
+    algo: string
     manifest: Partial<DependencyManifest>
     files: PackageFiles
     sideEffects?: SideEffects
@@ -414,6 +426,7 @@ function writeFilesIndexFile (
     name: manifest.name,
     version: manifest.version,
     requiresBuild,
+    algo,
     files,
     sideEffects,
   }

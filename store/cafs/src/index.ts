@@ -57,7 +57,7 @@ export interface CafsFunctions {
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getIndexFilePathInCafs: (integrity: string | ssri.IntegrityLike, fileType: FileType) => string
-  getFilePathByModeInCafs: (integrity: string | ssri.IntegrityLike, mode: number) => string
+  getFilePathByModeInCafs: (digest: string, mode: number) => string
 }
 
 export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}): CafsFunctions {

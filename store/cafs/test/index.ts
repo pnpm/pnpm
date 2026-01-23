@@ -35,7 +35,10 @@ describe('cafs', () => {
     let addFilesResult = addFiles()
 
     // Modifying the file in the store
-    const filePath = getFilePathByModeInCafs(storeDir, addFilesResult.filesIndex.get('foo.txt')!.integrity, 420)
+    // Extract the base64 digest from the integrity object (format: "algo-base64digest")
+    const integrityStr = addFilesResult.filesIndex.get('foo.txt')!.integrity.toString()
+    const digest = integrityStr.split('-')[1]
+    const filePath = getFilePathByModeInCafs(storeDir, digest, 420)
     fs.appendFileSync(filePath, 'bar')
 
     addFilesResult = addFiles()
@@ -152,9 +155,10 @@ describe('checkPkgFilesIntegrity()', () => {
   it("doesn't fail if file was removed from the store", () => {
     const storeDir = temporaryDirectory()
     expect(checkPkgFilesIntegrity(storeDir, {
+      algo: 'sha512',
       files: new Map([
         ['foo', {
-          integrity: 'sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==',
+          digest: '8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==',
           mode: 420,
           size: 10,
         }],

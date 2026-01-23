@@ -5,7 +5,7 @@ export type PackageFiles = Map<string, PackageFileInfo>
 
 export interface PackageFileInfo {
   checkedAt?: number // Nullable for backward compatibility
-  integrity: string
+  digest: string
   mode: number
   size: number
 }
@@ -73,7 +73,7 @@ export interface Cafs {
   addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getIndexFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
-  getFilePathByModeInCafs: (integrity: string | IntegrityLike, mode: number) => string
+  getFilePathByModeInCafs: (digest: string, mode: number) => string
   importPackage: ImportPackageFunction
   tempDir: () => Promise<string>
 }

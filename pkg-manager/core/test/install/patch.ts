@@ -62,12 +62,12 @@ test('patch package with exact version', async () => {
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
-  const patchedFileIntegrity = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.integrity
-  expect(patchedFileIntegrity).toBeTruthy()
-  const originalFileIntegrity = filesIndex.files.get('index.js')!.integrity
-  expect(originalFileIntegrity).toBeTruthy()
-  // The integrity of the original file differs from the integrity of the patched file
-  expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
+  const patchedFileDigest = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.digest
+  expect(patchedFileDigest).toBeTruthy()
+  const originalFileDigest = filesIndex.files.get('index.js')!.digest
+  expect(originalFileDigest).toBeTruthy()
+  // The digest of the original file differs from the digest of the patched file
+  expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
   rimraf('node_modules')
@@ -160,12 +160,12 @@ test('patch package with version range', async () => {
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
-  const patchedFileIntegrity = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.integrity
-  expect(patchedFileIntegrity).toBeTruthy()
-  const originalFileIntegrity = filesIndex.files.get('index.js')!.integrity
-  expect(originalFileIntegrity).toBeTruthy()
-  // The integrity of the original file differs from the integrity of the patched file
-  expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
+  const patchedFileDigest = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.digest
+  expect(patchedFileDigest).toBeTruthy()
+  const originalFileDigest = filesIndex.files.get('index.js')!.digest
+  expect(originalFileDigest).toBeTruthy()
+  // The digest of the original file differs from the digest of the patched file
+  expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
   rimraf('node_modules')
@@ -330,12 +330,12 @@ test('patch package when scripts are ignored', async () => {
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
-  const patchedFileIntegrity = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.integrity
-  expect(patchedFileIntegrity).toBeTruthy()
-  const originalFileIntegrity = filesIndex.files.get('index.js')!.integrity
-  expect(originalFileIntegrity).toBeTruthy()
-  // The integrity of the original file differs from the integrity of the patched file
-  expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
+  const patchedFileDigest = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.digest
+  expect(patchedFileDigest).toBeTruthy()
+  const originalFileDigest = filesIndex.files.get('index.js')!.digest
+  expect(originalFileDigest).toBeTruthy()
+  // The digest of the original file differs from the digest of the patched file
+  expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
   rimraf('node_modules')
@@ -421,12 +421,12 @@ test('patch package when the package is not in allowBuilds list', async () => {
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
-  const patchedFileIntegrity = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.integrity
-  expect(patchedFileIntegrity).toBeTruthy()
-  const originalFileIntegrity = filesIndex.files.get('index.js')!.integrity
-  expect(originalFileIntegrity).toBeTruthy()
-  // The integrity of the original file differs from the integrity of the patched file
-  expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
+  const patchedFileDigest = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.digest
+  expect(patchedFileDigest).toBeTruthy()
+  const originalFileDigest = filesIndex.files.get('index.js')!.digest
+  expect(originalFileDigest).toBeTruthy()
+  // The digest of the original file differs from the digest of the patched file
+  expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
   rimraf('node_modules')

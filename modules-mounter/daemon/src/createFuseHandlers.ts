@@ -53,7 +53,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(-1)
         return
       }
-      const filePathInStore = getFilePathByModeInCafs(storeDir, fileInfo.integrity, fileInfo.mode)
+      const filePathInStore = getFilePathByModeInCafs(storeDir, fileInfo.digest, fileInfo.mode)
       fs.open(filePathInStore, flags, (err, fd) => {
         if (err != null) {
           cb(-1)
