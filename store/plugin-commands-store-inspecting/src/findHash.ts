@@ -44,7 +44,16 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
     throw new PnpmError('MISSING_HASH', '`pnpm find-hash` requires the hash')
   }
 
-  const hash = params[0]
+  // Convert the input hash to hex format for comparison
+  // Input can be either:
+  // - A hex string (used directly)
+  // - A base64 integrity string like "sha512-..." (converted to hex)
+  let hash = params[0]
+  if (hash.includes('-')) {
+    // Looks like an integrity string (algo-base64), extract and convert the base64 part
+    const base64Part = hash.split('-').slice(1).join('-')
+    hash = Buffer.from(base64Part, 'base64').toString('hex')
+  }
   const storeDir = await getStorePath({
     pkgRoot: process.cwd(),
     storePath: opts.storeDir,
