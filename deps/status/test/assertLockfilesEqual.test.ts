@@ -15,7 +15,6 @@ test('if wantedLockfile does not have any specifier, currentLockfile is allowed 
 })
 
 test('should throw if wantedLockfile has specifiers but currentLockfile is null', () => {
-  // eslint-disable-next-line @typescript-eslint/no-confusing-void-expression
   expect(() => assertLockfilesEqual(null, {
     lockfileVersion: LOCKFILE_VERSION,
     importers: {
@@ -49,7 +48,6 @@ test('should not throw if wantedLockfile and currentLockfile are equal', () => {
 })
 
 test('should throw if wantedLockfile and currentLockfile are not equal', () => {
-  // eslint-disable-next-line @typescript-eslint/no-confusing-void-expression
   expect(() => assertLockfilesEqual(
     {
       lockfileVersion: LOCKFILE_VERSION,

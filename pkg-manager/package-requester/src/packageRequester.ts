@@ -108,10 +108,10 @@ export function createPackageRequester (
     customFetchers?: CustomFetcher[]
   }
 ): RequestPackageFunction & {
-    fetchPackageToStore: FetchPackageToStoreFunction
-    getFilesIndexFilePath: GetFilesIndexFilePath
-    requestPackage: RequestPackageFunction
-  } {
+  fetchPackageToStore: FetchPackageToStoreFunction
+  getFilesIndexFilePath: GetFilesIndexFilePath
+  requestPackage: RequestPackageFunction
+} {
   opts = opts || {}
 
   const networkConcurrency = opts.networkConcurrency ?? Math.min(64, Math.max(calcMaxWorkers() * 3, 16))
@@ -215,10 +215,16 @@ async function resolveAndFetch (
     publishedAt,
     normalizedBareSpecifier,
     alias,
-    forceFetch,
   } = resolveResult
 
-  const updated = pkgId !== resolveResult.id || !resolution || forceFetch === true
+  // Check if the integrity has changed between the current and newly resolved package
+  // Use 'in' check to safely access integrity from any resolution type that has it
+  const previousResolution = options.currentPkg?.resolution
+  const previousIntegrity = previousResolution && 'integrity' in previousResolution ? previousResolution.integrity : undefined
+  const newIntegrity = 'integrity' in resolveResult.resolution ? resolveResult.resolution.integrity : undefined
+  const integrityChanged = previousIntegrity != null && newIntegrity != null && previousIntegrity !== newIntegrity
+
+  const updated = pkgId !== resolveResult.id || !resolution || integrityChanged
   resolution = resolveResult.resolution
   pkgId = resolveResult.id
 
@@ -257,9 +263,8 @@ async function resolveAndFetch (
     )
   )
   // We can skip fetching the package only if the manifest
-  // is present after resolution AND we're not forcing a fetch
-  // (forceFetch is set by resolvers when package content may have changed)
-  if ((options.skipFetch === true || isInstallable === false) && !forceFetch && (manifest != null)) {
+  // is present after resolution AND the content of the package has not changed
+  if ((options.skipFetch === true || isInstallable === false) && !integrityChanged && (manifest != null)) {
     return {
       body: {
         id,
@@ -281,7 +286,7 @@ async function resolveAndFetch (
   const fetchResult = ctx.fetchPackageToStore({
     allowBuild: options.allowBuild,
     fetchRawManifest: true,
-    force: forceFetch === true,
+    force: integrityChanged,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
@@ -365,7 +370,7 @@ function getFilesIndexFilePath (
   } else {
     resolution = opts.pkg.resolution
   }
-  const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
+  const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.mpk' : 'integrity.mpk')
   return { filesIndexFile, target, resolution }
 }
 
@@ -429,7 +434,7 @@ function fetchToStore (
     const fetching = pDefer<PkgRequestFetchResult>()
     const { filesIndexFile, target, resolution } = getFilesIndexFilePath(ctx, opts)
 
-    doFetchToStore(filesIndexFile, fetching, target, resolution) // eslint-disable-line
+    doFetchToStore(filesIndexFile, fetching, target, resolution)
 
     ctx.fetchingLocker.set(opts.pkg.id, {
       fetching: removeKeyOnFail(fetching.promise),

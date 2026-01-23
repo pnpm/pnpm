@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -14,7 +15,6 @@ import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
-import { loadJsonFileSync } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import crossSpawn from 'cross-spawn'
 import {
@@ -159,8 +159,8 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
-  const { files: integrityFile } = loadJsonFileSync<PackageFilesIndex>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
-  const packageFiles = Object.keys(integrityFile).sort(lexCompare)
+  const { files: integrityFile } = readMsgpackFileSync<PackageFilesIndex>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
+  const packageFiles = Array.from(integrityFile.keys()).sort(lexCompare)
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
@@ -454,12 +454,12 @@ test('installation fails when the stored package name and version do not match t
   await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
-  const cacheIntegrity = loadJsonFileSync<PackageFilesIndex>(cacheIntegrityPath)
+  const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)
   cacheIntegrity.name = 'foo'
-  fs.writeFileSync(cacheIntegrityPath, JSON.stringify({
+  writeMsgpackFileSync(cacheIntegrityPath, {
     ...cacheIntegrity,
     name: 'foo',
-  }))
+  })
 
   rimraf('node_modules')
   await expect(

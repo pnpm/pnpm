@@ -2,11 +2,10 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
+import { readMsgpackFile, writeMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { logger } from '@pnpm/logger'
-import gfs from '@pnpm/graceful-fs'
 import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import getRegistryName from 'encode-registry'
-import { loadJsonFile } from 'load-json-file'
 import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { pick } from 'ramda'
@@ -134,7 +133,7 @@ export async function pickPackage (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.cacheDir, ctx.metaDir, registryName, `${encodePkgName(spec.name)}.json`)
+  const pkgMirror = path.join(ctx.cacheDir, ctx.metaDir, registryName, `${encodePkgName(spec.name)}.mpk`)
 
   return runLimited(pkgMirror, async (limit) => {
     let metaCachedInStore: PackageMeta | null | undefined
@@ -209,12 +208,11 @@ export async function pickPackage (
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(spec.name, meta)
       if (!opts.dryRun) {
-        // We stringify this meta here to avoid saving any mutations that could happen to the meta object.
-        const stringifiedMeta = JSON.stringify(meta)
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        // We clone this meta here to avoid saving any mutations that could happen to the meta object.
+        const metaClone = structuredClone(meta)
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
-            await saveMeta(pkgMirror, stringifiedMeta)
+            await saveMeta(pkgMirror, metaClone)
           } catch (err: any) { // eslint-disable-line
             // We don't care if this file was not written to the cache
           }
@@ -284,7 +282,7 @@ function encodePkgName (pkgName: string): string {
 
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
-    return await loadJsonFile<PackageMeta>(pkgMirror)
+    return await readMsgpackFile<PackageMeta>(pkgMirror)
   } catch {
     return null
   }
@@ -292,14 +290,14 @@ async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
 
 const createdDirs = new Set<string>()
 
-async function saveMeta (pkgMirror: string, meta: string): Promise<void> {
+async function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<void> {
   const dir = path.dirname(pkgMirror)
   if (!createdDirs.has(dir)) {
     await fs.mkdir(dir, { recursive: true })
     createdDirs.add(dir)
   }
   const temp = pathTemp(pkgMirror)
-  await gfs.writeFile(temp, meta)
+  await writeMsgpackFile(temp, meta)
   await renameOverwrite(temp, pkgMirror)
 }
 

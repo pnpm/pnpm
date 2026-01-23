@@ -1,5 +1,6 @@
 // cspell:ignore ents
 import fs from 'fs'
+import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
@@ -8,7 +9,6 @@ import {
 import { type DepPath } from '@pnpm/types'
 import schemas from 'hyperdrive-schemas'
 import Fuse from 'fuse-native'
-import { loadJsonFileSync } from 'load-json-file'
 import * as cafsExplorer from './cafsExplorer.js'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
 
@@ -48,7 +48,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(-1)
         return
       }
-      const fileInfo = dirEnt.index.files[dirEnt.subPath]
+      const fileInfo = dirEnt.index.files.get(dirEnt.subPath)
       if (!fileInfo) {
         cb(-1)
         return
@@ -59,7 +59,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
           cb(-1)
           return
         }
-        // eslint-disable-next-line n/no-callback-literal
         cb(0, fd)
       })
     },
@@ -83,7 +82,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(Fuse.ENOENT)
         return
       }
-      // eslint-disable-next-line n/no-callback-literal
       cb(0, dirEnt.target)
     },
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -94,7 +92,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         return
       }
       if (dirEnt.entryType === 'directory' || dirEnt.entryType === 'index' && !dirEnt.subPath) {
-        // eslint-disable-next-line n/no-callback-literal
         cb(0, schemas.Stat.directory({
           ...STAT_DEFAULT,
           size: 1,
@@ -102,7 +99,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         return
       }
       if (dirEnt.entryType === 'symlink') {
-        // eslint-disable-next-line n/no-callback-literal
         cb(0, schemas.Stat.symlink({
           ...STAT_DEFAULT,
           size: 1,
@@ -112,17 +108,15 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       if (dirEnt.entryType === 'index') {
         switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
         case 'file': {
-          const { size, mode } = dirEnt.index.files[dirEnt.subPath]!
-          // eslint-disable-next-line n/no-callback-literal
+          const fileInfo = dirEnt.index.files.get(dirEnt.subPath)!
           cb(0, schemas.Stat.file({
             ...STAT_DEFAULT,
-            mode,
-            size,
+            mode: fileInfo.mode,
+            size: fileInfo.size,
           }))
           return
         }
         case 'directory':
-        // eslint-disable-next-line n/no-callback-literal
           cb(0, schemas.Stat.directory({
             ...STAT_DEFAULT,
             size: 1,
@@ -145,7 +139,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(Fuse.ENOENT)
         return
       }
-      // eslint-disable-next-line n/no-callback-literal
       cb(0, dirEnts)
       return
     }
@@ -153,7 +146,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       cb(Fuse.ENOENT)
       return
     }
-    // eslint-disable-next-line n/no-callback-literal
     cb(0, Object.keys(dirEnt.entries))
   }
   function getDirEnt (p: string) {
@@ -182,7 +174,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       if (pkgSnapshot == null) return undefined
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const pkgIndexFilePath = getIndexFilePathInCafs(storeDir, (pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
-      const pkgIndex = loadJsonFileSync<PackageFilesIndex>(pkgIndexFilePath) // TODO: maybe make it async?
+      const pkgIndex = readMsgpackFileSync<PackageFilesIndex>(pkgIndexFilePath) // TODO: maybe make it async?
       pkgSnapshotCache.set(depPath, {
         ...nameVer,
         pkgSnapshot,

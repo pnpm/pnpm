@@ -111,13 +111,13 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   }
   pnpmfile: string[]
 } & Partial<
-Pick<Config,
+  Pick<Config,
 | 'sort'
 | 'strictDepBuilds'
 | 'workspaceConcurrency'
->
+  >
 > & Required<
-Pick<Config, 'workspaceDir'>
+  Pick<Config, 'workspaceDir'>
 >
 
 export type CommandFullName = 'install' | 'add' | 'remove' | 'update' | 'import'
@@ -565,7 +565,9 @@ function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: Pro
   })).flat()
 }
 
-interface ManifestsByPath { [dir: string]: Omit<Project, 'rootDir' | 'rootDirRealPath'> }
+interface ManifestsByPath {
+  [dir: string]: Omit<Project, 'rootDir' | 'rootDirRealPath'>
+}
 
 function getManifestsByPath (projects: Project[]): Record<ProjectRootDir, Omit<Project, 'rootDir' | 'rootDirRealPath'>> {
   const manifestsByPath: Record<string, Omit<Project, 'rootDir' | 'rootDirRealPath'>> = {}

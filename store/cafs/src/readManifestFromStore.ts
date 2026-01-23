@@ -10,7 +10,7 @@ export function readManifestFromStore (storeDir: string, pkgIndex: PackageFilesI
     return pkgIndex.manifest as unknown as PackageManifest
   }
   // Fall back to reading from CAS for backward compatibility with old index files
-  const pkg = pkgIndex.files['package.json']
+  const pkg = pkgIndex.files.get('package.json')
   if (pkg) {
     const fileName = getFilePathByModeInCafs(storeDir, pkg.integrity, pkg.mode)
     return parseJsonBufferSync(gfs.readFileSync(fileName)) as PackageManifest

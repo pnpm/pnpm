@@ -63,7 +63,7 @@ export function reportLifecycleScripts (
   const lifecyclePushStream = new Rx.Subject<Rx.Observable<{ msg: string }>>()
 
   // TODO: handle promise of .forEach?!
-  log$.lifecycle // eslint-disable-line
+  log$.lifecycle
     .forEach((log: LifecycleLog) => {
       const key = `${log.stage}:${log.depPath}`
       lifecycleMessages[key] = lifecycleMessages[key] || {

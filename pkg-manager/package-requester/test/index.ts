@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
+import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
 import { createCafsStore } from '@pnpm/create-cafs-store'
@@ -12,7 +13,6 @@ import delay from 'delay'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { restartWorkerPool } from '@pnpm/worker'
 import { jest } from '@jest/globals'
-import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import { temporaryDirectory } from 'tempy'
@@ -353,6 +353,66 @@ test('refetch local tarball if its integrity has changed. The requester does not
   }
 })
 
+test('force fetch when resolution integrity differs from current package integrity', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = temporaryDirectory()
+
+  // Create a custom resolver that returns a different integrity than the current package
+  const customResolve: typeof resolve = async () => {
+    // Return a resolution with a different integrity than what's in currentPkg
+    return {
+      id: 'is-positive@1.0.0' as PkgResolutionId,
+      latest: '1.0.0',
+      resolution: {
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+      manifest: {
+        name: 'is-positive',
+        version: '1.0.0',
+      },
+      resolvedVia: 'npm-registry',
+    }
+  }
+
+  const requestPackage = createPackageRequester({
+    resolve: customResolve,
+    fetchers,
+    cafs,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  // Request with a currentPkg that has a different integrity
+  const response = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    currentPkg: {
+      id: 'is-positive@1.0.0' as PkgResolutionId,
+      resolution: {
+        // Different valid integrity than what the resolver returns
+        integrity: 'sha512-AvAi2XyFuGzKkv+hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+    },
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: false,
+    update: false,
+  }) as PackageResponse & {
+    fetching: () => Promise<PkgRequestFetchResult>
+  }
+
+  // The package should be marked as updated because the integrity changed
+  expect(response.body.updated).toBe(true)
+
+  // Fetching should occur because integrity changed
+  const { files } = await response.fetching()
+  expect(files.resolvedFrom).toBe('remote')
+})
+
 test('fetchPackageToStore()', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
@@ -386,9 +446,9 @@ test('fetchPackageToStore()', async () => {
   expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
   expect(files.resolvedFrom).toBe('remote')
 
-  const indexFile = loadJsonFileSync<PackageFilesIndex>(fetchResult.filesIndexFile)
+  const indexFile = readMsgpackFileSync<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
-  expect(typeof indexFile.files['package.json']!.checkedAt).toBeTruthy()
+  expect(typeof indexFile.files.get('package.json')!.checkedAt).toBeTruthy()
 
   const fetchResult2 = packageRequester.fetchPackageToStore({
     fetchRawManifest: true,

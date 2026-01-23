@@ -15,7 +15,7 @@ export type LicensesCommandOptions = {
   recursive?: boolean
   json?: boolean
 } & Pick<
-Config,
+  Config,
 | 'dev'
 | 'dir'
 | 'lockfileDir'

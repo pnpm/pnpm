@@ -1,4 +1,3 @@
-/* eslint-disable import/first */
 export type Global = typeof globalThis & {
   pnpm__startedAt?: number
   [REPORTER_INITIALIZED]?: ReporterType // eslint-disable-line @typescript-eslint/no-use-before-define
