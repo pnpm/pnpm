@@ -75,6 +75,11 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
     define: {
       'process.env.npm_package_name': JSON.stringify(pnpmPackageJson.name),
       'process.env.npm_package_version': JSON.stringify(pnpmPackageJson.version),
+      'import.meta.url': 'import_meta_url',
+    },
+    // Shim import.meta.url for ESM modules that get bundled to CJS (e.g., fdir used by tinyglobby)
+    banner: {
+      js: 'var import_meta_url = require("url").pathToFileURL(__filename).href;',
     },
     sourcemap: true, // nice for local debugging
     logLevel: 'warning', // keeps esbuild quiet unless there's a problem
