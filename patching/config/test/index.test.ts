@@ -24,7 +24,7 @@ test('getPatchInfo(_, name, version) returns strict=true if name@version exists'
   })
 })
 
-test('getPatchInfo(_, name, version) returns strict=false if name exists and name@version does not exist', () => {
+test('getPatchInfo(_, name, version) returns strict=true if name exists but name@version does not exist', () => {
   expect(_getPatchInfo({
     foo: {
       path: 'patches/foo.patch',
@@ -36,7 +36,7 @@ test('getPatchInfo(_, name, version) returns strict=false if name exists and nam
       hash: expect.any(String),
     },
     key: 'foo',
-    strict: false,
+    strict: true,
   })
 })
 

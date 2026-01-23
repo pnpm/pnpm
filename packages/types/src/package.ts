@@ -158,7 +158,6 @@ export interface PnpmSettings {
   peerDependencyRules?: PeerDependencyRules
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
-  ignorePatchFailures?: boolean
   patchedDependencies?: Record<string, string>
   updateConfig?: {
     ignoreDependencies?: string[]

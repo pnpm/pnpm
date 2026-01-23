@@ -90,7 +90,7 @@ test('groups patchedDependencies according to names, match types, and versions',
     'without-versions': {
       exact: {},
       range: [],
-      all: info(false, 'without-versions'),
+      all: info(true, 'without-versions'),
     },
     'mixed-style': {
       exact: {
@@ -102,7 +102,7 @@ test('groups patchedDependencies according to names, match types, and versions',
           patch: info(true, 'mixed-style@1.x.x'),
         },
       ],
-      all: info(false, 'mixed-style'),
+      all: info(true, 'mixed-style'),
     },
   } as PatchGroupRecord)
 })

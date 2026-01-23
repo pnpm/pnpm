@@ -41,8 +41,7 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
       continue
     }
 
-    // Set `strict` to `false` to preserve backward compatibility.
-    getGroup(key).all = { strict: false, file, key }
+    getGroup(key).all = { strict: true, file, key }
   }
 
   return result

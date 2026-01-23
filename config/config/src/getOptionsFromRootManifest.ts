@@ -14,7 +14,6 @@ import { map as mapValues, pick } from 'ramda'
 export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
-  ignorePatchFailures?: boolean
   overrides?: Record<string, string>
   packageExtensions?: Record<string, PackageExtension>
   ignoredOptionalDependencies?: string[]
@@ -33,7 +32,6 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       'allowedDeprecatedVersions',
       'auditConfig',
       'configDependencies',
-      'ignorePatchFailures',
       'ignoredOptionalDependencies',
       'overrides',
       'packageExtensions',
@@ -69,9 +67,6 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
       if (manifestDir == null || path.isAbsolute(patchFile)) continue
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
-  }
-  if (pnpmSettings.ignorePatchFailures != null) {
-    settings.ignorePatchFailures = pnpmSettings.ignorePatchFailures
   }
 
   return settings
