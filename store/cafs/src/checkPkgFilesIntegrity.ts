@@ -9,10 +9,6 @@ import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 import { parseJsonBufferSync } from './parseJson.js'
 import { readManifestFromStore } from './readManifestFromStore.js'
 
-function createIntegrityFromHex (algo: string, hexDigest: string): ssri.IntegrityLike {
-  return ssri.fromHex(hexDigest, algo)
-}
-
 // We track how many files were checked during installation.
 // It should be rare that a files content should be checked.
 // If it happens too frequently, something is wrong.
@@ -201,7 +197,7 @@ export function verifyFileIntegrity (
   global['verifiedFileIntegrity']++
   try {
     const data = gfs.readFileSync(filename)
-    const integrity = createIntegrityFromHex(algo, hexDigest)
+    const integrity = ssri.fromHex(hexDigest, algo)
     const passed = Boolean(ssri.checkData(data, integrity))
     if (!passed) {
       gfs.unlinkSync(filename)

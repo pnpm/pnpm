@@ -31,7 +31,7 @@ import {
   type InitStoreMessage,
 } from './types.js'
 
-const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Z0-9+/=]+)$/i
+const INTEGRITY_REGEX: RegExp = /^([^-]+)-([a-z0-9+/=]+)$/i
 
 export function startWorker (): void {
   process.on('uncaughtException', (err) => {
@@ -349,7 +349,7 @@ function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
     // Get the first hash from the integrity object
     const hash = Object.values(integrity)[0]?.[0]
     if (!hash) {
-      throw new Error(`Invalid integrity for ${k}`)
+      throw new PnpmError('INVALID_INTEGRITY', `Invalid integrity for ${k}`)
     }
     if (algo === undefined) {
       algo = hash.algorithm
