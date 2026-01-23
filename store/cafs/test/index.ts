@@ -35,10 +35,11 @@ describe('cafs', () => {
     let addFilesResult = addFiles()
 
     // Modifying the file in the store
-    // Extract the base64 digest from the integrity object (format: "algo-base64digest")
-    const integrityStr = addFilesResult.filesIndex.get('foo.txt')!.integrity.toString()
-    const digest = integrityStr.split('-')[1]
-    const filePath = getFilePathByModeInCafs(storeDir, digest, 420)
+    // Get the hex digest from the integrity object (convert base64 to hex)
+    const integrity = addFilesResult.filesIndex.get('foo.txt')!.integrity
+    const hash = Object.values(integrity)[0]?.[0]
+    const hexDigest = Buffer.from(hash!.digest, 'base64').toString('hex')
+    const filePath = getFilePathByModeInCafs(storeDir, hexDigest, 420)
     fs.appendFileSync(filePath, 'bar')
 
     addFilesResult = addFiles()
@@ -158,7 +159,7 @@ describe('checkPkgFilesIntegrity()', () => {
       algo: 'sha512',
       files: new Map([
         ['foo', {
-          digest: '8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==',
+          digest: 'f310afae50bb5b74e5c17c5eb6fe426538b9deccd88664fbb66a5717fb6d36d86d4d1f530bb63b58914f9894e81da490e2e39bb99c8e01174e258358b9349b5c',
           mode: 420,
           size: 10,
         }],

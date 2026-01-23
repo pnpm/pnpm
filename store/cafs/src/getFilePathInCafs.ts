@@ -20,12 +20,11 @@ export type FileType = 'exec' | 'nonexec'
 
 export function getFilePathByModeInCafs (
   storeDir: string,
-  digest: string,
+  hexDigest: string,
   mode: number
 ): string {
   const fileType = modeIsExecutable(mode) ? 'exec' : 'nonexec'
-  const hex = Buffer.from(digest, 'base64').toString('hex')
-  return path.join(storeDir, contentPathFromHex(fileType, hex))
+  return path.join(storeDir, contentPathFromHex(fileType, hexDigest))
 }
 
 export function getIndexFilePathInCafs (

@@ -74,10 +74,9 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
       if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
         await fs.unlink(filePath)
         fileCounter++
-        // Store the base64 digest, which matches the format stored in PackageFileInfo.digest
+        // Store the hex digest, which matches the format stored in PackageFileInfo.digest
         // The file name in the store is the hex representation of the hash (with optional -exec suffix)
-        const hexHash = `${dir}${fileName.replace(/-exec$/, '')}`
-        removedHashes.add(Buffer.from(hexHash, 'hex').toString('base64'))
+        removedHashes.add(`${dir}${fileName.replace(/-exec$/, '')}`)
       }
     }))
   }))

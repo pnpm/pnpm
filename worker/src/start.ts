@@ -346,18 +346,18 @@ function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
   const filesMap: FilesMap = new Map()
   let algo: string | undefined
   for (const [k, { checkedAt, filePath, integrity, mode, size }] of filesIndex) {
-    const integrityStr = integrity.toString()
-    const match = integrityStr.match(INTEGRITY_REGEX)
-    if (!match) {
-      throw new Error(`Invalid integrity format: ${integrityStr}`)
+    // Get the first hash from the integrity object
+    const hash = Object.values(integrity)[0]?.[0]
+    if (!hash) {
+      throw new Error(`Invalid integrity for ${k}`)
     }
-    const [, fileAlgo, digest] = match
     if (algo === undefined) {
-      algo = fileAlgo
+      algo = hash.algorithm
     }
     filesIntegrity.set(k, {
       checkedAt,
-      digest,
+      // Convert base64 digest to hex for more efficient file path lookups
+      digest: Buffer.from(hash.digest, 'base64').toString('hex'),
       mode,
       size,
     })
