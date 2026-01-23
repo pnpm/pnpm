@@ -50,11 +50,10 @@ test('pnpm list returns correct paths with global virtual store', async () => {
       '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
     },
   })
-  const storeDir = path.resolve('store')
   writeYamlFile('pnpm-workspace.yaml', {
     ci: false, // enableGlobalVirtualStore is always disabled in CI
     enableGlobalVirtualStore: true,
-    storeDir,
+    storeDir: path.resolve('store'),
     privateHoistPattern: '*',
   })
   await execPnpm(['install'])
@@ -62,18 +61,12 @@ test('pnpm list returns correct paths with global virtual store', async () => {
   const { stdout } = execPnpmSync(['list', '--json', '--depth=Infinity'])
   const listResult = JSON.parse(stdout.toString())
 
-  expect(listResult).toHaveLength(1)
-  expect(listResult[0].dependencies).toBeDefined()
-
-  // Verify top-level dependency path exists
+  // pnpm list should return the same path as resolving the symlink
   const pkgPath = listResult[0].dependencies['@pnpm.e2e/pkg-with-1-dep'].path
-  expect(fs.existsSync(pkgPath)).toBeTruthy()
-  expect(fs.existsSync(path.join(pkgPath, 'package.json'))).toBeTruthy()
+  expect(pkgPath).toBe(fs.realpathSync('node_modules/@pnpm.e2e/pkg-with-1-dep'))
 
-  // Verify subdependency path exists (this tests the fix for zkochan's comment)
-  const subDeps = listResult[0].dependencies['@pnpm.e2e/pkg-with-1-dep'].dependencies
-  expect(subDeps).toBeDefined()
-  const subDepPath = subDeps['@pnpm.e2e/dep-of-pkg-with-1-dep'].path
-  expect(fs.existsSync(subDepPath)).toBeTruthy()
-  expect(fs.existsSync(path.join(subDepPath, 'package.json'))).toBeTruthy()
+  // Subdependency path should also be a valid resolved path
+  const subDepPath = listResult[0].dependencies['@pnpm.e2e/pkg-with-1-dep'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].path
+  expect(fs.existsSync(subDepPath)).toBe(true)
+  expect(fs.existsSync(path.join(subDepPath, 'package.json'))).toBe(true)
 })

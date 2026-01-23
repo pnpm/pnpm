@@ -98,28 +98,32 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
     ? path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules', name)
     : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
 
-  // Resolve symlink for global virtual store
-  if (depPath && opts.virtualStoreDir && opts.modulesDir && !opts.virtualStoreDir.startsWith(opts.modulesDir)) {
-    let symlinkPath: string
-    if (opts.parentDir) {
-      // For subdependencies, resolve from parent's node_modules directory.
-      // opts.parentDir is the resolved path of the parent package, e.g.:
-      // /path/to/store/v10/links/.../node_modules/@pnpm.e2e/pkg-with-1-dep
-      // We need to find the node_modules directory and resolve the symlink from there
-      const nodeModulesIndex = opts.parentDir.lastIndexOf(`${path.sep}node_modules${path.sep}`)
-      if (nodeModulesIndex !== -1) {
-        const nodeModulesDir = opts.parentDir.slice(0, nodeModulesIndex + `${path.sep}node_modules`.length)
-        symlinkPath = path.join(nodeModulesDir, opts.alias)
-      } else {
-        // Fallback: assume parentDir contains a node_modules subdirectory
-        symlinkPath = path.join(opts.parentDir, 'node_modules', opts.alias)
-      }
-    } else {
-      // For top-level dependencies, resolve from the project's node_modules
-      symlinkPath = path.join(opts.modulesDir, opts.alias)
-    }
+  // Resolve symlink for global virtual store.
+  // Global virtual store is detected when virtualStoreDir is outside the project's node_modules.
+  // We use path.resolve() to normalize paths for reliable comparison.
+  const resolvedVirtualStoreDir = opts.virtualStoreDir ? path.resolve(opts.virtualStoreDir) : undefined
+  const resolvedModulesDir = opts.modulesDir ? path.resolve(opts.modulesDir) : undefined
+  const isGlobalVirtualStore = resolvedVirtualStoreDir && resolvedModulesDir &&
+    !resolvedVirtualStoreDir.startsWith(resolvedModulesDir + path.sep) &&
+    resolvedVirtualStoreDir !== resolvedModulesDir
+
+  // For global virtual store, resolve symlinks to get the actual path with hash
+  if (depPath && isGlobalVirtualStore) {
     try {
-      fullPackagePath = fs.realpathSync(symlinkPath)
+      let nodeModulesDir: string
+      if (opts.parentDir) {
+        // parentDir example: /store/.../node_modules/express
+        //                    /store/.../node_modules/@scope/pkg
+        // We need the node_modules directory to find sibling packages
+        nodeModulesDir = path.dirname(opts.parentDir)
+        // For scoped packages (@org/pkg), go up one more level
+        if (path.basename(nodeModulesDir).startsWith('@')) {
+          nodeModulesDir = path.dirname(nodeModulesDir)
+        }
+      } else {
+        nodeModulesDir = opts.modulesDir!
+      }
+      fullPackagePath = fs.realpathSync(path.join(nodeModulesDir, opts.alias))
     } catch {
       // Fallback to constructed path if symlink doesn't exist
     }
