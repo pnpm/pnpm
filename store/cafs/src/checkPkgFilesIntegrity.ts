@@ -205,7 +205,13 @@ export function verifyFileIntegrity (
     }
     throw err
   }
-  const computedDigest = crypto.hash(algo, data, 'hex')
+  let computedDigest: string
+  try {
+    computedDigest = crypto.hash(algo, data, 'hex')
+  } catch {
+    // Invalid algorithm (e.g., corrupted index file) - treat as verification failure
+    return { passed: false }
+  }
   const passed = computedDigest === hexDigest
   if (!passed) {
     gfs.unlinkSync(filename)

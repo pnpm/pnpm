@@ -1,4 +1,5 @@
 import path from 'path'
+import { PnpmError } from '@pnpm/error'
 
 /**
  * Checks if a file mode has any executable permissions set.
@@ -32,7 +33,11 @@ export function getIndexFilePathInCafs (
   pkgId: string
 ): string {
   // integrity is in format "algo-base64hash", extract and convert the base64 part to hex
-  const base64Part = integrity.slice(integrity.indexOf('-') + 1)
+  const dashIndex = integrity.indexOf('-')
+  if (dashIndex === -1) {
+    throw new PnpmError('INVALID_INTEGRITY', `Invalid integrity format: expected "algo-base64hash", got "${integrity}"`)
+  }
+  const base64Part = integrity.slice(dashIndex + 1)
   const hex = Buffer.from(base64Part, 'base64').toString('hex').substring(0, 64)
   // Some registries allow identical content to be published under different package names or versions.
   // To accommodate this, index files are stored using both the content hash and package identifier.
