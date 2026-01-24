@@ -3,7 +3,7 @@ import type { DependencyManifest } from '@pnpm/types'
 export type PackageFiles = Map<string, PackageFileInfo>
 
 export interface PackageFileInfo {
-  checkedAt?: number // Nullable for backward compatibility
+  checkedAt: number
   digest: string
   mode: number
   size: number

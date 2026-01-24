@@ -156,6 +156,7 @@ describe('checkPkgFilesIntegrity()', () => {
       algo: 'sha512',
       files: new Map([
         ['foo', {
+          checkedAt: 0,
           digest: 'f310afae50bb5b74e5c17c5eb6fe426538b9deccd88664fbb66a5717fb6d36d86d4d1f530bb63b58914f9894e81da490e2e39bb99c8e01174e258358b9349b5c',
           mode: 420,
           size: 10,
