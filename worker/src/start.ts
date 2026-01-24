@@ -7,7 +7,7 @@ import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
-import { parseIntegrity } from '@pnpm/crypto.integrity'
+import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import {
   type CafsFunctions,
   checkPkgFilesIntegrity,
@@ -181,7 +181,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
           type: 'integrity_validation_failed',
           algorithm,
           expected: integrity,
-          found: `${algorithm}-${Buffer.from(calculatedHash, 'hex').toString('base64')}`,
+          found: formatIntegrity(algorithm, calculatedHash),
         },
       }
     }
@@ -210,7 +210,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
 
 function calcIntegrity (buffer: Buffer): string {
   const calculatedHash: string = crypto.hash('sha512', buffer, 'hex')
-  return `sha512-${Buffer.from(calculatedHash, 'hex').toString('base64')}`
+  return formatIntegrity('sha512', calculatedHash)
 }
 
 interface AddFilesFromDirResult {

@@ -1,8 +1,8 @@
 # @pnpm/crypto.integrity
 
-> Parse and validate integrity strings
+> Parse and format integrity strings
 
-Parses single-hash integrity strings in the format `algorithm-base64hash` (e.g., `sha512-abc123...`) into their algorithm and hex digest components. This is the format used in pnpm lockfiles.
+Utilities for working with single-hash integrity strings in the format `algorithm-base64hash` (e.g., `sha512-abc123...`). This is the format used in pnpm lockfiles.
 
 ## Installation
 
@@ -30,6 +30,17 @@ Parses an integrity string and returns the algorithm and hex-encoded digest.
 Throws `PnpmError` with code `INVALID_INTEGRITY` if:
 - The format is invalid (must be `algorithm-base64hash`)
 - The base64 hash decodes to an empty digest
+
+### `formatIntegrity(algorithm: string, hexDigest: string): string`
+
+Formats a hex digest into an integrity string.
+
+```ts
+import { formatIntegrity } from '@pnpm/crypto.integrity'
+
+const integrity = formatIntegrity('sha512', 'f7fbba6e...')
+// 'sha512-9/u6bgY2+JDlb7vzKD5STG+...'
+```
 
 ## License
 

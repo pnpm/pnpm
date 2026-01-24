@@ -23,3 +23,10 @@ export function parseIntegrity (integrity: string): ParsedIntegrity {
   }
   return { algorithm: match[1], hexDigest }
 }
+
+/**
+ * Formats a hex digest into an integrity string (e.g., "sha512-base64hash").
+ */
+export function formatIntegrity (algorithm: string, hexDigest: string): string {
+  return `${algorithm}-${Buffer.from(hexDigest, 'hex').toString('base64')}`
+}

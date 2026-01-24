@@ -1,4 +1,5 @@
 import path from 'path'
+import { formatIntegrity } from '@pnpm/crypto.integrity'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
@@ -57,7 +58,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     const dintFiles: Record<string, { integrity: string, size: number }> = {}
     for (const [filePath, { digest, size }] of files) {
       dintFiles[filePath] = {
-        integrity: `${algo}-${Buffer.from(digest, 'hex').toString('base64')}`,
+        integrity: formatIntegrity(algo, digest),
         size,
       }
     }
