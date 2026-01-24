@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { createHexHash } from '@pnpm/crypto.hash'
 import { ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
+import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { readMsgpackFile, writeMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { logger } from '@pnpm/logger'
@@ -85,7 +85,7 @@ function pickPackageFromMetaUsingTime (
 
 export async function pickPackage (
   ctx: {
-    fetch: (pkgName: string, registry: string, authHeaderValue?: string, fullMetadata?: boolean) => Promise<PackageMeta>
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean }) => Promise<PackageMeta>
     fullMetadata?: boolean
     metaCache: PackageMetaCache
     cacheDir: string
@@ -210,7 +210,11 @@ export async function pickPackage (
     }
 
     try {
-      let meta = await ctx.fetch(spec.name, opts.registry, opts.authHeaderValue, fullMetadata)
+      let meta = await ctx.fetch(spec.name, {
+        authHeaderValue: opts.authHeaderValue,
+        fullMetadata,
+        registry: opts.registry,
+      })
       if (ctx.filterMetadata) {
         meta = clearMeta(meta)
       }

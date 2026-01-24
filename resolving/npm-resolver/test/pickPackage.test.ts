@@ -124,12 +124,10 @@ describe('pickPackage', () => {
     let fetchCallCount = 0
     const mockFetch = async (
       _pkgName: string,
-      _registry: string,
-      _authHeaderValue: string | undefined,
-      fullMetadata?: boolean
+      opts: { fullMetadata?: boolean }
     ) => {
       fetchCallCount++
-      return fullMetadata ? fullMeta : abbreviatedMeta
+      return opts.fullMetadata ? fullMeta : abbreviatedMeta
     }
 
     const ctx = {
@@ -186,11 +184,9 @@ describe('pickPackage', () => {
     let fullMetadataParam: boolean | undefined
     const mockFetch = async (
       _pkgName: string,
-      _registry: string,
-      _authHeaderValue: string | undefined,
-      fullMetadata?: boolean
+      opts: { fullMetadata?: boolean }
     ) => {
-      fullMetadataParam = fullMetadata
+      fullMetadataParam = opts.fullMetadata
       return mockMeta
     }
 
