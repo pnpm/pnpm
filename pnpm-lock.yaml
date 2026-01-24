@@ -2056,6 +2056,16 @@ importers:
         specifier: 'catalog:'
         version: 3.1.7
 
+  crypto/integrity:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+    devDependencies:
+      '@pnpm/crypto.integrity':
+        specifier: workspace:*
+        version: 'link:'
+
   crypto/object-hasher:
     dependencies:
       object-hash:
@@ -8144,6 +8154,12 @@ importers:
 
   store/cafs:
     dependencies:
+      '@pnpm/crypto.integrity':
+        specifier: workspace:*
+        version: link:../../crypto/integrity
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -8168,9 +8184,6 @@ importers:
       rename-overwrite:
         specifier: 'catalog:'
         version: 6.0.2
-      ssri:
-        specifier: 'catalog:'
-        version: 13.0.0
       strip-bom:
         specifier: 'catalog:'
         version: 5.0.0
@@ -8193,9 +8206,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.15.30
-      '@types/ssri':
-        specifier: 'catalog:'
-        version: 7.1.5
       symlink-dir:
         specifier: 'catalog:'
         version: 7.0.0
@@ -8342,6 +8352,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/crypto.integrity':
+        specifier: workspace:*
+        version: link:../../crypto/integrity
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -8728,6 +8741,9 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../store/create-cafs-store
+      '@pnpm/crypto.integrity':
+        specifier: workspace:*
+        version: link:../crypto/integrity
       '@pnpm/error':
         specifier: workspace:*
         version: link:../packages/error

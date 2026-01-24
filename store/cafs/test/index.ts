@@ -24,7 +24,7 @@ describe('cafs', () => {
     expect(pkgFile!.size).toBe(1121)
     expect(pkgFile!.mode).toBe(420)
     expect(typeof pkgFile!.checkedAt).toBe('number')
-    expect(pkgFile!.integrity.toString()).toBe('sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==')
+    expect(pkgFile!.digest).toBe('f310afae50bb5b74e5c17c5eb6fe426538b9deccd88664fbb66a5717fb6d36d86d4d1f530bb63b58914f9894e81da490e2e39bb99c8e01174e258358b9349b5c')
   })
 
   it('replaces an already existing file, if the integrity of it was broken', () => {
@@ -35,7 +35,8 @@ describe('cafs', () => {
     let addFilesResult = addFiles()
 
     // Modifying the file in the store
-    const filePath = getFilePathByModeInCafs(storeDir, addFilesResult.filesIndex.get('foo.txt')!.integrity, 420)
+    const { digest } = addFilesResult.filesIndex.get('foo.txt')!
+    const filePath = getFilePathByModeInCafs(storeDir, digest, 420)
     fs.appendFileSync(filePath, 'bar')
 
     addFilesResult = addFiles()
@@ -152,9 +153,10 @@ describe('checkPkgFilesIntegrity()', () => {
   it("doesn't fail if file was removed from the store", () => {
     const storeDir = temporaryDirectory()
     expect(checkPkgFilesIntegrity(storeDir, {
+      algo: 'sha512',
       files: new Map([
         ['foo', {
-          integrity: 'sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==',
+          digest: 'f310afae50bb5b74e5c17c5eb6fe426538b9deccd88664fbb66a5717fb6d36d86d4d1f530bb63b58914f9894e81da490e2e39bb99c8e01174e258358b9349b5c',
           mode: 420,
           size: 10,
         }],

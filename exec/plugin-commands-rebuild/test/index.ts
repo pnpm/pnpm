@@ -116,7 +116,7 @@ test('skipIfHasSideEffectsCache', async () => {
     [sideEffectsKey, {
       added: new Map([
         ['foo', {
-          integrity: 'bar',
+          digest: 'bar',
           mode: 1,
           size: 1,
         }],

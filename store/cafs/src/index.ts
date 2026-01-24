@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import {
   type AddToStoreResult,
   type FileWriteResult,
@@ -7,12 +8,12 @@ import {
   type SideEffects,
   type SideEffectsDiff,
 } from '@pnpm/cafs-types'
-import ssri from 'ssri'
 import { addFilesFromDir } from './addFilesFromDir.js'
 import { addFilesFromTarball } from './addFilesFromTarball.js'
 import {
   checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
+  type Integrity,
   type PackageFilesIndex,
   type VerifyResult,
 } from './checkPkgFilesIntegrity.js'
@@ -26,7 +27,7 @@ import {
 } from './getFilePathInCafs.js'
 import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCafs.js'
 
-export type { IntegrityLike } from 'ssri'
+export const HASH_ALGORITHM = 'sha512'
 
 export {
   checkPkgFilesIntegrity,
@@ -35,6 +36,7 @@ export {
   type FileType,
   getFilePathByModeInCafs,
   getIndexFilePathInCafs,
+  type Integrity,
   type PackageFileInfo,
   type PackageFiles,
   type PackageFilesIndex,
@@ -56,8 +58,8 @@ export interface CafsFunctions {
   addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean }) => AddToStoreResult
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
-  getIndexFilePathInCafs: (integrity: string | ssri.IntegrityLike, fileType: FileType) => string
-  getFilePathByModeInCafs: (integrity: string | ssri.IntegrityLike, mode: number) => string
+  getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
+  getFilePathByModeInCafs: (digest: string, mode: number) => string
 }
 
 export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}): CafsFunctions {
@@ -72,7 +74,7 @@ export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: Create
   }
 }
 
-type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: ssri.IntegrityLike) => { checkedAt: number, filePath: string }
+type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: Integrity) => { checkedAt: number, filePath: string }
 
 function addBufferToCafs (
   writeBufferToCafs: WriteBufferToCafs,
@@ -82,14 +84,14 @@ function addBufferToCafs (
   // Calculating the integrity of the file is surprisingly fast.
   // 30K files are calculated in 1 second.
   // Hence, from a performance perspective, there is no win in fetching the package index file from the registry.
-  const integrity = ssri.fromData(buffer)
+  const digest = crypto.hash(HASH_ALGORITHM, buffer, 'hex')
   const isExecutable = modeIsExecutable(mode)
-  const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', integrity.hexDigest())
+  const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', digest)
   const { checkedAt, filePath } = writeBufferToCafs(
     buffer,
     fileDest,
     isExecutable ? 0o755 : undefined,
-    integrity
+    { digest, algorithm: HASH_ALGORITHM }
   )
-  return { checkedAt, integrity, filePath }
+  return { checkedAt, filePath, digest }
 }
