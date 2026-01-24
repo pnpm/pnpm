@@ -1,5 +1,5 @@
 import path from 'path'
-import ssri, { type IntegrityLike } from 'ssri'
+import { parseIntegrity } from '@pnpm/crypto.integrity'
 
 /**
  * Checks if a file mode has any executable permissions set.
@@ -20,19 +20,20 @@ export type FileType = 'exec' | 'nonexec'
 
 export function getFilePathByModeInCafs (
   storeDir: string,
-  integrity: string | IntegrityLike,
+  hexDigest: string,
   mode: number
 ): string {
   const fileType = modeIsExecutable(mode) ? 'exec' : 'nonexec'
-  return path.join(storeDir, contentPathFromIntegrity(integrity, fileType))
+  return path.join(storeDir, contentPathFromHex(fileType, hexDigest))
 }
 
 export function getIndexFilePathInCafs (
   storeDir: string,
-  integrity: string | IntegrityLike,
+  integrity: string,
   pkgId: string
 ): string {
-  const hex = ssri.parse(integrity, { single: true }).hexDigest().substring(0, 64)
+  const { hexDigest } = parseIntegrity(integrity)
+  const hex = hexDigest.substring(0, 64)
   // Some registries allow identical content to be published under different package names or versions.
   // To accommodate this, index files are stored using both the content hash and package identifier.
   // This approach ensures that we can:
@@ -40,14 +41,6 @@ export function getIndexFilePathInCafs (
   //    which might not be the case after a poorly resolved Git conflict.
   // 2. Allow the same content to be referenced by different packages or different versions of the same package.
   return path.join(storeDir, `index/${path.join(hex.slice(0, 2), hex.slice(2))}-${pkgId.replace(/[\\/:*?"<>|]/g, '+')}.mpk`)
-}
-
-function contentPathFromIntegrity (
-  integrity: string | IntegrityLike,
-  fileType: FileType
-): string {
-  const sri = ssri.parse(integrity, { single: true })
-  return contentPathFromHex(fileType, sri.hexDigest())
 }
 
 export function contentPathFromHex (fileType: FileType, hex: string): string {

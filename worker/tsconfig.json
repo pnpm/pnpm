@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../crypto/integrity"
+    },
+    {
       "path": "../exec/pkg-requires-build"
     },
     {

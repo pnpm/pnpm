@@ -198,14 +198,14 @@ test('a postinstall script does not modify the original sources added to the sto
     id: `@pnpm/postinstall-modifies-source@1.0.0:${getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0')}`,
     deps: {},
   })}`)!
-  const patchedFileIntegrity = sideEffectEntry.added!.get('empty-file.txt')?.integrity
-  expect(patchedFileIntegrity).toBeTruthy()
-  const originalFileIntegrity = filesIndex.files.get('empty-file.txt')!.integrity
-  expect(originalFileIntegrity).toBeTruthy()
-  // The integrity of the original file differs from the integrity of the patched file
-  expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
+  const patchedFileDigest = sideEffectEntry.added!.get('empty-file.txt')?.digest
+  expect(patchedFileDigest).toBeTruthy()
+  const originalFileDigest = filesIndex.files.get('empty-file.txt')!.digest
+  expect(originalFileDigest).toBeTruthy()
+  // The digest of the original file differs from the digest of the patched file
+  expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
-  expect(fs.readFileSync(getFilePathByModeInCafs(opts.storeDir, originalFileIntegrity, 420), 'utf8')).toBe('')
+  expect(fs.readFileSync(getFilePathByModeInCafs(opts.storeDir, originalFileDigest, 420), 'utf8')).toBe('')
 })
 
 test('a corrupted side-effects cache is ignored', async () => {
@@ -237,7 +237,7 @@ test('a corrupted side-effects cache is ignored', async () => {
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added!.has('generated-by-preinstall.js')).toBeTruthy()
   const sideEffectFileStat = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('generated-by-preinstall.js')!
-  const sideEffectFile = getFilePathByModeInCafs(opts.storeDir, sideEffectFileStat.integrity, sideEffectFileStat.mode)
+  const sideEffectFile = getFilePathByModeInCafs(opts.storeDir, sideEffectFileStat.digest, sideEffectFileStat.mode)
   expect(fs.existsSync(sideEffectFile)).toBeTruthy()
   rimraf(sideEffectFile) // we remove the side effect file to break the store
 

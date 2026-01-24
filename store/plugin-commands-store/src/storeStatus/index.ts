@@ -1,4 +1,5 @@
 import path from 'path'
+import { formatIntegrity } from '@pnpm/crypto.integrity'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
@@ -52,8 +53,16 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     const pkgIndexFilePath = integrity
       ? getIndexFilePathInCafs(storeDir, integrity, id)
       : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.mpk')
-    const { files } = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
-    return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), Object.fromEntries(files.entries()))) === false
+    const { algo, files } = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
+    // Transform files to dint format: { integrity: '<algo>-<base64>', size: number }
+    const dintFiles: Record<string, { integrity: string, size: number }> = {}
+    for (const [filePath, { digest, size }] of files) {
+      dintFiles[filePath] = {
+        integrity: formatIntegrity(algo, digest),
+        size,
+      }
+    }
+    return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), dintFiles)) === false
   }, { concurrency: 8 })
 
   if ((reporter != null) && typeof reporter === 'function') {
