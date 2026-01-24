@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import {
   type AddToStoreResult,
   type FileWriteResult,
@@ -7,7 +8,6 @@ import {
   type SideEffects,
   type SideEffectsDiff,
 } from '@pnpm/cafs-types'
-import ssri from 'ssri'
 import { addFilesFromDir } from './addFilesFromDir.js'
 import { addFilesFromTarball } from './addFilesFromTarball.js'
 import {
@@ -25,8 +25,6 @@ import {
   modeIsExecutable,
 } from './getFilePathInCafs.js'
 import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCafs.js'
-
-export type { IntegrityLike } from 'ssri'
 
 export {
   checkPkgFilesIntegrity,
@@ -56,7 +54,7 @@ export interface CafsFunctions {
   addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean }) => AddToStoreResult
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
-  getIndexFilePathInCafs: (integrity: string | ssri.IntegrityLike, fileType: FileType) => string
+  getIndexFilePathInCafs: (integrity: string, fileType: FileType) => string
   getFilePathByModeInCafs: (digest: string, mode: number) => string
 }
 
@@ -72,7 +70,9 @@ export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: Create
   }
 }
 
-type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: ssri.IntegrityLike) => { checkedAt: number, filePath: string }
+type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, digest: string, algorithm: string) => { checkedAt: number, filePath: string }
+
+const HASH_ALGORITHM = 'sha512'
 
 function addBufferToCafs (
   writeBufferToCafs: WriteBufferToCafs,
@@ -82,14 +82,15 @@ function addBufferToCafs (
   // Calculating the integrity of the file is surprisingly fast.
   // 30K files are calculated in 1 second.
   // Hence, from a performance perspective, there is no win in fetching the package index file from the registry.
-  const integrity = ssri.fromData(buffer)
+  const digest = crypto.hash(HASH_ALGORITHM, buffer, 'hex')
   const isExecutable = modeIsExecutable(mode)
-  const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', integrity.hexDigest())
+  const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', digest)
   const { checkedAt, filePath } = writeBufferToCafs(
     buffer,
     fileDest,
     isExecutable ? 0o755 : undefined,
-    integrity
+    digest,
+    HASH_ALGORITHM
   )
-  return { checkedAt, integrity, filePath }
+  return { checkedAt, filePath, digest, algorithm: HASH_ALGORITHM }
 }

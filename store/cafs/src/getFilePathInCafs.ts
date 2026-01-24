@@ -1,5 +1,4 @@
 import path from 'path'
-import ssri, { type IntegrityLike } from 'ssri'
 
 /**
  * Checks if a file mode has any executable permissions set.
@@ -29,10 +28,12 @@ export function getFilePathByModeInCafs (
 
 export function getIndexFilePathInCafs (
   storeDir: string,
-  integrity: string | IntegrityLike,
+  integrity: string,
   pkgId: string
 ): string {
-  const hex = ssri.parse(integrity, { single: true }).hexDigest().substring(0, 64)
+  // integrity is in format "algo-base64hash", extract and convert the base64 part to hex
+  const base64Part = integrity.slice(integrity.indexOf('-') + 1)
+  const hex = Buffer.from(base64Part, 'base64').toString('hex').substring(0, 64)
   // Some registries allow identical content to be published under different package names or versions.
   // To accommodate this, index files are stored using both the content hash and package identifier.
   // This approach ensures that we can:

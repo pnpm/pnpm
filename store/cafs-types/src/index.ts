@@ -1,4 +1,3 @@
-import type { IntegrityLike } from 'ssri'
 import type { DependencyManifest } from '@pnpm/types'
 
 export type PackageFiles = Map<string, PackageFileInfo>
@@ -59,7 +58,8 @@ export type FilesIndex = Map<string, {
 export interface FileWriteResult {
   checkedAt: number
   filePath: string
-  integrity: IntegrityLike
+  digest: string
+  algorithm: string
 }
 
 export interface AddToStoreResult {
@@ -72,7 +72,7 @@ export interface Cafs {
   addFilesFromDir: (dir: string) => AddToStoreResult
   addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
-  getIndexFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
+  getIndexFilePathInCafs: (integrity: string, fileType: FileType) => string
   getFilePathByModeInCafs: (digest: string, mode: number) => string
   importPackage: ImportPackageFunction
   tempDir: () => Promise<string>

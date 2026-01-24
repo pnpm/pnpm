@@ -40,7 +40,6 @@
     "is-subdir": "catalog:",
     "p-limit": "catalog:",
     "rename-overwrite": "catalog:",
-    "ssri": "catalog:",
     "strip-bom": "catalog:"
   },
   "devDependencies": {
@@ -50,7 +49,6 @@
     "@pnpm/types": "workspace:*",
     "@types/is-gzip": "catalog:",
     "@types/node": "catalog:",
-    "@types/ssri": "catalog:",
     "symlink-dir": "catalog:",
     "tempy": "catalog:"
   },

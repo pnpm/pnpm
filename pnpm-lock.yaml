@@ -8171,9 +8171,6 @@ importers:
       rename-overwrite:
         specifier: 'catalog:'
         version: 6.0.2
-      ssri:
-        specifier: 'catalog:'
-        version: 13.0.0
       strip-bom:
         specifier: 'catalog:'
         version: 5.0.0
@@ -8196,9 +8193,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.15.30
-      '@types/ssri':
-        specifier: 'catalog:'
-        version: 7.1.5
       symlink-dir:
         specifier: 'catalog:'
         version: 7.0.0
@@ -8764,9 +8758,6 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.7.2
-      ssri:
-        specifier: 'catalog:'
-        version: 13.0.0
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -8783,9 +8774,6 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3
-      '@types/ssri':
-        specifier: 'catalog:'
-        version: 7.1.5
 
   workspace/filter-packages-from-dir:
     dependencies:

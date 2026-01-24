@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import fs from 'fs'
 import util from 'util'
 import { PnpmError } from '@pnpm/error'
@@ -5,7 +6,6 @@ import { type PackageFiles, type PackageFileInfo, type SideEffects, type FilesMa
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
-import ssri from 'ssri'
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 import { parseJsonBufferSync } from './parseJson.js'
 import { readManifestFromStore } from './readManifestFromStore.js'
@@ -47,7 +47,7 @@ export function checkPkgFilesIntegrity (
   // but there's a smaller chance that the same file will be checked twice
   // so it's probably not worth the memory (this assumption should be verified)
   const verifiedFilesCache = new Set<string>()
-  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir, pkgIndex.algo ?? 'sha512')
+  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir, pkgIndex.algo)
   const verified = _checkFilesIntegrity(pkgIndex.files, readManifest)
   if (!verified.passed) return verified
 
@@ -196,31 +196,28 @@ export function verifyFileIntegrity (
 ): Pick<VerifyResult, 'passed' | 'manifest'> {
   // @ts-expect-error
   global['verifiedFileIntegrity']++
+  let data: Buffer
   try {
-    const data = gfs.readFileSync(filename)
-    const integrity = ssri.fromHex(hexDigest, algo)
-    const passed = Boolean(ssri.checkData(data, integrity))
-    if (!passed) {
-      gfs.unlinkSync(filename)
-      return { passed }
-    } else if (readManifest) {
-      return {
-        passed,
-        manifest: parseJsonBufferSync(data) as DependencyManifest,
-      }
-    }
-    return { passed }
+    data = gfs.readFileSync(filename)
   } catch (err: unknown) {
-    switch (util.types.isNativeError(err) && 'code' in err && err.code) {
-    case 'ENOENT': return { passed: false }
-    case 'EINTEGRITY': {
-      // Broken files are removed from the store
-      gfs.unlinkSync(filename)
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return { passed: false }
-    }
     }
     throw err
   }
+  const computedDigest = crypto.hash(algo, data, 'hex')
+  const passed = computedDigest === hexDigest
+  if (!passed) {
+    gfs.unlinkSync(filename)
+    return { passed }
+  }
+  if (readManifest) {
+    return {
+      passed,
+      manifest: parseJsonBufferSync(data) as DependencyManifest,
+    }
+  }
+  return { passed }
 }
 
 function checkFile (filename: string, checkedAt?: number): { isModified: boolean, size: number } | null {
