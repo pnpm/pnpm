@@ -27,6 +27,8 @@ import {
 } from './getFilePathInCafs.js'
 import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCafs.js'
 
+export const HASH_ALGORITHM = 'sha512'
+
 export {
   checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
@@ -74,8 +76,6 @@ export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: Create
 
 type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: Integrity) => { checkedAt: number, filePath: string }
 
-const HASH_ALGORITHM = 'sha512'
-
 function addBufferToCafs (
   writeBufferToCafs: WriteBufferToCafs,
   buffer: Buffer,
@@ -93,5 +93,5 @@ function addBufferToCafs (
     isExecutable ? 0o755 : undefined,
     { digest, algorithm: HASH_ALGORITHM }
   )
-  return { checkedAt, filePath, digest, algorithm: HASH_ALGORITHM }
+  return { checkedAt, filePath, digest }
 }

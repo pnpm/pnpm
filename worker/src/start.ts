@@ -12,6 +12,7 @@ import {
   checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
   createCafs,
+  HASH_ALGORITHM,
   type PackageFilesIndex,
   type FilesIndex,
   optimisticRenameOverwrite,
@@ -198,8 +199,8 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
   }
-  const { algo, filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  const requiresBuild = writeFilesIndexFile(filesIndexFile, { algo, manifest: manifest ?? {}, files: filesIntegrity })
+  const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
+  const requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: manifest ?? {}, files: filesIntegrity })
   return {
     status: 'success',
     value: {
@@ -267,7 +268,7 @@ function addFilesFromDir (
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
   }
-  const { algo, filesIntegrity, filesMap } = processFilesIndex(filesIndex)
+  const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   let requiresBuild: boolean
   if (sideEffectsCacheKey) {
     let existingFilesIndex!: PackageFilesIndex
@@ -288,10 +289,10 @@ function addFilesFromDir (
       existingFilesIndex.sideEffects = new Map()
     }
     // Ensure side effects use the same algorithm as the original package
-    if (existingFilesIndex.algo !== algo) {
+    if (existingFilesIndex.algo !== HASH_ALGORITHM) {
       throw new PnpmError(
         'ALGO_MISMATCH',
-        `Algorithm mismatch: package index uses "${existingFilesIndex.algo}" but side effects were computed with "${algo}"`
+        `Algorithm mismatch: package index uses "${existingFilesIndex.algo}" but side effects were computed with "${HASH_ALGORITHM}"`
       )
     }
     existingFilesIndex.sideEffects.set(sideEffectsCacheKey, calculateDiff(existingFilesIndex.files, filesIntegrity))
@@ -302,7 +303,7 @@ function addFilesFromDir (
     }
     writeIndexFile(filesIndexFile, existingFilesIndex)
   } else {
-    requiresBuild = writeFilesIndexFile(filesIndexFile, { algo, manifest: manifest ?? {}, files: filesIntegrity })
+    requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: manifest ?? {}, files: filesIntegrity })
   }
   return { status: 'success', value: { filesMap, manifest, requiresBuild } }
 }
@@ -343,7 +344,6 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
 }
 
 interface ProcessFilesIndexResult {
-  algo: string
   filesIntegrity: PackageFiles
   filesMap: FilesMap
 }
@@ -351,11 +351,7 @@ interface ProcessFilesIndexResult {
 function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
   const filesIntegrity: PackageFiles = new Map()
   const filesMap: FilesMap = new Map()
-  let algo: string | undefined
-  for (const [k, { checkedAt, filePath, digest, algorithm, mode, size }] of filesIndex) {
-    if (algo === undefined) {
-      algo = algorithm
-    }
+  for (const [k, { checkedAt, filePath, digest, mode, size }] of filesIndex) {
     filesIntegrity.set(k, {
       checkedAt,
       digest,
@@ -364,7 +360,7 @@ function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
     })
     filesMap.set(k, filePath)
   }
-  return { algo: algo ?? 'sha512', filesIntegrity, filesMap }
+  return { filesIntegrity, filesMap }
 }
 
 interface ImportPackageResult {

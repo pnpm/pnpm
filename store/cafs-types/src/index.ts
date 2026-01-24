@@ -59,7 +59,6 @@ export interface FileWriteResult {
   checkedAt: number
   filePath: string
   digest: string
-  algorithm: string
 }
 
 export interface AddToStoreResult {
