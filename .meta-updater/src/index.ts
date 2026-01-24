@@ -76,14 +76,6 @@ export default async (workspaceDir: string) => { // eslint-disable-line
             }
           }
         }
-        for (const depType of ['dependencies', 'optionalDependencies'] as const) {
-          if (!manifest[depType]) continue
-          for (const depName of Object.keys(manifest[depType] ?? {})) {
-            if (manifest[depType]?.[depName] === 'catalog:') {
-              throw new Error('The pnpm CLI package cannot have "catalog:" in prod deps as publish-packed does not support them currently')
-            }
-          }
-        }
       }
       if (manifest.peerDependencies?.['@pnpm/logger'] != null) {
         manifest.peerDependencies['@pnpm/logger'] = 'catalog:'
