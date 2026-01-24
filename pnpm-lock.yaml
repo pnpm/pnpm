@@ -920,9 +920,6 @@ importers:
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../object/key-sorting
-      '@pnpm/parse-overrides':
-        specifier: workspace:*
-        version: link:../config/parse-overrides
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
