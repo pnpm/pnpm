@@ -35,7 +35,6 @@ export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions): 
 export type { AgentOptions }
 
 export interface CreateFetchFromRegistryOptions extends AgentOptions {
-  fullMetadata?: boolean
   userAgent?: string
   sslConfigs?: Record<string, SslConfig>
 }
@@ -46,7 +45,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
       'user-agent': USER_AGENT,
       ...getHeaders({
         auth: opts?.authHeaderValue,
-        fullMetadata: opts?.fullMetadata ?? defaultOpts.fullMetadata,
+        fullMetadata: opts?.fullMetadata,
         userAgent: defaultOpts.userAgent,
       }),
     }

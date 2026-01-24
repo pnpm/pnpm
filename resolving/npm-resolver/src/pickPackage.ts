@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { createHexHash } from '@pnpm/crypto.hash'
-import { FULL_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
+import { ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readMsgpackFile, writeMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { logger } from '@pnpm/logger'
@@ -66,7 +66,7 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   registry: string
   dryRun: boolean
   updateToLatest?: boolean
-  metaDir?: string
+  optional?: boolean
 }
 
 const pickPackageFromMetaUsingTimeStrict = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
@@ -86,7 +86,7 @@ function pickPackageFromMetaUsingTime (
 export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, registry: string, authHeaderValue?: string, fullMetadata?: boolean) => Promise<PackageMeta>
-    metaDir: string
+    fullMetadata?: boolean
     metaCache: PackageMetaCache
     cacheDir: string
     offline?: boolean
@@ -126,9 +126,14 @@ export async function pickPackage (
 
   validatePackageName(spec.name)
 
-  const metaDir = opts.metaDir ?? ctx.metaDir
-  // Cache key must include metaDir to avoid returning abbreviated metadata when full metadata is requested.
-  const cacheKey = `${spec.name}:${metaDir}`
+  // Use full metadata for optional dependencies to get libc field.
+  // See: https://github.com/pnpm/pnpm/issues/9950
+  const fullMetadata = opts.optional === true || ctx.fullMetadata === true
+  const metaDir = fullMetadata
+    ? (ctx.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR)
+    : ABBREVIATED_META_DIR
+  // Cache key includes fullMetadata to avoid returning abbreviated metadata when full metadata is requested.
+  const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
   const cachedMeta = ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
     return {
@@ -205,7 +210,6 @@ export async function pickPackage (
     }
 
     try {
-      const fullMetadata = metaDir === FULL_META_DIR || metaDir === FULL_FILTERED_META_DIR
       let meta = await ctx.fetch(spec.name, opts.registry, opts.authHeaderValue, fullMetadata)
       if (ctx.filterMetadata) {
         meta = clearMeta(meta)

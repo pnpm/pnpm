@@ -1,6 +1,5 @@
 import { pickPackage } from '../src/pickPackage.js'
 import { type PackageMeta } from '@pnpm/registry.types'
-import { FULL_META_DIR, ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { temporaryDirectory } from 'tempy'
 
 function createMockMeta (options: {
@@ -44,7 +43,7 @@ describe('pickPackage', () => {
 
     const ctx = {
       fetch: mockFetch,
-      metaDir: ABBREVIATED_META_DIR,
+      fullMetadata: false,
       metaCache,
       cacheDir: temporaryDirectory(),
       offline: false,
@@ -61,14 +60,14 @@ describe('pickPackage', () => {
     // It should fetch from the registry on the first call.
     await pickPackage(ctx, spec, opts)
     expect(fetchCallCount).toBe(1)
-    expect(metaCache.has('test-package:metadata-v1.3')).toBe(true)
+    expect(metaCache.has('test-package')).toBe(true)
 
     // It should use cache on the second call.
     await pickPackage(ctx, spec, opts)
     expect(fetchCallCount).toBe(1)
   })
 
-  test('should include metaDir in cache key for full metadata', async () => {
+  test('should include fullMetadata in cache key for full metadata', async () => {
     const metaCache = new Map<string, PackageMeta>()
     const mockMeta = createMockMeta({
       name: 'test-package',
@@ -84,7 +83,7 @@ describe('pickPackage', () => {
 
     const ctx = {
       fetch: mockFetch,
-      metaDir: FULL_META_DIR,
+      fullMetadata: true,
       metaCache,
       cacheDir: temporaryDirectory(),
       offline: false,
@@ -95,14 +94,13 @@ describe('pickPackage', () => {
     const opts = {
       registry: 'https://registry.npmjs.org/',
       dryRun: false,
-      metaDir: FULL_META_DIR,
       preferredVersionSelectors: undefined,
     }
 
     // It should fetch from the registry on the first call.
     await pickPackage(ctx, spec, opts)
     expect(fetchCallCount).toBe(1)
-    expect(metaCache.has('test-package:metadata-full-v1.3')).toBe(true)
+    expect(metaCache.has('test-package:full')).toBe(true)
 
     // It should use cache on the second call.
     await pickPackage(ctx, spec, opts)
@@ -136,7 +134,7 @@ describe('pickPackage', () => {
 
     const ctx = {
       fetch: mockFetch,
-      metaDir: ABBREVIATED_META_DIR,
+      fullMetadata: false,
       metaCache,
       cacheDir: temporaryDirectory(),
       offline: false,
@@ -153,23 +151,23 @@ describe('pickPackage', () => {
     })
 
     expect(fetchCallCount).toBe(1)
-    expect(metaCache.has('test-package:metadata-v1.3')).toBe(true)
+    expect(metaCache.has('test-package')).toBe(true)
 
-    // It should fetch full metadata separately when requested with different metaDir.
+    // It should fetch full metadata separately when requested with optional=true.
     await pickPackage(ctx, spec, {
       registry: 'https://registry.npmjs.org/',
       dryRun: false,
-      metaDir: FULL_META_DIR,
+      optional: true,
       preferredVersionSelectors: undefined,
     })
 
     expect(fetchCallCount).toBe(2)
-    expect(metaCache.has('test-package:metadata-v1.3')).toBe(true)
-    expect(metaCache.has('test-package:metadata-full-v1.3')).toBe(true)
+    expect(metaCache.has('test-package')).toBe(true)
+    expect(metaCache.has('test-package:full')).toBe(true)
 
-    // It should cache different metadata separately based on metaDir.
-    const abbreviatedFromCache = metaCache.get('test-package:metadata-v1.3')
-    const fullFromCache = metaCache.get('test-package:metadata-full-v1.3')
+    // It should cache different metadata separately based on fullMetadata.
+    const abbreviatedFromCache = metaCache.get('test-package')
+    const fullFromCache = metaCache.get('test-package:full')
 
     expect(abbreviatedFromCache!.versions['1.0.0'].dist.integrity).toBe('sha512-abbreviated')
     expect(fullFromCache!.versions['1.0.0'].dist.integrity).toBe('sha512-full')
@@ -198,7 +196,7 @@ describe('pickPackage', () => {
 
     const ctx = {
       fetch: mockFetch,
-      metaDir: ABBREVIATED_META_DIR,
+      fullMetadata: false,
       metaCache,
       cacheDir: temporaryDirectory(),
       offline: false,
@@ -215,11 +213,11 @@ describe('pickPackage', () => {
     })
     expect(fullMetadataParam).toBe(false)
 
-    // It should pass fullMetadata=true when using full metadata.
+    // It should pass fullMetadata=true when optional=true.
     await pickPackage(ctx, spec, {
       registry: 'https://registry.npmjs.org/',
       dryRun: false,
-      metaDir: FULL_META_DIR,
+      optional: true,
       preferredVersionSelectors: undefined,
     })
     expect(fullMetadataParam).toBe(true)

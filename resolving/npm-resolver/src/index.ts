@@ -1,5 +1,4 @@
 import path from 'path'
-import { FULL_META_DIR, FULL_FILTERED_META_DIR, ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
   type FetchFromRegistry,
@@ -209,15 +208,13 @@ export function createNpmResolver (
       return request
     }
   }
-  const fullMetaDir = opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR
-  const defaultMetaDir = opts.fullMetadata ? fullMetaDir : ABBREVIATED_META_DIR
   const ctx: ResolveFromNpmContext = {
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
       fetch,
+      fullMetadata: opts.fullMetadata,
       filterMetadata: opts.filterMetadata,
       metaCache,
-      metaDir: defaultMetaDir,
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
@@ -225,8 +222,6 @@ export function createNpmResolver (
     }),
     registries: opts.registries,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
-    metaDir: defaultMetaDir,
-    metaDirForOptionalPackages: fullMetaDir,
     peekManifestFromStore,
   }
   return {
@@ -243,8 +238,6 @@ export interface ResolveFromNpmContext {
   getAuthHeaderValueByURI: (registry: string) => string | undefined
   registries: Registries
   saveWorkspaceProtocol?: boolean | 'rolling'
-  metaDir: string
-  metaDirForOptionalPackages: string
   peekManifestFromStore?: (opts: {
     id: PkgResolutionId
     integrity: string
@@ -351,19 +344,16 @@ async function resolveNpm (
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
   try {
-    // Use full metadata for optional dependencies to get libc field.
-    // See: https://github.com/pnpm/pnpm/issues/9950
-    const metaDir = wantedDependency.optional === true ? ctx.metaDirForOptionalPackages : ctx.metaDir
     pickResult = await ctx.pickPackage(spec, {
       pickLowestVersion: opts.pickLowestVersion,
       publishedBy: opts.publishedBy,
-      metaDir,
       publishedByExclude: opts.publishedByExclude,
       authHeaderValue,
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry,
       updateToLatest: opts.update === 'latest',
+      optional: wantedDependency.optional,
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
