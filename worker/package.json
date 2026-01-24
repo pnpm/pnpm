@@ -35,6 +35,7 @@
   "dependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/crypto.integrity": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pkg-requires-build": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",

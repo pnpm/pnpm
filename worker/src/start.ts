@@ -7,6 +7,7 @@ import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
+import { parseIntegrity } from '@pnpm/crypto.integrity'
 import {
   type CafsFunctions,
   checkPkgFilesIntegrity,
@@ -31,8 +32,6 @@ import {
   type HardLinkDirMessage,
   type InitStoreMessage,
 } from './types.js'
-
-const INTEGRITY_REGEX: RegExp = /^([^-]+)-([a-z0-9+/=]+)$/i
 
 export function startWorker (): void {
   process.on('uncaughtException', (err) => {
@@ -173,12 +172,9 @@ async function handleMessage (
 
 function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appendManifest }: TarballExtractMessage) {
   if (integrity) {
-    const [, algorithm, integrityHash] = integrity.match(INTEGRITY_REGEX)!
-    // Compensate for the possibility of non-uniform Base64 padding
-    const normalizedRemoteHash: string = Buffer.from(integrityHash, 'base64').toString('hex')
-
+    const { algorithm, hexDigest } = parseIntegrity(integrity)
     const calculatedHash: string = crypto.hash(algorithm, buffer, 'hex')
-    if (calculatedHash !== normalizedRemoteHash) {
+    if (calculatedHash !== hexDigest) {
       return {
         status: 'error',
         error: {
