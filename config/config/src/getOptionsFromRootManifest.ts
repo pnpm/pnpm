@@ -53,7 +53,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
 }
 
 export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
-  const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings) as unknown as OptionsFromRootManifest
+  const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings)
   if (settings.overrides) {
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides

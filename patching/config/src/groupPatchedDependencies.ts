@@ -22,7 +22,7 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
     const { name, version, nonSemverVersion } = dp.parse(key)
 
     if (name && version) {
-      getGroup(name).exact[version] = { strict: true, file, key }
+      getGroup(name).exact[version] = { file, key }
       continue
     }
 
@@ -31,17 +31,17 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
         throw new PnpmError('PATCH_NON_SEMVER_RANGE', `${nonSemverVersion} is not a valid semantic version range.`)
       }
       if (nonSemverVersion.trim() === '*') {
-        getGroup(name).all = { strict: true, file, key }
+        getGroup(name).all = { file, key }
       } else {
         getGroup(name).range.push({
           version: nonSemverVersion,
-          patch: { strict: true, file, key },
+          patch: { file, key },
         })
       }
       continue
     }
 
-    getGroup(key).all = { strict: true, file, key }
+    getGroup(key).all = { file, key }
   }
 
   return result

@@ -3,6 +3,7 @@
 "@pnpm/package-bins": minor
 "@pnpm/patching.apply-patch": major
 "@pnpm/patching.config": minor
+"@pnpm/patching.types": minor
 "@pnpm/headless": minor
 "@pnpm/build-modules": minor
 "@pnpm/core": minor
