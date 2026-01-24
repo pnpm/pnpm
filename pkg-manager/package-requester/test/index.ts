@@ -207,11 +207,11 @@ test('refetch local tarball if its integrity has changed', async () => {
     }) as PackageResponse & {
       fetching: () => Promise<PkgRequestFetchResult>
     }
-    const { files, bundledManifest } = await response.fetching()
+    const { files, pkgIndexMeta } = await response.fetching()
 
     expect(response.body.updated).toBeFalsy()
     expect(files.resolvedFrom).toBe('remote')
-    expect(bundledManifest).toBeTruthy()
+    expect(pkgIndexMeta).toBeTruthy()
   }
 
   f.copy('pnpm-package-requester-4.1.2.tgz', tarballPath)
@@ -237,11 +237,11 @@ test('refetch local tarball if its integrity has changed', async () => {
         },
       },
     })
-    const { files, bundledManifest } = await response.fetching!()
+    const { files, pkgIndexMeta } = await response.fetching!()
 
     expect(response.body.updated).toBeTruthy()
     expect(files.resolvedFrom).toBe('remote')
-    expect(bundledManifest).toBeTruthy()
+    expect(pkgIndexMeta).toBeTruthy()
   }
 
   {
@@ -266,11 +266,11 @@ test('refetch local tarball if its integrity has changed', async () => {
     }) as PackageResponse & {
       fetching: () => Promise<PkgRequestFetchResult>
     }
-    const { files, bundledManifest } = await response.fetching()
+    const { files, pkgIndexMeta } = await response.fetching()
 
     expect(response.body.updated).toBeFalsy()
     expect(files.resolvedFrom).toBe('store')
-    expect(bundledManifest).toBeTruthy()
+    expect(pkgIndexMeta).toBeTruthy()
   }
 })
 
@@ -303,11 +303,11 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
       fetching: () => Promise<PkgRequestFetchResult>
     }
-    const { files, bundledManifest } = await response.fetching()
+    const { files, pkgIndexMeta } = await response.fetching()
 
     expect(response.body.updated).toBeTruthy()
     expect(files.resolvedFrom).toBe('remote')
-    expect(bundledManifest).toBeTruthy()
+    expect(pkgIndexMeta).toBeTruthy()
   }
 
   f.copy('pnpm-package-requester-4.1.2.tgz', tarballPath)
@@ -326,11 +326,11 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
       fetching: () => Promise<PkgRequestFetchResult>
     }
-    const { files, bundledManifest } = await response.fetching()
+    const { files, pkgIndexMeta } = await response.fetching()
 
     expect(response.body.updated).toBeTruthy()
     expect(files.resolvedFrom).toBe('remote')
-    expect(bundledManifest).toBeTruthy()
+    expect(pkgIndexMeta).toBeTruthy()
   }
 
   {
@@ -346,10 +346,10 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
       fetching: () => Promise<PkgRequestFetchResult>
     }
-    const { files, bundledManifest } = await response.fetching()
+    const { files, pkgIndexMeta } = await response.fetching()
 
     expect(files.resolvedFrom).toBe('store')
-    expect(bundledManifest).toBeTruthy()
+    expect(pkgIndexMeta).toBeTruthy()
   }
 })
 
@@ -441,8 +441,8 @@ test('fetchPackageToStore()', async () => {
     },
   })
 
-  const { files, bundledManifest } = await fetchResult.fetching()
-  expect(bundledManifest).toBeTruthy() // we always read the bundled manifest
+  const { files, pkgIndexMeta } = await fetchResult.fetching()
+  expect(pkgIndexMeta).toBeTruthy() // we always read the bundled manifest
   expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
   expect(files.resolvedFrom).toBe('remote')
 
@@ -468,7 +468,7 @@ test('fetchPackageToStore()', async () => {
   // This verifies that when a package has been cached with no full manifest
   // the full manifest is requested and added to the cache
   expect(
-    (await fetchResult2.fetching()).bundledManifest
+    (await fetchResult2.fetching()).pkgIndexMeta
   ).toStrictEqual(
     {
       engines: { node: '>=0.10.0' },
@@ -663,7 +663,7 @@ test('always return a package manifest in the response', async () => {
 
     expect(pkgResponse.body).toBeTruthy()
     expect(
-      (await pkgResponse.fetching()).bundledManifest
+      (await pkgResponse.fetching()).pkgIndexMeta
     ).toEqual(
       {
         engines: { node: '>=0.10.0' },
@@ -722,7 +722,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
     }),
   ])
 
-  expect((await fetchResults[1].fetching()).bundledManifest).toBeTruthy()
+  expect((await fetchResults[1].fetching()).pkgIndexMeta).toBeTruthy()
 })
 
 test('refetch package to store if it has been modified', async () => {
@@ -1069,7 +1069,7 @@ test('the version in the bundled manifest should be normalized', async () => {
     preferredVersions: {},
     projectDir: temporaryDirectory(),
   })
-  expect((await pkgResponse.fetching!()).bundledManifest?.version).toBe('1.2.1')
+  expect((await pkgResponse.fetching!()).pkgIndexMeta?.version).toBe('1.2.1')
 })
 
 test('should skip store integrity check and resolve manifest if fetchRawManifest is true', async () => {
@@ -1126,7 +1126,7 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
 
     await fetchResult.fetching()
 
-    expect((await fetchResult.fetching!()).bundledManifest).toMatchObject({
+    expect((await fetchResult.fetching!()).pkgIndexMeta).toMatchObject({
       name: 'is-positive',
       version: '1.0.0',
     })

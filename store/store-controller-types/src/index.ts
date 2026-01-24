@@ -27,20 +27,18 @@ import {
 export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync, FilesMap }
 
 export * from '@pnpm/resolver-base'
-export type BundledManifest = Pick<
+/**
+ * Subset of package.json fields cached in the store index.
+ * Used for bin linking, build scripts, and runtime selection.
+ * Note: dependency and platform fields are not included - for git/tarball packages,
+ * read package.json from CAFS when full manifest is needed.
+ */
+export type PkgIndexMeta = Pick<
   DependencyManifest,
 | 'bin'
-| 'bundledDependencies'
-| 'bundleDependencies'
-| 'cpu'
-| 'dependencies'
 | 'directories'
 | 'engines'
 | 'name'
-| 'optionalDependencies'
-| 'os'
-| 'peerDependencies'
-| 'peerDependenciesMeta'
 | 'scripts'
 | 'version'
 >
@@ -64,7 +62,7 @@ export interface StoreController {
 }
 
 export interface PkgRequestFetchResult {
-  bundledManifest?: BundledManifest
+  pkgIndexMeta?: PkgIndexMeta
   files: PackageFilesResponse
   integrity?: string
 }
@@ -147,7 +145,7 @@ export interface RequestPackageOptions {
   trustPolicyIgnoreAfter?: number
 }
 
-export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
+export type PkgIndexMetaFunction = () => Promise<PkgIndexMeta | undefined>
 
 export interface PackageResponse {
   fetching?: () => Promise<PkgRequestFetchResult>

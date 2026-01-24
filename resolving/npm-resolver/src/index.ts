@@ -201,9 +201,9 @@ export function createNpmResolver (
           readManifest: true,
           expectedPkg: { name: peekOpts.name, version: peekOpts.version },
         }
-      ).then(({ manifest, verified }) => {
+      ).then(({ pkgIndexMeta, verified }) => {
         if (!verified) return undefined
-        return manifest
+        return pkgIndexMeta
       }).catch(() => undefined)
       peekLockerForPeek.set(filesIndexFile, request)
       return request

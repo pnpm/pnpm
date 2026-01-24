@@ -3,6 +3,7 @@ import fs from 'fs'
 import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { type PackageFiles, type PackageFileInfo, type SideEffects, type FilesMap } from '@pnpm/cafs-types'
+import { type BaseManifest } from '@pnpm/types'
 import gfs from '@pnpm/graceful-fs'
 import rimraf from '@zkochan/rimraf'
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
@@ -29,13 +30,10 @@ export interface VerifyResult {
  * Package metadata stored in the index file for bin linking and build scripts.
  * This avoids reading package.json from the content-addressable store.
  * Note: name and version are stored at the top level of PackageFilesIndex.
+ * Note: dependency and platform fields are not stored - for git/tarball packages,
+ * read package.json from CAFS when full manifest is needed.
  */
-export interface IndexedPkgMeta {
-  bin?: Record<string, string> | string
-  directories?: { bin?: string }
-  scripts?: Record<string, string>
-  engines?: Record<string, unknown>
-}
+export type IndexedPkgMeta = Pick<BaseManifest, 'bin' | 'directories' | 'engines' | 'scripts'>
 
 export interface PackageFilesIndex {
   // name and version are nullable for backward compatibility

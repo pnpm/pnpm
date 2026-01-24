@@ -6,6 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import { execSync } from 'child_process'
 import isWindows from 'is-windows'
 import { type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
+import { type PkgIndexMeta } from '@pnpm/store-controller-types'
 import { type DependencyManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { globalWarn } from '@pnpm/logger'
@@ -190,7 +191,7 @@ export interface ReadPkgFromCafsOptions {
 export interface ReadPkgFromCafsResult {
   verified: boolean
   files: PackageFilesResponse
-  manifest?: DependencyManifest
+  pkgIndexMeta?: PkgIndexMeta
 }
 
 export async function readPkgFromCafs (

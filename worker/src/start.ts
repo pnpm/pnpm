@@ -126,18 +126,18 @@ async function handleMessage (
       } else {
         verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
       }
-      // Reconstruct manifest with name/version from top-level fields
-      const manifest = pkgFilesIndex.meta
-        ? { name: pkgFilesIndex.name, version: pkgFilesIndex.version, ...pkgFilesIndex.meta } as unknown as DependencyManifest
+      // Reconstruct pkgIndexMeta with name/version from top-level fields
+      const pkgIndexMeta = pkgFilesIndex.meta
+        ? { name: pkgFilesIndex.name, version: pkgFilesIndex.version, ...pkgFilesIndex.meta }
         : undefined
-      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(manifest, verifyResult.filesMap)
+      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(pkgIndexMeta, verifyResult.filesMap)
 
       parentPort!.postMessage({
         status: 'success',
         warnings,
         value: {
           verified: verifyResult.passed,
-          manifest,
+          pkgIndexMeta,
           files: {
             filesMap: verifyResult.filesMap,
             sideEffectsMaps: verifyResult.sideEffectsMaps,
@@ -421,8 +421,9 @@ function writeFilesIndexFile (
   // - bin linking: bin, directories
   // - build scripts: scripts
   // - runtime selection: engines (for engines.runtime)
+  // Dependency and platform fields are NOT stored - for git/tarball packages, read package.json from CAFS.
   const meta = Object.keys(manifest).length > 0
-    ? pickNonNullish(manifest, ['bin', 'directories', 'scripts', 'engines'])
+    ? pickNonNullish(manifest, ['bin', 'directories', 'engines', 'scripts'])
     : undefined
   const filesIndex: PackageFilesIndex = {
     name: manifest.name,
