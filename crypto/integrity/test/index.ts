@@ -80,7 +80,7 @@ describe('parseIntegrity', () => {
     expect(result.hexDigest).toBeTruthy()
   })
 
-  it('handles base64url characters (+ and /)', () => {
+  it('handles base64 special characters (+ and /)', () => {
     const integrity = 'sha512-abc+def/ghi='
     const result = parseIntegrity(integrity)
     expect(result.algorithm).toBe('sha512')

@@ -2,7 +2,7 @@
 
 > Parse and validate integrity strings
 
-Parses [Subresource Integrity](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity) strings (e.g., `sha512-abc123...`) into their algorithm and hex digest components.
+Parses single-hash integrity strings in the format `algorithm-base64hash` (e.g., `sha512-abc123...`) into their algorithm and hex digest components. This is the format used in pnpm lockfiles.
 
 ## Installation
 
