@@ -287,6 +287,13 @@ function addFilesFromDir (
     if (!existingFilesIndex.sideEffects) {
       existingFilesIndex.sideEffects = new Map()
     }
+    // Ensure side effects use the same algorithm as the original package
+    if (existingFilesIndex.algo !== algo) {
+      throw new PnpmError(
+        'ALGO_MISMATCH',
+        `Algorithm mismatch: package index uses "${existingFilesIndex.algo}" but side effects were computed with "${algo}"`
+      )
+    }
     existingFilesIndex.sideEffects.set(sideEffectsCacheKey, calculateDiff(existingFilesIndex.files, filesIntegrity))
     if (existingFilesIndex.requiresBuild == null) {
       requiresBuild = pkgRequiresBuild(manifest, filesMap)
