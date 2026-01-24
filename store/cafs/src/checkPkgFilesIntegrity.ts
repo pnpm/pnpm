@@ -10,6 +10,11 @@ import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 import { parseJsonBufferSync } from './parseJson.js'
 import { readManifestFromStore } from './readManifestFromStore.js'
 
+export interface Integrity {
+  digest: string
+  algorithm: string
+}
+
 // We track how many files were checked during installation.
 // It should be rare that a files content should be checked.
 // If it happens too frequently, something is wrong.
@@ -165,7 +170,7 @@ type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt' | 'digest'>
 function verifyFile (
   filename: string,
   fstat: FileInfo,
-  algo: string,
+  algorithm: string,
   readManifest?: boolean
 ): Pick<VerifyResult, 'passed' | 'manifest'> {
   const currentFile = checkFile(filename, fstat.checkedAt)
@@ -175,7 +180,7 @@ function verifyFile (
       rimraf.sync(filename)
       return { passed: false }
     }
-    return verifyFileIntegrity(filename, fstat.digest, algo, readManifest)
+    return verifyFileIntegrity(filename, { digest: fstat.digest, algorithm }, readManifest)
   }
   if (readManifest) {
     return {
@@ -190,8 +195,7 @@ function verifyFile (
 
 export function verifyFileIntegrity (
   filename: string,
-  hexDigest: string,
-  algo: string,
+  integrity: Integrity,
   readManifest?: boolean
 ): Pick<VerifyResult, 'passed' | 'manifest'> {
   // @ts-expect-error
@@ -207,12 +211,12 @@ export function verifyFileIntegrity (
   }
   let computedDigest: string
   try {
-    computedDigest = crypto.hash(algo, data, 'hex')
+    computedDigest = crypto.hash(integrity.algorithm, data, 'hex')
   } catch {
     // Invalid algorithm (e.g., corrupted index file) - treat as verification failure
     return { passed: false }
   }
-  const passed = computedDigest === hexDigest
+  const passed = computedDigest === integrity.digest
   if (!passed) {
     gfs.unlinkSync(filename)
     return { passed }

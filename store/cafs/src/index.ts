@@ -13,6 +13,7 @@ import { addFilesFromTarball } from './addFilesFromTarball.js'
 import {
   checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
+  type Integrity,
   type PackageFilesIndex,
   type VerifyResult,
 } from './checkPkgFilesIntegrity.js'
@@ -33,6 +34,7 @@ export {
   type FileType,
   getFilePathByModeInCafs,
   getIndexFilePathInCafs,
+  type Integrity,
   type PackageFileInfo,
   type PackageFiles,
   type PackageFilesIndex,
@@ -70,7 +72,7 @@ export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: Create
   }
 }
 
-type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, digest: string, algorithm: string) => { checkedAt: number, filePath: string }
+type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: Integrity) => { checkedAt: number, filePath: string }
 
 const HASH_ALGORITHM = 'sha512'
 
@@ -89,8 +91,7 @@ function addBufferToCafs (
     buffer,
     fileDest,
     isExecutable ? 0o755 : undefined,
-    digest,
-    HASH_ALGORITHM
+    { digest, algorithm: HASH_ALGORITHM }
   )
   return { checkedAt, filePath, digest, algorithm: HASH_ALGORITHM }
 }

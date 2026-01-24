@@ -172,19 +172,19 @@ async function handleMessage (
 
 function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appendManifest }: TarballExtractMessage) {
   if (integrity) {
-    const [, algo, integrityHash] = integrity.match(INTEGRITY_REGEX)!
+    const [, algorithm, integrityHash] = integrity.match(INTEGRITY_REGEX)!
     // Compensate for the possibility of non-uniform Base64 padding
     const normalizedRemoteHash: string = Buffer.from(integrityHash, 'base64').toString('hex')
 
-    const calculatedHash: string = crypto.hash(algo, buffer, 'hex')
+    const calculatedHash: string = crypto.hash(algorithm, buffer, 'hex')
     if (calculatedHash !== normalizedRemoteHash) {
       return {
         status: 'error',
         error: {
           type: 'integrity_validation_failed',
-          algorithm: algo,
+          algorithm,
           expected: integrity,
-          found: `${algo}-${Buffer.from(calculatedHash, 'hex').toString('base64')}`,
+          found: `${algorithm}-${Buffer.from(calculatedHash, 'hex').toString('base64')}`,
         },
       }
     }

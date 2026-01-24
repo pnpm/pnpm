@@ -3,7 +3,7 @@ import path from 'path'
 import workerThreads from 'worker_threads'
 import util from 'util'
 import renameOverwrite from 'rename-overwrite'
-import { verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
+import { type Integrity, verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
 import { writeFile } from './writeFile.js'
 
 export function writeBufferToCafs (
@@ -12,8 +12,7 @@ export function writeBufferToCafs (
   buffer: Buffer,
   fileDest: string,
   mode: number | undefined,
-  digest: string,
-  algorithm: string
+  integrity: Integrity
 ): { checkedAt: number, filePath: string } {
   fileDest = path.join(storeDir, fileDest)
   if (locker.has(fileDest)) {
@@ -27,7 +26,7 @@ export function writeBufferToCafs (
   // we probably have validated its content already.
   // However, there is no way to find which package index file references
   // the given file. So we should revalidate the content of the file again.
-  if (existsSame(fileDest, digest, algorithm)) {
+  if (existsSame(fileDest, integrity)) {
     return {
       checkedAt: Date.now(),
       filePath: fileDest,
@@ -103,8 +102,8 @@ function removeSuffix (filePath: string): string {
   return withoutSuffix
 }
 
-function existsSame (filename: string, digest: string, algorithm: string): boolean {
+function existsSame (filename: string, integrity: Integrity): boolean {
   const existingFile = fs.statSync(filename, { throwIfNoEntry: false })
   if (!existingFile) return false
-  return verifyFileIntegrity(filename, digest, algorithm).passed
+  return verifyFileIntegrity(filename, integrity).passed
 }

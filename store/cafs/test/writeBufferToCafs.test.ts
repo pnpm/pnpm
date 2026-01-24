@@ -12,7 +12,7 @@ describe('writeBufferToCafs', () => {
     const fullFileDest = path.join(storeDir, fileDest)
     fs.writeFileSync(pathTemp(fullFileDest), 'ccc', 'utf8')
     const digest = crypto.hash('sha512', buffer, 'hex')
-    writeBufferToCafs(new Map(), storeDir, buffer, fileDest, 420, digest, 'sha512')
+    writeBufferToCafs(new Map(), storeDir, buffer, fileDest, 420, { digest, algorithm: 'sha512' })
     expect(fs.readFileSync(fullFileDest, 'utf8')).toBe('abc')
   })
 })
