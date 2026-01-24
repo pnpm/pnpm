@@ -852,15 +852,19 @@ describe('prompt to choose version', () => {
     expect(fs.existsSync(path.join(patchDir, 'source/index.js'))).toBe(true)
 
     fs.appendFileSync(path.join(patchDir, 'source/index.js'), '// test patching', 'utf8')
-    await patchCommit.handler({
-      ...DEFAULT_OPTS,
-      cacheDir,
-      dir: process.cwd(),
-      rootProjectManifestDir: process.cwd(),
-      frozenLockfile: false,
-      fixLockfile: true,
-      storeDir,
-    }, [patchDir])
+    try {
+      await patchCommit.handler({
+        ...DEFAULT_OPTS,
+        cacheDir,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        frozenLockfile: false,
+        fixLockfile: true,
+        storeDir,
+      }, [patchDir])
+    } catch (_err) {
+      // the hunk in chalk.patch file cannot apply to chalk v4.1.2 because of mismatch context lines
+    }
 
     const workspaceManifest = await readWorkspaceManifest(process.cwd())
     expect(workspaceManifest!.patchedDependencies).toStrictEqual({

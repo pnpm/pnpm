@@ -1,8 +1,10 @@
 ---
-"@pnpm/plugin-commands-patching": minor
+"@pnpm/plugin-commands-installation": minor
+"@pnpm/plugin-commands-deploy": minor
+"@pnpm/plugin-commands-patching": major
 "@pnpm/package-bins": minor
 "@pnpm/patching.apply-patch": major
-"@pnpm/patching.config": minor
+"@pnpm/patching.config": major
 "@pnpm/patching.types": minor
 "@pnpm/headless": minor
 "@pnpm/build-modules": minor
