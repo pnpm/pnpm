@@ -78,7 +78,7 @@ async function handleMessage (
       break
     }
     case 'readPkgFromCafs': {
-      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
+      const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
         pkgFilesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
@@ -120,20 +120,16 @@ async function handleMessage (
           }
         }
       }
-      let verifyResult: VerifyResult | undefined
-      if (pkgFilesIndex.manifest != null) {
-        readManifest = false
-      } else if (pkgFilesIndex.requiresBuild == null) {
-        readManifest = true
-      }
+      let verifyResult: VerifyResult
       if (verifyStoreIntegrity) {
-        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex, readManifest)
+        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
       } else {
-        verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex, readManifest)
+        verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
       }
-      // Use manifest from index file if available (optimization to avoid filesystem reads)
-      // Fall back to verifyResult.manifest for backward compatibility with old index files
-      const manifest = (pkgFilesIndex.manifest as unknown as DependencyManifest | undefined) ?? verifyResult.manifest
+      // Reconstruct manifest with name/version from top-level fields
+      const manifest = pkgFilesIndex.meta
+        ? { name: pkgFilesIndex.name, version: pkgFilesIndex.version, ...pkgFilesIndex.meta } as unknown as DependencyManifest
+        : undefined
       const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(manifest, verifyResult.filesMap)
 
       parentPort!.postMessage({
@@ -419,38 +415,20 @@ function writeFilesIndexFile (
   }
 ): boolean {
   const requiresBuild = pkgRequiresBuild(manifest, files)
-  // Store only essential manifest fields to keep the index file small.
+  // Store only essential metadata fields to keep the index file small.
+  // Note: name and version are stored at the top level of PackageFilesIndex.
   // These fields are needed for:
-  // - bin linking: name, version, bin, directories
-  // - requiresBuild detection: scripts (preinstall/install/postinstall)
-  // - runtime node path: engines
-  const essentialManifest = Object.keys(manifest).length > 0
-    ? {
-      name: manifest.name,
-      version: manifest.version,
-      bin: manifest.bin,
-      directories: manifest.directories,
-      engines: manifest.engines,
-      os: manifest.os,
-      cpu: manifest.cpu,
-      libc: manifest.libc,
-      scripts: manifest.scripts
-        ? {
-          preinstall: manifest.scripts.preinstall,
-          install: manifest.scripts.install,
-          postinstall: manifest.scripts.postinstall,
-        }
-        : undefined,
-      dependencies: manifest.dependencies,
-      optionalDependencies: manifest.optionalDependencies,
-      peerDependencies: manifest.peerDependencies,
-    }
+  // - bin linking: bin, directories
+  // - build scripts: scripts
+  // - runtime selection: engines (for engines.runtime)
+  const meta = Object.keys(manifest).length > 0
+    ? pickNonNullish(manifest, ['bin', 'directories', 'scripts', 'engines'])
     : undefined
   const filesIndex: PackageFilesIndex = {
     name: manifest.name,
     version: manifest.version,
     requiresBuild,
-    manifest: essentialManifest,
+    meta,
     algo,
     files,
     sideEffects,
@@ -470,4 +448,16 @@ function writeIndexFile (filePath: string, data: PackageFilesIndex): void {
   const temp = `${filePath.slice(0, -10)}${process.pid}`
   writeMsgpackFileSync(temp, data)
   optimisticRenameOverwrite(temp, filePath)
+}
+
+function pickNonNullish<T extends object, K extends keyof T> (obj: T, keys: K[]): Pick<T, K> | undefined {
+  const result = {} as Pick<T, K>
+  let hasKeys = false
+  for (const key of keys) {
+    if (obj[key] != null) {
+      result[key] = obj[key]
+      hasKeys = true
+    }
+  }
+  return hasKeys ? result : undefined
 }
