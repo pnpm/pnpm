@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import ssri from 'ssri'
 import symlinkDir from 'symlink-dir'
 import { temporaryDirectory } from 'tempy'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -36,7 +37,7 @@ describe('cafs', () => {
 
     // Modifying the file in the store
     const integrity = addFilesResult.filesIndex.get('foo.txt')!.integrity
-    const hexDigest = integrity.hexDigest()
+    const hexDigest = ssri.parse(integrity, { single: true }).hexDigest()
     const filePath = getFilePathByModeInCafs(storeDir, hexDigest, 420)
     fs.appendFileSync(filePath, 'bar')
 
