@@ -12,7 +12,6 @@ import {
 
 export interface PackageSpecObject {
   alias: string
-  nodeExecPath?: string
   peer?: boolean
   bareSpecifier?: string
   resolvedVersion?: string
@@ -76,12 +75,6 @@ export async function updateProjectManifestObject (
         packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
         packageManifest[usedDepType]![packageSpec.alias] = packageSpec.bareSpecifier
       }
-    }
-    if (packageSpec.nodeExecPath) {
-      if (packageManifest.dependenciesMeta == null) {
-        packageManifest.dependenciesMeta = {}
-      }
-      packageManifest.dependenciesMeta[packageSpec.alias] = { node: packageSpec.nodeExecPath }
     }
   }
 

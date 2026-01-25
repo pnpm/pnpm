@@ -47,7 +47,6 @@ export interface PeerDependenciesMeta {
 export interface DependenciesMeta {
   [dependencyName: string]: {
     injected?: boolean
-    node?: string
     patch?: string
   }
 }
