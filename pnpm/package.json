@@ -65,8 +65,7 @@
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
-    "prepublishOnly": "pnpm compile && publish-packed --prune --npm-client=pnpm --dest=dist",
-    "postpublish": "publish-packed",
+    "prepublishOnly": "pnpm compile && node bundle-deps.ts",
     "_compile": "tsgo --build",
     "compile": "tsgo --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc"
   },
@@ -163,6 +162,7 @@
     "is-windows": "catalog:",
     "load-json-file": "catalog:",
     "loud-rejection": "catalog:",
+    "nm-prune": "catalog:",
     "normalize-newline": "catalog:",
     "p-defer": "catalog:",
     "path-name": "catalog:",

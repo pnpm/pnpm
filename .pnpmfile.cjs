@@ -10,6 +10,19 @@ module.exports = {
         }
       }
       return manifest
+    },
+
+    beforePacking: (manifest) => {
+      // The main pnpm package bundles its dependencies before publishing.
+      // Delete dependency fields from the manifest so these dependencies are
+      // downloaded twice.
+      if (manifest.name === 'pnpm') {
+        delete manifest.dependencies
+        delete manifest.devDependencies
+        delete manifest.optionalDependencies
+      }
+
+      return manifest
     }
   }
 }

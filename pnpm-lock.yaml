@@ -498,6 +498,9 @@ catalogs:
     msgpackr:
       specifier: ^1.11.2
       version: 1.11.8
+    nm-prune:
+      specifier: ^5.0.0
+      version: 5.0.0
     nock:
       specifier: 13.3.4
       version: 13.3.4
@@ -798,7 +801,7 @@ overrides:
 
 packageExtensionsChecksum: sha256-1qxck4M+gjHKVxNHtl5ISCI+egyJsA5Hru0aRTpMm9I=
 
-pnpmfileChecksum: sha256-mx8+uzkaD2WO2V3h9zTchFZZX3QdTTMrkVNvy8svgCY=
+pnpmfileChecksum: sha256-V3Pp6V4IRpH7LydzOTpw8Y0FEF+LBTMJFSApLkA/JRE=
 
 patchedDependencies:
   '@pnpm/npm-lifecycle':
@@ -6834,6 +6837,9 @@ importers:
       loud-rejection:
         specifier: 'catalog:'
         version: 2.2.0
+      nm-prune:
+        specifier: 'catalog:'
+        version: 5.0.0
       normalize-newline:
         specifier: 'catalog:'
         version: 4.1.0
