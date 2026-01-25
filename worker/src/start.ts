@@ -14,6 +14,7 @@ import {
   buildFileMapsFromIndex,
   createCafs,
   HASH_ALGORITHM,
+  type IndexedPkgMeta,
   type PackageFilesIndex,
   type FilesIndex,
   optimisticRenameOverwrite,
@@ -419,12 +420,20 @@ function writeFilesIndexFile (
   // Note: name and version are stored at the top level of PackageFilesIndex.
   // These fields are needed for:
   // - bin linking: bin, directories
-  // - build scripts: scripts
+  // - build scripts: scripts (only preinstall/install/postinstall)
   // - runtime selection: engines (for engines.runtime)
   // Dependency and platform fields are NOT stored - for git/tarball packages, read package.json from CAFS.
-  const meta = Object.keys(manifest).length > 0
-    ? pickNonNullish(manifest, ['bin', 'directories', 'engines', 'scripts'])
-    : undefined
+  let meta: IndexedPkgMeta | undefined
+  if (Object.keys(manifest).length > 0) {
+    const baseMeta = pickNonNullish(manifest, ['bin', 'directories', 'engines'])
+    // Only store lifecycle scripts needed for build detection
+    const lifecycleScripts = manifest.scripts
+      ? pickNonNullish(manifest.scripts, ['preinstall', 'install', 'postinstall'])
+      : undefined
+    if (baseMeta || lifecycleScripts) {
+      meta = { ...baseMeta, scripts: lifecycleScripts }
+    }
+  }
   const filesIndex: PackageFilesIndex = {
     name: manifest.name,
     version: manifest.version,
