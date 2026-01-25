@@ -27,7 +27,7 @@ export const shorthands: Record<string, string> = {
   c: '--shell-mode',
 }
 
-export function rcOptionsTypes(): Record<string, unknown> {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'cpu',
@@ -44,7 +44,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   'allow-build': [String, Array],
 })
 
-export function help(): string {
+export function help (): string {
   return renderHelp({
     description: 'Run a package in a temporary environment.',
     descriptionLists: [
@@ -79,7 +79,7 @@ export type DlxCommandOptions = {
   allowBuild?: string[]
 } & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
-export async function handler(
+export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
 ): Promise<{ exitCode: number }> {
@@ -181,7 +181,7 @@ export async function handler(
   return { exitCode: 0 }
 }
 
-async function getPkgName(pkgDir: string): Promise<string> {
+async function getPkgName (pkgDir: string): Promise<string> {
   const manifest = await readPackageJsonFromDir(pkgDir)
   const dependencyNames = Object.keys(manifest.dependencies ?? {})
   if (dependencyNames.length === 0) {
@@ -190,7 +190,7 @@ async function getPkgName(pkgDir: string): Promise<string> {
   return dependencyNames[0]
 }
 
-async function getBinName(cachedDir: string, opts: Pick<DlxCommandOptions, 'engineStrict'>): Promise<string> {
+async function getBinName (cachedDir: string, opts: Pick<DlxCommandOptions, 'engineStrict'>): Promise<string> {
   const pkgName = await getPkgName(cachedDir)
   const pkgDir = path.join(cachedDir, 'node_modules', pkgName)
   const manifest = await readProjectManifestOnly(pkgDir, opts) as PackageManifest
@@ -212,14 +212,14 @@ ${binNames.map(name => `pnpm --package=${pkgName} dlx ${name}`).join('\n')}
   })
 }
 
-function scopeless(pkgName: string): string {
+function scopeless (pkgName: string): string {
   if (pkgName[0] === '@') {
     return pkgName.split('/')[1]
   }
   return pkgName
 }
 
-function findCache(opts: {
+function findCache (opts: {
   packages: string[]
   cacheDir: string
   dlxCacheMaxAge: number
@@ -237,7 +237,7 @@ function findCache(opts: {
   }
 }
 
-function createDlxCommandCacheDir(
+function createDlxCommandCacheDir (
   opts: {
     packages: string[]
     registries: Record<string, string>
@@ -253,7 +253,7 @@ function createDlxCommandCacheDir(
   return cachePath
 }
 
-export function createCacheKey(opts: {
+export function createCacheKey (opts: {
   packages: string[]
   registries: Record<string, string>
   allowBuild?: string[]
@@ -281,7 +281,7 @@ export function createCacheKey(opts: {
   return createHexHash(hashStr)
 }
 
-function getValidCacheDir(cacheLink: string, dlxCacheMaxAge: number): string | undefined {
+function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | undefined {
   let stats: Stats
   let target: string
   try {
@@ -302,7 +302,7 @@ function getValidCacheDir(cacheLink: string, dlxCacheMaxAge: number): string | u
   return isValid ? target : undefined
 }
 
-function getPrepareDir(cachePath: string): string {
+function getPrepareDir (cachePath: string): string {
   const name = `${new Date().getTime().toString(16)}-${process.pid.toString(16)}`
   return path.join(cachePath, name)
 }
