@@ -100,6 +100,9 @@ test('workspace deps are replaced', async () => {
       waldo: 'workspace:^',
       xerox: 'workspace:../xerox',
       xeroxAlias: 'workspace:../xerox',
+      corge: 'workspace:1.0.0',
+      grault: 'workspace:^1.0.0',
+      garply: 'workspace:plugh@2.0.0',
     },
     peerDependencies: {
       foo: 'workspace:>= || ^3.9.0',
@@ -140,6 +143,18 @@ test('workspace deps are replaced', async () => {
       name: 'xerox',
       version: '4.5.6',
     },
+    {
+      name: 'corge',
+      version: '1.0.0',
+    },
+    {
+      name: 'grault',
+      version: '1.0.0',
+    },
+    {
+      name: 'plugh',
+      version: '2.0.0',
+    },
   ])
 
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
@@ -160,6 +175,9 @@ test('workspace deps are replaced', async () => {
       waldo: '^1.9.0',
       xerox: '4.5.6',
       xeroxAlias: 'npm:xerox@4.5.6',
+      corge: '1.0.0',
+      grault: '^1.0.0',
+      garply: 'npm:plugh@2.0.0',
     },
     peerDependencies: {
       baz: '^1.0.0 || >1.2.3',
