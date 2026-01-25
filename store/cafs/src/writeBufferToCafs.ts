@@ -105,5 +105,5 @@ function removeSuffix (filePath: string): string {
 function existsSame (filename: string, integrity: Integrity): boolean {
   const existingFile = fs.statSync(filename, { throwIfNoEntry: false })
   if (!existingFile) return false
-  return verifyFileIntegrity(filename, integrity).passed
+  return verifyFileIntegrity(filename, integrity)
 }

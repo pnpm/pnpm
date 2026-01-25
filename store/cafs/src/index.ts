@@ -13,11 +13,11 @@ import { addFilesFromTarball } from './addFilesFromTarball.js'
 import {
   checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
+  type IndexedPkgMeta,
   type Integrity,
   type PackageFilesIndex,
   type VerifyResult,
 } from './checkPkgFilesIntegrity.js'
-import { readManifestFromStore } from './readManifestFromStore.js'
 import {
   getIndexFilePathInCafs,
   contentPathFromHex,
@@ -32,8 +32,8 @@ export const HASH_ALGORITHM = 'sha512'
 export {
   checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
-  readManifestFromStore,
   type FileType,
+  type IndexedPkgMeta,
   getFilePathByModeInCafs,
   getIndexFilePathInCafs,
   type Integrity,

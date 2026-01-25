@@ -14,6 +14,7 @@ import {
   buildFileMapsFromIndex,
   createCafs,
   HASH_ALGORITHM,
+  type IndexedPkgMeta,
   type PackageFilesIndex,
   type FilesIndex,
   optimisticRenameOverwrite,
@@ -78,7 +79,7 @@ async function handleMessage (
       break
     }
     case 'readPkgFromCafs': {
-      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
+      const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
         pkgFilesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
@@ -120,24 +121,24 @@ async function handleMessage (
           }
         }
       }
-      let verifyResult: VerifyResult | undefined
-      if (pkgFilesIndex.requiresBuild == null) {
-        readManifest = true
-      }
-      // Get file maps and optionally verify
+      let verifyResult: VerifyResult
       if (verifyStoreIntegrity) {
-        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex, readManifest)
+        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
       } else {
-        verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex, readManifest)
+        verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
       }
-      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, verifyResult.filesMap)
+      // Reconstruct pkgIndexMeta with name/version from top-level fields
+      const pkgIndexMeta = pkgFilesIndex.meta
+        ? { name: pkgFilesIndex.name, version: pkgFilesIndex.version, ...pkgFilesIndex.meta }
+        : undefined
+      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(pkgIndexMeta, verifyResult.filesMap)
 
       parentPort!.postMessage({
         status: 'success',
         warnings,
         value: {
           verified: verifyResult.passed,
-          manifest: verifyResult.manifest,
+          pkgIndexMeta,
           files: {
             filesMap: verifyResult.filesMap,
             sideEffectsMaps: verifyResult.sideEffectsMaps,
@@ -415,10 +416,30 @@ function writeFilesIndexFile (
   }
 ): boolean {
   const requiresBuild = pkgRequiresBuild(manifest, files)
+  // Store only essential metadata fields to keep the index file small.
+  // Note: name and version are stored at the top level of PackageFilesIndex.
+  // These fields are needed for:
+  // - bin linking: bin, directories
+  // - build scripts: scripts (only preinstall/install/postinstall)
+  // - runtime selection: engines (for engines.runtime)
+  // - installability checks: cpu, os, libc
+  // Dependency fields are NOT stored - for git/tarball packages, read package.json from CAFS.
+  let meta: IndexedPkgMeta | undefined
+  if (Object.keys(manifest).length > 0) {
+    const baseMeta = pickNonNullish(manifest, ['bin', 'cpu', 'directories', 'engines', 'libc', 'os'])
+    // Only store lifecycle scripts needed for build detection
+    const lifecycleScripts = manifest.scripts
+      ? pickNonNullish(manifest.scripts, ['preinstall', 'install', 'postinstall'])
+      : undefined
+    if (baseMeta || lifecycleScripts) {
+      meta = { ...baseMeta, scripts: lifecycleScripts }
+    }
+  }
   const filesIndex: PackageFilesIndex = {
     name: manifest.name,
     version: manifest.version,
     requiresBuild,
+    meta,
     algo,
     files,
     sideEffects,
@@ -438,4 +459,16 @@ function writeIndexFile (filePath: string, data: PackageFilesIndex): void {
   const temp = `${filePath.slice(0, -10)}${process.pid}`
   writeMsgpackFileSync(temp, data)
   optimisticRenameOverwrite(temp, filePath)
+}
+
+function pickNonNullish<T extends object, K extends keyof T> (obj: T, keys: K[]): Pick<T, K> | undefined {
+  const result = {} as Pick<T, K>
+  let hasKeys = false
+  for (const key of keys) {
+    if (obj[key] != null) {
+      result[key] = obj[key]
+      hasKeys = true
+    }
+  }
+  return hasKeys ? result : undefined
 }
