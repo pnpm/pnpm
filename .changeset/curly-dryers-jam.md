@@ -3,4 +3,4 @@
 pnpm: minor
 ---
 
-Add support for the `catalog:` protocol with `pnpm dlx` / `pnpx`
+The `pnpm dlx` / `pnpx` command now supports the `catalog:` protocol. Example: `pnpm dlx shx@catalog:`.
