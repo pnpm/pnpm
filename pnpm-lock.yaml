@@ -492,6 +492,9 @@ catalogs:
     msgpackr:
       specifier: ^1.11.2
       version: 1.11.8
+    nm-prune:
+      specifier: ^5.0.0
+      version: 5.0.0
     nock:
       specifier: 13.3.4
       version: 13.3.4
@@ -6825,6 +6828,9 @@ importers:
       loud-rejection:
         specifier: 'catalog:'
         version: 2.2.0
+      nm-prune:
+        specifier: 'catalog:'
+        version: 5.0.0
       normalize-newline:
         specifier: 'catalog:'
         version: 4.1.0
