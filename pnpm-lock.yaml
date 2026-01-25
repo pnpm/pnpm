@@ -5784,9 +5784,6 @@ importers:
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher
-      '@pnpm/read-package-json':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-package-json
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -5805,6 +5802,9 @@ importers:
       detect-libc:
         specifier: 'catalog:'
         version: 2.0.3
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
       p-defer:
         specifier: 'catalog:'
         version: 4.0.1
@@ -5869,9 +5869,6 @@ importers:
       delay:
         specifier: 'catalog:'
         version: 6.0.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       nock:
         specifier: 'catalog:'
         version: 13.3.4

@@ -16,7 +16,7 @@ import { type Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { readPackageJson } from '@pnpm/read-package-json'
+import { loadJsonFile } from 'load-json-file'
 import {
   type PlatformAssetResolution,
   type DirectoryResolution,
@@ -298,7 +298,7 @@ async function resolveAndFetch (
     // For git/tarball packages without registry metadata, read full package.json from CAFS
     // since pkgIndexMeta doesn't include dependency fields
     if (fetchedResult.files.filesMap.has('package.json')) {
-      manifest = await readPackageJson(fetchedResult.files.filesMap.get('package.json')!) as DependencyManifest
+      manifest = await loadJsonFile<DependencyManifest>(fetchedResult.files.filesMap.get('package.json')!)
     }
     // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
     if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
@@ -614,7 +614,7 @@ function fetchToStore (
 }
 
 async function readPkgIndexMeta (pkgJsonPath: string): Promise<PkgIndexMeta> {
-  return pickPkgIndexMeta(await readPackageJson(pkgJsonPath) as DependencyManifest)
+  return pickPkgIndexMeta(await loadJsonFile<DependencyManifest>(pkgJsonPath))
 }
 
 async function tarballIsUpToDate (
