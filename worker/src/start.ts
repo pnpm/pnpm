@@ -422,10 +422,11 @@ function writeFilesIndexFile (
   // - bin linking: bin, directories
   // - build scripts: scripts (only preinstall/install/postinstall)
   // - runtime selection: engines (for engines.runtime)
-  // Dependency and platform fields are NOT stored - for git/tarball packages, read package.json from CAFS.
+  // - installability checks: cpu, os, libc
+  // Dependency fields are NOT stored - for git/tarball packages, read package.json from CAFS.
   let meta: IndexedPkgMeta | undefined
   if (Object.keys(manifest).length > 0) {
-    const baseMeta = pickNonNullish(manifest, ['bin', 'directories', 'engines'])
+    const baseMeta = pickNonNullish(manifest, ['bin', 'cpu', 'directories', 'engines', 'libc', 'os'])
     // Only store lifecycle scripts needed for build detection
     const lifecycleScripts = manifest.scripts
       ? pickNonNullish(manifest.scripts, ['preinstall', 'install', 'postinstall'])

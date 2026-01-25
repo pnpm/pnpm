@@ -68,9 +68,12 @@ const packageRequestLogger = logger('package-requester')
 
 const pickPkgIndexMeta = pick([
   'bin',
+  'cpu',
   'directories',
   'engines',
+  'libc',
   'name',
+  'os',
   'scripts',
   'version',
 ])
@@ -240,7 +243,7 @@ async function resolveAndFetch (
     }
   }
 
-  const isInstallable = (
+  let isInstallable: boolean | null | undefined = (
     ctx.force === true ||
     (
       manifest == null
@@ -304,6 +307,16 @@ async function resolveAndFetch (
     if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
+  }
+  // Check installability now that we have the manifest (for git/tarball packages without registry metadata)
+  if (isInstallable === undefined && manifest != null) {
+    isInstallable = ctx.force === true || packageIsInstallable(id, manifest, {
+      engineStrict: ctx.engineStrict,
+      lockfileDir: options.lockfileDir,
+      nodeVersion: ctx.nodeVersion,
+      optional: wantedDependency.optional === true,
+      supportedArchitectures: options.supportedArchitectures,
+    })
   }
   return {
     body: {
