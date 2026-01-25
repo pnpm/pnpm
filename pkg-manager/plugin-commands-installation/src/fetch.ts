@@ -64,6 +64,9 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
     ...opts,
     ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     ignorePackageManifest: true,
+    // Skip local directory dependencies (file: protocol) as they won't be available
+    // in Docker builds where pnpm fetch is typically used.
+    ignoreLocalPackages: true,
     include,
     modulesCacheMaxAge: 0,
     pruneStore: true,
