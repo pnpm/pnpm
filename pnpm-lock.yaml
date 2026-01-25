@@ -6875,8 +6875,8 @@ importers:
         version: 5.0.0
     optionalDependencies:
       node-gyp:
-        specifier: ^11.1.0
-        version: 11.1.0
+        specifier: ^11.5.0
+        version: 11.5.0
 
   pnpm/artifacts/exe:
     devDependencies:
@@ -14546,13 +14546,8 @@ packages:
     resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
     hasBin: true
 
-  node-gyp@11.1.0:
-    resolution: {integrity: sha512-/+7TuHKnBpnMvUQnsYEb0JOozDZqarQbfNuSGLXIjhStMT0fbw7IdSqWgopOP5xhRZE+lsbIvAHcekddruPZgQ==}
-    engines: {node: ^18.17.0 || >=20.5.0}
-    hasBin: true
-
-  node-gyp@11.4.2:
-    resolution: {integrity: sha512-3gD+6zsrLQH7DyYOUIutaauuXrcyxeTPyQuZQCQoNPZMHMMS5m4y0xclNpvYzoK3VNzuyxT6eF4mkIL4WSZ1eQ==}
+  node-gyp@11.5.0:
+    resolution: {integrity: sha512-ra7Kvlhxn5V9Slyus0ygMa2h+UqExPqUIkfk7Pc8QTLT956JLSy51uWFwHtIYy0vI8cB4BDhc/S03+880My/LQ==}
     engines: {node: ^18.17.0 || >=20.5.0}
     hasBin: true
 
@@ -18577,7 +18572,7 @@ snapshots:
       '@pnpm/error': 1000.0.4
       '@yarnpkg/fslib': 3.1.2
       '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
-      node-gyp: 11.4.2
+      node-gyp: 11.5.0
       resolve-from: 5.0.0
       slide: 1.1.6
       uid-number: 0.0.6
@@ -18593,7 +18588,7 @@ snapshots:
       '@pnpm/error': 1000.0.4
       '@yarnpkg/fslib': 3.1.2
       '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
-      node-gyp: 11.4.2
+      node-gyp: 11.5.0
       resolve-from: 5.0.0
       slide: 1.1.6
       uid-number: 0.0.6
@@ -23637,23 +23632,7 @@ snapshots:
   node-gyp-build@4.8.4:
     optional: true
 
-  node-gyp@11.1.0:
-    dependencies:
-      env-paths: 2.2.1
-      exponential-backoff: 3.1.2
-      glob: 11.1.0
-      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      make-fetch-happen: 14.0.3
-      nopt: 8.1.0
-      proc-log: 5.0.0
-      semver: 7.7.2
-      tar: 7.5.4
-      which: 5.0.0
-    transitivePeerDependencies:
-      - supports-color
-    optional: true
-
-  node-gyp@11.4.2:
+  node-gyp@11.5.0:
     dependencies:
       env-paths: 2.2.1
       exponential-backoff: 3.1.2
