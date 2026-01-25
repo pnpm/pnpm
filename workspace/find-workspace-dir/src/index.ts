@@ -5,7 +5,13 @@ import { findUp } from 'find-up'
 
 const WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
 const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
-const INVALID_WORKSPACE_MANIFEST_FILENAME = ['pnpm-workspaces.yaml', 'pnpm-workspaces.yml', 'pnpm-workspace.yml']
+const INVALID_WORKSPACE_MANIFEST_FILENAME = [
+  'pnpm-workspaces.yaml',
+  'pnpm-workspaces.yml',
+  'pnpm-workspace.yml',
+  '.pnpm-workspace.yaml',
+  '.pnpm-workspace.yml',
+]
 
 export async function findWorkspaceDir (cwd: string): Promise<string | undefined> {
   const workspaceManifestDirEnvVar = process.env[WORKSPACE_DIR_ENV_VAR] ?? process.env[WORKSPACE_DIR_ENV_VAR.toLowerCase()]

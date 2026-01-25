@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
 import fs from 'fs'
+import path from 'path'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 
 const NPM_CONFIG_WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
