@@ -101,20 +101,15 @@ export async function handler (
     authConfig: opts.rawConfig,
     fullMetadata,
     filterMetadata: fullMetadata,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    timeout: opts.fetchTimeout,
   })
   const resolvedPkgAliases: string[] = []
   const publishedBy = opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
     const { alias, bareSpecifier } = parseWantedDependency(pkg) || {}
     if (alias == null) return pkg
-    const resolvedBareSpecifier = resolveCatalogProtocol(catalogResolver, alias, bareSpecifier ?? '')
+    const resolvedBareSpecifier = bareSpecifier != null
+      ? resolveCatalogProtocol(catalogResolver, alias, bareSpecifier)
+      : bareSpecifier
     resolvedPkgAliases.push(alias)
     const resolved = await resolve({ alias, bareSpecifier: resolvedBareSpecifier }, {
       lockfileDir: opts.lockfileDir ?? opts.dir,
