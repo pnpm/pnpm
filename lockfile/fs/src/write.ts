@@ -14,7 +14,11 @@ import { convertToLockfileFile } from './lockfileFormatConverters.js'
 async function writeFileAtomic (filename: string, data: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     writeFileAtomicCB(filename, data, {}, (err?: Error) => {
-      (err != null) ? reject(err) : resolve()
+      if (err != null) {
+        reject(err)
+      } else {
+        resolve()
+      }
     })
   })
 }

@@ -1,4 +1,4 @@
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import { type LockfileObject, type PackageSnapshot } from '@pnpm/lockfile.types'
 import { type Resolution, type WantedDependency } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
 import { type Cafs } from '@pnpm/cafs-types'
@@ -74,11 +74,11 @@ export interface CustomResolver {
    *
    * Use this to implement custom cache invalidation logic (e.g., time-based expiry, version checks).
    *
-   * @param wantedDependency - The dependency to check for force re-resolution
-   * @param wantedLockfile - The current lockfile contents
+   * @param depPath - The dependency path (e.g., 'lodash@4.17.21' or '@scope/pkg@1.0.0')
+   * @param pkgSnapshot - The lockfile entry for this dependency
    * @returns true to force re-resolution of all dependencies
    */
-  shouldForceResolve?: (wantedDependency: WantedDependency, wantedLockfile: LockfileObject) => boolean | Promise<boolean>
+  shouldForceResolve?: (depPath: string, pkgSnapshot: PackageSnapshot) => boolean | Promise<boolean>
 }
 
 export interface CustomFetcher {

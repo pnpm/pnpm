@@ -28,7 +28,7 @@ export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, Impo
 
 export * from '@pnpm/resolver-base'
 export type BundledManifest = Pick<
-DependencyManifest,
+  DependencyManifest,
 | 'bin'
 | 'bundledDependencies'
 | 'bundleDependencies'

@@ -126,3 +126,43 @@ test('get bin from scoped bin name', async () => {
     ]
   )
 })
+
+test('skip scoped bin names with path traversal', async () => {
+  expect(
+    await getBinsFromPackageManifest({
+      name: 'malicious',
+      version: '1.0.0',
+      bin: {
+        '@scope/../../.npmrc': './malicious.js',
+        '@scope/../etc/passwd': './evil.js',
+        '@scope/legit': './good.js',
+      },
+    }, process.cwd())).toStrictEqual([
+    {
+      name: 'legit',
+      path: path.resolve('good.js'),
+    },
+  ])
+})
+
+test('skip directories.bin with path traversal', async () => {
+  // Security test: malicious packages can try to escape the package root
+  // using directories.bin to chmod files at arbitrary locations
+  expect(
+    await getBinsFromPackageManifest({
+      name: 'malicious',
+      version: '1.0.0',
+      directories: {
+        bin: '../../../../tmp/target',
+      },
+    }, process.cwd())).toStrictEqual([])
+
+  expect(
+    await getBinsFromPackageManifest({
+      name: 'malicious',
+      version: '1.0.0',
+      directories: {
+        bin: '../../../etc',
+      },
+    }, process.cwd())).toStrictEqual([])
+})

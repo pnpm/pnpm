@@ -2,9 +2,10 @@ import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
 import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import { createStoreController } from '@pnpm/store-connection-manager'
 import { installConfigDeps } from '@pnpm/config.deps-installer'
 import { requireHooks } from '@pnpm/pnpmfile'
+import { type ConfigDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export async function getConfig (
@@ -29,7 +30,7 @@ export async function getConfig (
   })
   config.cliOptions = cliOptions
   if (config.configDependencies) {
-    const store = await createOrConnectStoreController(config)
+    const store = await createStoreController(config)
     await installConfigDeps(config.configDependencies, {
       registries: config.registries,
       rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
@@ -70,7 +71,7 @@ export async function getConfig (
   return config
 }
 
-function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, configDependencies: Record<string, string>): Generator<string> {
+function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, configDependencies: ConfigDependencies): Generator<string> {
   for (const configDepName of Object.keys(configDependencies).sort(lexCompare)) {
     if (isPluginName(configDepName)) {
       yield path.join(configModulesDir, configDepName, 'pnpmfile.cjs')

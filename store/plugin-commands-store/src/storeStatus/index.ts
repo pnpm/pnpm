@@ -1,5 +1,5 @@
 import path from 'path'
-import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
+import { formatIntegrity } from '@pnpm/crypto.integrity'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
@@ -9,6 +9,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { type DepPath } from '@pnpm/types'
 import dint from 'dint'
 import pFilter from 'p-filter'
@@ -51,9 +52,17 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
   const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
     const pkgIndexFilePath = integrity
       ? getIndexFilePathInCafs(storeDir, integrity, id)
-      : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.json')
-    const { files } = await readV8FileStrictAsync<PackageFilesIndex>(pkgIndexFilePath)
-    return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), Object.fromEntries(files))) === false
+      : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.mpk')
+    const { algo, files } = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
+    // Transform files to dint format: { integrity: '<algo>-<base64>', size: number }
+    const dintFiles: Record<string, { integrity: string, size: number }> = {}
+    for (const [filePath, { digest, size }] of files) {
+      dintFiles[filePath] = {
+        integrity: formatIntegrity(algo, digest),
+        size,
+      }
+    }
+    return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), dintFiles)) === false
   }, { concurrency: 8 })
 
   if ((reporter != null) && typeof reporter === 'function') {

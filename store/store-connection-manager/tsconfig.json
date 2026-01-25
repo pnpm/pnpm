@@ -16,9 +16,6 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../packages/error"
-    },
-    {
       "path": "../../packages/logger"
     },
     {
@@ -26,9 +23,6 @@
     },
     {
       "path": "../package-store"
-    },
-    {
-      "path": "../server"
     },
     {
       "path": "../store-path"

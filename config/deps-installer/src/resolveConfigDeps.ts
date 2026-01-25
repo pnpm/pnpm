@@ -1,3 +1,4 @@
+import getNpmTarballUrl from 'get-npm-tarball-url'
 import { PnpmError } from '@pnpm/error'
 import { writeSettings } from '@pnpm/config.config-writer'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/fetch'
@@ -5,6 +6,7 @@ import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/npm-resolv
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type ConfigDependencies } from '@pnpm/types'
+import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 
 export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
@@ -28,10 +30,22 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
       preferredVersions: {},
       projectDir: opts.rootDir,
     })
-    if (resolution?.resolution == null || !('integrity' in resolution?.resolution)) {
+    if (resolution?.resolution == null || !('integrity' in resolution.resolution)) {
       throw new PnpmError('BAD_CONFIG_DEP', `Cannot install ${configDep} as configuration dependency because it has no integrity`)
     }
-    configDependencies[wantedDep.alias] = `${resolution?.manifest?.version}+${resolution.resolution.integrity}`
+    const pkgName = wantedDep.alias
+    const version = resolution.manifest.version
+    const { tarball, integrity } = resolution.resolution
+    const registry = pickRegistryForPackage(opts.registries, pkgName)
+    const defaultTarball = getNpmTarballUrl(pkgName, version, { registry })
+    if (tarball !== defaultTarball && isValidHttpUrl(tarball)) {
+      configDependencies[pkgName] = {
+        tarball,
+        integrity: `${version}+${integrity}`,
+      }
+    } else {
+      configDependencies[pkgName] = `${version}+${integrity}`
+    }
   }))
   await writeSettings({
     ...opts,
@@ -42,4 +56,13 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
     },
   })
   await installConfigDeps(configDependencies, opts)
+}
+
+function isValidHttpUrl (url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
 }

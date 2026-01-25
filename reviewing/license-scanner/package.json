@@ -29,13 +29,13 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

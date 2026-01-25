@@ -324,10 +324,12 @@ export async function handler (
             err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
           }
           err['prefix'] = prefix
-          opts.reportSummary && await writeRecursiveSummary({
-            dir: opts.lockfileDir ?? opts.dir,
-            summary: result,
-          })
+          if (opts.reportSummary) {
+            await writeRecursiveSummary({
+              dir: opts.lockfileDir ?? opts.dir,
+              summary: result,
+            })
+          }
 
           throw err
         }
@@ -335,10 +337,12 @@ export async function handler (
       )))
   }
 
-  opts.reportSummary && await writeRecursiveSummary({
-    dir: opts.lockfileDir ?? opts.dir,
-    summary: result,
-  })
+  if (opts.reportSummary) {
+    await writeRecursiveSummary({
+      dir: opts.lockfileDir ?? opts.dir,
+      summary: result,
+    })
+  }
   throwOnCommandFail('pnpm recursive exec', result)
   return { exitCode }
 }

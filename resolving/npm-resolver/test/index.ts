@@ -16,7 +16,7 @@ import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import { omit } from 'ramda'
 import { temporaryDirectory } from 'tempy'
-import { delay, retryLoadJsonFile } from './utils/index.js'
+import { delay, retryLoadMsgpackFile } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -74,7 +74,7 @@ test('resolveFromNpm()', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.v8')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.mpk')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -127,7 +127,7 @@ test('resolveFromNpm() does not save mutated meta to the cache', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.v8')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.mpk')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.versions['1.0.0'].version).toBe('1.0.0')
 })
 
@@ -149,7 +149,7 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, `registry.npmjs.org/JSON_${createHexHash('JSON')}.v8`)) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, `registry.npmjs.org/JSON_${createHexHash('JSON')}.mpk`)) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -702,7 +702,7 @@ test('offline resolution fails when package meta not found in the store', async 
 
   await expect(resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})).rejects
     .toThrow(
-      new PnpmError('NO_OFFLINE_META', `Failed to resolve is-positive@1.0.0 in package mirror ${path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.v8')}`)
+      new PnpmError('NO_OFFLINE_META', `Failed to resolve is-positive@1.0.0 in package mirror ${path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.mpk')}`)
     )
 })
 
@@ -1022,7 +1022,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.v8')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.mpk')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -1055,7 +1055,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.v8')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.mpk')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -1767,7 +1767,7 @@ test('workspace protocol: resolution fails if there is no matching local package
 
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
-  expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@workspace:^3.0.0 inside the workspace`)
+  expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@workspace:^3.0.0 inside the workspace. Available versions: 2.0.0`)
 })
 
 test('workspace protocol: resolution fails if there are no local packages', async () => {
@@ -1829,7 +1829,7 @@ test('resolveFromNpm() should always return the name of the package that is spec
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.v8')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.mpk')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()

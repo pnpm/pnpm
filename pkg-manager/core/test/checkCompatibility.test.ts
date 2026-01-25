@@ -8,7 +8,7 @@ test('fail if the store directory changed', () => {
       storeDir: '/store/v1',
     } as any, // eslint-disable-line
     {
-      storeDir: '/store/v10',
+      storeDir: '/store/v11',
       modulesDir: 'node_modules',
       virtualStoreDir: 'node_modules/.pnpm',
     })
@@ -22,7 +22,7 @@ test('do not fail if the store directory is of version 3', () => {
       storeDir: '/store/v3',
     } as any, // eslint-disable-line
     {
-      storeDir: '/store/v10',
+      storeDir: '/store/v11',
       modulesDir: 'node_modules',
       virtualStoreDir: 'node_modules/.pnpm',
     })

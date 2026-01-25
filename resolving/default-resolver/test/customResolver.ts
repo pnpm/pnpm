@@ -378,7 +378,7 @@ test('custom custom fetcher: wrap npm registry with custom logic', async () => {
   // for a protocol like "private-npm:package-name" that uses private registry
   const privateNpmResolver: CustomResolver = {
     canResolve: (wantedDependency) => wantedDependency.alias!.startsWith('private-npm:'),
-    resolve: async (wantedDependency, opts) => {
+    resolve: async (wantedDependency, _opts) => {
       const actualName = wantedDependency.alias!.replace('private-npm:', '')
 
       // In a real implementation, you'd fetch from your private registry here

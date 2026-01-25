@@ -1,4 +1,3 @@
-/* eslint-disable import/first */
 export type Global = typeof globalThis & {
   pnpm__startedAt?: number
   [REPORTER_INITIALIZED]?: ReporterType // eslint-disable-line @typescript-eslint/no-use-before-define
@@ -183,10 +182,6 @@ export async function main (inputArgv: string[]): Promise<void> {
     global[REPORTER_INITIALIZED] = reporterType
   }
 
-  if (cmd === 'self-update') {
-    await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
-  }
-
   if (
     (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds') &&
     typeof workspaceDir === 'string'
@@ -212,7 +207,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
-    } else if (workspaceDir && !config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
+    } else if (filters.length === 0 && workspaceDir && !config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
     }
 
