@@ -49,6 +49,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
       "path": "../../registry/pkg-metadata-filter"
     },
     {

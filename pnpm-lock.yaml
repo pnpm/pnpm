@@ -7525,6 +7525,9 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry.pkg-metadata-filter':
         specifier: workspace:*
         version: link:../../registry/pkg-metadata-filter
