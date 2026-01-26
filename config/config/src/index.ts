@@ -694,3 +694,12 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
 }
+
+// Convert shamefullyHoist to publicHoistPattern after updateConfig hook
+export function applyDerivedConfig (config: Config): void {
+  if (config.shamefullyHoist == false) {
+    delete config.publicHoistPattern;
+  } else if (config.shamefullyHoist == true) {
+    config.publicHoistPattern = ['*']
+  }
+}

@@ -1,6 +1,6 @@
 import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
-import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
+import { getConfig as _getConfig, applyDerivedConfig, type CliOptions, type Config } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
 import { createStoreController } from '@pnpm/store-connection-manager'
 import { installConfigDeps } from '@pnpm/config.deps-installer'
@@ -57,6 +57,7 @@ export async function getConfig (
         const updateConfigResult = updateConfig(config)
         config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop
       }
+      applyDerivedConfig(config)
     }
   }
 
