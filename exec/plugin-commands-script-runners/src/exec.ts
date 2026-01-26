@@ -146,6 +146,7 @@ export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
   implicitlyFellbackFromRun?: boolean
 } & Pick<Config,
 | 'bin'
+| 'cliOptions'
 | 'dir'
 | 'extraBinPaths'
 | 'extraEnv'
@@ -187,7 +188,7 @@ export async function handler (
       chunks = chunks.reverse()
     }
   } else {
-    chunks = [[opts.dir as ProjectRootDir]]
+    chunks = [[(opts.cliOptions.dir ?? process.cwd()) as ProjectRootDir]]
     const project = await tryReadProjectManifest(opts.dir)
     if (project.manifest != null) {
       opts.selectedProjectsGraph = {
@@ -323,10 +324,12 @@ export async function handler (
             err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
           }
           err['prefix'] = prefix
-          opts.reportSummary && await writeRecursiveSummary({
-            dir: opts.lockfileDir ?? opts.dir,
-            summary: result,
-          })
+          if (opts.reportSummary) {
+            await writeRecursiveSummary({
+              dir: opts.lockfileDir ?? opts.dir,
+              summary: result,
+            })
+          }
 
           throw err
         }
@@ -334,10 +337,12 @@ export async function handler (
       )))
   }
 
-  opts.reportSummary && await writeRecursiveSummary({
-    dir: opts.lockfileDir ?? opts.dir,
-    summary: result,
-  })
+  if (opts.reportSummary) {
+    await writeRecursiveSummary({
+      dir: opts.lockfileDir ?? opts.dir,
+      summary: result,
+    })
+  }
   throwOnCommandFail('pnpm recursive exec', result)
   return { exitCode }
 }

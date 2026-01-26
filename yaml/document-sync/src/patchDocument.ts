@@ -64,7 +64,6 @@ function patchNode (node: yaml.Node | null | undefined, target: unknown, ctx: Pa
     return patchSeq(node, target, ctx)
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _never: never = node
   throw new Error('Unrecognized yaml node: ' + String(node))
 }

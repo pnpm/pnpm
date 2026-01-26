@@ -1,12 +1,12 @@
-import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 
-export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {
+export async function retryLoadMsgpackFile<T> (filePath: string): Promise<T> {
   let retry = 0
   /* eslint-disable no-await-in-loop */
   while (true) {
     await delay(500)
     try {
-      return await readV8FileStrictAsync<T>(filePath)
+      return await readMsgpackFile<T>(filePath)
     } catch (err: any) { // eslint-disable-line
       if (retry > 2) throw err
       retry++

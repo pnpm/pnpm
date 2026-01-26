@@ -334,11 +334,9 @@ export async function mutateModules (
     !opts.frozenLockfile &&
     opts.saveLockfile
   if (shouldCheckCustomResolverForceResolve) {
-    const projects = Object.values(ctx.projects).map(({ id, manifest }) => ({ id, manifest }))
     forceResolutionFromHook = await checkCustomResolverForceResolve(
       opts.hooks.customResolvers!,
-      ctx.wantedLockfile,
-      projects
+      ctx.wantedLockfile
     )
   }
 
@@ -553,7 +551,6 @@ export async function mutateModules (
       const wantedDependencies = getWantedDependencies(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
         includeDirect: opts.includeDirect,
-        nodeExecPath: opts.nodeExecPath,
       })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
 
@@ -653,7 +650,7 @@ export async function mutateModules (
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true, nodeExecPath: opts.nodeExecPath })),
+        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true })),
       } as ImporterToUpdate)
     }
 
@@ -951,7 +948,7 @@ function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): 
   // again.
   if ((wantedLockfile.importers != null) && !isEmpty(wantedLockfile.importers)) {
     wantedLockfile.importers = mapValues(
-      ({ dependencies, devDependencies, optionalDependencies, ...rest }) => rest,
+      ({ dependencies: _dependencies, devDependencies: _devDependencies, optionalDependencies: _optionalDependencies, ...rest }) => rest,
       wantedLockfile.importers)
   }
 
@@ -961,7 +958,7 @@ function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): 
   // are always used.
   if ((wantedLockfile.packages != null) && !isEmpty(wantedLockfile.packages)) {
     wantedLockfile.packages = mapValues(
-      ({ dependencies, optionalDependencies, ...rest }) => rest,
+      ({ dependencies: _dependencies, optionalDependencies: _optionalDependencies, ...rest }) => rest,
       wantedLockfile.packages)
   }
 
@@ -1423,18 +1420,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     await Promise.all(projects.map(async (project, index) => {
       let linkedPackages!: string[]
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
-        const nodeExecPathByAlias: Record<string, string> = {}
-        for (const alias in project.manifest.dependenciesMeta) {
-          const { node } = project.manifest.dependenciesMeta[alias]
-          if (node) {
-            nodeExecPathByAlias[alias] = node
-          }
-        }
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           projectManifest: project.manifest,
-          nodeExecPathByAlias,
           extraNodePaths: ctx.extraNodePaths,
           warn: binWarn.bind(null, project.rootDir),
         })
@@ -1454,14 +1443,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             await Promise.all(
               directPkgs.map(async (dep) => {
                 const manifest = (await dep.fetching?.())?.bundledManifest ?? await safeReadProjectManifestOnly(dep.dir)
-                let nodeExecPath: string | undefined
-                if (manifest?.name) {
-                  nodeExecPath = project.manifest.dependenciesMeta?.[manifest.name]?.node
-                }
                 return {
                   location: dep.dir,
                   manifest,
-                  nodeExecPath,
                 }
               })
             )
@@ -1619,7 +1603,6 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           autoInstallPeers: opts.autoInstallPeers,
           includeDirect: opts.includeDirect,
           updateWorkspaceDependencies: false,
-          nodeExecPath: opts.nodeExecPath,
           injectWorkspacePackages: opts.injectWorkspacePackages,
         }
         const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)

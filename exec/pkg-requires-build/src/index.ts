@@ -1,6 +1,8 @@
 import { type DependencyManifest } from '@pnpm/types'
 
-export function pkgRequiresBuild (manifest: Partial<DependencyManifest> | undefined, filesIndex: Map<string, unknown>): boolean {
+type FilesIndexArg = Map<string, unknown> | Record<string, unknown>
+
+export function pkgRequiresBuild (manifest: Partial<DependencyManifest> | undefined, filesIndex: FilesIndexArg): boolean {
   return Boolean(
     manifest?.scripts != null && (
       Boolean(manifest.scripts.preinstall) ||
@@ -11,11 +13,12 @@ export function pkgRequiresBuild (manifest: Partial<DependencyManifest> | undefi
   )
 }
 
-function filesIncludeInstallScripts (filesIndex: Map<string, unknown>): boolean {
-  if (filesIndex.has('binding.gyp')) {
-    return true
-  }
-  for (const filename of filesIndex.keys()) {
+function filesIncludeInstallScripts (filesIndex: FilesIndexArg): boolean {
+  const keys = filesIndex instanceof Map ? filesIndex.keys() : Object.keys(filesIndex)
+  for (const filename of keys) {
+    if (filename === 'binding.gyp') {
+      return true
+    }
     if (filename.match(/^\.hooks[\\/]/) != null) {
       return true
     }

@@ -70,6 +70,7 @@ test('repopulate dist-tag to highest same-major version within the date cutoff',
     cacheDir,
     fullMetadata: true,
     registries,
+    storeDir: temporaryDirectory(),
   })
 
   const res = await resolveFromNpm({ alias: name, bareSpecifier: 'latest' }, {
@@ -129,6 +130,7 @@ test('repopulate dist-tag to highest same-major version within the date cutoff. 
     cacheDir,
     fullMetadata: true,
     registries,
+    storeDir: temporaryDirectory(),
   })
 
   const res = await resolveFromNpm({ alias: name, bareSpecifier: 'latest' }, {
@@ -187,6 +189,7 @@ test('repopulate dist-tag to highest non-prerelease same-major version within th
     cacheDir,
     fullMetadata: true,
     registries,
+    storeDir: temporaryDirectory(),
   })
 
   const res = await resolveFromNpm({ alias: name, bareSpecifier: 'latest' }, {
@@ -251,6 +254,7 @@ test('repopulate dist-tag to highest prerelease same-major version within the da
     cacheDir,
     fullMetadata: true,
     registries,
+    storeDir: temporaryDirectory(),
   })
 
   const res = await resolveFromNpm({ alias: name, bareSpecifier: 'latest' }, {
@@ -286,6 +290,7 @@ test('keep dist-tag if original version is within the date cutoff', async () => 
     cacheDir,
     fullMetadata: true,
     registries,
+    storeDir: temporaryDirectory(),
   })
 
   const res = await resolveFromNpm({ alias: name, bareSpecifier: 'latest' }, {

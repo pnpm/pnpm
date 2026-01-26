@@ -72,7 +72,6 @@ export interface StrictInstallOptions {
   verifyStoreIntegrity: boolean
   engineStrict: boolean
   allowBuilds?: Record<string, boolean | string>
-  nodeExecPath?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>

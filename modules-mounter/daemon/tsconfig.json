@@ -13,7 +13,7 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../fs/v8-file"
+      "path": "../../fs/msgpack-file"
     },
     {
       "path": "../../lockfile/fs"

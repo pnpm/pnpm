@@ -34,7 +34,6 @@ export async function linkBins (
   binsDir: string,
   opts: LinkBinOptions & {
     allowExoticManifests?: boolean
-    nodeExecPathByAlias?: Record<string, string>
     projectManifest?: ProjectManifest
     warn: WarnFunction
   }
@@ -54,7 +53,6 @@ export async function linkBinsOfPkgsByAliases (
   opts: LinkBinOptions & {
     modulesDir: string
     allowExoticManifests?: boolean
-    nodeExecPathByAlias?: Record<string, string>
     projectManifest?: ProjectManifest
     warn: WarnFunction
   }
@@ -72,12 +70,11 @@ export async function linkBinsOfPkgsByAliases (
         .map((alias) => ({
           depDir: path.resolve(opts.modulesDir, alias),
           isDirectDependency: directDependencies?.has(alias),
-          nodeExecPath: opts.nodeExecPathByAlias?.[alias],
         }))
         .filter(({ depDir }) => !isSubdir(depDir, binsDir)) // Don't link own bins
-        .map(async ({ depDir, isDirectDependency, nodeExecPath }) => {
+        .map(async ({ depDir, isDirectDependency }) => {
           const target = normalizePath(depDir)
-          const cmds = await getPackageBins(pkgBinOpts, target, nodeExecPath)
+          const cmds = await getPackageBins(pkgBinOpts, target)
           return cmds.map((cmd) => ({ ...cmd, isDirectDependency }))
         })
     ))
@@ -100,7 +97,6 @@ function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: b
 export async function linkBinsOfPackages (
   pkgs: Array<{
     manifest: DependencyManifest
-    nodeExecPath?: string
     location: string
   }>,
   binsTarget: string,
@@ -111,7 +107,7 @@ export async function linkBinsOfPackages (
   const allCmds = unnest(
     (await Promise.all(
       pkgs
-        .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location, pkg.nodeExecPath))
+        .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
     ))
       .filter((cmds: Command[]) => cmds.length)
   )
@@ -194,8 +190,7 @@ async function getPackageBins (
     allowExoticManifests: boolean
     warn: WarnFunction
   },
-  target: string,
-  nodeExecPath?: string
+  target: string
 ): Promise<CommandInfo[]> {
   const manifest = opts.allowExoticManifests
     ? (await safeReadProjectManifestOnly(target) as DependencyManifest)
@@ -246,12 +241,13 @@ async function getPackageBins (
     throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${target} must have a name to get bin linked.`)
   }
 
-  return getPackageBinsFromManifest(manifest, target, nodeExecPath)
+  return getPackageBinsFromManifest(manifest, target)
 }
 
-async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string, nodeExecPath?: string): Promise<CommandInfo[]> {
+async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string): Promise<CommandInfo[]> {
   const cmds = await getBinsFromPackageManifest(manifest, pkgDir)
-  if (manifest.engines?.runtime && runtimeHasNodeDownloaded(manifest.engines.runtime) && !nodeExecPath) {
+  let nodeExecPath: string | undefined
+  if (manifest.engines?.runtime && runtimeHasNodeDownloaded(manifest.engines.runtime)) {
     const require = createRequire(import.meta.dirname)
     // Using Node.js’ resolution algorithm is the most reliable way to find the Node.js
     // package that comes from this CLI's dependencies, because the layout of node_modules can vary.

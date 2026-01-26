@@ -3,7 +3,7 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { types as allTypes } from '@pnpm/config'
 import { resolveConfigDeps } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import { createStoreController } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
@@ -84,8 +84,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'offline',
     'only',
     'optional',
-    'use-running-store-server',
-    'use-store-server',
     'verify-store-integrity',
     'virtual-store-dir',
   ], allTypes)
@@ -220,7 +218,7 @@ export async function handler (
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
   }
   if (opts.config) {
-    const store = await createOrConnectStoreController(opts)
+    const store = await createStoreController(opts)
     await resolveConfigDeps(params, {
       ...opts,
       store: store.ctrl,

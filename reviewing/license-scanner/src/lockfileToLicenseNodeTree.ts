@@ -27,7 +27,7 @@ export interface LicenseNode {
 }
 
 export type LicenseNodeTree = Omit<
-LicenseNode,
+  LicenseNode,
 'dir' | 'license' | 'licenseContents' | 'author' | 'homepages' | 'repository'
 >
 

@@ -47,7 +47,6 @@ export interface PeerDependenciesMeta {
 export interface DependenciesMeta {
   [dependencyName: string]: {
     injected?: boolean
-    node?: string
     patch?: string
   }
 }
@@ -142,7 +141,12 @@ export interface PeerDependencyRules {
 
 export type AllowedDeprecatedVersions = Record<string, string>
 
-export type ConfigDependencies = Record<string, string>
+type VersionWithIntegrity = string
+
+export type ConfigDependencies = Record<string, VersionWithIntegrity | {
+  tarball?: string
+  integrity: VersionWithIntegrity
+}>
 
 export interface AuditConfig {
   ignoreCves?: string[]

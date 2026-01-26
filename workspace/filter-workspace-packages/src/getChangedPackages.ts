@@ -9,7 +9,9 @@ import { type ProjectRootDir } from '@pnpm/types'
 
 type ChangeType = 'source' | 'test'
 
-interface ChangedDir { dir: string, changeType: ChangeType }
+interface ChangedDir {
+  dir: string, changeType: ChangeType
+}
 
 export async function getChangedPackages (
   packageDirs: ProjectRootDir[],

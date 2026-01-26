@@ -316,7 +316,7 @@ You can run ${highlight('pnpm install --force')} to refetch the modified package
   }
 }
 
-function reportLockfileBreakingChange (err: Error, msg: object): ErrorInfo {
+function reportLockfileBreakingChange (err: Error, _msg: object): ErrorInfo {
   return {
     title: err.message,
     body: `Run with the ${highlight('--force')} parameter to recreate the lockfile.`,
@@ -334,7 +334,7 @@ function formatRecursiveCommandSummary (msg: { failures: Array<Error & { prefix:
   }
 }
 
-function reportBadTarballSize (err: Error, msg: object): ErrorInfo {
+function reportBadTarballSize (err: Error, _msg: object): ErrorInfo {
   return {
     title: err.message,
     body: `Seems like you have internet connection issues.

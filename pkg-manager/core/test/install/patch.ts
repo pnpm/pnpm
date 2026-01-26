@@ -5,7 +5,7 @@ import { ENGINE_NAME } from '@pnpm/constants'
 import { install } from '@pnpm/core'
 import { type IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
+import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { jest } from '@jest/globals'
@@ -56,18 +56,18 @@ test('patch package with exact version', async () => {
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.v8')
-  const filesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.mpk')
+  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
-  const patchedFileIntegrity = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.integrity
-  expect(patchedFileIntegrity).toBeTruthy()
-  const originalFileIntegrity = filesIndex.files.get('index.js')!.integrity
-  expect(originalFileIntegrity).toBeTruthy()
-  // The integrity of the original file differs from the integrity of the patched file
-  expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
+  const patchedFileDigest = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.digest
+  expect(patchedFileDigest).toBeTruthy()
+  const originalFileDigest = filesIndex.files.get('index.js')!.digest
+  expect(originalFileDigest).toBeTruthy()
+  // The digest of the original file differs from the digest of the patched file
+  expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
   rimraf('node_modules')
@@ -154,18 +154,18 @@ test('patch package with version range', async () => {
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.v8')
-  const filesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.mpk')
+  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
-  const patchedFileIntegrity = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.integrity
-  expect(patchedFileIntegrity).toBeTruthy()
-  const originalFileIntegrity = filesIndex.files.get('index.js')!.integrity
-  expect(originalFileIntegrity).toBeTruthy()
-  // The integrity of the original file differs from the integrity of the patched file
-  expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
+  const patchedFileDigest = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.digest
+  expect(patchedFileDigest).toBeTruthy()
+  const originalFileDigest = filesIndex.files.get('index.js')!.digest
+  expect(originalFileDigest).toBeTruthy()
+  // The digest of the original file differs from the digest of the patched file
+  expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
   rimraf('node_modules')
@@ -324,18 +324,18 @@ test('patch package when scripts are ignored', async () => {
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.v8')
-  const filesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.mpk')
+  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
-  const patchedFileIntegrity = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.integrity
-  expect(patchedFileIntegrity).toBeTruthy()
-  const originalFileIntegrity = filesIndex.files.get('index.js')!.integrity
-  expect(originalFileIntegrity).toBeTruthy()
-  // The integrity of the original file differs from the integrity of the patched file
-  expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
+  const patchedFileDigest = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.digest
+  expect(patchedFileDigest).toBeTruthy()
+  const originalFileDigest = filesIndex.files.get('index.js')!.digest
+  expect(originalFileDigest).toBeTruthy()
+  // The digest of the original file differs from the digest of the patched file
+  expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
   rimraf('node_modules')
@@ -415,18 +415,18 @@ test('patch package when the package is not in allowBuilds list', async () => {
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.v8')
-  const filesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.mpk')
+  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
-  const patchedFileIntegrity = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.integrity
-  expect(patchedFileIntegrity).toBeTruthy()
-  const originalFileIntegrity = filesIndex.files.get('index.js')!.integrity
-  expect(originalFileIntegrity).toBeTruthy()
-  // The integrity of the original file differs from the integrity of the patched file
-  expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
+  const patchedFileDigest = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.digest
+  expect(patchedFileDigest).toBeTruthy()
+  const originalFileDigest = filesIndex.files.get('index.js')!.digest
+  expect(originalFileDigest).toBeTruthy()
+  // The digest of the original file differs from the digest of the patched file
+  expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
   rimraf('node_modules')

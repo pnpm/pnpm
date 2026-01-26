@@ -32,25 +32,29 @@ const gitProtocols = new Set([
   'ssh',
 ])
 
-export async function parseBareSpecifier (bareSpecifier: string, opts: AgentOptions): Promise<HostedPackageSpec | null> {
+export function parseBareSpecifier (bareSpecifier: string, opts: AgentOptions): null | (() => Promise<HostedPackageSpec>) {
   const hosted = HostedGit.fromUrl(bareSpecifier)
   if (hosted != null) {
-    return fromHostedGit(hosted, opts)
+    return () => fromHostedGit(hosted, opts)
   }
   const colonsPos = bareSpecifier.indexOf(':')
   if (colonsPos === -1) return null
   const protocol = bareSpecifier.slice(0, colonsPos)
-  if (protocol && gitProtocols.has(protocol.toLocaleLowerCase())) {
+
+  // Also detect http/https URLs ending in .git as git repositories
+  const isGitUrl = gitProtocols.has(protocol.toLocaleLowerCase()) ||
+    ((protocol === 'http' || protocol === 'https') && /\.git(?:#|$)/.test(bareSpecifier))
+  if (protocol && isGitUrl) {
     const correctBareSpecifier = correctUrl(bareSpecifier)
     const url = new URL(correctBareSpecifier)
     if (!url?.protocol) return null
 
     const hash = (url.hash?.length > 1) ? decodeURIComponent(url.hash.slice(1)) : null
-    return {
+    return async () => ({
       fetchSpec: urlToFetchSpec(url),
       normalizedBareSpecifier: bareSpecifier,
       ...parseGitParams(hash),
-    }
+    })
   }
   return null
 }

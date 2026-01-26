@@ -4,7 +4,7 @@ import { createResolver } from '@pnpm/client'
 import { type TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
-import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { sortDeepKeys } from '@pnpm/object.key-sorting'
 import { getStorePath } from '@pnpm/store-path'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
@@ -32,7 +32,7 @@ export function help (): string {
 }
 
 export type CatIndexCommandOptions = Pick<
-Config,
+  Config,
 | 'rawConfig'
 | 'pnpmHomeDir'
 | 'storeDir'
@@ -88,7 +88,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     `${alias}@${bareSpecifier}`
   )
   try {
-    const pkgFilesIndex = await readV8FileStrictAsync<PackageFilesIndex>(filesIndexFile)
+    const pkgFilesIndex = await readMsgpackFile<PackageFilesIndex>(filesIndexFile)
     return JSON.stringify(sortDeepKeys(pkgFilesIndex), replacer, 2)
   } catch {
     throw new PnpmError(

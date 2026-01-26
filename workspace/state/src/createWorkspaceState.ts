@@ -1,4 +1,5 @@
 import { pick } from 'ramda'
+import { type ConfigDependencies } from '@pnpm/types'
 import { type WorkspaceState, type WorkspaceStateSettings, type ProjectsList } from './types.js'
 
 export interface CreateWorkspaceStateOptions {
@@ -6,7 +7,7 @@ export interface CreateWorkspaceStateOptions {
   pnpmfiles: string[]
   filteredInstall: boolean
   settings: WorkspaceStateSettings
-  configDependencies?: Record<string, string>
+  configDependencies?: ConfigDependencies
 }
 
 export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): WorkspaceState => ({

@@ -1,6 +1,6 @@
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import { type PackageFiles } from '@pnpm/store.cafs'
 
-export function readdir (index: PackageFilesIndex, dir: string): string[] {
+export function readdir (index: { files: PackageFiles }, dir: string): string[] {
   const dirs = new Set<string>()
   const prefix = dir ? `${dir}/` : ''
   for (const filePath of index.files.keys()) {
@@ -14,8 +14,11 @@ export function readdir (index: PackageFilesIndex, dir: string): string[] {
 
 export type DirEntityType = 'file' | 'directory'
 
-export function dirEntityType (index: PackageFilesIndex, p: string): DirEntityType | undefined {
+export function dirEntityType (index: { files: PackageFiles }, p: string): DirEntityType | undefined {
   if (index.files.has(p)) return 'file'
   const prefix = `${p}/`
-  return Array.from(index.files.keys()).some((k) => k.startsWith(prefix)) ? 'directory' : undefined
+  for (const k of index.files.keys()) {
+    if (k.startsWith(prefix)) return 'directory'
+  }
+  return undefined
 }

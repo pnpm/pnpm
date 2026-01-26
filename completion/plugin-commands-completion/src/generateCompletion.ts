@@ -1,5 +1,4 @@
 import renderHelp from 'render-help'
-import { docsUrl } from '@pnpm/cli-utils'
 import { getCompletionScript, SUPPORTED_SHELLS } from '@pnpm/tabtab'
 import { getShellFromParams } from './getShell.js'
 
@@ -14,7 +13,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({})
 export function help (): string {
   return renderHelp({
     description: 'Print shell completion code to stdout',
-    url: docsUrl('completion'),
+    url: 'https://pnpm.io/completion',
     usages: SUPPORTED_SHELLS.map(shell => `pnpm completion ${shell}`),
   })
 }

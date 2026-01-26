@@ -1,5 +1,4 @@
 import path from 'path'
-import { FULL_META_DIR, FULL_FILTERED_META_DIR, ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
   type FetchFromRegistry,
@@ -20,6 +19,10 @@ import {
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
+import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
+import {
+  readPkgFromCafs,
+} from '@pnpm/worker'
 import {
   type DependencyManifest,
   type PackageVersionPolicy,
@@ -115,6 +118,7 @@ export {
 
 export interface ResolverFactoryOptions {
   cacheDir: string
+  storeDir?: string
   fullMetadata?: boolean
   filterMetadata?: boolean
   offline?: boolean
@@ -129,7 +133,7 @@ export interface ResolverFactoryOptions {
 }
 
 export interface NpmResolveResult extends ResolveResult {
-  latest: string
+  latest?: string
   manifest: DependencyManifest
   resolution: TarballResolution
   resolvedVia: 'npm-registry'
@@ -149,7 +153,7 @@ export interface WorkspaceResolveResult extends ResolveResult {
 }
 
 export type NpmResolver = (
-  wantedDependency: WantedDependency,
+  wantedDependency: WantedDependency & { optional?: boolean },
   opts: ResolveFromNpmOptions
 ) => Promise<NpmResolveResult | JsrResolveResult | WorkspaceResolveResult | null>
 
@@ -175,13 +179,42 @@ export function createNpmResolver (
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })
-  const ctx = {
+  // Create peek function if storeDir is provided
+  const storeDir = opts.storeDir
+  const peekLockerForPeek = new Map<string, Promise<DependencyManifest | undefined>>()
+  let peekManifestFromStore: ResolveFromNpmContext['peekManifestFromStore'] | undefined
+  if (storeDir) {
+    peekManifestFromStore = async (peekOpts) => {
+      const filesIndexFile = getIndexFilePathInCafs(storeDir, peekOpts.integrity, peekOpts.id)
+      const existingRequest = peekLockerForPeek.get(filesIndexFile)
+      if (existingRequest != null) {
+        return existingRequest
+      }
+      const request = readPkgFromCafs(
+        {
+          storeDir,
+          verifyStoreIntegrity: true,
+        },
+        filesIndexFile,
+        {
+          readManifest: true,
+          expectedPkg: { name: peekOpts.name, version: peekOpts.version },
+        }
+      ).then(({ manifest, verified }) => {
+        if (!verified) return undefined
+        return manifest
+      }).catch(() => undefined)
+      peekLockerForPeek.set(filesIndexFile, request)
+      return request
+    }
+  }
+  const ctx: ResolveFromNpmContext = {
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
       fetch,
+      fullMetadata: opts.fullMetadata,
       filterMetadata: opts.filterMetadata,
       metaCache,
-      metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : ABBREVIATED_META_DIR,
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
@@ -189,6 +222,7 @@ export function createNpmResolver (
     }),
     registries: opts.registries,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+    peekManifestFromStore,
   }
   return {
     resolveFromNpm: resolveNpm.bind(null, ctx),
@@ -204,6 +238,12 @@ export interface ResolveFromNpmContext {
   getAuthHeaderValueByURI: (registry: string) => string | undefined
   registries: Registries
   saveWorkspaceProtocol?: boolean | 'rolling'
+  peekManifestFromStore?: (opts: {
+    id: PkgResolutionId
+    integrity: string
+    name?: string
+    version?: string
+  }) => Promise<DependencyManifest | undefined>
 }
 
 export type ResolveFromNpmOptions = {
@@ -233,8 +273,15 @@ export type ResolveFromNpmOptions = {
 
 async function resolveNpm (
   ctx: ResolveFromNpmContext,
-  wantedDependency: WantedDependency,
-  opts: ResolveFromNpmOptions
+  wantedDependency: WantedDependency & { optional?: boolean },
+  opts: ResolveFromNpmOptions & {
+    currentPkg?: {
+      id: PkgResolutionId
+      name?: string
+      version?: string
+      resolution: TarballResolution
+    }
+  }
 ): Promise<NpmResolveResult | WorkspaceResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
   const registry = wantedDependency.alias
@@ -264,6 +311,36 @@ async function resolveNpm (
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
   if (spec == null) return null
 
+  // Fast path: if we have a current resolution with integrity, try to peek the manifest from the store.
+  // This avoids the expensive metadata fetch from the registry.
+  // We do this AFTER ensuring the spec is valid for this resolver to avoids hijacking other resolvers.
+  if (ctx.peekManifestFromStore && opts.currentPkg?.resolution && !opts.update) {
+    const currentResolution = opts.currentPkg.resolution
+    // Only use this optimization for tarball resolutions with integrity (npm packages)
+    if ('tarball' in currentResolution && currentResolution.integrity) {
+      const manifest = await ctx.peekManifestFromStore({
+        id: opts.currentPkg.id,
+        integrity: currentResolution.integrity,
+        name: opts.currentPkg.name,
+        version: opts.currentPkg.version,
+      })
+      // Verify the manifest matches what we expect
+      if (manifest?.name && manifest?.version) {
+        const id = `${manifest.name}@${manifest.version}` as PkgResolutionId
+        // Only return if the ID matches what we have in currentPkg
+        if (id === opts.currentPkg.id) {
+          return {
+            id,
+            manifest,
+            resolution: currentResolution as TarballResolution,
+            resolvedVia: 'npm-registry',
+            publishedAt: undefined, // Don't have this without metadata
+          }
+        }
+      }
+    }
+  }
+
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
   try {
@@ -276,6 +353,7 @@ async function resolveNpm (
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry,
       updateToLatest: opts.update === 'latest',
+      optional: wantedDependency.optional,
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
@@ -561,9 +639,16 @@ function tryResolveFromWorkspacePackages (
     opts.update ? { name: spec.name, fetchSpec: '*', type: 'range' } : spec
   )
   if (!localVersion) {
+    const availableVersions = Array.from(workspacePkgsMatchingName.keys()).sort((a, b) => semver.rcompare(a, b))
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
-      `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.wantedDependency.bareSpecifier ?? ''} inside the workspace`
+      `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.wantedDependency.bareSpecifier ?? ''} inside the workspace` +
+      (availableVersions.length ? `. Available versions: ${availableVersions.join(', ')}` : ''),
+      availableVersions.length
+        ? {
+          hint: `Available workspace versions for "${spec.name}": ${availableVersions.join(', ')}`,
+        }
+        : undefined
     )
   }
   return resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec, opts)

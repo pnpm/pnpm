@@ -75,7 +75,7 @@
       "path": "../exec/run-npm"
     },
     {
-      "path": "../fs/v8-file"
+      "path": "../fs/msgpack-file"
     },
     {
       "path": "../lockfile/plugin-commands-audit"
@@ -148,9 +148,6 @@
     },
     {
       "path": "../store/cafs"
-    },
-    {
-      "path": "../store/plugin-commands-server"
     },
     {
       "path": "../store/plugin-commands-store"
