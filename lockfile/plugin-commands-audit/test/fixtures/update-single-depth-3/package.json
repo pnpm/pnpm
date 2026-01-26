@@ -1,0 +1,7 @@
+{
+  "name": "update-single-depth-3",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/parent-of-pkg-with-1-dep": "^1.0.0"
+  }
+}

@@ -1,4 +1,4 @@
-import { audit, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts } from '@pnpm/audit'
+import { audit, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditAdvisory, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts } from '@pnpm/audit'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config'
@@ -6,14 +6,15 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { type Registries } from '@pnpm/types'
+import { update, type InstallCommandOptions } from '@pnpm/plugin-commands-installation'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
 import { difference, pick, pickBy } from 'ramda'
 import renderHelp from 'render-help'
 import { fix } from './fix.js'
+import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { ignore } from './ignore.js'
 
-// eslint-disable
 const AUDIT_LEVEL_NUMBER = {
   low: 0,
   moderate: 1,
@@ -37,14 +38,12 @@ const AUDIT_TABLE_OPTIONS = {
     },
   },
 }
-// eslint-enable
 
 const MAX_PATHS_COUNT = 3
 
-export const rcOptionsTypes = cliOptionsTypes
-
-export function cliOptionsTypes (): Record<string, unknown> {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
+    ...update.rcOptionsTypes(),
     ...pick([
       'dev',
       'json',
@@ -54,10 +53,23 @@ export function cliOptionsTypes (): Record<string, unknown> {
       'registry',
     ], allTypes),
     'audit-level': ['low', 'moderate', 'high', 'critical'],
-    fix: Boolean,
+    'audit-registry': String,
+    // For fix, use String instead of a list of allowed string values.
+    // Otherwise, an unexpected value will get coerced to true because of the Boolean type.
+    fix: [String, Boolean],
     'ignore-registry-errors': Boolean,
     ignore: [String, Array],
     'ignore-unfixable': Boolean,
+  }
+}
+
+export function cliOptionsTypes (): Record<string, unknown> {
+  return {
+    ...pick([
+      'recursive',
+      'workspace',
+    ], update.cliOptionsTypes()),
+    ...rcOptionsTypes(),
   }
 }
 
@@ -77,12 +89,16 @@ export function help (): string {
 
         list: [
           {
-            description: 'Add overrides to the package.json file in order to force non-vulnerable versions of the dependencies',
-            name: '--fix',
+            description: 'Fix the audited vulnerabilities using the specified method: "override" or "update". "override" adds overrides to the package.json file in order to force non-vulnerable versions of the dependencies. "update" attempts to update the vulnerable packages in the lockfile to non-vulnerable versions. If no method is specified, "override" is used by default.',
+            name: '--fix [method]',
           },
           {
             description: 'Output audit report in JSON format',
             name: '--json',
+          },
+          {
+            description: 'Registry URL to use for audit requests',
+            name: '--audit-registry <url>',
           },
           {
             description: 'Only print advisories with severity greater than or equal to one of the following: low|moderate|high|critical. Default: low',
@@ -103,7 +119,7 @@ export function help (): string {
             name: '--no-optional',
           },
           {
-            description: 'Use exit code 0 if the registry responds with an error. Useful when audit checks are used in CI. A build should fail because the registry has issues.',
+            description: 'Use exit code 0 if the registry responds with an error. Useful when audit checks are used in CI and a build should not fail because the registry has issues.',
             name: '--ignore-registry-errors',
           },
           {
@@ -124,7 +140,8 @@ export function help (): string {
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
-  fix?: boolean
+  fix?: boolean | 'override' | 'update'
+  auditRegistry?: string
   ignoreRegistryErrors?: boolean
   json?: boolean
   lockfileDir?: string
@@ -156,7 +173,9 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
 | 'rootProjectManifestDir'
 | 'virtualStoreDirMaxLength'
 | 'workspaceDir'
->
+> & InstallCommandOptions
+
+const DEFAULT_FIX_METHOD = 'override'
 
 export async function handler (opts: AuditOptions): Promise<{ exitCode: number, output: string }> {
   const lockfileDir = opts.lockfileDir ?? opts.dir
@@ -187,7 +206,7 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
       },
       include,
       lockfileDir,
-      registry: opts.registries.default,
+      registry: opts.auditRegistry ?? opts.registries.default,
       retry: {
         factor: opts.fetchRetryFactor,
         maxTimeout: opts.fetchRetryMaxtimeout,
@@ -207,7 +226,24 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
 
     throw err
   }
-  if (opts.fix) {
+  let fixMethod: 'update' | 'override' | undefined
+  if (opts.fix === 'update' || opts.fix === 'override') {
+    fixMethod = opts.fix
+  } else if (opts.fix === true) {
+    fixMethod = DEFAULT_FIX_METHOD
+  } else if (!opts.fix) {
+    fixMethod = undefined
+  } else {
+    throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${opts.fix as string}. Should be one of "override" or "update"`)
+  }
+  if (fixMethod === 'update') {
+    const result = await fixWithUpdate(auditReport, { ...opts, include })
+    return {
+      exitCode: 0,
+      output: formatFixWithUpdateOutput(result, auditReport),
+    }
+  }
+  if (fixMethod === 'override') {
     const newOverrides = await fix(auditReport, opts)
     if (Object.values(newOverrides).length === 0) {
       return {
@@ -324,4 +360,58 @@ function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerab
       .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount as string} ${auditLevel}${ignoredVulnerabilities[auditLevel as AuditLevelString] > 0 ? ` (${ignoredVulnerabilities[auditLevel as AuditLevelString]} ignored)` : ''}`))
       .join(' | ')
   }`
+}
+
+export function formatFixWithUpdateOutput (result: FixWithUpdateResult, auditReport: AuditReport): string {
+  const output: string[] = []
+
+  interface IdAndAdvisory {
+    id: number
+    advisory?: AuditAdvisory
+  }
+
+  /**
+   * Sort the given array of advisory IDs by severity descending
+   */
+  function sortBySeverity (ids: number[]): IdAndAdvisory[] {
+    return ids.map(id => ({ id, advisory: auditReport.advisories[id] })).sort((a, b) => {
+      const aValue = a.advisory ? AUDIT_LEVEL_NUMBER[a.advisory.severity] : -1
+      const bValue = b.advisory ? AUDIT_LEVEL_NUMBER[b.advisory.severity] : -1
+      return bValue - aValue
+    })
+  }
+
+  const fixed = sortBySeverity(result.fixed)
+  const remaining = sortBySeverity(result.remaining)
+
+  const fixedString = fixed.length === 1 ? 'vulnerability was fixed' : 'vulnerabilities were fixed'
+  const remainingString = remaining.length === 1 ? 'vulnerability remains' : 'vulnerabilities remain'
+
+  output.push(`${chalk.green(fixed.length)} ${fixedString}, ${chalk.red(remaining.length)} ${remainingString}.`)
+
+  function summarizeAdvisory (fixed: boolean, { id, advisory }: IdAndAdvisory): string {
+    if (advisory) {
+      const color = fixed ? chalk.green : AUDIT_COLOR[advisory.severity]
+      return `- (${color(advisory.severity)}) "${color(advisory.title)}" ${chalk.blue(advisory.module_name)}`
+    }
+    return `- Advisory with ID ${id} (details not found in the audit report)`
+  }
+
+  if (fixed.length > 0) {
+    output.push('\nThe fixed vulnerabilities are:')
+    for (const f of fixed) {
+      output.push(summarizeAdvisory(true, f))
+    }
+  }
+
+  if (remaining.length > 0) {
+    output.push('\nThe remaining vulnerabilities are:')
+    for (const r of remaining) {
+      output.push(summarizeAdvisory(false, r))
+    }
+  }
+
+  // Add trailing newline
+  output.push('')
+  return output.join('\n')
 }
