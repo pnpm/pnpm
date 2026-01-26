@@ -124,7 +124,6 @@ function addCatalogs (manifest: Partial<WorkspaceManifest>, newCatalogs: Catalog
     if (targetCatalog == null) continue
 
     if (targetCatalogWasNil) {
-      shouldBeUpdated = true
       if (catalogName === 'default') {
         manifest.catalog = targetCatalog
       } else {
