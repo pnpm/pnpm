@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 1001.2.3
+
+### Patch Changes
+
+- @pnpm/package-store@1007.1.3
+
 ## 1001.2.2
 
 ### Patch Changes

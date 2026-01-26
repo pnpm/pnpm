@@ -1,5 +1,11 @@
 # @pnpm/fetching-types
 
+## 1000.2.1
+
+### Patch Changes
+
+- a484cea: Fixed optional dependencies to request full metadata from the registry to get the `libc` field, which is required for proper platform compatibility checks [#9950](https://github.com/pnpm/pnpm/issues/9950).
+
 ## 1000.2.0
 
 ### Minor Changes

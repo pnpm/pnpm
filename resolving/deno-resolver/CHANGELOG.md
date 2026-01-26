@@ -1,5 +1,17 @@
 # @pnpm/resolving.deno-resolver
 
+## 1005.0.4
+
+### Patch Changes
+
+- Updated dependencies [a484cea]
+  - @pnpm/npm-resolver@1005.1.2
+  - @pnpm/fetching-types@1000.2.1
+  - @pnpm/worker@1000.6.3
+  - @pnpm/crypto.shasums-file@1001.0.3
+  - @pnpm/node.fetcher@1001.0.20
+  - @pnpm/fetching.binary-fetcher@1005.0.3
+
 ## 1005.0.3
 
 ### Patch Changes

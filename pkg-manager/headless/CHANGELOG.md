@@ -1,5 +1,19 @@
 # @pnpm/headless
 
+## 1010.1.3
+
+### Patch Changes
+
+- Updated dependencies [a484cea]
+  - @pnpm/package-requester@1011.2.2
+  - @pnpm/link-bins@1000.3.5
+  - @pnpm/worker@1000.6.3
+  - @pnpm/build-modules@1007.0.4
+  - @pnpm/lifecycle@1001.0.34
+  - @pnpm/hoist@1002.0.14
+  - @pnpm/modules-cleaner@1001.0.33
+  - @pnpm/symlink-dependency@1000.0.17
+
 ## 1010.1.2
 
 ### Patch Changes

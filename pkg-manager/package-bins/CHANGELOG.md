@@ -1,5 +1,11 @@
 # @pnpm/package-bins
 
+## 1000.0.17
+
+### Patch Changes
+
+- 17432ad: Security fix: prevent path traversal in `directories.bin` field.
+
 ## 1000.0.16
 
 ### Patch Changes

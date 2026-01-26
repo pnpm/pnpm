@@ -1,5 +1,16 @@
 # @pnpm/deps.status
 
+## 1003.0.28
+
+### Patch Changes
+
+- @pnpm/get-context@1001.2.3
+- @pnpm/lockfile.verification@1001.2.19
+- @pnpm/workspace.find-packages@1000.0.56
+- @pnpm/config@1004.9.2
+- @pnpm/lockfile.settings-checker@1001.0.26
+- @pnpm/workspace.state@1002.1.0
+
 ## 1003.0.27
 
 ### Patch Changes

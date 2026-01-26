@@ -1,5 +1,11 @@
 # @pnpm/assert-project
 
+## 1000.0.13
+
+### Patch Changes
+
+- @pnpm/assert-store@1000.0.12
+
 ## 1000.0.12
 
 ### Patch Changes

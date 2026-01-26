@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/headless",
-  "version": "1010.1.2",
+  "version": "1010.1.3",
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
     "pnpm",

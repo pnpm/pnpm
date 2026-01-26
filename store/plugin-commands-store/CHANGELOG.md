@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.58
+
+### Patch Changes
+
+- Updated dependencies [b277b45]
+  - @pnpm/store.cafs@1000.1.3
+  - @pnpm/get-context@1001.2.3
+  - @pnpm/store-connection-manager@1002.3.12
+  - @pnpm/cli-utils@1001.3.1
+  - @pnpm/config@1004.9.2
+
 ## 1000.0.57
 
 ### Patch Changes

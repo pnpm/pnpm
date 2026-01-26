@@ -1,5 +1,14 @@
 # @pnpm/audit
 
+## 1002.0.23
+
+### Patch Changes
+
+- Updated dependencies [a484cea]
+- Updated dependencies [a484cea]
+  - @pnpm/fetching-types@1000.2.1
+  - @pnpm/fetch@1001.0.0
+
 ## 1002.0.22
 
 ### Patch Changes

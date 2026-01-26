@@ -1,5 +1,12 @@
 # @pnpm/git-resolver
 
+## 1001.2.1
+
+### Patch Changes
+
+- Updated dependencies [a484cea]
+  - @pnpm/fetch@1001.0.0
+
 ## 1001.2.0
 
 ### Minor Changes

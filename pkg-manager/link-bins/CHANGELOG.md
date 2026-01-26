@@ -1,5 +1,12 @@
 # @pnpm/link-bins
 
+## 1000.3.5
+
+### Patch Changes
+
+- Updated dependencies [17432ad]
+  - @pnpm/package-bins@1000.0.17
+
 ## 1000.3.4
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/node.resolver
 
+## 1001.0.17
+
+### Patch Changes
+
+- Updated dependencies [a484cea]
+  - @pnpm/fetching-types@1000.2.1
+  - @pnpm/crypto.shasums-file@1001.0.3
+  - @pnpm/config@1004.9.2
+
 ## 1001.0.16
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/server
 
+## 1001.0.20
+
+### Patch Changes
+
+- Updated dependencies [a484cea]
+  - @pnpm/fetch@1001.0.0
+
 ## 1001.0.19
 
 ### Patch Changes

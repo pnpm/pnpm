@@ -1,5 +1,18 @@
 # @pnpm/default-resolver
 
+## 1002.3.1
+
+### Patch Changes
+
+- Updated dependencies [a484cea]
+  - @pnpm/npm-resolver@1005.1.2
+  - @pnpm/fetching-types@1000.2.1
+  - @pnpm/resolving.bun-resolver@1005.0.4
+  - @pnpm/resolving.deno-resolver@1005.0.4
+  - @pnpm/node.resolver@1001.0.17
+  - @pnpm/tarball-resolver@1002.2.1
+  - @pnpm/git-resolver@1001.2.1
+
 ## 1002.3.0
 
 ### Minor Changes

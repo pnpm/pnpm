@@ -1,5 +1,12 @@
 # @pnpm/license-scanner
 
+## 1001.0.37
+
+### Patch Changes
+
+- Updated dependencies [b277b45]
+  - @pnpm/store.cafs@1000.1.3
+
 ## 1001.0.36
 
 ### Patch Changes

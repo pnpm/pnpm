@@ -1,5 +1,14 @@
 # @pnpm/package-requester
 
+## 1011.2.2
+
+### Patch Changes
+
+- a484cea: Fixed optional dependencies to request full metadata from the registry to get the `libc` field, which is required for proper platform compatibility checks [#9950](https://github.com/pnpm/pnpm/issues/9950).
+- Updated dependencies [b277b45]
+  - @pnpm/store.cafs@1000.1.3
+  - @pnpm/worker@1000.6.3
+
 ## 1011.2.1
 
 ### Patch Changes

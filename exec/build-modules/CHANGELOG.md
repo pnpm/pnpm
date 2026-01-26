@@ -1,5 +1,16 @@
 # @pnpm/build-modules
 
+## 1007.0.4
+
+### Patch Changes
+
+- @pnpm/link-bins@1000.3.5
+- @pnpm/worker@1000.6.3
+- @pnpm/lifecycle@1001.0.34
+- @pnpm/config@1004.9.2
+- @pnpm/fs.hard-link-dir@1000.0.5
+- @pnpm/patching.apply-patch@1000.0.7
+
 ## 1007.0.3
 
 ### Patch Changes

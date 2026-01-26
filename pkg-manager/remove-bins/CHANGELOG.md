@@ -1,5 +1,12 @@
 # @pnpm/remove-bins
 
+## 1000.0.21
+
+### Patch Changes
+
+- Updated dependencies [17432ad]
+  - @pnpm/package-bins@1000.0.17
+
 ## 1000.0.20
 
 ### Patch Changes

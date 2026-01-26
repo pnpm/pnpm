@@ -1,5 +1,16 @@
 # @pnpm/fetch
 
+## 1001.0.0
+
+### Major Changes
+
+- a484cea: Refactored `fullMetadata` option handling. The `fullMetadata` option is no longer accepted by `createFetchFromRegistry()` at construction time - it should only be passed at call time via the fetch options.
+
+### Patch Changes
+
+- Updated dependencies [a484cea]
+  - @pnpm/fetching-types@1000.2.1
+
 ## 1000.2.11
 
 ### Patch Changes

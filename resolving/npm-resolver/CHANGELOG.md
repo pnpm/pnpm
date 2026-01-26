@@ -1,5 +1,14 @@
 # @pnpm/npm-resolver
 
+## 1005.1.2
+
+### Patch Changes
+
+- a484cea: Fixed optional dependencies to request full metadata from the registry to get the `libc` field, which is required for proper platform compatibility checks [#9950](https://github.com/pnpm/pnpm/issues/9950).
+- Updated dependencies [a484cea]
+  - @pnpm/fetching-types@1000.2.1
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1005.1.1
 
 ### Patch Changes

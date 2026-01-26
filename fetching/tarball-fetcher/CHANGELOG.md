@@ -1,5 +1,14 @@
 # @pnpm/tarball-fetcher
 
+## 1006.0.3
+
+### Patch Changes
+
+- Updated dependencies [a484cea]
+  - @pnpm/fetching-types@1000.2.1
+  - @pnpm/worker@1000.6.3
+  - @pnpm/prepare-package@1001.0.4
+
 ## 1006.0.2
 
 ### Patch Changes

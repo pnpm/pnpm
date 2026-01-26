@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 1002.0.14
+
+### Patch Changes
+
+- @pnpm/link-bins@1000.3.5
+
 ## 1002.0.13
 
 ### Patch Changes

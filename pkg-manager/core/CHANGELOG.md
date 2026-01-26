@@ -1,5 +1,27 @@
 # @pnpm/core
 
+## 1016.1.3
+
+### Patch Changes
+
+- Updated dependencies [a484cea]
+  - @pnpm/package-requester@1011.2.2
+  - @pnpm/link-bins@1000.3.5
+  - @pnpm/remove-bins@1000.0.21
+  - @pnpm/plugin-commands-rebuild@1008.0.4
+  - @pnpm/headless@1010.1.3
+  - @pnpm/worker@1000.6.3
+  - @pnpm/resolve-dependencies@1008.7.2
+  - @pnpm/build-modules@1007.0.4
+  - @pnpm/lifecycle@1001.0.34
+  - @pnpm/hoist@1002.0.14
+  - @pnpm/modules-cleaner@1001.0.33
+  - @pnpm/get-context@1001.2.3
+  - @pnpm/lockfile.verification@1001.2.19
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/symlink-dependency@1000.0.17
+  - @pnpm/lockfile.settings-checker@1001.0.26
+
 ## 1016.1.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/tarball-resolver
 
+## 1002.2.1
+
+### Patch Changes
+
+- Updated dependencies [a484cea]
+  - @pnpm/fetching-types@1000.2.1
+
 ## 1002.2.0
 
 ### Minor Changes

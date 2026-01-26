@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 1001.0.34
+
+### Patch Changes
+
+- @pnpm/link-bins@1000.3.5
+
 ## 1001.0.33
 
 ### Patch Changes

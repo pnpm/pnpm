@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-deploy
 
+## 1002.0.27
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.9.3
+- @pnpm/cli-utils@1001.3.1
+- @pnpm/config@1004.9.2
+- @pnpm/fs.indexed-pkg-importer@1000.1.23
+
 ## 1002.0.26
 
 ### Patch Changes

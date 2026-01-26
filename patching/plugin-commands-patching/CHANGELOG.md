@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.34
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.9.3
+- @pnpm/store-connection-manager@1002.3.12
+- @pnpm/cli-utils@1001.3.1
+- @pnpm/config@1004.9.2
+- @pnpm/crypto.hash@1000.2.1
+- @pnpm/patching.apply-patch@1000.0.7
+
 ## 1000.3.33
 
 ### Patch Changes

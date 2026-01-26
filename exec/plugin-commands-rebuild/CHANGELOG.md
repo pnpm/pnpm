@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1008.0.4
+
+### Patch Changes
+
+- Updated dependencies [b277b45]
+  - @pnpm/store.cafs@1000.1.3
+  - @pnpm/link-bins@1000.3.5
+  - @pnpm/worker@1000.6.3
+  - @pnpm/lifecycle@1001.0.34
+  - @pnpm/get-context@1001.2.3
+  - @pnpm/store-connection-manager@1002.3.12
+  - @pnpm/cli-utils@1001.3.1
+  - @pnpm/workspace.find-packages@1000.0.56
+  - @pnpm/config@1004.9.2
+
 ## 1008.0.3
 
 ### Patch Changes
