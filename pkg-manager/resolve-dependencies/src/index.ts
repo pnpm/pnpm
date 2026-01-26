@@ -285,7 +285,8 @@ export async function resolveDependencies (
     if (!project.updatePackageManifest) continue
     const resolvedImporter = resolvedImporters[project.id]
     for (let i = 0; i < resolvedImporter.directDependencies.length; i++) {
-      if (project.wantedDependencies[i]?.updateSpec == null) continue
+      const updateSpec = project.wantedDependencies[i]?.updateSpec ?? false
+      if (!updateSpec) continue
       const dep = resolvedImporter.directDependencies[i]
       if (dep.catalogLookup == null) continue
       updatedCatalogs ??= {}
