@@ -18,6 +18,10 @@ import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import symlinkDir from 'symlink-dir'
 import { makeEnv } from './makeEnv.js'
+import {
+  type CatalogResolver,
+  resolveFromCatalog,
+} from '@pnpm/catalogs.resolver'
 
 export const skipPackageManagerCheck = true
 
@@ -92,6 +96,7 @@ export async function handler (
       opts.trustPolicy === 'no-downgrade'
     ) && !opts.registrySupportsTimeField
   )
+  const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs ?? {})
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
@@ -103,8 +108,11 @@ export async function handler (
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
     const { alias, bareSpecifier } = parseWantedDependency(pkg) || {}
     if (alias == null) return pkg
+    const resolvedBareSpecifier = bareSpecifier != null
+      ? resolveCatalogProtocol(catalogResolver, alias, bareSpecifier)
+      : bareSpecifier
     resolvedPkgAliases.push(alias)
-    const resolved = await resolve({ alias, bareSpecifier }, {
+    const resolved = await resolve({ alias, bareSpecifier: resolvedBareSpecifier }, {
       lockfileDir: opts.lockfileDir ?? opts.dir,
       preferredVersions: {},
       projectDir: opts.dir,
@@ -299,4 +307,14 @@ function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | 
 function getPrepareDir (cachePath: string): string {
   const name = `${new Date().getTime().toString(16)}-${process.pid.toString(16)}`
   return path.join(cachePath, name)
+}
+
+function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string, bareSpecifier: string): string {
+  const result = catalogResolver({ alias, bareSpecifier })
+
+  switch (result.type) {
+  case 'found': return result.resolution.specifier
+  case 'unused': return bareSpecifier
+  case 'misconfiguration': throw result.error
+  }
 }

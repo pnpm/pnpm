@@ -2836,6 +2836,9 @@ importers:
 
   exec/plugin-commands-script-runners:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
