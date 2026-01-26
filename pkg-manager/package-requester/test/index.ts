@@ -1176,7 +1176,7 @@ test('HTTP tarball without integrity gets integrity computed during fetch', asyn
 })
 
 test('should pass optional flag to resolve function', async () => {
-  const storeDir = temporaryDirectory()
+  const storeDir = tempy.directory()
   const cafs = createCafsStore(storeDir)
 
   let capturedOptional: boolean | undefined
@@ -1195,7 +1195,7 @@ test('should pass optional flag to resolve function', async () => {
     virtualStoreDirMaxLength: 120,
   })
 
-  const projectDir = temporaryDirectory()
+  const projectDir = tempy.directory()
 
   await requestPackage(
     { alias: 'is-positive', bareSpecifier: '1.0.0', optional: true },
