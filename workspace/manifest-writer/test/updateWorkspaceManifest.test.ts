@@ -98,3 +98,58 @@ test('updateWorkspaceManifest updates allowBuilds', async () => {
     },
   })
 })
+
+test('updateWorkspaceManifest adds a new catalog', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+
+  fs.writeFileSync(filePath, 'packages:\n  - \'*\'\n')
+
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      default: {
+        foo: '1.0.0',
+      },
+    },
+  })
+
+  expect(readYamlFile(filePath)).toStrictEqual({
+    packages: ['*'],
+    catalog: { foo: '1.0.0' },
+  })
+})
+
+test('updateWorkspaceManifest preserves quotes', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+
+  const manifest = `\
+catalog:
+  "bar": "2.0.0"
+  'foo': '1.0.0'
+  qar: 3.0.0
+`
+
+  const expected = `\
+catalog:
+  "bar": "2.0.0"
+  'foo': '1.0.0'
+  qar: 3.0.0
+  zoo: 4.0.0
+`
+
+  fs.writeFileSync(filePath, manifest)
+
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      default: {
+        foo: '1.0.0',
+        bar: '2.0.0',
+        qar: '3.0.0',
+        zoo: '4.0.0',
+      },
+    },
+  })
+
+  expect(fs.readFileSync(filePath).toString()).toStrictEqual(expected)
+})

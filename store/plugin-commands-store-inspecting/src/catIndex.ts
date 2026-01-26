@@ -4,12 +4,12 @@ import { createResolver } from '@pnpm/client'
 import { type TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { sortDeepKeys } from '@pnpm/object.key-sorting'
 import { getStorePath } from '@pnpm/store-path'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { loadJsonFile } from 'load-json-file'
 
 import renderHelp from 'render-help'
 
@@ -88,7 +88,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     `${alias}@${bareSpecifier}`
   )
   try {
-    const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+    const pkgFilesIndex = await readMsgpackFile<PackageFilesIndex>(filesIndexFile)
     return JSON.stringify(sortDeepKeys(pkgFilesIndex), replacer, 2)
   } catch {
     throw new PnpmError(

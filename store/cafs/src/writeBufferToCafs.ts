@@ -3,8 +3,7 @@ import path from 'path'
 import workerThreads from 'worker_threads'
 import util from 'util'
 import renameOverwrite from 'rename-overwrite'
-import type ssri from 'ssri'
-import { verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
+import { type Integrity, verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
 import { writeFile } from './writeFile.js'
 
 export function writeBufferToCafs (
@@ -13,7 +12,7 @@ export function writeBufferToCafs (
   buffer: Buffer,
   fileDest: string,
   mode: number | undefined,
-  integrity: ssri.IntegrityLike
+  integrity: Integrity
 ): { checkedAt: number, filePath: string } {
   fileDest = path.join(storeDir, fileDest)
   if (locker.has(fileDest)) {
@@ -103,11 +102,8 @@ function removeSuffix (filePath: string): string {
   return withoutSuffix
 }
 
-function existsSame (filename: string, integrity: ssri.IntegrityLike): boolean {
+function existsSame (filename: string, integrity: Integrity): boolean {
   const existingFile = fs.statSync(filename, { throwIfNoEntry: false })
   if (!existingFile) return false
-  return verifyFileIntegrity(filename, {
-    size: existingFile.size,
-    integrity,
-  }).passed
+  return verifyFileIntegrity(filename, integrity).passed
 }

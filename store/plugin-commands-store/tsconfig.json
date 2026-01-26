@@ -25,7 +25,13 @@
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../crypto/integrity"
+    },
+    {
       "path": "../../exec/plugin-commands-script-runners"
+    },
+    {
+      "path": "../../fs/msgpack-file"
     },
     {
       "path": "../../lockfile/fs"

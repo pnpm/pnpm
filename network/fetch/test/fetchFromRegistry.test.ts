@@ -20,8 +20,8 @@ test('fetchFromRegistry', async () => {
 })
 
 test('fetchFromRegistry fullMetadata', async () => {
-  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
-  const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive')
+  const fetchFromRegistry = createFetchFromRegistry({})
+  const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive', { fullMetadata: true })
   const metadata = await res.json() as any // eslint-disable-line
   expect(metadata.name).toBe('is-positive')
   expect(metadata.versions['1.0.0'].scripts).toBeTruthy()
@@ -37,7 +37,7 @@ test('authorization headers are removed before redirection if the target is on a
     .get('/is-positive')
     .reply(200, { ok: true })
 
-  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry(
     'http://registry.pnpm.io/is-positive',
     { authHeaderValue: 'Bearer 123' }
@@ -59,7 +59,7 @@ test('authorization headers are not removed before redirection if the target is 
     .get('/is-positive-new')
     .reply(200, { ok: true })
 
-  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry(
     'http://registry.pnpm.io/is-positive',
     { authHeaderValue: 'Bearer 123' }
@@ -70,7 +70,7 @@ test('authorization headers are not removed before redirection if the target is 
 })
 
 test('switch to the correct agent for requests on redirect from http: to https:', async () => {
-  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const fetchFromRegistry = createFetchFromRegistry({})
 
   // We can test this on any endpoint that redirects from http: to https:
   const { status } = await fetchFromRegistry('http://pnpm.io/pnpm.js')
@@ -151,7 +151,7 @@ test('redirect to protocol-relative URL', async () => {
     .get('/foo')
     .reply(200, { ok: true })
 
-  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry(
     'http://registry.pnpm.io/foo'
   )
@@ -168,7 +168,7 @@ test('redirect to relative URL', async () => {
     .get('/foo')
     .reply(200, { ok: true })
 
-  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry(
     'http://registry.pnpm.io/bar/baz'
   )
@@ -190,7 +190,7 @@ test('redirect to relative URL when request pkg.pr.new link', async () => {
     .get('/vuejs/core/vue@82a13bb6faaa9f77a06b57e69e0934b9f620f333')
     .reply(200, { ok: true })
 
-  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry(
     'https://pkg.pr.new/vue@14175'
   )
@@ -204,7 +204,7 @@ test('redirect without location header throws error', async () => {
     .get('/missing-location')
     .reply(302, 'found')
 
-  const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+  const fetchFromRegistry = createFetchFromRegistry({})
   await expect(fetchFromRegistry(
     'http://registry.pnpm.io/missing-location'
   )).rejects.toThrow(/Redirect location header missing/)

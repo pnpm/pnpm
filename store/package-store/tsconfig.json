@@ -19,6 +19,9 @@
       "path": "../../fetching/fetcher-base"
     },
     {
+      "path": "../../fs/msgpack-file"
+    },
+    {
       "path": "../../hooks/types"
     },
     {

@@ -25,7 +25,7 @@ import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
 import { isConfigFileKey } from './configFileKey.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
-import { getNetworkConfigs } from './getNetworkConfigs.js'
+import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
 import { transformPathKeys } from './transformPath.js'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import {
@@ -323,7 +323,9 @@ export async function getConfig (opts: {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
     ...networkConfigs.registries,
   }
+  pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
+  Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.rawConfig))
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
     if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock

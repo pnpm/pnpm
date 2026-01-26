@@ -43,6 +43,7 @@
     "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pkg-requires-build": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
