@@ -74,7 +74,7 @@
     "v8-compile-cache": "2.4.0"
   },
   "optionalDependencies": {
-    "node-gyp": "^11.1.0"
+    "node-gyp": "^11.5.0"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
