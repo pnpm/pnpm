@@ -7,7 +7,6 @@ import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { sortPackages } from '@pnpm/sort-packages'
 import { type Project, type ProjectsGraph, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
 import execa from 'execa'
@@ -41,7 +40,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     ...pick([
       'bail',
       'sort',
-      'use-node-version',
       'unsafe-perm',
       'workspace-concurrency',
       'reporter-hide-prefix',
@@ -148,6 +146,7 @@ export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
   implicitlyFellbackFromRun?: boolean
 } & Pick<Config,
 | 'bin'
+| 'cliOptions'
 | 'dir'
 | 'extraBinPaths'
 | 'extraEnv'
@@ -189,7 +188,7 @@ export async function handler (
       chunks = chunks.reverse()
     }
   } else {
-    chunks = [[opts.dir as ProjectRootDir]]
+    chunks = [[(opts.cliOptions.dir ?? process.cwd()) as ProjectRootDir]]
     const project = await tryReadProjectManifest(opts.dir)
     if (project.manifest != null) {
       opts.selectedProjectsGraph = {
@@ -222,23 +221,15 @@ export async function handler (
   const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
 
   let exitCode = 0
-  const mapPrefixToPrependPaths: Record<ProjectRootDir, string[]> = {}
-  await Promise.all(chunks.flat().map(async prefix => {
-    const executionEnv = await prepareExecutionEnv(opts, {
-      extraBinPaths: opts.extraBinPaths,
-      executionEnv: opts.selectedProjectsGraph[prefix]?.package.manifest.pnpm?.executionEnv,
-    })
-    mapPrefixToPrependPaths[prefix] = [
-      './node_modules/.bin',
-      ...executionEnv.extraBinPaths,
-    ]
-  }))
+  const prependPaths = [
+    './node_modules/.bin',
+    ...(opts.extraBinPaths ?? []),
+  ]
   const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(chunk.map(async (prefix) =>
       limitRun(async () => {
-        const prependPaths = mapPrefixToPrependPaths[prefix]
         result[prefix].status = 'running'
         const startTime = process.hrtime()
         try {
@@ -333,10 +324,12 @@ export async function handler (
             err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
           }
           err['prefix'] = prefix
-          opts.reportSummary && await writeRecursiveSummary({
-            dir: opts.lockfileDir ?? opts.dir,
-            summary: result,
-          })
+          if (opts.reportSummary) {
+            await writeRecursiveSummary({
+              dir: opts.lockfileDir ?? opts.dir,
+              summary: result,
+            })
+          }
 
           throw err
         }
@@ -344,10 +337,12 @@ export async function handler (
       )))
   }
 
-  opts.reportSummary && await writeRecursiveSummary({
-    dir: opts.lockfileDir ?? opts.dir,
-    summary: result,
-  })
+  if (opts.reportSummary) {
+    await writeRecursiveSummary({
+      dir: opts.lockfileDir ?? opts.dir,
+      summary: result,
+    })
+  }
   throwOnCommandFail('pnpm recursive exec', result)
   return { exitCode }
 }

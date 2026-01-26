@@ -46,6 +46,9 @@
       "path": "../../fs/packlist"
     },
     {
+      "path": "../../hooks/pnpmfile"
+    },
+    {
       "path": "../../network/auth-header"
     },
     {

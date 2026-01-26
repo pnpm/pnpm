@@ -26,6 +26,9 @@
       "path": "../packages/types"
     },
     {
+      "path": "../workspace/find-packages"
+    },
+    {
       "path": "../workspace/read-manifest"
     }
   ]

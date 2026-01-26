@@ -13,6 +13,12 @@
       "path": "../../exec/prepare-package"
     },
     {
+      "path": "../../fs/packlist"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../../packages/logger"
     },
     {

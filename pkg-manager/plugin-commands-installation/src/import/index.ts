@@ -5,7 +5,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
-  createOrConnectStoreController,
+  createStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import gfs from '@pnpm/graceful-fs'
@@ -63,14 +63,16 @@ interface YarnPackageLock {
   [name: string]: YarnLockPackage
 }
 
-enum YarnLockType {
-  yarn = 'yarn',
-  yarn2 = 'yarn2'
-}
+const YarnLockType = {
+  yarn: 'yarn',
+  yarn2: 'yarn2',
+} as const
+
+type YarnLockType = (typeof YarnLockType)[keyof typeof YarnLockType]
 
 // copy from yarn v1
 interface YarnLock2Struct {
-  type: YarnLockType.yarn2
+  type: typeof YarnLockType.yarn2
   object: YarnPackageLock
 }
 
@@ -172,7 +174,7 @@ export async function handler (
     return
   }
 
-  const store = await createOrConnectStoreController(opts)
+  const store = await createStoreController(opts)
   const manifest = await readProjectManifestOnly(opts.dir)
   const manifestOpts = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}
   const installOpts = {

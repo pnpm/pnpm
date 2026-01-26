@@ -1,4 +1,3 @@
-/* eslint-disable import/first */
 export type Global = typeof globalThis & {
   pnpm__startedAt?: number
   [REPORTER_INITIALIZED]?: ReporterType // eslint-disable-line @typescript-eslint/no-use-before-define
@@ -16,7 +15,6 @@ import { PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
 import path from 'path'
@@ -120,7 +118,11 @@ export async function main (inputArgv: string[]): Promise<void> {
       if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm' && cmd !== 'self-update') {
         await switchCliVersion(config)
       } else if (!cmd || !skipPackageManagerCheckForCommand.has(cmd)) {
-        checkPackageManager(config.wantedPackageManager, config)
+        if (cliOptions.global) {
+          globalWarn('Using --global skips the package manager check for this project')
+        } else {
+          checkPackageManager(config.wantedPackageManager, config)
+        }
       }
     }
     if (isDlxOrCreateCommand) {
@@ -180,10 +182,6 @@ export async function main (inputArgv: string[]): Promise<void> {
     global[REPORTER_INITIALIZED] = reporterType
   }
 
-  if (cmd === 'self-update') {
-    await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
-  }
-
   if (
     (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds') &&
     typeof workspaceDir === 'string'
@@ -209,13 +207,13 @@ export async function main (inputArgv: string[]): Promise<void> {
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
-    } else if (workspaceDir && !config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
+    } else if (filters.length === 0 && workspaceDir && !config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
     }
 
     const filterResults = await filterPackagesFromDir(wsDir, filters, {
       engineStrict: config.engineStrict,
-      nodeVersion: config.nodeVersion ?? config.useNodeVersion,
+      nodeVersion: config.nodeVersion,
       patterns: config.workspacePackagePatterns,
       linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),
@@ -291,22 +289,6 @@ export async function main (inputArgv: string[]): Promise<void> {
       ),
       ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
     })
-
-    if (config.useNodeVersion != null) {
-      if ('webcontainer' in process.versions) {
-        globalWarn('Automatic installation of different Node.js versions is not supported in WebContainer')
-      } else {
-        config.extraBinPaths = (
-          await prepareExecutionEnv(config, {
-            extraBinPaths: config.extraBinPaths,
-            executionEnv: {
-              nodeVersion: config.useNodeVersion,
-            },
-          })
-        ).extraBinPaths
-        config.nodeVersion = config.useNodeVersion
-      }
-    }
     let result = pnpmCmds[cmd ?? 'help'](
       // TypeScript doesn't currently infer that the type of config
       // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement

@@ -34,9 +34,9 @@ import {
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
-  extendProjectsWithTargetDirs,
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
+import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
 import {
   type LogBase,
   logger,
@@ -86,6 +86,7 @@ import {
 } from '@pnpm/deps.graph-builder'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
+export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
 
 export type { HoistingLimits }
 
@@ -103,10 +104,7 @@ export interface Project {
 
 export interface HeadlessOptions {
   ignorePatchFailures?: boolean
-  neverBuiltDependencies?: string[]
-  ignoredBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
+  allowBuilds?: Record<string, boolean | string>
   autoInstallPeers?: boolean
   childConcurrency?: number
   currentLockfile?: LockfileObject
@@ -339,7 +337,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     graph,
     hierarchy,
     hoistedLocations,
-    pkgLocationsByDepPath,
+    injectionTargetsByDepPath,
     prevGraph,
     symlinkedDirectDependenciesByImporterId,
   } = await (
@@ -538,7 +536,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       allowBuild,
-      ignoredBuiltDependencies: opts.ignoredBuiltDependencies,
       ignorePatchFailures: opts.ignorePatchFailures,
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
@@ -569,11 +566,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
-  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
-    pkgLocationsByDepPath,
-    virtualStoreDir,
-    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-  })
+  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath)
 
   if (opts.enableModulesDir !== false) {
     const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
@@ -794,7 +787,8 @@ async function getRootPackagesToLink (
         if (ref.startsWith('link:')) {
           const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
           const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
-          const packageDir = path.join(opts.projectDir, ref.slice(5))
+          ref = ref.slice(5)
+          const packageDir = path.isAbsolute(ref) ? ref : path.join(opts.projectDir, ref)
           const linkedPackage = await (async () => {
             const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
             if (opts.importerManifestsByImporterId[importerId]) {
@@ -877,7 +871,7 @@ async function linkAllPkgs (
 
       depNode.requiresBuild = filesResponse.requiresBuild
       let sideEffectsCacheKey: string | undefined
-      if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+      if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
         if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built

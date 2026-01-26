@@ -25,12 +25,13 @@ import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
 import { isConfigFileKey } from './configFileKey.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
-import { getNetworkConfigs } from './getNetworkConfigs.js'
+import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
 import { transformPathKeys } from './transformPath.js'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import {
   type Config,
   type ConfigWithDeprecatedSettings,
+  type ProjectConfig,
   type UniversalOptions,
   type VerifyDepsBeforeRun,
   type WantedPackageManager,
@@ -48,10 +49,22 @@ import {
 export { types }
 
 export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
-export * from './readLocalConfig.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 
-export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
+export {
+  ProjectConfigInvalidValueTypeError,
+  ProjectConfigIsNotAnObjectError,
+  ProjectConfigUnsupportedFieldError,
+  ProjectConfigsArrayItemIsNotAnObjectError,
+  ProjectConfigsArrayItemMatchIsNotAnArrayError,
+  ProjectConfigsArrayItemMatchIsNotDefinedError,
+  ProjectConfigsIsNeitherObjectNorArrayError,
+  ProjectConfigsMatchItemIsNotAStringError,
+  type CreateProjectConfigRecordOptions,
+  createProjectConfigRecord,
+} from './projectConfig.js'
+
+export type { Config, ProjectConfig, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
 
 export { isIniConfigKey } from './auth.js'
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
@@ -190,14 +203,14 @@ export async function getConfig (opts: {
     'public-hoist-pattern': [],
     'recursive-install': true,
     registry: npmDefaults.registry,
-    'block-exotic-subdeps': false,
+    'block-exotic-subdeps': true,
     'resolution-mode': 'highest',
     'resolve-peers-from-workspace-root': true,
     'save-peer': false,
     'save-catalog-name': undefined,
     'save-workspace-protocol': 'rolling',
     'scripts-prepend-node-path': false,
-    'strict-dep-builds': false,
+    'strict-dep-builds': true,
     'side-effects-cache': true,
     symlink: true,
     'shared-workspace-lockfile': true,
@@ -304,7 +317,9 @@ export async function getConfig (opts: {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
     ...networkConfigs.registries,
   }
+  pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
+  Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.rawConfig))
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
     if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
@@ -399,6 +414,17 @@ export async function getConfig (opts: {
           workspaceManifest,
         })
       }
+    } else if (cliOptions['global']) {
+      // For global installs, read settings from pnpm-workspace.yaml in the global package directory
+      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.globalPkgDir)
+      if (workspaceManifest) {
+        addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+          configFromCliOpts,
+          projectManifest: pnpmConfig.rootProjectManifest,
+          workspaceDir: pnpmConfig.globalPkgDir,
+          workspaceManifest,
+        })
+      }
     }
   }
 
@@ -431,7 +457,7 @@ export async function getConfig (opts: {
     // TODO: should we throw some error or print some warning here?
     if (value === undefined) continue
 
-    if (key in cliOptions || kebabCase(key) in cliOptions) continue
+    if (Object.hasOwn(cliOptions, key) || Object.hasOwn(cliOptions, kebabCase(key))) continue
 
     // @ts-expect-error
     pnpmConfig[key] = value
@@ -446,13 +472,8 @@ export async function getConfig (opts: {
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
 
-  if (opts.cliOptions['global']) {
-    extractAndRemoveDependencyBuildOptions(pnpmConfig)
+  if (!hasDependencyBuildOptions(pnpmConfig)) {
     Object.assign(pnpmConfig, globalDepsBuildConfig)
-  } else {
-    if (!hasDependencyBuildOptions(pnpmConfig)) {
-      Object.assign(pnpmConfig, globalDepsBuildConfig)
-    }
   }
   if (opts.cliOptions['save-peer']) {
     if (opts.cliOptions['save-prod']) {
@@ -503,7 +524,6 @@ export async function getConfig (opts: {
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
   }
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
   if (pnpmConfig.hoist === false) {
     delete pnpmConfig.hoistPattern
   }
@@ -608,12 +628,6 @@ export async function getConfig (opts: {
     pnpmConfig.dev = true
   }
 
-  if (pnpmConfig.dangerouslyAllowAllBuilds) {
-    if (pnpmConfig.neverBuiltDependencies && pnpmConfig.neverBuiltDependencies.length > 0) {
-      warnings.push('You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.')
-    }
-    pnpmConfig.neverBuiltDependencies = []
-  }
   if (pnpmConfig.ci) {
     // Using a global virtual store in CI makes little sense,
     // as there is never a warm cache in that environment.

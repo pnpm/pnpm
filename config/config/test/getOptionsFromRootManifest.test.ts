@@ -85,18 +85,18 @@ test('getOptionsFromRootManifest() throws an error if cannot resolve an override
   })).toThrow('Cannot resolve version $foo in overrides. The direct dependencies don\'t have dependency "foo".')
 })
 
-test('getOptionsFromRootManifest() should return onlyBuiltDependencies as undefined by default', () => {
+test('getOptionsFromRootManifest() should return allowBuilds as undefined by default', () => {
   const options = getOptionsFromRootManifest(process.cwd(), {})
-  expect(options.onlyBuiltDependencies).toBeUndefined()
+  expect(options.allowBuilds).toBeUndefined()
 })
 
-test('getOptionsFromRootManifest() should return the list from onlyBuiltDependencies', () => {
+test('getOptionsFromRootManifest() should return allowBuilds', () => {
   const options = getOptionsFromRootManifest(process.cwd(), {
     pnpm: {
-      onlyBuiltDependencies: ['electron'],
+      allowBuilds: { electron: true },
     },
   })
-  expect(options.onlyBuiltDependencies).toStrictEqual(['electron'])
+  expect(options.allowBuilds).toStrictEqual({ electron: true })
 })
 
 test('getOptionsFromRootManifest() should derive allowUnusedPatches from allowNonAppliedPatches (legacy behavior)', () => {
@@ -170,7 +170,7 @@ test('getOptionsFromPnpmSettings() replaces env variables in settings', () => {
   process.env.PNPM_TEST_KEY = 'foo'
   process.env.PNPM_TEST_VALUE = 'bar'
   const options = getOptionsFromPnpmSettings(process.cwd(), {
-    '${PNPM_TEST_KEY}': '${PNPM_TEST_VALUE}', // eslint-disable-line
+    '${PNPM_TEST_KEY}': '${PNPM_TEST_VALUE}',
   } as any) as any // eslint-disable-line
   expect(options.foo).toBe('bar')
 })
@@ -186,7 +186,10 @@ test('getOptionsFromRootManifest() converts allowBuilds', () => {
     },
   })
   expect(options).toStrictEqual({
-    onlyBuiltDependencies: ['foo'],
-    ignoredBuiltDependencies: ['bar'],
+    allowBuilds: {
+      foo: true,
+      bar: false,
+      qar: 'warn',
+    },
   })
 })

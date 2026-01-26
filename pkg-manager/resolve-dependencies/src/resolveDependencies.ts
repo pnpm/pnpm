@@ -53,6 +53,7 @@ import pDefer from 'p-defer'
 import pShare from 'promise-share'
 import { pickBy, omit, zipWith } from 'ramda'
 import semver from 'semver'
+import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies.js'
 import { safeIntersect } from './mergePeers.js'
 import { type NodeId, nextNodeId } from './nextNodeId.js'
@@ -100,8 +101,8 @@ export type DependenciesTree<T> = Map<
 // a node ID is the join of the package's keypath with a colon
 // E.g., a subdeps node ID which parent is `foo` will be
 // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
-NodeId,
-DependenciesTreeNode<T>
+  NodeId,
+  DependenciesTreeNode<T>
 >
 
 export type ResolvedPkgsById = Record<PkgResolutionId, ResolvedPackage>
@@ -185,6 +186,7 @@ export interface ResolutionContext {
   publishedByExclude?: PackageVersionPolicy
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
 }
 
@@ -1305,13 +1307,18 @@ async function resolveDependency (
       optional: true,
     }
   }
+
+  // Normalize the `preferredVersion` (singular) and `preferredVersions`
+  // (plural) options. If the singular option is passed through, it'll be used
+  // instead of the plural option.
+  const preferredVersions = !options.updateRequested && options.preferredVersion != null
+    ? getExactSinglePreferredVersions(wantedDependency, options.preferredVersion)
+    : options.preferredVersions
+
   try {
     const calcSpecifier = options.currentDepth === 0
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version)
-    }
-    if (!options.updateRequested && options.preferredVersion != null) {
-      wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       allowBuild: ctx.allowBuild,
@@ -1332,7 +1339,7 @@ async function resolveDependency (
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
-      preferredVersions: options.preferredVersions,
+      preferredVersions,
       preferWorkspacePackages: ctx.preferWorkspacePackages,
       projectDir: (
         options.currentDepth > 0 &&
@@ -1343,6 +1350,7 @@ async function resolveDependency (
       skipFetch: ctx.dryRun,
       trustPolicy: ctx.trustPolicy,
       trustPolicyExclude: ctx.trustPolicyExclude,
+      trustPolicyIgnoreAfter: ctx.trustPolicyIgnoreAfter,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
@@ -1390,7 +1398,8 @@ async function resolveDependency (
   if (
     ctx.blockExoticSubdeps &&
     options.currentDepth > 0 &&
-    !isNonExoticDep(pkgResponse.body.resolvedVia)
+    pkgResponse.body.resolvedVia != null && // This is already coming from the lockfile, we skip the check in this case for now. Should be fixed later.
+    isExoticDep(pkgResponse.body.resolvedVia)
   ) {
     const error = new PnpmError(
       'EXOTIC_SUBDEP',
@@ -1807,6 +1816,6 @@ const NON_EXOTIC_RESOLVED_VIA = new Set([
   'workspace',
 ])
 
-function isNonExoticDep (resolvedVia: string | undefined): boolean {
-  return resolvedVia != null && NON_EXOTIC_RESOLVED_VIA.has(resolvedVia)
+function isExoticDep (resolvedVia: string): boolean {
+  return !NON_EXOTIC_RESOLVED_VIA.has(resolvedVia)
 }

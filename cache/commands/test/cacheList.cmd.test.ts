@@ -44,9 +44,9 @@ describe('cache', () => {
       pnpmHomeDir: storeDir,
     }, ['list'])
 
-    expect(result).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-negative.v8
-registry.npmjs.org/is-negative.v8
-registry.npmjs.org/is-positive.v8`)
+    expect(result).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-negative.mpk
+registry.npmjs.org/is-negative.mpk
+registry.npmjs.org/is-positive.mpk`)
   })
   test('list all metadata from the cache related to the specified registry', async () => {
     const result = await cache.handler({
@@ -57,8 +57,8 @@ registry.npmjs.org/is-positive.v8`)
       pnpmHomeDir: storeDir,
     }, ['list'])
 
-    expect(result).toBe(`registry.npmjs.org/is-negative.v8
-registry.npmjs.org/is-positive.v8`)
+    expect(result).toBe(`registry.npmjs.org/is-negative.mpk
+registry.npmjs.org/is-positive.mpk`)
   })
   test('list all metadata from the cache that matches a pattern', async () => {
     const result = await cache.handler({
@@ -67,7 +67,7 @@ registry.npmjs.org/is-positive.v8`)
       pnpmHomeDir: storeDir,
     }, ['list', '*-positive'])
 
-    expect(result).toBe('registry.npmjs.org/is-positive.v8')
+    expect(result).toBe('registry.npmjs.org/is-positive.mpk')
   })
   test('list registries', async () => {
     const result = await cache.handler({

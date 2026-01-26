@@ -3,7 +3,7 @@ import path from 'path'
 import { getLockfileImporterId, type ProjectSnapshot } from '@pnpm/lockfile.fs'
 import { type TreeNodeId } from './TreeNodeId.js'
 
-export interface getTreeNodeChildIdOpts {
+export interface GetTreeNodeChildIdOpts {
   readonly parentId: TreeNodeId
   readonly dep: {
     readonly alias: string
@@ -13,7 +13,7 @@ export interface getTreeNodeChildIdOpts {
   readonly importers: Record<string, ProjectSnapshot>
 }
 
-export function getTreeNodeChildId (opts: getTreeNodeChildIdOpts): TreeNodeId | undefined {
+export function getTreeNodeChildId (opts: GetTreeNodeChildIdOpts): TreeNodeId | undefined {
   const depPath = refToRelative(opts.dep.ref, opts.dep.alias)
   if (depPath !== null) {
     return { type: 'package', depPath }

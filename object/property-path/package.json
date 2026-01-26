@@ -28,8 +28,8 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "compile": "tsc --build && pnpm run lint --fix",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*"

@@ -146,7 +146,7 @@ interface CustomResolver {
   resolve?: (wantedDependency: WantedDependency, opts: ResolveOptions) => ResolveResult | Promise<ResolveResult>
 
   // Force resolution check
-  shouldForceResolve?: (wantedDependency: WantedDependency) => boolean | Promise<boolean>
+  shouldForceResolve?: (depPath: string, pkgSnapshot: PackageSnapshot) => boolean | Promise<boolean>
 }
 ```
 
@@ -164,7 +164,7 @@ interface CustomFetcher {
 
 * `canResolve(wantedDependency)` - Returns `true` if this resolver can resolve the given package descriptor
 * `resolve(wantedDependency, opts)` - Resolves a package descriptor to a resolution. Should return an object with `id` and `resolution`
-* `shouldForceResolve(wantedDependency)` - Return `true` to trigger full resolution of all packages (skipping the "Lockfile is up to date" optimization)
+* `shouldForceResolve(depPath, pkgSnapshot)` - Return `true` to trigger full resolution of all packages (skipping the "Lockfile is up to date" optimization). The `depPath` is the package identifier (e.g., `lodash@4.17.21`) and `pkgSnapshot` provides direct access to the lockfile entry (resolution, dependencies, etc.).
 
 **Custom Fetcher Methods:**
 
@@ -194,8 +194,12 @@ const customResolver = {
     }
   },
 
-  shouldForceResolve: (wantedDependency) => {
-    // You can implement custom logic to determine if re-resolution is needed
+  shouldForceResolve: (depPath, pkgSnapshot) => {
+    // Check custom metadata stored in the resolution
+    const cachedAt = pkgSnapshot.resolution?.cachedAt
+    if (cachedAt && Date.now() - cachedAt > 24 * 60 * 60 * 1000) {
+      return true // Re-resolve if cached more than 24 hours ago
+    }
     return false
   },
 }

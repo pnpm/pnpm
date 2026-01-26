@@ -1,10 +1,13 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`ignoredBuilds lists automatically ignored dependencies 1`] = `
 "Automatically ignored builds during installation:
   foo
-hint: To allow the execution of build scripts for a package, add its name to "pnpm.onlyBuiltDependencies" in your "package.json", then run "pnpm rebuild".
-hint: If you don't want to build a package, add it to the "pnpm.ignoredBuiltDependencies" list.
+hint: To allow the execution of build scripts for a package, add its name to "allowBuilds" and set to "true", then run "pnpm rebuild".
+hint: For example:
+hint: allowBuilds:
+hint:   esbuild: true
+hint: If you don't want to build a package, set it to "false" instead.
 "
 `;
 
@@ -12,10 +15,13 @@ exports[`ignoredBuilds lists both automatically and explicitly ignored dependenc
 "Automatically ignored builds during installation:
   foo
   bar
-hint: To allow the execution of build scripts for a package, add its name to "pnpm.onlyBuiltDependencies" in your "package.json", then run "pnpm rebuild".
-hint: If you don't want to build a package, add it to the "pnpm.ignoredBuiltDependencies" list.
+hint: To allow the execution of build scripts for a package, add its name to "allowBuilds" and set to "true", then run "pnpm rebuild".
+hint: For example:
+hint: allowBuilds:
+hint:   esbuild: true
+hint: If you don't want to build a package, set it to "false" instead.
 
-Explicitly ignored package builds (via pnpm.ignoredBuiltDependencies):
+Explicitly ignored package builds (via allowBuilds):
   qar
   zoo
 "
@@ -25,7 +31,7 @@ exports[`ignoredBuilds lists explicitly ignored dependencies 1`] = `
 "Automatically ignored builds during installation:
   None
 
-Explicitly ignored package builds (via pnpm.ignoredBuiltDependencies):
+Explicitly ignored package builds (via allowBuilds):
   bar
 "
 `;
@@ -34,7 +40,7 @@ exports[`ignoredBuilds prints an info message when there is no node_modules 1`] 
 "Automatically ignored builds during installation:
   Cannot identify as no node_modules found
 
-Explicitly ignored package builds (via pnpm.ignoredBuiltDependencies):
+Explicitly ignored package builds (via allowBuilds):
   qar
   zoo
 "

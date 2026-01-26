@@ -2,7 +2,7 @@ import path from 'path'
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
-import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv, type PackageScripts } from '@pnpm/types'
+import { type DependencyManifest, type ProjectManifest, type PackageScripts } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'fs'
 import isWindows from 'is-windows'
@@ -26,7 +26,6 @@ export interface RunLifecycleHookOptions {
   shellEmulator?: boolean
   stdio?: string
   unsafePerm: boolean
-  prepareExecutionEnv?: PrepareExecutionEnv
 }
 
 export async function runLifecycleHook (
@@ -109,17 +108,13 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'
     : undefined
-  const extraBinPaths = (await opts.prepareExecutionEnv?.({
-    extraBinPaths: opts.extraBinPaths,
-    executionEnv: (manifest as ProjectManifest).pnpm?.executionEnv,
-  }))?.extraBinPaths ?? opts.extraBinPaths
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,
       'frozen-lockfile': false,
     },
     dir: opts.rootModulesDir,
-    extraBinPaths,
+    extraBinPaths: opts.extraBinPaths,
     extraEnv: {
       ...opts.extraEnv,
       INIT_CWD: opts.initCwd ?? process.cwd(),
@@ -147,13 +142,13 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   })
   return true
 
-  function npmLog (prefix: string, logId: string, stdtype: string, line: string): void {
+  function npmLog (prefix: string, logId: string, stdtype: string, line?: number): void {
     switch (stdtype) {
     case 'stdout':
     case 'stderr':
       lifecycleLogger.debug({
         depPath: opts.depPath,
-        line: line.toString(),
+        line: (line ?? 0).toString(),
         stage,
         stdio: stdtype,
         wd: opts.pkgRoot,
@@ -164,7 +159,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
         // Preventing the pnpm reporter from overriding the project's script output
         return
       }
-      const code = arguments[3] ?? 1
+      const code = line ?? 1
       lifecycleLogger.debug({
         depPath: opts.depPath,
         exitCode: code,

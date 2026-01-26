@@ -6,23 +6,25 @@
     "changeset": "changeset",
     "preinstall": "npx only-allow pnpm",
     "prepare": "husky",
-    "pretest": "pnpm run compile-only && pnpm --dir=__fixtures__ run prepareFixtures",
+    "pretest": "pnpm run compile-only && pnpm run prepare-fixtures",
+    "prepare-fixtures": "pnpm --dir=__fixtures__ run prepareFixtures",
     "lint": "pnpm run spellcheck && pnpm lint:meta && pnpm run lint:ts",
     "spellcheck": "cspell \"**/*.ts\" \"**/README.md\" \".changeset/*.md\" --no-progress",
-    "lint:ts": "eslint \"**/src/**/*.ts\" \"**/test/**/*.ts\"",
+    "lint:ts": "eslint \"**/src/**/*.ts\" \"**/test/**/*.ts\" --cache",
     "test-main": "pnpm pretest && pnpm lint && pnpm run test-pkgs-main",
+    "ci:test-main": "pnpm run prepare-fixtures && pnpm run test-pkgs-main",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
     "test-pkgs-main": "pnpm remove-temp-dir && pnpm run --no-sort --workspace-concurrency=1 -r _test",
     "test-branch": "pnpm pretest && pnpm lint && git remote set-branches --add origin main && git fetch origin main && pnpm run test-pkgs-branch",
+    "ci:test-branch": "pnpm run prepare-fixtures && git remote set-branches --add origin main && git fetch origin main && pnpm run test-pkgs-branch",
     "test-pkgs-branch": "pnpm remove-temp-dir && pnpm --workspace-concurrency=1 --filter=...[origin/main] run --no-sort _test",
-    "compile-only": "pnpm --config.useNodeVersion=24.6.0 exec ts-node __utils__/scripts/src/typecheck-only.ts && pnpm -F pnpm compile",
+    "compile-only": "pnpm dlx node@runtime:24.6.0 __utils__/scripts/src/typecheck-only.ts && pnpm -F pnpm compile",
     "compile": "pnpm compile-only && pnpm run update-manifests",
-    "watch": "pnpm --filter=@pnpm/fetch run compile && pnpm --filter=pnpm run compile --watch",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "pnpm run meta-updater && pnpm install",
     "meta-updater": "pnpm --filter=@pnpm-private/updater compile && pnpm exec meta-updater",
     "lint:meta": "pnpm run meta-updater --test",
-    "copy-artifacts": "ts-node __utils__/scripts/src/copy-artifacts.ts",
+    "copy-artifacts": "node __utils__/scripts/src/copy-artifacts.ts",
     "make-release-description": "pnpm --filter=@pnpm/get-release-text run write-release-text",
     "release": "pnpm --filter=@pnpm/exe publish --tag=next-11 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=next-11 --access=public",
     "dev-setup": "pnpm -C=./pnpm/dev link -g"
@@ -42,6 +44,7 @@
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "catalog:",
     "@types/node": "catalog:",
+    "@typescript/native-preview": "catalog:",
     "c8": "catalog:",
     "concurrently": "catalog:",
     "cross-env": "catalog:",
@@ -56,12 +59,11 @@
     "rimraf": "catalog:",
     "shx": "catalog:",
     "ts-jest": "catalog:",
-    "ts-node": "catalog:",
     "typescript": "catalog:",
     "verdaccio": "catalog:"
   },
   "engines": {
     "pnpm": ">=9.6.0"
   },
-  "packageManager": "pnpm@11.0.0-alpha.1"
+  "packageManager": "pnpm@11.0.0-alpha.3"
 }

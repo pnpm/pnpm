@@ -5,9 +5,10 @@ import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool.js'
 import { PnpmError } from '@pnpm/error'
 import { execSync } from 'child_process'
 import isWindows from 'is-windows'
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import { type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
 import { type DependencyManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
+import { globalWarn } from '@pnpm/logger'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
@@ -67,20 +68,20 @@ function availableParallelism (): number {
 }
 
 interface AddFilesResult {
-  filesIndex: Record<string, string>
+  filesMap: FilesMap
   manifest: DependencyManifest
   requiresBuild: boolean
   integrity?: string
 }
 
-type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest'>
 
 export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
+  return new Promise<{ filesMap: FilesMap, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
@@ -97,6 +98,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
+      appendManifest: opts.appendManifest,
       files: opts.files,
     })
   })
@@ -136,7 +138,7 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
   }
 }
 
-type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
+type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest'> & {
   url: string
 }
 
@@ -169,35 +171,56 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
+      appendManifest: opts.appendManifest,
     })
   })
 }
 
-export async function readPkgFromCafs (
-  storeDir: string,
-  verifyStoreIntegrity: boolean,
-  filesIndexFile: string,
+export interface ReadPkgFromCafsContext {
+  storeDir: string
+  verifyStoreIntegrity: boolean
+  strictStorePkgContentCheck?: boolean
+}
+
+export interface ReadPkgFromCafsOptions {
   readManifest?: boolean
-): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }> {
+  expectedPkg?: { name?: string, version?: string }
+}
+
+export interface ReadPkgFromCafsResult {
+  verified: boolean
+  files: PackageFilesResponse
+  manifest?: DependencyManifest
+}
+
+export async function readPkgFromCafs (
+  ctx: ReadPkgFromCafsContext,
+  filesIndexFile: string,
+  opts?: ReadPkgFromCafsOptions
+): Promise<ReadPkgFromCafsResult> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, requiresBuild: boolean }>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }) => {
+  return new Promise((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value, warnings }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string))
+        reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string, { hint: error.hint }))
         return
+      }
+      if (warnings) {
+        for (const warning of warnings) {
+          globalWarn(warning)
+        }
       }
       resolve(value)
     })
     localWorker.postMessage({
       type: 'readPkgFromCafs',
-      storeDir,
       filesIndexFile,
-      readManifest,
-      verifyStoreIntegrity,
+      ...ctx,
+      ...opts,
     })
   })
 }

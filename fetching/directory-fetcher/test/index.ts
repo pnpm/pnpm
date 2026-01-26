@@ -2,6 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fixtures } from '@pnpm/test-fixtures'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { jest } from '@jest/globals'
 
@@ -27,10 +28,10 @@ test('fetch including only package files', async () => {
 
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
-  expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
+  expect(fetchResult.filesMap.get('package.json')).toBe(path.resolve('package.json'))
 
   // Only those files are included which would get published
-  expect(Object.keys(fetchResult.filesIndex).sort()).toStrictEqual([
+  expect(Array.from(fetchResult.filesMap.keys()).sort(lexCompare)).toStrictEqual([
     'index.js',
     'package.json',
   ])
@@ -50,10 +51,10 @@ test('fetch including all files', async () => {
 
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
-  expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
+  expect(fetchResult.filesMap.get('package.json')).toBe(path.resolve('package.json'))
 
   // Only those files are included which would get published
-  expect(Object.keys(fetchResult.filesIndex).sort()).toStrictEqual([
+  expect(Array.from(fetchResult.filesMap.keys()).sort(lexCompare)).toStrictEqual([
     'index.js',
     'package.json',
     'test.js',
@@ -76,10 +77,10 @@ test('fetch a directory that has no package.json', async () => {
   expect(fetchResult.manifest).toBeUndefined()
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
-  expect(fetchResult.filesIndex['index.js']).toBe(path.resolve('index.js'))
+  expect(fetchResult.filesMap.get('index.js')).toBe(path.resolve('index.js'))
 
   // Only those files are included which would get published
-  expect(Object.keys(fetchResult.filesIndex).sort()).toStrictEqual([
+  expect(Array.from(fetchResult.filesMap.keys()).sort(lexCompare)).toStrictEqual([
     'index.js',
   ])
 })
@@ -99,10 +100,10 @@ test('fetch does not fail on package with broken symlink', async () => {
 
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
-  expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
+  expect(fetchResult.filesMap.get('package.json')).toBe(path.resolve('package.json'))
 
   // Only those files are included which would get published
-  expect(Object.keys(fetchResult.filesIndex).sort()).toStrictEqual([
+  expect(Array.from(fetchResult.filesMap.keys()).sort(lexCompare)).toStrictEqual([
     'index.js',
     'package.json',
   ])
@@ -131,9 +132,9 @@ describe('fetch resolves symlinked files to their real locations', () => {
 
     expect(fetchResult.local).toBe(true)
     expect(fetchResult.packageImportMethod).toBe('hardlink')
-    expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
-    expect(fetchResult.filesIndex['index.js']).toBe(indexJsPath)
-    expect(fetchResult.filesIndex['src/index.js']).toBe(path.join(srcPath, 'index.js'))
+    expect(fetchResult.filesMap.get('package.json')).toBe(path.resolve('package.json'))
+    expect(fetchResult.filesMap.get('index.js')).toBe(indexJsPath)
+    expect(fetchResult.filesMap.get('src/index.js')).toBe(path.join(srcPath, 'index.js'))
   })
   test('fetch does not resolve symlinked files to their real locations by default', async () => {
     const fetcher = createDirectoryFetcher()
@@ -148,8 +149,8 @@ describe('fetch resolves symlinked files to their real locations', () => {
 
     expect(fetchResult.local).toBe(true)
     expect(fetchResult.packageImportMethod).toBe('hardlink')
-    expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
-    expect(fetchResult.filesIndex['index.js']).toBe(path.resolve('index.js'))
-    expect(fetchResult.filesIndex['src/index.js']).toBe(path.resolve('src/index.js'))
+    expect(fetchResult.filesMap.get('package.json')).toBe(path.resolve('package.json'))
+    expect(fetchResult.filesMap.get('index.js')).toBe(path.resolve('index.js'))
+    expect(fetchResult.filesMap.get('src/index.js')).toBe(path.resolve('src/index.js'))
   })
 })

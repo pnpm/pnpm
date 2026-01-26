@@ -8,9 +8,10 @@ import {
 import {
   type Config,
   type OptionsFromRootManifest,
+  type ProjectConfig,
+  createProjectConfigRecord,
   getOptionsFromRootManifest,
   getWorkspaceConcurrency,
-  readLocalConfig,
 } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
@@ -21,7 +22,7 @@ import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { type StoreController } from '@pnpm/package-store'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { sortPackages } from '@pnpm/sort-packages'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
   type IgnoredBuilds,
   type IncludedDependencies,
@@ -45,7 +46,6 @@ import {
   type WorkspacePackages,
 } from '@pnpm/core'
 import isSubdir from 'is-subdir'
-import mem from 'mem'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
@@ -67,6 +67,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
+| 'allowBuilds'
 | 'rawLocalConfig'
 | 'registries'
 | 'rootProjectManifest'
@@ -84,6 +85,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'tag'
 | 'cleanupUnusedCatalogs'
+| 'packageConfigs'
 > & {
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
@@ -109,13 +111,13 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   }
   pnpmfile: string[]
 } & Partial<
-Pick<Config,
+  Pick<Config,
 | 'sort'
 | 'strictDepBuilds'
 | 'workspaceConcurrency'
->
+  >
 > & Required<
-Pick<Config, 'workspaceDir'>
+  Pick<Config, 'workspaceDir'>
 >
 
 export type CommandFullName = 'install' | 'add' | 'remove' | 'update' | 'import'
@@ -140,7 +142,7 @@ export async function recursive (
 
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmdFullName}`)
 
-  const store = opts.storeControllerAndDir ?? await createOrConnectStoreController(opts)
+  const store = opts.storeControllerAndDir ?? await createStoreController(opts)
 
   const workspacePackages: WorkspacePackages = arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
   const targetDependenciesField = getSaveType(opts)
@@ -166,7 +168,11 @@ export async function recursive (
 
   const result: RecursiveSummary = {}
 
-  const memReadLocalConfig = mem(readLocalConfig)
+  const projectConfigRecord = createProjectConfigRecord(opts)
+  const getProjectConfig: (manifest: Pick<ProjectManifest, 'name'>) => ProjectConfig | undefined =
+    projectConfigRecord
+      ? manifest => manifest.name ? projectConfigRecord[manifest.name] : undefined
+      : () => undefined
 
   const updateToLatest = opts.update && opts.latest
   const includeDirect = opts.includeDirect ?? {
@@ -208,9 +214,9 @@ export async function recursive (
     }
     const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ rootDir }) => {
-      const localConfig = await memReadLocalConfig(rootDir)
-      const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       const { manifest } = manifestsByPath[rootDir]
+      const localConfig = getProjectConfig(manifest) ?? {}
+      const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       let currentInput = [...params]
       if (updateMatch != null) {
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
@@ -386,7 +392,7 @@ export async function recursive (
           break
         }
 
-        const localConfig = await memReadLocalConfig(rootDir)
+        const localConfig = getProjectConfig(manifest) ?? {}
         const {
           updatedCatalogs: newCatalogsAddition,
           updatedManifest: newManifest,
@@ -559,7 +565,9 @@ function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: Pro
   })).flat()
 }
 
-interface ManifestsByPath { [dir: string]: Omit<Project, 'rootDir' | 'rootDirRealPath'> }
+interface ManifestsByPath {
+  [dir: string]: Omit<Project, 'rootDir' | 'rootDirRealPath'>
+}
 
 function getManifestsByPath (projects: Project[]): Record<ProjectRootDir, Omit<Project, 'rootDir' | 'rootDirRealPath'>> {
   const manifestsByPath: Record<string, Omit<Project, 'rootDir' | 'rootDirRealPath'>> = {}

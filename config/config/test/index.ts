@@ -169,8 +169,8 @@ test('.npmrc does not load pnpm settings', async () => {
 
     // pnpm options
     'dlx-cache-max-age=1234',
-    'only-built-dependencies[]=foo',
-    'only-built-dependencies[]=bar',
+    'trust-policy-exclude[]=foo',
+    'trust-policy-exclude[]=bar',
     'packages[]=baz',
     'packages[]=qux',
   ].join('\n')
@@ -200,9 +200,9 @@ test('.npmrc does not load pnpm settings', async () => {
   expect(config.rawConfig['dlx-cache-max-age']).toBeUndefined()
   expect(config.rawConfig['dlxCacheMaxAge']).toBeUndefined()
   expect(config.dlxCacheMaxAge).toBe(24 * 60) // TODO: refactor to make defaultOptions importable
-  expect(config.rawConfig['only-built-dependencies']).toBeUndefined()
-  expect(config.rawConfig['onlyBuiltDependencies']).toBeUndefined()
-  expect(config.onlyBuiltDependencies).toBeUndefined()
+  expect(config.rawConfig['trust-policy-exclude']).toBeUndefined()
+  expect(config.rawConfig['trustPolicyExclude']).toBeUndefined()
+  expect(config.trustPolicyExclude).toBeUndefined()
   expect(config.rawConfig.packages).toBeUndefined()
 })
 
@@ -1118,7 +1118,7 @@ test('preferSymlinkedExecutables should be true when nodeLinker is hoisted', asy
 })
 
 test('return a warning when the .npmrc has an env variable that does not exist', async () => {
-  fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8') // eslint-disable-line
+  fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8')
   const { warnings } = await getConfig({
     cliOptions: {},
     packageManager: {
@@ -1227,8 +1227,8 @@ test('settings from pnpm-workspace.yaml are read', async () => {
     },
   })
 
-  expect(config.onlyBuiltDependencies).toStrictEqual(['foo'])
-  expect(config.rawConfig['only-built-dependencies']).toStrictEqual(['foo'])
+  expect(config.trustPolicyExclude).toStrictEqual(['foo', 'bar'])
+  expect(config.rawConfig['trust-policy-exclude']).toStrictEqual(['foo', 'bar'])
 })
 
 test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect', async () => {
@@ -1281,38 +1281,6 @@ test('settings gitBranchLockfile in pnpm-workspace.yaml should take effect', asy
   expect(config.rawConfig['git-branch-lockfile']).toBe(true)
 })
 
-test('when dangerouslyAllowAllBuilds is set to true neverBuiltDependencies is set to an empty array', async () => {
-  const { config } = await getConfig({
-    cliOptions: {
-      'dangerously-allow-all-builds': true,
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-
-  expect(config.neverBuiltDependencies).toStrictEqual([])
-})
-
-test('when dangerouslyAllowAllBuilds is set to true and neverBuiltDependencies not empty, a warning is returned', async () => {
-  const workspaceDir = f.find('never-built-dependencies')
-  process.chdir(workspaceDir)
-  const { config, warnings } = await getConfig({
-    cliOptions: {
-      'dangerously-allow-all-builds': true,
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-    workspaceDir,
-  })
-
-  expect(config.neverBuiltDependencies).toStrictEqual([])
-  expect(warnings).toStrictEqual(['You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.'])
-})
-
 test('loads setting from environment variable pnpm_config_*', async () => {
   prepareEmpty()
   const { config } = await getConfig({
@@ -1321,7 +1289,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
       pnpm_config_fetch_retries: '100',
       pnpm_config_hoist_pattern: '["react", "react-dom"]',
       pnpm_config_use_node_version: '22.0.0',
-      pnpm_config_only_built_dependencies: '["is-number", "is-positive", "is-negative"]',
+      pnpm_config_trust_policy_exclude: '["foo", "bar"]',
       pnpm_config_registry: 'https://registry.example.com',
     },
     packageManager: {
@@ -1332,8 +1300,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
   })
   expect(config.fetchRetries).toBe(100)
   expect(config.hoistPattern).toStrictEqual(['react', 'react-dom'])
-  expect(config.useNodeVersion).toBe('22.0.0')
-  expect(config.onlyBuiltDependencies).toStrictEqual(['is-number', 'is-positive', 'is-negative'])
+  expect(config.trustPolicyExclude).toStrictEqual(['foo', 'bar'])
   expect(config.registry).toBe('https://registry.example.com/')
   expect(config.registries.default).toBe('https://registry.example.com/')
 })
@@ -1342,10 +1309,10 @@ test('environment variable pnpm_config_* should override pnpm-workspace.yaml', a
   prepareEmpty()
 
   writeYamlFile('pnpm-workspace.yaml', {
-    useNodeVersion: '20.0.0',
+    fetchRetries: 5,
   })
 
-  async function getConfigValue (env: NodeJS.ProcessEnv): Promise<string | undefined> {
+  async function getConfigValue (env: NodeJS.ProcessEnv): Promise<number | undefined> {
     const { config } = await getConfig({
       cliOptions: {},
       env,
@@ -1355,23 +1322,23 @@ test('environment variable pnpm_config_* should override pnpm-workspace.yaml', a
       },
       workspaceDir: process.cwd(),
     })
-    return config.useNodeVersion
+    return config.fetchRetries
   }
 
-  expect(await getConfigValue({})).toBe('20.0.0')
+  expect(await getConfigValue({})).toBe(5)
   expect(await getConfigValue({
-    pnpm_config_use_node_version: '22.0.0',
-  })).toBe('22.0.0')
+    pnpm_config_fetch_retries: '10',
+  })).toBe(10)
 })
 
 test('CLI should override environment variable pnpm_config_*', async () => {
   prepareEmpty()
 
-  async function getConfigValue (cliOptions: Record<string, unknown>): Promise<string | undefined> {
+  async function getConfigValue (cliOptions: Record<string, unknown>): Promise<number | undefined> {
     const { config } = await getConfig({
       cliOptions,
       env: {
-        pnpm_config_use_node_version: '18.0.0',
+        pnpm_config_fetch_retries: '5',
       },
       packageManager: {
         name: 'pnpm',
@@ -1379,16 +1346,16 @@ test('CLI should override environment variable pnpm_config_*', async () => {
       },
       workspaceDir: process.cwd(),
     })
-    return config.useNodeVersion
+    return config.fetchRetries
   }
 
-  expect(await getConfigValue({})).toBe('18.0.0')
+  expect(await getConfigValue({})).toBe(5)
   expect(await getConfigValue({
-    useNodeVersion: '22.0.0',
-  })).toBe('22.0.0')
+    fetchRetries: 10,
+  })).toBe(10)
   expect(await getConfigValue({
-    'use-node-version': '22.0.0',
-  })).toBe('22.0.0')
+    'fetch-retries': 10,
+  })).toBe(10)
 })
 
 describe('global config.yaml', () => {

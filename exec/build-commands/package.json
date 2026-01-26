@@ -26,10 +26,10 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/config": "workspace:*",
@@ -57,7 +57,7 @@
     "load-json-file": "catalog:",
     "ramda": "catalog:",
     "read-yaml-file": "catalog:",
-    "write-pkg": "catalog:",
+    "write-package": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "engines": {

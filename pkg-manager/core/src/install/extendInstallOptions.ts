@@ -17,7 +17,6 @@ import {
   type PeerDependencyRules,
   type ReadPackageHook,
   type Registries,
-  type PrepareExecutionEnv,
   type TrustPolicy,
 } from '@pnpm/types'
 import { type CustomResolver, type CustomFetcher, type PreResolutionHookContext } from '@pnpm/hooks.types'
@@ -72,11 +71,7 @@ export interface StrictInstallOptions {
   rawConfig: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
   verifyStoreIntegrity: boolean
   engineStrict: boolean
-  ignoredBuiltDependencies?: string[]
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
-  nodeExecPath?: string
+  allowBuilds?: Record<string, boolean | string>
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
@@ -165,7 +160,6 @@ export interface StrictInstallOptions {
   hoistWorkspacePackages?: boolean
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
-  prepareExecutionEnv?: PrepareExecutionEnv
   returnListOfDepsRequiringBuild?: boolean
   injectWorkspacePackages?: boolean
   ci?: boolean
@@ -173,6 +167,7 @@ export interface StrictInstallOptions {
   minimumReleaseAgeExclude?: string[]
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
+  trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
 }
 
@@ -292,12 +287,7 @@ export function extendOptions (
       }
     }
   }
-  if (opts.neverBuiltDependencies == null && opts.onlyBuiltDependencies == null && opts.onlyBuiltDependenciesFile == null) {
-    opts.onlyBuiltDependencies = []
-  }
-  if (opts.onlyBuiltDependencies && opts.neverBuiltDependencies) {
-    throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies')
-  }
+
   const defaultOpts = defaults(opts)
   const extendedOpts: ProcessedInstallOptions = {
     ...defaultOpts,

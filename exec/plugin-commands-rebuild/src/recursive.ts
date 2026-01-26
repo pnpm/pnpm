@@ -6,14 +6,13 @@ import {
 } from '@pnpm/cli-utils'
 import {
   type Config,
-  readLocalConfig,
+  createProjectConfigRecord,
   getWorkspaceConcurrency,
 } from '@pnpm/config'
 import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type Project, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
-import mem from 'mem'
 import pLimit from 'p-limit'
 import { rebuildProjects as rebuildAll, type RebuildOptions, rebuildSelectedPkgs } from './implementation/index.js'
 
@@ -25,6 +24,7 @@ type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'nodeLinker'
+| 'packageConfigs'
 | 'rawLocalConfig'
 | 'registries'
 | 'rootProjectManifest'
@@ -62,7 +62,7 @@ export async function recursiveRebuild (
     ? sortPackages(opts.selectedProjectsGraph)
     : [Object.keys(opts.selectedProjectsGraph).sort() as ProjectRootDir[]]
 
-  const store = await createOrConnectStoreController(opts)
+  const store = await createStoreController(opts)
 
   const rebuildOpts = Object.assign(opts, {
     ownLifecycleHooksStdio: 'pipe',
@@ -74,7 +74,7 @@ export async function recursiveRebuild (
 
   const result: RecursiveSummary = {}
 
-  const memReadLocalConfig = mem(readLocalConfig)
+  const projectConfigRecord = createProjectConfigRecord(opts) ?? {}
 
   async function getImporters () {
     const importers = [] as Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>
@@ -121,7 +121,8 @@ export async function recursiveRebuild (
             return
           }
           result[rootDir] = { status: 'running' }
-          const localConfig = await memReadLocalConfig(rootDir)
+          const { manifest } = opts.selectedProjectsGraph[rootDir].package
+          const localConfig = manifest.name ? projectConfigRecord[manifest.name] : undefined
           await rebuild(
             [
               {

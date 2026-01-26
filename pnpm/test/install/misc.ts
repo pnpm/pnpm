@@ -1,14 +1,14 @@
 import fs from 'fs'
 import path from 'path'
-import v8 from 'v8'
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
+import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
@@ -159,16 +159,16 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
-  const { files: integrityFile } = readV8FileStrictSync<PackageFilesIndex>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
-  const packageFiles = Object.keys(integrityFile).sort()
+  const { files: integrityFile } = readMsgpackFileSync<PackageFilesIndex>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
+  const packageFiles = Array.from(integrityFile.keys()).sort(lexCompare)
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
   const storeDir = project.getStorePath()
   if (await dirIsCaseSensitive.default(storeDir)) {
-    expect([...files].sort()).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
+    expect([...files].sort(lexCompare)).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
-    expect([...files].map((f) => f.toLowerCase()).sort()).toStrictEqual(['foo.js', 'package.json'])
+    expect([...files].map((f) => f.toLowerCase()).sort(lexCompare)).toStrictEqual(['foo.js', 'package.json'])
   }
 })
 
@@ -193,6 +193,7 @@ test('not top-level packages should find the plugins they use', async () => {
       test: 'standard',
     },
   })
+  fs.writeFileSync('pnpm-workspace.yaml', 'allowBuilds: { "es5-ext": false }', 'utf8')
 
   await execPnpm(['install', 'standard@8.6.0'])
 
@@ -453,12 +454,12 @@ test('installation fails when the stored package name and version do not match t
   await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
-  const cacheIntegrity = readV8FileStrictSync<PackageFilesIndex>(cacheIntegrityPath)
+  const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)
   cacheIntegrity.name = 'foo'
-  fs.writeFileSync(cacheIntegrityPath, v8.serialize({
+  writeMsgpackFileSync(cacheIntegrityPath, {
     ...cacheIntegrity,
     name: 'foo',
-  }))
+  })
 
   rimraf('node_modules')
   await expect(
@@ -561,4 +562,16 @@ test('install fails when trust evidence of an optional dependency is downgraded'
   ])
   expect(result.stdout.toString()).toContain('ERR_PNPM_TRUST_DOWNGRADE')
   expect(result.status).toBe(1)
+})
+
+test('install does not fail when the trust evidence of a package is downgraded but the trust-policy-ignore-after is set', async () => {
+  const project = prepare()
+  const result = execPnpmSync([
+    'add',
+    '@pnpm/e2e.test-provenance@0.0.5',
+    '--trust-policy=no-downgrade',
+    '--trust-policy-ignore-after=1440', // 1 day
+  ])
+  expect(result.status).toBe(0)
+  project.has('@pnpm/e2e.test-provenance')
 })

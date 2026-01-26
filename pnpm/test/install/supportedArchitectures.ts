@@ -28,12 +28,12 @@ type Case = [
 const TEST_CASES: Case[] = [
   [[], undefined, [
     'only-linux-x64-glibc',
-    'only-linux-x64-musl',
   ], [
     'only-darwin-arm64',
     'only-darwin-x64',
     'only-linux-arm64-glibc',
     'only-linux-arm64-musl',
+    'only-linux-x64-musl',
     'only-win32-arm64',
     'only-win32-x64',
   ]],

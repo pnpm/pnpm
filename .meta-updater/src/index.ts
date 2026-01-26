@@ -5,6 +5,7 @@ import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
 import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
 import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
+import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
 import { loadJsonFileSync } from 'load-json-file'
@@ -26,6 +27,8 @@ export default async (workspaceDir: string) => { // eslint-disable-line
   if (lockfile == null) {
     throw new Error('no lockfile found')
   }
+  const workspacePackages = await findWorkspacePackagesNoCheck(workspaceDir, { patterns: workspaceManifest?.packages })
+  const workspacePackageNames = new Set(workspacePackages.map(pkg => pkg.manifest.name).filter(Boolean))
   return createUpdateOptions({
     'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }: { dir: string }) => {
       if (!manifest) {
@@ -59,7 +62,9 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           manifest[depType] = sortDirectKeys(manifest[depType])
           for (const depName of Object.keys(manifest[depType] ?? {})) {
             if (!manifest[depType]?.[depName].startsWith('workspace:')) {
-              manifest[depType]![depName] = 'catalog:'
+              // @pnpm/scripts is used before packages are compiled, so its deps should use catalog: instead of workspace:*
+              const useWorkspaceProtocol = workspacePackageNames.has(depName) && manifest.name !== '@pnpm/scripts'
+              manifest[depType]![depName] = useWorkspaceProtocol ? 'workspace:*' : 'catalog:'
             }
           }
         }
@@ -283,9 +288,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (manifest.name === '@pnpm/core') {
       // @pnpm/core tests currently works only with port 7769 due to the usage of
       // the next package: pkg-with-tarball-dep-from-registry
-      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS=--experimental-vm-modules jest`
+      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest`
     } else {
-      scripts._test = 'cross-env NODE_OPTIONS=--experimental-vm-modules jest'
+      scripts._test = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest'
     }
     break
   }
@@ -293,7 +298,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (fs.existsSync(path.join(dir, 'test'))) {
       scripts = {
         ...(manifest.scripts as Record<string, string>),
-        _test: 'cross-env NODE_OPTIONS=--experimental-vm-modules jest',
+        _test: 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest',
         test: 'pnpm run compile && pnpm run _test',
       }
     } else {
@@ -318,8 +323,14 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       scripts._test += ' --detectOpenHandles'
     }
   }
-  scripts.compile = 'tsc --build && pnpm run lint --fix'
+  scripts.compile = 'tsgo --build && pnpm run lint --fix'
   delete scripts.tsc
+  if (scripts.start && scripts.start.includes('tsc --watch')) {
+    scripts.start = scripts.start.replace('tsc --watch', 'tsgo --watch')
+  }
+  if (scripts._compile && scripts._compile.includes('tsc --build')) {
+    scripts._compile = scripts._compile.replace('tsc --build', 'tsgo --build')
+  }
   let homepage: string
   let repository: string | { type: 'git', url: string, directory: 'pnpm' }
   if (manifest.name === CLI_PKG_NAME) {
@@ -349,6 +360,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   const files: string[] = []
   if (manifest.name === CLI_PKG_NAME || manifest.name?.endsWith('/pnpm')) {
     files.push('dist')
+    files.push('!dist/**/*.map')
     files.push('bin')
   } else {
     // the order is important

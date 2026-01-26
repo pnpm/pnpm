@@ -3,7 +3,7 @@ import path from 'path'
 import { createHash } from '@pnpm/crypto.hash'
 import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT, getIntegrity } from '@pnpm/registry-mock'
+import { getIntegrity } from '@pnpm/registry-mock'
 import { loadJsonFileSync } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils/index.js'
@@ -134,7 +134,7 @@ test('importPackage hooks', async () => {
     module.exports = { hooks: { importPackage } }
 
     function importPackage (to, opts) {
-      fs.writeFileSync('args.json', JSON.stringify([to, opts]), 'utf8')
+      fs.writeFileSync('args.json', JSON.stringify([to, Array.from(opts.filesMap.keys()).sort()]), 'utf8')
       return {}
     }
   `
@@ -147,79 +147,15 @@ test('importPackage hooks', async () => {
 
   await execPnpm(['add', 'is-positive@1.0.0'])
 
-  const [to, opts] = loadJsonFileSync<any>('args.json') // eslint-disable-line
+  const [to, files] = loadJsonFileSync<any>('args.json') // eslint-disable-line
 
   expect(typeof to).toBe('string')
-  expect(Object.keys(opts.filesMap).sort()).toStrictEqual([
+  expect(files).toStrictEqual([
     'index.js',
     'license',
     'package.json',
     'readme.md',
   ])
-})
-
-test('should use default fetchers if no custom fetchers are defined', async () => {
-  const project = prepare()
-
-  const pnpmfile = `
-    const fs = require('fs')
-
-    module.exports = {
-      hooks: {
-        fetchers: {}
-      }
-    }
-  `
-
-  writeYamlFile('pnpm-workspace.yaml', {
-    globalPnpmfile: '.pnpmfile.cjs',
-  })
-
-  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
-
-  await execPnpm(['add', 'is-positive@1.0.0'])
-
-  project.cafsHas('is-positive', '1.0.0')
-})
-
-test('custom fetcher can call default fetcher', async () => {
-  const project = prepare()
-
-  const pnpmfile = `
-    const fs = require('fs')
-
-    module.exports = {
-      hooks: {
-        fetchers: {
-          remoteTarball: ({ defaultFetchers }) => {
-            return (cafs, resolution, opts) => {
-              fs.writeFileSync('args.json', JSON.stringify({ resolution, opts }), 'utf8')
-              return defaultFetchers.remoteTarball(cafs, resolution, opts)
-            }
-          }
-        }
-      }
-    }
-  `
-
-  writeYamlFile('pnpm-workspace.yaml', {
-    globalPnpmfile: '.pnpmfile.cjs',
-  })
-
-  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
-
-  await execPnpm(['add', 'is-positive@1.0.0'])
-
-  project.cafsHas('is-positive', '1.0.0')
-
-  const args = loadJsonFileSync<any>('args.json') // eslint-disable-line
-
-  expect(args.resolution).toEqual({
-    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
-  })
-
-  expect(args.opts).toBeDefined()
 })
 
 test('adding or changing pnpmfile should change pnpmfileChecksum and module structure', async () => {
@@ -239,6 +175,10 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
   const pnpmfile1 = `
     function readPackage (pkg) {
       if (pkg.optionalDependencies) {
+        // Also remove optional deps from dependencies since npm duplicates them there
+        for (const dep of Object.keys(pkg.optionalDependencies)) {
+          delete pkg.dependencies?.[dep]
+        }
         delete pkg.optionalDependencies
       }
       return pkg

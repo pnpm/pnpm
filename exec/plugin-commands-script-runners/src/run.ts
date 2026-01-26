@@ -6,7 +6,6 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes, getWorkspaceConcurrency } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -86,7 +85,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'npm-path',
-      'use-node-version',
     ], allTypes),
   }
 }
@@ -97,7 +95,6 @@ export function cliOptionsTypes (): Record<string, unknown> {
       'bail',
       'sort',
       'unsafe-perm',
-      'use-node-version',
       'workspace-concurrency',
       'scripts-prepend-node-path',
     ], allTypes),
@@ -161,11 +158,11 @@ export type RunOpts =
   & { recursive?: boolean }
   & Pick<Config,
   | 'bin'
+  | 'cliOptions'
   | 'verifyDepsBeforeRun'
   | 'dir'
   | 'enablePrePostScripts'
   | 'engineStrict'
-  | 'executionEnv'
   | 'extraBinPaths'
   | 'extraEnv'
   | 'nodeOptions'
@@ -279,9 +276,6 @@ so you may run "pnpm -w run ${scriptName}"`,
     shellEmulator: opts.shellEmulator,
     stdio: (specifiedScripts.length > 1 && concurrency > 1) ? 'pipe' : 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
-  }
-  if (opts.executionEnv != null) {
-    lifecycleOpts.extraBinPaths = (await prepareExecutionEnv(opts, { executionEnv: opts.executionEnv })).extraBinPaths
   }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const pnpPath = (opts.workspaceDir && existsPnp(opts.workspaceDir)) ?? existsPnp(dir)

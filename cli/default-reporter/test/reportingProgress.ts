@@ -436,7 +436,7 @@ Downloading ${pkgId3}: ${hlValue('19.92 MB')}/${hlValue('20.97 MB')}`)
 Downloading ${pkgId1}: ${hlValue('10.49 MB')}/${hlValue('10.49 MB')}, done
 Progress: resolved ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
 Downloading ${pkgId3}: ${hlValue('19.92 MB')}/${hlValue('20.97 MB')}`)
-      return // eslint-disable-line
+      return
     }
   })
 })

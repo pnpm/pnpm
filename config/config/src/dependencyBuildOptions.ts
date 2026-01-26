@@ -2,9 +2,6 @@ import { type Config } from './Config.js'
 
 export const DEPS_BUILD_CONFIG_KEYS = [
   'dangerouslyAllowAllBuilds',
-  'onlyBuiltDependencies',
-  'onlyBuiltDependenciesFile',
-  'neverBuiltDependencies',
   'allowBuilds',
 ] as const satisfies Array<keyof Config>
 

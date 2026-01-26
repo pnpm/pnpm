@@ -3,9 +3,8 @@ import { PnpmError } from '@pnpm/error'
 import { hookLogger } from '@pnpm/core-loggers'
 import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
-import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
-import { type ReadPackageHook, type BaseManifest } from '@pnpm/types'
+import { type ReadPackageHook, type BeforePackingHook, type BaseManifest } from '@pnpm/types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { requirePnpmfile, type Pnpmfile, type Finders } from './requirePnpmfile.js'
 import { type Hooks, type HookContext } from './Hooks.js'
@@ -34,12 +33,12 @@ interface PnpmfileEntryLoaded {
 
 export interface CookedHooks {
   readPackage?: ReadPackageHook[]
+  beforePacking?: BeforePackingHook[]
   preResolution?: Array<(ctx: PreResolutionHookContext) => Promise<void>>
   afterAllResolved?: Array<(lockfile: LockfileObject) => LockfileObject | Promise<LockfileObject>>
   filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
   updateConfig?: Array<Cook<Required<Hooks>['updateConfig']>>
   importPackage?: ImportIndexedPackageAsync
-  fetchers?: CustomFetchers
   customResolvers?: CustomResolver[]
   customFetchers?: CustomFetcher[]
   calculatePnpmfileChecksum?: () => Promise<string>
@@ -104,8 +103,9 @@ export async function requireHooks (
   }))
 
   const mergedFinders: Finders = {}
-  const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'readPackage' | 'preResolution' | 'afterAllResolved' | 'filterLog' | 'updateConfig'>> = {
+  const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'readPackage' | 'beforePacking' | 'preResolution' | 'afterAllResolved' | 'filterLog' | 'updateConfig'>> = {
     readPackage: [],
+    beforePacking: [],
     preResolution: [],
     afterAllResolved: [],
     filterLog: [],
@@ -127,7 +127,6 @@ export async function requireHooks (
   }
 
   let importProvider: string | undefined
-  let fetchersProvider: string | undefined
   const finderProviders: Record<string, string> = {}
 
   // process hooks in order
@@ -152,6 +151,13 @@ export async function requireHooks (
       const fn = fileHooks.readPackage
       const context = createReadPackageHookContext(file, prefix, 'readPackage')
       cookedHooks.readPackage.push(<Pkg extends BaseManifest>(pkg: Pkg, _dir?: string) => fn(pkg, context))
+    }
+
+    // beforePacking
+    if (fileHooks.beforePacking) {
+      const fn = fileHooks.beforePacking
+      const context = createReadPackageHookContext(file, prefix, 'beforePacking')
+      cookedHooks.beforePacking.push(<Pkg extends BaseManifest>(pkg: Pkg, dir: string) => fn(pkg, dir, context))
     }
 
     // afterAllResolved
@@ -194,18 +200,6 @@ export async function requireHooks (
       }
       importProvider = file
       cookedHooks.importPackage = fileHooks.importPackage
-    }
-
-    // fetchers: only one allowed
-    if (fileHooks.fetchers) {
-      if (fetchersProvider) {
-        throw new PnpmError(
-          'MULTIPLE_FETCHERS',
-          `fetchers hook defined in both ${fetchersProvider} and ${file}`
-        )
-      }
-      fetchersProvider = file
-      cookedHooks.fetchers = fileHooks.fetchers
     }
   }
 

@@ -34,12 +34,12 @@
     "test": "test"
   },
   "scripts": {
-    "start": "tsc --watch",
+    "start": "tsgo --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/exec.pkg-requires-build": "workspace:*",
@@ -47,7 +47,7 @@
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "mem": "catalog:",
+    "memoize": "catalog:",
     "path-temp": "catalog:",
     "ramda": "catalog:"
   },

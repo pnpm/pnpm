@@ -60,12 +60,12 @@ describe('custom fetcher implementation examples', () => {
   describe('basic custom fetcher contract', () => {
     test('should successfully return FetchResult with manifest and filesIndex', async () => {
       const mockManifest = { name: 'test-package', version: '1.0.0' }
-      const mockFilesIndex = { 'package.json': '/path/to/store/package.json' }
+      const mockFilesMap = new Map([['package.json', '/path/to/store/package.json']])
 
       const customFetcher = createMockCustomFetcher(
         () => true,
         async () => ({
-          filesIndex: mockFilesIndex,
+          filesMap: mockFilesMap,
           manifest: mockManifest,
           requiresBuild: false,
         })
@@ -84,7 +84,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       expect(result.manifest).toEqual(mockManifest)
-      expect(result.filesIndex).toEqual(mockFilesIndex)
+      expect(result.filesMap).toEqual(mockFilesMap)
       expect(result.requiresBuild).toBe(false)
     })
 
@@ -92,7 +92,7 @@ describe('custom fetcher implementation examples', () => {
       const customFetcher = createMockCustomFetcher(
         () => true,
         async () => ({
-          filesIndex: {},
+          filesMap: new Map(),
           manifest: { name: 'pkg', version: '1.0.0', scripts: { install: 'node install.js' } },
           requiresBuild: true,
         })
@@ -144,7 +144,7 @@ describe('custom fetcher implementation examples', () => {
         async (cafs) => {
           receivedCafs = cafs
           return {
-            filesIndex: {},
+            filesMap: new Map(),
             manifest: { name: 'pkg', version: '1.0.0' },
             requiresBuild: false,
           }
@@ -179,7 +179,7 @@ describe('custom fetcher implementation examples', () => {
           ;(opts.onProgress as any)?.({ done: 50, total: 100 }) // eslint-disable-line @typescript-eslint/no-explicit-any
 
           return {
-            filesIndex: {},
+            filesMap: new Map(),
             manifest: { name: 'pkg', version: '1.0.0' },
             requiresBuild: false,
           }
@@ -216,7 +216,7 @@ describe('custom fetcher implementation examples', () => {
           expect((resolution as any).cdnUrl).toBe('https://cdn.example.com/pkg.tgz') // eslint-disable-line @typescript-eslint/no-explicit-any
 
           return {
-            filesIndex: {},
+            filesMap: new Map(),
             manifest: { name: 'pkg', version: '1.0.0' },
             requiresBuild: false,
           }
@@ -236,7 +236,7 @@ describe('custom fetcher implementation examples', () => {
       const customFetcher = createMockCustomFetcher(
         () => true,
         async () => ({
-          filesIndex: {},
+          filesMap: new Map(),
           requiresBuild: false,
           // Manifest is optional in FetchResult
         })
@@ -255,7 +255,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       expect(result.manifest).toBeUndefined()
-      expect(result.filesIndex).toBeDefined()
+      expect(result.filesMap).toBeDefined()
     })
   })
 
@@ -315,7 +315,7 @@ describe('custom fetcher implementation examples', () => {
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
       )
 
-      expect(result.filesIndex['package.json']).toBeTruthy()
+      expect(result.filesMap.get('package.json')).toBeTruthy()
       expect(scope.isDone()).toBeTruthy()
     })
 
@@ -361,7 +361,7 @@ describe('custom fetcher implementation examples', () => {
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
       )
 
-      expect(result.filesIndex['package.json']).toBeTruthy()
+      expect(result.filesMap.get('package.json')).toBeTruthy()
     })
 
     test('custom fetcher can transform resolution before delegating to tarball fetcher', async () => {
@@ -415,7 +415,7 @@ describe('custom fetcher implementation examples', () => {
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
       )
 
-      expect(result.filesIndex['package.json']).toBeTruthy()
+      expect(result.filesMap.get('package.json')).toBeTruthy()
       expect(scope.isDone()).toBeTruthy()
     })
 
@@ -462,7 +462,7 @@ describe('custom fetcher implementation examples', () => {
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
       )
 
-      expect(result.filesIndex).toBeTruthy()
+      expect(result.filesMap).toBeTruthy()
     })
   })
 
@@ -484,7 +484,7 @@ describe('custom fetcher implementation examples', () => {
 
           // Simulate fetch
           const result = {
-            filesIndex: { 'package.json': '/store/pkg.json' },
+            filesMap: new Map([['package.json', '/store/pkg.json']]),
             manifest: { name: 'cached-pkg', version: (resolution as any).version }, // eslint-disable-line @typescript-eslint/no-explicit-any
           }
 
@@ -530,7 +530,7 @@ describe('custom fetcher implementation examples', () => {
           }
 
           return {
-            filesIndex: {},
+            filesMap: new Map(),
             manifest: { name: 'auth-pkg', version: '1.0.0' },
             requiresBuild: false,
             authToken, // Could store for future use

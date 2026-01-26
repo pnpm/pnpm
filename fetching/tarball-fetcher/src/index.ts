@@ -93,5 +93,6 @@ async function fetchFromTarball (
     registry: resolution.registry,
     filesIndexFile: opts.filesIndexFile,
     pkg: opts.pkg,
+    appendManifest: opts.appendManifest,
   })
 }

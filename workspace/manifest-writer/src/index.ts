@@ -1,11 +1,14 @@
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
-import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { validateWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import writeYamlFile from 'write-yaml-file'
+import { patchDocument } from '@pnpm/yaml.document-sync'
 import { equals } from 'ramda'
+import yaml from 'yaml'
+import writeFileAtomic from 'write-file-atomic'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import {
   type Project,
@@ -17,18 +20,24 @@ export type FileName =
 
 const DEFAULT_FILENAME: FileName = WORKSPACE_MANIFEST_FILENAME
 
-async function writeManifestFile (dir: string, fileName: FileName, manifest: Partial<WorkspaceManifest>): Promise<void> {
-  manifest = sortKeysByPriority({
-    priority: { packages: 0 },
-    deep: true,
-  }, manifest)
-  return writeYamlFile(path.join(dir, fileName), manifest, {
-    lineWidth: -1, // This is setting line width to never wrap
-    blankLines: true,
-    noCompatMode: true,
-    noRefs: true,
-    sortKeys: false,
+async function writeManifestFile (dir: string, fileName: FileName, manifest: yaml.Document): Promise<void> {
+  const manifestStr = manifest.toString({
+    lineWidth: 0, // This is setting line width to never wrap
+    singleQuote: true, // Prefer single quotes over double quotes
   })
+  await fs.promises.mkdir(dir, { recursive: true })
+  await writeFileAtomic(path.join(dir, fileName), manifestStr)
+}
+
+async function readManifestRaw (file: string): Promise<string | undefined> {
+  try {
+    return (await fs.promises.readFile(file)).toString()
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return undefined
+    }
+    throw err
+  }
 }
 
 export async function updateWorkspaceManifest (dir: string, opts: {
@@ -39,36 +48,23 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   allProjects?: Project[]
 }): Promise<void> {
   const fileName = opts.fileName ?? DEFAULT_FILENAME
-  const manifest = await readWorkspaceManifest(dir, fileName) ?? {} as WorkspaceManifest
+
+  const workspaceManifestStr = await readManifestRaw(path.join(dir, fileName))
+
+  const document = workspaceManifestStr != null
+    ? yaml.parseDocument(workspaceManifestStr)
+    : new yaml.Document()
+
+  let manifest = document.toJSON()
+  validateWorkspaceManifest(manifest)
+  manifest ??= {}
+
   let shouldBeUpdated = opts.updatedCatalogs != null && addCatalogs(manifest, opts.updatedCatalogs)
   if (opts.cleanupUnusedCatalogs) {
     shouldBeUpdated = removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? []) || shouldBeUpdated
   }
 
-  // If the current manifest has allowBuilds, convert old fields to allowBuilds format
   const updatedFields = { ...opts.updatedFields }
-  if (manifest.allowBuilds != null && (updatedFields.onlyBuiltDependencies != null || updatedFields.ignoredBuiltDependencies != null)) {
-    const allowBuilds: Record<string, boolean | string> = { ...manifest.allowBuilds }
-
-    // Convert onlyBuiltDependencies to allowBuilds with true values
-    if (updatedFields.onlyBuiltDependencies != null) {
-      for (const pattern of updatedFields.onlyBuiltDependencies) {
-        allowBuilds[pattern] = true
-      }
-    }
-
-    // Convert ignoredBuiltDependencies to allowBuilds with false values
-    if (updatedFields.ignoredBuiltDependencies != null) {
-      for (const pattern of updatedFields.ignoredBuiltDependencies) {
-        allowBuilds[pattern] = false
-      }
-    }
-
-    // Update allowBuilds instead of the old fields
-    updatedFields.allowBuilds = allowBuilds
-    delete updatedFields.onlyBuiltDependencies
-    delete updatedFields.ignoredBuiltDependencies
-  }
 
   for (const [key, value] of Object.entries(updatedFields)) {
     if (!equals(manifest[key as keyof WorkspaceManifest], value)) {
@@ -76,7 +72,6 @@ export async function updateWorkspaceManifest (dir: string, opts: {
       if (value == null) {
         delete manifest[key as keyof WorkspaceManifest]
       } else {
-        // @ts-expect-error
         manifest[key as keyof WorkspaceManifest] = value
       }
     }
@@ -88,7 +83,15 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     await fs.promises.rm(path.join(dir, fileName))
     return
   }
-  await writeManifestFile(dir, fileName, manifest)
+
+  manifest = sortKeysByPriority({
+    priority: { packages: 0 },
+    deep: true,
+  }, manifest)
+
+  patchDocument(document, manifest)
+
+  await writeManifestFile(dir, fileName, document)
 }
 
 export interface NewCatalogs {
@@ -112,12 +115,13 @@ function addCatalogs (manifest: Partial<WorkspaceManifest>, newCatalogs: Catalog
       }
 
       targetCatalog ??= {}
-      targetCatalog[dependencyName] = specifier
+      if (targetCatalog[dependencyName] !== specifier) {
+        targetCatalog[dependencyName] = specifier
+        shouldBeUpdated = true
+      }
     }
 
     if (targetCatalog == null) continue
-
-    shouldBeUpdated = true
 
     if (targetCatalogWasNil) {
       if (catalogName === 'default') {

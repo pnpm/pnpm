@@ -1,13 +1,15 @@
 import { type Config } from '@pnpm/config'
+import util from 'util'
 import { createResolver } from '@pnpm/client'
 import { type TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
-import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { sortDeepKeys } from '@pnpm/object.key-sorting'
 import { getStorePath } from '@pnpm/store-path'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 
 import renderHelp from 'render-help'
 
@@ -30,7 +32,7 @@ export function help (): string {
 }
 
 export type CatIndexCommandOptions = Pick<
-Config,
+  Config,
 | 'rawConfig'
 | 'pnpmHomeDir'
 | 'storeDir'
@@ -86,12 +88,21 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     `${alias}@${bareSpecifier}`
   )
   try {
-    const pkgFilesIndex = await readV8FileStrictAsync<PackageFilesIndex>(filesIndexFile)
-    return JSON.stringify(sortDeepKeys(pkgFilesIndex), null, 2)
+    const pkgFilesIndex = await readMsgpackFile<PackageFilesIndex>(filesIndexFile)
+    return JSON.stringify(sortDeepKeys(pkgFilesIndex), replacer, 2)
   } catch {
     throw new PnpmError(
       'INVALID_PACKAGE',
       'No corresponding index file found. You can use pnpm list to see if the package is installed.'
     )
   }
+}
+
+function replacer (key: string, value: unknown) {
+  if (util.types.isMap(value)) {
+    const entries = Array.from((value as Map<string, unknown>).entries())
+    entries.sort(([key1], [key2]) => lexCompare(key1, key2))
+    return Object.fromEntries(entries)
+  }
+  return value
 }

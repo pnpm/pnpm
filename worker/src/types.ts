@@ -1,4 +1,5 @@
 import { type PackageFilesResponse } from '@pnpm/cafs-types'
+import { type DependencyManifest } from '@pnpm/types'
 
 export interface PkgNameVersion {
   name?: string
@@ -18,6 +19,7 @@ export interface TarballExtractMessage {
   filesIndexFile: string
   readManifest?: boolean
   pkg?: PkgNameVersion
+  appendManifest?: DependencyManifest
 }
 
 export interface LinkPkgMessage {
@@ -50,6 +52,7 @@ export interface AddDirToStoreMessage {
   sideEffectsCacheKey?: string
   readManifest?: boolean
   pkg?: PkgNameVersion
+  appendManifest?: DependencyManifest
   files?: string[]
 }
 
@@ -59,6 +62,8 @@ export interface ReadPkgFromCafsMessage {
   filesIndexFile: string
   readManifest: boolean
   verifyStoreIntegrity: boolean
+  expectedPkg?: PkgNameVersion
+  strictStorePkgContentCheck?: boolean
 }
 
 export interface HardLinkDirMessage {

@@ -4,6 +4,7 @@ import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { type Hooks } from '@pnpm/pnpmfile'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
@@ -20,6 +21,7 @@ const PREPUBLISH_SCRIPTS = [
 
 export interface MakePublishManifestOptions {
   catalogs: Catalogs
+  hooks?: Hooks
   modulesDir?: string
   readmeFile?: string
 }
@@ -29,7 +31,7 @@ export async function createExportableManifest (
   originalManifest: ProjectManifest,
   opts: MakePublishManifestOptions
 ): Promise<ProjectManifest> {
-  const publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
+  let publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }
@@ -61,6 +63,11 @@ export async function createExportableManifest (
 
   if (opts?.readmeFile) {
     publishManifest.readme ??= opts.readmeFile
+  }
+
+  for (const hook of opts?.hooks?.beforePacking ?? []) {
+    // eslint-disable-next-line no-await-in-loop
+    publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
 
   return publishManifest
@@ -129,13 +136,14 @@ async function replaceWorkspaceProtocol (depName: string, depSpec: string, dir: 
     return depSpec
   }
 
-  // Dependencies with bare "*", "^" and "~" versions
-  const versionAliasSpecParts = /^workspace:(.*?)@?([\^~*])$/.exec(depSpec)
+  // Dependencies with bare "*", "^", "~" versions, or no version (workspace:)
+  const versionAliasSpecParts = /^workspace:(?:(.+)@)?([\^~*])?$/.exec(depSpec)
   if (versionAliasSpecParts != null) {
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
     const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName))
 
-    const semverRangeToken = versionAliasSpecParts[2] !== '*' ? versionAliasSpecParts[2] : ''
+    const specifierSuffix: string | undefined = versionAliasSpecParts[2]
+    const semverRangeToken = specifierSuffix === '^' || specifierSuffix === '~' ? specifierSuffix : ''
     if (depName !== manifest.name) {
       return `npm:${manifest.name!}@${semverRangeToken}${manifest.version}`
     }

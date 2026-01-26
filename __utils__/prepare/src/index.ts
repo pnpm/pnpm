@@ -5,7 +5,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { sync as writeJson5File } from 'write-json5-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { writePackageSync } from 'write-pkg'
+import { writePackageSync } from 'write-package'
 
 export type { Modules, Project }
 export type ManifestFormat = 'JSON' | 'JSON5' | 'YAML'

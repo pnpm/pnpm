@@ -10,7 +10,7 @@ test('getManifest()', async () => {
     rawConfig: {},
   }
 
-  const resolve: ResolveFunction = async function (wantedPackage, opts) {
+  const resolve: ResolveFunction = async function (_wantedPackage, _opts) {
     return {
       id: 'foo/1.0.0' as PkgResolutionId,
       latest: '1.0.0',
@@ -28,7 +28,7 @@ test('getManifest()', async () => {
     version: '1.0.0',
   })
 
-  const resolve2: ResolveFunction = async function (wantedPackage, opts) {
+  const resolve2: ResolveFunction = async function (_wantedPackage, _opts) {
     return {
       id: 'foo/2.0.0' as PkgResolutionId,
       latest: '2.0.0',
@@ -130,7 +130,7 @@ test('getManifest() with minimumReleaseAgeExclude', async () => {
   const publishedBy = new Date(Date.now() - 10080 * 60 * 1000)
   const publishedByExclude = (packageName: string) => packageName === 'excluded-package'
 
-  const resolve = jest.fn<ResolveFunction>(async (wantedPackage, resolveOpts) => {
+  const resolve = jest.fn<ResolveFunction>(async (_wantedPackage, _resolveOpts) => {
     return {
       id: 'excluded-package/2.0.0' as PkgResolutionId,
       latest: '2.0.0',

@@ -1,10 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
-import v8 from 'v8'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -13,6 +11,7 @@ import {
   type StageLog,
   type StatsLog,
 } from '@pnpm/core-loggers'
+import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readModulesManifest } from '@pnpm/modules-yaml'
@@ -337,7 +336,12 @@ test('run pre/postinstall scripts', async () => {
   let prefix = f.prepare('deps-have-lifecycle-scripts')
   await using server = await createTestIpcServer(path.join(prefix, 'test.sock'))
 
-  await headlessInstall(await testDefaults({ lockfileDir: prefix }))
+  await headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
+  }))
 
   const project = assertProject(prefix)
   const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -677,11 +681,14 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
   }, {}, {}, { packageImportMethod: 'copy' })
   await headlessInstall(opts)
 
   const cacheIntegrityPath = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const cacheIntegrity = readV8FileStrictSync<PackageFilesIndex>(cacheIntegrityPath)
+  const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -692,11 +699,11 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
       }),
     },
   })}`
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-postinstall.js'])
-  delete cacheIntegrity!.sideEffects![sideEffectsKey].added!['generated-by-postinstall.js']
+  expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)?.added?.has('generated-by-postinstall.js')).toBeTruthy()
+  cacheIntegrity!.sideEffects!.get(sideEffectsKey)!.added!.delete('generated-by-postinstall.js')
 
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-preinstall.js'])
-  fs.writeFileSync(cacheIntegrityPath, v8.serialize(cacheIntegrity))
+  expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)?.added?.has('generated-by-preinstall.js')).toBeTruthy()
+  writeMsgpackFileSync(cacheIntegrityPath, cacheIntegrity)
 
   prefix = f.prepare('side-effects')
   const opts2 = await testDefaults({
@@ -706,6 +713,9 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
     sideEffectsCacheWrite: true,
     storeDir: opts.storeDir,
     verifyStoreIntegrity: false,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
   }, {}, {}, { packageImportMethod: 'copy' })
   await headlessInstall(opts2)
 

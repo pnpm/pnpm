@@ -9,12 +9,15 @@
     "execa": "catalog:",
     "fast-glob": "catalog:",
     "make-empty-dir": "catalog:",
-    "normalize-path": "catalog:"
+    "normalize-path": "catalog:",
+    "tar": "catalog:",
+    "tinyglobby": "catalog:"
   },
   "devDependencies": {
     "@pnpm/logger": "catalog:",
     "@pnpm/scripts": "workspace:*",
-    "@types/normalize-path": "catalog:"
+    "@types/normalize-path": "catalog:",
+    "@types/tar": "catalog:"
   },
   "keywords": [
     "pnpm",

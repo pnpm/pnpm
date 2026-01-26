@@ -82,6 +82,9 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
         }
         return newPkg
       }
+      if (pnpmfile?.hooks?.beforePacking && typeof pnpmfile.hooks.beforePacking !== 'function') {
+        throw new TypeError('hooks.beforePacking should be a function')
+      }
     }
     return { pnpmfileModule: pnpmfile }
   } catch (err: unknown) {

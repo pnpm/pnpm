@@ -6,7 +6,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
 import { sync as readYamlFile } from 'read-yaml-file'
-import { writePackageSync } from 'write-pkg'
+import { writePackageSync } from 'write-package'
 import { type PnpmError } from '@pnpm/error'
 import { jest } from '@jest/globals'
 import { sync as writeYamlFile } from 'write-yaml-file'
@@ -301,6 +301,7 @@ test('logger warns about peer dependencies when linking', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     globalPkgDir: globalDir,
+    rootProjectManifestDir: globalDir,
   }, ['linked-with-peer-deps'])
 
   expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({

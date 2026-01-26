@@ -116,6 +116,7 @@ export interface ResolveOptions {
   alwaysTryWorkspacePackages?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyIgnoreAfter?: number
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
@@ -129,6 +130,12 @@ export interface ResolveOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
+  currentPkg?: {
+    id: PkgResolutionId
+    name?: string
+    version?: string
+    resolution: Resolution
+  }
 }
 
 export type WantedDependency = {
@@ -142,4 +149,4 @@ export type WantedDependency = {
   bareSpecifier?: string
 })
 
-export type ResolveFunction = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<ResolveResult>
+export type ResolveFunction = (wantedDependency: WantedDependency & { optional?: boolean }, opts: ResolveOptions) => Promise<ResolveResult>

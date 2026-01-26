@@ -1,8 +1,6 @@
 import path from 'path'
 import url from 'url'
 import normalizePath from 'normalize-path'
-import { pick } from 'ramda'
-import { USEFUL_NON_ROOT_PNPM_FIELDS } from '@pnpm/constants'
 import * as dp from '@pnpm/dependency-path'
 import {
   type DirectoryResolution,
@@ -32,11 +30,17 @@ export interface CreateDeployFilesOptions {
   selectedProjectManifest: ProjectManifest
   projectId: ProjectId
   rootProjectManifestDir: string
+  allowBuilds?: Record<string, boolean | string>
+}
+
+export interface DeployWorkspaceManifest {
+  allowBuilds?: Record<string, boolean | string>
 }
 
 export interface DeployFiles {
   lockfile: LockfileObject
   manifest: ProjectManifest
+  workspaceManifest?: DeployWorkspaceManifest
 }
 
 export function createDeployFiles ({
@@ -48,6 +52,7 @@ export function createDeployFiles ({
   selectedProjectManifest,
   projectId,
   rootProjectManifestDir,
+  allowBuilds,
 }: CreateDeployFilesOptions): DeployFiles {
   const deployedProjectRealPath = path.resolve(lockfileDir, projectId)
   const inputSnapshot = lockfile.importers[projectId]
@@ -139,7 +144,6 @@ export function createDeployFiles ({
       optionalDependencies: targetSnapshot.optionalDependencies,
       pnpm: {
         ...rootProjectManifest?.pnpm,
-        ...pick(USEFUL_NON_ROOT_PNPM_FIELDS, selectedProjectManifest.pnpm ?? {}),
         overrides: undefined, // the effects of the overrides should already be part of the package snapshots
         patchedDependencies: undefined,
         packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
@@ -160,6 +164,12 @@ export function createDeployFiles ({
         hash: patchInfo.hash,
         path: relativePath,
       }
+    }
+  }
+
+  if (allowBuilds) {
+    result.workspaceManifest = {
+      allowBuilds,
     }
   }
 

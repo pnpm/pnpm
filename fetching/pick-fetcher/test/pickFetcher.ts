@@ -30,7 +30,7 @@ test('should pick remoteTarball fetcher', async () => {
 })
 
 test.each([
-  'https://codeload.github.com/zkochan/is-negative/tar.gz/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
+  'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
   'https://bitbucket.org/pnpmjs/git-resolver/get/87cf6a67064d2ce56e8cd20624769a5512b83ff9.tar.gz',
   'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz',
 ])('should pick gitHostedTarball fetcher', async (tarball) => {
@@ -48,7 +48,7 @@ test('should fail to pick fetcher if the type is not defined', async () => {
 
 describe('custom fetcher support', () => {
   test('should use custom fetcher when canFetch returns true', async () => {
-    const mockFetchResult = { filesIndex: {}, manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }
+    const mockFetchResult = { filesMap: new Map(), manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }
     const customFetch = jest.fn(async () => mockFetchResult)
     const remoteTarball = jest.fn() as FetchFunction
 
@@ -87,7 +87,7 @@ describe('custom fetcher support', () => {
   })
 
   test('should use custom fetcher when canFetch returns promise resolving to true', async () => {
-    const mockFetchResult = { filesIndex: {}, manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }
+    const mockFetchResult = { filesMap: new Map(), manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }
     const customFetch = jest.fn(async () => mockFetchResult)
 
     const customFetcher: Partial<CustomFetcher> = {
@@ -150,8 +150,8 @@ describe('custom fetcher support', () => {
   })
 
   test('should check custom fetchers in order and use first match', async () => {
-    const mockFetchResult1 = { filesIndex: {}, manifest: { name: 'fetcher1', version: '1.0.0' }, requiresBuild: false }
-    const mockFetchResult2 = { filesIndex: {}, manifest: { name: 'fetcher2', version: '1.0.0' }, requiresBuild: false }
+    const mockFetchResult1 = { filesMap: new Map(), manifest: { name: 'fetcher1', version: '1.0.0' }, requiresBuild: false }
+    const mockFetchResult2 = { filesMap: new Map(), manifest: { name: 'fetcher2', version: '1.0.0' }, requiresBuild: false }
 
     const fetcher1: Partial<CustomFetcher> = {
       canFetch: () => true,
@@ -184,7 +184,7 @@ describe('custom fetcher support', () => {
   })
 
   test('should handle custom resolution types', async () => {
-    const mockFetchResult = { filesIndex: {}, manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }
+    const mockFetchResult = { filesMap: new Map(), manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }
     const customFetch = jest.fn(async () => mockFetchResult)
 
     const customFetcher: Partial<CustomFetcher> = {
@@ -217,7 +217,7 @@ describe('custom fetcher support', () => {
   })
 
   test('should pass all fetch options to custom fetcher.fetch', async () => {
-    const customFetch = jest.fn(async () => ({ filesIndex: {}, manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }))
+    const customFetch = jest.fn(async () => ({ filesMap: new Map(), manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }))
 
     const customFetcher: Partial<CustomFetcher> = {
       canFetch: () => true,

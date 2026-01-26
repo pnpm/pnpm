@@ -1,7 +1,9 @@
 // cspell:ignore buildscript
 import fs from 'fs'
 import path from 'path'
+import { type Config } from '@pnpm/config'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
@@ -674,17 +676,13 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync(
-    'is-positive/.npmrc',
-    'save-exact = true',
-    'utf8'
-  )
-  fs.writeFileSync(
-    'project-1/.npmrc',
-    'save-prefix = ~',
-    'utf8'
-  )
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    packageConfigs: {
+      'is-positive': { saveExact: true },
+      'project-1': { savePrefix: '~' },
+    },
+  } satisfies Partial<Config> & WorkspaceManifest)
 
   await execPnpm(['recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store'])
 
@@ -1265,11 +1263,7 @@ test('dependencies of workspace projects are built during headless installation'
   const projects = preparePackages([
     {
       location: '.',
-      package: {
-        pnpm: {
-          neverBuiltDependencies: [],
-        },
-      },
+      package: {},
     },
     {
       name: 'project-1',
@@ -1284,6 +1278,9 @@ test('dependencies of workspace projects are built during headless installation'
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     sharedWorkspaceLockfile: false,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
   })
 
   await execPnpm(['install', '--lockfile-only'])
@@ -1904,9 +1901,6 @@ test('deploy should keep files created by lifecycle scripts', async () => {
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {
-        neverBuiltDependencies: [],
-      },
     },
     'project-0': {
       name: 'project-0',
@@ -1928,6 +1922,9 @@ test('deploy should keep files created by lifecycle scripts', async () => {
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     injectWorkspacePackages: true,
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': true,
+    },
   })
 
   const monorepoRoot = process.cwd()
@@ -1955,9 +1952,6 @@ test('rebuild in a directory created with "pnpm deploy" and with "pnpm.neverBuil
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {
-        neverBuiltDependencies: [],
-      },
     },
     'project-0': {
       name: 'project-0',
@@ -1979,6 +1973,9 @@ test('rebuild in a directory created with "pnpm deploy" and with "pnpm.neverBuil
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     injectWorkspacePackages: true,
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': true,
+    },
   })
 
   const monorepoRoot = process.cwd()

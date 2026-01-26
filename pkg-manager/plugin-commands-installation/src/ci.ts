@@ -20,6 +20,6 @@ export function help (): string {
   })
 }
 
-export async function handler (opts: unknown): Promise<never> {
+export async function handler (_opts: unknown): Promise<never> {
   throw new PnpmError('CI_NOT_IMPLEMENTED', 'The ci command is not implemented yet')
 }
