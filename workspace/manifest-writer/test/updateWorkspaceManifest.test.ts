@@ -99,6 +99,26 @@ test('updateWorkspaceManifest updates allowBuilds', async () => {
   })
 })
 
+test('updateWorkspaceManifest adds a new catalog', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+
+  fs.writeFileSync(filePath, 'packages:\n  - \'*\'\n')
+
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      default: {
+        foo: '1.0.0',
+      },
+    },
+  })
+
+  expect(readYamlFile(filePath)).toStrictEqual({
+    packages: ['*'],
+    catalog: { foo: '1.0.0' },
+  })
+})
+
 test('updateWorkspaceManifest preserves quotes', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
