@@ -27,7 +27,7 @@
 
 Some of the e2e tests run node-gyp, so you might need to install some build-essentials on your system for those tests to pass. On Fedora, install these:
 
-```
+```shell
 sudo dnf install make automake gcc gcc-c++ kernel-devel
 ```
 
