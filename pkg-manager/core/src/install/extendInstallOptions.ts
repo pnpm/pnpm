@@ -18,6 +18,7 @@ import {
   type ReadPackageHook,
   type Registries,
   type TrustPolicy,
+  type PackageVulnerabilityAudit,
 } from '@pnpm/types'
 import { type CustomResolver, type CustomFetcher, type PreResolutionHookContext } from '@pnpm/hooks.types'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
@@ -167,6 +168,7 @@ export interface StrictInstallOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
+  packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
 }
 

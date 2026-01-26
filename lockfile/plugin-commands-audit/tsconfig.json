@@ -45,6 +45,15 @@
     },
     {
       "path": "../fs"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../utils"
+    },
+    {
+      "path": "../walker"
     }
   ]
 }

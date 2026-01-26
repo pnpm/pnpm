@@ -1,0 +1,8 @@
+{
+  "name": "update-multiple",
+  "version": "1.0.0",
+  "dependencies": {
+    "axios": "^1.8.2",
+    "form-data": "^3.0.1"
+  }
+}
