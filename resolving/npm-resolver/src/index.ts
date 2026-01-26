@@ -1,5 +1,4 @@
 import path from 'path'
-import { FULL_META_DIR, FULL_FILTERED_META_DIR, ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
   type FetchFromRegistry,
@@ -149,7 +148,7 @@ export interface WorkspaceResolveResult extends ResolveResult {
 }
 
 export type NpmResolver = (
-  wantedDependency: WantedDependency,
+  wantedDependency: WantedDependency & { optional?: boolean },
   opts: ResolveFromNpmOptions
 ) => Promise<NpmResolveResult | JsrResolveResult | WorkspaceResolveResult | null>
 
@@ -179,9 +178,9 @@ export function createNpmResolver (
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
       fetch,
+      fullMetadata: opts.fullMetadata,
       filterMetadata: opts.filterMetadata,
       metaCache,
-      metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : ABBREVIATED_META_DIR,
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
@@ -233,7 +232,7 @@ export type ResolveFromNpmOptions = {
 
 async function resolveNpm (
   ctx: ResolveFromNpmContext,
-  wantedDependency: WantedDependency,
+  wantedDependency: WantedDependency & { optional?: boolean },
   opts: ResolveFromNpmOptions
 ): Promise<NpmResolveResult | WorkspaceResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
@@ -276,6 +275,7 @@ async function resolveNpm (
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry,
       updateToLatest: opts.update === 'latest',
+      optional: wantedDependency.optional,
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
