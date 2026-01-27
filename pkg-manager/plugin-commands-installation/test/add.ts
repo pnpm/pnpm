@@ -4,9 +4,9 @@ import { type PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type ProjectManifest } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
+import { sync as writeYamlFile } from 'write-yaml-file'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const tmp = temporaryDirectory()
@@ -415,26 +415,26 @@ test('minimumReleaseAge makes install fail if there is no version that was publi
   }, ['is-odd@0.1.1'])).rejects.toThrow(/Version 0\.1\.1 \(released .+\) of is-odd does not meet the minimumReleaseAge constraint/)
 })
 
-describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchitectures.libc', () => {
+describeOnLinuxOnly('filters optional dependencies based on supportedArchitectures.libc', () => {
   test.each([
     ['glibc', '@pnpm.e2e+only-linux-x64-glibc@1.0.0', '@pnpm.e2e+only-linux-x64-musl@1.0.0'],
     ['musl', '@pnpm.e2e+only-linux-x64-musl@1.0.0', '@pnpm.e2e+only-linux-x64-glibc@1.0.0'],
   ])('%p → installs %p, does not install %p', async (libc, found, notFound) => {
-    const rootProjectManifest: ProjectManifest = {
-      pnpm: {
-        supportedArchitectures: {
-          os: ['linux'],
-          cpu: ['x64'],
-          libc: [libc],
-        },
-      },
+    const supportedArchitectures = {
+      os: ['linux'],
+      cpu: ['x64'],
+      libc: [libc],
     }
 
-    prepare(rootProjectManifest)
+    prepare()
+
+    writeYamlFile('pnpm-workspace.yaml', {
+      supportedArchitectures,
+    })
 
     await add.handler({
       ...DEFAULT_OPTIONS,
-      rootProjectManifest,
+      supportedArchitectures,
       dir: process.cwd(),
       linkWorkspacePackages: true,
     }, ['@pnpm.e2e/support-different-architectures'])

@@ -239,10 +239,11 @@ test('loading a pnpmfile from a config dependency', async () => {
     dependencies: {
       '@pnpm/x': '1.0.0',
     },
-    pnpm: {
-      configDependencies: {
-        '@pnpm.e2e/exports-pnpmfile': `1.0.0+${getIntegrity('@pnpm.e2e/exports-pnpmfile', '1.0.0')}`,
-      },
+  })
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    configDependencies: {
+      '@pnpm.e2e/exports-pnpmfile': `1.0.0+${getIntegrity('@pnpm.e2e/exports-pnpmfile', '1.0.0')}`,
     },
   })
 
