@@ -1,6 +1,8 @@
 import path from 'path'
+import fs from 'fs'
 import { envReplace } from '@pnpm/config.env-replace'
 import { PnpmError } from '@pnpm/error'
+import { logger, globalWarn } from '@pnpm/logger'
 import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
@@ -10,7 +12,6 @@ import {
   type PnpmSettings,
 } from '@pnpm/types'
 import { map as mapValues, omit, pick } from 'ramda'
-import { globalWarn } from '@pnpm/logger'
 
 export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
@@ -25,6 +26,22 @@ export type OptionsFromRootManifest = {
   allowBuilds?: Record<string, boolean | string>
   requiredScripts?: string[]
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'updateConfig'>
+
+function checkOverrides (overrides: Record<string, string>, manifestDir: string = process.cwd()): void {
+  Object.keys(overrides).forEach(key => {
+    let value = overrides[key]
+    if (value.startsWith('link:') || value.startsWith('file:')) {
+      value = value.replace(/^(?:link:|file:)/, '')
+      const _path = path.join(path.isAbsolute(value) ? value : path.resolve(manifestDir, value), 'package.json')
+      if (!fs.existsSync(_path)) {
+        logger.warn({
+          message: `Cannot resolve package "${key}" in overrides. The override path "${overrides[key]}" is not a valid package link.`,
+          prefix: manifestDir,
+        })
+      }
+    }
+  })
+}
 
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
   const settings: OptionsFromRootManifest = getOptionsFromPnpmSettings(manifestDir, {
@@ -53,6 +70,9 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       ...manifest.pnpm?.overrides,
     },
   }, manifest)
+  if (settings.overrides) {
+    checkOverrides(settings.overrides, manifestDir)
+  }
   return settings
 }
 

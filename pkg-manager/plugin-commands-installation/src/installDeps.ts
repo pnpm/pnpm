@@ -11,6 +11,8 @@ import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type LockfileObject } from '@pnpm/lockfile.types'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
+import { parseOverrides } from '@pnpm/parse-overrides'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir } from '@pnpm/types'
@@ -21,7 +23,7 @@ import {
   type MutateModulesOptions,
   type WorkspacePackages,
 } from '@pnpm/core'
-import { globalInfo, logger } from '@pnpm/logger'
+import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
@@ -103,6 +105,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'disallowWorkspaceCycles'
 | 'configDependencies'
 | 'updateConfig'
+| 'overrides'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -137,6 +140,53 @@ export type InstallDepsOptions = Pick<Config,
   pruneLockfileImporters?: boolean
   pnpmfile: string[]
 } & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
+
+export async function validateOverridesUsage (opts: InstallDepsOptions): Promise<void> {
+  if (!opts.overrides || Object.keys(opts.overrides).length === 0) {
+    return
+  }
+
+  const lockfileDir = opts.lockfileDir ?? opts.dir
+
+  try {
+    const wantedLockfile = await readWantedLockfile(lockfileDir, {
+      ignoreIncompatible: false,
+    })
+
+    if (!wantedLockfile?.packages) {
+      return
+    }
+
+    const parsedOverrides = parseOverrides(opts.overrides, opts.catalogs ?? {})
+
+    if (parsedOverrides.length === 0) {
+      return
+    }
+
+    const allPackagesInGraph = new Set<string>()
+
+    Object.keys(wantedLockfile.packages).forEach(depPath => {
+      const match = depPath.match(/^\/?(@?[^@/]+(?:\/[^@/]*)?)@/)
+      if (match) {
+        allPackagesInGraph.add(match[1])
+      }
+    })
+
+    parsedOverrides.forEach((override: { selector: string, targetPkg: { name: string } }) => {
+      const { selector, targetPkg } = override
+      const targetPackageName = targetPkg.name
+
+      if (!allPackagesInGraph.has(targetPackageName)) {
+        globalWarn(`Override "${selector}" targets package "${targetPackageName}" which is not found in the dependency graph. This override may be unnecessary.`)
+      }
+    })
+  } catch (error) {
+    logger.debug({
+      message: 'Failed to validate overrides',
+      error: String(error),
+    })
+  }
+}
 
 export async function installDeps (
   opts: InstallDepsOptions,
@@ -230,6 +280,7 @@ when running add/update with the --workspace option')
         },
         opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
       )
+      await validateOverridesUsage(opts)
       return
     }
   }
@@ -348,6 +399,7 @@ when running add/update with the --workspace option')
     if (opts.strictDepBuilds && ignoredBuilds?.size) {
       throw new IgnoredBuildsError(ignoredBuilds)
     }
+    await validateOverridesUsage(opts)
     return
   }
 
@@ -388,7 +440,10 @@ when running add/update with the --workspace option')
       workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understand that is not undefined
     }, 'install')
 
-    if (opts.ignoreScripts) return
+    if (opts.ignoreScripts) {
+      await validateOverridesUsage(opts)
+      return
+    }
 
     await rebuildProjects(
       [
@@ -417,6 +472,7 @@ when running add/update with the --workspace option')
       })
     }
   }
+  await validateOverridesUsage(opts)
 }
 
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
