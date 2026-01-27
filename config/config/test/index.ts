@@ -564,6 +564,7 @@ test('throw error if --no-hoist is used with --hoist-pattern', async () => {
   })
 })
 
+// public-hoist-pattern normalization is done in @pnpm/cli-utils
 test('normalizing the value of public-hoist-pattern', async () => {
   {
     const { config } = await getConfig({
@@ -576,7 +577,7 @@ test('normalizing the value of public-hoist-pattern', async () => {
       },
     })
 
-    expect(config.publicHoistPattern).toBeUndefined()
+    expect(config.publicHoistPattern).toBe('')
   }
   {
     const { config } = await getConfig({
@@ -589,7 +590,7 @@ test('normalizing the value of public-hoist-pattern', async () => {
       },
     })
 
-    expect(config.publicHoistPattern).toBeUndefined()
+    expect(config.publicHoistPattern).toStrictEqual([''])
   }
 })
 
@@ -1247,6 +1248,7 @@ test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect
   expect(config.lockfileDir).toBeUndefined()
 })
 
+// shamefullyHoist → publicHoistPattern conversion is done in @pnpm/cli-utils
 test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async () => {
   const workspaceDir = f.find('settings-in-workspace-yaml')
   process.chdir(workspaceDir)
@@ -1260,7 +1262,6 @@ test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async
   })
 
   expect(config.shamefullyHoist).toBe(true)
-  expect(config.publicHoistPattern).toStrictEqual(['*'])
   expect(config.rawConfig['shamefully-hoist']).toBe(true)
 })
 
