@@ -1,6 +1,6 @@
 import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
-import { getConfig as _getConfig, applyDerivedConfig, type CliOptions, type Config } from '@pnpm/config'
+import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
 import { createStoreController } from '@pnpm/store-connection-manager'
 import { installConfigDeps } from '@pnpm/config.deps-installer'
@@ -84,4 +84,29 @@ function isPluginName (configDepName: string): boolean {
   if (configDepName.startsWith('pnpm-plugin-')) return true
   if (configDepName[0] !== '@') return false
   return configDepName.startsWith('@pnpm/plugin-') || configDepName.includes('/pnpm-plugin-')
+}
+
+// Convert shamefullyHoist to publicHoistPattern
+function applyDerivedConfig (config: Config): void {
+  switch (config.shamefullyHoist) {
+  case false:
+    delete config.publicHoistPattern
+    break
+  case true:
+    config.publicHoistPattern = ['*']
+    break
+  default:
+    if (
+      (config.publicHoistPattern == null) ||
+        (config.publicHoistPattern === '') ||
+        (
+          Array.isArray(config.publicHoistPattern) &&
+          config.publicHoistPattern.length === 1 &&
+          config.publicHoistPattern[0] === ''
+        )
+    ) {
+      delete config.publicHoistPattern
+    }
+    break
+  }
 }
