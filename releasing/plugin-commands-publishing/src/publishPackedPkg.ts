@@ -7,9 +7,27 @@ import { FailedToPublishError } from './FailedToPublishError.js'
 import { type PackResult } from './pack.js'
 import { allRegistryConfigKeys, longestRegistryConfigKey } from './registryConfigKeys.js'
 
-export type Options = Pick<Config,
-| 'registries'
+type AuthConfigKey =
+| 'authToken'
+| 'authUserPass'
+| 'tokenHelper'
+
+type SslConfigKey =
+| 'ca'
+| 'cert'
+| 'key'
+
+type AuthSslConfigKey =
+// default registry
+| AuthConfigKey
+| SslConfigKey
+// other registries
+| 'authInfos'
 | 'sslConfigs'
+
+export type Options = Pick<Config,
+| AuthSslConfigKey
+| 'registries'
 | 'userAgent'
 > & {
   access?: 'public' | 'restricted'
@@ -28,11 +46,10 @@ export async function publishPackedPkg (packResult: PackResult, opts: Options): 
 
 function createPublishOptions (packResult: PackResult, {
   access,
-  registries,
-  sslConfigs,
   userAgent,
+  ...options
 }: Options): PublishOptions {
-  const authInfo = findAuthInfo(packResult.publishedManifest, { registries, sslConfigs })
+  const authInfo = findAuthInfo(packResult.publishedManifest, options)
 
   const publishOptions: PublishOptions = {
     ...authInfo,
@@ -44,6 +61,7 @@ function createPublishOptions (packResult: PackResult, {
   return publishOptions
 }
 
+// TODO: rename AuthInfo and findAuthInfo to appropriate names
 type AuthInfo = Pick<PublishOptions,
 // auth by login
 | 'username' // TODO: get from first half of _auth
@@ -57,7 +75,17 @@ type AuthInfo = Pick<PublishOptions,
 | 'key'
 >
 
-function findAuthInfo ({ name }: ExportedManifest, { registries, sslConfigs }: Pick<Config, 'registries' | 'sslConfigs'>): AuthInfo {
+// TODO: perhaps running a single findAuthInfo in a single pass was not the way?
+//       perhaps it is better to split this function into multiple, each finding their own properties?
+function findAuthInfo (
+  { name }: ExportedManifest,
+  {
+    authInfos,
+    sslConfigs,
+    registries,
+    ...defaultInfos
+  }: Pick<Config, AuthSslConfigKey | 'registries'>
+): AuthInfo {
   // eslint-disable-next-line regexp/no-unused-capturing-group
   const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
 
@@ -79,7 +107,29 @@ function findAuthInfo ({ name }: ExportedManifest, { registries, sslConfigs }: P
     }
   }
 
-  return { registry }
+  return {
+    registry,
+    ca: defaultInfos.ca,
+    cert: Array.isArray(defaultInfos.cert) ? defaultInfos.cert[0] : defaultInfos.cert, // TODO: when cert could possibly be an array?
+    key: defaultInfos.key,
+    token: extractToken(defaultInfos),
+    username: defaultInfos.authUserPass?.username,
+    password: defaultInfos.authUserPass?.password,
+  }
+}
+
+function extractToken ({
+  token,
+  tokenHelper,
+}: {
+  token?: string
+  tokenHelper?: [string, ...string[]]
+}): string | undefined {
+  if (token) return token
+  if (tokenHelper) {
+    throw new Error('TODO: execute tokenHelper')
+  }
+  return undefined
 }
 
 export class PublishUnsupportedRegistryProtocolError extends PnpmError {
