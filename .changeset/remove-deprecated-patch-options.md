@@ -1,17 +1,17 @@
 ---
-"@pnpm/plugin-commands-installation": minor
-"@pnpm/plugin-commands-deploy": minor
+"@pnpm/plugin-commands-installation": major
+"@pnpm/plugin-commands-deploy": major
 "@pnpm/plugin-commands-patching": major
-"@pnpm/package-bins": minor
+"@pnpm/package-bins": major
 "@pnpm/patching.apply-patch": major
 "@pnpm/patching.config": major
-"@pnpm/patching.types": minor
-"@pnpm/headless": minor
-"@pnpm/build-modules": minor
-"@pnpm/core": minor
-"@pnpm/types": minor
-"@pnpm/config": minor
-"pnpm": minor
+"@pnpm/patching.types": major
+"@pnpm/headless": major
+"@pnpm/build-modules": major
+"@pnpm/core": major
+"@pnpm/types": major
+"@pnpm/config": major
+"pnpm": major
 ---
 
 Removed the deprecated `allowNonAppliedPatches` completely in favor of `allowUnusedPatches`.
