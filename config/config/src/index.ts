@@ -527,27 +527,6 @@ export async function getConfig (opts: {
   if (pnpmConfig.hoist === false) {
     delete pnpmConfig.hoistPattern
   }
-  switch (pnpmConfig.shamefullyHoist) {
-  case false:
-    delete pnpmConfig.publicHoistPattern
-    break
-  case true:
-    pnpmConfig.publicHoistPattern = ['*']
-    break
-  default:
-    if (
-      (pnpmConfig.publicHoistPattern == null) ||
-        (pnpmConfig.publicHoistPattern === '') ||
-        (
-          Array.isArray(pnpmConfig.publicHoistPattern) &&
-          pnpmConfig.publicHoistPattern.length === 1 &&
-          pnpmConfig.publicHoistPattern[0] === ''
-        )
-    ) {
-      delete pnpmConfig.publicHoistPattern
-    }
-    break
-  }
   if (!pnpmConfig.symlink) {
     delete pnpmConfig.hoistPattern
     delete pnpmConfig.publicHoistPattern
@@ -695,11 +674,27 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
 }
 
-// Convert shamefullyHoist to publicHoistPattern after updateConfig hook
+// Convert shamefullyHoist to publicHoistPattern
 export function applyDerivedConfig (config: Config): void {
-  if (config.shamefullyHoist == false) {
-    delete config.publicHoistPattern;
-  } else if (config.shamefullyHoist == true) {
+  switch (config.shamefullyHoist) {
+  case false:
+    delete config.publicHoistPattern
+    break
+  case true:
     config.publicHoistPattern = ['*']
+    break
+  default:
+    if (
+      (config.publicHoistPattern == null) ||
+        (config.publicHoistPattern === '') ||
+        (
+          Array.isArray(config.publicHoistPattern) &&
+          config.publicHoistPattern.length === 1 &&
+          config.publicHoistPattern[0] === ''
+        )
+    ) {
+      delete config.publicHoistPattern
+    }
+    break
   }
 }

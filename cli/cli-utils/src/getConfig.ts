@@ -57,9 +57,9 @@ export async function getConfig (
         const updateConfigResult = updateConfig(config)
         config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop
       }
-      applyDerivedConfig(config)
     }
   }
+  applyDerivedConfig(config)
 
   if (opts.excludeReporter) {
     delete config.reporter // This is a silly workaround because @pnpm/core expects a function as opts.reporter
