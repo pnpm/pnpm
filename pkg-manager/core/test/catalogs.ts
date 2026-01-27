@@ -1338,6 +1338,65 @@ describe('add', () => {
     })
   })
 
+  // Regression test for https://github.com/pnpm/pnpm/issues/10176
+  // When re-adding a dependency that already exists in the catalog with catalogMode: strict,
+  // the catalog entry should preserve the original version specifier, not become 'catalog:'
+  test('re-adding existing catalog dependency with catalogMode: strict preserves catalog specifier', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    }])
+
+    // First, install the existing dependency with the catalog
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs: {
+        default: { 'is-positive': '^1.0.0' },
+      },
+      catalogMode: 'strict' as const,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Verify initial state
+    expect(readLockfile().catalogs?.default?.['is-positive']).toEqual({
+      specifier: '^1.0.0',
+      version: '1.0.0',
+    })
+
+    // Now re-add the same dependency (simulating 'pnpm add is-positive' from a subpackage)
+    const { updatedManifest, updatedCatalogs } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive'],
+      {
+        ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
+        allowNew: true,
+      })
+
+    // The manifest should still use catalog:
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    })
+
+    // The catalog should preserve the original specifier, NOT become 'catalog:'
+    // This is the bug fix - previously it would incorrectly write 'catalog:' to the catalog
+    if (updatedCatalogs?.default?.['is-positive']) {
+      expect(updatedCatalogs.default['is-positive']).not.toBe('catalog:')
+      expect(updatedCatalogs.default['is-positive']).toMatch(/^\^?\d/)
+    }
+
+    // The lockfile should have the correct catalog specifier
+    const lockfile = readLockfile()
+    expect(lockfile.catalogs?.default?.['is-positive']?.specifier).not.toBe('catalog:')
+  })
+
   test('adding with catalogMode: prefer will add to or use from catalog', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
