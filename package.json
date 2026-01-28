@@ -15,6 +15,7 @@
     "ci:test-main": "pnpm run prepare-fixtures && pnpm run test-pkgs-main",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
     "test-pkgs-main": "pnpm remove-temp-dir && pnpm run --no-sort --workspace-concurrency=1 -r _test",
+    "test-all": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test-branch": "pnpm pretest && pnpm lint && git remote set-branches --add origin main && git fetch origin main && pnpm run test-pkgs-branch",
     "ci:test-branch": "pnpm run prepare-fixtures && git remote set-branches --add origin main && git fetch origin main && pnpm run test-pkgs-branch",
     "test-pkgs-branch": "pnpm remove-temp-dir && pnpm --workspace-concurrency=1 --filter=...[origin/main] run --no-sort _test",
