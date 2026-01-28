@@ -34,7 +34,7 @@ function createTarballWorkerPool (): WorkerPool {
   const workerPool = new WorkerPool({
     id: 'pnpm',
     maxWorkers,
-    workerScriptPath: path.join(import.meta.dirname, 'worker.js'),
+    workerScriptPath: process.env.PNPM_WORKER_PATH ?? path.join(import.meta.dirname, 'worker.js'),
   })
   // @ts-expect-error
   if (global.finishWorkers) {
