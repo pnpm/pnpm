@@ -524,13 +524,6 @@ export async function getConfig (opts: {
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
   }
-  if (pnpmConfig.hoist === false) {
-    delete pnpmConfig.hoistPattern
-  }
-  if (!pnpmConfig.symlink) {
-    delete pnpmConfig.hoistPattern
-    delete pnpmConfig.publicHoistPattern
-  }
   if (typeof pnpmConfig['color'] === 'boolean') {
     switch (pnpmConfig['color']) {
     case true:

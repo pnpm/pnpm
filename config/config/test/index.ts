@@ -502,7 +502,8 @@ test('convert shamefully-flatten to hoist-pattern=* and warn', async () => {
   ])
 })
 
-test('hoist-pattern is undefined if --no-hoist used', async () => {
+// hoist → hoistPattern processing is done in @pnpm/cli-utils
+test('hoist-pattern is unchanged if --no-hoist used', async () => {
   const { config } = await getConfig({
     cliOptions: {
       hoist: false,
@@ -513,7 +514,8 @@ test('hoist-pattern is undefined if --no-hoist used', async () => {
     },
   })
 
-  expect(config.hoistPattern).toBeUndefined()
+  expect(config.hoist).toBe(false)
+  expect(config.hoistPattern).toStrictEqual(['*'])
 })
 
 test('throw error if --no-hoist is used with --shamefully-hoist', async () => {

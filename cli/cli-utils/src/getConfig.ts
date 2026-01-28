@@ -86,8 +86,11 @@ function isPluginName (configDepName: string): boolean {
   return configDepName.startsWith('@pnpm/plugin-') || configDepName.includes('/pnpm-plugin-')
 }
 
-// Convert shamefullyHoist to publicHoistPattern
+// Apply derived config settings (hoist, shamefullyHoist, symlink)
 function applyDerivedConfig (config: Config): void {
+  if (config.hoist === false) {
+    delete config.hoistPattern
+  }
   switch (config.shamefullyHoist) {
   case false:
     delete config.publicHoistPattern
@@ -108,5 +111,9 @@ function applyDerivedConfig (config: Config): void {
       delete config.publicHoistPattern
     }
     break
+  }
+  if (!config.symlink) {
+    delete config.hoistPattern
+    delete config.publicHoistPattern
   }
 }
