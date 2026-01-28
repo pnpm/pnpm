@@ -158,7 +158,7 @@ function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, i
     }
   }
 
-  output += `${EOL}If you need the full list of all ${Object.keys(meta.versions).length} published versions run "$ pnpm view ${meta.name} versions".`
+  output += `${EOL}If you need the full list of all ${Object.keys(meta.versions).length} published versions run "pnpm view ${meta.name} versions".`
 
   if (msg.immatureVersion) {
     output += `${EOL}${EOL}If you want to install the matched version ignoring the time it was published, you can add the package name to the minimumReleaseAgeExclude setting. Read more about it: https://pnpm.io/settings#minimumreleaseageexclude`
