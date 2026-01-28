@@ -569,6 +569,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath)
 
+  let randomDependency: Awaited<ReturnType<typeof writeLockfiles>>['randomDependency']
   if (opts.enableModulesDir !== false) {
     const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
     /** Skip linking and due to no project manifest */
@@ -643,26 +644,14 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     if (opts.useLockfile) {
       // We need to write the wanted lockfile as well.
       // Even though it will only be changed if the workspace will have new projects with no dependencies.
-      const { randomDependency } = await writeLockfiles({
+      ;({ randomDependency } = await writeLockfiles({
         wantedLockfileDir: opts.lockfileDir,
         currentLockfileDir,
         wantedLockfile,
         currentLockfile: filteredLockfile,
-      })
-      if (randomDependency) {
-        const fundingInfo = getFundingInfo(opts.storeDir, randomDependency)
-        if (fundingInfo) {
-          fundingLogger.debug(fundingInfo)
-        }
-      }
+      }))
     } else {
-      const { randomDependency } = await writeCurrentLockfile(currentLockfileDir, filteredLockfile)
-      if (randomDependency) {
-        const fundingInfo = getFundingInfo(opts.storeDir, randomDependency)
-        if (fundingInfo) {
-          fundingLogger.debug(fundingInfo)
-        }
-      }
+      ;({ randomDependency } = await writeCurrentLockfile(currentLockfileDir, filteredLockfile))
     }
   }
 
@@ -674,6 +663,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }))
 
   summaryLogger.debug({ prefix: lockfileDir })
+
+  if (randomDependency) {
+    const fundingInfo = getFundingInfo(opts.storeDir, randomDependency)
+    if (fundingInfo) {
+      fundingLogger.debug(fundingInfo)
+    }
+  }
 
   await opts.storeController.close()
 

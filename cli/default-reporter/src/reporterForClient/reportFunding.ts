@@ -1,11 +1,11 @@
 import { type FundingLog } from '@pnpm/core-loggers'
+import chalk from 'chalk'
 import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'
-import chalk from 'chalk'
 
 // OSC 8 hyperlink escape sequence for clickable URLs in terminals
-function terminalLink (url: string): string {
-  return `\u001B]8;;${url}\u0007${chalk.cyan(url)}\u001B]8;;\u0007`
+function terminalLink (url: string, text: string): string {
+  return `\u001B]8;;${url}\u0007${chalk.cyan(text)}\u001B]8;;\u0007`
 }
 
 export function reportFunding (
@@ -13,33 +13,21 @@ export function reportFunding (
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return funding$.pipe(
     map((log) => {
-      const messages: string[] = []
+      let msg: string
 
       switch (log.fundingType) {
       case 'funding':
-        messages.push(chalk.bgYellow.black(' FUND ') + ` ${chalk.bold(log.packageName)} is looking for funding`)
-        if (log.packageDescription) {
-          messages.push(`      ${chalk.dim(log.packageDescription)}`)
-        }
-        messages.push(`      ${terminalLink(log.fundingUrl)}`)
+        msg = `${chalk.yellow('Fund')} your dependency ${chalk.bold(log.packageName)}: ${terminalLink(log.fundingUrl, log.fundingUrl)}`
         break
       case 'repository':
-        messages.push(chalk.bgBlue.black(' STAR ') + ` Please star ${chalk.bold(log.packageName)} on GitHub`)
-        if (log.packageDescription) {
-          messages.push(`      ${chalk.dim(log.packageDescription)}`)
-        }
-        messages.push(`      ${terminalLink(log.fundingUrl)}`)
+        msg = `${chalk.blue('Star')} your dependency ${chalk.bold(log.packageName)} on GitHub: ${terminalLink(log.fundingUrl, log.fundingUrl)}`
         break
       case 'homepage':
-        messages.push(chalk.bgGreen.black(' SUPPORT ') + ` Check out ${chalk.bold(log.packageName)}`)
-        if (log.packageDescription) {
-          messages.push(`      ${chalk.dim(log.packageDescription)}`)
-        }
-        messages.push(`      ${terminalLink(log.fundingUrl)}`)
+        msg = `${chalk.green('Support')} your dependency ${chalk.bold(log.packageName)}: ${terminalLink(log.fundingUrl, log.fundingUrl)}`
         break
       }
 
-      return Rx.of({ msg: messages.join('\n') })
+      return Rx.of({ msg })
     })
   )
 }
