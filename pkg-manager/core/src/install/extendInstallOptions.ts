@@ -168,6 +168,7 @@ export interface StrictInstallOptions {
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
+  yes?: boolean
 }
 
 export type InstallOptions =
@@ -186,7 +187,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     autoInstallPeersFromHighestMatch: false,
     catalogs: {},
     childConcurrency: 5,
-    confirmModulesPurge: !opts.force,
+    confirmModulesPurge: !opts.yes && !opts.force,
     depth: 0,
     dedupeInjectedDeps: true,
     enableGlobalVirtualStore: false,
@@ -267,6 +268,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
     blockExoticSubdeps: false,
+    yes: false,
   } as StrictInstallOptions
 }
 
