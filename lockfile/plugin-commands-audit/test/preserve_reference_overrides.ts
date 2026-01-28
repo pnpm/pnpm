@@ -14,7 +14,7 @@ const rawConfig = {
 }
 
 test('overrides with references (via $) are preserved during audit --fix', async () => {
-  const tmp = f.prepare('repro-10325')
+  const tmp = f.prepare('preserve_reference_overrides')
 
   nock(registries.default)
     .post('/-/npm/v1/security/audits')

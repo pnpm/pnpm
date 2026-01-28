@@ -3,15 +3,12 @@ import { writeSettings } from '@pnpm/config.config-writer'
 import { difference } from 'ramda'
 import { type AuditOptions } from './audit.js'
 
-export async function fix (auditReport: AuditReport, opts: AuditOptions): Promise<Record<string, string>> {
+export async function fix(auditReport: AuditReport, opts: AuditOptions): Promise<Record<string, string>> {
   const vulnOverrides = createOverrides(Object.values(auditReport.advisories), opts.auditConfig?.ignoreCves)
   if (Object.values(vulnOverrides).length === 0) return vulnOverrides
   await writeSettings({
     updatedSettings: {
-      overrides: {
-        ...(opts.rootProjectManifest?.pnpm?.overrides ?? opts.overrides),
-        ...vulnOverrides,
-      },
+      overrides: vulnOverrides,
     },
     rootProjectManifest: opts.rootProjectManifest,
     rootProjectManifestDir: opts.rootProjectManifestDir,
@@ -20,7 +17,7 @@ export async function fix (auditReport: AuditReport, opts: AuditOptions): Promis
   return vulnOverrides
 }
 
-function createOverrides (advisories: AuditAdvisory[], ignoreCves?: string[]): Record<string, string> {
+function createOverrides(advisories: AuditAdvisory[], ignoreCves?: string[]): Record<string, string> {
   if (ignoreCves) {
     advisories = advisories.filter(({ cves }) => difference(cves, ignoreCves).length > 0)
   }
