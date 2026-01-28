@@ -60,6 +60,9 @@
   "unpkg": "dist/pnpm.mjs",
   "scripts": {
     "bundle": "pnpm dlx node@runtime:24.6.0 bundle.ts",
+    "bun:bundle": "bun run bun-bundle.ts",
+    "bun:compile": "bun run bun-compile.ts",
+    "deno:compile": "deno run -A deno-compile.ts",
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
