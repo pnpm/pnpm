@@ -10,6 +10,7 @@ import {
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
+import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
@@ -38,6 +39,12 @@ export interface LockfileToHoistedDepGraphOptions {
   importerIds: string[]
   include: IncludedDependencies
   ignoreScripts: boolean
+  /**
+   * When true, skip fetching local dependencies (file: protocol pointing to directories).
+   * This is used by `pnpm fetch` which only downloads packages from the registry
+   * and doesn't need local packages that won't be available (e.g., in Docker builds).
+   */
+  ignoreLocalPackages?: boolean
   currentHoistedLocations?: Record<string, string[]>
   lockfileDir: string
   modulesDir?: string
@@ -199,6 +206,20 @@ async function fetchDeps (
       opts.skipped.add(depPath)
       return
     }
+
+    const isDirectoryDep = 'directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null
+
+    // Skip local directory dependencies when ignoreLocalPackages is true.
+    // This is used by `pnpm fetch` which only downloads packages from the registry
+    // and doesn't need local packages (e.g., file: protocol deps in Docker builds).
+    if (isDirectoryDep && opts.ignoreLocalPackages) {
+      logger.info({
+        message: `Skipping local dependency ${pkgName}@${pkgVersion} (file: protocol)`,
+        prefix: opts.lockfileDir,
+      })
+      return
+    }
+
     const dir = path.join(modules, dep.name)
     const depLocation = path.relative(opts.lockfileDir, dir)
     const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
