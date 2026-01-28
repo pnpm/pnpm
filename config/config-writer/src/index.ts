@@ -10,7 +10,7 @@ export interface WriteSettingsOptions {
   workspaceDir: string
 }
 
-export async function writeSettings (opts: WriteSettingsOptions): Promise<void> {
+export async function writeSettings(opts: WriteSettingsOptions): Promise<void> {
   if (opts.rootProjectManifest?.pnpm != null) {
     const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir)
     if (manifest) {
@@ -19,7 +19,12 @@ export async function writeSettings (opts: WriteSettingsOptions): Promise<void> 
       for (const [key, value] of Object.entries(opts.updatedSettings)) {
         if (!equals(manifest.pnpm[key as keyof PnpmSettings], value)) {
           shouldBeUpdated = true
-          if (value == null) {
+          if (key === 'overrides' && manifest.pnpm.overrides && typeof value === 'object' && value !== null) {
+            manifest.pnpm.overrides = {
+              ...manifest.pnpm.overrides,
+              ...value,
+            }
+          } else if (value == null) {
             delete manifest.pnpm[key as keyof PnpmSettings]
           } else {
             manifest.pnpm[key as keyof PnpmSettings] = value
