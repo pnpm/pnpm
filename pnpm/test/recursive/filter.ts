@@ -1,19 +1,20 @@
 import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpmSync } from '../utils/index.js'
 
 test('pnpm --filter <root> add <pkg> should work', async () => {
   prepare({
     name: 'root',
     version: '1.0.0',
-    pnpm: {
-      overrides: {
-        'is-positive': '1.0.0',
-      },
-    },
   })
 
-  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "."\n')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['.'],
+    overrides: {
+      'is-positive': '1.0.0',
+    },
+  })
 
   const result = execPnpmSync(['--filter', 'root', 'add', 'is-positive'])
   if (result.status !== 0) {
@@ -32,7 +33,7 @@ test('pnpm --filter . add <pkg> should work', async () => {
     version: '1.0.0',
   })
 
-  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "."\n')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['.'] })
 
   const result = execPnpmSync(['--filter', '.', 'add', 'is-positive'])
   if (result.status !== 0) {
