@@ -24,11 +24,13 @@ export function filterDependenciesByType (
 }
 
 export function getAllDependenciesFromManifest (
-  manifest: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>
+  manifest: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies' | 'peerDependencies'>,
+  opts?: { autoInstallPeers?: boolean }
 ): Dependencies {
   return {
     ...manifest.devDependencies,
     ...manifest.dependencies,
     ...manifest.optionalDependencies,
+    ...(opts?.autoInstallPeers ? manifest.peerDependencies : {}),
   }
 }
