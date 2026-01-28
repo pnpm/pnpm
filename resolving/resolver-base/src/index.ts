@@ -4,6 +4,7 @@ import {
   type PkgResolutionId,
   type PinnedVersion,
   type PackageVersionPolicy,
+  type PackageVulnerabilityAudit,
   type TrustPolicy,
 } from '@pnpm/types'
 
@@ -136,6 +137,7 @@ export interface ResolveOptions {
     version?: string
     resolution: Resolution
   }
+  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
 export type WantedDependency = {
