@@ -58,6 +58,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'configDependencies'
 | 'dedupePeerDependents'
 | 'depth'
+| 'global'
 | 'globalPnpmfile'
 | 'hoistPattern'
 | 'hooks'
@@ -307,7 +308,7 @@ export async function recursive (
       await Promise.all(promises)
     }
     if (opts.strictDepBuilds && ignoredBuilds?.size) {
-      throw new IgnoredBuildsError(ignoredBuilds)
+      throw new IgnoredBuildsError(ignoredBuilds, { global: opts.global })
     }
     return true
   }
@@ -427,7 +428,7 @@ export async function recursive (
           }
         }
         if (opts.strictDepBuilds && ignoredBuilds?.size) {
-          throw new IgnoredBuildsError(ignoredBuilds)
+          throw new IgnoredBuildsError(ignoredBuilds, { global: opts.global })
         }
         result[rootDir].status = 'passed'
       } catch (err: any) { // eslint-disable-line

@@ -6,6 +6,7 @@ import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
 import writeYamlFile from 'write-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import {
   addDistTag,
   execPnpm,
@@ -255,4 +256,55 @@ test('global update should not crash if there are no global packages', async () 
   const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   expect(execPnpmSync(['update', '--global'], { env }).status).toBe(0)
+})
+
+test('global add/remove do not rewrite pnpm-workspace.yaml without config changes', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  const globalPkgDir = path.join(pnpmHome, 'global', String(LAYOUT_VERSION))
+  fs.mkdirSync(globalPkgDir, { recursive: true })
+
+  const workspaceManifestPath = path.join(globalPkgDir, 'pnpm-workspace.yaml')
+  writeYamlFile.sync(workspaceManifestPath, {
+    allowBuilds: {
+      'existing-allowed': true,
+    },
+    packages: ['**'],
+    sharedWorkspaceLockfile: false,
+  })
+  const initialContent = fs.readFileSync(workspaceManifestPath, 'utf8')
+
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', 'is-positive'], { env })
+  expect(fs.readFileSync(workspaceManifestPath, 'utf8')).toBe(initialContent)
+
+  await execPnpm(['remove', '--global', 'is-positive'], { env })
+  expect(fs.readFileSync(workspaceManifestPath, 'utf8')).toBe(initialContent)
+})
+
+test('global add --allow-build merges allowBuilds in pnpm-workspace.yaml', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  const globalPkgDir = path.join(pnpmHome, 'global', String(LAYOUT_VERSION))
+  fs.mkdirSync(globalPkgDir, { recursive: true })
+
+  const workspaceManifestPath = path.join(globalPkgDir, 'pnpm-workspace.yaml')
+  writeYamlFile.sync(workspaceManifestPath, {
+    allowBuilds: {
+      'existing-allowed': true,
+    },
+  })
+
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', '--allow-build=esbuild', 'is-positive'], { env })
+
+  const updatedManifest = readYamlFile<{ allowBuilds?: Record<string, boolean> }>(workspaceManifestPath)
+  expect(updatedManifest.allowBuilds).toStrictEqual({
+    'existing-allowed': true,
+    esbuild: true,
+  })
 })

@@ -79,6 +79,29 @@ test('dlx ignores configuration in current project package.json', async () => {
   })
 })
 
+test('dlx does not fail when dangerouslyAllowAllBuilds is true', async () => {
+  prepareEmpty()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = {
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+
+  const result = execPnpmSync([
+    '--config.dangerously-allow-all-builds=true',
+    'dlx',
+    'shx@0.3.4',
+    'echo',
+    'hi',
+  ], { env, expectSuccess: true })
+
+  expect(result.stdout.toString().trim()).toBe('hi')
+})
+
 test('dlx should work with npm_config_save_dev env variable', async () => {
   prepareEmpty()
   execPnpmSync(['dlx', '@foo/touch-file-one-bin@latest'], {
