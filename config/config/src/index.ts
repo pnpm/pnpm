@@ -274,6 +274,12 @@ export async function getConfig (opts: {
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
   const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
 
+  // Unfortunately, there is no way to escape the PATH delimiter,
+  // so directories added to PATH should not contain it.
+  if (cwd.includes(path.delimiter)) {
+    warnings.push(`Directory "${cwd}" contains the path delimiter character (${path.delimiter}), so binaries from node_modules/.bin will not be accessible via PATH. Consider renaming the directory.`)
+  }
+
   pnpmConfig.maxSockets = npmConfig.maxsockets
   // @ts-expect-error
   delete pnpmConfig['maxsockets']
