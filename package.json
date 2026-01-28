@@ -55,7 +55,6 @@
     "jest": "catalog:",
     "keyv": "catalog:",
     "lcov-result-merger": "catalog:",
-    "publish-packed": "catalog:",
     "rimraf": "catalog:",
     "shx": "catalog:",
     "ts-jest": "catalog:",

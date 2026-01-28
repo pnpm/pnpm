@@ -11,9 +11,6 @@
   ],
   "references": [
     {
-      "path": "../config/parse-overrides"
-    },
-    {
       "path": "../lockfile/fs"
     },
     {
