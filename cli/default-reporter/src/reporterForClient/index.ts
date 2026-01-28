@@ -21,6 +21,7 @@ import { reportSkippedOptionalDependencies } from './reportSkippedOptionalDepend
 import { reportStats } from './reportStats.js'
 import { reportSummary, type FilterPkgsDiff } from './reportSummary.js'
 import { reportUpdateCheck } from './reportUpdateCheck.js'
+import { reportFunding } from './reportFunding.js'
 
 const PRINT_EXECUTION_TIME_IN_COMMANDS = {
   install: true,
@@ -55,6 +56,7 @@ export function reporterForClient (
     skippedOptionalDependency: Rx.Observable<logs.SkippedOptionalDependencyLog>
     packageImportMethod: Rx.Observable<logs.PackageImportMethodLog>
     updateCheck: Rx.Observable<logs.UpdateCheckLog>
+    funding: Rx.Observable<logs.FundingLog>
   },
   opts: {
     appendOnly?: boolean
@@ -159,6 +161,7 @@ export function reporterForClient (
         pnpmConfig: opts.pnpmConfig,
       }))
     }
+    outputs.push(reportFunding(log$.funding))
     outputs.push(
       reportIgnoredBuilds(log$, {
         pnpmConfig: opts.pnpmConfig,

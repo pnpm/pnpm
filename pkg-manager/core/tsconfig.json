@@ -49,6 +49,9 @@
       "path": "../../crypto/hash"
     },
     {
+      "path": "../../crypto/integrity"
+    },
+    {
       "path": "../../crypto/object-hasher"
     },
     {
@@ -62,6 +65,9 @@
     },
     {
       "path": "../../exec/plugin-commands-rebuild"
+    },
+    {
+      "path": "../../fs/graceful-fs"
     },
     {
       "path": "../../fs/msgpack-file"

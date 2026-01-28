@@ -9,7 +9,9 @@ import writeFileAtomicCB from 'write-file-atomic'
 import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
 import { getWantedLockfileName } from './lockfileName.js'
-import { convertToLockfileFile } from './lockfileFormatConverters.js'
+import { convertToLockfileFile, type RandomDependency } from './lockfileFormatConverters.js'
+
+export type { RandomDependency }
 
 async function writeFileAtomic (filename: string, data: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
@@ -38,7 +40,7 @@ export async function writeWantedLockfile (
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
   }
-): Promise<void> {
+): Promise<WriteLockfileResult> {
   const wantedLockfileName: string = await getWantedLockfileName(opts)
   return writeLockfile(wantedLockfileName, pkgPath, wantedLockfile)
 }
@@ -46,25 +48,30 @@ export async function writeWantedLockfile (
 export async function writeCurrentLockfile (
   virtualStoreDir: string,
   currentLockfile: LockfileObject
-): Promise<void> {
+): Promise<WriteLockfileResult> {
   // empty lockfile is not saved
   if (isEmptyLockfile(currentLockfile)) {
     await rimraf(path.join(virtualStoreDir, 'lock.yaml'))
-    return
+    return { randomDependency: undefined }
   }
   await fs.mkdir(virtualStoreDir, { recursive: true })
   return writeLockfile('lock.yaml', virtualStoreDir, currentLockfile)
+}
+
+export interface WriteLockfileResult {
+  randomDependency: RandomDependency | undefined
 }
 
 async function writeLockfile (
   lockfileFilename: string,
   pkgPath: string,
   wantedLockfile: LockfileObject
-): Promise<void> {
+): Promise<WriteLockfileResult> {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
-  const lockfileToStringify = convertToLockfileFile(wantedLockfile)
-  return writeLockfileFile(lockfilePath, lockfileToStringify)
+  const { lockfile: lockfileToStringify, randomDependency } = convertToLockfileFile(wantedLockfile)
+  await writeLockfileFile(lockfilePath, lockfileToStringify)
+  return { randomDependency }
 }
 
 export function writeLockfileFile (
@@ -93,12 +100,12 @@ export async function writeLockfiles (
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
   }
-): Promise<void> {
+): Promise<WriteLockfileResult> {
   const wantedLockfileName: string = await getWantedLockfileName(opts)
   const wantedLockfilePath = path.join(opts.wantedLockfileDir, wantedLockfileName)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
-  const wantedLockfileToStringify = convertToLockfileFile(opts.wantedLockfile)
+  const { lockfile: wantedLockfileToStringify, randomDependency } = convertToLockfileFile(opts.wantedLockfile)
   const yamlDoc = yamlStringify(wantedLockfileToStringify)
 
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
@@ -116,7 +123,7 @@ export async function writeLockfiles (
         }
       })(),
     ])
-    return
+    return { randomDependency }
   }
 
   logger.debug({
@@ -124,7 +131,7 @@ export async function writeLockfiles (
     prefix: opts.wantedLockfileDir,
   })
 
-  const currentLockfileToStringify = convertToLockfileFile(opts.currentLockfile)
+  const { lockfile: currentLockfileToStringify } = convertToLockfileFile(opts.currentLockfile)
   const currentYamlDoc = yamlStringify(currentLockfileToStringify)
 
   await Promise.all([
@@ -138,4 +145,5 @@ export async function writeLockfiles (
       }
     })(),
   ])
+  return { randomDependency }
 }

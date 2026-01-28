@@ -8,6 +8,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
+  fundingLogger,
   packageManifestLogger,
   progressLogger,
   stageLogger,
@@ -37,6 +38,7 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
 import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
+import { getFundingInfo } from './getFundingInfo.js'
 import {
   type LogBase,
   logger,
@@ -87,6 +89,7 @@ import {
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
 export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
+export { getFundingInfo, type FundingInfo, type FundingType } from './getFundingInfo.js'
 
 export type { HoistingLimits }
 
@@ -640,14 +643,26 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     if (opts.useLockfile) {
       // We need to write the wanted lockfile as well.
       // Even though it will only be changed if the workspace will have new projects with no dependencies.
-      await writeLockfiles({
+      const { randomDependency } = await writeLockfiles({
         wantedLockfileDir: opts.lockfileDir,
         currentLockfileDir,
         wantedLockfile,
         currentLockfile: filteredLockfile,
       })
+      if (randomDependency) {
+        const fundingInfo = getFundingInfo(opts.storeDir, randomDependency)
+        if (fundingInfo) {
+          fundingLogger.debug(fundingInfo)
+        }
+      }
     } else {
-      await writeCurrentLockfile(currentLockfileDir, filteredLockfile)
+      const { randomDependency } = await writeCurrentLockfile(currentLockfileDir, filteredLockfile)
+      if (randomDependency) {
+        const fundingInfo = getFundingInfo(opts.storeDir, randomDependency)
+        if (fundingInfo) {
+          fundingLogger.debug(fundingInfo)
+        }
+      }
     }
   }
 
