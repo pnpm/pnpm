@@ -43,6 +43,8 @@ export type PublishPackedPkgOptions = Pick<Config,
 
   // NOTE: the provenance feature requires a custom implementation of OIDC and Sigstore client, and as such, not yet available
   //       see <https://github.com/npm/cli/blob/7d900c4656cfffc8cca93240c6cda4b441fbbfaa/lib/utils/oidc.js>
+  //       see <https://github.com/watson/ci-info>
+  //       see <https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect>
   // TODO: implement provenance
   provenance?: boolean
   provenanceFile?: string
