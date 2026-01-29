@@ -27,7 +27,7 @@ type AuthSslConfigKey =
 | 'authInfos'
 | 'sslConfigs'
 
-export type Options = Pick<Config,
+export type PublishPackedPkgOptions = Pick<Config,
 | AuthSslConfigKey
 | 'registries'
 | 'userAgent'
@@ -38,7 +38,7 @@ export type Options = Pick<Config,
 // @types/libnpmpublish unfortunately uses an outdated type definition of package.json
 type OutdatedManifest = typeof publish extends (_a: infer Manifest, ..._: never) => unknown ? Manifest : never
 
-export async function publishPackedPkg (packResult: PackResult, opts: Options): Promise<void> {
+export async function publishPackedPkg (packResult: PackResult, opts: PublishPackedPkgOptions): Promise<void> {
   const { publishedManifest, tarballPath } = packResult
   const tarballData = await fs.readFile(tarballPath)
   const response = await publish(publishedManifest as OutdatedManifest, tarballData, createPublishOptions(packResult, opts))
@@ -50,7 +50,7 @@ function createPublishOptions (packResult: PackResult, {
   access,
   userAgent,
   ...options
-}: Options): PublishOptions {
+}: PublishPackedPkgOptions): PublishOptions {
   const { registry, auth, ssl } = findAuthSslInfo(packResult.publishedManifest, options)
 
   const publishOptions: PublishOptions = {
