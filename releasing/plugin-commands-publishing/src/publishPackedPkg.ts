@@ -3,7 +3,7 @@ import { type PublishOptions, publish } from 'libnpmpublish'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
-import { FailedToPublishError } from './FailedToPublishError.js'
+import { createFailedToPublishError } from './FailedToPublishError.js'
 import { type PackResult } from './pack.js'
 import { allRegistryConfigKeys, longestRegistryConfigKey } from './registryConfigKeys.js'
 
@@ -41,7 +41,7 @@ export async function publishPackedPkg (packResult: PackResult, opts: Options): 
   const tarballData = await fs.readFile(tarballPath)
   const response = await publish(publishedManifest as OutdatedManifest, tarballData, createPublishOptions(packResult, opts))
   if (response.ok) return
-  throw await FailedToPublishError.createFailedToPublishError(packResult, response)
+  throw await createFailedToPublishError(packResult, response)
 }
 
 function createPublishOptions (packResult: PackResult, {

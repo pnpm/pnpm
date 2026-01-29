@@ -38,19 +38,19 @@ export class FailedToPublishError extends PnpmError implements PublishErrorPrope
     this.statusText = statusText
     this.text = text
   }
+}
 
-  static async createFailedToPublishError (pack: PackResult, fetchResponse: FetchResponse): Promise<FailedToPublishError> {
-    const { status, statusText } = fetchResponse
+export async function createFailedToPublishError (pack: PackResult, fetchResponse: FetchResponse): Promise<FailedToPublishError> {
+  const { status, statusText } = fetchResponse
 
-    let text: string
-    try {
-      text = await fetchResponse.text()
-    } catch {
-      text = ''
-    }
-
-    return new FailedToPublishError({ pack, status, statusText, text })
+  let text: string
+  try {
+    text = await fetchResponse.text()
+  } catch {
+    text = ''
   }
+
+  return new FailedToPublishError({ pack, status, statusText, text })
 }
 
 interface FetchResponse {

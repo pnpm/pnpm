@@ -1,5 +1,5 @@
 import { type PackResult } from '../src/pack.js'
-import { FailedToPublishError } from '../src/FailedToPublishError.js'
+import { type FailedToPublishError, createFailedToPublishError } from '../src/FailedToPublishError.js'
 
 const pack = (): PackResult => ({
   contents: ['index.js', 'bin.js'],
@@ -12,7 +12,7 @@ const pack = (): PackResult => ({
 
 describe('createFailedToPublishError', () => {
   test('without details', async () => {
-    expect(await FailedToPublishError.createFailedToPublishError(pack(), {
+    expect(await createFailedToPublishError(pack(), {
       status: 401,
       statusText: 'Unauthorized',
       text: () => '',
@@ -27,7 +27,7 @@ describe('createFailedToPublishError', () => {
   })
 
   test('failed to get details text', async () => {
-    expect(await FailedToPublishError.createFailedToPublishError(pack(), {
+    expect(await createFailedToPublishError(pack(), {
       status: 401,
       statusText: 'Unauthorized',
       text () {
@@ -45,7 +45,7 @@ describe('createFailedToPublishError', () => {
 
   test('with single-line details', async () => {
     const text = 'Failed to authenticate'
-    expect(await FailedToPublishError.createFailedToPublishError(pack(), {
+    expect(await createFailedToPublishError(pack(), {
       status: 401,
       statusText: 'Unauthorized',
       text: () => text,
@@ -64,7 +64,7 @@ describe('createFailedToPublishError', () => {
       'Failed to authenticate',
       'No token provided',
     ].join('\n')
-    expect(await FailedToPublishError.createFailedToPublishError(pack(), {
+    expect(await createFailedToPublishError(pack(), {
       status: 401,
       statusText: 'Unauthorized',
       text: () => text,
@@ -85,7 +85,7 @@ describe('createFailedToPublishError', () => {
   })
 
   test('with an empty statusText', async () => {
-    expect(await FailedToPublishError.createFailedToPublishError(pack(), {
+    expect(await createFailedToPublishError(pack(), {
       status: 499,
       statusText: '',
       text: () => '',
