@@ -84,9 +84,25 @@ export function createDownloader (
             reject(op.mainError())
             return
           }
+          // Extract error properties into a plain object because Error properties
+          // are non-enumerable and don't serialize well through the logging system
+          const errorInfo = {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            errno: error.errno,
+            // For HTTP errors from our ResponseError class
+            status: error.status,
+            statusCode: error.statusCode,
+            // undici wraps the actual network error in a cause property
+            cause: error.cause ? {
+              code: error.cause.code,
+              errno: error.cause.errno,
+            } : undefined,
+          }
           requestRetryLogger.debug({
             attempt,
-            error,
+            error: errorInfo,
             maxRetries: retryOpts.retries,
             method: 'GET',
             timeout,
@@ -129,9 +145,11 @@ export function createDownloader (
         let downloaded = 0
         const chunks: Buffer[] = []
         // This will handle the 'data', 'error', and 'end' events.
+        // Note: undici returns Uint8Array chunks, not Buffer chunks, so we convert them
         for await (const chunk of res.body!) {
-          chunks.push(chunk as Buffer)
-          downloaded += chunk.length
+          const bufferChunk = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array)
+          chunks.push(bufferChunk)
+          downloaded += bufferChunk.length
           onProgress?.(downloaded)
         }
         if (size !== null && size !== downloaded) {

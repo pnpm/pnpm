@@ -31,8 +31,7 @@
     "test": "pnpm run compile"
   },
   "dependencies": {
-    "@zkochan/retry": "catalog:",
-    "node-fetch": "catalog:"
+    "@zkochan/retry": "catalog:"
   },
   "devDependencies": {
     "@pnpm/fetching-types": "workspace:*"

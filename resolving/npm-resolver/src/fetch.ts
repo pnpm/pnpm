@@ -109,9 +109,17 @@ export async function fetchMetadataFromFromRegistry (
           reject(op.mainError())
           return
         }
+        // Extract error properties into a plain object because Error properties
+        // are non-enumerable and don't serialize well through the logging system
+        const errorInfo = {
+          name: error.name,
+          message: error.message,
+          code: error.code,
+          errno: error.errno,
+        }
         requestRetryLogger.debug({
           attempt,
-          error,
+          error: errorInfo,
           maxRetries: fetchOpts.retry.retries!,
           method: 'GET',
           timeout,

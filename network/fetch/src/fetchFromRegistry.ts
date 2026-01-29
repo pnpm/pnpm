@@ -1,8 +1,8 @@
 import { URL } from 'url'
 import { type SslConfig } from '@pnpm/types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { getAgent, type AgentOptions } from '@pnpm/network.agent'
-import { fetch, isRedirect, type Response, type RequestInfo, type RequestInit } from './fetch.js'
+import { fetch, isRedirect, type RequestInit } from './fetch.js'
+import { getDispatcher, type DispatcherOptions } from './dispatcher.js'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
@@ -14,34 +14,31 @@ const ACCEPT_ABBREVIATED_DOC = `${ABBREVIATED_DOC}; q=1.0, ${FULL_DOC}; q=0.8, *
 
 const MAX_FOLLOWED_REDIRECTS = 20
 
-export interface FetchWithAgentOptions extends RequestInit {
-  agentOptions: AgentOptions
+export interface FetchWithDispatcherOptions extends RequestInit {
+  dispatcherOptions: DispatcherOptions
 }
 
-export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions): Promise<Response> {
-  const agent = getAgent(url.toString(), {
-    ...opts.agentOptions,
-    strictSsl: opts.agentOptions.strictSsl ?? true,
-  } as any) as any // eslint-disable-line
-  const headers = opts.headers ?? {}
-  // @ts-expect-error
-  headers['connection'] = agent ? 'keep-alive' : 'close'
+export function fetchWithDispatcher (url: string | URL, opts: FetchWithDispatcherOptions): Promise<Response> {
+  const dispatcher = getDispatcher(url.toString(), {
+    ...opts.dispatcherOptions,
+    strictSsl: opts.dispatcherOptions.strictSsl ?? true,
+  })
   return fetch(url, {
     ...opts,
-    agent,
+    dispatcher,
   })
 }
 
-export type { AgentOptions }
+export type { DispatcherOptions }
 
-export interface CreateFetchFromRegistryOptions extends AgentOptions {
+export interface CreateFetchFromRegistryOptions extends DispatcherOptions {
   userAgent?: string
   sslConfigs?: Record<string, SslConfig>
 }
 
 export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOptions): FetchFromRegistry {
   return async (url, opts): Promise<Response> => {
-    const headers = {
+    const headers: Record<string, string> = {
       'user-agent': USER_AGENT,
       ...getHeaders({
         auth: opts?.authHeaderValue,
@@ -55,22 +52,16 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
     const originalHost = urlObject.host
     /* eslint-disable no-await-in-loop */
     while (true) {
-      const agentOptions = {
+      const dispatcherOptions: DispatcherOptions = {
         ...defaultOpts,
         ...opts,
         strictSsl: defaultOpts.strictSsl ?? true,
-      } as any // eslint-disable-line
+        clientCertificates: defaultOpts.sslConfigs,
+      }
 
-      // We should pass a URL object to node-fetch till this is not resolved:
-      // https://github.com/bitinn/node-fetch/issues/245
-      const response = await fetchWithAgent(urlObject, {
-        agentOptions: {
-          ...agentOptions,
-          clientCertificates: defaultOpts.sslConfigs,
-        },
-        // if verifying integrity, node-fetch must not decompress
-        compress: opts?.compress ?? false,
-        method: opts?.method,
+      const response = await fetchWithDispatcher(urlObject, {
+        dispatcherOptions,
+        // if verifying integrity, native fetch must not decompress
         headers,
         redirect: 'manual',
         retry: opts?.retry,

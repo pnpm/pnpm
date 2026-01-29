@@ -53,7 +53,7 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",
-    "nock": "catalog:"
+    "undici": "catalog:"
   },
   "engines": {
     "node": ">=20.19"

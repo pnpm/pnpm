@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/fetch",
   "version": "1000.2.6",
-  "description": "node-fetch with retries",
+  "description": "Native fetch with retries",
   "keywords": [
     "pnpm",
     "pnpm11",
@@ -35,10 +35,10 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/network.agent": "catalog:",
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
-    "node-fetch": "catalog:"
+    "lru-cache": "catalog:",
+    "undici": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

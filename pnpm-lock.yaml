@@ -57,9 +57,6 @@ catalogs:
     '@pnpm/meta-updater':
       specifier: 2.0.6
       version: 2.0.6
-    '@pnpm/network.agent':
-      specifier: ^2.0.3
-      version: 2.0.3
     '@pnpm/nopt':
       specifier: ^0.3.1
       version: 0.3.1
@@ -711,6 +708,9 @@ catalogs:
     typescript-eslint:
       specifier: ^8.53.0
       version: 8.53.0
+    undici:
+      specifier: ^7.2.0
+      version: 7.19.2
     unified:
       specifier: ^9.2.2
       version: 9.2.2
@@ -3381,15 +3381,15 @@ importers:
       '@types/ssri':
         specifier: 'catalog:'
         version: 7.1.5
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       ssri:
         specifier: 'catalog:'
         version: 13.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.19.2
 
   fs/find-packages:
     dependencies:
@@ -3741,9 +3741,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
-      nock:
+      undici:
         specifier: 'catalog:'
-        version: 13.3.4
+        version: 7.19.2
 
   lockfile/detect-dep-types:
     dependencies:
@@ -4360,18 +4360,18 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../fetching-types
-      '@pnpm/network.agent':
-        specifier: 'catalog:'
-        version: 2.0.3
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/retry':
         specifier: 'catalog:'
         version: 0.2.0
-      node-fetch:
+      lru-cache:
         specifier: 'catalog:'
-        version: 3.3.2
+        version: 11.1.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.19.2
     devDependencies:
       '@pnpm/fetch':
         specifier: workspace:*
@@ -4391,9 +4391,6 @@ importers:
       '@zkochan/retry':
         specifier: 'catalog:'
         version: 0.2.0
-      node-fetch:
-        specifier: 'catalog:'
-        version: 3.3.2
     devDependencies:
       '@pnpm/fetching-types':
         specifier: workspace:*
@@ -7442,9 +7439,6 @@ importers:
       '@pnpm/git-resolver':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/network.agent':
-        specifier: 'catalog:'
-        version: 2.0.3
       '@types/hosted-git-info':
         specifier: 'catalog:'
         version: 3.0.5
@@ -15915,6 +15909,7 @@ packages:
   tar@7.5.4:
     resolution: {integrity: sha512-AN04xbWGrSTDmVwlI4/GTlIIwMFk/XEv7uL8aa57zuvRy6s4hdBed+lVq2fAZ89XDa7Us3ANXcE3Tvqvja1kTA==}
     engines: {node: '>=18'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exhorbitant rates) by contacting i@izs.me
 
   temp-dir@2.0.0:
     resolution: {integrity: sha512-aoBAniQmmwtcKp/7BzsH8Cxzv8OL736p7v1ihGb5e9DJ9kTwGWHrQrVB5+lfVDzfGrdRzXch+ig7LHaY1JTOrg==}
@@ -16239,6 +16234,10 @@ packages:
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+
+  undici@7.19.2:
+    resolution: {integrity: sha512-4VQSpGEGsWzk0VYxyB/wVX/Q7qf9t5znLRgs0dzszr9w9Fej/8RVNQ+S20vdXSAyra/bJ7ZQfGv6ZMj7UEbzSg==}
+    engines: {node: '>=20.18.1'}
 
   unicorn-magic@0.1.0:
     resolution: {integrity: sha512-lRfVq8fE8gz6QMBuDM6a+LO3IAzTi05H6gCVaUpir2E1Rwpo4ZUog45KpNXKC/Mn3Yb9UDuHumeFTo9iV/D9FQ==}
@@ -25461,6 +25460,8 @@ snapshots:
   undici-types@5.26.5: {}
 
   undici-types@6.21.0: {}
+
+  undici@7.19.2: {}
 
   unicorn-magic@0.1.0: {}
 

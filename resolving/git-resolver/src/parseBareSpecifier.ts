@@ -1,7 +1,6 @@
 // cspell:ignore sshurl
 import urlLib, { URL } from 'url'
-import { fetchWithAgent } from '@pnpm/fetch'
-import { type AgentOptions } from '@pnpm/network.agent'
+import { fetchWithDispatcher, type DispatcherOptions } from '@pnpm/fetch'
 
 import git from 'graceful-git'
 import HostedGit from 'hosted-git-info'
@@ -32,7 +31,7 @@ const gitProtocols = new Set([
   'ssh',
 ])
 
-export function parseBareSpecifier (bareSpecifier: string, opts: AgentOptions): null | (() => Promise<HostedPackageSpec>) {
+export function parseBareSpecifier (bareSpecifier: string, opts: DispatcherOptions): null | (() => Promise<HostedPackageSpec>) {
   const hosted = HostedGit.fromUrl(bareSpecifier)
   if (hosted != null) {
     return () => fromHostedGit(hosted, opts)
@@ -68,11 +67,11 @@ function urlToFetchSpec (url: URL): string {
   return fetchSpec
 }
 
-async function fromHostedGit (hosted: any, agentOptions: AgentOptions): Promise<HostedPackageSpec> { // eslint-disable-line
+async function fromHostedGit (hosted: any, dispatcherOptions: DispatcherOptions): Promise<HostedPackageSpec> { // eslint-disable-line
   let fetchSpec: string | null = null
   // try git/https url before fallback to ssh url
   const gitHttpsUrl = hosted.https({ noCommittish: true, noGitPlus: true })
-  if (gitHttpsUrl && await isRepoPublic(gitHttpsUrl, agentOptions) && await accessRepository(gitHttpsUrl)) {
+  if (gitHttpsUrl && await isRepoPublic(gitHttpsUrl, dispatcherOptions) && await accessRepository(gitHttpsUrl)) {
     fetchSpec = gitHttpsUrl
   } else {
     const gitSshUrl = hosted.ssh({ noCommittish: true })
@@ -84,7 +83,7 @@ async function fromHostedGit (hosted: any, agentOptions: AgentOptions): Promise<
   if (!fetchSpec) {
     const httpsUrl: string | null = hosted.https({ noGitPlus: true, noCommittish: true })
     if (httpsUrl) {
-      if ((hosted.auth || !await isRepoPublic(httpsUrl, agentOptions)) && await accessRepository(httpsUrl)) {
+      if ((hosted.auth || !await isRepoPublic(httpsUrl, dispatcherOptions)) && await accessRepository(httpsUrl)) {
         return {
           fetchSpec: httpsUrl,
           hosted: {
@@ -103,7 +102,7 @@ async function fromHostedGit (hosted: any, agentOptions: AgentOptions): Promise<
           // npm instead tries git ls-remote directly which prompts user for login credentials.
 
           // HTTP HEAD on https://domain/user/repo, strip out ".git"
-          const response = await fetchWithAgent(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 }, agentOptions })
+          const response = await fetchWithDispatcher(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', redirect: 'manual', retry: { retries: 0 }, dispatcherOptions })
           if (response.ok) {
             fetchSpec = httpsUrl
           }
@@ -131,9 +130,9 @@ async function fromHostedGit (hosted: any, agentOptions: AgentOptions): Promise<
   }
 }
 
-async function isRepoPublic (httpsUrl: string, agentOptions: AgentOptions): Promise<boolean> {
+async function isRepoPublic (httpsUrl: string, dispatcherOptions: DispatcherOptions): Promise<boolean> {
   try {
-    const response = await fetchWithAgent(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 }, agentOptions })
+    const response = await fetchWithDispatcher(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', redirect: 'manual', retry: { retries: 0 }, dispatcherOptions })
     return response.ok
   } catch {
     return false

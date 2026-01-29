@@ -3,15 +3,15 @@ import path from 'path'
 import isWindows from 'is-windows'
 import { jest } from '@jest/globals'
 
-const { fetchWithAgent: fetchWithAgentOriginal } = await import('@pnpm/fetch')
+const { fetchWithDispatcher: fetchWithDispatcherOriginal } = await import('@pnpm/fetch')
 jest.unstable_mockModule('@pnpm/fetch', () => ({
-  fetchWithAgent: jest.fn(),
+  fetchWithDispatcher: jest.fn(),
 }))
 const { default: gitOriginal } = await import('graceful-git')
 jest.unstable_mockModule('graceful-git', () => ({
   default: jest.fn(),
 }))
-const { fetchWithAgent } = await import('@pnpm/fetch')
+const { fetchWithDispatcher } = await import('@pnpm/fetch')
 const { default: git } = await import('graceful-git')
 const { createGitResolver } = await import('@pnpm/git-resolver')
 
@@ -19,11 +19,11 @@ const resolveFromGit = createGitResolver({})
 
 beforeEach(() => {
   jest.mocked(git).mockImplementation(gitOriginal)
-  jest.mocked(fetchWithAgent).mockImplementation(fetchWithAgentOriginal)
+  jest.mocked(fetchWithDispatcher).mockImplementation(fetchWithDispatcherOriginal)
 })
 
 function mockFetchAsPrivate (): void {
-  jest.mocked(fetchWithAgent).mockImplementation(async (_url, _opts) => {
+  jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
     return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
   })
 }

@@ -66,9 +66,9 @@
     "@types/ramda": "catalog:",
     "@types/retry": "catalog:",
     "@types/ssri": "catalog:",
-    "nock": "catalog:",
     "ssri": "catalog:",
-    "tempy": "catalog:"
+    "tempy": "catalog:",
+    "undici": "catalog:"
   },
   "engines": {
     "node": ">=20.19"
