@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/network.fetch",
+  "name": "@pnpm/fetch",
   "version": "1000.2.6",
   "description": "Native fetch with retries",
   "keywords": [
@@ -27,14 +27,14 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pn compile && pn .test",
-    "prepublishOnly": "pn compile",
-    "compile": "tsgo --build && pn lint --fix",
-    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/fetching-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
     "lru-cache": "catalog:",
@@ -44,13 +44,12 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/fetch": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/network.fetch": "workspace:*",
-    "https-proxy-server-express": "catalog:",
-    "nock": "catalog:"
+    "https-proxy-server-express": "catalog:"
   },
   "engines": {
-    "node": ">=22.13"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"
