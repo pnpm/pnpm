@@ -7,9 +7,27 @@ import { FailedToPublishError } from './FailedToPublishError.js'
 import { type PackResult } from './pack.js'
 import { allRegistryConfigKeys, longestRegistryConfigKey } from './registryConfigKeys.js'
 
-export type Options = Pick<Config,
-| 'registries'
+type AuthConfigKey =
+| 'authToken'
+| 'authUserPass'
+| 'tokenHelper'
+
+type SslConfigKey =
+| 'ca'
+| 'cert'
+| 'key'
+
+type AuthSslConfigKey =
+// default registry
+| AuthConfigKey
+| SslConfigKey
+// other registries
+| 'authInfos'
 | 'sslConfigs'
+
+export type Options = Pick<Config,
+| AuthSslConfigKey
+| 'registries'
 | 'userAgent'
 > & {
   access?: 'public' | 'restricted'
@@ -28,36 +46,43 @@ export async function publishPackedPkg (packResult: PackResult, opts: Options): 
 
 function createPublishOptions (packResult: PackResult, {
   access,
-  registries,
-  sslConfigs,
   userAgent,
+  ...options
 }: Options): PublishOptions {
-  const authInfo = findAuthInfo(packResult.publishedManifest, { registries, sslConfigs })
+  const info = findAuthSslInfo(packResult.publishedManifest, options)
 
   const publishOptions: PublishOptions = {
-    ...authInfo,
     access,
     userAgent,
+    registry: info.registry,
+    ca: info.ca,
+    cert: Array.isArray(info.cert) ? info.cert.join('\n') : info.cert,
+    key: info.key,
+    token: extractToken(info),
+    username: info.authUserPass?.username,
+    password: info.authUserPass?.password,
   }
 
   pruneUndefined(publishOptions)
   return publishOptions
 }
 
-type AuthInfo = Pick<PublishOptions,
-// auth by login
-| 'username' // TODO: get from first half of _auth
-| 'password' // TODO: get from second half of _auth
-// auth by token
-| 'token' // TODO: get from _authToken
-// network
-| 'registry'
-| 'ca'
-| 'cert'
-| 'key'
->
+type AuthSslInfo = Pick<Config, 'registry' | AuthConfigKey | SslConfigKey>
 
-function findAuthInfo ({ name }: ExportedManifest, { registries, sslConfigs }: Pick<Config, 'registries' | 'sslConfigs'>): AuthInfo {
+/**
+ * Find auth and ssl information according to {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
+ *
+ * The example `.npmrc` demonstrated inheritance.
+ */
+function findAuthSslInfo (
+  { name }: ExportedManifest,
+  {
+    authInfos,
+    sslConfigs,
+    registries,
+    ...defaultInfos
+  }: Pick<Config, AuthSslConfigKey | 'registries'>
+): Partial<AuthSslInfo> {
   // eslint-disable-next-line regexp/no-unused-capturing-group
   const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
 
@@ -69,17 +94,41 @@ function findAuthInfo ({ name }: ExportedManifest, { registries, sslConfigs }: P
     throw new PublishUnsupportedRegistryProtocolError(registry)
   }
 
-  for (const registryConfigKey of allRegistryConfigKeys(initialRegistryConfigKey)) {
-    const ssl: typeof sslConfigs[string] | undefined = sslConfigs[registryConfigKey]
+  let result: AuthSslInfo = { registry }
 
-    if (ssl) {
-      // TODO: _auth
-      // TODO: _authToken
-      return { ...ssl, registry }
+  for (const registryConfigKey of allRegistryConfigKeys(initialRegistryConfigKey)) {
+    const auth: Pick<Config, AuthConfigKey> | undefined = authInfos[registryConfigKey]
+    const ssl: Pick<Config, SslConfigKey> | undefined = sslConfigs[registryConfigKey]
+
+    result = {
+      ...auth,
+      ...ssl,
+      ...result, // old result is from longer path overrides new auth/ssl from shorter path
     }
   }
 
-  return { registry }
+  if (registry !== registries.default) {
+    return result
+  }
+
+  return {
+    ...defaultInfos,
+    ...result, // old result is from specific registries overrides defaultInfos
+  }
+}
+
+function extractToken ({
+  token,
+  tokenHelper,
+}: {
+  token?: string
+  tokenHelper?: [string, ...string[]]
+}): string | undefined {
+  if (token) return token
+  if (tokenHelper) {
+    throw new Error('TODO: execute tokenHelper')
+  }
+  return undefined
 }
 
 export class PublishUnsupportedRegistryProtocolError extends PnpmError {
