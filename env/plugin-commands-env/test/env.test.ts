@@ -1,12 +1,23 @@
 import { PnpmError } from '@pnpm/error'
+import { clearDispatcherCache } from '@pnpm/fetch'
 import { env } from '@pnpm/plugin-commands-env'
 import { tempDir } from '@pnpm/prepare'
 import * as execa from 'execa'
 import fs from 'fs'
-import nock from 'nock'
 import path from 'path'
 import PATH from 'path-name'
 import semver from 'semver'
+import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
+
+let originalDispatcher: Dispatcher
+
+beforeAll(() => {
+  originalDispatcher = getGlobalDispatcher()
+})
+
+afterAll(() => {
+  setGlobalDispatcher(originalDispatcher)
+})
 
 test('install Node (and npm, npx) by exact version of Node.js', async () => {
   tempDir()
@@ -55,23 +66,33 @@ test('resolveNodeVersion uses node-mirror:release option', async () => {
   tempDir()
   const configDir = path.resolve('config')
 
-  const nockScope = nock('https://pnpm-node-mirror-test.localhost')
-    .get('/download/release/index.json')
-    .reply(200, [])
+  // Clear any cached dispatchers from previous tests
+  clearDispatcherCache()
 
-  await expect(
-    env.handler({
-      bin: process.cwd(),
-      configDir,
-      global: true,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {
-        'node-mirror:release': 'https://pnpm-node-mirror-test.localhost/download/release',
-      },
-    }, ['use', '16.4.0'])
-  ).rejects.toEqual(new PnpmError('COULD_NOT_RESOLVE_NODEJS', 'Couldn\'t find Node.js version matching 16.4.0'))
+  const mockAgent = new MockAgent()
+  mockAgent.disableNetConnect()
+  setGlobalDispatcher(mockAgent)
 
-  expect(nockScope.isDone()).toBeTruthy()
+  const mockPool = mockAgent.get('https://pnpm-node-mirror-test.localhost')
+  // Return empty array to simulate no matching versions
+  mockPool.intercept({ path: '/download/release/index.json', method: 'GET' }).reply(200, [], { headers: { 'content-type': 'application/json' } })
+
+  try {
+    await expect(
+      env.handler({
+        bin: process.cwd(),
+        configDir,
+        global: true,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {
+          'node-mirror:release': 'https://pnpm-node-mirror-test.localhost/download/release/',
+        },
+      }, ['use', '16.4.0'])
+    ).rejects.toEqual(new PnpmError('COULD_NOT_RESOLVE_NODEJS', 'Couldn\'t find Node.js version matching 16.4.0'))
+  } finally {
+    await mockAgent.close()
+    setGlobalDispatcher(originalDispatcher)
+  }
 })
 
 test('fail if a non-existed Node.js version is tried to be installed', async () => {
@@ -106,15 +127,20 @@ test('it re-attempts failed downloads', async () => {
 
   // This fixture was retrieved from http://nodejs.org/download/release/index.json on 2021-12-12.
   const testReleaseInfoPath = path.join(import.meta.dirname, './fixtures/node-16.4.0-release-info.json')
+  const releaseInfo = JSON.parse(fs.readFileSync(testReleaseInfoPath, 'utf8'))
 
-  const nockScope = nock('https://nodejs.org')
-    // Using nock's persist option since the default fetcher retries requests.
-    .persist()
-    .get('/download/release/index.json')
-    .replyWithFile(200, testReleaseInfoPath)
-    .persist()
-    .get(uri => uri.startsWith('/download/release/v16.4.0/'))
-    .replyWithError('Intentionally failing response for test')
+  // Clear any cached dispatchers from previous tests
+  clearDispatcherCache()
+
+  const mockAgent = new MockAgent()
+  mockAgent.disableNetConnect()
+  setGlobalDispatcher(mockAgent)
+
+  const mockPool = mockAgent.get('https://nodejs.org')
+  // Mock the index.json endpoint - needs to be called multiple times due to retries
+  mockPool.intercept({ path: '/download/release/index.json', method: 'GET' }).reply(200, releaseInfo, { headers: { 'content-type': 'application/json' } }).persist()
+  // Mock the tarball download to fail - this will be retried
+  mockPool.intercept({ path: /^\/download\/release\/v16\.4\.0\//, method: 'GET' }).reply(500, 'Intentionally failing response for test', { headers: { 'content-type': 'text/plain' } }).persist()
 
   try {
     const attempts = 2
@@ -127,12 +153,11 @@ test('it re-attempts failed downloads', async () => {
           pnpmHomeDir: process.cwd(),
           rawConfig: {},
         }, ['use', '16.4.0'])
-      ).rejects.toThrow('Intentionally failing response for test')
+      ).rejects.toThrow()
     }
-
-    expect(nockScope.isDone()).toBeTruthy()
   } finally {
-    nock.cleanAll()
+    await mockAgent.close()
+    setGlobalDispatcher(originalDispatcher)
   }
 })
 

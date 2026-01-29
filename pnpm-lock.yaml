@@ -2465,9 +2465,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       node-fetch:
         specifier: 'catalog:'
         version: 3.3.2
@@ -2477,6 +2474,9 @@ importers:
       tar-stream:
         specifier: 'catalog:'
         version: 3.1.7
+      undici:
+        specifier: 'catalog:'
+        version: 7.19.2
       yazl:
         specifier: 'catalog:'
         version: 3.3.1
@@ -4382,9 +4382,6 @@ importers:
       https-proxy-server-express:
         specifier: 'catalog:'
         version: 0.1.2
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
 
   network/fetching-types:
     dependencies:

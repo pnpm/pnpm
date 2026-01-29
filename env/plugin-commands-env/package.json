@@ -66,10 +66,10 @@
     "@types/tar-stream": "catalog:",
     "@types/yazl": "catalog:",
     "execa": "catalog:",
-    "nock": "catalog:",
     "node-fetch": "catalog:",
     "path-name": "catalog:",
     "tar-stream": "catalog:",
+    "undici": "catalog:",
     "yazl": "catalog:"
   },
   "engines": {

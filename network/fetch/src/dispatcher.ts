@@ -52,7 +52,9 @@ function needsCustomDispatcher (opts: DispatcherOptions): boolean {
   // - local address binding
   // - disabling strict SSL
   // - custom maxSockets
-  // - custom timeout
+  // Note: timeout is NOT included here because it's handled via AbortController
+  // in fetch.ts for request-level timeout. This allows tests using MockAgent
+  // with setGlobalDispatcher() to work properly.
   return Boolean(
     opts.httpProxy ||
     opts.httpsProxy ||
@@ -62,8 +64,7 @@ function needsCustomDispatcher (opts: DispatcherOptions): boolean {
     opts.localAddress ||
     opts.strictSsl === false ||
     opts.clientCertificates ||
-    opts.maxSockets ||
-    opts.timeout
+    opts.maxSockets
   )
 }
 
