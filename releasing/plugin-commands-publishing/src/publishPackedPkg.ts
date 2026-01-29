@@ -3,6 +3,7 @@ import { type PublishOptions, publish } from 'libnpmpublish'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
+import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
 import { type PackResult } from './pack.js'
 import { allRegistryConfigKeys, longestRegistryConfigKey } from './registryConfigKeys.js'
@@ -135,7 +136,7 @@ function extractToken ({
 }): string | undefined {
   if (token) return token
   if (tokenHelper) {
-    throw new Error('TODO: execute tokenHelper')
+    return executeTokenHelper(tokenHelper)
   }
   return undefined
 }
