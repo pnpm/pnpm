@@ -49,25 +49,29 @@ function createPublishOptions (packResult: PackResult, {
   userAgent,
   ...options
 }: Options): PublishOptions {
-  const info = findAuthSslInfo(packResult.publishedManifest, options)
+  const { registry, auth, ssl } = findAuthSslInfo(packResult.publishedManifest, options)
 
   const publishOptions: PublishOptions = {
     access,
+    registry,
     userAgent,
-    registry: info.registry,
-    ca: info.ca,
-    cert: Array.isArray(info.cert) ? info.cert.join('\n') : info.cert,
-    key: info.key,
-    token: extractToken(info),
-    username: info.authUserPass?.username,
-    password: info.authUserPass?.password,
+    ca: ssl?.ca,
+    cert: Array.isArray(ssl?.cert) ? ssl.cert.join('\n') : ssl?.cert,
+    key: ssl?.key,
+    token: auth && extractToken(auth),
+    username: auth?.authUserPass?.username,
+    password: auth?.authUserPass?.password,
   }
 
   pruneUndefined(publishOptions)
   return publishOptions
 }
 
-type AuthSslInfo = Pick<Config, 'registry' | AuthConfigKey | SslConfigKey>
+interface AuthSslInfo {
+  registry: string
+  auth: Pick<Config, AuthConfigKey>
+  ssl: Pick<Config, SslConfigKey>
+}
 
 /**
  * Find auth and ssl information according to {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
@@ -94,16 +98,17 @@ function findAuthSslInfo (
     throw new PublishUnsupportedRegistryProtocolError(registry)
   }
 
-  let result: AuthSslInfo = { registry }
+  const result: Partial<AuthSslInfo> = { registry }
 
   for (const registryConfigKey of allRegistryConfigKeys(initialRegistryConfigKey)) {
     const auth: Pick<Config, AuthConfigKey> | undefined = authInfos[registryConfigKey]
     const ssl: Pick<Config, SslConfigKey> | undefined = sslConfigs[registryConfigKey]
 
-    result = {
-      ...auth,
+    result.auth ??= auth // old auth from longer path collectively overrides new auth from shorter path
+
+    result.ssl = {
       ...ssl,
-      ...result, // old result is from longer path overrides new auth/ssl from shorter path
+      ...result.ssl, // old ssl from longer path individually overrides new ssl from shorter path
     }
   }
 
@@ -112,8 +117,12 @@ function findAuthSslInfo (
   }
 
   return {
-    ...defaultInfos,
-    ...result, // old result is from specific registries overrides defaultInfos
+    registry,
+    auth: result.auth ?? defaultInfos, // old auth from longer path collectively overrides default auth
+    ssl: {
+      ...defaultInfos,
+      ...result.ssl, // old ssl from longer path individually overrides default ssl
+    },
   }
 }
 
