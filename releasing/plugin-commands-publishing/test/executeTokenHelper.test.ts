@@ -1,56 +1,45 @@
 import { jest } from '@jest/globals'
-import { executeTokenHelper, stderrLogger } from '../src/executeTokenHelper.js'
-
-const originalWarn = stderrLogger.warn
-
-beforeEach(() => {
-  stderrLogger.warn = jest.fn(stderrLogger.warn)
-})
-
-afterEach(() => {
-  (stderrLogger.warn as jest.Mock).mockRestore()
-  stderrLogger.warn = originalWarn
-})
+import { executeTokenHelper } from '../src/executeTokenHelper.js'
 
 test('executeTokenHelper returns stdout of the tokenHelper command', () => {
-  expect(executeTokenHelper([process.execPath, '--print', '"hello world"'])).toBe('hello world')
+  const globalWarn = jest.fn<(message: string) => void>()
+  expect(executeTokenHelper([process.execPath, '--print', '"hello world"'], { globalWarn })).toBe('hello world')
+  expect(globalWarn).not.toHaveBeenCalled()
 })
 
 test('executeTokenHelper trims the output', () => {
-  expect(executeTokenHelper([process.execPath, '--print', '"  hello world  \\n"'])).toBe('hello world')
+  const globalWarn = jest.fn<(message: string) => void>()
+  expect(executeTokenHelper([process.execPath, '--print', '"  hello world  \\n"'], { globalWarn })).toBe('hello world')
+  expect(globalWarn).not.toHaveBeenCalled()
 })
 
 test('executeTokenHelper logs line of stderr via warnings', () => {
+  const globalWarn = jest.fn<(message: string) => void>()
   expect(executeTokenHelper([process.execPath, '--eval', [
     'console.log("foo")',
     'console.error("hello")',
     'console.log("bar")',
     'console.error("world")',
-  ].join('\n')])).toBe('foo\nbar')
-  expect(
-    (stderrLogger.warn as jest.Mock).mock.calls
-  ).toStrictEqual([
-    [{
-      prefix: expect.any(String),
-      message: 'tokenHelper stderr: hello',
-    }],
-    [{
-      prefix: expect.any(String),
-      message: 'tokenHelper stderr: world',
-    }],
+  ].join('\n')], { globalWarn })).toBe('foo\nbar')
+  expect(globalWarn.mock.calls).toStrictEqual([
+    ['(tokenHelper stderr) hello'],
+    ['(tokenHelper stderr) world'],
   ])
 })
 
 test('executeTokenHelper does not log empty stderr', () => {
+  const globalWarn = jest.fn<(message: string) => void>()
   expect(executeTokenHelper([process.execPath, '--eval', [
     'console.log("foo")',
     'console.error("  ")',
     'console.log("bar")',
     'console.error()',
-  ].join('\n')])).toBe('foo\nbar')
-  expect(stderrLogger.warn).not.toHaveBeenCalled()
+  ].join('\n')], { globalWarn })).toBe('foo\nbar')
+  expect(globalWarn).not.toHaveBeenCalled()
 })
 
 test('executeTokenHelper rejects non-zero exit codes', () => {
-  expect(() => executeTokenHelper([process.execPath, '--eval', 'process.exit(12)'])).toThrow()
+  const globalWarn = jest.fn<(message: string) => void>()
+  expect(() => executeTokenHelper([process.execPath, '--eval', 'process.exit(12)'], { globalWarn })).toThrow()
+  expect(globalWarn).not.toHaveBeenCalled()
 })

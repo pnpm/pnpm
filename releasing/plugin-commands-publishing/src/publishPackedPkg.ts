@@ -3,6 +3,7 @@ import { type PublishOptions, publish } from 'libnpmpublish'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
+import { globalWarn } from '@pnpm/logger'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
 import { type PackResult } from './pack.js'
@@ -136,7 +137,7 @@ function extractToken ({
 }): string | undefined {
   if (token) return token
   if (tokenHelper) {
-    return executeTokenHelper(tokenHelper)
+    return executeTokenHelper(tokenHelper, { globalWarn })
   }
   return undefined
 }
