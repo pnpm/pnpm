@@ -43,7 +43,6 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/network.agent": "catalog:",
     "@pnpm/resolving.git-resolver": "workspace:*",
     "@types/hosted-git-info": "catalog:",
     "@types/is-windows": "catalog:",

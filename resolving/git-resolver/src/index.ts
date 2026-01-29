@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import type { AgentOptions } from '@pnpm/network.agent'
+import type { DispatcherOptions } from '@pnpm/network.fetch'
 import type { GitResolution, PkgResolutionId, ResolveOptions, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import { gracefulGit as git } from 'graceful-git'
 import semver from 'semver'
@@ -23,7 +23,7 @@ export type GitResolver = (
 ) => Promise<GitResolveResult | null>
 
 export function createGitResolver (
-  opts: AgentOptions
+  opts: DispatcherOptions
 ): GitResolver {
   return async function resolveGit (wantedDependency, resolveOpts?): Promise<GitResolveResult | null> {
     const parsedSpecFunc = parseBareSpecifier(wantedDependency.bareSpecifier, opts)
