@@ -29,10 +29,23 @@ type AuthSslConfigKey =
 
 export type PublishPackedPkgOptions = Pick<Config,
 | AuthSslConfigKey
+| 'fetchRetries'
+| 'fetchRetryFactor'
+| 'fetchRetryMaxtimeout'
+| 'fetchRetryMintimeout'
+| 'fetchTimeout'
 | 'registries'
 | 'userAgent'
 > & {
   access?: 'public' | 'restricted'
+  ci?: boolean
+  otp?: string | number // TODO: define this config key and load this data
+
+  // NOTE: the provenance feature requires a custom implementation of OIDC and Sigstore client, and as such, not yet available
+  //       see <https://github.com/npm/cli/blob/7d900c4656cfffc8cca93240c6cda4b441fbbfaa/lib/utils/oidc.js>
+  // TODO: implement provenance
+  provenance?: boolean
+  provenanceFile?: string
 }
 
 // @types/libnpmpublish unfortunately uses an outdated type definition of package.json
@@ -48,6 +61,15 @@ export async function publishPackedPkg (packResult: PackResult, opts: PublishPac
 
 function createPublishOptions (packResult: PackResult, {
   access,
+  ci: isFromCI,
+  fetchRetries,
+  fetchRetryFactor,
+  fetchRetryMaxtimeout,
+  fetchRetryMintimeout,
+  fetchTimeout: timeout,
+  otp,
+  provenance,
+  provenanceFile,
   userAgent,
   ...options
 }: PublishPackedPkgOptions): PublishOptions {
@@ -55,6 +77,15 @@ function createPublishOptions (packResult: PackResult, {
 
   const publishOptions: PublishOptions = {
     access,
+    fetchRetries,
+    fetchRetryFactor,
+    fetchRetryMaxtimeout,
+    fetchRetryMintimeout,
+    isFromCI,
+    otp,
+    provenance,
+    provenanceFile,
+    timeout,
     registry,
     userAgent,
     ca: ssl?.ca,

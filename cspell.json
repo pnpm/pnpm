@@ -246,6 +246,7 @@
     "shasums",
     "sheetjs",
     "shlex",
+    "sigstore",
     "sindresorhus",
     "sirv",
     "soporan",
