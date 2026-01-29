@@ -286,7 +286,7 @@ catalog:
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
   symlink-dir: ^7.0.0
-  tar: ^7.5.4
+  tar: ^7.5.7
   tar-stream: ^3.1.7
   tempy: 3.0.0
   terminal-link: ^4.0.0

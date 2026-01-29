@@ -679,8 +679,8 @@ catalogs:
       specifier: ^7.0.0
       version: 7.0.0
     tar:
-      specifier: ^7.5.4
-      version: 7.5.4
+      specifier: ^7.5.7
+      version: 7.5.7
     tar-stream:
       specifier: ^3.1.7
       version: 3.1.7
@@ -1178,7 +1178,7 @@ importers:
         version: 3.0.0
       tar:
         specifier: 'catalog:'
-        version: 7.5.4
+        version: 7.5.7
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.14
@@ -7248,7 +7248,7 @@ importers:
         version: 7.0.1
       tar:
         specifier: 'catalog:'
-        version: 7.5.4
+        version: 7.5.7
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -15914,6 +15914,11 @@ packages:
 
   tar@7.5.4:
     resolution: {integrity: sha512-AN04xbWGrSTDmVwlI4/GTlIIwMFk/XEv7uL8aa57zuvRy6s4hdBed+lVq2fAZ89XDa7Us3ANXcE3Tvqvja1kTA==}
+    engines: {node: '>=18'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exhorbitant rates) by contacting i@izs.me
+
+  tar@7.5.7:
+    resolution: {integrity: sha512-fov56fJiRuThVFXD6o6/Q354S7pnWMJIVlDBYijsTNx6jKSE4pvrDTs6lUnmGvNyfJwFQQwWy3owKz1ucIhveQ==}
     engines: {node: '>=18'}
 
   temp-dir@2.0.0:
@@ -25132,6 +25137,14 @@ snapshots:
       - react-native-b4a
 
   tar@7.5.4:
+    dependencies:
+      '@isaacs/fs-minipass': 4.0.1
+      chownr: 3.0.0
+      minipass: 7.1.2
+      minizlib: 3.1.0
+      yallist: 5.0.0
+
+  tar@7.5.7:
     dependencies:
       '@isaacs/fs-minipass': 4.0.1
       chownr: 3.0.0
