@@ -43,6 +43,9 @@
       "path": "../../hooks/types"
     },
     {
+      "path": "../../network/fetch"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {

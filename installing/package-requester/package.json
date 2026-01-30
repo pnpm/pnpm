@@ -65,6 +65,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.package-requester": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/store.cafs-types": "workspace:*",
@@ -75,9 +76,10 @@
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
     "delay": "catalog:",
-    "nock": "catalog:",
+    "load-json-file": "catalog:",
     "normalize-path": "catalog:",
-    "tempy": "catalog:"
+    "tempy": "catalog:",
+    "undici": "catalog:"
   },
   "engines": {
     "node": ">=22.13"
