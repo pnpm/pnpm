@@ -1,8 +1,8 @@
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
 import { type Registries } from '@pnpm/types'
-import nock from 'nock'
 import { temporaryDirectory } from 'tempy'
+import { setupMockAgent, teardownMockAgent, getMockAgent } from './utils/index.js'
 
 const registries: Registries = {
   default: 'https://registry.npmjs.org/',
@@ -12,13 +12,12 @@ const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
 
-afterEach(() => {
-  nock.cleanAll()
-  nock.disableNetConnect()
+afterEach(async () => {
+  await teardownMockAgent()
 })
 
 beforeEach(() => {
-  nock.enableNetConnect()
+  setupMockAgent()
 })
 
 test('repopulate dist-tag to highest same-major version within the date cutoff', async () => {
@@ -61,8 +60,8 @@ test('repopulate dist-tag to highest same-major version within the date cutoff',
   // Cutoff before 3.2.0, so latest must be remapped to 3.1.0 (same major 3)
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
 
-  nock(registries.default)
-    .get(`/${name}`)
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: `/${name}`, method: 'GET' })
     .reply(200, meta)
 
   const cacheDir = temporaryDirectory()
@@ -121,8 +120,8 @@ test('repopulate dist-tag to highest same-major version within the date cutoff. 
   // Cutoff before 3.2.0, so latest must be remapped to 3.1.0 (same major 3)
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
 
-  nock(registries.default)
-    .get(`/${name}`)
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: `/${name}`, method: 'GET' })
     .reply(200, meta)
 
   const cacheDir = temporaryDirectory()
@@ -180,8 +179,8 @@ test('repopulate dist-tag to highest non-prerelease same-major version within th
   // Cutoff before 3.2.0, so latest must be remapped to 3.1.0 (same major 3)
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
 
-  nock(registries.default)
-    .get(`/${name}`)
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: `/${name}`, method: 'GET' })
     .reply(200, meta)
 
   const cacheDir = temporaryDirectory()
@@ -245,8 +244,8 @@ test('repopulate dist-tag to highest prerelease same-major version within the da
   // Cutoff before 3.2.0 and 3.0.0-alpha.2, so latest must be remapped to 3.0.0-alpha.1 (the highest prerelease version within the cutoff)
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
 
-  nock(registries.default)
-    .get(`/${name}`)
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: `/${name}`, method: 'GET' })
     .reply(200, meta)
 
   const cacheDir = temporaryDirectory()
@@ -281,8 +280,8 @@ test('keep dist-tag if original version is within the date cutoff', async () => 
 
   const cutoff = new Date('2020-02-01T00:00:00.000Z')
 
-  nock(registries.default)
-    .get(`/${name}`)
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: `/${name}`, method: 'GET' })
     .reply(200, meta)
 
   const cacheDir = temporaryDirectory()

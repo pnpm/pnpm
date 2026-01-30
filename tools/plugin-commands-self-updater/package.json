@@ -53,13 +53,14 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/env.path": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/tools.plugin-commands-self-updater": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "cross-spawn": "catalog:",
-    "nock": "catalog:"
+    "undici": "catalog:"
   },
   "engines": {
     "node": ">=20.19"

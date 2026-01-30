@@ -109,6 +109,9 @@
       "path": "../../lockfile/walker"
     },
     {
+      "path": "../../network/fetch"
+    },
+    {
       "path": "../../packages/calc-dep-state"
     },
     {

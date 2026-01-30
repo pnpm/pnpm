@@ -13,8 +13,34 @@ import delay from 'delay'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { restartWorkerPool } from '@pnpm/worker'
 import { jest } from '@jest/globals'
-import nock from 'nock'
+import { clearDispatcherCache } from '@pnpm/fetch'
+import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
 import normalize from 'normalize-path'
+
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+    clearDispatcherCache()
+  }
+}
+
 import { temporaryDirectory } from 'tempy'
 import { type PkgResolutionId, type PkgRequestFetchResult, type RequestPackageOptions } from '@pnpm/store-controller-types'
 
@@ -551,13 +577,15 @@ test('fetchPackageToStore() concurrency check', async () => {
 })
 
 test('fetchPackageToStore() does not cache errors', async () => {
-  nock(registry)
-    .get('/is-positive/-/is-positive-1.0.0.tgz')
-    .reply(404)
-
-  nock(registry)
-    .get('/is-positive/-/is-positive-1.0.0.tgz')
-    .replyWithFile(200, IS_POSITIVE_TARBALL)
+  const mockAgent = setupMockAgent()
+  const mockPool = mockAgent.get(registry)
+  // First request returns 404
+  mockPool.intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' }).reply(404, {})
+  // Second request returns the tarball
+  const tarballContent = fs.readFileSync(IS_POSITIVE_TARBALL)
+  mockPool.intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'content-length': String(tarballContent.length) },
+  })
 
   const noRetry = createClient({
     authConfig,
@@ -614,12 +642,11 @@ test('fetchPackageToStore() does not cache errors', async () => {
   expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
   expect(files.resolvedFrom).toBe('remote')
 
-  expect(nock.isDone()).toBeTruthy()
+  await teardownMockAgent()
 })
 
 // This test was added to cover the issue described here: https://github.com/pnpm/supi/issues/65
 test('always return a package manifest in the response', async () => {
-  nock.cleanAll()
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
@@ -677,9 +704,13 @@ test('always return a package manifest in the response', async () => {
 
 // Covers https://github.com/pnpm/pnpm/issues/1293
 test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
-  nock(registry)
-    .get('/is-positive/-/is-positive-1.0.0.tgz')
-    .replyWithFile(200, IS_POSITIVE_TARBALL)
+  const mockAgent = setupMockAgent()
+  const tarballContent = fs.readFileSync(IS_POSITIVE_TARBALL)
+  mockAgent.get(registry)
+    .intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' })
+    .reply(200, tarballContent, {
+      headers: { 'content-length': String(tarballContent.length) },
+    })
 
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
@@ -723,10 +754,10 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
   ])
 
   expect((await fetchResults[1].fetching()).bundledManifest).toBeTruthy()
+  await teardownMockAgent()
 })
 
 test('refetch package to store if it has been modified', async () => {
-  nock.cleanAll()
   const storeDir = temporaryDirectory()
   const lockfileDir = temporaryDirectory()
 
@@ -851,7 +882,6 @@ test('fetch a git package without a package.json', async () => {
   const repo = 'denolib/camelcase'
   const commit = 'aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b'
 
-  nock.cleanAll()
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({

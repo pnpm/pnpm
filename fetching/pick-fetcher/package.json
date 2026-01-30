@@ -44,8 +44,8 @@
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "nock": "catalog:",
-    "tempy": "catalog:"
+    "tempy": "catalog:",
+    "undici": "catalog:"
   },
   "engines": {
     "node": ">=20.19"

@@ -79,8 +79,8 @@
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
     "load-json-file": "catalog:",
-    "nock": "catalog:",
-    "tempy": "catalog:"
+    "tempy": "catalog:",
+    "undici": "catalog:"
   },
   "engines": {
     "node": ">=20.19"
