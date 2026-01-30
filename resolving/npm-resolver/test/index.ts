@@ -1861,7 +1861,7 @@ test('request to metadata is retried if the received JSON is broken', async () =
 test('request to a package with unpublished versions', async () => {
   getMockAgent()!.get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/code-snippet', method: 'GET' })
-    .reply(200, loadJsonFileSync(f.find('unpublished.json')))
+    .reply(200, loadJsonFileSync(f.find('unpublished.json')) as object)
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
