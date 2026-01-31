@@ -50,15 +50,16 @@
     "render-help": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/fetch": "workspace:*",
     "@pnpm/plugin-commands-audit": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/zkochan__table": "catalog:",
     "load-json-file": "catalog:",
-    "nock": "catalog:",
     "read-yaml-file": "catalog:",
-    "tempy": "catalog:"
+    "tempy": "catalog:",
+    "undici": "catalog:"
   },
   "engines": {
     "node": ">=20.19"

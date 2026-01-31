@@ -1,9 +1,38 @@
 import path from 'path'
+import { clearDispatcherCache } from '@pnpm/fetch'
 import { fixtures } from '@pnpm/test-fixtures'
 import { audit } from '@pnpm/plugin-commands-audit'
+import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
 import { sync as readYamlFile } from 'read-yaml-file'
-import nock from 'nock'
 import * as responses from './utils/responses/index.js'
+
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  currentMockAgent.disableNetConnect()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+  }
+}
+
+function getMockAgent (): MockAgent | null {
+  return currentMockAgent
+}
 
 const f = fixtures(import.meta.dirname)
 const registries = {
@@ -13,11 +42,19 @@ const rawConfig = {
   registry: registries.default,
 }
 
+beforeEach(() => {
+  setupMockAgent()
+})
+
+afterEach(async () => {
+  await teardownMockAgent()
+})
+
 test('overrides are added for vulnerable dependencies', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  nock(registries.default)
-    .post('/-/npm/v1/security/audits')
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -42,8 +79,8 @@ test('overrides are added for vulnerable dependencies', async () => {
 test('no overrides are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
-  nock(registries.default)
-    .post('/-/npm/v1/security/audits')
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
     .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -64,8 +101,8 @@ test('no overrides are added if no vulnerabilities are found', async () => {
 test('CVEs found in the allow list are not added as overrides', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  nock(registries.default)
-    .post('/-/npm/v1/security/audits')
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({

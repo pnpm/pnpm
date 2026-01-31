@@ -66,7 +66,6 @@
     "@types/tar-stream": "catalog:",
     "@types/yazl": "catalog:",
     "execa": "catalog:",
-    "node-fetch": "catalog:",
     "path-name": "catalog:",
     "tar-stream": "catalog:",
     "undici": "catalog:",

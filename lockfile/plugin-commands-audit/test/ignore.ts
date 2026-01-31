@@ -1,9 +1,38 @@
 import path from 'path'
+import { clearDispatcherCache } from '@pnpm/fetch'
 import { fixtures } from '@pnpm/test-fixtures'
 import { audit } from '@pnpm/plugin-commands-audit'
-import nock from 'nock'
+import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
 import { sync as readYamlFile } from 'read-yaml-file'
 import * as responses from './utils/responses/index.js'
+
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  currentMockAgent.disableNetConnect()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+  }
+}
+
+function getMockAgent (): MockAgent | null {
+  return currentMockAgent
+}
 
 const f = fixtures(import.meta.dirname)
 const registries = {
@@ -13,11 +42,19 @@ const rawConfig = {
   registry: registries.default,
 }
 
+beforeEach(() => {
+  setupMockAgent()
+})
+
+afterEach(async () => {
+  await teardownMockAgent()
+})
+
 test('ignores are added for vulnerable dependencies with no resolutions', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  nock(registries.default)
-    .post('/-/npm/v1/security/audits')
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -44,8 +81,8 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
 test('the specified vulnerabilities are ignored', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  nock(registries.default)
-    .post('/-/npm/v1/security/audits')
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -70,8 +107,8 @@ test('the specified vulnerabilities are ignored', async () => {
 test('no ignores are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
-  nock(registries.default)
-    .post('/-/npm/v1/security/audits')
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
     .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -99,8 +136,8 @@ test('ignored CVEs are not duplicated', async () => {
     'CVE-2017-16024',
   ]
 
-  nock(registries.default)
-    .post('/-/npm/v1/security/audits')
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({

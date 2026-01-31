@@ -52,8 +52,7 @@
     "@pnpm/default-resolver": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/tarball-fetcher": "workspace:*",
-    "node-fetch": "catalog:"
+    "@pnpm/tarball-fetcher": "workspace:*"
   },
   "engines": {
     "node": ">=20.19"

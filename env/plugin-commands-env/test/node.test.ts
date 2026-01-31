@@ -1,4 +1,3 @@
-import { Response } from 'node-fetch'
 import path from 'path'
 import fs from 'fs'
 import { Readable } from 'stream'
@@ -36,7 +35,7 @@ a08f3386090e6511772b949d41970b75a6b71d28abb551dff9854ceb1929dae1  node-v16.4.0-w
     // With tar-stream@3.x, passing pack stream directly to Response
     // doesn't properly pipe all data through async iteration.
     const buffer = await createEmptyTarballBuffer()
-    return new Response(buffer)
+    return new Response(new Uint8Array(buffer).buffer)
   } else if (url.endsWith('.zip')) {
     // The Windows code path for pnpm's node bootstrapping expects a subdir
     // within the .zip file.
@@ -49,10 +48,10 @@ a08f3386090e6511772b949d41970b75a6b71d28abb551dff9854ceb1929dae1  node-v16.4.0-w
     })
 
     zipfile.end()
-    return new Response(Readable.from(zipfile.outputStream))
+    return new Response(Readable.toWeb(Readable.from(zipfile.outputStream)) as ReadableStream)
   }
 
-  return new Response(Readable.from(Buffer.alloc(0)))
+  return new Response(new Blob([]))
 })
 
 jest.unstable_mockModule('@pnpm/fetch', () => ({

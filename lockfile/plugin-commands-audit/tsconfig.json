@@ -26,6 +26,9 @@
       "path": "../../network/auth-header"
     },
     {
+      "path": "../../network/fetch"
+    },
+    {
       "path": "../../packages/constants"
     },
     {

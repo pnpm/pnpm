@@ -223,8 +223,6 @@ catalog:
   memoize: ^10.2.0
   micromatch: ^4.0.8
   msgpackr: ^1.11.2
-  nock: 13.3.4
-  node-fetch: ^3.3.2
   normalize-newline: 4.1.0
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
