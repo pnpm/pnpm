@@ -234,10 +234,6 @@ catalog:
   # required type arguments), incompatible with TypeScript 5.9.
   msgpackr: 1.11.8
   nm-prune: ^5.0.0
-  # nock 14 doesn't properly intercept node-fetch requests, causing tests
-  # that mock HTTP endpoints (e.g. audit) to hang indefinitely.
-  nock: 13.3.4
-  node-fetch: ^3.3.2
   normalize-newline: 5.0.0
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
