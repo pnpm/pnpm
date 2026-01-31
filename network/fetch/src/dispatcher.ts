@@ -131,11 +131,15 @@ function getNonProxyDispatcher (uri: string, opts: DispatcherOptions): Dispatche
     ? 0
     : opts.timeout + 1
 
+  // Match agentkeepalive defaults:
+  // - freeSocketTimeout: 4000 (idle socket timeout)
+  // - keepAliveMsecs: 1000 (TCP keep-alive probe interval)
+  // - maxFreeSockets: 256
   const agent = new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     connectTimeout,
-    keepAliveTimeout: 15000,
-    keepAliveMaxTimeout: 30000,
+    keepAliveTimeout: 4000, // matches agentkeepalive's freeSocketTimeout
+    keepAliveMaxTimeout: 15000, // max time to keep socket alive
     connect: isHttps
       ? {
         ca: ca as string | undefined,
