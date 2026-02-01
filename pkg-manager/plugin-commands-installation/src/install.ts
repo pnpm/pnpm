@@ -85,6 +85,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
 export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
+  'package-lock-only': '--lockfile-only',
 }
 
 export const commandNames = ['install', 'i']
@@ -134,6 +135,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: `Dependencies are not downloaded. Only \`${WANTED_LOCKFILE}\` is updated`,
             name: '--lockfile-only',
+          },
+          {
+            description: 'Alias for --lockfile-only',
+            name: '--package-lock-only',
           },
           {
             description: "Don't generate a lockfile and fail if an update is needed. This setting is on by default in CI environments, so use --no-frozen-lockfile if you need to disable it for some reason",
