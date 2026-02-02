@@ -29,6 +29,7 @@ type AuthSslConfigKey =
 
 export type PublishPackedPkgOptions = Pick<Config,
 | AuthSslConfigKey
+| 'dryRun'
 | 'fetchRetries'
 | 'fetchRetryFactor'
 | 'fetchRetryMaxtimeout'
@@ -57,7 +58,12 @@ export async function publishPackedPkg (packResult: PackResult, opts: PublishPac
   const { publishedManifest, tarballPath } = packResult
   assertPublishPackage(publishedManifest)
   const tarballData = await fs.readFile(tarballPath)
-  const response = await publish(publishedManifest as OutdatedManifest, tarballData, createPublishOptions(packResult, opts))
+  const publishOptions = createPublishOptions(packResult, opts)
+  if (opts.dryRun) {
+    globalWarn(`Skip publishing ${publishedManifest.name}@${publishedManifest.version} because of --dry-run.`)
+    return
+  }
+  const response = await publish(publishedManifest as OutdatedManifest, tarballData, publishOptions)
   if (response.ok) return
   throw await createFailedToPublishError(packResult, response)
 }
