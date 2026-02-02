@@ -101,6 +101,13 @@ export async function handler (
     authConfig: opts.rawConfig,
     fullMetadata,
     filterMetadata: fullMetadata,
+    retry: {
+      factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
+      minTimeout: opts.fetchRetryMintimeout,
+      retries: opts.fetchRetries,
+    },
+    timeout: opts.fetchTimeout,
   })
   const resolvedPkgAliases: string[] = []
   const publishedBy = opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined
