@@ -3,7 +3,7 @@ import { type PublishOptions, publish } from 'libnpmpublish'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
-import { globalWarn } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
 import { type PackResult } from './pack.js'
@@ -59,12 +59,18 @@ export async function publishPackedPkg (packResult: PackResult, opts: PublishPac
   assertPublishPackage(publishedManifest)
   const tarballData = await fs.readFile(tarballPath)
   const publishOptions = createPublishOptions(packResult, opts)
+  const { name, version } = publishedManifest
+  const { registry } = publishOptions
+  globalInfo(`📦 ${name}@${version} → ${registry ?? 'the default registry'}`)
   if (opts.dryRun) {
-    globalWarn(`Skip publishing ${publishedManifest.name}@${publishedManifest.version} because of --dry-run.`)
+    globalWarn(`Skip publishing ${name}@${version} (dry run)`)
     return
   }
   const response = await publish(publishedManifest as OutdatedManifest, tarballData, publishOptions)
-  if (response.ok) return
+  if (response.ok) {
+    globalInfo(`✅ Published package ${name}@${version}`)
+    return
+  }
   throw await createFailedToPublishError(packResult, response)
 }
 
