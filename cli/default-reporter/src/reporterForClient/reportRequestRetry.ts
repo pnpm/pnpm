@@ -10,7 +10,10 @@ export function reportRequestRetry (
   return requestRetry$.pipe(
     map((log) => {
       const retriesLeft = log.maxRetries - log.attempt + 1
-      const errorCode = log.error.httpStatusCode ?? log.error.status ?? log.error.errno ?? log.error.code
+      // Extract error code from various possible locations
+      // HTTP status codes are numeric, system error codes are strings
+      const errorCode = log.error.status ?? log.error.statusCode ?? log.error.code ?? log.error.errno ??
+        log.error.cause?.code ?? log.error.cause?.errno ?? 'unknown'
       const msg = `${log.method} ${log.url} error (${errorCode}). \
 Will retry in ${prettyMilliseconds(log.timeout, { verbose: true })}. \
 ${retriesLeft} retries left.`

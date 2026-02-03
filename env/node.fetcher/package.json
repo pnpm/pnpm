@@ -48,8 +48,7 @@
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "catalog:",
-    "adm-zip": "catalog:",
-    "node-fetch": "catalog:"
+    "adm-zip": "catalog:"
   },
   "engines": {
     "node": ">=20.19"

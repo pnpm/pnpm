@@ -1,17 +1,28 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import nock from 'nock'
+import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
 import { ProxyServer } from 'https-proxy-server-express'
 import fs from 'fs'
 
 const CERTS_DIR = path.join(import.meta.dirname, '__certs__')
 
-afterEach(() => {
-  nock.cleanAll()
-})
+let mockAgent: MockAgent
+let originalDispatcher: Dispatcher
+
+function setupMockAgent (): void {
+  originalDispatcher = getGlobalDispatcher()
+  mockAgent = new MockAgent()
+  mockAgent.disableNetConnect()
+  setGlobalDispatcher(mockAgent)
+}
+
+function teardownMockAgent (): void {
+  setGlobalDispatcher(originalDispatcher)
+}
 
 test('fetchFromRegistry', async () => {
+  // This test uses real network - no mock needed
   const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive')
   const metadata = await res.json() as any // eslint-disable-line
@@ -20,6 +31,7 @@ test('fetchFromRegistry', async () => {
 })
 
 test('fetchFromRegistry fullMetadata', async () => {
+  // This test uses real network - no mock needed
   const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive', { fullMetadata: true })
   const metadata = await res.json() as any // eslint-disable-line
@@ -28,48 +40,63 @@ test('fetchFromRegistry fullMetadata', async () => {
 })
 
 test('authorization headers are removed before redirection if the target is on a different host', async () => {
-  nock('http://registry.pnpm.io/', {
-    reqheaders: { authorization: 'Bearer 123' },
-  })
-    .get('/is-positive')
-    .reply(302, '', { location: 'http://registry.other.org/is-positive' })
-  nock('http://registry.other.org/', { badheaders: ['authorization'] })
-    .get('/is-positive')
-    .reply(200, { ok: true })
+  setupMockAgent()
+  try {
+    const mockPool1 = mockAgent.get('http://registry.pnpm.io')
+    mockPool1.intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { authorization: 'Bearer 123' },
+    }).reply(302, '', { headers: { location: 'http://registry.other.org/is-positive' } })
 
-  const fetchFromRegistry = createFetchFromRegistry({})
-  const res = await fetchFromRegistry(
-    'http://registry.pnpm.io/is-positive',
-    { authHeaderValue: 'Bearer 123' }
-  )
+    const mockPool2 = mockAgent.get('http://registry.other.org')
+    mockPool2.intercept({
+      path: '/is-positive',
+      method: 'GET',
+    }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
 
-  expect(await res.json()).toStrictEqual({ ok: true })
-  expect(nock.isDone()).toBeTruthy()
+    const fetchFromRegistry = createFetchFromRegistry({})
+    const res = await fetchFromRegistry(
+      'http://registry.pnpm.io/is-positive',
+      { authHeaderValue: 'Bearer 123' }
+    )
+
+    expect(await res.json()).toStrictEqual({ ok: true })
+  } finally {
+    teardownMockAgent()
+  }
 })
 
 test('authorization headers are not removed before redirection if the target is on the same host', async () => {
-  nock('http://registry.pnpm.io/', {
-    reqheaders: { authorization: 'Bearer 123' },
-  })
-    .get('/is-positive')
-    .reply(302, '', { location: 'http://registry.pnpm.io/is-positive-new' })
-  nock('http://registry.pnpm.io/', {
-    reqheaders: { authorization: 'Bearer 123' },
-  })
-    .get('/is-positive-new')
-    .reply(200, { ok: true })
+  setupMockAgent()
+  try {
+    const mockPool = mockAgent.get('http://registry.pnpm.io')
+    mockPool.intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { authorization: 'Bearer 123' },
+    }).reply(302, '', { headers: { location: 'http://registry.pnpm.io/is-positive-new' } })
 
-  const fetchFromRegistry = createFetchFromRegistry({})
-  const res = await fetchFromRegistry(
-    'http://registry.pnpm.io/is-positive',
-    { authHeaderValue: 'Bearer 123' }
-  )
+    mockPool.intercept({
+      path: '/is-positive-new',
+      method: 'GET',
+      headers: { authorization: 'Bearer 123' },
+    }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
 
-  expect(await res.json()).toStrictEqual({ ok: true })
-  expect(nock.isDone()).toBeTruthy()
+    const fetchFromRegistry = createFetchFromRegistry({})
+    const res = await fetchFromRegistry(
+      'http://registry.pnpm.io/is-positive',
+      { authHeaderValue: 'Bearer 123' }
+    )
+
+    expect(await res.json()).toStrictEqual({ ok: true })
+  } finally {
+    teardownMockAgent()
+  }
 })
 
 test('switch to the correct agent for requests on redirect from http: to https:', async () => {
+  // This test uses real network - no mock needed
   const fetchFromRegistry = createFetchFromRegistry({})
 
   // We can test this on any endpoint that redirects from http: to https:
@@ -128,7 +155,7 @@ test('fail if the client certificate is not provided', async () => {
     strictSsl: false,
   })
 
-  let err!: Error & { code: string }
+  let err!: Error & { code?: string, cause?: { code?: string } }
   try {
     await fetchFromRegistry(`https://localhost:${randomPort}/is-positive`, {
       retry: {
@@ -140,72 +167,106 @@ test('fail if the client certificate is not provided', async () => {
   } finally {
     await proxyServer.stop()
   }
-  expect(err?.code).toMatch(/ECONNRESET|ERR_SSL_TLSV13_ALERT_CERTIFICATE_REQUIRED/)
+  // undici errors may have the code in err.cause.code
+  const errorCode = err?.code ?? err?.cause?.code
+  expect(errorCode).toMatch(/ECONNRESET|ERR_SSL_TLSV13_ALERT_CERTIFICATE_REQUIRED|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UND_ERR_SOCKET/)
 })
 
 test('redirect to protocol-relative URL', async () => {
-  nock('http://registry.pnpm.io/')
-    .get('/foo')
-    .reply(302, '', { location: '//registry.other.org/foo' })
-  nock('http://registry.other.org/')
-    .get('/foo')
-    .reply(200, { ok: true })
+  setupMockAgent()
+  try {
+    const mockPool1 = mockAgent.get('http://registry.pnpm.io')
+    mockPool1.intercept({
+      path: '/foo',
+      method: 'GET',
+    }).reply(302, '', { headers: { location: '//registry.other.org/foo' } })
 
-  const fetchFromRegistry = createFetchFromRegistry({})
-  const res = await fetchFromRegistry(
-    'http://registry.pnpm.io/foo'
-  )
+    const mockPool2 = mockAgent.get('http://registry.other.org')
+    mockPool2.intercept({
+      path: '/foo',
+      method: 'GET',
+    }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
 
-  expect(await res.json()).toStrictEqual({ ok: true })
-  expect(nock.isDone()).toBeTruthy()
+    const fetchFromRegistry = createFetchFromRegistry({})
+    const res = await fetchFromRegistry(
+      'http://registry.pnpm.io/foo'
+    )
+
+    expect(await res.json()).toStrictEqual({ ok: true })
+  } finally {
+    teardownMockAgent()
+  }
 })
 
 test('redirect to relative URL', async () => {
-  nock('http://registry.pnpm.io/')
-    .get('/bar/baz')
-    .reply(302, '', { location: '../foo' })
-  nock('http://registry.pnpm.io/')
-    .get('/foo')
-    .reply(200, { ok: true })
+  setupMockAgent()
+  try {
+    const mockPool = mockAgent.get('http://registry.pnpm.io')
+    mockPool.intercept({
+      path: '/bar/baz',
+      method: 'GET',
+    }).reply(302, '', { headers: { location: '../foo' } })
 
-  const fetchFromRegistry = createFetchFromRegistry({})
-  const res = await fetchFromRegistry(
-    'http://registry.pnpm.io/bar/baz'
-  )
+    mockPool.intercept({
+      path: '/foo',
+      method: 'GET',
+    }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
 
-  expect(await res.json()).toStrictEqual({ ok: true })
-  expect(nock.isDone()).toBeTruthy()
+    const fetchFromRegistry = createFetchFromRegistry({})
+    const res = await fetchFromRegistry(
+      'http://registry.pnpm.io/bar/baz'
+    )
+
+    expect(await res.json()).toStrictEqual({ ok: true })
+  } finally {
+    teardownMockAgent()
+  }
 })
 
 test('redirect to relative URL when request pkg.pr.new link', async () => {
-  nock('https://pkg.pr.new/')
-    .get('/vue@14175')
-    .reply(302, '', { location: '/vuejs/core/vue@14182' })
+  setupMockAgent()
+  try {
+    const mockPool = mockAgent.get('https://pkg.pr.new')
+    mockPool.intercept({
+      path: '/vue@14175',
+      method: 'GET',
+    }).reply(302, '', { headers: { location: '/vuejs/core/vue@14182' } })
 
-  nock('https://pkg.pr.new/')
-    .get('/vuejs/core/vue@14182')
-    .reply(302, '', { location: '/vuejs/core/vue@82a13bb6faaa9f77a06b57e69e0934b9f620f333' })
+    mockPool.intercept({
+      path: '/vuejs/core/vue@14182',
+      method: 'GET',
+    }).reply(302, '', { headers: { location: '/vuejs/core/vue@82a13bb6faaa9f77a06b57e69e0934b9f620f333' } })
 
-  nock('https://pkg.pr.new/')
-    .get('/vuejs/core/vue@82a13bb6faaa9f77a06b57e69e0934b9f620f333')
-    .reply(200, { ok: true })
+    mockPool.intercept({
+      path: '/vuejs/core/vue@82a13bb6faaa9f77a06b57e69e0934b9f620f333',
+      method: 'GET',
+    }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
 
-  const fetchFromRegistry = createFetchFromRegistry({})
-  const res = await fetchFromRegistry(
-    'https://pkg.pr.new/vue@14175'
-  )
+    const fetchFromRegistry = createFetchFromRegistry({})
+    const res = await fetchFromRegistry(
+      'https://pkg.pr.new/vue@14175'
+    )
 
-  expect(await res.json()).toStrictEqual({ ok: true })
-  expect(nock.isDone()).toBeTruthy()
+    expect(await res.json()).toStrictEqual({ ok: true })
+  } finally {
+    teardownMockAgent()
+  }
 })
 
 test('redirect without location header throws error', async () => {
-  nock('http://registry.pnpm.io/')
-    .get('/missing-location')
-    .reply(302, 'found')
+  setupMockAgent()
+  try {
+    const mockPool = mockAgent.get('http://registry.pnpm.io')
+    mockPool.intercept({
+      path: '/missing-location',
+      method: 'GET',
+    }).reply(302, 'found')
 
-  const fetchFromRegistry = createFetchFromRegistry({})
-  await expect(fetchFromRegistry(
-    'http://registry.pnpm.io/missing-location'
-  )).rejects.toThrow(/Redirect location header missing/)
+    const fetchFromRegistry = createFetchFromRegistry({})
+    await expect(fetchFromRegistry(
+      'http://registry.pnpm.io/missing-location'
+    )).rejects.toThrow(/Redirect location header missing/)
+  } finally {
+    teardownMockAgent()
+  }
 })

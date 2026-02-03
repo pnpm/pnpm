@@ -3,6 +3,7 @@ import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { type RootLog } from '@pnpm/core-loggers'
 import { type PnpmError } from '@pnpm/error'
+import { clearDispatcherCache } from '@pnpm/fetch'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.fs'
 import { type LockfileFile } from '@pnpm/lockfile.types'
@@ -22,10 +23,38 @@ import {
 } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
-import nock from 'nock'
 import sinon from 'sinon'
+import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from './utils/index.js'
+
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  currentMockAgent.disableNetConnect()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+  }
+}
+
+function getMockAgent (): MockAgent | null {
+  return currentMockAgent
+}
 
 const f = fixtures(import.meta.dirname)
 
@@ -1068,13 +1097,15 @@ const isPositiveMeta = loadJsonFileSync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-
 const tarballPath = f.find('is-positive-3.1.0.tgz')
 
 test('tarball domain differs from registry domain', async () => {
-  nock('https://registry.example.com', { allowUnmocked: true })
-    .get('/is-positive')
+  setupMockAgent()
+  getMockAgent()!.enableNetConnect(/localhost/)
+  getMockAgent()!.get('https://registry.example.com')
+    .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
-
-  nock('https://registry.npmjs.org', { allowUnmocked: true })
-    .get('/is-positive/-/is-positive-3.1.0.tgz')
-    .replyWithFile(200, tarballPath)
+  const tarballContent = fs.readFileSync(tarballPath)
+  getMockAgent()!.get('https://registry.npmjs.org')
+    .intercept({ path: '/is-positive/-/is-positive-3.1.0.tgz', method: 'GET' })
+    .reply(200, tarballContent, { headers: { 'content-length': String(tarballContent.length) } })
 
   const project = prepareEmpty()
 
@@ -1123,15 +1154,18 @@ test('tarball domain differs from registry domain', async () => {
       'is-positive@3.1.0': {},
     },
   })
+  await teardownMockAgent()
 })
 
 test('tarball installed through non-standard URL endpoint from the registry domain', async () => {
-  nock('https://registry.npmjs.org', { allowUnmocked: true })
-    .head('/is-positive/download/is-positive-3.1.0.tgz')
-    .reply(200, '')
-  nock('https://registry.npmjs.org', { allowUnmocked: true })
-    .get('/is-positive/download/is-positive-3.1.0.tgz')
-    .replyWithFile(200, tarballPath)
+  setupMockAgent()
+  getMockAgent()!.enableNetConnect(/localhost/)
+  const mockPool = getMockAgent()!.get('https://registry.npmjs.org')
+  mockPool.intercept({ path: '/is-positive/download/is-positive-3.1.0.tgz', method: 'HEAD' })
+    .reply(200, '').persist()
+  const tarballContent2 = fs.readFileSync(tarballPath)
+  mockPool.intercept({ path: '/is-positive/download/is-positive-3.1.0.tgz', method: 'GET' })
+    .reply(200, tarballContent2, { headers: { 'content-length': String(tarballContent2.length) } }).persist()
 
   const project = prepareEmpty()
 
@@ -1180,6 +1214,7 @@ test('tarball installed through non-standard URL endpoint from the registry doma
       'is-positive@https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {},
     },
   })
+  await teardownMockAgent()
 })
 
 // TODO: fix merge conflicts with the new lockfile format (TODOv8)

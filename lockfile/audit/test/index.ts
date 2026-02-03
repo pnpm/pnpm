@@ -3,8 +3,22 @@ import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { type PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type DepPath, type ProjectId } from '@pnpm/types'
-import nock from 'nock'
+import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
 import { lockfileToAuditTree } from '../lib/lockfileToAuditTree.js'
+
+let mockAgent: MockAgent
+let originalDispatcher: Dispatcher
+
+function setupMockAgent (): void {
+  originalDispatcher = getGlobalDispatcher()
+  mockAgent = new MockAgent()
+  mockAgent.disableNetConnect()
+  setGlobalDispatcher(mockAgent)
+}
+
+function teardownMockAgent (): void {
+  setGlobalDispatcher(originalDispatcher)
+}
 
 const f = fixtures(import.meta.dirname)
 
@@ -144,35 +158,41 @@ describe('audit', () => {
   })
 
   test('an error is thrown if the audit endpoint responds with a non-OK code', async () => {
-    const registry = 'http://registry.registry/'
-    const getAuthHeader = () => undefined
-    nock(registry, {
-      badheaders: ['authorization'],
-    })
-      .post('/-/npm/v1/security/audits')
-      .reply(500, { message: 'Something bad happened' })
-
-    let err!: PnpmError
+    setupMockAgent()
     try {
-      await audit({
-        importers: {},
-        lockfileVersion: LOCKFILE_VERSION,
-      },
-      getAuthHeader,
-      {
-        lockfileDir: f.find('one-project'),
-        registry,
-        retry: {
-          retries: 0,
-        },
-        virtualStoreDirMaxLength: 120,
-      })
-    } catch (_err: any) { // eslint-disable-line
-      err = _err
-    }
+      const registry = 'http://registry.registry/'
+      const getAuthHeader = () => undefined
 
-    expect(err).toBeDefined()
-    expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
-    expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}')
+      const mockPool = mockAgent.get('http://registry.registry')
+      mockPool.intercept({
+        path: '/-/npm/v1/security/audits',
+        method: 'POST',
+      }).reply(500, { message: 'Something bad happened' }, { headers: { 'content-type': 'application/json' } })
+
+      let err!: PnpmError
+      try {
+        await audit({
+          importers: {},
+          lockfileVersion: LOCKFILE_VERSION,
+        },
+        getAuthHeader,
+        {
+          lockfileDir: f.find('one-project'),
+          registry,
+          retry: {
+            retries: 0,
+          },
+          virtualStoreDirMaxLength: 120,
+        })
+      } catch (_err: any) { // eslint-disable-line
+        err = _err
+      }
+
+      expect(err).toBeDefined()
+      expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
+      expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}')
+    } finally {
+      teardownMockAgent()
+    }
   })
 })

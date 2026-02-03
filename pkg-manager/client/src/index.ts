@@ -3,7 +3,7 @@ import {
   type ResolveFunction,
   type ResolverFactoryOptions,
 } from '@pnpm/default-resolver'
-import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
+import { type DispatcherOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { type SslConfig } from '@pnpm/types'
 import { type CustomResolver, type CustomFetcher } from '@pnpm/hooks.types'
 import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
@@ -33,7 +33,7 @@ export type ClientOptions = {
   includeOnlyPackageFiles?: boolean
   preserveAbsolutePaths?: boolean
   fetchMinSpeedKiBps?: number
-} & ResolverFactoryOptions & AgentOptions
+} & ResolverFactoryOptions & DispatcherOptions
 
 export interface Client {
   fetchers: Fetchers

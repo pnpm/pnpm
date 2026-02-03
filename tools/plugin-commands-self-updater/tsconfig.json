@@ -28,6 +28,9 @@
       "path": "../../exec/pnpm-cli-runner"
     },
     {
+      "path": "../../network/fetch"
+    },
+    {
       "path": "../../packages/error"
     },
     {

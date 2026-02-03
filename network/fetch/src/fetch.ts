@@ -1,12 +1,8 @@
-import assert from 'assert'
-import util from 'util'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
-import nodeFetch, { type Request, type RequestInit as NodeRequestInit, Response } from 'node-fetch'
+import { fetch as undiciFetch, type Dispatcher } from 'undici'
 
-export { isRedirect } from 'node-fetch'
-
-export { Response, type RetryTimeoutOptions }
+export { type RetryTimeoutOptions }
 
 interface URLLike {
   href: string
@@ -17,11 +13,18 @@ const NO_RETRY_ERROR_CODES = new Set([
   'ERR_OSSL_PEM_NO_START_LINE',
 ])
 
-export type RequestInfo = string | URLLike | Request
+const REDIRECT_CODES = new Set([301, 302, 303, 307, 308])
 
-export interface RequestInit extends NodeRequestInit {
+export function isRedirect (statusCode: number): boolean {
+  return REDIRECT_CODES.has(statusCode)
+}
+
+export type RequestInfo = string | URLLike | URL
+
+export interface RequestInit extends globalThis.RequestInit {
   retry?: RetryTimeoutOptions
   timeout?: number
+  dispatcher?: Dispatcher
 }
 
 export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<Response> {
@@ -39,9 +42,20 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
   try {
     return await new Promise((resolve, reject) => {
       op.attempt(async (attempt) => {
+        const urlString = typeof url === 'string' ? url : url.href ?? url.toString()
+        const { retry: _retry, timeout, dispatcher, ...fetchOpts } = opts
+        const controller = timeout ? new AbortController() : undefined
+        const timeoutId = timeout ? setTimeout(() => controller!.abort(), timeout) : undefined
         try {
-          // this will be retried
-          const res = await nodeFetch(url as any, opts) // eslint-disable-line
+          // Note: dispatcher is a non-standard option supported by Node.js native fetch (undici)
+          // Only include dispatcher if defined, otherwise use the global dispatcher
+          const fetchOptions = {
+            ...fetchOpts,
+            signal: controller?.signal,
+            ...(dispatcher ? { dispatcher } : {}),
+          } as RequestInit & { dispatcher?: Dispatcher }
+          // Use undici's fetch directly to ensure MockAgent integration works in tests
+          const res = await undiciFetch(urlString, fetchOptions as Parameters<typeof undiciFetch>[1]) as unknown as Response
           // A retry on 409 sometimes helps when making requests to the Bit registry.
           if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
             throw new ResponseError(res)
@@ -49,27 +63,47 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
             resolve(res)
           }
         } catch (error: unknown) {
-          assert(util.types.isNativeError(error))
+          // Undici errors may not pass isNativeError check, so we handle them more carefully
+          const err = error as Error & { code?: string, cause?: { code?: string } }
+          // Check error code in both error.code and error.cause.code (undici wraps errors)
+          const errorCode = err?.code ?? err?.cause?.code
           if (
-            'code' in error &&
-            typeof error.code === 'string' &&
-            NO_RETRY_ERROR_CODES.has(error.code)
+            typeof errorCode === 'string' &&
+            NO_RETRY_ERROR_CODES.has(errorCode)
           ) {
             throw error
           }
-          const timeout = op.retry(error)
-          if (timeout === false) {
+          const retryTimeout = op.retry(err)
+          if (retryTimeout === false) {
             reject(op.mainError())
             return
           }
+          // Extract error properties into a plain object because Error properties
+          // are non-enumerable and don't serialize well through the logging system
+          const errorInfo = {
+            name: err.name,
+            message: err.message,
+            code: err.code,
+            errno: (err as Error & { errno?: number }).errno,
+            // For HTTP errors from ResponseError class
+            status: (err as Error & { status?: number }).status,
+            statusCode: (err as Error & { statusCode?: number }).statusCode,
+            // undici wraps the actual network error in a cause property
+            cause: err.cause ? {
+              code: err.cause.code,
+              errno: (err.cause as { errno?: number }).errno,
+            } : undefined,
+          }
           requestRetryLogger.debug({
             attempt,
-            error,
+            error: errorInfo,
             maxRetries,
             method: opts.method ?? 'GET',
-            timeout,
+            timeout: retryTimeout,
             url: url.toString(),
           })
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId)
         }
       })
     })

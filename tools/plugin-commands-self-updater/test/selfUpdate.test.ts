@@ -2,10 +2,11 @@ import fs from 'fs'
 import { createRequire } from 'module'
 import path from 'path'
 import { prependDirsToPath } from '@pnpm/env.path'
+import { clearDispatcherCache } from '@pnpm/fetch'
 import { tempDir, prepare as prepareWithPkg } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
 import spawn from 'cross-spawn'
-import nock from 'nock'
+import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
 
 const require = createRequire(import.meta.dirname)
 const pnpmTarballPath = require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-9.1.0.tgz')
@@ -22,13 +23,40 @@ jest.unstable_mockModule('@pnpm/cli-meta', () => {
 })
 const { selfUpdate } = await import('@pnpm/tools.plugin-commands-self-updater')
 
-afterEach(() => {
-  nock.cleanAll()
-  nock.disableNetConnect()
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  currentMockAgent.disableNetConnect()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+  }
+}
+
+function getMockAgent (): MockAgent | null {
+  return currentMockAgent
+}
+
+afterEach(async () => {
+  await teardownMockAgent()
 })
 
 beforeEach(() => {
-  nock.enableNetConnect()
+  setupMockAgent()
 })
 
 function prepare () {
@@ -88,12 +116,12 @@ function createMetadata (latest: string, registry: string, otherVersions: string
 
 test('self-update', async () => {
   const opts = prepare()
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.1.0', opts.registries.default))
-  nock(opts.registries.default)
-    .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, pnpmTarballPath)
+  const mockPool = getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  mockPool.intercept({ path: '/pnpm', method: 'GET' }).reply(200, createMetadata('9.1.0', opts.registries.default))
+  const tarballContent = fs.readFileSync(pnpmTarballPath)
+  mockPool.intercept({ path: '/pnpm/-/pnpm-9.1.0.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'content-length': String(tarballContent.length) },
+  })
 
   await selfUpdate.handler(opts, [])
 
@@ -113,12 +141,12 @@ test('self-update', async () => {
 
 test('self-update by exact version', async () => {
   const opts = prepare()
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.2.0', opts.registries.default, ['9.1.0']))
-  nock(opts.registries.default)
-    .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, pnpmTarballPath)
+  const mockPool = getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  mockPool.intercept({ path: '/pnpm', method: 'GET' }).reply(200, createMetadata('9.2.0', opts.registries.default, ['9.1.0']))
+  const tarballContent = fs.readFileSync(pnpmTarballPath)
+  mockPool.intercept({ path: '/pnpm/-/pnpm-9.1.0.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'content-length': String(tarballContent.length) },
+  })
 
   await selfUpdate.handler(opts, ['9.1.0'])
 
@@ -138,9 +166,8 @@ test('self-update by exact version', async () => {
 
 test('self-update does nothing when pnpm is up to date', async () => {
   const opts = prepare()
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  const mockPool = getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  mockPool.intercept({ path: '/pnpm', method: 'GET' }).reply(200, createMetadata('9.0.0', opts.registries.default))
 
   const output = await selfUpdate.handler(opts, [])
 
@@ -153,9 +180,8 @@ test('should update packageManager field when a newer pnpm version is available'
   fs.writeFileSync(pkgJsonPath, JSON.stringify({
     packageManager: 'pnpm@8.0.0',
   }), 'utf8')
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  const mockPool = getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  mockPool.intercept({ path: '/pnpm', method: 'GET' }).reply(200, createMetadata('9.0.0', opts.registries.default))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -176,9 +202,8 @@ test('should not update packageManager field when current version matches latest
   fs.writeFileSync(pkgJsonPath, JSON.stringify({
     packageManager: 'pnpm@9.0.0',
   }), 'utf8')
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  const mockPool = getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  mockPool.intercept({ path: '/pnpm', method: 'GET' }).reply(200, createMetadata('9.0.0', opts.registries.default))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -195,9 +220,8 @@ test('should not update packageManager field when current version matches latest
 
 test('self-update links pnpm that is already present on the disk', async () => {
   const opts = prepare()
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.2.0', opts.registries.default))
+  const mockPool = getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  mockPool.intercept({ path: '/pnpm', method: 'GET' }).reply(200, createMetadata('9.2.0', opts.registries.default))
 
   const baseDir = path.join(opts.pnpmHomeDir, '.tools/pnpm/9.2.0')
   fs.mkdirSync(path.join(baseDir, 'bin'), { recursive: true })
@@ -233,12 +257,12 @@ test('self-update updates the packageManager field in package.json', async () =>
       version: '9.0.0',
     },
   }
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.1.0', opts.registries.default))
-  nock(opts.registries.default)
-    .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, pnpmTarballPath)
+  const mockPool = getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  mockPool.intercept({ path: '/pnpm', method: 'GET' }).reply(200, createMetadata('9.1.0', opts.registries.default))
+  const tarballContent = fs.readFileSync(pnpmTarballPath)
+  mockPool.intercept({ path: '/pnpm/-/pnpm-9.1.0.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'content-length': String(tarballContent.length) },
+  })
 
   const output = await selfUpdate.handler(opts, [])
 

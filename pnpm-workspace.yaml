@@ -79,7 +79,6 @@ catalog:
   '@pnpm/log.group': 3.0.1
   '@pnpm/logger': '>=1001.0.0 <1002.0.0'
   '@pnpm/meta-updater': 2.0.6
-  '@pnpm/network.agent': ^2.0.3
   '@pnpm/nopt': ^0.3.1
   '@pnpm/npm-conf': 3.0.2
   '@pnpm/npm-lifecycle': ^1001.0.0
@@ -224,8 +223,6 @@ catalog:
   memoize: ^10.2.0
   micromatch: ^4.0.8
   msgpackr: ^1.11.2
-  nock: 13.3.4
-  node-fetch: ^3.3.2
   normalize-newline: 4.1.0
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
@@ -297,6 +294,7 @@ catalog:
   ts-jest-resolver: 2.0.1
   typescript: 5.9.2
   typescript-eslint: ^8.53.0
+  undici: ^7.2.0
   unified: ^9.2.2
   validate-npm-package-name: 7.0.2
   verdaccio: 6.1.6

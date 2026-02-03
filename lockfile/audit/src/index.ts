@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type AgentOptions, fetchWithAgent, type RetryTimeoutOptions } from '@pnpm/fetch'
+import { type DispatcherOptions, fetchWithDispatcher, type RetryTimeoutOptions } from '@pnpm/fetch'
 import { type GetAuthHeader } from '@pnpm/fetching-types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type DependenciesField } from '@pnpm/types'
@@ -12,7 +12,7 @@ export async function audit (
   lockfile: LockfileObject,
   getAuthHeader: GetAuthHeader,
   opts: {
-    agentOptions?: AgentOptions
+    dispatcherOptions?: DispatcherOptions
     include?: { [dependenciesField in DependenciesField]: boolean }
     lockfileDir: string
     registry: string
@@ -26,8 +26,8 @@ export async function audit (
   const auditUrl = `${registry}-/npm/v1/security/audits`
   const authHeaderValue = getAuthHeader(registry)
 
-  const res = await fetchWithAgent(auditUrl, {
-    agentOptions: opts.agentOptions ?? {},
+  const res = await fetchWithDispatcher(auditUrl, {
+    dispatcherOptions: opts.dispatcherOptions ?? {},
     body: JSON.stringify(auditTree),
     headers: {
       'Content-Type': 'application/json',

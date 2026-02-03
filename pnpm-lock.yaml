@@ -57,9 +57,6 @@ catalogs:
     '@pnpm/meta-updater':
       specifier: 2.0.6
       version: 2.0.6
-    '@pnpm/network.agent':
-      specifier: ^2.0.3
-      version: 2.0.3
     '@pnpm/nopt':
       specifier: ^0.3.1
       version: 0.3.1
@@ -492,12 +489,6 @@ catalogs:
     msgpackr:
       specifier: ^1.11.2
       version: 1.11.8
-    nock:
-      specifier: 13.3.4
-      version: 13.3.4
-    node-fetch:
-      specifier: ^3.3.2
-      version: 3.3.2
     normalize-newline:
       specifier: 4.1.0
       version: 4.1.0
@@ -711,6 +702,9 @@ catalogs:
     typescript-eslint:
       specifier: ^8.53.0
       version: 8.53.0
+    undici:
+      specifier: ^7.2.0
+      version: 7.19.2
     unified:
       specifier: ^9.2.2
       version: 9.2.2
@@ -2321,9 +2315,6 @@ importers:
       adm-zip:
         specifier: 'catalog:'
         version: 0.5.16
-      node-fetch:
-        specifier: 'catalog:'
-        version: 3.3.2
 
   env/node.resolver:
     dependencies:
@@ -2465,18 +2456,15 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
-      node-fetch:
-        specifier: 'catalog:'
-        version: 3.3.2
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
       tar-stream:
         specifier: 'catalog:'
         version: 3.1.7
+      undici:
+        specifier: 'catalog:'
+        version: 7.19.2
       yazl:
         specifier: 'catalog:'
         version: 3.3.1
@@ -3290,12 +3278,12 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.19.2
 
   fetching/tarball-fetcher:
     dependencies:
@@ -3381,15 +3369,15 @@ importers:
       '@types/ssri':
         specifier: 'catalog:'
         version: 7.1.5
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       ssri:
         specifier: 'catalog:'
         version: 13.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.19.2
 
   fs/find-packages:
     dependencies:
@@ -3741,9 +3729,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
-      nock:
+      undici:
         specifier: 'catalog:'
-        version: 13.3.4
+        version: 7.19.2
 
   lockfile/detect-dep-types:
     dependencies:
@@ -4020,6 +4008,9 @@ importers:
         specifier: 'catalog:'
         version: 1.0.3
     devDependencies:
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/plugin-commands-audit':
         specifier: workspace:*
         version: 'link:'
@@ -4038,15 +4029,15 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.19.2
 
   lockfile/preferred-versions:
     dependencies:
@@ -4360,18 +4351,18 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../fetching-types
-      '@pnpm/network.agent':
-        specifier: 'catalog:'
-        version: 2.0.3
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/retry':
         specifier: 'catalog:'
         version: 0.2.0
-      node-fetch:
+      lru-cache:
         specifier: 'catalog:'
-        version: 3.3.2
+        version: 11.1.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.19.2
     devDependencies:
       '@pnpm/fetch':
         specifier: workspace:*
@@ -4382,18 +4373,12 @@ importers:
       https-proxy-server-express:
         specifier: 'catalog:'
         version: 0.1.2
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
 
   network/fetching-types:
     dependencies:
       '@zkochan/retry':
         specifier: 'catalog:'
         version: 0.2.0
-      node-fetch:
-        specifier: 'catalog:'
-        version: 3.3.2
     devDependencies:
       '@pnpm/fetching-types':
         specifier: workspace:*
@@ -5182,6 +5167,9 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/fs.msgpack-file':
         specifier: workspace:*
         version: link:../../fs/msgpack-file
@@ -5254,9 +5242,6 @@ importers:
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -5272,6 +5257,9 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 7.0.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.19.2
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
@@ -5842,6 +5830,9 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/fs.msgpack-file':
         specifier: workspace:*
         version: link:../../fs/msgpack-file
@@ -5875,15 +5866,15 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.19.2
 
   pkg-manager/plugin-commands-installation:
     dependencies:
@@ -7362,9 +7353,6 @@ importers:
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher
-      node-fetch:
-        specifier: 'catalog:'
-        version: 3.3.2
 
   resolving/deno-resolver:
     dependencies:
@@ -7442,9 +7430,6 @@ importers:
       '@pnpm/git-resolver':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/network.agent':
-        specifier: 'catalog:'
-        version: 2.0.3
       '@types/hosted-git-info':
         specifier: 'catalog:'
         version: 3.0.5
@@ -7628,12 +7613,12 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.19.2
 
   resolving/resolver-base:
     dependencies:
@@ -8714,6 +8699,9 @@ importers:
       '@pnpm/env.path':
         specifier: workspace:*
         version: link:../../env/path
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -8732,9 +8720,9 @@ importers:
       cross-spawn:
         specifier: 'catalog:'
         version: 7.0.6
-      nock:
+      undici:
         specifier: 'catalog:'
-        version: 13.3.4
+        version: 7.19.2
 
   worker:
     dependencies:
@@ -12282,10 +12270,6 @@ packages:
     resolution: {integrity: sha512-WboRycPNsVw3B3TL559F7kuBUM4d8CgMEvk6xEJlOp7OBPjt6G7z8WMWlD2rOFZLk6OYfFIUGsCOWzcQH9K2og==}
     engines: {node: '>= 6'}
 
-  data-uri-to-buffer@4.0.1:
-    resolution: {integrity: sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A==}
-    engines: {node: '>= 12'}
-
   data-view-buffer@1.0.2:
     resolution: {integrity: sha512-EmKO5V3OLXh1rtK2wgXRansaK1/mtVdTUEiEI0W8RkvgT05kfxaH29PliLnpLP73yYO6142Q72QNa8Wx/A5CqQ==}
     engines: {node: '>= 0.4'}
@@ -12878,10 +12862,6 @@ packages:
       domexception:
         optional: true
 
-  fetch-blob@3.2.0:
-    resolution: {integrity: sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ==}
-    engines: {node: ^12.20 || >= 14.13}
-
   file-entry-cache@8.0.0:
     resolution: {integrity: sha512-XXTUwCvisa5oacNGRP9SfNtYBNAMi+RPwBFmblZEF7N7swHYQS6/Zfk7SRwx4D5j3CH211YNRco1DEMNVfZCnQ==}
     engines: {node: '>=16.0.0'}
@@ -12973,10 +12953,6 @@ packages:
   form-data@4.0.4:
     resolution: {integrity: sha512-KrGhL9Q4zjj0kiUt5OO4Mr/A/jlI2jDYs5eHBpYHPcBEVSiipAvn2Ko2HnPe20rmcuuvMHNdZFp+4IlGTMF0Ow==}
     engines: {node: '>= 6'}
-
-  formdata-polyfill@4.0.10:
-    resolution: {integrity: sha512-buewHzMvYL29jdeQTVILecSaZKnt/RJWjoZCF5OW60Z67/GmSLBkOFM7qh1PI3zFNtJbaZL5eQu1vLfazOwj4g==}
-    engines: {node: '>=12.20.0'}
 
   forwarded@0.2.0:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
@@ -14506,18 +14482,9 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  nock@13.3.4:
-    resolution: {integrity: sha512-DDpmn5oLEdCTclEqweOT4U7bEpuoifBMFUXem9sA4turDAZ5tlbrEoWqCorwXey8CaAw44mst5JOQeVNiwtkhw==}
-    engines: {node: '>= 10.13'}
-
   node-abi@3.75.0:
     resolution: {integrity: sha512-OhYaY5sDsIka7H7AtijtI9jwGYLyl29eQn/W623DiN/MIv5sUqc4g7BIDThX+gb7di9f6xK02nkp8sdfFWZLTg==}
     engines: {node: '>=10'}
-
-  node-domexception@1.0.0:
-    resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
-    engines: {node: '>=10.5.0'}
-    deprecated: Use your platform's native DOMException instead
 
   node-fetch@2.6.7:
     resolution: {integrity: sha512-ZjMPFEfVx5j+y2yF35Kzx5sF7kDzxuDj6ziH4FFbOp87zKDZNx8yExJIb05OGF4Nlt9IHFIMBkRl41VdvcNdbQ==}
@@ -14536,10 +14503,6 @@ packages:
     peerDependenciesMeta:
       encoding:
         optional: true
-
-  node-fetch@3.3.2:
-    resolution: {integrity: sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==}
-    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   node-gyp-build-optional-packages@5.2.2:
     resolution: {integrity: sha512-s+w+rBWnpTMwSFbaE0UXsRlg7hU4FjekKU4eyAih5T8nJuNZT1nNsskXpxmeqSK9UzkBl6UgRlnKc8hz8IEqOw==}
@@ -15099,10 +15062,6 @@ packages:
   promise-share@1.0.0:
     resolution: {integrity: sha512-lpABypysb42MdCZjMJAdapxt+uTU9F0BZW0YeYVlPD/Gv390c43CdFwBSC9YM3siAgyAjLV94WDuDnwHIJjxiw==}
     engines: {node: '>=8'}
-
-  propagate@2.0.1:
-    resolution: {integrity: sha512-vGrhOavPSTz4QVNuBNdcNXePNdNMaO1xj9yBeH1ScQPjk/rhg9sSlCXPhMkFuaNNW/syTvYqsnbIJxMBfRbbag==}
-    engines: {node: '>= 8'}
 
   proto-list@1.2.4:
     resolution: {integrity: sha512-vtK/94akxsTMhe0/cbfpR+syPuszcuwhqVjJq26CuNDgFGj682oRBXOP5MJpv2r7JtE8MsiepGIqvvOTBwn2vA==}
@@ -15915,6 +15874,7 @@ packages:
   tar@7.5.7:
     resolution: {integrity: sha512-fov56fJiRuThVFXD6o6/Q354S7pnWMJIVlDBYijsTNx6jKSE4pvrDTs6lUnmGvNyfJwFQQwWy3owKz1ucIhveQ==}
     engines: {node: '>=18'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exhorbitant rates) by contacting i@izs.me
 
   temp-dir@2.0.0:
     resolution: {integrity: sha512-aoBAniQmmwtcKp/7BzsH8Cxzv8OL736p7v1ihGb5e9DJ9kTwGWHrQrVB5+lfVDzfGrdRzXch+ig7LHaY1JTOrg==}
@@ -16240,6 +16200,10 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
+  undici@7.19.2:
+    resolution: {integrity: sha512-4VQSpGEGsWzk0VYxyB/wVX/Q7qf9t5znLRgs0dzszr9w9Fej/8RVNQ+S20vdXSAyra/bJ7ZQfGv6ZMj7UEbzSg==}
+    engines: {node: '>=20.18.1'}
+
   unicorn-magic@0.1.0:
     resolution: {integrity: sha512-lRfVq8fE8gz6QMBuDM6a+LO3IAzTi05H6gCVaUpir2E1Rwpo4ZUog45KpNXKC/Mn3Yb9UDuHumeFTo9iV/D9FQ==}
     engines: {node: '>=18'}
@@ -16424,10 +16388,6 @@ packages:
 
   wcwidth@1.0.1:
     resolution: {integrity: sha512-XHPEwS0q6TaxcvG85+8EYkbiCux2XtWG2mkc47Ng2A77BQu9+DqIOJldST4HgPkuea7dvKSj5VgX3P1d4rW8Tg==}
-
-  web-streams-polyfill@3.3.3:
-    resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
-    engines: {node: '>= 8'}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -20925,8 +20885,6 @@ snapshots:
 
   data-uri-to-buffer@3.0.1: {}
 
-  data-uri-to-buffer@4.0.1: {}
-
   data-view-buffer@1.0.2:
     dependencies:
       call-bound: 1.0.4
@@ -21598,11 +21556,6 @@ snapshots:
 
   fetch-blob@2.1.2: {}
 
-  fetch-blob@3.2.0:
-    dependencies:
-      node-domexception: 1.0.0
-      web-streams-polyfill: 3.3.3
-
   file-entry-cache@8.0.0:
     dependencies:
       flat-cache: 4.0.1
@@ -21708,10 +21661,6 @@ snapshots:
       es-set-tostringtag: 2.1.0
       hasown: 2.0.2
       mime-types: 2.1.35
-
-  formdata-polyfill@4.0.10:
-    dependencies:
-      fetch-blob: 3.2.0
 
   forwarded@0.2.0: {}
 
@@ -23594,20 +23543,9 @@ snapshots:
       pretty-bytes: 4.0.2
       walk-filtered: 0.9.3
 
-  nock@13.3.4:
-    dependencies:
-      debug: 4.4.3
-      json-stringify-safe: 5.0.1
-      lodash: 4.17.23
-      propagate: 2.0.1
-    transitivePeerDependencies:
-      - supports-color
-
   node-abi@3.75.0:
     dependencies:
       semver: 7.7.3
-
-  node-domexception@1.0.0: {}
 
   node-fetch@2.6.7(encoding@0.1.13):
     dependencies:
@@ -23620,12 +23558,6 @@ snapshots:
       whatwg-url: 5.0.0
     optionalDependencies:
       encoding: 0.1.13
-
-  node-fetch@3.3.2:
-    dependencies:
-      data-uri-to-buffer: 4.0.1
-      fetch-blob: 3.2.0
-      formdata-polyfill: 4.0.10
 
   node-gyp-build-optional-packages@5.2.2:
     dependencies:
@@ -24194,8 +24126,6 @@ snapshots:
   promise-share@1.0.0:
     dependencies:
       p-reflect: 2.1.0
-
-  propagate@2.0.1: {}
 
   proto-list@1.2.4: {}
 
@@ -25462,6 +25392,8 @@ snapshots:
 
   undici-types@6.21.0: {}
 
+  undici@7.19.2: {}
+
   unicorn-magic@0.1.0: {}
 
   unified@9.2.2:
@@ -25750,8 +25682,6 @@ snapshots:
   wcwidth@1.0.1:
     dependencies:
       defaults: 1.0.4
-
-  web-streams-polyfill@3.3.3: {}
 
   webidl-conversions@3.0.1: {}
 
