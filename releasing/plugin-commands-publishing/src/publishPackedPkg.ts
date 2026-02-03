@@ -36,6 +36,7 @@ export type PublishPackedPkgOptions = Pick<Config,
 | 'fetchRetryMintimeout'
 | 'fetchTimeout'
 | 'registries'
+| 'tag'
 | 'userAgent'
 > & {
   access?: 'public' | 'restricted'
@@ -101,6 +102,7 @@ function createPublishOptions (packResult: PackResult, {
   otp,
   provenance,
   provenanceFile,
+  tag: defaultTag,
   userAgent,
   ...options
 }: PublishPackedPkgOptions): PublishOptions {
@@ -108,6 +110,7 @@ function createPublishOptions (packResult: PackResult, {
 
   const publishOptions: PublishOptions = {
     access,
+    defaultTag,
     fetchRetries,
     fetchRetryFactor,
     fetchRetryMaxtimeout,
