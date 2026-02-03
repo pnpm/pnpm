@@ -49,9 +49,6 @@
       "path": "../../hooks/pnpmfile"
     },
     {
-      "path": "../../network/auth-header"
-    },
-    {
       "path": "../../packages/error"
     },
     {

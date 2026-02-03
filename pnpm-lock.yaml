@@ -7088,9 +7088,6 @@ importers:
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
-      '@pnpm/network.auth-header':
-        specifier: workspace:*
-        version: link:../../network/auth-header
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/package-bins
