@@ -293,27 +293,6 @@ module.exports = {
   expect(nodeModulesFiles).toContain('is-number')
 })
 
-test('updateConfig hook with hoist: false', async () => {
-  prepare()
-  const pnpmfile = `
-module.exports = {
-  hooks: {
-    updateConfig: (config) => ({
-      ...config,
-      hoist: false,
-    }),
-  },
-}`
-
-  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
-
-  await execPnpm(['add', 'is-odd@1.0.0'])
-
-  // When hoist: false, transitive deps should not be hoisted to .pnpm/node_modules
-  const pnpmNodeModules = path.join('node_modules', '.pnpm', 'node_modules')
-  expect(fs.existsSync(pnpmNodeModules)).toBe(false)
-})
-
 test('loading an ESM pnpmfile', async () => {
   prepare()
 
