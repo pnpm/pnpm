@@ -56,7 +56,7 @@ type OutdatedManifest = typeof publish extends (_a: infer Manifest, ..._: never)
 
 export async function publishPackedPkg (packResult: PackResult, opts: PublishPackedPkgOptions): Promise<void> {
   const { publishedManifest, tarballPath } = packResult
-  assertPublishPackage(publishedManifest)
+  assertPublicPackage(publishedManifest)
   const tarballData = await fs.readFile(tarballPath)
   const publishOptions = createPublishOptions(packResult, opts)
   const { name, version } = publishedManifest
@@ -74,7 +74,7 @@ export async function publishPackedPkg (packResult: PackResult, opts: PublishPac
   throw await createFailedToPublishError(packResult, response)
 }
 
-function assertPublishPackage<
+function assertPublicPackage<
   Manifest extends Pick<ExportedManifest, 'name' | 'private'>
 > (manifest: Manifest): asserts manifest is Manifest & { private?: false } {
   if (manifest.private) {
