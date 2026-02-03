@@ -31,6 +31,41 @@ afterEach(() => {
   jest.restoreAllMocks()
 })
 
+test('deploy provides hint to run custom deploy script if error early', async () => {
+  await expect(() =>
+    deploy.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      rootProjectManifest: {
+        name: 'root',
+        scripts: {
+          deploy: 'echo "custom deploy"',
+        },
+      },
+    }, ['deploy'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CANNOT_DEPLOY',
+    message: 'A deploy is only possible from inside a workspace',
+    hint: 'Maybe you wanted to invoke "pnpm run deploy"',
+  })
+
+  await expect(() =>
+    deploy.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      workspaceDir: process.cwd(),
+      rootProjectManifest: {
+        name: 'root',
+        scripts: {
+          deploy: 'echo "custom deploy"',
+        },
+      },
+    }, ['deploy'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_NOTHING_TO_DEPLOY',
+    message: 'No project was selected for deployment',
+    hint: 'Use --filter to select a project to deploy.\nIn case you want to run the custom "deploy" script in the root manifest, try "pnpm run deploy"',
+  })
+})
+
 test('deploy without existing lockfile', async () => {
   preparePackages([
     {
