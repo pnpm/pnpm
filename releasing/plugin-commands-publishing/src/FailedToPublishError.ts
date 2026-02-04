@@ -1,20 +1,20 @@
 import { PnpmError } from '@pnpm/error'
 import { type PackResult } from './pack.js'
 
-interface PublishErrorProperties {
-  readonly pack: PackResult
+interface PublishErrorProperties<Pack> {
+  readonly pack: Pack
   readonly status: number
   readonly statusText: string
   readonly text: string
 }
 
-export class FailedToPublishError extends PnpmError implements PublishErrorProperties {
-  readonly pack: PackResult
+export class FailedToPublishError<Pack extends Pick<PackResult, 'publishedManifest'>> extends PnpmError implements PublishErrorProperties<Pack> {
+  readonly pack: Pack
   readonly status: number
   readonly statusText: string
   readonly text: string
 
-  constructor (opts: PublishErrorProperties) {
+  constructor (opts: PublishErrorProperties<Pack>) {
     const { pack, status, statusText, text } = opts
     const { name, version } = pack.publishedManifest
 
@@ -40,7 +40,10 @@ export class FailedToPublishError extends PnpmError implements PublishErrorPrope
   }
 }
 
-export async function createFailedToPublishError (pack: PackResult, fetchResponse: FetchResponse): Promise<FailedToPublishError> {
+export async function createFailedToPublishError<Pack extends Pick<PackResult, 'publishedManifest'>> (
+  pack: Pack,
+  fetchResponse: FetchResponse
+): Promise<FailedToPublishError<Pack>> {
   const { status, statusText } = fetchResponse
 
   let text: string

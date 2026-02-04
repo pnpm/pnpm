@@ -55,10 +55,13 @@ export type PublishPackedPkgOptions = Pick<Config,
 // @types/libnpmpublish unfortunately uses an outdated type definition of package.json
 type OutdatedManifest = typeof publish extends (_a: infer Manifest, ..._: never) => unknown ? Manifest : never
 
-export async function publishPackedPkg (packResult: PackResult, opts: PublishPackedPkgOptions): Promise<void> {
+export async function publishPackedPkg (
+  packResult: Pick<PackResult, 'publishedManifest' | 'tarballPath'>,
+  opts: PublishPackedPkgOptions
+): Promise<void> {
   const { publishedManifest, tarballPath } = packResult
   const tarballData = await fs.readFile(tarballPath)
-  const publishOptions = createPublishOptions(packResult, opts)
+  const publishOptions = createPublishOptions(publishedManifest, opts)
   const { name, version } = publishedManifest
   const { registry } = publishOptions
   globalInfo(`📦 ${name}@${version} → ${registry ?? 'the default registry'}`)
@@ -74,7 +77,7 @@ export async function publishPackedPkg (packResult: PackResult, opts: PublishPac
   throw await createFailedToPublishError(packResult, response)
 }
 
-function createPublishOptions (packResult: PackResult, {
+function createPublishOptions (manifest: ExportedManifest, {
   access,
   ci: isFromCI,
   fetchRetries,
@@ -89,7 +92,7 @@ function createPublishOptions (packResult: PackResult, {
   userAgent,
   ...options
 }: PublishPackedPkgOptions): PublishOptions {
-  const { registry, auth, ssl } = findAuthSslInfo(packResult.publishedManifest, options)
+  const { registry, auth, ssl } = findAuthSslInfo(manifest, options)
 
   const publishOptions: PublishOptions = {
     access,

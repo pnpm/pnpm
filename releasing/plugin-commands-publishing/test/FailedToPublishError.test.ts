@@ -23,7 +23,7 @@ describe('createFailedToPublishError', () => {
       statusText: 'Unauthorized',
       text: '',
       pack: pack(),
-    } as Partial<FailedToPublishError>)
+    } as Partial<FailedToPublishError<PackResult>>)
   })
 
   test('failed to get details text', async () => {
@@ -40,7 +40,7 @@ describe('createFailedToPublishError', () => {
       statusText: 'Unauthorized',
       text: '',
       pack: pack(),
-    } as Partial<FailedToPublishError>)
+    } as Partial<FailedToPublishError<PackResult>>)
   })
 
   test('with single-line details', async () => {
@@ -56,7 +56,7 @@ describe('createFailedToPublishError', () => {
       statusText: 'Unauthorized',
       text,
       pack: pack(),
-    } as Partial<FailedToPublishError>)
+    } as Partial<FailedToPublishError<PackResult>>)
   })
 
   test('with multi-line details', async () => {
@@ -81,7 +81,7 @@ describe('createFailedToPublishError', () => {
       statusText: 'Unauthorized',
       text,
       pack: pack(),
-    } as Partial<FailedToPublishError>)
+    } as Partial<FailedToPublishError<PackResult>>)
   })
 
   test('with an empty statusText', async () => {
@@ -96,6 +96,6 @@ describe('createFailedToPublishError', () => {
       statusText: '',
       text: '',
       pack: pack(),
-    } as Partial<FailedToPublishError>)
+    } as Partial<FailedToPublishError<PackResult>>)
   })
 })
