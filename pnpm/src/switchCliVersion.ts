@@ -38,7 +38,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
   // at https://github.com/pnpm/pnpm/pull/8679.
   const pnpmBinPath = path.join(wantedPnpmBinDir, 'pnpm')
 
-  const { status, error } = spawn.sync(pnpmBinPath, process.argv.slice(2), {
+  const { status, signal, error } = spawn.sync(pnpmBinPath, process.argv.slice(2), {
     stdio: 'inherit',
     env: {
       ...process.env,
@@ -49,6 +49,11 @@ export async function switchCliVersion (config: Config): Promise<void> {
 
   if (error) {
     throw new VersionSwitchFail(pmVersion, wantedPnpmBinDir, error)
+  }
+
+  if (signal) {
+    process.kill(process.pid, signal)
+    return
   }
 
   process.exit(status ?? 0)
