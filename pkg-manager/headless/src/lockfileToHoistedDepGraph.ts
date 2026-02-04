@@ -213,6 +213,10 @@ async function fetchDeps (
     // successfully saved after node_modules was changed during installation.
     const skipFetch = opts.currentHoistedLocations?.[depPath]?.includes(depLocation) &&
       await dirHasPackageJsonWithVersion(path.join(opts.lockfileDir, depLocation), pkgVersion)
+    if (!opts.hoistedLocations[depPath]) {
+      opts.hoistedLocations[depPath] = []
+    }
+    opts.hoistedLocations[depPath].push(depLocation)
     const pkgResolution = {
       id: packageId,
       resolution,
@@ -220,11 +224,12 @@ async function fetchDeps (
       version: pkgVersion,
     }
     if (skipFetch) {
-      const { filesIndexFile } = opts.storeController.getFilesIndexFilePath({
-        ignoreScripts: opts.ignoreScripts,
-        pkg: pkgResolution,
-      })
-      fetchResponse = { filesIndexFile } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      // const { filesIndexFile } = opts.storeController.getFilesIndexFilePath({
+      //   ignoreScripts: opts.ignoreScripts,
+      //   pkg: pkgResolution,
+      // })
+      // fetchResponse = { filesIndexFile } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      return
     } else {
       try {
         fetchResponse = opts.storeController.fetchPackage({
@@ -273,10 +278,6 @@ async function fetchDeps (
       }
     }
     depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)
-    if (!opts.hoistedLocations[depPath]) {
-      opts.hoistedLocations[depPath] = []
-    }
-    opts.hoistedLocations[depPath].push(depLocation)
     opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByDepPath, opts)
   }))
   return depHierarchy
