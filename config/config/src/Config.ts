@@ -187,6 +187,7 @@ export interface Config extends OptionsFromRootManifest {
   onlyBuiltDependencies?: string[]
   allowBuilds?: Record<string, boolean | string>
   dedupePeerDependents?: boolean
+  dedupePeerDependencies?: boolean
   patchesDir?: string
   ignoreWorkspaceCycles?: boolean
   disallowWorkspaceCycles?: boolean

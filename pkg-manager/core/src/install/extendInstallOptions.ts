@@ -144,6 +144,7 @@ export interface StrictInstallOptions {
   dedupeDirectDeps: boolean
   dedupeInjectedDeps: boolean
   dedupePeerDependents: boolean
+  dedupePeerDependencies: boolean
   extendNodePath: boolean
   excludeLinksFromLockfile: boolean
   confirmModulesPurge: boolean
@@ -264,6 +265,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     resolveSymlinksInInjectedDirs: false,
     dedupeDirectDeps: true,
     dedupePeerDependents: true,
+    dedupePeerDependencies: false,
     resolvePeersFromWorkspaceRoot: true,
     extendNodePath: true,
     ignoreWorkspaceCycles: false,

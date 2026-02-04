@@ -88,6 +88,9 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     resolvePeersFromWorkspaceRoot?: boolean
     dedupePeerDependents?: boolean
     dedupeInjectedDeps?: boolean
+    // When true, any prod dependency that appears as a peer dependency elsewhere
+    // in the graph will be treated as a peer dependency instead
+    dedupePeerDependencies?: boolean
     resolvedImporters: ResolvedImporters
     peersSuffixMaxLength: number
   }
@@ -138,6 +141,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      dedupePeerDependencies: opts.dedupePeerDependencies,
     })
     if (finishing) {
       finishingList.push(finishing)
@@ -384,6 +388,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     rootDir: ProjectRootDir
     lockfileDir: string
     peersSuffixMaxLength: number
+    dedupePeerDependencies?: boolean
   }
 ): Promise<PeersResolution & { finishing?: FinishingResolutionPromise, calculateDepPath?: CalculateDepPath }> {
   const node = ctx.dependenciesTree.get(nodeId)!
@@ -402,7 +407,27 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     node.children = node.children()
   }
   const parentNodeIds = [...ctx.parentNodeIds, nodeId]
-  const children = node.children
+
+  // When dedupePeerDependencies is enabled, convert prod deps to peer deps
+  // if they appear as peer deps elsewhere in the graph
+  let children = node.children
+  let syntheticPeerDeps: PeerDependencies = {}
+  if (ctx.dedupePeerDependencies) {
+    const filteredChildren: typeof children = {}
+    for (const [alias, childNodeId] of Object.entries(node.children)) {
+      // If this child is in allPeerDepNames but not already a declared peer dep,
+      // treat it as a peer dep instead of a regular child
+      if (ctx.allPeerDepNames.has(alias) && !resolvedPackage.peerDependencies[alias]) {
+        // Get the original specifier from childrenSpecifiers
+        const specifier = node.childrenSpecifiers?.[alias] ?? '*'
+        syntheticPeerDeps[alias] = { version: specifier, optional: false }
+      } else {
+        filteredChildren[alias] = childNodeId
+      }
+    }
+    children = filteredChildren
+  }
+
   let parentPkgs: ParentRefs
   if (Object.keys(children).length === 0) {
     parentPkgs = parentParentPkgs
@@ -470,7 +495,9 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     parentDepPathsChain: ctx.parentDepPathsChain.includes(resolvedPackage.pkgIdWithPatchHash) ? ctx.parentDepPathsChain : [...ctx.parentDepPathsChain, resolvedPackage.pkgIdWithPatchHash],
   })
 
-  const { resolvedPeers, missingPeers } = Object.keys(resolvedPackage.peerDependencies).length === 0
+  // Merge declared peer deps with synthetic peer deps (from dedupePeerDependencies)
+  const effectivePeerDeps = { ...resolvedPackage.peerDependencies, ...syntheticPeerDeps }
+  const { resolvedPeers, missingPeers } = Object.keys(effectivePeerDeps).length === 0
     ? { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Map<string, MissingPeerInfo>() }
     : _resolvePeers({
       currentDepth: node.depth,
@@ -479,7 +506,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       nodeId,
       parentPkgs,
       peerDependencyIssues: ctx.peerDependencyIssues,
-      resolvedPackage,
+      resolvedPackage: { ...resolvedPackage, peerDependencies: effectivePeerDeps },
       rootDir: ctx.rootDir,
       parentNodeIds,
     })
@@ -593,7 +620,8 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         ctx.depPathsByPkgId.get(resolvedPackage.pkgIdWithPatchHash)!.add(depPath)
       }
     }
-    const peerDependencies = { ...resolvedPackage.peerDependencies }
+    // Include synthetic peer deps from dedupePeerDependencies
+    const peerDependencies = { ...effectivePeerDeps }
     if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
       const modules = path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.virtualStoreDirMaxLength), 'node_modules')
       const dir = path.join(modules, resolvedPackage.name)
@@ -787,6 +815,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     rootDir: ProjectRootDir
     lockfileDir: string
     peersSuffixMaxLength: number
+    dedupePeerDependencies?: boolean
   }
 ): Promise<PeersResolution & { finishing: Promise<void> }> {
   const allResolvedPeers = new Map<string, NodeId>()

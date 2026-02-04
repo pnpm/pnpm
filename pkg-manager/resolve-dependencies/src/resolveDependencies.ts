@@ -90,6 +90,9 @@ export interface ChildrenMap {
 
 export type DependenciesTreeNode<T> = {
   children: (() => ChildrenMap) | ChildrenMap
+  // Original version specifiers for children (alias -> bareSpecifier)
+  // Used for converting prod deps to peer deps when they appear as peers elsewhere in the graph
+  childrenSpecifiers?: Record<string, string>
   installable: boolean
 } & ({
   resolvedPackage: T & { name: string, version: string }
@@ -1057,11 +1060,17 @@ async function resolveChildren (
     alias: child.alias,
     id: child.pkgId,
   }))
+  // Build a map of alias -> bareSpecifier for use in peer dependency conversion
+  const childrenSpecifiers: Record<string, string> = {}
+  for (const dep of wantedDependencies) {
+    childrenSpecifiers[dep.alias] = dep.bareSpecifier
+  }
   ctx.dependenciesTree.set(parentPkg.nodeId, {
     children: pkgAddresses.reduce((chn, child) => {
       chn[child.alias] = (child as PkgAddress).nodeId ?? (child.pkgId as unknown as NodeId)
       return chn
     }, {} as Record<string, NodeId>),
+    childrenSpecifiers,
     depth: parentDepth,
     installable: parentPkg.installable,
     resolvedPackage: ctx.resolvedPkgsById[parentPkg.pkgId],

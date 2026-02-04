@@ -56,6 +56,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'catalogMode'
 | 'cleanupUnusedCatalogs'
 | 'cliOptions'
+| 'dedupePeerDependencies'
 | 'dedupePeerDependents'
 | 'depth'
 | 'dev'

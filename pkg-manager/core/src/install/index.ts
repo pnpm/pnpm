@@ -1191,6 +1191,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupeDirectDeps: opts.dedupeDirectDeps,
       dedupeInjectedDeps: opts.dedupeInjectedDeps,
       dedupePeerDependents: opts.dedupePeerDependents,
+      dedupePeerDependencies: opts.dedupePeerDependencies,
       dryRun: opts.lockfileOnly,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       engineStrict: opts.engineStrict,
