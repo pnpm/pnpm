@@ -276,15 +276,19 @@ ${newIgnores.join('\n')}`,
       return false
     }, auditReport.advisories)
   }
+  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
   if (opts.json) {
+    const filteredAdvisories = Object.fromEntries(
+      Object.entries(auditReport.advisories)
+        .filter(([, { severity }]) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
+    )
     return {
-      exitCode: totalVulnerabilityCount > 0 ? 1 : 0,
-      output: JSON.stringify(auditReport, null, 2),
+      exitCode: Object.keys(filteredAdvisories).length > 0 ? 1 : 0,
+      output: JSON.stringify({ ...auditReport, advisories: filteredAdvisories }, null, 2),
     }
   }
 
   let output = ''
-  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
   let advisories = Object.values(auditReport.advisories)
   advisories = advisories
     .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
