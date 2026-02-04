@@ -3296,6 +3296,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
@@ -3345,9 +3348,6 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
-      '@pnpm/fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -4332,6 +4332,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../fetching-types
@@ -7467,6 +7470,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
@@ -7552,9 +7558,6 @@ importers:
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy
-      '@pnpm/fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger

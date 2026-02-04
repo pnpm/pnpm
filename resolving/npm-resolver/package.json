@@ -37,6 +37,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",

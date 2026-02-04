@@ -44,12 +44,13 @@ export function createTarballFetcher (
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean
-  } & Pick<CreateDownloaderOptions, 'fetchMinSpeedKiBps'>
+  } & Pick<CreateDownloaderOptions, 'fetchMinSpeedKiBps' | 'maxTarballSize'>
 ): TarballFetchers {
   const download = createDownloader(fetchFromRegistry, {
     retry: opts.retry,
     timeout: opts.timeout,
     fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
+    maxTarballSize: opts.maxTarballSize,
   })
 
   const remoteTarballFetcher = fetchFromTarball.bind(null, {

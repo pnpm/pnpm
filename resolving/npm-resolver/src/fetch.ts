@@ -7,14 +7,18 @@ import {
   type FetchErrorResponse,
   PnpmError,
 } from '@pnpm/error'
-import { type FetchFromRegistry, type RetryTimeoutOptions } from '@pnpm/fetching-types'
+import { readJsonWithLimit } from '@pnpm/fetch'
+import { type FetchFromRegistry, type Response, type RetryTimeoutOptions } from '@pnpm/fetching-types'
 import { type PackageMeta } from '@pnpm/registry.types'
 import * as retry from '@zkochan/retry'
+
+const DEFAULT_MAX_METADATA_SIZE = 50 * 1024 * 1024 // 50 MB
 
 interface RegistryResponse {
   status: number
   statusText: string
-  json: () => Promise<PackageMeta>
+  headers: Response['headers']
+  body: Response['body']
 }
 
 // https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
@@ -47,6 +51,7 @@ export interface FetchMetadataFromFromRegistryOptions {
   retry: RetryTimeoutOptions
   timeout: number
   fetchWarnTimeoutMs: number
+  maxMetadataSize?: number
 }
 
 export async function fetchMetadataFromFromRegistry (
@@ -84,7 +89,8 @@ export async function fetchMetadataFromFromRegistry (
       // Here we only retry broken JSON responses.
       // Other HTTP issues are retried by the @pnpm/fetch library
       try {
-        const json = await response.json()
+        const maxMetadataSize = fetchOpts.maxMetadataSize ?? DEFAULT_MAX_METADATA_SIZE
+        const json = await readJsonWithLimit<PackageMeta>(response as Response, maxMetadataSize, uri)
         // Check if request took longer than expected
         const elapsedMs = Date.now() - startTime
         if (elapsedMs > fetchOpts.fetchWarnTimeoutMs) {

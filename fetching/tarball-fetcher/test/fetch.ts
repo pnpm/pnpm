@@ -3,7 +3,7 @@ import { jest } from '@jest/globals'
 import fs from 'fs'
 import path from 'path'
 import { FetchError, PnpmError } from '@pnpm/error'
-import { createFetchFromRegistry } from '@pnpm/fetch'
+import { createFetchFromRegistry, ResponseBodyTooLargeError } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -611,4 +611,65 @@ test('fail when path is not exists', async () => {
     lockfileDir: process.cwd(),
     pkg,
   })).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${tarball}": Path "${path}" is not a directory`)
+})
+
+test('fail when tarball Content-Length exceeds maxTarballSize', async () => {
+  // Content-Length indicates 100MB tarball
+  const scope = nock(registry)
+    .get('/huge.tgz')
+    .reply(200, 'small content', {
+      'Content-Length': (100 * 1024 * 1024).toString(),
+    })
+
+  process.chdir(temporaryDirectory())
+
+  const fetchWithSmallLimit = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+    rawConfig: {},
+    retry: { retries: 0 },
+    maxTarballSize: 1024 * 1024, // 1MB limit
+  })
+
+  const resolution = {
+    tarball: `${registry}huge.tgz`,
+  }
+
+  await expect(
+    fetchWithSmallLimit.remoteTarball(cafs, resolution, {
+      filesIndexFile,
+      lockfileDir: process.cwd(),
+      pkg,
+    })
+  ).rejects.toThrow(ResponseBodyTooLargeError)
+
+  expect(scope.isDone()).toBeTruthy()
+})
+
+test('fail when tarball streamed size exceeds maxTarballSize (no Content-Length)', async () => {
+  // Create a body larger than the limit, but don't send Content-Length header
+  const largeBody = Buffer.alloc(2 * 1024 * 1024, 'A') // 2MB
+  const scope = nock(registry)
+    .get('/streaming-huge.tgz')
+    .reply(200, largeBody) // No Content-Length header
+
+  process.chdir(temporaryDirectory())
+
+  const fetchWithSmallLimit = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+    rawConfig: {},
+    retry: { retries: 0 },
+    maxTarballSize: 1024 * 1024, // 1MB limit
+  })
+
+  const resolution = {
+    tarball: `${registry}streaming-huge.tgz`,
+  }
+
+  await expect(
+    fetchWithSmallLimit.remoteTarball(cafs, resolution, {
+      filesIndexFile,
+      lockfileDir: process.cwd(),
+      pkg,
+    })
+  ).rejects.toThrow(ResponseBodyTooLargeError)
+
+  expect(scope.isDone()).toBeTruthy()
 })

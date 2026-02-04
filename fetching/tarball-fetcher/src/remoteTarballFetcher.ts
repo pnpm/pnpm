@@ -3,6 +3,7 @@ import { type IncomingMessage } from 'http'
 import util from 'util'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError } from '@pnpm/error'
+import { ResponseBodyTooLargeError } from '@pnpm/fetch'
 import { type FetchResult, type FetchOptions } from '@pnpm/fetcher-base'
 import { type Cafs } from '@pnpm/cafs-types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
@@ -13,6 +14,7 @@ import throttle from 'lodash.throttle'
 import { BadTarballError } from './errorTypes/index.js'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
+const DEFAULT_MAX_TARBALL_SIZE = 512 * 1024 * 1024 // 512 MB
 
 export interface HttpResponse {
   body: string
@@ -45,6 +47,7 @@ export interface CreateDownloaderOptions {
   }
   timeout?: number
   fetchMinSpeedKiBps?: number
+  maxTarballSize?: number
 }
 
 export function createDownloader (
@@ -59,6 +62,7 @@ export function createDownloader (
     ...gotOpts.retry,
   }
   const fetchMinSpeedKiBps = gotOpts.fetchMinSpeedKiBps ?? 50 // 50 KiB/s
+  const maxTarballSize = gotOpts.maxTarballSize ?? DEFAULT_MAX_TARBALL_SIZE
 
   return async function download (url: string, opts: DownloadOptions): Promise<FetchResult> {
     const authHeaderValue = opts.getAuthHeaderByURI(url)
@@ -118,6 +122,16 @@ export function createDownloader (
         const size = typeof contentLength === 'string'
           ? parseInt(contentLength, 10)
           : null
+
+        // Early rejection if Content-Length indicates tarball is too large
+        if (size !== null && size > maxTarballSize) {
+          throw new ResponseBodyTooLargeError({
+            url,
+            maxSize: maxTarballSize,
+            receivedSize: size,
+          })
+        }
+
         if (opts.onStart != null) {
           opts.onStart(size, currentAttempt)
         }
@@ -132,6 +146,14 @@ export function createDownloader (
         for await (const chunk of res.body!) {
           chunks.push(chunk as Buffer)
           downloaded += chunk.length
+          // Check size limit during streaming (protects against missing/lying Content-Length)
+          if (downloaded > maxTarballSize) {
+            throw new ResponseBodyTooLargeError({
+              url,
+              maxSize: maxTarballSize,
+              receivedSize: downloaded,
+            })
+          }
           onProgress?.(downloaded)
         }
         if (size !== null && size !== downloaded) {
