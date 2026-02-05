@@ -382,7 +382,8 @@ test('convert shamefully-flatten to hoist-pattern=* and warn', async () => {
   ])
 })
 
-test('hoist-pattern is undefined if --no-hoist used', async () => {
+// hoist → hoistPattern processing is done in @pnpm/cli-utils
+test('hoist-pattern is unchanged if --no-hoist used', async () => {
   const { config } = await getConfig({
     cliOptions: {
       hoist: false,
@@ -393,7 +394,8 @@ test('hoist-pattern is undefined if --no-hoist used', async () => {
     },
   })
 
-  expect(config.hoistPattern).toBeUndefined()
+  expect(config.hoist).toBe(false)
+  expect(config.hoistPattern).toStrictEqual(['*'])
 })
 
 test('throw error if --no-hoist is used with --shamefully-hoist', async () => {
@@ -444,6 +446,7 @@ test('throw error if --no-hoist is used with --hoist-pattern', async () => {
   })
 })
 
+// public-hoist-pattern normalization is done in @pnpm/cli-utils
 test('normalizing the value of public-hoist-pattern', async () => {
   {
     const { config } = await getConfig({
@@ -456,7 +459,7 @@ test('normalizing the value of public-hoist-pattern', async () => {
       },
     })
 
-    expect(config.publicHoistPattern).toBeUndefined()
+    expect(config.publicHoistPattern).toBe('')
   }
   {
     const { config } = await getConfig({
@@ -469,7 +472,7 @@ test('normalizing the value of public-hoist-pattern', async () => {
       },
     })
 
-    expect(config.publicHoistPattern).toBeUndefined()
+    expect(config.publicHoistPattern).toStrictEqual([''])
   }
 })
 
@@ -1108,6 +1111,7 @@ test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect
   expect(config.lockfileDir).toBe(undefined)
 })
 
+// shamefullyHoist → publicHoistPattern conversion is done in @pnpm/cli-utils
 test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async () => {
   const workspaceDir = f.find('settings-in-workspace-yaml')
   process.chdir(workspaceDir)
@@ -1121,7 +1125,6 @@ test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async
   })
 
   expect(config.shamefullyHoist).toBe(true)
-  expect(config.publicHoistPattern).toStrictEqual(['*'])
   expect(config.rawConfig['shamefully-hoist']).toBe(true)
 })
 

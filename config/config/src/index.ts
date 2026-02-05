@@ -458,35 +458,6 @@ export async function getConfig (opts: {
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
   }
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
-  if (pnpmConfig.hoist === false) {
-    delete pnpmConfig.hoistPattern
-  }
-  switch (pnpmConfig.shamefullyHoist) {
-  case false:
-    delete pnpmConfig.publicHoistPattern
-    break
-  case true:
-    pnpmConfig.publicHoistPattern = ['*']
-    break
-  default:
-    if (
-      (pnpmConfig.publicHoistPattern == null) ||
-        (pnpmConfig.publicHoistPattern === '') ||
-        (
-          Array.isArray(pnpmConfig.publicHoistPattern) &&
-          pnpmConfig.publicHoistPattern.length === 1 &&
-          pnpmConfig.publicHoistPattern[0] === ''
-        )
-    ) {
-      delete pnpmConfig.publicHoistPattern
-    }
-    break
-  }
-  if (!pnpmConfig.symlink) {
-    delete pnpmConfig.hoistPattern
-    delete pnpmConfig.publicHoistPattern
-  }
   if (typeof pnpmConfig['color'] === 'boolean') {
     switch (pnpmConfig['color']) {
     case true:
