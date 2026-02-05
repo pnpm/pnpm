@@ -1,4 +1,5 @@
 import { cache } from '@pnpm/cache.commands'
+import { catalog } from '@pnpm/catalogs.commands'
 import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { approveBuilds, ignoredBuilds } from '@pnpm/exec.build-commands'
@@ -115,6 +116,7 @@ const commands: CommandDefinition[] = [
   audit,
   bin,
   cache,
+  catalog,
   ci,
   config,
   dedupe,
