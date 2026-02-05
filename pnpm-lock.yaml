@@ -7100,9 +7100,6 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
-      '@pnpm/run-npm':
-        specifier: workspace:*
-        version: link:../../exec/run-npm
       '@pnpm/sort-packages':
         specifier: workspace:*
         version: link:../../workspace/sort-packages

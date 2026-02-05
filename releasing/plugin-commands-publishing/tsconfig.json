@@ -40,9 +40,6 @@
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../exec/run-npm"
-    },
-    {
       "path": "../../fs/packlist"
     },
     {

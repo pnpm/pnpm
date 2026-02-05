@@ -48,7 +48,6 @@
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/run-npm": "workspace:*",
     "@pnpm/sort-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",

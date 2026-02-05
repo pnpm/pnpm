@@ -4,7 +4,6 @@ import { FILTERING } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
-import { runNpm } from '@pnpm/run-npm'
 import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import enquirer from 'enquirer'
@@ -13,6 +12,7 @@ import { pick } from 'ramda'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import { temporaryDirectory } from 'tempy'
+import { extractManifestFromPacked, isTarballPath } from './extractManifestFromPacked.js'
 import * as pack from './pack.js'
 import { publishPackedPkg } from './publishPackedPkg.js'
 import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish.js'
@@ -235,9 +235,14 @@ Do you want to continue?`,
   }
   args = removePnpmSpecificOptions(args)
 
-  if (dirInParams != null && (dirInParams.endsWith('.tgz') || dirInParams?.endsWith('.tar.gz'))) {
-    const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args])
-    return { exitCode: status ?? 0 }
+  if (dirInParams != null && isTarballPath(dirInParams)) {
+    const tarballPath = dirInParams
+    const publishedManifest = await extractManifestFromPacked(tarballPath)
+    await publishPackedPkg({
+      tarballPath,
+      publishedManifest,
+    }, opts)
+    return { exitCode: 0 }
   }
   const dir = dirInParams ?? opts.dir ?? process.cwd()
 
