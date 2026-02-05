@@ -94,13 +94,13 @@ jobs:
       run: tar -xzf compiled.tar.gz
     - name: run tests (main)
       timeout-minutes: 70
-      if: github.ref_name == 'main'
+      if: github.ref_name == 'main' || github.ref_name == 'chore/update-lockfile'
       run: pnpm run ci:test-main
       env:
         PNPM_WORKERS: 3
     - name: run tests (branch)
       timeout-minutes: 70
-      if: github.ref_name != 'main'
+      if: github.ref_name != 'main' && github.ref_name != 'chore/update-lockfile'
       run: pnpm run ci:test-branch
       env:
         PNPM_WORKERS: 3
