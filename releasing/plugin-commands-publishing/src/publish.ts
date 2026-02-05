@@ -110,46 +110,6 @@ export function help (): string {
 
 const GIT_CHECKS_HINT = 'If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks".'
 
-/**
- * Remove pnpm-specific CLI options that npm doesn't recognize.
- */
-export function removePnpmSpecificOptions (args: string[]): string[] {
-  const booleanOptions = new Set([
-    '--no-git-checks',
-    '--embed-readme',
-    '--no-embed-readme',
-  ])
-
-  const optionsWithValue = new Set([
-    '--publish-branch',
-    '--npm-path',
-  ])
-
-  const result: string[] = []
-  let i = 0
-
-  while (i < args.length) {
-    const arg = args[i]
-
-    if (booleanOptions.has(arg)) {
-      // Skip only the boolean option itself
-      i++
-    } else if (optionsWithValue.has(arg)) {
-      // Skip the option and its value
-      i++
-      // Skip the value if it exists and doesn't look like another option
-      if (i < args.length && args[i][0] !== '-') {
-        i++
-      }
-    } else {
-      result.push(arg)
-      i++
-    }
-  }
-
-  return result
-}
-
 export async function handler (
   opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
     argv: {
@@ -228,12 +188,7 @@ Do you want to continue?`,
     return { exitCode }
   }
 
-  let args = opts.argv.original.slice(1)
   const dirInParams = (params.length > 0) ? params[0] : undefined
-  if (dirInParams) {
-    args = args.filter(arg => arg !== params[0])
-  }
-  args = removePnpmSpecificOptions(args)
 
   if (dirInParams != null && isTarballPath(dirInParams)) {
     const tarballPath = dirInParams
