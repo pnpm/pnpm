@@ -9,6 +9,7 @@ import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import {
   createNpmResolver,
   NoMatchingVersionError,
+  type RegistryPackageSpec,
   RegistryResponseError,
 } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -865,8 +866,20 @@ test('error is thrown when registry not responding', async () => {
       default: notExistingRegistry,
     },
   })
+
+  const expectedErrorMessage = `request to ${notExistingRegistry}/${notExistingPackage} failed, reason: getaddrinfo ENOTFOUND not-existing.pnpm.io`
+  const expectedError = new PnpmError('META_FETCH_FAIL', `GET ${notExistingRegistry}/${notExistingPackage}: ${expectedErrorMessage}`, {
+    attempts: 1,
+    cause: { code: 'ENOTFOUND', errno: 'ENOTFOUND', erroredSysCall: 'getaddrinfo', message: expectedErrorMessage, type: 'system' },
+  });
+  (expectedError as unknown as { spec: RegistryPackageSpec }).spec = {
+    fetchSpec: '1.0.0',
+    name: notExistingPackage,
+    type: 'version',
+  }
+
   await expect(resolveFromNpm({ alias: notExistingPackage, bareSpecifier: '1.0.0' }, {})).rejects
-    .toThrow(new PnpmError('META_FETCH_FAIL', `GET ${notExistingRegistry}/${notExistingPackage}: request to ${notExistingRegistry}/${notExistingPackage} failed, reason: getaddrinfo ENOTFOUND not-existing.pnpm.io`, { attempts: 1 }))
+    .toThrow(expectedError)
 })
 
 test('extra info is shown if package has valid semver appended', async () => {
@@ -1961,10 +1974,16 @@ test('request to a package with no dist-tags', async () => {
     registries,
   })
 
+  const expectedError = new PnpmError('MALFORMED_METADATA', 'Received malformed metadata for "is-positive"', {
+    hint: 'This might mean that the package was unpublished from the registry',
+    cause: {
+      message: "Cannot read properties of undefined (reading 'latest')",
+    },
+  });
+  (expectedError as unknown as { spec: RegistryPackageSpec }).spec = { fetchSpec: 'latest', name: 'is-positive', type: 'tag' }
+
   await expect(resolveFromNpm({ alias: 'is-positive' }, {})).rejects
-    .toThrow(
-      new PnpmError('MALFORMED_METADATA', 'Received malformed metadata for "is-positive"')
-    )
+    .toThrow(expectedError)
 })
 
 test('resolveFromNpm() does not fail if the meta file contains no integrity information', async () => {
