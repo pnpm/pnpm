@@ -449,10 +449,8 @@ fn workspace_rejects_writes(workspace: &Path) -> bool {
     false
 }
 
-/// Only the steps that write are skipped when the version is all that is
-/// wanted.
 #[test]
-fn version_flag_fails_when_the_project_pins_another_package_manager() {
+fn version_flag_succeeds_when_the_project_pins_another_package_manager() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), r#"{"packageManager":"yarn@4.0.0"}"#)
         .expect("write package.json");
@@ -462,12 +460,25 @@ fn version_flag_fails_when_the_project_pins_another_package_manager() {
         .output()
         .expect("run pacquet --version");
 
-    dbg!(&output);
-    assert!(!output.status.success(), "a pin naming another package manager must fail");
-    assert!(
-        String::from_utf8_lossy(&output.stderr).contains("This project is configured to use yarn"),
-        "{output:?}",
-    );
+    assert!(output.status.success(), "running --version must succeed: {output:?}");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), pnpm_config::PNPM_VERSION);
+
+    drop(root);
+}
+
+#[test]
+fn help_flag_succeeds_when_the_project_pins_another_package_manager() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"yarn@4.0.0"}"#)
+        .expect("write package.json");
+
+    let output = test_command(pacquet, root.path())
+        .arg("--help")
+        .output()
+        .expect("run pacquet --help");
+
+    assert!(output.status.success(), "running --help must succeed: {output:?}");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Usage:"));
 
     drop(root);
 }

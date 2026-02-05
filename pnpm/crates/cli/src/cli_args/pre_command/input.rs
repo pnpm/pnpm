@@ -11,6 +11,7 @@ pub(super) struct PreCommandInput {
     pub(super) global: bool,
     pub(super) skip_pm_handling: bool,
     pub(super) check_runtimes: bool,
+    pub(super) printing_version: bool,
     pub(super) reporter: ReporterFlags,
     pub(super) key_issues: KeyIssueReporting,
 }

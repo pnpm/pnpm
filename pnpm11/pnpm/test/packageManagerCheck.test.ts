@@ -924,6 +924,42 @@ testOnPosix('pnpm --version reports a pin it cannot record instead of failing', 
   expect(fs.existsSync(path.join(projectDir, 'pnpm-lock.yaml'))).toBe(false)
 })
 
+test('--version should work even if the required package manager is not pnpm', async () => {
+  prepare({
+    name: 'project',
+    packageManager: 'yarn@3.0.0',
+    version: '1.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['--version'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toMatch(/^\d+\.\d+\.\d+/)
+})
+
+test('--help should work even if the required package manager is not pnpm', async () => {
+  prepare({
+    name: 'project',
+    packageManager: 'yarn@3.0.0',
+    version: '1.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['--help'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Usage:')
+})
+
+test('help command should work even if the required package manager is not pnpm', async () => {
+  prepare({
+    name: 'project',
+    packageManager: 'yarn@3.0.0',
+    version: '1.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['help'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Usage:')
+})
+
 function canWriteTo (dir: string): boolean {
   const probe = path.join(dir, 'write-probe')
   try {
