@@ -59,6 +59,7 @@ export async function getConfig (
       }
     }
   }
+  applyDerivedConfig(config)
 
   if (opts.excludeReporter) {
     delete config.reporter // This is a silly workaround because @pnpm/core expects a function as opts.reporter
@@ -83,4 +84,36 @@ function isPluginName (configDepName: string): boolean {
   if (configDepName.startsWith('pnpm-plugin-')) return true
   if (configDepName[0] !== '@') return false
   return configDepName.startsWith('@pnpm/plugin-') || configDepName.includes('/pnpm-plugin-')
+}
+
+// Apply derived config settings (hoist, shamefullyHoist, symlink)
+function applyDerivedConfig (config: Config): void {
+  if (config.hoist === false) {
+    delete config.hoistPattern
+  }
+  switch (config.shamefullyHoist) {
+  case false:
+    delete config.publicHoistPattern
+    break
+  case true:
+    config.publicHoistPattern = ['*']
+    break
+  default:
+    if (
+      (config.publicHoistPattern == null) ||
+        (config.publicHoistPattern === '') ||
+        (
+          Array.isArray(config.publicHoistPattern) &&
+          config.publicHoistPattern.length === 1 &&
+          config.publicHoistPattern[0] === ''
+        )
+    ) {
+      delete config.publicHoistPattern
+    }
+    break
+  }
+  if (!config.symlink) {
+    delete config.hoistPattern
+    delete config.publicHoistPattern
+  }
 }
