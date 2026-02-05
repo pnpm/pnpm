@@ -28,6 +28,12 @@ test('readProjectManifest()', async () => {
   )
 
   expect(
+    (await tryReadProjectManifest(f.find('package-jsonc'))).manifest
+  ).toStrictEqual(
+    { name: 'foo', version: '1.0.0' }
+  )
+
+  expect(
     (await tryReadProjectManifest(import.meta.dirname)).manifest
   ).toBeNull()
 })
@@ -328,6 +334,19 @@ test('fail on invalid JSON5', async () => {
   expect(err.message).toMatch(/^JSON5: invalid character 'v' at 3:3 in/)
 })
 
+test('fail on invalid JSONC', async () => {
+  let err!: Error & { code: string }
+  try {
+    await readProjectManifest(f.find('invalid-package-jsonc'))
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_JSONC_PARSE')
+  expect(err.message).toContain("Expected ',' or '}' after property value in JSON at position 20")
+})
+
 test('fail on invalid YAML', async () => {
   let err!: Error & { code: string }
   try {
@@ -365,6 +384,65 @@ test('preserve trailing new line at the end of package.json5', async () => {
 
   const rawManifest = fs.readFileSync('package.json5', 'utf8')
   expect(rawManifest).toBe("{dependencies:{bar:'1.0.0'}}")
+})
+
+test('preserve tab indentation in jsonc file', async () => {
+  process.chdir(temporaryDirectory())
+
+  fs.writeFileSync('package.jsonc', '{\n\t"name": "foo"\n}\n', 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
+
+  const rawManifest = fs.readFileSync('package.jsonc', 'utf8')
+  expect(rawManifest).toBe('{\n\t"name": "foo",\n\t"dependencies": {\n\t\t"bar": "1.0.0"\n\t}\n}\n')
+})
+
+test('preserve space indentation in jsonc file', async () => {
+  process.chdir(temporaryDirectory())
+
+  fs.writeFileSync('package.jsonc', '{\n  "name": "foo"\n}\n', 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
+
+  const rawManifest = fs.readFileSync('package.jsonc', 'utf8')
+  expect(rawManifest).toBe('{\n  "name": "foo",\n  "dependencies": {\n    "bar": "1.0.0"\n  }\n}\n')
+})
+
+test('preserve comments in jsonc file', async () => {
+  const originalManifest = fs.readFileSync(
+    f.find('commented-package-jsonc/package.jsonc'), 'utf8')
+  const modifiedManifest = fs.readFileSync(
+    f.find('commented-package-jsonc/modified.jsonc'), 'utf8')
+
+  process.chdir(temporaryDirectory())
+  fs.writeFileSync('package.jsonc', originalManifest, 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  // Have to make a change to get it to write anything:
+  const newManifest = Object.assign({}, manifest, { type: 'commonjs' })
+
+  await writeProjectManifest(newManifest)
+
+  const resultingManifest = fs.readFileSync('package.jsonc', 'utf8')
+  expect(resultingManifest).toBe(modifiedManifest)
+})
+
+test('preserve trailing new line at the end of package.jsonc', async () => {
+  process.chdir(temporaryDirectory())
+
+  fs.writeFileSync('package.jsonc', '{}', 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
+
+  const rawManifest = fs.readFileSync('package.jsonc', 'utf8')
+  expect(rawManifest).toBe('{"dependencies":{"bar":"1.0.0"}}')
 })
 
 test('canceling changes to a manifest', async () => {

@@ -43,7 +43,8 @@
     "json5": "catalog:",
     "parse-json": "catalog:",
     "read-yaml-file": "catalog:",
-    "strip-bom": "catalog:"
+    "strip-bom": "catalog:",
+    "strip-json-comments": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

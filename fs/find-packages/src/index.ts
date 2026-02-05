@@ -67,7 +67,7 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
 function normalizePatterns (patterns: readonly string[]): string[] {
   const normalizedPatterns: string[] = []
   for (const pattern of patterns) {
-    normalizedPatterns.push(pattern.replace(/\/?$/, '/package.{json,yaml,json5}'))
+    normalizedPatterns.push(pattern.replace(/\/?$/, '/package.{json,yaml,json5,jsonc}'))
   }
   return normalizedPatterns
 }

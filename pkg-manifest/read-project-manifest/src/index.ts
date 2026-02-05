@@ -11,6 +11,7 @@ import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
 import {
   readJson5File,
+  readJsoncFile,
   readJsonFile,
 } from './readFile.js'
 
@@ -41,7 +42,7 @@ export async function readProjectManifest (projectDir: string): Promise<{
     }
   }
   throw new PnpmError('NO_IMPORTER_MANIFEST_FOUND',
-    `No package.json (or package.yaml, or package.json5) was found in "${projectDir}".`)
+    `No package.json (or package.yaml, or package.json5, or package.jsonc) was found in "${projectDir}".`)
 }
 
 export async function readProjectManifestOnly (projectDir: string): Promise<ProjectManifest> {
@@ -74,6 +75,21 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     const { data, text } = await readJson5File(manifestPath)
     return {
       fileName: 'package.json5',
+      manifest: convertManifestAfterRead(data),
+      writeProjectManifest: createManifestWriter({
+        ...detectFileFormattingAndComments(text),
+        initialManifest: data,
+        manifestPath,
+      }),
+    }
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'ENOENT') throw err
+  }
+  try {
+    const manifestPath = path.join(projectDir, 'package.jsonc')
+    const { data, text } = await readJsoncFile(manifestPath)
+    return {
+      fileName: 'package.jsonc',
       manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormattingAndComments(text),
@@ -166,6 +182,17 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   }
   case 'package.json5': {
     const { data, text } = await readJson5File(manifestPath)
+    return {
+      manifest: convertManifestAfterRead(data),
+      writeProjectManifest: createManifestWriter({
+        ...detectFileFormattingAndComments(text),
+        initialManifest: data,
+        manifestPath,
+      }),
+    }
+  }
+  case 'package.jsonc': {
+    const { data, text } = await readJsoncFile(manifestPath)
     return {
       manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({

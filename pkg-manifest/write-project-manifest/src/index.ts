@@ -29,11 +29,14 @@ export async function writeProjectManifest (
   const trailingNewline = opts?.insertFinalNewline === false ? '' : '\n'
   const indent = opts?.indent ?? '\t'
 
-  const json = (
-    fileType === 'json5'
-      ? stringifyJson5(manifest, indent, opts?.comments)
-      : JSON.stringify(manifest, undefined, indent)
-  )
+  let json: string
+  if (fileType === 'json5') {
+    json = stringifyJson5(manifest, indent, opts?.comments)
+  } else if (fileType === 'jsonc') {
+    json = stringifyJsonc(manifest, indent, opts?.comments)
+  } else {
+    json = JSON.stringify(manifest, undefined, indent)
+  }
 
   return writeFileAtomic(filePath, `${json}${trailingNewline}`)
 }
@@ -44,4 +47,12 @@ function stringifyJson5 (obj: object, indent: string | number, comments?: Commen
     return insertComments(json5, comments)
   }
   return json5
+}
+
+function stringifyJsonc (obj: object, indent: string | number, comments?: CommentSpecifier[]): string {
+  const json = JSON.stringify(obj, undefined, indent)
+  if (comments) {
+    return insertComments(json, comments)
+  }
+  return json
 }
