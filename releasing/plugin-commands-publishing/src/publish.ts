@@ -244,6 +244,7 @@ Do you want to continue?`,
     }, opts)
     return { exitCode: 0 }
   }
+
   const dir = dirInParams ?? opts.dir ?? process.cwd()
 
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
