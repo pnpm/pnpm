@@ -666,4 +666,3 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
 }
-

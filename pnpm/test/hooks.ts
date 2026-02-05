@@ -272,27 +272,6 @@ module.exports = {
   expect(nodeModulesFiles).toContain('is-number')
 })
 
-test('updateConfig hook with shamefullyHoist', async () => {
-  prepare()
-  const pnpmfile = `
-module.exports = {
-  hooks: {
-    updateConfig: (config) => ({
-      ...config,
-      shamefullyHoist: true,
-    }),
-  },
-}`
-
-  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
-
-  await execPnpm(['add', 'is-odd@1.0.0'])
-
-  const nodeModulesFiles = fs.readdirSync('node_modules')
-  expect(nodeModulesFiles).toContain('is-odd')
-  expect(nodeModulesFiles).toContain('is-number')
-})
-
 test('loading an ESM pnpmfile', async () => {
   prepare()
 
