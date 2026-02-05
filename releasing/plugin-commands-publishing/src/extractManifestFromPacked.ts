@@ -5,8 +5,13 @@ import tar from 'tar-stream'
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
 
-export type TarballSuffix = '.tar.gz' | '.tgz'
+const TARBALL_SUFFICES = ['.tar.gz', '.tgz'] as const
+
+export type TarballSuffix = typeof TARBALL_SUFFICES[number]
 export type TarballPath = `${string}${TarballSuffix}`
+
+export const isTarballPath = (path: string): path is TarballPath =>
+  TARBALL_SUFFICES.some(suffix => path.endsWith(suffix))
 
 export async function extractManifestFromPacked<Output = ExportedManifest> (tarballPath: TarballPath): Promise<Output> {
   const extract = tar.extract()
