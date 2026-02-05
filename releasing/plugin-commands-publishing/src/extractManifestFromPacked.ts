@@ -1,11 +1,16 @@
 import fs from 'fs'
+import { createGunzip } from 'zlib'
 import path from 'path'
 import tar from 'tar-stream'
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
 
-export async function extractManifestFromPacked<Output = ExportedManifest> (tarballPath: string): Promise<Output> {
+export type TarballSuffix = '.tar.gz' | '.tgz'
+export type TarballPath = `${string}${TarballSuffix}`
+
+export async function extractManifestFromPacked<Output = ExportedManifest> (tarballPath: TarballPath): Promise<Output> {
   const extract = tar.extract()
+  const gunzip = createGunzip()
   const tarballStream = fs.createReadStream(tarballPath)
 
   let cleanedUp = false
@@ -15,6 +20,7 @@ export async function extractManifestFromPacked<Output = ExportedManifest> (tarb
     cleanedUp = true
 
     extract.destroy()
+    gunzip.destroy()
     tarballStream.destroy()
   }
 
@@ -25,6 +31,7 @@ export async function extractManifestFromPacked<Output = ExportedManifest> (tarb
     }
 
     tarballStream.once('error', handleError)
+    gunzip.once('error', handleError)
 
     let manifestFound = false
 
@@ -68,7 +75,7 @@ export async function extractManifestFromPacked<Output = ExportedManifest> (tarb
     extract.once('error', handleError)
   })
 
-  tarballStream.pipe(extract)
+  tarballStream.pipe(gunzip).pipe(extract)
 
   return JSON.parse(await promise)
 }
