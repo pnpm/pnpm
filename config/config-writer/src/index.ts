@@ -32,7 +32,7 @@ export async function writeSettings (opts: WriteSettingsOptions): Promise<void> 
       if (opts.updatedOverrides) {
         manifest.pnpm.overrides ??= {}
         for (const [key, value] of Object.entries(opts.updatedOverrides)) {
-          if (!equals(manifest.pnpm.overrides[key as keyof PnpmSettings], value)) {
+          if (!equals(manifest.pnpm.overrides[key], value)) {
             shouldBeUpdated = true
             manifest.pnpm.overrides[key] = value
           }
