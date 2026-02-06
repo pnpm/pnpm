@@ -94,7 +94,6 @@
     "@pnpm/testing.temp-store": "workspace:*",
     "@types/fs-extra": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/rimraf": "catalog:",
     "@types/sinon": "catalog:",
     "concurrently": "catalog:",
     "isexe": "catalog:",
