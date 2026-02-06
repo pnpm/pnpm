@@ -849,9 +849,9 @@ describe('prompt to choose version', () => {
     expect(path.basename(patchDir)).toMatch(/^chalk@\d+\.\d+\.\d+$/)
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('5.3.0')
-    expect(fs.existsSync(path.join(patchDir, 'source/index.js'))).toBe(true)
+    expect(fs.existsSync(path.join(patchDir, 'license'))).toBe(true)
 
-    fs.appendFileSync(path.join(patchDir, 'source/index.js'), '// test patching', 'utf8')
+    fs.appendFileSync(path.join(patchDir, 'license'), '\ntest patching', 'utf8')
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -868,8 +868,8 @@ describe('prompt to choose version', () => {
     })
     const patchContent = fs.readFileSync('patches/chalk.patch', 'utf8')
     expect(patchContent).toContain('diff --git')
-    expect(patchContent).toContain('// test patching')
-    expect(fs.readFileSync('node_modules/.pnpm/@pnpm.e2e+requires-chalk-530@1.0.0/node_modules/chalk/source/index.js', 'utf8')).toContain('// test patching')
+    expect(patchContent).toContain('test patching')
+    expect(fs.readFileSync('node_modules/.pnpm/@pnpm.e2e+requires-chalk-530@1.0.0/node_modules/chalk/license', 'utf8')).toContain('test patching')
   })
 })
 

@@ -289,9 +289,12 @@ export async function resolveDependencies (
       if (!updateSpec) continue
       const dep = resolvedImporter.directDependencies[i]
       if (dep.catalogLookup == null) continue
+      // If normalizedBareSpecifier isn't defined, this catalog entry was resolved from cache.
+      // Avoid updating the updatedCatalogs map since it is likely unchanged.
+      if (dep.normalizedBareSpecifier == null) continue
       updatedCatalogs ??= {}
       updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
-      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
+      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier
     }
   }
 

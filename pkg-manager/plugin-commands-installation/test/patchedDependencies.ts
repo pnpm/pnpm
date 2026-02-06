@@ -99,7 +99,7 @@ test('bare package name as a patchedDependencies key should apply to all version
   expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Could not apply patch'))
 })
 
-test('bare package name as a patchedDependencies key should apply to all possible versions and skip non-applicable versions', async () => {
+test('bare package name as a patchedDependencies key should apply to all possible versions and error on non-applicable versions', async () => {
   const patchFixture = f.find('patchedDependencies/console-log-replace-3rd-line.patch')
   prepareEmpty()
 
@@ -111,7 +111,7 @@ test('bare package name as a patchedDependencies key should apply to all possibl
 
   const rootProjectManifest = addPatch('@pnpm.e2e/console-log', patchFixture, 'patches/console-log.patch')
 
-  await install.handler({
+  const promise = install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     frozenLockfile: false,
@@ -119,8 +119,8 @@ test('bare package name as a patchedDependencies key should apply to all possibl
   })
 
   // the common patch does not apply to v1
+  await expect(promise).rejects.toThrow(`Could not apply patch ${path.resolve('patches/console-log.patch')}`)
   expect(patchedFileContent(1)).toBe(unpatchedFileContent(1))
-  expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining(`Could not apply patch ${path.resolve('patches/console-log.patch')}`))
 
   // the common patch applies to v2
   {

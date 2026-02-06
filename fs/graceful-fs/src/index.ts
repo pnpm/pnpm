@@ -7,6 +7,7 @@ export default { // eslint-disable-line
   createReadStream: gfs.createReadStream,
   link: promisify(gfs.link),
   linkSync: withEagainRetry(gfs.linkSync),
+  mkdir: promisify(gfs.mkdir),
   mkdirSync: withEagainRetry(gfs.mkdirSync),
   renameSync: withEagainRetry(gfs.renameSync),
   readFile: promisify(gfs.readFile),

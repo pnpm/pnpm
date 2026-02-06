@@ -4,7 +4,8 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { equals } from 'ramda'
 
 export interface WriteSettingsOptions {
-  updatedSettings: PnpmSettings
+  updatedSettings?: PnpmSettings
+  updatedOverrides?: Record<string, string>
   rootProjectManifest?: ProjectManifest
   rootProjectManifestDir: string
   workspaceDir: string
@@ -16,13 +17,24 @@ export async function writeSettings (opts: WriteSettingsOptions): Promise<void> 
     if (manifest) {
       manifest.pnpm ??= {}
       let shouldBeUpdated = false
-      for (const [key, value] of Object.entries(opts.updatedSettings)) {
-        if (!equals(manifest.pnpm[key as keyof PnpmSettings], value)) {
-          shouldBeUpdated = true
-          if (value == null) {
-            delete manifest.pnpm[key as keyof PnpmSettings]
-          } else {
-            manifest.pnpm[key as keyof PnpmSettings] = value
+      if (opts.updatedSettings) {
+        for (const [key, value] of Object.entries(opts.updatedSettings)) {
+          if (!equals(manifest.pnpm[key as keyof PnpmSettings], value)) {
+            shouldBeUpdated = true
+            if (value == null) {
+              delete manifest.pnpm[key as keyof PnpmSettings]
+            } else {
+              manifest.pnpm[key as keyof PnpmSettings] = value
+            }
+          }
+        }
+      }
+      if (opts.updatedOverrides) {
+        manifest.pnpm.overrides ??= {}
+        for (const [key, value] of Object.entries(opts.updatedOverrides)) {
+          if (!equals(manifest.pnpm.overrides[key], value)) {
+            shouldBeUpdated = true
+            manifest.pnpm.overrides[key] = value
           }
         }
       }
@@ -37,5 +49,6 @@ export async function writeSettings (opts: WriteSettingsOptions): Promise<void> 
   }
   await updateWorkspaceManifest(opts.workspaceDir, {
     updatedFields: opts.updatedSettings,
+    updatedOverrides: opts.updatedOverrides,
   })
 }

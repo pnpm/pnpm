@@ -44,6 +44,7 @@
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "catalog:",
     "@types/node": "catalog:",
+    "@types/picomatch": "catalog:",
     "@typescript/native-preview": "catalog:",
     "c8": "catalog:",
     "concurrently": "catalog:",

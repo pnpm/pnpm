@@ -124,3 +124,10 @@ declare module 'ramda/src/map' {
 
 declare module '@yarnpkg/core/semverUtils'
 declare module '@yarnpkg/core/structUtils'
+
+// These are needed for transitive type dependencies that can't be resolved
+// from within the pnpm store
+declare module 'picomatch' {
+  const anything: any
+  export = anything
+}

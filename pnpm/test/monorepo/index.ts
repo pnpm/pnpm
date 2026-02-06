@@ -79,19 +79,31 @@ test('empty pnpm-workspace.yaml should not break pnpm run -r', async () => {
   expect(stdout.toString()).toContain('Passed')
 })
 
-test('incorrect workspace manifest', async () => {
-  preparePackages([
-    {
-      name: 'project',
-      version: '1.0.0',
-    },
-  ])
+const invalidWorkspaceManifests = [
+  'pnpm-workspaces.yaml',
+  'pnpm-workspaces.yml',
+  'pnpm-workspace.yml',
+  '.pnpm-workspaces.yaml',
+  '.pnpm-workspaces.yml',
+  '.pnpm-workspace.yml',
+  '.pnpm-workspace.yaml',
+]
 
-  writeYamlFile('pnpm-workspace.yml', { packages: ['**', '!store/**'] })
+invalidWorkspaceManifests.forEach((filename) => {
+  test('incorrect workspace manifest ' + filename, async () => {
+    preparePackages([
+      {
+        name: 'project',
+        version: '1.0.0',
+      },
+    ])
 
-  const { status, stderr } = execPnpmSync(['install'])
-  expect(stderr.toString()).toMatch(/The workspace manifest file should be named "pnpm-workspace.yaml"/)
-  expect(status).toBe(1)
+    writeYamlFile(filename, { packages: ['**', '!store/**'] })
+
+    const { status, stderr } = execPnpmSync(['install'])
+    expect(stderr.toString()).toMatch(/The workspace manifest file should be named "pnpm-workspace.yaml"/)
+    expect(status).toBe(1)
+  })
 })
 
 test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies', async () => {
