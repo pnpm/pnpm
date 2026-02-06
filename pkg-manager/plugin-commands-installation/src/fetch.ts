@@ -64,6 +64,7 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
     ...opts,
     ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     ignorePackageManifest: true,
+    ignoreLocalPackages: true,
     include,
     modulesCacheMaxAge: 0,
     pruneStore: true,

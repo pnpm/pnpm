@@ -69,6 +69,12 @@ export interface LockfileToDepGraphOptions {
   include: IncludedDependencies
   includeUnchangedDeps?: boolean
   ignoreScripts: boolean
+  /**
+   * When true, skip fetching local dependencies (file: protocol pointing to directories).
+   * This is useful for `pnpm fetch` which only downloads packages from the registry
+   * and doesn't need local packages that won't be available (e.g., in Docker builds).
+   */
+  ignoreLocalPackages?: boolean
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
@@ -206,6 +212,14 @@ async function buildGraphFromPackages (
       }
 
       const isDirectoryDep = 'directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null
+      if (isDirectoryDep && opts.ignoreLocalPackages) {
+        logger.info({
+          message: `Skipping local dependency ${pkgName}@${pkgVersion} (file: protocol)`,
+          prefix: opts.lockfileDir,
+        })
+        return
+      }
+
       const depIsPresent = !isDirectoryDep &&
         currentPackages[depPath] &&
         equals(currentPackages[depPath].dependencies, pkgSnapshot.dependencies)

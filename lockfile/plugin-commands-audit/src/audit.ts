@@ -134,7 +134,6 @@ export function help (): string {
 }
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
-  auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
   fix?: boolean | 'override' | 'update'
   ignoreRegistryErrors?: boolean
   json?: boolean
@@ -143,6 +142,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   ignore?: string[]
   ignoreUnfixable?: boolean
 } & Pick<Config, 'auditConfig'
+| 'auditLevel'
 | 'ca'
 | 'cert'
 | 'httpProxy'
@@ -306,20 +306,20 @@ ${newIgnores.join('\n')}`,
       return false
     }, auditReport.advisories)
   }
+  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
+  const advisoryEntries = Object.entries(auditReport.advisories)
+    .filter(([, { severity }]) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
   if (opts.json) {
+    const advisories = Object.fromEntries(advisoryEntries)
     return {
-      exitCode: totalVulnerabilityCount > 0 ? 1 : 0,
-      output: JSON.stringify(auditReport, null, 2),
+      exitCode: Object.keys(advisories).length > 0 ? 1 : 0,
+      output: JSON.stringify({ ...auditReport, advisories }, null, 2),
     }
   }
 
   let output = ''
-  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
-  let advisories = Object.values(auditReport.advisories)
-  advisories = advisories
-    .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
-    .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
-  for (const advisory of advisories) {
+  advisoryEntries.sort(([, a1], [, a2]) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
+  for (const [, advisory] of advisoryEntries) {
     const paths = advisory.findings.map(({ paths }) => paths).flat()
     output += table([
       [AUDIT_COLOR[advisory.severity](advisory.severity), chalk.bold(advisory.title)],
