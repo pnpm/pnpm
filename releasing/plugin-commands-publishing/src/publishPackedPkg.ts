@@ -41,7 +41,7 @@ export type PublishPackedPkgOptions = Pick<Config,
 > & {
   access?: 'public' | 'restricted'
   ci?: boolean
-  otp?: string | number // TODO: define this config key and load this data
+  otp?: string // NOTE: There is no existing test for the One-time Password feature
 
   // NOTE: the provenance feature requires a custom implementation of OIDC and Sigstore client, and as such, not yet available
   //       see <https://github.com/npm/cli/blob/7d900c4656cfffc8cca93240c6cda4b441fbbfaa/lib/utils/oidc.js>

@@ -39,6 +39,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     'dry-run': Boolean,
     force: Boolean,
     json: Boolean,
+    otp: String,
     recursive: Boolean,
     'report-summary': Boolean,
   }
