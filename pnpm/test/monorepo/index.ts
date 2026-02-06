@@ -61,6 +61,22 @@ test('no projects found', async () => {
   }
 })
 
+test('empty pnpm-workspace.yaml should not break pnpm run -r', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+    scripts: {
+      test: 'echo Passed',
+    },
+  })
+
+  fs.writeFileSync('pnpm-workspace.yaml', '')
+
+  const { stdout, status } = execPnpmSync(['run', '-r', 'test'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Passed')
+})
+
 const invalidWorkspaceManifests = [
   'pnpm-workspaces.yaml',
   'pnpm-workspaces.yml',
