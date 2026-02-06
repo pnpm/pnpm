@@ -2,7 +2,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { logger, type LogBase } from '@pnpm/logger'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { getStorePath } from '@pnpm/store-path'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
@@ -90,7 +90,7 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
       pnpmHomeDir: opts.pnpmHomeDir,
     })
   case 'prune': {
-    store = await createOrConnectStoreController(opts)
+    store = await createStoreController(opts)
     const storePruneOptions = Object.assign(opts, {
       storeController: store.ctrl,
       storeDir: store.dir,
@@ -101,7 +101,7 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
     return storePrune(storePruneOptions) as Promise<undefined>
   }
   case 'add':
-    store = await createOrConnectStoreController(opts)
+    store = await createStoreController(opts)
     return storeAdd(params.slice(1), {
       prefix: opts.dir,
       reporter: opts.reporter,

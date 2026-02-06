@@ -27,7 +27,7 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix",
+    "compile": "tsgo --build && pnpm run lint --fix",
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "dependencies": {
@@ -37,8 +37,10 @@
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*",
+    "@pnpm/yaml.document-sync": "workspace:*",
     "ramda": "catalog:",
-    "write-yaml-file": "catalog:"
+    "write-file-atomic": "catalog:",
+    "yaml": "catalog:"
   },
   "devDependencies": {
     "@pnpm/fs.find-packages": "workspace:*",
@@ -46,7 +48,9 @@
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/workspace.manifest-writer": "workspace:*",
     "@types/ramda": "catalog:",
-    "read-yaml-file": "catalog:"
+    "@types/write-file-atomic": "catalog:",
+    "read-yaml-file": "catalog:",
+    "write-yaml-file": "catalog:"
   },
   "engines": {
     "node": ">=20.19"

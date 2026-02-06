@@ -15,7 +15,7 @@ export async function getAutomaticallyIgnoredBuilds (opts: IgnoredBuildsCommandO
   let automaticallyIgnoredBuilds: null | string[]
   if (modulesManifest?.ignoredBuilds) {
     const ignoredPkgNames = new Set<string>()
-    for (const depPath of modulesManifest?.ignoredBuilds) {
+    for (const depPath of modulesManifest.ignoredBuilds) {
       ignoredPkgNames.add(parse(depPath).name ?? depPath)
     }
     automaticallyIgnoredBuilds = Array.from(ignoredPkgNames)

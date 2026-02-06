@@ -6,10 +6,47 @@ permissions:
   contents: read # to fetch code (actions/checkout)
 
 jobs:
-  build:
+  compile-and-lint:
     # Skip pull_request events from PRs in the same repo. This prevents
     # duplicate build jobs from running when creating a PR in the original repo.
-    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository }}
+    # Exception: chore/update-lockfile PRs (created by automation with GITHUB_TOKEN, which doesn't trigger push events)
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile' }}
+
+    name: Compile & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Commit
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - name: Install pnpm
+      uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+      with:
+        standalone: false
+    - name: Setup Node
+      run: pnpm env use -g 24.6.0
+      timeout-minutes: 1
+    - name: pnpm install
+      run: pnpm install
+      timeout-minutes: 3
+    - name: Compile TypeScript
+      run: pnpm run compile-only
+    - name: Lint
+      run: pnpm run lint
+    - name: Package compiled artifacts
+      run: tar -czf compiled.tar.gz --exclude='node_modules' $(find . -type d -name lib -not -path '*/node_modules/*') $(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*') pnpm/dist
+    - name: Upload compiled artifacts
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      with:
+        name: compiled-packages
+        path: compiled.tar.gz
+        retention-days: 1
+
+  test:
+    needs: compile-and-lint
+    # Skip pull_request events from PRs in the same repo. This prevents
+    # duplicate test jobs from running when creating a PR in the original repo.
+    # Exception: chore/update-lockfile PRs (created by automation with GITHUB_TOKEN, which doesn't trigger push events)
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile' }}
 
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.platform }}-${{ matrix.node[0] }}
@@ -27,7 +64,7 @@ jobs:
           - ubuntu-latest
           - windows-latest
 
-    name: ${{matrix.platform}} / Node.js ${{ matrix.node[0] }}
+    name: Test ${{matrix.platform}} / Node.js ${{ matrix.node[0] }}
     runs-on: ${{matrix.platform}}
 
     steps:
@@ -37,7 +74,7 @@ jobs:
         git config --global user.name "xyz"
         git config --global user.email "x@y.z"
     - name: Checkout Commit
-      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install pnpm
       uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
       with:
@@ -51,27 +88,21 @@ jobs:
     - name: pnpm install
       run: pnpm install
       timeout-minutes: 3
-    # - name: Cache TypeScript and Jest
-      # uses: actions/cache@v3
-      # with:
-        # path: |
-          # packages/*/lib
-          # packages/*/tsconfig.tsbuildinfo
-          # privatePackages/*/lib
-          # privatePackages/*/tsconfig.tsbuildinfo
-          # .jest-cache
-          # .verdaccio-cache
-        # key: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-${{ github.run_id }}
-        # restore-keys: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-
+    - name: Download compiled artifacts
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      with:
+        name: compiled-packages
+    - name: Extract compiled artifacts
+      run: tar -xzf compiled.tar.gz
     - name: run tests (main)
       timeout-minutes: 70
-      if: github.ref_name == 'main'
-      run: pnpm run test-main
+      if: github.ref_name == 'main' || github.ref_name == 'chore/update-lockfile'
+      run: pnpm run ci:test-main
       env:
         PNPM_WORKERS: 3
     - name: run tests (branch)
       timeout-minutes: 70
-      if: github.ref_name != 'main'
-      run: pnpm run test-branch
+      if: github.ref_name != 'main' && github.ref_name != 'chore/update-lockfile'
+      run: pnpm run ci:test-branch
       env:
         PNPM_WORKERS: 3

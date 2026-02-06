@@ -103,7 +103,6 @@ export interface Project {
 }
 
 export interface HeadlessOptions {
-  ignorePatchFailures?: boolean
   allowBuilds?: Record<string, boolean | string>
   autoInstallPeers?: boolean
   childConcurrency?: number
@@ -536,7 +535,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       allowBuild,
-      ignorePatchFailures: opts.ignorePatchFailures,
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
       extraEnv,
@@ -869,7 +867,7 @@ async function linkAllPkgs (
 
       depNode.requiresBuild = filesResponse.requiresBuild
       let sideEffectsCacheKey: string | undefined
-      if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+      if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
         if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built

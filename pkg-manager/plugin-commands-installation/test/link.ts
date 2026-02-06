@@ -301,6 +301,7 @@ test('logger warns about peer dependencies when linking', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     globalPkgDir: globalDir,
+    rootProjectManifestDir: globalDir,
   }, ['linked-with-peer-deps'])
 
   expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({

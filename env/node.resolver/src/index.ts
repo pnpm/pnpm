@@ -5,6 +5,7 @@ import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import {
   type BinaryResolution,
   type PlatformAssetResolution,
+  type ResolveOptions,
   type ResolveResult,
   type VariationsResolution,
   type WantedDependency,
@@ -29,9 +30,19 @@ export async function resolveNodeRuntime (
     rawConfig: Record<string, string>
     offline?: boolean
   },
-  wantedDependency: WantedDependency
+  wantedDependency: WantedDependency,
+  opts?: Partial<ResolveOptions>
 ): Promise<NodeRuntimeResolveResult | null> {
   if (wantedDependency.alias !== 'node' || !wantedDependency.bareSpecifier?.startsWith('runtime:')) return null
+
+  if (opts?.currentPkg && !opts.update) {
+    return {
+      id: opts.currentPkg.id,
+      resolution: opts.currentPkg.resolution as VariationsResolution,
+      resolvedVia: 'nodejs.org',
+    }
+  }
+
   if (ctx.offline) throw new PnpmError('NO_OFFLINE_NODEJS_RESOLUTION', 'Offline Node.js resolution is not supported')
   const versionSpec = wantedDependency.bareSpecifier.substring('runtime:'.length)
   const { releaseChannel, versionSpecifier } = parseEnvSpecifier(versionSpec)

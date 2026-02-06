@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
+import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
 import { createCafsStore } from '@pnpm/create-cafs-store'
@@ -29,6 +29,7 @@ const authConfig = { registry }
 const { resolve, fetchers } = createClient({
   authConfig,
   cacheDir: '.store',
+  storeDir: '.store',
   rawConfig: {},
   registries,
 })
@@ -70,12 +71,12 @@ test('request package', async () => {
   })
 
   const { files } = await pkgResponse.fetching!()
-  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
   expect(files.resolvedFrom).toBe('remote')
 })
 
 test('request package but skip fetching', async () => {
-  const storeDir = '.store'
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
@@ -114,7 +115,7 @@ test('request package but skip fetching', async () => {
 })
 
 test('request package but skip fetching, when resolution is already available', async () => {
-  const storeDir = '.store'
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
@@ -352,6 +353,66 @@ test('refetch local tarball if its integrity has changed. The requester does not
   }
 })
 
+test('force fetch when resolution integrity differs from current package integrity', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = temporaryDirectory()
+
+  // Create a custom resolver that returns a different integrity than the current package
+  const customResolve: typeof resolve = async () => {
+    // Return a resolution with a different integrity than what's in currentPkg
+    return {
+      id: 'is-positive@1.0.0' as PkgResolutionId,
+      latest: '1.0.0',
+      resolution: {
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+      manifest: {
+        name: 'is-positive',
+        version: '1.0.0',
+      },
+      resolvedVia: 'npm-registry',
+    }
+  }
+
+  const requestPackage = createPackageRequester({
+    resolve: customResolve,
+    fetchers,
+    cafs,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  // Request with a currentPkg that has a different integrity
+  const response = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    currentPkg: {
+      id: 'is-positive@1.0.0' as PkgResolutionId,
+      resolution: {
+        // Different valid integrity than what the resolver returns
+        integrity: 'sha512-AvAi2XyFuGzKkv+hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+    },
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: false,
+    update: false,
+  }) as PackageResponse & {
+    fetching: () => Promise<PkgRequestFetchResult>
+  }
+
+  // The package should be marked as updated because the integrity changed
+  expect(response.body.updated).toBe(true)
+
+  // Fetching should occur because integrity changed
+  const { files } = await response.fetching()
+  expect(files.resolvedFrom).toBe('remote')
+})
+
 test('fetchPackageToStore()', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
@@ -382,10 +443,10 @@ test('fetchPackageToStore()', async () => {
 
   const { files, bundledManifest } = await fetchResult.fetching()
   expect(bundledManifest).toBeTruthy() // we always read the bundled manifest
-  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
   expect(files.resolvedFrom).toBe('remote')
 
-  const indexFile = readV8FileStrictSync<PackageFilesIndex>(fetchResult.filesIndexFile)
+  const indexFile = readMsgpackFileSync<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
   expect(typeof indexFile.files.get('package.json')!.checkedAt).toBeTruthy()
 
@@ -470,9 +531,9 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[0]
     const { files } = await fetchResult.fetching()
 
-    ino1 = fs.statSync(files.filesIndex.get('package.json') as string).ino
+    ino1 = fs.statSync(files.filesMap.get('package.json') as string).ino
 
-    expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
     expect(files.resolvedFrom).toBe('remote')
   }
 
@@ -480,9 +541,9 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[1]
     const { files } = await fetchResult.fetching()
 
-    ino2 = fs.statSync(files.filesIndex.get('package.json') as string).ino
+    ino2 = fs.statSync(files.filesMap.get('package.json') as string).ino
 
-    expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
     expect(files.resolvedFrom).toBe('remote')
   }
 
@@ -503,6 +564,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     rawConfig: {},
     retry: { retries: 0 },
     cacheDir: '.pnpm',
+    storeDir: '.store',
     registries,
   })
 
@@ -549,7 +611,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     },
   })
   const { files } = await fetchResult.fetching()
-  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
   expect(files.resolvedFrom).toBe('remote')
 
   expect(nock.isDone()).toBeTruthy()
@@ -698,8 +760,8 @@ test('refetch package to store if it has been modified', async () => {
       },
     })
 
-    const { filesIndex } = (await fetchResult.fetching()).files
-    indexJsFile = filesIndex.get('index.js') as string
+    const { filesMap } = (await fetchResult.fetching()).files
+    indexJsFile = filesMap.get('index.js') as string
   }
 
   // We should restart the workers otherwise the locker cache will still try to read the file
@@ -753,7 +815,7 @@ test('refetch package to store if it has been modified', async () => {
 })
 
 test('do not fetch an optional package that is not installable', async () => {
-  const storeDir = '.store'
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
@@ -866,7 +928,7 @@ test('throw exception if the package data in the store differs from the expected
         resolution: pkgResponse.body.resolution,
       },
     })
-    await expect(fetching()).rejects.toThrow(/Package name mismatch found while reading/)
+    await expect(fetching()).rejects.toThrow(/Package name or version mismatch found while reading/)
   }
 
   // Fail when the version of the package is different in the store
@@ -890,7 +952,7 @@ test('throw exception if the package data in the store differs from the expected
         resolution: pkgResponse.body.resolution,
       },
     })
-    await expect(fetching()).rejects.toThrow(/Package name mismatch found while reading/)
+    await expect(fetching()).rejects.toThrow(/Package name or version mismatch found while reading/)
   }
 
   // Do not fail when the versions are the same but written in a different format (1.0.0 is the same as v1.0.0)
@@ -1100,4 +1162,63 @@ test('HTTP tarball without integrity gets integrity computed during fetch', asyn
   // The resolution should now include an integrity hash computed during fetch
   expect(pkgResponse.body.resolution).toHaveProperty('integrity')
   expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
+})
+
+test('should pass optional flag to resolve function', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+
+  let capturedOptional: boolean | undefined
+  const mockResolve: typeof resolve = async (wantedDependency, _options) => {
+    capturedOptional = wantedDependency.optional
+    return resolve(wantedDependency, _options)
+  }
+
+  const requestPackage = createPackageRequester({
+    resolve: mockResolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+
+  await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0', optional: true },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(capturedOptional).toBe(true)
+
+  await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0', optional: false },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(capturedOptional).toBe(false)
+
+  await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(capturedOptional).toBeUndefined()
 })

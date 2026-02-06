@@ -1,5 +1,5 @@
 import { type Config } from '@pnpm/config'
-import { type Project, type ProjectRootDir } from '@pnpm/types'
+import { type ConfigDependencies, type Project, type ProjectRootDir } from '@pnpm/types'
 
 export type ProjectsList = Array<Pick<Project, 'rootDir' | 'manifest'>>
 
@@ -11,7 +11,7 @@ export interface WorkspaceState {
   }>
   pnpmfiles: string[]
   filteredInstall: boolean
-  configDependencies?: Record<string, string>
+  configDependencies?: ConfigDependencies
   settings: WorkspaceStateSettings
 }
 

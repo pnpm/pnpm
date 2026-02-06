@@ -101,8 +101,8 @@ export type DependenciesTree<T> = Map<
 // a node ID is the join of the package's keypath with a colon
 // E.g., a subdeps node ID which parent is `foo` will be
 // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
-NodeId,
-DependenciesTreeNode<T>
+  NodeId,
+  DependenciesTreeNode<T>
 >
 
 export type ResolvedPkgsById = Record<PkgResolutionId, ResolvedPackage>

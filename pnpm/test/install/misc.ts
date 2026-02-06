@@ -1,14 +1,14 @@
 import fs from 'fs'
 import path from 'path'
-import v8 from 'v8'
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
+import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
@@ -159,16 +159,16 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
-  const { files: integrityFile } = readV8FileStrictSync<PackageFilesIndex>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
-  const packageFiles = Array.from(integrityFile.keys()).sort()
+  const { files: integrityFile } = readMsgpackFileSync<PackageFilesIndex>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
+  const packageFiles = Array.from(integrityFile.keys()).sort(lexCompare)
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
   const storeDir = project.getStorePath()
   if (await dirIsCaseSensitive.default(storeDir)) {
-    expect([...files].sort()).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
+    expect([...files].sort(lexCompare)).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
-    expect([...files].map((f) => f.toLowerCase()).sort()).toStrictEqual(['foo.js', 'package.json'])
+    expect([...files].map((f) => f.toLowerCase()).sort(lexCompare)).toStrictEqual(['foo.js', 'package.json'])
   }
 })
 
@@ -438,6 +438,58 @@ test('installing in a CI environment', async () => {
   await execPnpm(['install', '--no-prefer-frozen-lockfile'], { env: { CI: 'true' } })
 })
 
+// Tests for issue #9861: frozen-lockfile should be overridable via env vars and updateConfig hook
+test('CI mode: frozen-lockfile can be overridden via environment variable', async () => {
+  const project = prepare({
+    dependencies: { rimraf: '2.5.1' },
+  })
+
+  // Initial install in CI mode
+  await execPnpm(['install'], { env: { CI: 'true' } })
+
+  // Change dependencies
+  project.writePackageJson({
+    dependencies: { rimraf: '1' },
+  })
+
+  // Should not fail when pnpm_config_frozen_lockfile is set to false
+  await execPnpm(['install'], {
+    env: {
+      CI: 'true',
+      pnpm_config_frozen_lockfile: 'false',
+    },
+  })
+})
+
+test('CI mode: frozen-lockfile can be overridden via updateConfig hook', async () => {
+  const project = prepare({
+    dependencies: { rimraf: '2.5.1' },
+  })
+
+  const pnpmfile = `
+    module.exports = {
+      hooks: {
+        updateConfig(config) {
+          config.frozenLockfile = false
+          return config
+        }
+      }
+    }
+  `
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
+
+  // Initial install in CI mode
+  await execPnpm(['install'], { env: { CI: 'true' } })
+
+  // Change dependencies
+  project.writePackageJson({
+    dependencies: { rimraf: '1' },
+  })
+
+  // Should not fail due to updateConfig hook setting frozenLockfile to false
+  await execPnpm(['install'], { env: { CI: 'true' } })
+})
+
 test('installation fails with a timeout error', async () => {
   prepare()
 
@@ -454,12 +506,12 @@ test('installation fails when the stored package name and version do not match t
   await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
-  const cacheIntegrity = readV8FileStrictSync<PackageFilesIndex>(cacheIntegrityPath)
+  const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)
   cacheIntegrity.name = 'foo'
-  fs.writeFileSync(cacheIntegrityPath, v8.serialize({
+  writeMsgpackFileSync(cacheIntegrityPath, {
     ...cacheIntegrity,
     name: 'foo',
-  }))
+  })
 
   rimraf('node_modules')
   await expect(

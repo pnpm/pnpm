@@ -9,7 +9,6 @@ import { type DepPath, type PackageManifest, type ProjectId } from '@pnpm/types'
 import { refToRelative } from '@pnpm/dependency-path'
 import { difference, isEmpty, unnest } from 'ramda'
 
-// eslint-disable-next-line
 export * from '@pnpm/lockfile.types'
 
 // cannot import DependenciesGraph from @pnpm/resolve-dependencies due to circular dependency
@@ -28,7 +27,7 @@ export function pruneSharedLockfile (
       devDepPaths: unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {}))),
       optionalDepPaths: unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.optionalDependencies ?? {}))),
       prodDepPaths: unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.dependencies ?? {}))),
-      warn: opts?.warn ?? ((msg: string) => undefined),
+      warn: opts?.warn ?? ((_msg: string) => undefined),
       dependenciesGraph: opts?.dependenciesGraph,
     })
 

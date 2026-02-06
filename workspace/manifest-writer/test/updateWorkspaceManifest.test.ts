@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare-temp-dir'
@@ -43,6 +44,45 @@ test('updateWorkspaceManifest updates an existing setting', async () => {
   })
 })
 
+// This test is intentionally minimal and doesn't exhaustively cover every case
+// of comment preservation in pnpm-workspace.yaml.
+//
+// The tests in @pnpm/yaml.document-sync should cover more cases and be
+// sufficient. It's likely not necessary to duplicate the tests in that package.
+test('updateWorkspaceManifest preserves comments', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+
+  const manifest = `\
+packages:
+  - '*'
+
+overrides:
+  bar: '2'
+  # This comment on foo should be preserved
+  foo: '3'
+`
+
+  const expected = `\
+packages:
+  - '*'
+
+overrides:
+  bar: '3'
+  baz: '1'
+  # This comment on foo should be preserved
+  foo: '2'
+`
+
+  fs.writeFileSync(filePath, manifest)
+
+  await updateWorkspaceManifest(dir, {
+    updatedFields: { overrides: { foo: '2', bar: '3', baz: '1' } },
+  })
+
+  expect(fs.readFileSync(filePath).toString()).toStrictEqual(expected)
+})
+
 test('updateWorkspaceManifest updates allowBuilds', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
@@ -57,4 +97,59 @@ test('updateWorkspaceManifest updates allowBuilds', async () => {
       foo: true,
     },
   })
+})
+
+test('updateWorkspaceManifest adds a new catalog', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+
+  fs.writeFileSync(filePath, 'packages:\n  - \'*\'\n')
+
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      default: {
+        foo: '1.0.0',
+      },
+    },
+  })
+
+  expect(readYamlFile(filePath)).toStrictEqual({
+    packages: ['*'],
+    catalog: { foo: '1.0.0' },
+  })
+})
+
+test('updateWorkspaceManifest preserves quotes', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+
+  const manifest = `\
+catalog:
+  "bar": "2.0.0"
+  'foo': '1.0.0'
+  qar: 3.0.0
+`
+
+  const expected = `\
+catalog:
+  "bar": "2.0.0"
+  'foo': '1.0.0'
+  qar: 3.0.0
+  zoo: 4.0.0
+`
+
+  fs.writeFileSync(filePath, manifest)
+
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      default: {
+        foo: '1.0.0',
+        bar: '2.0.0',
+        qar: '3.0.0',
+        zoo: '4.0.0',
+      },
+    },
+  })
+
+  expect(fs.readFileSync(filePath).toString()).toStrictEqual(expected)
 })

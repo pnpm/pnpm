@@ -99,62 +99,6 @@ test('getOptionsFromRootManifest() should return allowBuilds', () => {
   expect(options.allowBuilds).toStrictEqual({ electron: true })
 })
 
-test('getOptionsFromRootManifest() should derive allowUnusedPatches from allowNonAppliedPatches (legacy behavior)', () => {
-  expect(getOptionsFromRootManifest(process.cwd(), {
-    pnpm: {
-      allowNonAppliedPatches: false,
-    },
-  })).toStrictEqual({
-    allowUnusedPatches: false,
-  })
-
-  expect(getOptionsFromRootManifest(process.cwd(), {
-    pnpm: {
-      allowNonAppliedPatches: true,
-    },
-  })).toStrictEqual({
-    allowUnusedPatches: true,
-  })
-})
-
-test('allowUnusedPatches should override allowNonAppliedPatches', () => {
-  expect(getOptionsFromRootManifest(process.cwd(), {
-    pnpm: {
-      allowNonAppliedPatches: false,
-      allowUnusedPatches: false,
-    },
-  })).toStrictEqual({
-    allowUnusedPatches: false,
-  })
-
-  expect(getOptionsFromRootManifest(process.cwd(), {
-    pnpm: {
-      allowNonAppliedPatches: true,
-      allowUnusedPatches: false,
-    },
-  })).toStrictEqual({
-    allowUnusedPatches: false,
-  })
-
-  expect(getOptionsFromRootManifest(process.cwd(), {
-    pnpm: {
-      allowNonAppliedPatches: false,
-      allowUnusedPatches: false,
-    },
-  })).toStrictEqual({
-    allowUnusedPatches: false,
-  })
-
-  expect(getOptionsFromRootManifest(process.cwd(), {
-    pnpm: {
-      allowNonAppliedPatches: true,
-      allowUnusedPatches: false,
-    },
-  })).toStrictEqual({
-    allowUnusedPatches: false,
-  })
-})
-
 test('getOptionsFromRootManifest() should return patchedDependencies', () => {
   const options = getOptionsFromRootManifest(process.cwd(), {
     pnpm: {
@@ -170,7 +114,7 @@ test('getOptionsFromPnpmSettings() replaces env variables in settings', () => {
   process.env.PNPM_TEST_KEY = 'foo'
   process.env.PNPM_TEST_VALUE = 'bar'
   const options = getOptionsFromPnpmSettings(process.cwd(), {
-    '${PNPM_TEST_KEY}': '${PNPM_TEST_VALUE}', // eslint-disable-line
+    '${PNPM_TEST_KEY}': '${PNPM_TEST_VALUE}',
   } as any) as any // eslint-disable-line
   expect(options.foo).toBe('bar')
 })

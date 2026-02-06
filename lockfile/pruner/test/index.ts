@@ -8,7 +8,7 @@ import { type DepPath, type ProjectId } from '@pnpm/types'
 import yaml from 'yaml-tag'
 
 const DEFAULT_OPTS = {
-  warn (msg: string) {
+  warn (_msg: string) {
     // ignore
   },
 }

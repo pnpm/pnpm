@@ -3,7 +3,6 @@ import { PnpmError } from '@pnpm/error'
 import { hookLogger } from '@pnpm/core-loggers'
 import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
-import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
 import { type ReadPackageHook, type BeforePackingHook, type BaseManifest } from '@pnpm/types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
@@ -40,7 +39,6 @@ export interface CookedHooks {
   filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
   updateConfig?: Array<Cook<Required<Hooks>['updateConfig']>>
   importPackage?: ImportIndexedPackageAsync
-  fetchers?: CustomFetchers
   customResolvers?: CustomResolver[]
   customFetchers?: CustomFetcher[]
   calculatePnpmfileChecksum?: () => Promise<string>
@@ -129,7 +127,6 @@ export async function requireHooks (
   }
 
   let importProvider: string | undefined
-  let fetchersProvider: string | undefined
   const finderProviders: Record<string, string> = {}
 
   // process hooks in order
@@ -203,18 +200,6 @@ export async function requireHooks (
       }
       importProvider = file
       cookedHooks.importPackage = fileHooks.importPackage
-    }
-
-    // fetchers: only one allowed
-    if (fileHooks.fetchers) {
-      if (fetchersProvider) {
-        throw new PnpmError(
-          'MULTIPLE_FETCHERS',
-          `fetchers hook defined in both ${fetchersProvider} and ${file}`
-        )
-      }
-      fetchersProvider = file
-      cookedHooks.fetchers = fileHooks.fetchers
     }
   }
 

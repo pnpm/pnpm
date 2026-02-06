@@ -5,7 +5,6 @@ process.setMaxListeners(0)
 
 const argv = process.argv.slice(2)
 
-// eslint-disable-next-line @typescript-eslint/no-floating-promises
 ; (async () => {
   switch (argv[0]) {
   // commands that are passed through to npm:

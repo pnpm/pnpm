@@ -23,9 +23,10 @@ export async function updateProjectManifest (
       const wantedDep = importer.wantedDependencies[index]!
       return {
         alias: rdd.alias,
-        nodeExecPath: wantedDep.nodeExecPath,
         peer: importer.peer,
         bareSpecifier: rdd.catalogLookup?.userSpecifiedBareSpecifier ?? rdd.normalizedBareSpecifier ?? wantedDep.bareSpecifier,
+        resolvedVersion: rdd.version,
+        pinnedVersion: importer.pinnedVersion,
         saveType: importer.targetDependenciesField,
       }
     })
@@ -33,7 +34,6 @@ export async function updateProjectManifest (
     if (pkgToInstall.updateSpec && pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
       specsToUpsert.push({
         alias: pkgToInstall.alias,
-        nodeExecPath: pkgToInstall.nodeExecPath,
         peer: importer.peer,
         saveType: importer.targetDependenciesField,
       })

@@ -9,13 +9,11 @@ import {
   type ProjectManifest,
   type PnpmSettings,
 } from '@pnpm/types'
-import { map as mapValues, omit, pick } from 'ramda'
-import { globalWarn } from '@pnpm/logger'
+import { map as mapValues, pick } from 'ramda'
 
 export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
-  ignorePatchFailures?: boolean
   overrides?: Record<string, string>
   packageExtensions?: Record<string, PackageExtension>
   ignoredOptionalDependencies?: string[]
@@ -29,13 +27,11 @@ export type OptionsFromRootManifest = {
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
   const settings: OptionsFromRootManifest = getOptionsFromPnpmSettings(manifestDir, {
     ...pick([
-      'allowNonAppliedPatches',
       'allowBuilds',
       'allowUnusedPatches',
       'allowedDeprecatedVersions',
       'auditConfig',
       'configDependencies',
-      'ignorePatchFailures',
       'ignoredOptionalDependencies',
       'overrides',
       'packageExtensions',
@@ -57,8 +53,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
 }
 
 export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
-  const renamedKeys = ['allowNonAppliedPatches'] as const satisfies Array<keyof PnpmSettings>
-  const settings: OptionsFromRootManifest = omit(renamedKeys, replaceEnvInSettings(pnpmSettings))
+  const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings)
   if (settings.overrides) {
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
@@ -72,13 +67,6 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
       if (manifestDir == null || path.isAbsolute(patchFile)) continue
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
-  }
-  if (pnpmSettings.allowNonAppliedPatches != null) {
-    globalWarn('allowNonAppliedPatches is deprecated, use allowUnusedPatches instead.')
-    settings.allowUnusedPatches ??= pnpmSettings.allowNonAppliedPatches
-  }
-  if (pnpmSettings.ignorePatchFailures != null) {
-    settings.ignorePatchFailures = pnpmSettings.ignorePatchFailures
   }
 
   return settings
