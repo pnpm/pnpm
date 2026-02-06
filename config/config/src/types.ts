@@ -142,4 +142,5 @@ export const types = Object.assign({
   cpu: [String, Array],
   libc: [String, Array],
   os: [String, Array],
+  'audit-level': ['low', 'moderate', 'high', 'critical'],
 }, npmTypes.types)

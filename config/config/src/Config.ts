@@ -238,6 +238,7 @@ export interface Config extends OptionsFromRootManifest {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
+  auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
