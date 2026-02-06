@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import PATH from 'path-name'
 import { getCurrentBranch } from '@pnpm/git-utils'
@@ -7,6 +8,7 @@ import { getConfig } from '@pnpm/config'
 import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import writeYamlFile from 'write-yaml-file'
 import { jest } from '@jest/globals'
 
 import symlinkDir from 'symlink-dir'
@@ -1175,4 +1177,136 @@ test('when dangerouslyAllowAllBuilds is set to true and neverBuiltDependencies n
 
   expect(config.neverBuiltDependencies).toStrictEqual([])
   expect(warnings).toStrictEqual(['You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.'])
+})
+
+test('getConfig() should read pnpm_config_* environment variables', async () => {
+  prepareEmpty()
+
+  async function getConfigValue (env: NodeJS.ProcessEnv): Promise<number | undefined> {
+    const { config } = await getConfig({
+      cliOptions: {},
+      env,
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+    return config.fetchRetries
+  }
+
+  expect(await getConfigValue({})).toBe(5)
+  expect(await getConfigValue({
+    pnpm_config_fetch_retries: '10',
+  })).toBe(10)
+})
+
+test('CLI should override environment variable pnpm_config_*', async () => {
+  prepareEmpty()
+
+  async function getConfigValue (cliOptions: Record<string, unknown>): Promise<number | undefined> {
+    const { config } = await getConfig({
+      cliOptions,
+      env: {
+        pnpm_config_fetch_retries: '5',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+    return config.fetchRetries
+  }
+
+  expect(await getConfigValue({})).toBe(5)
+  expect(await getConfigValue({
+    fetchRetries: 10,
+  })).toBe(10)
+  expect(await getConfigValue({
+    'fetch-retries': 10,
+  })).toBe(10)
+})
+
+test('warn when directory contains PATH delimiter character', async () => {
+  const tempDir = path.join(os.tmpdir(), `pnpm-test${path.delimiter}project-${Date.now()}`)
+  fs.mkdirSync(tempDir, { recursive: true })
+
+  try {
+    const { warnings } = await getConfig({
+      cliOptions: { dir: tempDir },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(warnings).toContainEqual(
+      expect.stringContaining('path delimiter character')
+    )
+  } finally {
+    fs.rmSync(tempDir, { recursive: true })
+  }
+})
+
+test('no warning when directory does not contain PATH delimiter character', async () => {
+  const tempDir = path.join(os.tmpdir(), `pnpm-test-normal-${Date.now()}`)
+  fs.mkdirSync(tempDir, { recursive: true })
+
+  try {
+    const { warnings } = await getConfig({
+      cliOptions: { dir: tempDir },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(warnings).not.toContainEqual(
+      expect.stringContaining('path delimiter character')
+    )
+  } finally {
+    fs.rmSync(tempDir, { recursive: true })
+  }
+})
+
+describe('global config.yaml', () => {
+  let XDG_CONFIG_HOME: string | undefined
+
+  beforeEach(() => {
+    XDG_CONFIG_HOME = process.env.XDG_CONFIG_HOME
+  })
+
+  afterEach(() => {
+    process.env.XDG_CONFIG_HOME = XDG_CONFIG_HOME
+  })
+
+  test('reads config from global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFile('.config/pnpm/config.yaml', {
+      dangerouslyAllowAllBuilds: true,
+    })
+
+    // TODO: `getConfigDir`, `getHomeDir`, etc. (from dirs.ts) should allow customizing env or process.
+    // TODO: after that, remove this `describe` wrapper.
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
+
+    // NOTE: the field may appear kebab-case here, but only internally,
+    //       `pnpm config list` would convert them to camelCase.
+    // TODO: switch to camelCase entirely later.
+    expect(config.rawConfig).toHaveProperty(['dangerously-allow-all-builds'])
+  })
 })
