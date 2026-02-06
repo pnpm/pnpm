@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import PATH from 'path-name'
 import { sync as writeYamlFile } from 'write-yaml-file'
@@ -1359,6 +1360,48 @@ test('CLI should override environment variable pnpm_config_*', async () => {
   expect(await getConfigValue({
     'fetch-retries': 10,
   })).toBe(10)
+})
+
+test('warn when directory contains PATH delimiter character', async () => {
+  const tempDir = path.join(os.tmpdir(), `pnpm-test${path.delimiter}project-${Date.now()}`)
+  fs.mkdirSync(tempDir, { recursive: true })
+
+  try {
+    const { warnings } = await getConfig({
+      cliOptions: { dir: tempDir },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(warnings).toContainEqual(
+      expect.stringContaining('path delimiter character')
+    )
+  } finally {
+    fs.rmSync(tempDir, { recursive: true })
+  }
+})
+
+test('no warning when directory does not contain PATH delimiter character', async () => {
+  const tempDir = path.join(os.tmpdir(), `pnpm-test-normal-${Date.now()}`)
+  fs.mkdirSync(tempDir, { recursive: true })
+
+  try {
+    const { warnings } = await getConfig({
+      cliOptions: { dir: tempDir },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(warnings).not.toContainEqual(
+      expect.stringContaining('path delimiter character')
+    )
+  } finally {
+    fs.rmSync(tempDir, { recursive: true })
+  }
 })
 
 describe('global config.yaml', () => {
