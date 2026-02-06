@@ -41,6 +41,6 @@ test('overrides with references (via $) are preserved during audit --fix', async
   expect(exitCode).toBe(0)
   expect(output).toMatch(/overrides were added/)
 
-  const manifest = readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))
+  const manifest = readYamlFile<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
   expect(manifest.overrides?.['is-positive']).toBe('$is-positive')
 })
