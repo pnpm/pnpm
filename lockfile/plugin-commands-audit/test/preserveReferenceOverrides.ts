@@ -1,7 +1,8 @@
-
-import { fixtures } from '@pnpm/test-fixtures'
+import path from 'path'
 import { audit } from '@pnpm/plugin-commands-audit'
+import { fixtures } from '@pnpm/test-fixtures'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { sync as readYamlFile } from 'read-yaml-file'
 import nock from 'nock'
 import * as responses from './utils/responses/index.js'
 
@@ -14,7 +15,7 @@ const rawConfig = {
 }
 
 test('overrides with references (via $) are preserved during audit --fix', async () => {
-  const tmp = f.prepare('preserve_reference_overrides')
+  const tmp = f.prepare('preserve-reference-overrides')
 
   nock(registries.default)
     .post('/-/npm/v1/security/audits')
@@ -40,6 +41,6 @@ test('overrides with references (via $) are preserved during audit --fix', async
   expect(exitCode).toBe(0)
   expect(output).toMatch(/overrides were added/)
 
-  const { manifest } = await readProjectManifest(tmp)
-  expect(manifest.pnpm?.overrides?.['is-positive']).toBe('$is-positive')
+  const manifest = readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['is-positive']).toBe('$is-positive')
 })
