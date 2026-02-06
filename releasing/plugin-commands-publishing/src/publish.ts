@@ -13,6 +13,7 @@ import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import { temporaryDirectory } from 'tempy'
 import { extractManifestFromPacked, isTarballPath } from './extractManifestFromPacked.js'
+import { optionsWithOtpEnv } from './otpEnv.js'
 import * as pack from './pack.js'
 import { publishPackedPkg } from './publishPackedPkg.js'
 import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish.js'
@@ -188,6 +189,8 @@ Do you want to continue?`,
     })
     return { exitCode }
   }
+
+  opts = optionsWithOtpEnv(opts, process.env)
 
   const dirInParams = (params.length > 0) ? params[0] : undefined
 
