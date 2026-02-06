@@ -74,7 +74,8 @@
     "@types/lodash.kebabcase": "catalog:",
     "@types/ramda": "catalog:",
     "@types/which": "catalog:",
-    "symlink-dir": "catalog:"
+    "symlink-dir": "catalog:",
+    "write-yaml-file": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

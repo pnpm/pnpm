@@ -290,9 +290,9 @@ catalog:
   strip-bom: ^4.0.0
   strip-comments-strings: 1.2.0
   symlink-dir: ^7.0.0
-  tar: ^7.5.7
-  tar-stream: ^3.1.7
-  tempy: 3.0.0
+  tar: ^6.2.1
+  tar-stream: ^2.2.0
+  tempy: ^1.0.1
   terminal-link: ^4.0.0
   tinyglobby: ^0.2.14
   touch: 3.1.0

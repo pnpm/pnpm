@@ -88,7 +88,7 @@ function isPluginName (configDepName: string): boolean {
 
 // Apply derived config settings (hoist, shamefullyHoist, symlink)
 function applyDerivedConfig (config: Config): void {
-  if (config.hoist === false) {
+  if (config.hoist === false) { // eslint-disable-line
     delete config.hoistPattern
   }
   switch (config.shamefullyHoist) {

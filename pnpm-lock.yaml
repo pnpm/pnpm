@@ -697,14 +697,14 @@ catalogs:
       specifier: ^7.0.0
       version: 7.0.0
     tar:
-      specifier: ^7.5.7
-      version: 7.5.7
+      specifier: ^6.2.1
+      version: 6.2.1
     tar-stream:
-      specifier: ^3.1.7
-      version: 3.1.7
+      specifier: ^2.2.0
+      version: 2.2.0
     tempy:
-      specifier: 3.0.0
-      version: 3.0.0
+      specifier: ^1.0.1
+      version: 1.0.1
     terminal-link:
       specifier: ^4.0.0
       version: 4.0.0
@@ -1563,7 +1563,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   completion/plugin-commands-completion:
     dependencies:
@@ -1725,6 +1725,9 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 7.0.0
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
 
   config/config-writer:
     dependencies:
@@ -2028,7 +2031,7 @@ importers:
         version: 2.2.3
       tar-stream:
         specifier: 'catalog:'
-        version: 3.1.7
+        version: 2.2.0
 
   crypto/object-hasher:
     dependencies:
@@ -2443,7 +2446,7 @@ importers:
         version: 1.0.0
       tar-stream:
         specifier: 'catalog:'
-        version: 3.1.7
+        version: 2.2.0
       yazl:
         specifier: 'catalog:'
         version: 3.3.1
@@ -3089,7 +3092,7 @@ importers:
         version: 10.0.5
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -3204,7 +3207,7 @@ importers:
         version: link:../../packages/types
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   fetching/pick-fetcher:
     devDependencies:
@@ -3307,7 +3310,7 @@ importers:
         version: 10.0.5
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   fs/find-packages:
     dependencies:
@@ -3646,7 +3649,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   lockfile/filtering:
     dependencies:
@@ -3695,7 +3698,7 @@ importers:
         version: 2.0.3
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -3783,7 +3786,7 @@ importers:
         version: 4.0.3
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -3930,7 +3933,7 @@ importers:
         version: 2.1.0
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   lockfile/preferred-versions:
     dependencies:
@@ -4064,7 +4067,7 @@ importers:
         version: 0.29.12
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -4137,7 +4140,7 @@ importers:
         version: 2.2.3
       tar-stream:
         specifier: 'catalog:'
-        version: 3.1.7
+        version: 2.2.0
 
   lockfile/walker:
     dependencies:
@@ -4156,7 +4159,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   modules-mounter/daemon:
     dependencies:
@@ -4384,7 +4387,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   packages/logger:
     dependencies:
@@ -4787,7 +4790,7 @@ importers:
         version: 7.5.3
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -5389,7 +5392,7 @@ importers:
         version: 16.1.3
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
@@ -5523,7 +5526,7 @@ importers:
         version: 1.0.2
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   pkg-manager/modules-cleaner:
     dependencies:
@@ -5600,7 +5603,7 @@ importers:
         version: 0.29.12
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   pkg-manager/package-bins:
     dependencies:
@@ -5622,7 +5625,7 @@ importers:
         version: 18.19.110
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   pkg-manager/package-requester:
     dependencies:
@@ -5737,7 +5740,7 @@ importers:
         version: 3.0.0
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   pkg-manager/plugin-commands-installation:
     dependencies:
@@ -5993,7 +5996,7 @@ importers:
         version: 7.0.0
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
@@ -6394,7 +6397,7 @@ importers:
         version: 4.0.2
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   pkg-manifest/write-project-manifest:
     dependencies:
@@ -6422,7 +6425,7 @@ importers:
         version: 4.0.3
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   pnpm:
     dependencies:
@@ -6711,7 +6714,7 @@ importers:
         version: 7.0.0
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
       tree-kill:
         specifier: 'catalog:'
         version: 1.2.2
@@ -7014,10 +7017,10 @@ importers:
         version: 1.0.3
       tar-stream:
         specifier: 'catalog:'
-        version: 3.1.7
+        version: 2.2.0
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.14
@@ -7093,7 +7096,7 @@ importers:
         version: 6.2.0
       tar:
         specifier: 'catalog:'
-        version: 7.5.7
+        version: 6.2.1
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -7442,7 +7445,7 @@ importers:
         version: 13.3.4
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   resolving/resolver-base:
     dependencies:
@@ -8020,7 +8023,7 @@ importers:
         version: 7.0.0
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   store/cafs-types:
     devDependencies:
@@ -8148,7 +8151,7 @@ importers:
         version: 7.1.5
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   store/plugin-commands-server:
     dependencies:
@@ -8327,7 +8330,7 @@ importers:
         version: 10.0.5
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   store/plugin-commands-store-inspecting:
     dependencies:
@@ -8382,7 +8385,7 @@ importers:
         version: safe-execa@0.1.2
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   store/server:
     dependencies:
@@ -8440,7 +8443,7 @@ importers:
         version: '@pnpm/node-fetch@1.0.0'
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
 
   store/store-connection-manager:
     dependencies:
@@ -8797,7 +8800,7 @@ importers:
         version: 1.0.2
       tempy:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 1.0.1
       touch:
         specifier: 'catalog:'
         version: 3.1.0
@@ -11329,14 +11332,6 @@ packages:
   b4a@1.6.7:
     resolution: {integrity: sha512-OnAYlL5b7LEkALw87fUVafQw5rVR9RjwGd4KUwNQ6DrrNmaVaUCgLipfVlzrPQ4tWOR9P0IXGNOx50jYCCdSJg==}
 
-  b4a@1.7.3:
-    resolution: {integrity: sha512-5Q2mfq2WfGuFp3uS//0s6baOJLMoVduPYVeNmDYxu5OUA1/cBfvr2RIS7vi62LdNj/urk1hfmj867I3qt6uZ7Q==}
-    peerDependencies:
-      react-native-b4a: '*'
-    peerDependenciesMeta:
-      react-native-b4a:
-        optional: true
-
   babel-jest@29.7.0:
     resolution: {integrity: sha512-BrvGY3xZSwEcCzKvKsCi2GgHqDqsYkOP4/by5xCgIwGXQxIEh+8ew3gmrE1y7XRR6LHZIj6yLYnUi/mm2KXKBg==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
@@ -11367,14 +11362,6 @@ packages:
 
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
-
-  bare-events@2.8.2:
-    resolution: {integrity: sha512-riJjyv1/mHLIPX4RwiK+oW9/4c3TEUeORHKefKAKnZ5kyslbN+HXowtbaVEqt4IMUB7OXlfixcs6gsFeo/jhiQ==}
-    peerDependencies:
-      bare-abort-controller: '*'
-    peerDependenciesMeta:
-      bare-abort-controller:
-        optional: true
 
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
@@ -11580,6 +11567,10 @@ packages:
 
   chownr@1.1.4:
     resolution: {integrity: sha512-jJ0bqzaylmJtVnNgzTeSOs8DPavpbYgEr/b0YL8/2GO3xJEhInFmhKMUnEJQjZumK7KXGFhUy89PrsJWlakBVg==}
+
+  chownr@2.0.0:
+    resolution: {integrity: sha512-bIomtDF5KGpdogkLd9VspvFzk9KfpyyGlS8YFVZl7TGPBHL5snIOnxeshwVgPteQ9b4Eydl+pVbIyE1DcvCWgQ==}
+    engines: {node: '>=10'}
 
   chownr@3.0.0:
     resolution: {integrity: sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==}
@@ -11841,10 +11832,6 @@ packages:
   crypto-random-string@2.0.0:
     resolution: {integrity: sha512-v1plID3y9r/lPhviJ1wrXpLeyUIGAZ2SHNYTEapm7/8A9nLPoyvVp3RK/EPFqn5kEznyWgYZNsRtYYIWbuG8KA==}
     engines: {node: '>=8'}
-
-  crypto-random-string@4.0.0:
-    resolution: {integrity: sha512-x8dy3RnvYdlUcPOjkEHqozhiwzKNSq7GcPuXFbnyMOCHxX8V3OgIg/pYuabl2sbUPfIJaeAQB7PMOK8DFIdoRA==}
-    engines: {node: '>=12'}
 
   cspell-config-lib@8.17.5:
     resolution: {integrity: sha512-XDc+UJO5RZ9S9e2Ajz332XjT7dv6Og2UqCiSnAlvHt7t/MacLHSPARZFIivheObNkWZ7E1iWI681RxKoH4o40w==}
@@ -12411,9 +12398,6 @@ packages:
   eventemitter3@4.0.7:
     resolution: {integrity: sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==}
 
-  events-universal@1.0.1:
-    resolution: {integrity: sha512-LUd5euvbMLpwOF8m6ivPCbhQeSiYVNb8Vs0fQ8QjXo0JTkEHpz8pxdQf0gStltaPpw0Cca8b39KxvK9cfKRiAw==}
-
   execa@5.1.1:
     resolution: {integrity: sha512-8uSpZZocAZRBAPIEINJj3Lo9HyGitllczc27Eh5YYojjMFMn8yHMDMaUHE2Jqfq05D/wucwI4JGURyXt1vchyg==}
     engines: {node: '>=10'}
@@ -12464,9 +12448,6 @@ packages:
   fast-equals@5.2.2:
     resolution: {integrity: sha512-V7/RktU11J3I36Nwq2JnZEM7tNm17eBJz+u25qdxBZeCKiX6BkVSZQjwWIr+IobgnZy+ag73tTZgZi7tr0LrBw==}
     engines: {node: '>=6.0.0'}
-
-  fast-fifo@1.3.2:
-    resolution: {integrity: sha512-/d9sfos4yxzpwkDkuN7k2SqFKtYNmCTzgfEpz82x34IM9/zc8KGxQoXg1liNC/izpRM/MBdt44Nmx41ZWqk+FQ==}
 
   fast-glob@3.3.3:
     resolution: {integrity: sha512-7MptL8U0cqcFdzIzwOTHoilX9x5BrNqye7Z/LuC7kCMRio1EMSyqRK3BEAUD7sXRq4iT4AzTVuZdhgQ2TCvYLg==}
@@ -12674,6 +12655,10 @@ packages:
   fs-extra@9.1.0:
     resolution: {integrity: sha512-hcg3ZmepS30/7BSFqRvoo3DOMQu7IjqxO5nCDt+zM9XWjb33Wg7ziNT+Qvqbuc3+gWpzO02JubVyk2G4Zvo1OQ==}
     engines: {node: '>=10'}
+
+  fs-minipass@2.1.0:
+    resolution: {integrity: sha512-V/JgOLFCS+R6Vcq0slCuaeWEdNC3ouDlJMNIsacH2VtALiu9mV4LPrHc5cDl8k5aw6J8jwgWWpiTo5RYhmIzvg==}
+    engines: {node: '>= 8'}
 
   fs-minipass@3.0.3:
     resolution: {integrity: sha512-XUBA9XClHbnJWSfBzjkm6RvPsyg3sryZt06BEQoXcF7EK/xpGaQYJgQKDJSUH5SGZ76Y7pFx1QBnXz09rU5Fbw==}
@@ -13314,10 +13299,6 @@ packages:
   is-stream@2.0.1:
     resolution: {integrity: sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg==}
     engines: {node: '>=8'}
-
-  is-stream@3.0.0:
-    resolution: {integrity: sha512-LnQR4bZ9IADDRSkvpqMGvt/tEJWclzklNgSw48V5EAaAeDd6qGvN8ei6k5p0tvxSR171VmGyHuTiAOfxAbr8kA==}
-    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   is-string@1.1.1:
     resolution: {integrity: sha512-BtEeSsoaQjlSPBemMQIrY1MY0uM6vnS1g5fmufYOtnxLGUZM2178PKbhsk7Ffv58IX+ZtcvoGwccYsh0PglkAA==}
@@ -14012,9 +13993,17 @@ packages:
     resolution: {integrity: sha512-fNzuVyifolSLFL4NzpF+wEF4qrgqaaKX0haXPQEdQ7NKAN+WecoKMHV09YcuL/DHxrUsYQOK3MiuDf7Ip2OXfQ==}
     engines: {node: '>=8'}
 
+  minipass@5.0.0:
+    resolution: {integrity: sha512-3FnjYuehv9k6ovOEbyOswadCDPX1piCfhV8ncmYtHOjuPwylVWsghTLo7rabjC3Rx5xD4HDx8Wm1xnMF7S5qFQ==}
+    engines: {node: '>=8'}
+
   minipass@7.1.2:
     resolution: {integrity: sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==}
     engines: {node: '>=16 || 14 >=14.17'}
+
+  minizlib@2.1.2:
+    resolution: {integrity: sha512-bAxsR8BVfj60DWXHE3u30oHzfl4G7khkSuPW+qvpd7jFRHm7dLxOjUk1EHACJ/hxLY8phGJ0YhYHZo7jil7Qdg==}
+    engines: {node: '>= 8'}
 
   minizlib@3.1.0:
     resolution: {integrity: sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==}
@@ -15255,9 +15244,6 @@ packages:
   stream-shift@1.0.3:
     resolution: {integrity: sha512-76ORR0DO1o1hlKwTbi/DM3EXWGf3ZJYO8cXX5RJwnul2DEg2oyoZyjLNoQM8WsvZiFKCRfC1O0J7iCvie3RZmQ==}
 
-  streamx@2.23.0:
-    resolution: {integrity: sha512-kn+e44esVfn2Fa/O0CPFcex27fjIL6MkVae0Mm6q+E6f0hWv578YCERbv+4m02cjxvDsPKLnmxral/rR6lBMAg==}
-
   string-length@4.0.2:
     resolution: {integrity: sha512-+l6rNN5fYHNhZZy41RXsYptCjA2Igmq4EG7kZAYFQI1E1VTXarr6ZPXBg6eq7Y6eK4FEhY6AJlyuFIb/v/S0VQ==}
     engines: {node: '>=10'}
@@ -15396,8 +15382,10 @@ packages:
     resolution: {integrity: sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ==}
     engines: {node: '>=6'}
 
-  tar-stream@3.1.7:
-    resolution: {integrity: sha512-qJj60CXt7IU1Ffyc3NJMjh6EkuCFej46zUqJ4J7pqYlThyd9bO0XBTmcOIhSzZJVWfsLks0+nle/j538YAW9RQ==}
+  tar@6.2.1:
+    resolution: {integrity: sha512-DZ4yORTwrbTj/7MZYq2w+/ZFdI6OZ/f9SFHR+71gIVUZhOQPHzVCLpvRnPgyaMpfWxxk/4ONva3GQSyNIKRv6A==}
+    engines: {node: '>=10'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   tar@7.5.7:
     resolution: {integrity: sha512-fov56fJiRuThVFXD6o6/Q354S7pnWMJIVlDBYijsTNx6jKSE4pvrDTs6lUnmGvNyfJwFQQwWy3owKz1ucIhveQ==}
@@ -15411,10 +15399,6 @@ packages:
     resolution: {integrity: sha512-biM9brNqxSc04Ee71hzFbryD11nX7VPhQQY32AdDmjFvodsRFz/3ufeoTZ6uYkRFfGo188tENcASNs3vTdsM0w==}
     engines: {node: '>=10'}
 
-  tempy@3.0.0:
-    resolution: {integrity: sha512-B2I9X7+o2wOaW4r/CWMkpOO9mdiTRCxXNgob6iGvPmfPWgH/KyUD6Uy5crtWBxIBe3YrNZKR2lSzv1JJKWD4vA==}
-    engines: {node: '>=14.16'}
-
   term-size@2.2.1:
     resolution: {integrity: sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg==}
     engines: {node: '>=8'}
@@ -15426,9 +15410,6 @@ packages:
   test-exclude@6.0.0:
     resolution: {integrity: sha512-cAGWPIyOHU6zlmg88jwm7VRyXnMN7iV68OGAbYDk/Mh/xC/pzVPlQtY6ngoIH/5/tciuhGfvESU8GrHrcxD56w==}
     engines: {node: '>=8'}
-
-  text-decoder@1.2.3:
-    resolution: {integrity: sha512-3/o9z3X0X0fTupwsYvR03pJ/DjWuqqrfwBgTQzdWDiQSm9KitAyz/9WqsT2JQW7KV2m+bC2ol/zqpW37NHxLaA==}
 
   text-extensions@1.9.0:
     resolution: {integrity: sha512-wiBrwC1EhBelW12Zy26JeOUkQ5mRu+5o8rpsJk5+2t+Y5vE7e842qtZDQ2g1NpX/29HdyFeJ4nSIhI47ENSxlQ==}
@@ -15639,10 +15620,6 @@ packages:
     resolution: {integrity: sha512-4dbzIzqvjtgiM5rw1k5rEHtBANKmdudhGyBEajN01fEyhaAIhsoKNy6y7+IN93IfpFtwY9iqi7kD+xwKhQsNJA==}
     engines: {node: '>=8'}
 
-  type-fest@1.4.0:
-    resolution: {integrity: sha512-yGSza74xk0UG8k+pLh5oeoYirvIiWo5t0/o3zHHAO2tRDiZcxWP7fywNlXhqb6/r6sWvwi+RsyQMWhVLe4BVuA==}
-    engines: {node: '>=10'}
-
   type-fest@2.19.0:
     resolution: {integrity: sha512-RAH822pAdBgcNMAfWnCBU3CFZcfZ/i1eZjwFU/dsLKumyuuP3niueg2UAukXYF0E2AAoc82ZSSf9J0WQBinzHA==}
     engines: {node: '>=12.20'}
@@ -15728,10 +15705,6 @@ packages:
   unique-string@2.0.0:
     resolution: {integrity: sha512-uNaeirEPvpZWSgzwsPGtU2zVSTrn/8L5q/IexZmH0eH6SA73CmAA5U4GwORTxQAZs95TAXLNqeLoPPNO5gZfWg==}
     engines: {node: '>=8'}
-
-  unique-string@3.0.0:
-    resolution: {integrity: sha512-VGXBUVwxKMBUznyffQweQABPRRW1vHZAbadFZud4pLFAqRGvv/96vafgjWFqzourzr8YonlQiPgH0YCJfawoGQ==}
-    engines: {node: '>=12'}
 
   unist-util-stringify-position@2.0.3:
     resolution: {integrity: sha512-3faScn5I+hy9VleOq/qNbAd6pAx7iH5jYBMS9I1HgQVijz/4mv5Bvw5iw1sC/90CODiKo81G/ps8AJrISn687g==}
@@ -19420,8 +19393,6 @@ snapshots:
 
   b4a@1.6.7: {}
 
-  b4a@1.7.3: {}
-
   babel-jest@29.7.0(@babel/core@7.28.3)(@babel/types@7.28.2):
     dependencies:
       '@babel/core': 7.28.3
@@ -19482,8 +19453,6 @@ snapshots:
   bail@1.0.5: {}
 
   balanced-match@1.0.2: {}
-
-  bare-events@2.8.2: {}
 
   base64-js@1.5.1: {}
 
@@ -19723,6 +19692,8 @@ snapshots:
   chardet@2.1.0: {}
 
   chownr@1.1.4: {}
+
+  chownr@2.0.0: {}
 
   chownr@3.0.0: {}
 
@@ -19982,10 +19953,6 @@ snapshots:
       which: 2.0.2
 
   crypto-random-string@2.0.0: {}
-
-  crypto-random-string@4.0.0:
-    dependencies:
-      type-fest: 1.4.0
 
   cspell-config-lib@8.17.5:
     dependencies:
@@ -20669,12 +20636,6 @@ snapshots:
 
   eventemitter3@4.0.7: {}
 
-  events-universal@1.0.1:
-    dependencies:
-      bare-events: 2.8.2
-    transitivePeerDependencies:
-      - bare-abort-controller
-
   execa@5.1.1:
     dependencies:
       cross-spawn: 7.0.6
@@ -20756,8 +20717,6 @@ snapshots:
   fast-deep-equal@3.1.3: {}
 
   fast-equals@5.2.2: {}
-
-  fast-fifo@1.3.2: {}
 
   fast-glob@3.3.3:
     dependencies:
@@ -20968,6 +20927,10 @@ snapshots:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       jsonfile: 6.2.0
       universalify: 2.0.1
+
+  fs-minipass@2.1.0:
+    dependencies:
+      minipass: 3.3.6
 
   fs-minipass@3.0.3:
     dependencies:
@@ -21649,8 +21612,6 @@ snapshots:
       call-bound: 1.0.4
 
   is-stream@2.0.1: {}
-
-  is-stream@3.0.0: {}
 
   is-string@1.1.1:
     dependencies:
@@ -22572,7 +22533,14 @@ snapshots:
 
   minipass@4.2.8: {}
 
+  minipass@5.0.0: {}
+
   minipass@7.1.2: {}
+
+  minizlib@2.1.2:
+    dependencies:
+      minipass: 3.3.6
+      yallist: 4.0.0
 
   minizlib@3.1.0:
     dependencies:
@@ -23890,15 +23858,6 @@ snapshots:
 
   stream-shift@1.0.3: {}
 
-  streamx@2.23.0:
-    dependencies:
-      events-universal: 1.0.1
-      fast-fifo: 1.3.2
-      text-decoder: 1.2.3
-    transitivePeerDependencies:
-      - bare-abort-controller
-      - react-native-b4a
-
   string-length@4.0.2:
     dependencies:
       char-regex: 1.0.2
@@ -24072,14 +24031,14 @@ snapshots:
       inherits: 2.0.4
       readable-stream: 3.6.2
 
-  tar-stream@3.1.7:
+  tar@6.2.1:
     dependencies:
-      b4a: 1.7.3
-      fast-fifo: 1.3.2
-      streamx: 2.23.0
-    transitivePeerDependencies:
-      - bare-abort-controller
-      - react-native-b4a
+      chownr: 2.0.0
+      fs-minipass: 2.1.0
+      minipass: 5.0.0
+      minizlib: 2.1.2
+      mkdirp: 1.0.4
+      yallist: 4.0.0
 
   tar@7.5.7:
     dependencies:
@@ -24099,13 +24058,6 @@ snapshots:
       type-fest: 0.16.0
       unique-string: 2.0.0
 
-  tempy@3.0.0:
-    dependencies:
-      is-stream: 3.0.0
-      temp-dir: 2.0.0
-      type-fest: 2.19.0
-      unique-string: 3.0.0
-
   term-size@2.2.1: {}
 
   terminal-link@4.0.0:
@@ -24118,12 +24070,6 @@ snapshots:
       '@istanbuljs/schema': 0.1.3
       glob: 7.2.3
       minimatch: 3.1.2
-
-  text-decoder@1.2.3:
-    dependencies:
-      b4a: 1.7.3
-    transitivePeerDependencies:
-      - react-native-b4a
 
   text-extensions@1.9.0: {}
 
@@ -24314,8 +24260,6 @@ snapshots:
 
   type-fest@0.8.1: {}
 
-  type-fest@1.4.0: {}
-
   type-fest@2.19.0: {}
 
   type-fest@3.13.1: {}
@@ -24416,10 +24360,6 @@ snapshots:
   unique-string@2.0.0:
     dependencies:
       crypto-random-string: 2.0.0
-
-  unique-string@3.0.0:
-    dependencies:
-      crypto-random-string: 4.0.0
 
   unist-util-stringify-position@2.0.3:
     dependencies:

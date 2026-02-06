@@ -1285,7 +1285,7 @@ describe('global config.yaml', () => {
     prepareEmpty()
 
     fs.mkdirSync('.config/pnpm', { recursive: true })
-    writeYamlFile('.config/pnpm/config.yaml', {
+    await writeYamlFile('.config/pnpm/config.yaml', {
       dangerouslyAllowAllBuilds: true,
     })
 
