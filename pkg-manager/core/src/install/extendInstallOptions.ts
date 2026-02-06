@@ -50,6 +50,12 @@ export interface StrictInstallOptions {
   ignoreCompatibilityDb: boolean
   ignoreDepScripts: boolean
   ignorePackageManifest: boolean
+  /**
+   * When true, skip fetching local dependencies (file: protocol pointing to directories).
+   * This is used by `pnpm fetch` which only downloads packages from the registry
+   * and doesn't need local packages that won't be available (e.g., in Docker builds).
+   */
+  ignoreLocalPackages: boolean
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean | 'rolling'
   lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
@@ -219,6 +225,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     ownLifecycleHooksStdio: 'inherit',
     ignoreCompatibilityDb: false,
     ignorePackageManifest: false,
+    ignoreLocalPackages: false,
     packageExtensions: {},
     ignoredOptionalDependencies: [] as string[],
     packageManager,
