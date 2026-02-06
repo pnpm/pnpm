@@ -74,7 +74,7 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & CreateStoreControllerOptions & {
+export type StoreCommandOptions = Pick<Config, 'dir' | 'lockfileDir' | 'registries' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & CreateStoreControllerOptions & {
   reporter?: (logObj: LogBase) => void
 }
 
@@ -120,7 +120,7 @@ async function statusCmd (opts: StoreCommandOptions): Promise<void> {
       storePath: opts.storeDir,
       pnpmHomeDir: opts.pnpmHomeDir,
     }),
-    lockfileDir: opts.workspaceDir ?? opts.dir,
+    lockfileDir: opts.lockfileDir ?? opts.workspaceDir ?? opts.dir,
   }))
   if (!modifiedPkgs || (modifiedPkgs.length === 0)) {
     logger.info({
