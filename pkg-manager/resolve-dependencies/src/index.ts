@@ -330,6 +330,33 @@ export async function resolveDependencies (
     Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
     updatedCatalogs)
 
+  // Preserve catalog entries for importers that weren't resolved in this operation.
+  // When running partial operations like `pnpm remove` from a subdirectory,
+  // only selected projects are resolved. We must keep catalog entries that are
+  // still referenced by other (unresolved) projects.
+  const resolvedProjectIds = new Set(Object.keys(resolvedImporters))
+  for (const projectId of Object.keys(newLockfile.importers)) {
+    if (resolvedProjectIds.has(projectId)) continue
+    const projectSnapshot = newLockfile.importers[projectId as ProjectId]
+    // Check all dependency fields for catalog: specifiers
+    for (const depField of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+      const deps = projectSnapshot[depField]
+      if (!deps) continue
+      for (const [alias, specifier] of Object.entries(projectSnapshot.specifiers ?? {})) {
+        if (!specifier.startsWith('catalog:') || !(alias in deps)) continue
+        // Extract catalog name: 'catalog:' means 'default', 'catalog:name' means 'name'
+        const catalogName = specifier === 'catalog:' ? 'default' : specifier.slice('catalog:'.length)
+        const existingEntry = opts.wantedLockfile.catalogs?.[catalogName]?.[alias]
+        if (existingEntry) {
+          newLockfile.catalogs ??= {}
+          newLockfile.catalogs[catalogName] ??= {}
+          // Only add if not already present (resolved importers take precedence)
+          newLockfile.catalogs[catalogName][alias] ??= existingEntry
+        }
+      }
+    }
+  }
+
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
     await Promise.all(Object.values(resolvedPkgsById).map(async ({ fetching }) => {
