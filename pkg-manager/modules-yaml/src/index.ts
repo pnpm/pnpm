@@ -1,4 +1,5 @@
 import path from 'path'
+import fs from '@pnpm/graceful-fs'
 import {
   type DepPath,
   type DependenciesField,
@@ -9,7 +10,6 @@ import {
 import readYamlFile from 'read-yaml-file'
 import mapValues from 'ramda/src/map'
 import isWindows from 'is-windows'
-import writeYamlFile from 'write-yaml-file'
 
 // The dot prefix is needed because otherwise `npm shrinkwrap`
 // thinks that it is an extraneous package.
@@ -102,23 +102,13 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
   return modules
 }
 
-const YAML_OPTS = {
-  lineWidth: 1000,
-  noCompatMode: true,
-  noRefs: true,
-  sortKeys: true,
-}
-
 export interface StrictModules extends Modules {
   registries: Registries
 }
 
 export async function writeModulesManifest (
   modulesDir: string,
-  modules: StrictModules,
-  opts?: {
-    makeModulesDir?: boolean
-  }
+  modules: StrictModules
 ): Promise<void> {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   const saveModules = { ...modules, ignoredBuilds: modules.ignoredBuilds ? Array.from(modules.ignoredBuilds) : undefined }
@@ -141,12 +131,6 @@ export async function writeModulesManifest (
   if (!isWindows()) {
     saveModules.virtualStoreDir = path.relative(modulesDir, saveModules.virtualStoreDir)
   }
-  try {
-    await writeYamlFile(modulesYamlPath, saveModules, {
-      ...YAML_OPTS,
-      makeDir: opts?.makeModulesDir ?? false,
-    })
-  } catch (err: any) { // eslint-disable-line
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
-  }
+  await fs.mkdir(modulesDir, { recursive: true })
+  await fs.writeFile(modulesYamlPath, JSON.stringify(saveModules, null, 2))
 }

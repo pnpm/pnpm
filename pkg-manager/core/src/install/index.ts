@@ -1513,8 +1513,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           storeDir: ctx.storeDir,
           virtualStoreDir: ctx.virtualStoreDir,
           virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
-        }, {
-          makeModulesDir: Object.keys(result.currentLockfile.packages ?? {}).length > 0,
         })
       })(),
     ])
