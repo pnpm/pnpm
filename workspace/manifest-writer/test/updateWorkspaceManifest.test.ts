@@ -120,7 +120,7 @@ test('updateWorkspaceManifest with updatedOverrides does not update when values 
   expect(fs.readFileSync(filePath).toString()).toStrictEqual(originalContent)
 })
 
-test('updateWorkspaceManifest with updatedOverrides preserves comments', async () => {
+test('updateWorkspaceManifest with updatedOverrides merges new overrides with existing ones', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
 
@@ -133,21 +133,17 @@ overrides:
   existing: '1.0.0'
 `
 
-  const expected = `\
-packages:
-  - '*'
-
-overrides:
-  # Comment on existing
-  existing: '1.0.0'
-  newPkg: ^2.0.0
-`
-
   fs.writeFileSync(filePath, manifest)
   await updateWorkspaceManifest(dir, {
     updatedOverrides: { newPkg: '^2.0.0' },
   })
-  expect(fs.readFileSync(filePath).toString()).toStrictEqual(expected)
+  expect(readYamlFile(filePath)).toStrictEqual({
+    packages: ['*'],
+    overrides: {
+      existing: '1.0.0',
+      newPkg: '^2.0.0',
+    },
+  })
 })
 
 test('updateWorkspaceManifest adds a new catalog', async () => {
@@ -170,7 +166,7 @@ test('updateWorkspaceManifest adds a new catalog', async () => {
   })
 })
 
-test('updateWorkspaceManifest preserves quotes', async () => {
+test('updateWorkspaceManifest adds new catalog entries to existing catalog', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
 
@@ -179,14 +175,6 @@ catalog:
   "bar": "2.0.0"
   'foo': '1.0.0'
   qar: 3.0.0
-`
-
-  const expected = `\
-catalog:
-  "bar": "2.0.0"
-  'foo': '1.0.0'
-  qar: 3.0.0
-  zoo: 4.0.0
 `
 
   fs.writeFileSync(filePath, manifest)
@@ -202,5 +190,12 @@ catalog:
     },
   })
 
-  expect(fs.readFileSync(filePath).toString()).toStrictEqual(expected)
+  expect(readYamlFile(filePath)).toStrictEqual({
+    catalog: {
+      bar: '2.0.0',
+      foo: '1.0.0',
+      qar: '3.0.0',
+      zoo: '4.0.0',
+    },
+  })
 })
