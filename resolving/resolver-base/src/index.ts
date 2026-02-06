@@ -149,4 +149,4 @@ export type WantedDependency = {
   bareSpecifier?: string
 })
 
-export type ResolveFunction = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<ResolveResult>
+export type ResolveFunction = (wantedDependency: WantedDependency & { optional?: boolean }, opts: ResolveOptions) => Promise<ResolveResult>

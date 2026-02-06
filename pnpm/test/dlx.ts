@@ -346,12 +346,13 @@ describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {
       '@pnpm.e2e/only-darwin-arm64',
       '@pnpm.e2e/only-darwin-x64',
       '@pnpm.e2e/only-linux-arm64-glibc',
-      '@pnpm.e2e/only-linux-arm64-musl',
       '@pnpm.e2e/only-linux-x64-glibc',
-      '@pnpm.e2e/only-linux-x64-musl',
       '@pnpm.e2e/only-win32-arm64',
       '@pnpm.e2e/only-win32-x64',
-    ], []],
+    ], [
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-musl',
+    ]],
   ] as Case[])('%p', async (cliOpts, installed, notInstalled) => {
     prepareEmpty()
 

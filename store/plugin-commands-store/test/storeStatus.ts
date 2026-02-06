@@ -99,3 +99,49 @@ test('CLI does not fail when store status does not find modified packages', asyn
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['status'])
 })
+
+test('CLI does not fail when storeDir is relative', async () => {
+  const project = prepare()
+  const cacheDir = path.resolve('cache')
+  const workspaceDir = process.cwd()
+  const subpackageDir = path.join(workspaceDir, 'packages', 'foo')
+  const relativeStoreDir = '../.store'
+
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "packages/*"
+storeDir: "${relativeStoreDir}"
+`, 'utf8')
+
+  // make subpackage
+  fs.mkdirSync(subpackageDir, { recursive: true })
+  fs.writeFileSync(
+    path.join(subpackageDir, 'package.json'),
+    JSON.stringify({ name: 'foo', version: '0.0.0' })
+  )
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    'is-positive@3.1.0',
+    `--registry=${REGISTRY}`,
+    '--verify-store-integrity',
+  ])
+
+  const modulesState = project.readModulesManifest()
+
+  // relativeStoreDir should resolve from workspaceDir, not dir
+  await store.handler({
+    cacheDir,
+    dir: subpackageDir,
+    workspaceDir,
+    pnpmHomeDir: '',
+    rawConfig: {
+      registry: REGISTRY,
+    },
+    registries: modulesState!.registries!,
+    storeDir: relativeStoreDir,
+    userConfig: {},
+    dlxCacheMaxAge: 0,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['status'])
+})

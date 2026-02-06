@@ -108,7 +108,6 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
 
   if (!opts.ignoreExisting && opts.patchedDependencies) {
     tryPatchWithExistingPatchFile({
-      allowFailure: patchedDep.applyToAll,
       patchedDep,
       patchedDir: editDir,
       patchedDependencies: opts.patchedDependencies,
@@ -129,13 +128,11 @@ To commit your changes, run:
 
 function tryPatchWithExistingPatchFile (
   {
-    allowFailure,
     patchedDep: { applyToAll, alias, bareSpecifier },
     patchedDir,
     patchedDependencies,
     lockfileDir,
   }: {
-    allowFailure: boolean
     patchedDep: GetPatchedDependencyResult
     patchedDir: string
     patchedDependencies: Record<string, string>
@@ -157,5 +154,5 @@ function tryPatchWithExistingPatchFile (
   if (!fs.existsSync(existingPatchFilePath)) {
     throw new PnpmError('PATCH_FILE_NOT_FOUND', `Unable to find patch file ${existingPatchFilePath}`)
   }
-  applyPatchToDir({ patchedDir, patchFilePath: existingPatchFilePath, allowFailure })
+  applyPatchToDir({ patchedDir, patchFilePath: existingPatchFilePath })
 }

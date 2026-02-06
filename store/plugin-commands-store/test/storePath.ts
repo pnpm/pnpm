@@ -30,3 +30,30 @@ test('CLI prints the current store path', async () => {
 
   expect(candidateStorePath).toBe(expectedStorePath)
 })
+
+test('CLI prints the current store path when storeDir is relative', async () => {
+  prepare()
+
+  const workspaceDir = process.cwd()
+  const subpackageDir = path.join(workspaceDir, 'packages', 'foo')
+  const relativeStoreDir = '../store'
+
+  const candidateStorePath = await store.handler({
+    cacheDir: path.resolve('cache'),
+    dir: subpackageDir,
+    workspaceDir,
+    pnpmHomeDir: '',
+    rawConfig: {
+      registry: REGISTRY,
+    },
+    registries: { default: REGISTRY },
+    storeDir: relativeStoreDir,
+    userConfig: {},
+    dlxCacheMaxAge: 0,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['path'])
+
+  // relativeStoreDir should resolve from workspaceDir, not dir
+  const expectedStorePath = path.join(workspaceDir, relativeStoreDir, STORE_VERSION)
+  expect(candidateStorePath).toBe(expectedStorePath)
+})
