@@ -230,7 +230,6 @@ export async function getConfig (opts: {
     'registry-supports-time-field': false,
     'virtual-store-dir-max-length': isWindows() ? 60 : 120,
     'peers-suffix-max-length': 1000,
-    'audit-level': 'low',
   }
 
   const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)

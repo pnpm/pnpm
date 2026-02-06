@@ -123,7 +123,6 @@ export function help (): string {
 }
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
-  auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
   fix?: boolean
   ignoreRegistryErrors?: boolean
   json?: boolean
@@ -132,6 +131,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   ignore?: string[]
   ignoreUnfixable?: boolean
 } & Pick<Config, 'auditConfig'
+| 'auditLevel'
 | 'ca'
 | 'cert'
 | 'httpProxy'
