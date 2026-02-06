@@ -82,12 +82,6 @@ export interface ResolveResult {
   resolvedVia: string
   normalizedBareSpecifier?: string
   alias?: string
-  /**
-   * When true, forces re-fetching the package even if it exists in the store.
-   * Resolvers should set this when the package content may have changed,
-   * for example when a local tarball's integrity has changed.
-   */
-  forceFetch?: boolean
 }
 
 export interface WorkspacePackage {
@@ -155,4 +149,4 @@ export type WantedDependency = {
   bareSpecifier?: string
 })
 
-export type ResolveFunction = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<ResolveResult>
+export type ResolveFunction = (wantedDependency: WantedDependency & { optional?: boolean }, opts: ResolveOptions) => Promise<ResolveResult>

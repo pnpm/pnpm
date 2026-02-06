@@ -16,6 +16,9 @@
       "path": "../../fetching/directory-fetcher"
     },
     {
+      "path": "../../fs/msgpack-file"
+    },
+    {
       "path": "../../lockfile/detect-dep-types"
     },
     {

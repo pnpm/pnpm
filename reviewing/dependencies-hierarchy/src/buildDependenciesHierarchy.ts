@@ -86,7 +86,7 @@ export async function buildDependenciesHierarchy (
     registries,
     search: maybeOpts.search,
     skipped: new Set(modules?.skipped ?? []),
-    modulesDir: maybeOpts.modulesDir,
+    modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
   }
@@ -125,14 +125,16 @@ async function dependenciesHierarchyForPackage (
 
   if (!currentLockfile.importers[importerId]) return {}
 
-  const modulesDir = path.join(projectPath, opts.modulesDir ?? 'node_modules')
+  const modulesDir = opts.modulesDir && path.isAbsolute(opts.modulesDir)
+    ? opts.modulesDir
+    : path.join(projectPath, opts.modulesDir ?? 'node_modules')
 
   const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
   const allDirectDeps = await readModulesDir(modulesDir) ?? []
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
 
   const depTypes = detectDepTypes(currentLockfile)
-  const getChildrenTree = getTree.bind(null, {
+  const getTreeOpts = {
     currentPackages: currentLockfile.packages ?? {},
     excludePeerDependencies: opts.excludePeerDependencies,
     importers: currentLockfile.importers,
@@ -148,7 +150,10 @@ async function dependenciesHierarchyForPackage (
     wantedPackages: wantedLockfile?.packages ?? {},
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-  })
+    modulesDir,
+  }
+  const getChildrenTree = (nodeId: TreeNodeId, parentDir?: string) =>
+    getTree({ ...getTreeOpts, parentDir }, nodeId)
   const parentId: TreeNodeId = { type: 'importer', importerId }
   const result: DependenciesHierarchy = {}
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciesField => opts.include[dependenciesField])) {
@@ -168,6 +173,7 @@ async function dependenciesHierarchyForPackage (
         wantedPackages: wantedLockfile?.packages ?? {},
         virtualStoreDir: opts.virtualStoreDir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        modulesDir,
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.({
@@ -188,7 +194,7 @@ async function dependenciesHierarchyForPackage (
         if ((opts.search != null) && !matchedSearched) continue
         newEntry = packageInfo
       } else {
-        const dependencies = getChildrenTree(nodeId)
+        const dependencies = getChildrenTree(nodeId, packageInfo.path)
         if (dependencies.length > 0) {
           newEntry = {
             ...packageInfo,

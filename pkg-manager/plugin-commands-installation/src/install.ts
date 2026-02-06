@@ -356,8 +356,8 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
     ...opts,
     frozenLockfileIfExists: opts.frozenLockfileIfExists ?? (
       opts.ci && !opts.lockfileOnly &&
-      typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined' &&
-      typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined'
+      typeof opts.frozenLockfile === 'undefined' &&
+      typeof opts.preferFrozenLockfile === 'undefined'
     ),
     include,
     includeDirect: include,

@@ -24,7 +24,7 @@ describe('cafs', () => {
     expect(pkgFile!.size).toBe(1121)
     expect(pkgFile!.mode).toBe(420)
     expect(typeof pkgFile!.checkedAt).toBe('number')
-    expect(pkgFile!.integrity.toString()).toBe('sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==')
+    expect(pkgFile!.digest).toBe('f310afae50bb5b74e5c17c5eb6fe426538b9deccd88664fbb66a5717fb6d36d86d4d1f530bb63b58914f9894e81da490e2e39bb99c8e01174e258358b9349b5c')
   })
 
   it('replaces an already existing file, if the integrity of it was broken', () => {
@@ -35,7 +35,8 @@ describe('cafs', () => {
     let addFilesResult = addFiles()
 
     // Modifying the file in the store
-    const filePath = getFilePathByModeInCafs(storeDir, addFilesResult.filesIndex.get('foo.txt')!.integrity, 420)
+    const { digest } = addFilesResult.filesIndex.get('foo.txt')!
+    const filePath = getFilePathByModeInCafs(storeDir, digest, 420)
     fs.appendFileSync(filePath, 'bar')
 
     addFilesResult = addFiles()
@@ -69,19 +70,97 @@ describe('cafs', () => {
     expect(filesIndex.get('lib/index.js')).toBeDefined()
     expect(filesIndex.get('lib/index.js')).toStrictEqual(filesIndex.get('lib-symlink/index.js'))
   })
+
+  // Security test: symlinks pointing outside the package root should be rejected
+  // This prevents file: and git: dependencies from leaking local data via malicious symlinks
+  it('rejects symlinks pointing outside the package directory', () => {
+    const storeDir = temporaryDirectory()
+    const srcDir = temporaryDirectory()
+
+    // Create a legitimate file inside the package
+    fs.writeFileSync(path.join(srcDir, 'legit.txt'), 'legitimate content')
+
+    // Create a file outside the package that a malicious symlink tries to leak
+    const outsideDir = temporaryDirectory()
+    const secretFile = path.join(outsideDir, 'secret.txt')
+    fs.writeFileSync(secretFile, 'secret content')
+
+    // Create a symlink pointing to the file outside the package
+    fs.symlinkSync(secretFile, path.join(srcDir, 'leak.txt'))
+
+    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+
+    // The legitimate file should be included
+    expect(filesIndex.get('legit.txt')).toBeDefined()
+
+    // The symlink pointing outside should be skipped (security fix)
+    expect(filesIndex.get('leak.txt')).toBeUndefined()
+  })
+
+  // Security test: symlinked directories pointing outside the package should be rejected
+  it('rejects symlinked directories pointing outside the package', () => {
+    const storeDir = temporaryDirectory()
+    const srcDir = temporaryDirectory()
+
+    // Create a legitimate file inside the package
+    fs.writeFileSync(path.join(srcDir, 'legit.txt'), 'legitimate content')
+
+    // Create a directory with secret files outside the package
+    const outsideDir = temporaryDirectory()
+    fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'secret content')
+
+    // Create a symlink to the outside directory
+    fs.symlinkSync(outsideDir, path.join(srcDir, 'leak-dir'))
+
+    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+
+    // The legitimate file should be included
+    expect(filesIndex.get('legit.txt')).toBeDefined()
+
+    // Files from the symlinked directory pointing outside should NOT be included
+    expect(filesIndex.get('leak-dir/secret.txt')).toBeUndefined()
+  })
+
+  // Symlinked node_modules at the root should be skipped just like regular node_modules
+  it('skips symlinked node_modules directory at root', () => {
+    const storeDir = temporaryDirectory()
+    const srcDir = temporaryDirectory()
+
+    // Create a legitimate file inside the package
+    fs.writeFileSync(path.join(srcDir, 'index.js'), '// code')
+
+    // Create a target directory for the symlink (inside the package to pass containment check)
+    const targetDir = path.join(srcDir, '.deps')
+    fs.mkdirSync(targetDir)
+    fs.writeFileSync(path.join(targetDir, 'dep.js'), '// dep')
+
+    // Create a symlinked node_modules directory at the root
+    fs.symlinkSync(targetDir, path.join(srcDir, 'node_modules'))
+
+    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+
+    // The legitimate file should be included
+    expect(filesIndex.get('index.js')).toBeDefined()
+    // The target files under .deps should be included
+    expect(filesIndex.get('.deps/dep.js')).toBeDefined()
+
+    // Files from symlinked node_modules at root should NOT be included
+    expect(filesIndex.get('node_modules/dep.js')).toBeUndefined()
+  })
 })
 
 describe('checkPkgFilesIntegrity()', () => {
   it("doesn't fail if file was removed from the store", () => {
     const storeDir = temporaryDirectory()
     expect(checkPkgFilesIntegrity(storeDir, {
-      files: {
-        foo: {
-          integrity: 'sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==',
+      algo: 'sha512',
+      files: new Map([
+        ['foo', {
+          digest: 'f310afae50bb5b74e5c17c5eb6fe426538b9deccd88664fbb66a5717fb6d36d86d4d1f530bb63b58914f9894e81da490e2e39bb99c8e01174e258358b9349b5c',
           mode: 420,
           size: 10,
-        },
-      },
+        }],
+      ]),
     }).passed).toBeFalsy()
   })
 })

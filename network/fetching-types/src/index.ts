@@ -13,6 +13,7 @@ export type FetchFromRegistry = (
   opts?: RequestInit & {
     authHeaderValue?: string
     compress?: boolean
+    fullMetadata?: boolean
     retry?: RetryTimeoutOptions
     timeout?: number
   }

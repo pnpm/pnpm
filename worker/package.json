@@ -35,15 +35,16 @@
   "dependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/crypto.integrity": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pkg-requires-build": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
     "@rushstack/worker-pool": "catalog:",
     "is-windows": "catalog:",
-    "load-json-file": "catalog:",
     "p-limit": "catalog:",
     "semver": "catalog:"
   },

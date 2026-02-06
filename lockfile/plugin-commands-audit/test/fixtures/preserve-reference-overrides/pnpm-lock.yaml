@@ -1,0 +1,24 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
+      axios:
+        specifier: 0.18.0
+        version: 0.18.0
+
+packages:
+
+  is-positive@1.0.0:
+    resolution: {integrity: sha512-XXHOl7s9z2r8d64Z9s/r3P+C1tCjkd5atfFCXAAuExPXq64/t07jjiWDp5yY++5X+tSWwb3S8WJtTLCsCGL+wQ==}
+
+  axios@0.18.0:
+    resolution: {integrity: sha512-1qjL8847bdp87/g7G5nCW12s5J0D1Xv45Z6M4Z5Tsp8sTuXj5w8e0HIiln4Wj12v2H2tX4f6j62/j/k7u0/g==}

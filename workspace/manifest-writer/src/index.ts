@@ -43,6 +43,7 @@ async function readManifestRaw (file: string): Promise<string | undefined> {
 export async function updateWorkspaceManifest (dir: string, opts: {
   updatedFields?: Partial<WorkspaceManifest>
   updatedCatalogs?: Catalogs
+  updatedOverrides?: Record<string, string>
   fileName?: FileName
   cleanupUnusedCatalogs?: boolean
   allProjects?: Project[]
@@ -73,6 +74,15 @@ export async function updateWorkspaceManifest (dir: string, opts: {
         delete manifest[key as keyof WorkspaceManifest]
       } else {
         manifest[key as keyof WorkspaceManifest] = value
+      }
+    }
+  }
+  if (opts.updatedOverrides) {
+    manifest.overrides ??= {}
+    for (const [key, value] of Object.entries(opts.updatedOverrides)) {
+      if (!equals(manifest.overrides[key], value)) {
+        shouldBeUpdated = true
+        manifest.overrides[key] = value
       }
     }
   }
@@ -115,12 +125,13 @@ function addCatalogs (manifest: Partial<WorkspaceManifest>, newCatalogs: Catalog
       }
 
       targetCatalog ??= {}
-      targetCatalog[dependencyName] = specifier
+      if (targetCatalog[dependencyName] !== specifier) {
+        targetCatalog[dependencyName] = specifier
+        shouldBeUpdated = true
+      }
     }
 
     if (targetCatalog == null) continue
-
-    shouldBeUpdated = true
 
     if (targetCatalogWasNil) {
       if (catalogName === 'default') {

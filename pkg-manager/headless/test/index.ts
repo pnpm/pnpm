@@ -11,6 +11,7 @@ import {
   type StageLog,
   type StatsLog,
 } from '@pnpm/core-loggers'
+import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readModulesManifest } from '@pnpm/modules-yaml'
@@ -687,7 +688,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   await headlessInstall(opts)
 
   const cacheIntegrityPath = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const cacheIntegrity = loadJsonFileSync<PackageFilesIndex>(cacheIntegrityPath)
+  const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -698,11 +699,11 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
       }),
     },
   })}`
-  expect(cacheIntegrity!.sideEffects![sideEffectsKey].added!['generated-by-postinstall.js']).toBeTruthy()
-  delete cacheIntegrity!.sideEffects![sideEffectsKey].added!['generated-by-postinstall.js']
+  expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)?.added?.has('generated-by-postinstall.js')).toBeTruthy()
+  cacheIntegrity!.sideEffects!.get(sideEffectsKey)!.added!.delete('generated-by-postinstall.js')
 
-  expect(cacheIntegrity!.sideEffects![sideEffectsKey].added!['generated-by-preinstall.js']).toBeTruthy()
-  fs.writeFileSync(cacheIntegrityPath, JSON.stringify(cacheIntegrity))
+  expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)?.added?.has('generated-by-preinstall.js')).toBeTruthy()
+  writeMsgpackFileSync(cacheIntegrityPath, cacheIntegrity)
 
   prefix = f.prepare('side-effects')
   const opts2 = await testDefaults({

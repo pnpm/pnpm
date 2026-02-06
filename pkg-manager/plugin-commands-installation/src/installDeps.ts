@@ -26,10 +26,8 @@ import { sequenceGraph } from '@pnpm/sort-packages'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
-import isSubdir from 'is-subdir'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
-import { getNodeExecPath } from './nodeExecPath.js'
 import {
   type CommandFullName,
   type RecursiveOptions,
@@ -273,12 +271,6 @@ when running add/update with the --workspace option')
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,
-  }
-  if (opts.global && opts.pnpmHomeDir != null) {
-    const nodeExecPath = await getNodeExecPath()
-    if (isSubdir(opts.pnpmHomeDir, nodeExecPath)) {
-      installOpts['nodeExecPath'] = nodeExecPath
-    }
   }
 
   let updateMatch: UpdateDepsMatcher | null

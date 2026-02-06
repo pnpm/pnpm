@@ -400,3 +400,22 @@ test('dlx should fail when the requested package does not meet the minimum age r
     }, ['shx@0.3.4'])
   ).rejects.toThrow(/Version 0\.3\.4 \(released .+\) of shx does not meet the minimumReleaseAge constraint/)
 })
+
+test('dlx with catalog', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+    catalogs: {
+      default: {
+        shx: '^0.3.4',
+      },
+    },
+  }, ['shx@catalog:'])
+
+  verifyDlxCache(createCacheKey('shx@0.3.4'))
+})
