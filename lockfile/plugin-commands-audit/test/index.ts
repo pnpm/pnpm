@@ -6,7 +6,7 @@ import { AuditEndpointNotExistsError } from '@pnpm/audit'
 import nock from 'nock'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import * as responses from './utils/responses/index.js'
-import { DEFAULT_OPTS, AUDIT_REGISTRY } from './utils/options.js'
+import { DEFAULT_OPTS, AUDIT_REGISTRY_OPTS, AUDIT_REGISTRY } from './utils/options.js'
 
 const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
 
@@ -19,13 +19,16 @@ describe('plugin-commands-audit', () => {
       dir: hasVulnerabilitiesDir,
     })
   })
+  afterEach(() => {
+    nock.cleanAll()
+  })
   test('audit', async () => {
     nock(AUDIT_REGISTRY)
       .post('/-/npm/v1/security/audits')
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
     })
@@ -39,7 +42,7 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
@@ -56,7 +59,7 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       auditLevel: 'moderate',
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
@@ -72,7 +75,7 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.NO_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
     })
@@ -87,7 +90,7 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       json: true,
@@ -104,7 +107,7 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       auditLevel: 'high',
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
@@ -121,7 +124,7 @@ describe('plugin-commands-audit', () => {
       .post('/-/npm/v1/security/audits')
       .reply(500, { message: 'Something bad happened' })
     const { output, exitCode } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
@@ -142,12 +145,11 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.NO_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       rawConfig: {
         registry: AUDIT_REGISTRY,
-        [`${DEFAULT_OPTS.registry.replace(/^https?:/, '')}:_authToken`]: 'xyz',
         [`${AUDIT_REGISTRY.replace(/^https?:/, '')}:_authToken`]: '123',
       },
     })
@@ -162,7 +164,7 @@ describe('plugin-commands-audit', () => {
       .reply(404, {})
 
     await expect(audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
@@ -180,7 +182,7 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { exitCode, output } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       auditLevel: 'moderate',
       dir: tmp,
       rootProjectManifestDir: tmp,
@@ -207,7 +209,7 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { exitCode, output } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       auditLevel: 'moderate',
       dir: tmp,
       rootProjectManifestDir: tmp,
@@ -234,7 +236,7 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { exitCode, output } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       auditLevel: 'moderate',
       dir: tmp,
       rootProjectManifestDir: tmp,

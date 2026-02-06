@@ -4,7 +4,7 @@ import { audit } from '@pnpm/plugin-commands-audit'
 import { sync as readYamlFile } from 'read-yaml-file'
 import nock from 'nock'
 import * as responses from './utils/responses/index.js'
-import { DEFAULT_OPTS, AUDIT_REGISTRY } from './utils/options.js'
+import { AUDIT_REGISTRY_OPTS, AUDIT_REGISTRY } from './utils/options.js'
 
 const f = fixtures(import.meta.dirname)
 
@@ -16,7 +16,7 @@ test('overrides are added for vulnerable dependencies', async () => {
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
-    ...DEFAULT_OPTS,
+    ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
@@ -39,7 +39,7 @@ test('no overrides are added if no vulnerabilities are found', async () => {
     .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
-    ...DEFAULT_OPTS,
+    ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
@@ -58,7 +58,7 @@ test('CVEs found in the allow list are not added as overrides', async () => {
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
-    ...DEFAULT_OPTS,
+    ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
     auditConfig: {
       ignoreCves: [

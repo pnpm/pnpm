@@ -8,13 +8,23 @@ import { type DepPath } from '@pnpm/types'
 import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
 import chalk from 'chalk'
 import nock from 'nock'
-import { DEFAULT_OPTS, AUDIT_REGISTRY } from './utils/options.js'
+import { AUDIT_REGISTRY_OPTS, AUDIT_REGISTRY } from './utils/options.js'
 
 const f = fixtures(import.meta.dirname)
 
-const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
+const mockRegistry = `http://localhost:${REGISTRY_MOCK_PORT}`
+
+function redirectGetRequestsToMockRegistry () {
+  nock(AUDIT_REGISTRY)
+    .persist()
+    .get(/.*/)
+    .reply(301, '', {
+      Location: (req) => mockRegistry + req.path,
+    })
+}
 
 describe('audit fix with update', () => {
+  afterEach(() => nock.cleanAll())
   test('top-level vulnerability is fixed by updating the vulnerable package', async () => {
     const tmp = f.prepare('update-single-depth-2')
 
@@ -39,12 +49,11 @@ describe('audit fix with update', () => {
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
 
+    redirectGetRequestsToMockRegistry()
+
     const { exitCode, output } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       dir: tmp,
-      registries: { default: registry },
-      rawConfig: { registry },
-      userConfig: {},
       rootProjectManifestDir: tmp,
       auditLevel: 'moderate',
       fix: 'update',
@@ -98,12 +107,11 @@ The fixed vulnerabilities are:
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
 
+    redirectGetRequestsToMockRegistry()
+
     const { exitCode, output } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       dir: tmp,
-      registries: { default: registry },
-      rawConfig: { registry },
-      userConfig: {},
       rootProjectManifestDir: tmp,
       auditLevel: 'moderate',
       fix: 'update',
@@ -152,12 +160,11 @@ The fixed vulnerabilities are:
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
 
+    redirectGetRequestsToMockRegistry()
+
     const { exitCode, output } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       dir: tmp,
-      registries: { default: registry },
-      rawConfig: { registry },
-      userConfig: {},
       rootProjectManifestDir: tmp,
       auditLevel: 'moderate',
       fix: 'update',
@@ -209,12 +216,11 @@ The fixed vulnerabilities are:
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
 
+    redirectGetRequestsToMockRegistry()
+
     const { exitCode, output } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       dir: tmp,
-      registries: { default: registry },
-      rawConfig: { registry },
-      userConfig: {},
       rootProjectManifestDir: tmp,
       auditLevel: 'moderate',
       fix: 'update',
@@ -276,12 +282,11 @@ The remaining vulnerabilities are:
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
 
+    redirectGetRequestsToMockRegistry()
+
     const { exitCode, output } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...AUDIT_REGISTRY_OPTS,
       dir: tmp,
-      registries: { default: registry },
-      rawConfig: { registry },
-      userConfig: {},
       rootProjectManifestDir: tmp,
       auditLevel: 'moderate',
       fix: 'update',

@@ -53,7 +53,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
       'registry',
     ], allTypes),
     'audit-level': ['low', 'moderate', 'high', 'critical'],
-    'audit-registry': String,
     // For fix, use String instead of a list of allowed string values.
     // Otherwise, an unexpected value will get coerced to true because of the Boolean type.
     fix: [String, Boolean],
@@ -97,10 +96,6 @@ export function help (): string {
             name: '--json',
           },
           {
-            description: 'Registry URL to use for audit requests',
-            name: '--audit-registry <url>',
-          },
-          {
             description: 'Only print advisories with severity greater than or equal to one of the following: low|moderate|high|critical. Default: low',
             name: '--audit-level <severity>',
           },
@@ -141,7 +136,6 @@ export function help (): string {
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
   fix?: boolean | 'override' | 'update'
-  auditRegistry?: string
   ignoreRegistryErrors?: boolean
   json?: boolean
   lockfileDir?: string
@@ -206,7 +200,7 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
       },
       include,
       lockfileDir,
-      registry: opts.auditRegistry ?? opts.registries.default,
+      registry: opts.registries.default,
       retry: {
         factor: opts.fetchRetryFactor,
         maxTimeout: opts.fetchRetryMaxtimeout,

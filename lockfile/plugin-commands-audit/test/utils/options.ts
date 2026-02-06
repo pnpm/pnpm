@@ -4,7 +4,6 @@ const registries = {
 const rawConfig = {
   registry: registries.default,
 }
-export const AUDIT_REGISTRY = 'http://audit.registry/'
 export const DEFAULT_OPTS = {
   argv: {
     original: [],
@@ -45,7 +44,6 @@ export const DEFAULT_OPTS = {
   registries,
   rootProjectManifestDir: '',
   registry: registries.default,
-  auditRegistry: AUDIT_REGISTRY,
   sort: true,
   storeDir: '../store',
   strictSsl: false,
@@ -56,4 +54,16 @@ export const DEFAULT_OPTS = {
   workspaceConcurrency: 4,
   virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   peersSuffixMaxLength: 1000,
+}
+
+export const AUDIT_REGISTRY = 'http://audit.registry/'
+export const AUDIT_REGISTRY_OPTS = {
+  ...DEFAULT_OPTS,
+  registry: AUDIT_REGISTRY,
+  registries: {
+    default: AUDIT_REGISTRY,
+  },
+  rawConfig: {
+    registry: AUDIT_REGISTRY,
+  },
 }
