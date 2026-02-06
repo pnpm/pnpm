@@ -190,6 +190,55 @@ describe('plugin-commands-audit', () => {
   Severity: 1 moderate`)
   })
 
+  test('audit --json respects audit-level', async () => {
+    nock(registries.default)
+      .post('/-/npm/v1/security/audits')
+      .reply(200, responses.DEV_VULN_ONLY_RESP)
+
+    const { exitCode, output } = await audit.handler({
+      auditLevel: 'critical',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      json: true,
+      userConfig: {},
+      rawConfig,
+      dev: true,
+      registries,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    })
+
+    expect(exitCode).toBe(0)
+    const parsed = JSON.parse(output)
+    expect(Object.keys(parsed.advisories)).toHaveLength(0)
+  })
+
+  test('audit --json filters advisories by audit-level', async () => {
+    nock(registries.default)
+      .post('/-/npm/v1/security/audits')
+      .reply(200, responses.DEV_VULN_ONLY_RESP)
+
+    const { exitCode, output } = await audit.handler({
+      auditLevel: 'high',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      json: true,
+      userConfig: {},
+      rawConfig,
+      dev: true,
+      registries,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    })
+
+    expect(exitCode).toBe(1)
+    const parsed = JSON.parse(output)
+    // DEV_VULN_ONLY_RESP has 4 high and 2 moderate advisories
+    // With audit-level=high, only the 4 high advisories should be included
+    expect(Object.keys(parsed.advisories)).toHaveLength(4)
+    for (const advisory of Object.values(parsed.advisories) as Array<{ severity: string }>) {
+      expect(advisory.severity).toBe('high')
+    }
+  })
+
   test('audit does not exit with code 1 if the registry responds with a non-200 response and ignoreRegistryErrors is used', async () => {
     nock(registries.default)
       .post('/-/npm/v1/security/audits')
