@@ -115,12 +115,12 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
 
 async function statusCmd (opts: StoreCommandOptions): Promise<void> {
   const modifiedPkgs = await storeStatus(Object.assign(opts, {
+    lockfileDir: opts.lockfileDir ?? opts.workspaceDir ?? opts.dir,
     storeDir: await getStorePath({
       pkgRoot: opts.workspaceDir ?? opts.dir,
       storePath: opts.storeDir,
       pnpmHomeDir: opts.pnpmHomeDir,
     }),
-    lockfileDir: opts.lockfileDir ?? opts.workspaceDir ?? opts.dir,
   }))
   if (!modifiedPkgs || (modifiedPkgs.length === 0)) {
     logger.info({
