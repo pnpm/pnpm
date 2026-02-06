@@ -7,12 +7,7 @@ export async function fix (auditReport: AuditReport, opts: AuditOptions): Promis
   const vulnOverrides = createOverrides(Object.values(auditReport.advisories), opts.auditConfig?.ignoreCves)
   if (Object.values(vulnOverrides).length === 0) return vulnOverrides
   await writeSettings({
-    updatedSettings: {
-      overrides: {
-        ...opts.overrides,
-        ...vulnOverrides,
-      },
-    },
+    updatedOverrides: vulnOverrides,
     rootProjectManifest: opts.rootProjectManifest,
     rootProjectManifestDir: opts.rootProjectManifestDir,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
