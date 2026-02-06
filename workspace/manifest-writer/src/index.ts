@@ -28,6 +28,7 @@ async function writeManifestFile (dir: string, manifest: Partial<WorkspaceManife
 export async function updateWorkspaceManifest (dir: string, opts: {
   updatedFields?: Partial<WorkspaceManifest>
   updatedCatalogs?: Catalogs
+  updatedOverrides?: Record<string, string>
   cleanupUnusedCatalogs?: boolean
   allProjects?: Project[]
 }): Promise<void> {
@@ -70,6 +71,15 @@ export async function updateWorkspaceManifest (dir: string, opts: {
       } else {
         // @ts-expect-error
         manifest[key as keyof WorkspaceManifest] = value
+      }
+    }
+  }
+  if (opts.updatedOverrides) {
+    manifest.overrides ??= {}
+    for (const [key, value] of Object.entries(opts.updatedOverrides)) {
+      if (!equals(manifest.overrides[key], value)) {
+        shouldBeUpdated = true
+        manifest.overrides[key] = value
       }
     }
   }
