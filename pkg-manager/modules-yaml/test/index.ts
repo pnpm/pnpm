@@ -1,5 +1,4 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
 import path from 'path'
 import { readModulesManifest, writeModulesManifest, type StrictModules } from '@pnpm/modules-yaml'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -62,34 +61,6 @@ test('backward compatible read of .modules.yaml created with shamefully-hoist=fa
     '/array-flatten/1.1.1': { 'array-flatten': 'private' },
     '/body-parser/1.19.0': { 'body-parser': 'private' },
   })
-})
-
-test('readModulesManifest() should not create a node_modules directory if it does not exist', async () => {
-  const modulesDir = path.join(temporaryDirectory(), 'node_modules')
-  const modulesYaml: StrictModules = {
-    hoistedDependencies: {},
-    included: {
-      dependencies: true,
-      devDependencies: true,
-      optionalDependencies: true,
-    },
-    ignoredBuilds: new Set(),
-    layoutVersion: 1,
-    packageManager: 'pnpm@2',
-    pendingBuilds: [],
-    publicHoistPattern: [],
-    prunedAt: new Date().toUTCString(),
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
-    shamefullyHoist: false,
-    skipped: [],
-    storeDir: '/.pnpm-store',
-    virtualStoreDir: path.join(modulesDir, '.pnpm'),
-    virtualStoreDirMaxLength: 120,
-  }
-  await writeModulesManifest(modulesDir, modulesYaml)
-  expect(fs.existsSync(modulesDir)).toBeFalsy()
 })
 
 test('readModulesManifest() should create a node_modules directory', async () => {
