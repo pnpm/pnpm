@@ -4,7 +4,7 @@ import chalk from 'chalk'
 
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { loadJsonFileSync } from 'load-json-file'
+import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { getStorePath } from '@pnpm/store-path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 
@@ -44,7 +44,18 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
     throw new PnpmError('MISSING_HASH', '`pnpm find-hash` requires the hash')
   }
 
-  const hash = params[0]
+  // Convert the input hash to hex format for comparison
+  // Input can be either:
+  // - A hex string (used directly)
+  // - A base64 integrity string like "sha512-..." (converted to hex)
+  let hash = params[0]
+  if (hash.includes('-')) {
+    // Looks like an integrity string (algo-base64), extract and convert the base64 part
+    const base64Part = hash.split('-').slice(1).join('-')
+    hash = Buffer.from(base64Part, 'base64').toString('hex')
+  }
+  // Stored digests are lowercase hex, so normalize the input to lowercase
+  hash = hash.toLowerCase()
   const storeDir = await getStorePath({
     pkgRoot: process.cwd(),
     storePath: opts.storeDir,
@@ -57,7 +68,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   for (const { name: dirName } of cafsChildrenDirs) {
     const dirIndexFiles = fs
       .readdirSync(`${indexDir}/${dirName}`)
-      .filter((fileName) => fileName.includes('.json'))
+      .filter((fileName) => fileName.includes('.mpk'))
       ?.map((fileName) => `${indexDir}/${dirName}/${fileName}`)
 
     indexFiles.push(...dirIndexFiles)
@@ -66,15 +77,15 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   for (const filesIndexFile of indexFiles) {
     let pkgFilesIndex: PackageFilesIndex | undefined
     try {
-      pkgFilesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
+      pkgFilesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
     } catch {
       continue
     }
     if (!pkgFilesIndex) continue
 
     if (pkgFilesIndex.files) {
-      for (const file of Object.values(pkgFilesIndex.files)) {
-        if (file?.integrity === hash) {
+      for (const file of pkgFilesIndex.files.values()) {
+        if (file?.digest === hash) {
           result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 
           // a package is only found once.
@@ -84,10 +95,10 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
     }
 
     if (pkgFilesIndex.sideEffects) {
-      for (const { added } of Object.values(pkgFilesIndex.sideEffects)) {
+      for (const { added } of pkgFilesIndex.sideEffects.values()) {
         if (!added) continue
-        for (const file of Object.values(added)) {
-          if (file?.integrity === hash) {
+        for (const file of added.values()) {
+          if (file?.digest === hash) {
             result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 
             // a package is only found once.

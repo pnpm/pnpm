@@ -64,6 +64,9 @@
       "path": "../../exec/plugin-commands-rebuild"
     },
     {
+      "path": "../../fs/msgpack-file"
+    },
+    {
       "path": "../../fs/read-modules-dir"
     },
     {

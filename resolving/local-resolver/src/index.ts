@@ -41,12 +41,6 @@ export async function resolveFromLocal (
 
   if (spec.type === 'file') {
     const integrity = await getTarballIntegrity(spec.fetchSpec)
-    // If the integrity of a local tarball dependency has changed,
-    // the local tarball should be unpacked, so a fetch to the store should be forced
-    const forceFetch = Boolean(
-      opts.currentPkg?.resolution &&
-      (opts.currentPkg.resolution as TarballResolution).integrity !== integrity
-    )
     return {
       id: spec.id,
       normalizedBareSpecifier: spec.normalizedBareSpecifier,
@@ -55,7 +49,6 @@ export async function resolveFromLocal (
         tarball: spec.id,
       },
       resolvedVia: 'local-filesystem',
-      forceFetch,
     }
   }
 

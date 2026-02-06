@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../crypto/integrity"
+    },
+    {
       "path": "../exec/pkg-requires-build"
     },
     {
@@ -17,6 +20,9 @@
     },
     {
       "path": "../fs/hard-link-dir"
+    },
+    {
+      "path": "../fs/msgpack-file"
     },
     {
       "path": "../fs/symlink-dependency"

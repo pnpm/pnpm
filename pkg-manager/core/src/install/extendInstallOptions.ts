@@ -72,7 +72,6 @@ export interface StrictInstallOptions {
   verifyStoreIntegrity: boolean
   engineStrict: boolean
   allowBuilds?: Record<string, boolean | string>
-  nodeExecPath?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
@@ -119,7 +118,6 @@ export interface StrictInstallOptions {
   modulesCacheMaxAge: number
   peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
-  ignorePatchFailures?: boolean
   allowUnusedPatches: boolean
   preferSymlinkedExecutables: boolean
   resolutionMode: 'highest' | 'time-based' | 'lowest-direct'
@@ -184,7 +182,6 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
   return {
     allowedDeprecatedVersions: {},
     allowUnusedPatches: false,
-    ignorePatchFailures: undefined,
     autoInstallPeers: true,
     autoInstallPeersFromHighestMatch: false,
     catalogs: {},

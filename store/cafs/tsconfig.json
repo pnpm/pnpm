@@ -13,10 +13,16 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../crypto/integrity"
+    },
+    {
       "path": "../../fetching/fetcher-base"
     },
     {
       "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../packages/error"
     },
     {
       "path": "../../packages/types"

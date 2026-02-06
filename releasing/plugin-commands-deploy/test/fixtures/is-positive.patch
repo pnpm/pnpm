@@ -9,8 +9,8 @@ diff --git a/package.json b/package.json
 index 5feb15ba194c74ad48a2ee15abec9887ec1f9e83..27e24feff1bbfc20b3735c23b332bfdc16803362 100644
 --- a/package.json
 +++ b/package.json
-@@ -16,6 +16,7 @@
-     "test": "xo && ava"
+@@ -19,6 +19,7 @@
+     "test": "node test.js"
    },
    "files": [
 +    "PATCH.txt",

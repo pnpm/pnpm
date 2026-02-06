@@ -49,11 +49,20 @@ export interface FetchMetadataFromFromRegistryOptions {
   fetchWarnTimeoutMs: number
 }
 
+export interface FetchMetadataOptions {
+  registry: string
+  authHeaderValue?: string
+  fullMetadata?: boolean
+}
+
 export async function fetchMetadataFromFromRegistry (
   fetchOpts: FetchMetadataFromFromRegistryOptions,
   pkgName: string,
-  registry: string,
-  authHeaderValue?: string
+  {
+    authHeaderValue,
+    fullMetadata,
+    registry,
+  }: FetchMetadataOptions
 ): Promise<PackageMeta> {
   const uri = toUri(pkgName, registry)
   const op = retry.operation(fetchOpts.retry)
@@ -65,6 +74,7 @@ export async function fetchMetadataFromFromRegistry (
         response = await fetchOpts.fetch(uri, {
           authHeaderValue,
           compress: true,
+          fullMetadata,
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
         }) as RegistryResponse

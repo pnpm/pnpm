@@ -128,6 +128,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/core": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",

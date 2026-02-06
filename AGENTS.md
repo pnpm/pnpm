@@ -136,6 +136,33 @@ To ensure your code adheres to the style guide, run:
 pnpm run lint
 ```
 
+## Common Gotchas
+
+### Error Type Checking in Jest
+
+When checking if a caught error is an `Error` object, **do not use `instanceof Error`**. Jest runs tests in a VM context where `instanceof` checks can fail across realms.
+
+Instead, use `util.types.isNativeError()`:
+
+```typescript
+import util from 'util'
+
+try {
+  // ... some operation
+} catch (err: unknown) {
+  // ❌ Wrong - may fail in Jest
+  if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+    return null
+  }
+  
+  // ✅ Correct - works across realms
+  if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    return null
+  }
+  throw err
+}
+```
+
 ## Key Configuration Files
 
 -   `pnpm-workspace.yaml`: Defines the workspace structure.

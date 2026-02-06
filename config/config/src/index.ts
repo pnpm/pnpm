@@ -25,7 +25,7 @@ import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
 import { isConfigFileKey } from './configFileKey.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
-import { getNetworkConfigs } from './getNetworkConfigs.js'
+import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
 import { transformPathKeys } from './transformPath.js'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import {
@@ -317,7 +317,9 @@ export async function getConfig (opts: {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
     ...networkConfigs.registries,
   }
+  pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
+  Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.rawConfig))
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
     if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
@@ -521,34 +523,6 @@ export async function getConfig (opts: {
   }
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
-  }
-  if (pnpmConfig.hoist === false) {
-    delete pnpmConfig.hoistPattern
-  }
-  switch (pnpmConfig.shamefullyHoist) {
-  case false:
-    delete pnpmConfig.publicHoistPattern
-    break
-  case true:
-    pnpmConfig.publicHoistPattern = ['*']
-    break
-  default:
-    if (
-      (pnpmConfig.publicHoistPattern == null) ||
-        (pnpmConfig.publicHoistPattern === '') ||
-        (
-          Array.isArray(pnpmConfig.publicHoistPattern) &&
-          pnpmConfig.publicHoistPattern.length === 1 &&
-          pnpmConfig.publicHoistPattern[0] === ''
-        )
-    ) {
-      delete pnpmConfig.publicHoistPattern
-    }
-    break
-  }
-  if (!pnpmConfig.symlink) {
-    delete pnpmConfig.hoistPattern
-    delete pnpmConfig.publicHoistPattern
   }
   if (typeof pnpmConfig['color'] === 'boolean') {
     switch (pnpmConfig['color']) {
