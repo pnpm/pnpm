@@ -289,11 +289,11 @@ catalog:
   string-length: ^4.0.2
   strip-bom: ^4.0.0
   strip-comments-strings: 1.2.0
-  symlink-dir: ^7.0.0
+  symlink-dir: ^6.0.5
   tar: ^6.2.1
   tar-stream: ^2.2.0
   tempy: ^1.0.1
-  terminal-link: ^4.0.0
+  terminal-link: ^2.1.1
   tinyglobby: ^0.2.14
   touch: 3.1.0
   tree-kill: ^1.2.2
