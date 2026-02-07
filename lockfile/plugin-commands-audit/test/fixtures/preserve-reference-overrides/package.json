@@ -1,0 +1,8 @@
+{
+  "name": "repro-10325",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-positive": "1.0.0",
+    "axios": "0.18.0"
+  }
+}

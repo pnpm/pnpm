@@ -2504,39 +2504,6 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up when JSO
       "overview": "This affects the package xmlhttprequest before 1.7.0; all versions of package xmlhttprequest-ssl. Provided requests are sent synchronously (async=False on xhr.open), malicious user input flowing into xhr.send could result in arbitrary code being injected and run.",
       "url": "https://github.com/advisories/GHSA-h4j5-c7cj-74xg"
     },
-    "1005277": {
-      "findings": [
-        {
-          "version": "2.8.0",
-          "paths": [
-            ".>karma>log4js>redis"
-          ]
-        }
-      ],
-      "metadata": null,
-      "vulnerable_versions": ">=2.6.0 <3.1.1",
-      "module_name": "redis",
-      "severity": "low",
-      "github_advisory_id": "GHSA-35q2-47q7-3pc3",
-      "cves": [
-        "CVE-2021-29469"
-      ],
-      "access": "public",
-      "patched_versions": ">=3.1.1",
-      "updated": "2021-04-23T18:11:39.000Z",
-      "recommendation": "Upgrade to version 3.1.1 or later",
-      "cwe": "CWE-400",
-      "found_by": null,
-      "deleted": null,
-      "id": 1005277,
-      "references": "- https://github.com/NodeRedis/node-redis/security/advisories/GHSA-35q2-47q7-3pc3\\n- https://nvd.nist.gov/vuln/detail/CVE-2021-29469\\n- https://github.com/NodeRedis/node-redis/commit/2d11b6dc9b9774464a91fb4b448bad8bf699629e\\n- https://github.com/NodeRedis/node-redis/releases/tag/v3.1.1\\n- https://security.netapp.com/advisory/ntap-20210611-0010/\\n- https://github.com/advisories/GHSA-35q2-47q7-3pc3",
-      "created": "2021-11-18T16:00:48.528Z",
-      "reported_by": null,
-      "title": "Potential exponential regex in monitor mode",
-      "npm_advisory_id": null,
-      "overview": "### Impact\\nWhen a client is in monitoring mode, the regex begin used to detected monitor messages could cause exponential backtracking on some strings. This issue could lead to a denial of service.\\n\\n### Patches\\nThe problem was fixed in commit [\`2d11b6d\`](https://github.com/NodeRedis/node-redis/commit/2d11b6dc9b9774464a91fb4b448bad8bf699629e) and was released in version \`3.1.1\`.\\n\\n### References\\n#1569 (GHSL-2021-026)",
-      "url": "https://github.com/advisories/GHSA-35q2-47q7-3pc3"
-    },
     "1005307": {
       "findings": [
         {
@@ -2766,39 +2733,6 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up when JSO
       "overview": "Versions of \`http-proxy\` prior to 1.18.1 are vulnerable to Denial of Service. An HTTP request with a long body triggers an \`ERR_HTTP_HEADERS_SENT\` unhandled exception that crashes the proxy server. This is only possible when the proxy server sets headers in the proxy request using the \`proxyReq.setHeader\` function.   \\n\\nFor a proxy server running on \`http://localhost:3000\`, the following curl request triggers the unhandled exception:  \\n\`\`\`curl -XPOST http://localhost:3000 -d \\"$(python -c 'print(\\"x\\"*1025)')\\"\`\`\`\\n\\n\\n## Recommendation\\n\\nUpgrade to version 1.18.1 or later",
       "url": "https://github.com/advisories/GHSA-6x33-pw7p-hmpq"
     },
-    "1005745": {
-      "findings": [
-        {
-          "version": "2.3.0",
-          "paths": [
-            ".>karma>log4js>loggly>timespan"
-          ]
-        }
-      ],
-      "metadata": null,
-      "vulnerable_versions": "<=2.3.0",
-      "module_name": "timespan",
-      "severity": "low",
-      "github_advisory_id": "GHSA-f523-2f5j-gfcg",
-      "cves": [
-        "CVE-2017-16115"
-      ],
-      "access": "public",
-      "patched_versions": "<0.0.0",
-      "updated": "2020-08-31T18:26:45.000Z",
-      "recommendation": "None",
-      "cwe": "CWE-400",
-      "found_by": null,
-      "deleted": null,
-      "id": 1005745,
-      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2017-16115\\n- https://github.com/indexzero/TimeSpan.js/issues/10\\n- https://github.com/advisories/GHSA-f523-2f5j-gfcg\\n- https://www.npmjs.com/advisories/533\\n- https://nodesecurity.io/advisories/533",
-      "created": "2021-11-18T16:00:48.567Z",
-      "reported_by": null,
-      "title": "Regular Expression Denial of Service in timespan",
-      "npm_advisory_id": null,
-      "overview": "Affected versions of \`timespan\` are vulnerable to a regular expression denial of service when parsing dates.\\n\\nThe amplification for this vulnerability is significant, with 50,000 characters resulting in the event loop being blocked for around 10 seconds.\\n\\n\\n## Recommendation\\n\\nNo direct patch is available for this vulnerability.\\n\\nCurrently, the best available solution is to use a functionally equivalent alternative package.\\n\\nIt is also sufficient to ensure that user input is not being passed into \`timespan\`, or that the maximum length of such user input is drastically reduced. Limiting the input length to 150 characters should be sufficient in most cases.",
-      "url": "https://github.com/advisories/GHSA-f523-2f5j-gfcg"
-    },
     "1005902": {
       "findings": [
         {
@@ -2864,37 +2798,6 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up when JSO
       "npm_advisory_id": null,
       "overview": "Versions of \`kind-of\` 6.x prior to 6.0.3 are vulnerable to a Validation Bypass. A maliciously crafted object can alter the result of the type check, allowing attackers to bypass the type checking validation. \\n\\n\\n## Recommendation\\n\\nUpgrade to versions 6.0.3 or later.",
       "url": "https://github.com/advisories/GHSA-6c8f-qphg-qjgp"
-    },
-    "1006342": {
-      "findings": [
-        {
-          "version": "0.1.5",
-          "paths": [
-            ".>karma>expand-braces>braces"
-          ]
-        }
-      ],
-      "metadata": null,
-      "vulnerable_versions": "<2.3.1",
-      "module_name": "braces",
-      "severity": "low",
-      "github_advisory_id": "GHSA-g95f-p29q-9xw4",
-      "cves": [],
-      "access": "public",
-      "patched_versions": ">=2.3.1",
-      "updated": "2019-06-06T09:40:52.000Z",
-      "recommendation": "Upgrade to version 2.3.1 or later",
-      "cwe": "CWE-185",
-      "found_by": null,
-      "deleted": null,
-      "id": 1006342,
-      "references": "- https://github.com/micromatch/braces/commit/abdafb0cae1e0c00f184abbadc692f4eaa98f451\\n- https://www.npmjs.com/advisories/786\\n- https://snyk.io/vuln/npm:braces:20180219\\n- https://github.com/advisories/GHSA-g95f-p29q-9xw4",
-      "created": "2021-11-18T16:00:48.617Z",
-      "reported_by": null,
-      "title": "Regular Expression Denial of Service in braces",
-      "npm_advisory_id": null,
-      "overview": "Versions of \`braces\` prior to 2.3.1 are vulnerable to Regular Expression Denial of Service (ReDoS). Untrusted input may cause catastrophic backtracking while matching regular expressions. This can cause the application to be unresponsive leading to Denial of Service.\\n\\n\\n## Recommendation\\n\\nUpgrade to version 2.3.1 or higher.",
-      "url": "https://github.com/advisories/GHSA-g95f-p29q-9xw4"
     },
     "1006373": {
       "findings": [
@@ -3091,39 +2994,6 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up when JSO
       "npm_advisory_id": null,
       "overview": "Improper input validation of octal strings in netmask npm package v1.0.6 and below allows unauthenticated remote attackers to perform indeterminate SSRF, RFI, and LFI attacks on many of the dependent packages. A remote unauthenticated attacker can bypass packages relying on netmask to filter IPs and reach critical VPN or LAN hosts.\\n\\n:exclamation: NOTE: The fix for this issue was incomplete. A subsequent fix was made in version \`2.0.1\` which was assigned [CVE-2021-29418 / GHSA-pch5-whg9-qr2r](https://github.com/advisories/GHSA-pch5-whg9-qr2r). For complete protection from this vulnerability an upgrade to version 2.0.1 or later is recommended.",
       "url": "https://github.com/advisories/GHSA-4c7m-wxvm-r7gc"
-    },
-    "1006837": {
-      "findings": [
-        {
-          "version": "0.1.5",
-          "paths": [
-            ".>karma>expand-braces>braces"
-          ]
-        }
-      ],
-      "metadata": null,
-      "vulnerable_versions": "<2.3.1",
-      "module_name": "braces",
-      "severity": "low",
-      "github_advisory_id": "GHSA-cwfw-4gq5-mrqx",
-      "cves": [
-        "CVE-2018-1109"
-      ],
-      "access": "public",
-      "patched_versions": ">=2.3.1",
-      "updated": "2021-03-31T21:35:00.000Z",
-      "recommendation": "Upgrade to version 2.3.1 or later",
-      "cwe": "CWE-400",
-      "found_by": null,
-      "deleted": null,
-      "id": 1006837,
-      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2018-1109\\n- https://github.com/micromatch/braces/commit/abdafb0cae1e0c00f184abbadc692f4eaa98f451\\n- https://bugzilla.redhat.com/show_bug.cgi?id=1547272\\n- https://snyk.io/vuln/npm:braces:20180219\\n- https://github.com/advisories/GHSA-cwfw-4gq5-mrqx",
-      "created": "2022-01-06T21:00:43.096Z",
-      "reported_by": null,
-      "title": "Regular Expression Denial of Service (ReDoS) in braces",
-      "npm_advisory_id": null,
-      "overview": "A vulnerability was found in Braces versions prior to 2.3.1. Affected versions of this package are vulnerable to Regular Expression Denial of Service (ReDoS) attacks.",
-      "url": "https://github.com/advisories/GHSA-cwfw-4gq5-mrqx"
     },
     "1006865": {
       "findings": [

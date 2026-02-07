@@ -50,7 +50,7 @@ function handler (helpByCommandName: HelpByCommandName, opts: { all?: boolean },
     helpText = `No results for "${params[0]}"`
   }
   return `Version ${packageManager.version}\
-${detectIfCurrentPkgIsExecutable() != null ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
+${detectIfCurrentPkgIsExecutable() ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
 \n${helpText}\n`
 }
 
