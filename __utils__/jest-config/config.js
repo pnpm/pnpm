@@ -14,7 +14,7 @@ const config = {
       // For most projects, the tsconfig.json and test/tsconfig.json are almost
       // exactly the same. But it's more correct to point to test/tsconfig.json
       // to prevent surprises in the future.
-      tsconfig: 'test/tsconfig.json'
+      tsconfig: '<rootDir>/test/tsconfig.json'
     }],
   },
   testMatch: ["**/test/**/*.[jt]s?(x)", "**/src/**/*.test.ts"],
