@@ -10,6 +10,7 @@
     "noImplicitReturns": true,
     "preserveConstEnums": true,
     "removeComments": false,
+    "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
     "target": "es2022"
