@@ -1,6 +1,6 @@
 # pnpm
 
-## 10.29.0
+## 10.29.1
 
 ### Minor Changes
 
