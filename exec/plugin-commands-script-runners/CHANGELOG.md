@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.2.0
+
+### Minor Changes
+
+- 6065d2e: Add timeout & retry options to `pnpm dlx` / `pnpx`
+- 69dc1bf: The `pnpm dlx` / `pnpx` command now supports the `catalog:` protocol. Example: `pnpm dlx shx@catalog:`.
+
+### Patch Changes
+
+- Updated dependencies [7adf26b]
+- Updated dependencies [7d8be9f]
+- Updated dependencies [7f18264]
+- Updated dependencies [a57ba4e]
+  - @pnpm/plugin-commands-installation@1004.9.4
+  - @pnpm/config@1004.10.0
+  - @pnpm/cli-utils@1001.3.2
+  - @pnpm/workspace.injected-deps-syncer@1000.0.31
+  - @pnpm/deps.status@1003.0.29
+  - @pnpm/plugin-commands-env@1000.0.58
+  - @pnpm/client@1001.1.18
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/lifecycle@1001.0.34
+
 ## 1001.1.12
 
 ### Patch Changes

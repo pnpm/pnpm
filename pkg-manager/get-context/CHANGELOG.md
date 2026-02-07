@@ -1,5 +1,15 @@
 # @pnpm/get-context
 
+## 1001.2.4
+
+### Patch Changes
+
+- Updated dependencies [9821d2d]
+- Updated dependencies [9821d2d]
+  - @pnpm/modules-yaml@1002.0.0
+  - @pnpm/read-projects-context@1000.0.33
+  - @pnpm/package-store@1007.1.3
+
 ## 1001.2.3
 
 ### Patch Changes

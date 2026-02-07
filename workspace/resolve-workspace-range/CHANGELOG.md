@@ -1,5 +1,11 @@
 # @pnpm/resolve-workspace-range
 
+## 1000.1.0
+
+### Minor Changes
+
+- ed87c99: Support bare `workspace:` protocol without version specifier. It is now treated as `workspace:*` and resolves to the concrete version during publish [#10436](https://github.com/pnpm/pnpm/pull/10436).
+
 ## 6.0.0
 
 ### Major Changes

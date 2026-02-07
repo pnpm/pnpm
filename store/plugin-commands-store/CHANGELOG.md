@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.59
+
+### Patch Changes
+
+- b37a6ee: Fix `pnpm store path` and `pnpm store status` using workspace root for path resolution when `storeDir` is relative [#10290](https://github.com/pnpm/pnpm/issues/10290).
+- Updated dependencies [7d8be9f]
+- Updated dependencies [7f18264]
+- Updated dependencies [a57ba4e]
+  - @pnpm/config@1004.10.0
+  - @pnpm/cli-utils@1001.3.2
+  - @pnpm/get-context@1001.2.4
+  - @pnpm/store-connection-manager@1002.3.13
+
 ## 1000.0.58
 
 ### Patch Changes

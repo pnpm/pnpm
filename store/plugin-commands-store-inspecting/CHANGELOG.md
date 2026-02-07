@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 1000.0.55
+
+### Patch Changes
+
+- Updated dependencies [7d8be9f]
+- Updated dependencies [7f18264]
+- Updated dependencies [a57ba4e]
+  - @pnpm/config@1004.10.0
+  - @pnpm/client@1001.1.18
+
 ## 1000.0.54
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/cli-utils
 
+## 1001.3.2
+
+### Patch Changes
+
+- 7f18264: Fix `shamefullyHoist` set via `updateConfig` in `.pnpmfile.cjs` not being converted to `publicHoistPattern` [#10271](https://github.com/pnpm/pnpm/issues/10271).
+- Updated dependencies [7d8be9f]
+- Updated dependencies [7f18264]
+- Updated dependencies [a57ba4e]
+  - @pnpm/config@1004.10.0
+  - @pnpm/config.deps-installer@1000.1.2
+  - @pnpm/default-reporter@1002.1.8
+  - @pnpm/store-connection-manager@1002.3.13
+
 ## 1001.3.1
 
 ### Patch Changes

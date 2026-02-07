@@ -1,5 +1,18 @@
 # @pnpm/config
 
+## 1004.10.0
+
+### Minor Changes
+
+- 7d8be9f: Support configuring `auditLevel` in the `pnpm-workspace.yaml` file [#10540](https://github.com/pnpm/pnpm/issues/10540).
+
+### Patch Changes
+
+- 7f18264: Fix `shamefullyHoist` set via `updateConfig` in `.pnpmfile.cjs` not being converted to `publicHoistPattern` [#10271](https://github.com/pnpm/pnpm/issues/10271).
+- a57ba4e: Add a warning when the current directory contains the PATH delimiter character. On macOS, folder names containing forward slashes (/) appear as colons (:) at the Unix layer. Since colons are PATH separators in POSIX systems, this breaks PATH injection for `node_modules/.bin`, causing binaries to not be found when running commands like `pnpm exec`.
+
+  Closes [#10457](https://github.com/pnpm/pnpm/issues/10457).
+
 ## 1004.9.2
 
 ### Patch Changes

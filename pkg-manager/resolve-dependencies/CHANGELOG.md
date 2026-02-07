@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 1008.7.3
+
+### Patch Changes
+
+- 43d44c8: Fixed a bug where `catalogMode: strict` would write the literal string `"catalog:"` to `pnpm-workspace.yaml` instead of the resolved version specifier when re-adding an existing catalog dependency [#10176](https://github.com/pnpm/pnpm/issues/10176).
+- Updated dependencies [ed87c99]
+  - @pnpm/npm-resolver@1005.2.0
+
 ## 1008.7.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 1000.4.0
+
+### Minor Changes
+
+- ed87c99: Support bare `workspace:` protocol without version specifier. It is now treated as `workspace:*` and resolves to the concrete version during publish [#10436](https://github.com/pnpm/pnpm/pull/10436).
+
 ## 1000.3.1
 
 ### Patch Changes

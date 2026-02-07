@@ -1,5 +1,17 @@
 # @pnpm/npm-resolver
 
+## 1005.2.0
+
+### Minor Changes
+
+- ed87c99: Support bare `workspace:` protocol without version specifier. It is now treated as `workspace:*` and resolves to the concrete version during publish [#10436](https://github.com/pnpm/pnpm/pull/10436).
+
+### Patch Changes
+
+- Updated dependencies [ed87c99]
+  - @pnpm/resolve-workspace-range@1000.1.0
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1005.1.2
 
 ### Patch Changes

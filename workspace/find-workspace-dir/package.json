@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/find-workspace-dir",
-  "version": "1000.1.3",
+  "version": "1000.1.4",
   "description": "Finds the root of a pnpm workspace",
   "keywords": [
     "pnpm",

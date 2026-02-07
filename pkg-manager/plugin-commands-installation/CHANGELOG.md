@@ -1,5 +1,36 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.9.4
+
+### Patch Changes
+
+- 7adf26b: Skip local `file:` protocol dependencies during `pnpm fetch`. This fixes an issue where `pnpm fetch` would fail in Docker builds when local directory dependencies were not available [#10460](https://github.com/pnpm/pnpm/issues/10460).
+- Updated dependencies [7adf26b]
+- Updated dependencies [4471eb8]
+- Updated dependencies [25ed567]
+- Updated dependencies [7d8be9f]
+- Updated dependencies [7f18264]
+- Updated dependencies [f249b16]
+- Updated dependencies [a57ba4e]
+  - @pnpm/core@1016.1.4
+  - @pnpm/workspace.manifest-writer@1001.2.0
+  - @pnpm/config.config-writer@1000.1.0
+  - @pnpm/find-workspace-dir@1000.1.4
+  - @pnpm/config@1004.10.0
+  - @pnpm/cli-utils@1001.3.2
+  - @pnpm/plugin-commands-rebuild@1008.0.5
+  - @pnpm/get-context@1001.2.4
+  - @pnpm/config.deps-installer@1000.1.2
+  - @pnpm/deps.status@1003.0.29
+  - @pnpm/plugin-commands-env@1000.0.58
+  - @pnpm/store-connection-manager@1002.3.13
+  - @pnpm/workspace.state@1002.1.1
+  - @pnpm/workspace.pkgs-graph@1000.0.36
+  - @pnpm/outdated@1001.1.15
+  - @pnpm/workspace.find-packages@1000.0.57
+  - @pnpm/filter-workspace-packages@1000.0.57
+  - @pnpm/package-store@1007.1.3
+
 ## 1004.9.3
 
 ### Patch Changes

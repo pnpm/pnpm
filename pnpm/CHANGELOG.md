@@ -1,5 +1,31 @@
 # pnpm
 
+## 10.29.0
+
+### Minor Changes
+
+- The `pnpm dlx` / `pnpx` command now supports the `catalog:` protocol. Example: `pnpm dlx shx@catalog:`.
+- Support configuring `auditLevel` in the `pnpm-workspace.yaml` file [#10540](https://github.com/pnpm/pnpm/issues/10540).
+- Support bare `workspace:` protocol without version specifier. It is now treated as `workspace:*` and resolves to the concrete version during publish [#10436](https://github.com/pnpm/pnpm/pull/10436).
+
+### Patch Changes
+
+- Fixed `pnpm list --json` returning incorrect paths when using global virtual store [#10187](https://github.com/pnpm/pnpm/issues/10187).
+- Fix `pnpm store path` and `pnpm store status` using workspace root for path resolution when `storeDir` is relative [#10290](https://github.com/pnpm/pnpm/issues/10290).
+- Fixed `pnpm run -r` failing with "No projects matched the filters" when an empty `pnpm-workspace.yaml` exists [#10497](https://github.com/pnpm/pnpm/issues/10497).
+- Fixed a bug where `catalogMode: strict` would write the literal string `"catalog:"` to `pnpm-workspace.yaml` instead of the resolved version specifier when re-adding an existing catalog dependency [#10176](https://github.com/pnpm/pnpm/issues/10176).
+- Fixed the documentation URL shown in `pnpm completion --help` to point to the correct page at https://pnpm.io/completion [#10281](https://github.com/pnpm/pnpm/issues/10281).
+- Skip local `file:` protocol dependencies during `pnpm fetch`. This fixes an issue where `pnpm fetch` would fail in Docker builds when local directory dependencies were not available [#10460](https://github.com/pnpm/pnpm/issues/10460).
+- Fixed `pnpm audit --json` to respect the `--audit-level` setting for both exit code and output filtering [#10540](https://github.com/pnpm/pnpm/issues/10540).
+- update tar to version 7.5.7 to fix security issue
+
+  Updating the version of dependency tar to 7.5.7 because the previous one have a security vulnerability reported here: <a href="https://github.com/advisories/GHSA-34x7-hfp2-rc4v">CVE-2026-24842</a>
+
+- Fix `pnpm audit --fix` replacing reference overrides (e.g. `$foo`) with concrete versions [#10325](https://github.com/pnpm/pnpm/issues/10325).
+- Fix `shamefullyHoist` set via `updateConfig` in `.pnpmfile.cjs` not being converted to `publicHoistPattern` [#10271](https://github.com/pnpm/pnpm/issues/10271).
+- `pnpm help` should correctly report if the currently running pnpm CLI is bundled with Node.js [#10561](https://github.com/pnpm/pnpm/issues/10561).
+- Add a warning when the current directory contains the PATH delimiter character. On macOS, folder names containing forward slashes (/) appear as colons (:) at the Unix layer. Since colons are PATH separators in POSIX systems, this breaks PATH injection for `node_modules/.bin`, causing binaries to not be found when running commands like `pnpm exec` [#10457](https://github.com/pnpm/pnpm/issues/10457).
+
 ## 10.28.2
 
 ### Patch Changes

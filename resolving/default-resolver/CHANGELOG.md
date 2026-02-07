@@ -1,5 +1,15 @@
 # @pnpm/default-resolver
 
+## 1002.3.2
+
+### Patch Changes
+
+- Updated dependencies [ed87c99]
+  - @pnpm/npm-resolver@1005.2.0
+  - @pnpm/node.resolver@1001.0.18
+  - @pnpm/resolving.bun-resolver@1005.0.5
+  - @pnpm/resolving.deno-resolver@1005.0.5
+
 ## 1002.3.1
 
 ### Patch Changes

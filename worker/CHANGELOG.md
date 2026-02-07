@@ -1,5 +1,14 @@
 # @pnpm/worker
 
+## 1000.6.4
+
+### Patch Changes
+
+- b2347e7: Fix inconsistent store structure due to race condition.
+  - @pnpm/fs.hard-link-dir@1000.0.5
+  - @pnpm/symlink-dependency@1000.0.17
+  - @pnpm/create-cafs-store@1000.0.30
+
 ## 1000.6.3
 
 ### Patch Changes
