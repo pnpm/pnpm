@@ -56,7 +56,6 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - [20, 19, 4]
           - [22, 12, 0]
           - [24, 0, 0]
           - [25, 0, 0]
