@@ -15,10 +15,12 @@ test('migrate', async () => {
   const migrateFixture = f.prepare('migrate')
   process.chdir(migrateFixture)
 
-  await catalog.handler({ interactive: false, cliOptions: {
-    argv: [],
-    dir: process.cwd(),
-  } }, ['migrate'])
+  await catalog.subcommands
+    .find((cmd) => cmd.commandNames.includes('migrate'))!
+    .handler({ interactive: false, cliOptions: {
+      argv: [],
+      dir: process.cwd(),
+    }}, [])
 
   const manifest = readYamlFile<{ catalog?: Record<string, string> }>('pnpm-workspace.yaml')
 
@@ -57,10 +59,12 @@ test('interactive migrate', async () => {
     },
   })
 
-  await catalog.handler({ interactive: true, cliOptions: {
-    argv: [],
-    dir: process.cwd(),
-  } }, ['migrate'])
+  await catalog.subcommands
+    .find((cmd) => cmd.commandNames.includes('migrate'))!
+    .handler({ interactive: true, cliOptions: {
+      argv: [],
+      dir: process.cwd(),
+    }}, [])
 
   const manifest = readYamlFile<{ catalog?: Record<string, string> }>('pnpm-workspace.yaml')
 

@@ -8,6 +8,7 @@ import chalk from 'chalk'
 import renderHelp from 'render-help'
 import { readWorkspaceManifest, WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
+
 export function rcOptionsTypes (): Record<string, unknown> {
   return {}
 }
@@ -21,9 +22,11 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['migrate']
 
+export const description = 'Migrates dependencies to using catalogs'
+
 export function help (): string {
   return renderHelp({
-    description: 'Migrates dependencies to using catalogs',
+    description,
     descriptionLists: [
       {
         title: 'Options',
@@ -59,50 +62,6 @@ const dependencyTypes = [
   'peerDependencies',
   'optionalDependencies',
 ] as const satisfies (keyof Project['manifest'])[]
-
-async function getWorkspaceInfo (_opts: CatalogMigrateCommandOptions, _params: string[]): Promise<{
-  manifest: WorkspaceManifest
-  dir: string
-  packages: Project[]
-  dependencies: Record<string, Set<string>>
-} | undefined> {
-  const workspaceDir = await findWorkspaceDir(process.cwd())
-
-  if (!workspaceDir) {
-    throw new PnpmError('WORKSPACE_DIR_MISSING', 'Could not find workspace directory')
-  }
-
-  const workspacePackages = await findWorkspacePackagesNoCheck(workspaceDir)
-  const workspaceManifest = await readWorkspaceManifest(workspaceDir) ?? { packages: workspacePackages.map((pkg) => pkg.manifest.name).filter(Boolean) as string[] } satisfies WorkspaceManifest
-
-  const workspaceDependencies: Record<string, Set<string>> = {}
-
-  for (const workspacePackage of workspacePackages) {
-    if (!workspacePackage) {
-      return undefined
-    }
-
-    for (const dependencyType of dependencyTypes satisfies (keyof Project['manifest'])[]) {
-      if (!workspacePackage.manifest[dependencyType]) {
-        continue
-      }
-
-      for (const [dependency,  version] of Object.entries(workspacePackage.manifest[dependencyType])) {
-        if (version.startsWith('catalog:')) {
-          continue
-        }
-        if (!workspaceDependencies[dependency]) {
-          workspaceDependencies[dependency] = new Set([version])
-          continue
-        }
-
-        workspaceDependencies[dependency].add(version)
-      }
-    }
-  }
-
-  return { manifest: workspaceManifest, dir: workspaceDir, packages: workspacePackages, dependencies: workspaceDependencies }
-}
 
 async function migrate (opts: CatalogMigrateCommandOptions, params: string[]): Promise<string> {
   const workspace = await getWorkspaceInfo(opts, params)
@@ -223,7 +182,7 @@ async function interactiveMigrate (opts: CatalogMigrateCommandOptions, params: s
   const { value: migrationPlan } = await enquirer.prompt({
     type: 'multiselect',
     choices,
-    message: 'Resolve package version conflicts',
+    message: 'Choose which dependencies to migrate to catalogs',
     name: 'value',
     pointer: '❯',
     indicator: (state: unknown, choice: VersionChoice) => {
@@ -277,4 +236,48 @@ async function interactiveMigrate (opts: CatalogMigrateCommandOptions, params: s
   await updateWorkspaceManifest(dir, { updatedCatalogs: { default: manifest.catalog } })
 
   return chalk.green('Migration completed. Please review the changes and run `pnpm install` to update your lockfile.')
+}
+
+async function getWorkspaceInfo (_opts: CatalogMigrateCommandOptions, _params: string[]): Promise<{
+  manifest: WorkspaceManifest
+  dir: string
+  packages: Project[]
+  dependencies: Record<string, Set<string>>
+} | undefined> {
+  const workspaceDir = await findWorkspaceDir(process.cwd())
+
+  if (!workspaceDir) {
+    throw new PnpmError('WORKSPACE_DIR_MISSING', 'Could not find workspace directory')
+  }
+
+  const workspacePackages = await findWorkspacePackagesNoCheck(workspaceDir)
+  const workspaceManifest = await readWorkspaceManifest(workspaceDir) ?? { packages: workspacePackages.map((pkg) => pkg.manifest.name).filter(Boolean) as string[] } satisfies WorkspaceManifest
+
+  const workspaceDependencies: Record<string, Set<string>> = {}
+
+  for (const workspacePackage of workspacePackages) {
+    if (!workspacePackage) {
+      return undefined
+    }
+
+    for (const dependencyType of dependencyTypes satisfies (keyof Project['manifest'])[]) {
+      if (!workspacePackage.manifest[dependencyType]) {
+        continue
+      }
+
+      for (const [dependency,  version] of Object.entries(workspacePackage.manifest[dependencyType])) {
+        if (version.startsWith('catalog:')) {
+          continue
+        }
+        if (!workspaceDependencies[dependency]) {
+          workspaceDependencies[dependency] = new Set([version])
+          continue
+        }
+
+        workspaceDependencies[dependency].add(version)
+      }
+    }
+  }
+
+  return { manifest: workspaceManifest, dir: workspaceDir, packages: workspacePackages, dependencies: workspaceDependencies }
 }

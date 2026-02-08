@@ -7,6 +7,7 @@ const DEFAULT_OPTS = {
   getCommandLongName: (_commandName: string) => _commandName,
   getTypesByCommandName: (_commandName: string) => ({}),
   renamedOptions: { prefix: 'dir' },
+  subcommandsByCommandName: {},
   shorthandsByCommandName: {},
   universalOptionsTypes: {},
   universalShorthands: {},
