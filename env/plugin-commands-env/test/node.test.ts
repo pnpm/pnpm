@@ -6,7 +6,7 @@ import tar from 'tar-stream'
 import { jest } from '@jest/globals'
 import { ZipFile } from 'yazl'
 import { tempDir } from '@pnpm/prepare'
-import { type NvmNodeCommandOptions } from '../lib/node.js'
+import type { NvmNodeCommandOptions } from '../lib/node.js'
 
 async function createEmptyTarballBuffer (): Promise<Buffer> {
   const pack = tar.pack()

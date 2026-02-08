@@ -1,7 +1,7 @@
 import { STORE_VERSION } from '@pnpm/constants'
 import { jest } from '@jest/globals'
 import path from 'path'
-import { type FuseHandlers } from '../src/createFuseHandlers.js'
+import type { FuseHandlers } from '../src/createFuseHandlers.js'
 
 jest.unstable_mockModule('fuse-native', () => ({ default: { ENOENT: -2 } }))
 
