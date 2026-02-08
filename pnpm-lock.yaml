@@ -2894,6 +2894,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../config/version-policy
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
@@ -6600,6 +6603,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../config/config
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../config/version-policy
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../packages/constants
