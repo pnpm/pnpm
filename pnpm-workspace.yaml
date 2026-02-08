@@ -345,7 +345,7 @@ minimumReleaseAgeExclude:
   - tar@7.5.7
   - lodash@4.17.23
 
-nodeVersion: 20.19.4
+nodeVersion: 22.12.0
 
 optimisticRepeatInstall: true
 

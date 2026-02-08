@@ -171,4 +171,4 @@
 "pnpm": major
 ---
 
-Node.js v18 and 19 support discontinued.
+Node.js v18, 19, 20, and 21 support discontinued.
