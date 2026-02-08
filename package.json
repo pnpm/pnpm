@@ -30,9 +30,6 @@
     "dev-setup": "pnpm -C=./pnpm/dev link -g"
   },
   "devDependencies": {
-    "@babel/core": "catalog:",
-    "@babel/preset-typescript": "catalog:",
-    "@babel/types": "catalog:",
     "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",
