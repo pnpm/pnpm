@@ -12,7 +12,7 @@ export default {
     // Using the presence of the DisposableStack global to feature detect
     // whether the current Node.js runtime supports explicit resource
     // management. If it exists, we don't need to do any more work.
-    if (typeof DisposableStack !== "undefined") {
+    if (typeof DisposableStack !== 'undefined') {
       return { code }
     }
 
@@ -24,13 +24,15 @@ export default {
     // and show confusing errors when running some tests.
     //
     // This can be deleted when pnpm no longer needs to support Node.js v22.
-    return babel(code, sourcePath);
+    return babel(code, sourcePath)
   }
-};
+}
 
 function babel (code, sourceFileName) {
   return transformSync(code, {
+    babelrc: false,
+    configFile: false,
     sourceFileName,
-    plugins: [fileURLToPath(import.meta.resolve("@babel/plugin-transform-explicit-resource-management"))]
+    plugins: [fileURLToPath(import.meta.resolve('@babel/plugin-transform-explicit-resource-management'))]
   })
 }
