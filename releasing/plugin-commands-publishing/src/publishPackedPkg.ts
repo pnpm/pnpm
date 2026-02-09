@@ -84,6 +84,8 @@ function createPublishOptions (manifest: ExportedManifest, {
   fetchRetryMintimeout,
   fetchTimeout: timeout,
   otp,
+  provenance,
+  provenanceFile,
   tag: defaultTag,
   userAgent,
   ...options
@@ -100,6 +102,8 @@ function createPublishOptions (manifest: ExportedManifest, {
     isFromCI,
     otp,
     timeout,
+    provenance,
+    provenanceFile,
     registry,
     userAgent,
     ca: ssl?.ca,
