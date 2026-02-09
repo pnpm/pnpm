@@ -1,7 +1,7 @@
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
-import { type PatchInfo } from '@pnpm/patching.types'
-import { type PkgRequestFetchResult } from '@pnpm/store-controller-types'
-import { type PkgIdWithPatchHash, type DepPath } from '@pnpm/types'
+import type { PatchInfo } from '@pnpm/patching.types'
+import type { PkgRequestFetchResult } from '@pnpm/store-controller-types'
+import type { PkgIdWithPatchHash, DepPath } from '@pnpm/types'
 import { filter } from 'ramda'
 
 export interface DependenciesGraphNode<T extends string> {

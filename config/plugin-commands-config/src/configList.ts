@@ -1,5 +1,5 @@
 import { processConfig } from './processConfig.js'
-import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
+import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
 
 export type ConfigListOptions = Pick<ConfigCommandOptions, 'rawConfig'>
 

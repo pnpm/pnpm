@@ -1,34 +1,34 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import {
-  type FetchFromRegistry,
-  type GetAuthHeader,
-  type RetryTimeoutOptions,
+import type {
+  FetchFromRegistry,
+  GetAuthHeader,
+  RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
+import type { PackageMeta, PackageInRegistry } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
-import {
-  type DirectoryResolution,
-  type PkgResolutionId,
-  type PreferredVersions,
-  type ResolveResult,
-  type TarballResolution,
-  type WantedDependency,
-  type WorkspacePackage,
-  type WorkspacePackages,
-  type WorkspacePackagesByVersion,
+import type {
+  DirectoryResolution,
+  PkgResolutionId,
+  PreferredVersions,
+  ResolveResult,
+  TarballResolution,
+  WantedDependency,
+  WorkspacePackage,
+  WorkspacePackages,
+  WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import {
   readPkgFromCafs,
 } from '@pnpm/worker'
-import {
-  type DependencyManifest,
-  type PackageVersionPolicy,
-  type PinnedVersion,
-  type Registries,
-  type TrustPolicy,
+import type {
+  DependencyManifest,
+  PackageVersionPolicy,
+  PinnedVersion,
+  Registries,
+  TrustPolicy,
 } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'

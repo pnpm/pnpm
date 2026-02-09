@@ -1,11 +1,11 @@
 import path from 'path'
 import fs from '@pnpm/graceful-fs'
-import {
-  type DepPath,
-  type DependenciesField,
-  type HoistedDependencies,
-  type IgnoredBuilds,
-  type Registries,
+import type {
+  DepPath,
+  DependenciesField,
+  HoistedDependencies,
+  IgnoredBuilds,
+  Registries,
 } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import { map as mapValues } from 'ramda'

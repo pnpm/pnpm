@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
-import { type Registries } from '@pnpm/types'
+import type { Registries } from '@pnpm/types'
 import nock from 'nock'
 import { temporaryDirectory } from 'tempy'
 

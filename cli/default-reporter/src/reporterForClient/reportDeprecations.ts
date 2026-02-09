@@ -1,4 +1,4 @@
-import { type DeprecationLog, type StageLog } from '@pnpm/core-loggers'
+import type { DeprecationLog, StageLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map, filter, buffer, switchMap } from 'rxjs/operators'
 import chalk from 'chalk'

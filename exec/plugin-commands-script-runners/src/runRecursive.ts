@@ -16,7 +16,7 @@ import { existsInDir } from './existsInDir.js'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec.js'
 import { type RunScriptOptions, runScript } from './run.js'
 import { tryBuildRegExpFromCommand } from './regexpCommand.js'
-import { type PackageScripts, type ProjectRootDir } from '@pnpm/types'
+import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'bin'

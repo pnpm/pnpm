@@ -7,7 +7,7 @@ import {
   mutateModules,
   install,
 } from '@pnpm/core'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)

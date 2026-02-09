@@ -1,5 +1,5 @@
 import * as dp from '@pnpm/dependency-path'
-import { type ProjectSnapshot } from '@pnpm/lockfile.types'
+import type { ProjectSnapshot } from '@pnpm/lockfile.types'
 import {
   DEPENDENCIES_FIELDS,
   type ProjectManifest,

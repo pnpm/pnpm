@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import path from 'path'
 import fs from 'fs'
 import { PnpmError } from '@pnpm/error'
-import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff, type FilesMap } from '@pnpm/cafs-types'
+import type { Cafs, PackageFiles, SideEffects, SideEffectsDiff, FilesMap } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
@@ -20,17 +20,17 @@ import {
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
-import { type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 import { parentPort } from 'worker_threads'
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
-import {
-  type AddDirToStoreMessage,
-  type ReadPkgFromCafsMessage,
-  type LinkPkgMessage,
-  type SymlinkAllModulesMessage,
-  type TarballExtractMessage,
-  type HardLinkDirMessage,
-  type InitStoreMessage,
+import type {
+  AddDirToStoreMessage,
+  ReadPkgFromCafsMessage,
+  LinkPkgMessage,
+  SymlinkAllModulesMessage,
+  TarballExtractMessage,
+  HardLinkDirMessage,
+  InitStoreMessage,
 } from './types.js'
 
 export function startWorker (): void {

@@ -1,4 +1,4 @@
-import { type CustomResolver, type WantedDependency } from './index.js'
+import type { CustomResolver, WantedDependency } from './index.js'
 
 // Shared cache for canResolve results to avoid calling expensive async operations twice
 // WeakMap ensures automatic garbage collection when custom resolvers are no longer referenced

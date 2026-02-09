@@ -3,11 +3,11 @@ import { PnpmError } from '@pnpm/error'
 import { hookLogger } from '@pnpm/core-loggers'
 import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
-import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
-import { type ReadPackageHook, type BeforePackingHook, type BaseManifest } from '@pnpm/types'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import type { ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
+import type { ReadPackageHook, BeforePackingHook, BaseManifest } from '@pnpm/types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { requirePnpmfile, type Pnpmfile, type Finders } from './requirePnpmfile.js'
-import { type Hooks, type HookContext } from './Hooks.js'
+import type { Hooks, HookContext } from './Hooks.js'
 
 // eslint-disable-next-line
 type Cook<T extends (...args: any[]) => any> = (

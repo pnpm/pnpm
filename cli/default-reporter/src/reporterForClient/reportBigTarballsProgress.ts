@@ -1,4 +1,4 @@
-import { type FetchingProgressLog } from '@pnpm/core-loggers'
+import type { FetchingProgressLog } from '@pnpm/core-loggers'
 import type * as Rx from 'rxjs'
 import { filter, map, startWith } from 'rxjs/operators'
 import prettyBytes from 'pretty-bytes'

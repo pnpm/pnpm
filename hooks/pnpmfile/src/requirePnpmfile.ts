@@ -6,10 +6,10 @@ import { pathToFileURL } from 'url'
 import { createRequire } from 'module'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import { type PackageManifest, type Finder } from '@pnpm/types'
-import { type CustomResolver, type CustomFetcher } from '@pnpm/hooks.types'
+import type { PackageManifest, Finder } from '@pnpm/types'
+import type { CustomResolver, CustomFetcher } from '@pnpm/hooks.types'
 import chalk from 'chalk'
-import { type Hooks } from './Hooks.js'
+import type { Hooks } from './Hooks.js'
 
 const require = createRequire(import.meta.url)
 

@@ -5,18 +5,18 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
-import { type CompletionFunc } from '@pnpm/command'
+import type { CompletionFunc } from '@pnpm/command'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes, getWorkspaceConcurrency } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
+import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import {
   runLifecycleHook,
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
 import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
-import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
+import type { PackageScripts, ProjectManifest } from '@pnpm/types'
 import { pick } from 'ramda'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'

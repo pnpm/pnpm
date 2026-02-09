@@ -1,5 +1,5 @@
 import path from 'path'
-import { type RootLog } from '@pnpm/core-loggers'
+import type { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import {
@@ -7,7 +7,7 @@ import {
   install,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import sinon from 'sinon'
 import symlinkDir from 'symlink-dir'
 import { testDefaults } from './utils/index.js'

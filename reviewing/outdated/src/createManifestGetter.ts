@@ -4,7 +4,7 @@ import {
   type ResolveFunction,
 } from '@pnpm/client'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import { type PackageVersionPolicy, type DependencyManifest } from '@pnpm/types'
+import type { PackageVersionPolicy, DependencyManifest } from '@pnpm/types'
 
 interface GetManifestOpts {
   dir: string

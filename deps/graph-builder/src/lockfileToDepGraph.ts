@@ -3,28 +3,28 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
-import { type LockfileResolution, type LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileResolution, LockfileObject } from '@pnpm/lockfile.fs'
 import {
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { type IncludedDependencies } from '@pnpm/modules-yaml'
+import type { IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
-import { type PatchInfo } from '@pnpm/patching.types'
-import {
-  type DepPath,
-  type SupportedArchitectures,
-  type Registries,
-  type PkgIdWithPatchHash,
-  type ProjectId,
-  type AllowBuild,
+import type { PatchInfo } from '@pnpm/patching.types'
+import type {
+  DepPath,
+  SupportedArchitectures,
+  Registries,
+  PkgIdWithPatchHash,
+  ProjectId,
+  AllowBuild,
 } from '@pnpm/types'
-import {
-  type PkgRequestFetchResult,
-  type FetchResponse,
-  type StoreController,
+import type {
+  PkgRequestFetchResult,
+  FetchResponse,
+  StoreController,
 } from '@pnpm/store-controller-types'
 import * as dp from '@pnpm/dependency-path'
 import { pathExists } from 'path-exists'

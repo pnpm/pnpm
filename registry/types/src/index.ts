@@ -1,4 +1,4 @@
-import { type PackageManifest } from '@pnpm/types'
+import type { PackageManifest } from '@pnpm/types'
 
 export type PackageMetadata = PackageMeta
 

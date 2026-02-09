@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
-import { type ProjectManifest } from '@pnpm/types'
-import { type ExportedManifest } from './index.js'
+import type { ProjectManifest } from '@pnpm/types'
+import type { ExportedManifest } from './index.js'
 
 type Input = Pick<ProjectManifest, 'bin'> & Pick<ExportedManifest, 'name'>
 type Output<Manifest extends Input> = Omit<Manifest, 'bin'> & Pick<ExportedManifest, 'bin'>

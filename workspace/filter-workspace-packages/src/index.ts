@@ -1,5 +1,5 @@
 import { createMatcher } from '@pnpm/matcher'
-import { type ProjectRootDir, type SupportedArchitectures } from '@pnpm/types'
+import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
 import { findWorkspacePackages, type Project } from '@pnpm/workspace.find-packages'
 import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'

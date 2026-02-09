@@ -1,10 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import { prepare } from '@pnpm/prepare'
-import { type PackageManifest } from '@pnpm/types'
+import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { execPnpmSync } from '../utils/index.js'
-import { type ExecPnpmSyncOpts } from '../utils/execPnpm.js'
+import type { ExecPnpmSyncOpts } from '../utils/execPnpm.js'
 
 const basicPackageManifest = loadJsonFileSync<PackageManifest>(path.join(import.meta.dirname, '../utils/simple-package.json'))
 

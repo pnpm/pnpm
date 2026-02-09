@@ -1,11 +1,11 @@
 // cspell:ignore buildscript
 import fs from 'fs'
 import path from 'path'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { type LockfileFile } from '@pnpm/lockfile.types'
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   prepare,
@@ -23,7 +23,7 @@ import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils/index.js'
 import { addDistTag } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 
 test('no projects matched the filters', async () => {
   preparePackages([

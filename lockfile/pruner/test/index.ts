@@ -4,7 +4,7 @@ import {
   pruneLockfile,
   pruneSharedLockfile,
 } from '@pnpm/lockfile.pruner'
-import { type DepPath, type ProjectId } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 import yaml from 'yaml-tag'
 
 const DEFAULT_OPTS = {

@@ -1,6 +1,6 @@
 import { streamParser } from '@pnpm/logger'
-import { type StoreController } from '@pnpm/store-controller-types'
-import { type ReporterFunction } from './types.js'
+import type { StoreController } from '@pnpm/store-controller-types'
+import type { ReporterFunction } from './types.js'
 import { cleanExpiredDlxCache } from './cleanExpiredDlxCache.js'
 
 export async function storePrune (

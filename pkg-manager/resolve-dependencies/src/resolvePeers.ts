@@ -4,25 +4,25 @@ import path from 'path'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import semver from 'semver'
 import * as semverUtils from '@yarnpkg/core/semverUtils'
-import {
-  type DepPath,
-  type ParentPackages,
-  type PeerDependencyIssues,
-  type PeerDependencyIssuesByProjects,
-  type PkgIdWithPatchHash,
-  type ProjectRootDir,
+import type {
+  DepPath,
+  ParentPackages,
+  PeerDependencyIssues,
+  PeerDependencyIssuesByProjects,
+  PkgIdWithPatchHash,
+  ProjectRootDir,
 } from '@pnpm/types'
 import { depPathToFilename, createPeerDepGraphHash, type PeerId } from '@pnpm/dependency-path'
 import { partition, pick } from 'ramda'
-import { type NodeId } from './nextNodeId.js'
-import {
-  type ChildrenMap,
-  type PeerDependencies,
-  type DependenciesTree,
-  type DependenciesTreeNode,
-  type ResolvedPackage,
+import type { NodeId } from './nextNodeId.js'
+import type {
+  ChildrenMap,
+  PeerDependencies,
+  DependenciesTree,
+  DependenciesTreeNode,
+  ResolvedPackage,
 } from './resolveDependencies.js'
-import { type ResolvedImporters } from './resolveDependencyTree.js'
+import type { ResolvedImporters } from './resolveDependencyTree.js'
 import { mergePeers } from './mergePeers.js'
 import { dedupeInjectedDeps } from './dedupeInjectedDeps.js'
 

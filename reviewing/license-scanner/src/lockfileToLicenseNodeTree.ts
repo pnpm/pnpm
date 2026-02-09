@@ -1,4 +1,4 @@
-import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
+import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import {
@@ -6,7 +6,7 @@ import {
   type LockfileWalkerStep,
 } from '@pnpm/lockfile.walker'
 import { type DepTypes, DepType, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
-import { type SupportedArchitectures, type DependenciesField, type ProjectId, type Registries } from '@pnpm/types'
+import type { SupportedArchitectures, DependenciesField, ProjectId, Registries } from '@pnpm/types'
 import { map as mapValues } from 'ramda'
 import { getPkgInfo } from './getPkgInfo.js'
 

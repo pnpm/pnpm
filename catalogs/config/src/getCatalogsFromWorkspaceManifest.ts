@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
-import { type Catalogs } from '@pnpm/catalogs.types'
-import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import type { Catalogs } from '@pnpm/catalogs.types'
+import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 export function getCatalogsFromWorkspaceManifest (
   workspaceManifest: Pick<WorkspaceManifest, 'catalog' | 'catalogs'> | undefined

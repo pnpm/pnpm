@@ -1,13 +1,13 @@
 import util from 'util'
 import fs, { type Stats } from 'fs'
 import path from 'path'
-import {
-  type AddToStoreResult,
-  type FilesIndex,
-  type FileWriteResult,
+import type {
+  AddToStoreResult,
+  FilesIndex,
+  FileWriteResult,
 } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
-import { type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 import isSubdir from 'is-subdir'
 import { parseJsonBufferSync } from './parseJson.js'
 

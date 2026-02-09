@@ -1,12 +1,12 @@
 import { type CompletionItem, getShellFromEnv } from '@pnpm/tabtab'
-import { type CompletionFunc } from '@pnpm/command'
+import type { CompletionFunc } from '@pnpm/command'
 import { split as splitCmd } from 'split-cmd/index.modern.mjs'
 import tabtab from '@pnpm/tabtab'
 import {
   currentTypedWordType,
   getLastOption,
 } from './getOptionType.js'
-import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
+import type { ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { complete } from './complete.js'
 
 export function createCompletionServer (

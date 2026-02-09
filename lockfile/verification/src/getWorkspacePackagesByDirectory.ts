@@ -1,5 +1,5 @@
-import { type WorkspacePackages } from '@pnpm/resolver-base'
-import { type DependencyManifest } from '@pnpm/types'
+import type { WorkspacePackages } from '@pnpm/resolver-base'
+import type { DependencyManifest } from '@pnpm/types'
 
 export function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages): Record<string, DependencyManifest> {
   const workspacePackagesByDirectory: Record<string, DependencyManifest> = {}

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { assertProject, type Modules, type Project } from '@pnpm/assert-project'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { sync as writeJson5File } from 'write-json5-file'
 import { sync as writeYamlFile } from 'write-yaml-file'

@@ -112,7 +112,7 @@ function parseTokenHelper (source: string): TokenHelper {
   for (const char of source) {
     // We'll only support a simple syntax for now.
     // In the future, we may add quotations and environment variable interpolations.
-    if (RESERVED_CHARACTERS.has(char)) { // eslint-disable-line
+    if (RESERVED_CHARACTERS.has(char)) {
       throw new TokenHelperUnsupportedCharacterError(char)
     }
   }

@@ -2,9 +2,9 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import {
-  type IncludedDependencies,
-  type Modules,
+import type {
+  IncludedDependencies,
+  Modules,
 } from '@pnpm/modules-yaml'
 import {
   DEPENDENCIES_FIELDS,

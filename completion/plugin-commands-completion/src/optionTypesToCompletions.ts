@@ -1,4 +1,4 @@
-import { type CompletionItem } from '@pnpm/tabtab'
+import type { CompletionItem } from '@pnpm/tabtab'
 
 export function optionTypesToCompletions (optionTypes: Record<string, unknown>): CompletionItem[] {
   const completions: CompletionItem[] = []

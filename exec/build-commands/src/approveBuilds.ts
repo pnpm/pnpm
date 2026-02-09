@@ -1,4 +1,4 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
 import { lexCompare } from '@pnpm/util.lex-comparator'

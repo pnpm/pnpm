@@ -4,13 +4,13 @@ import {
   type CafsLocker,
   createCafs,
 } from '@pnpm/store.cafs'
-import { type Cafs, type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
+import type { Cafs, PackageFilesResponse, FilesMap } from '@pnpm/cafs-types'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
-import {
-  type ImportIndexedPackage,
-  type ImportIndexedPackageAsync,
-  type ImportPackageFunction,
-  type ImportPackageFunctionAsync,
+import type {
+  ImportIndexedPackage,
+  ImportIndexedPackageAsync,
+  ImportPackageFunction,
+  ImportPackageFunctionAsync,
 } from '@pnpm/store-controller-types'
 import memoize from 'memoize'
 import pathTemp from 'path-temp'

@@ -6,7 +6,7 @@ import {
   type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import sinon from 'sinon'
 import { testDefaults } from '../utils/index.js'
 

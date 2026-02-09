@@ -12,7 +12,7 @@ import type npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { createMatcher } from '@pnpm/matcher'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import betterPathResolve from 'better-path-resolve'
 import camelcase from 'camelcase'
 import isWindows from 'is-windows'
@@ -28,13 +28,13 @@ import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } fro
 import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
 import { transformPathKeys } from './transformPath.js'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
-import {
-  type Config,
-  type ConfigWithDeprecatedSettings,
-  type ProjectConfig,
-  type UniversalOptions,
-  type VerifyDepsBeforeRun,
-  type WantedPackageManager,
+import type {
+  Config,
+  ConfigWithDeprecatedSettings,
+  ProjectConfig,
+  UniversalOptions,
+  VerifyDepsBeforeRun,
+  WantedPackageManager,
 } from './Config.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import { parseEnvVars } from './env.js'

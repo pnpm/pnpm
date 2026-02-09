@@ -1,6 +1,6 @@
 import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { execPnpm, execPnpmSync } from '../utils/index.js'
 

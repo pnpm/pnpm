@@ -1,6 +1,6 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import type * as logs from '@pnpm/core-loggers'
-import { type LogLevel } from '@pnpm/logger'
+import type { LogLevel } from '@pnpm/logger'
 import type * as Rx from 'rxjs'
 import { throttleTime } from 'rxjs/operators'
 import { reportBigTarballProgress } from './reportBigTarballsProgress.js'

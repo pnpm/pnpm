@@ -5,7 +5,7 @@ import { readPackageJson } from '@pnpm/read-package-json'
 import { depPathToFilename, parse } from '@pnpm/dependency-path'
 import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import pLimit from 'p-limit'
-import { type PackageManifest, type Registries } from '@pnpm/types'
+import type { PackageManifest, Registries } from '@pnpm/types'
 import {
   getFilePathByModeInCafs,
   getIndexFilePathInCafs,
@@ -14,7 +14,7 @@ import {
   type PackageFilesIndex,
 } from '@pnpm/store.cafs'
 import { PnpmError } from '@pnpm/error'
-import { type LicensePackage } from './licenses.js'
+import type { LicensePackage } from './licenses.js'
 import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile.utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 

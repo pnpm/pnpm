@@ -1,13 +1,13 @@
 import path from 'path'
-import { type Catalogs } from '@pnpm/catalogs.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
 import { isRuntimeDepPath } from '@pnpm/dependency-path'
-import {
-  type LockfileObject,
-  type ProjectSnapshot,
+import type {
+  LockfileObject,
+  ProjectSnapshot,
 } from '@pnpm/lockfile.types'
 import {
   getAllDependenciesFromManifest,
@@ -30,7 +30,7 @@ import { difference, zipWith } from 'ramda'
 import isSubdir from 'is-subdir'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
 import { depPathToRef } from './depPathToRef.js'
-import { type NodeId } from './nextNodeId.js'
+import type { NodeId } from './nextNodeId.js'
 import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies.js'
 import {
   type Importer,

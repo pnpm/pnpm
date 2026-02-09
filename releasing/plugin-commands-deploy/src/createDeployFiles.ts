@@ -2,21 +2,21 @@ import path from 'path'
 import url from 'url'
 import normalizePath from 'normalize-path'
 import * as dp from '@pnpm/dependency-path'
-import {
-  type DirectoryResolution,
-  type LockfileObject,
-  type LockfileResolution,
-  type PackageSnapshot,
-  type PackageSnapshots,
-  type ProjectSnapshot,
-  type ResolvedDependencies,
+import type {
+  DirectoryResolution,
+  LockfileObject,
+  LockfileResolution,
+  PackageSnapshot,
+  PackageSnapshots,
+  ProjectSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile.types'
-import {
-  type DependenciesField,
-  type DepPath,
-  type Project,
-  type ProjectId,
-  type ProjectManifest,
+import type {
+  DependenciesField,
+  DepPath,
+  Project,
+  ProjectId,
+  ProjectManifest,
 } from '@pnpm/types'
 
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]

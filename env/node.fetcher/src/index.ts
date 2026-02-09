@@ -1,12 +1,12 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { fetchShasumsFileRaw, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
-import {
-  type FetchFromRegistry,
-  type RetryTimeoutOptions,
+import type {
+  FetchFromRegistry,
+  RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import { type Cafs } from '@pnpm/cafs-types'
+import type { Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import { getNodeArtifactAddress } from '@pnpm/node.resolver'
 import { downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'

@@ -1,4 +1,4 @@
-import { type VersionOverride } from '@pnpm/parse-overrides'
+import type { VersionOverride } from '@pnpm/parse-overrides'
 
 export function createOverridesMapFromParsed (parsedOverrides: VersionOverride[] | undefined): Record<string, string> {
   if (!parsedOverrides) return {}

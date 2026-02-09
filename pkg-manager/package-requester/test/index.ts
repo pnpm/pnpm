@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
 import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { streamParser } from '@pnpm/logger'
@@ -16,7 +16,7 @@ import { jest } from '@jest/globals'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import { temporaryDirectory } from 'tempy'
-import { type PkgResolutionId, type PkgRequestFetchResult, type RequestPackageOptions } from '@pnpm/store-controller-types'
+import type { PkgResolutionId, PkgRequestFetchResult, RequestPackageOptions } from '@pnpm/store-controller-types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(import.meta.dirname)

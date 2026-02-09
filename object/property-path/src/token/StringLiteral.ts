@@ -1,5 +1,5 @@
 import { ParseErrorBase } from './ParseErrorBase.js'
-import { type TokenBase, type Tokenize } from './types.js'
+import type { TokenBase, Tokenize } from './types.js'
 
 export type StringLiteralQuote = '"' | "'"
 

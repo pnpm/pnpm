@@ -1,5 +1,5 @@
 import { packageIsInstallable } from '@pnpm/cli-utils'
-import { type ProjectManifest, type Project, type SupportedArchitectures } from '@pnpm/types'
+import type { ProjectManifest, Project, SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
 import { logger } from '@pnpm/logger'

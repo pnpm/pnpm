@@ -10,14 +10,14 @@ import {
 import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
 import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
-import { type DepPath } from '@pnpm/types'
+import type { DepPath } from '@pnpm/types'
 import dint from 'dint'
 import pFilter from 'p-filter'
 import {
   extendStoreStatusOptions,
   type StoreStatusOptions,
 } from './extendStoreStatusOptions.js'
-import { type TarballResolution } from '@pnpm/store-controller-types'
+import type { TarballResolution } from '@pnpm/store-controller-types'
 
 export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<string[]> {
   const reporter = maybeOpts?.reporter

@@ -1,14 +1,14 @@
 import { PnpmError } from '@pnpm/error'
-import {
-  type FetchFunction,
-  type FetchOptions,
-  type FetchResult,
+import type {
+  FetchFunction,
+  FetchOptions,
+  FetchResult,
 } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
-import {
-  type FetchFromRegistry,
-  type GetAuthHeader,
-  type RetryTimeoutOptions,
+import type {
+  FetchFromRegistry,
+  GetAuthHeader,
+  RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { TarballIntegrityError } from '@pnpm/worker'
 import {

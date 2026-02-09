@@ -1,14 +1,14 @@
 import path from 'path'
-import { type Catalogs } from '@pnpm/catalogs.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile.fs'
 import { createMatcher } from '@pnpm/matcher'
-import {
-  type IncludedDependencies,
-  type ProjectManifest,
-  type ProjectRootDir,
+import type {
+  IncludedDependencies,
+  ProjectManifest,
+  ProjectRootDir,
 } from '@pnpm/types'
 import { unnest } from 'ramda'
 import { createManifestGetter, type ManifestGetterOptions } from './createManifestGetter.js'

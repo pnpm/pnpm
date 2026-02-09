@@ -1,4 +1,4 @@
-import { type PatchFile } from '@pnpm/patching.types'
+import type { PatchFile } from '@pnpm/patching.types'
 import { getPatchInfo, groupPatchedDependencies } from '../src/index.js'
 
 const _getPatchInfo = (patchedDependencies: Record<string, PatchFile>, name: string, version: string) =>

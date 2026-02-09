@@ -5,20 +5,20 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import {
-  type DepHierarchy,
-  type DependenciesGraph,
+import type {
+  DepHierarchy,
+  DependenciesGraph,
 } from '@pnpm/deps.graph-builder'
 import { linkBins } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
-import {
-  type PackageFilesResponse,
-  type StoreController,
+import type {
+  PackageFilesResponse,
+  StoreController,
 } from '@pnpm/store-controller-types'
 import pLimit from 'p-limit'
 import { difference, isEmpty } from 'ramda'
 import rimraf from '@zkochan/rimraf'
-import { type AllowBuild } from '@pnpm/types'
+import type { AllowBuild } from '@pnpm/types'
 
 const limitLinking = pLimit(16)
 

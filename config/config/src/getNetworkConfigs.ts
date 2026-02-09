@@ -1,4 +1,4 @@
-import { type SslConfig } from '@pnpm/types'
+import type { SslConfig } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import fs from 'fs'
 import { type AuthInfo, type AuthInfoInput, parseAuthInfo } from './parseAuthInfo.js'

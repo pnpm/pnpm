@@ -7,7 +7,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import semver from 'semver'
 import symlinkDir from 'symlink-dir'
-import { type SelfUpdateCommandOptions } from './selfUpdate.js'
+import type { SelfUpdateCommandOptions } from './selfUpdate.js'
 
 export interface InstallPnpmToToolsResult {
   binDir: string

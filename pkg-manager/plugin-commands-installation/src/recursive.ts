@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { type Catalogs } from '@pnpm/catalogs.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   type RecursiveSummary,
   throwOnCommandFail,
@@ -19,19 +19,19 @@ import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { createMatcherWithIndex } from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
-import { type StoreController } from '@pnpm/package-store'
+import type { StoreController } from '@pnpm/package-store'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { sortPackages } from '@pnpm/sort-packages'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import {
-  type IgnoredBuilds,
-  type IncludedDependencies,
-  type PackageManifest,
-  type Project,
-  type ProjectManifest,
-  type ProjectsGraph,
-  type ProjectRootDir,
-  type ProjectRootDirRealPath,
+import type {
+  IgnoredBuilds,
+  IncludedDependencies,
+  PackageManifest,
+  Project,
+  ProjectManifest,
+  ProjectsGraph,
+  ProjectRootDir,
+  ProjectRootDirRealPath,
 } from '@pnpm/types'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import {
@@ -51,7 +51,7 @@ import pLimit from 'p-limit'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 import { getSaveType } from './getSaveType.js'
 import { getPinnedVersion } from './getPinnedVersion.js'
-import { type PreferredVersions } from '@pnpm/resolver-base'
+import type { PreferredVersions } from '@pnpm/resolver-base'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'

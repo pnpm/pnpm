@@ -1,7 +1,7 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import util from 'util'
 import { createResolver } from '@pnpm/client'
-import { type TarballResolution } from '@pnpm/lockfile.types'
+import type { TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
 import { readMsgpackFile } from '@pnpm/fs.msgpack-file'

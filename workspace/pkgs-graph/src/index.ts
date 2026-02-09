@@ -2,7 +2,7 @@ import path from 'path'
 import npa from '@pnpm/npm-package-arg'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import { parseBareSpecifier, workspacePrefToNpm } from '@pnpm/npm-resolver'
-import { type ProjectRootDir, type BaseManifest } from '@pnpm/types'
+import type { ProjectRootDir, BaseManifest } from '@pnpm/types'
 import { map as mapValues } from 'ramda'
 
 export interface Package {

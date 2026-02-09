@@ -1,6 +1,6 @@
 import { stripVTControlCharacters } from 'util'
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
-import { type OutdatedPackage } from '@pnpm/outdated'
+import type { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
 import { pipe, groupBy, pluck, uniqBy, pickBy, and, isEmpty } from 'ramda'

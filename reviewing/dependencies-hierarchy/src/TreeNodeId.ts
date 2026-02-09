@@ -1,4 +1,4 @@
-import { type DepPath } from '@pnpm/types'
+import type { DepPath } from '@pnpm/types'
 
 export type TreeNodeId = TreeNodeIdImporter | TreeNodeIdPackage
 

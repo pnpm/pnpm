@@ -8,14 +8,14 @@ import {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
-import { type DependenciesField, type DependencyManifest, type Finder, type Registries } from '@pnpm/types'
+import type { DependenciesField, DependencyManifest, Finder, Registries } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import semver from 'semver'
 import realpathMissing from 'realpath-missing'
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
 import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
-import { type TreeNodeId } from './TreeNodeId.js'
+import type { TreeNodeId } from './TreeNodeId.js'
 import { getPkgInfo } from './getPkgInfo.js'
 
 interface ReverseEdge {

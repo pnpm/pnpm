@@ -1,5 +1,5 @@
-import { type PkgResolutionId, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import type { PkgResolutionId, ResolveResult, TarballResolution } from '@pnpm/resolver-base'
+import type { FetchFromRegistry } from '@pnpm/fetching-types'
 
 export interface TarballResolveResult extends ResolveResult {
   normalizedBareSpecifier: string

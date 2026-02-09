@@ -1,8 +1,8 @@
-import { type ResolvedDependencies, type LockfileObject } from '@pnpm/lockfile.types'
-import {
-  type ResolutionChangesByAlias,
-  type DedupeCheckIssues,
-  type SnapshotsChanges,
+import type { ResolvedDependencies, LockfileObject } from '@pnpm/lockfile.types'
+import type {
+  ResolutionChangesByAlias,
+  DedupeCheckIssues,
+  SnapshotsChanges,
 } from '@pnpm/dedupe.types'
 import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { DedupeCheckIssuesError } from './DedupeCheckIssuesError.js'

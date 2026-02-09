@@ -1,7 +1,7 @@
 import path from 'path'
 import PATH_NAME from 'path-name'
 import { prepare } from '@pnpm/prepare'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { execPnpm } from '../utils/index.js'
 

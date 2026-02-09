@@ -3,7 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import renderHelp from 'render-help'
 import { envRemove } from './envRemove.js'
 import { envUse } from './envUse.js'
-import { type NvmNodeCommandOptions } from './node.js'
+import type { NvmNodeCommandOptions } from './node.js'
 import { envList } from './envList.js'
 import { envAdd } from './envAdd.js'
 

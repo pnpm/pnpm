@@ -9,13 +9,13 @@ import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
 import { hardLinkDir } from '@pnpm/worker'
 import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type StoreController } from '@pnpm/store-controller-types'
+import type { StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import {
-  type AllowBuild,
-  type DependencyManifest,
-  type DepPath,
-  type IgnoredBuilds,
+import type {
+  AllowBuild,
+  DependencyManifest,
+  DepPath,
+  IgnoredBuilds,
 } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import { pickBy } from 'ramda'

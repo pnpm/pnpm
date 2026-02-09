@@ -3,7 +3,7 @@ import fs from 'fs'
 import { ignoredBuilds } from '@pnpm/exec.build-commands'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
-import { type DepPath } from '@pnpm/types'
+import type { DepPath } from '@pnpm/types'
 
 const DEFAULT_MODULES_MANIFEST = {
   hoistedDependencies: {},

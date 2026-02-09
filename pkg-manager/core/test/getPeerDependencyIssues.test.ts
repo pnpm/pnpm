@@ -1,6 +1,6 @@
 import { getPeerDependencyIssues } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from './utils/index.js'
 
 test('cannot resolve peer dependency for top-level dependency', async () => {

@@ -1,8 +1,8 @@
 import { globalWarn } from '@pnpm/logger'
-import {
-  type DependenciesField,
-  type EngineDependency,
-  type ProjectManifest,
+import type {
+  DependenciesField,
+  EngineDependency,
+  ProjectManifest,
 } from '@pnpm/types'
 
 export function convertEnginesRuntimeToDependencies (

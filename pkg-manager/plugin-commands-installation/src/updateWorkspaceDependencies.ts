@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import { type WorkspacePackages } from '@pnpm/resolver-base'
-import { type IncludedDependencies, type ProjectManifest } from '@pnpm/types'
+import type { WorkspacePackages } from '@pnpm/resolver-base'
+import type { IncludedDependencies, ProjectManifest } from '@pnpm/types'
 
 export function updateToWorkspacePackagesFromManifest (
   manifest: ProjectManifest,

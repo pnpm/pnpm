@@ -7,8 +7,8 @@ import {
   type FetchErrorResponse,
   PnpmError,
 } from '@pnpm/error'
-import { type FetchFromRegistry, type RetryTimeoutOptions } from '@pnpm/fetching-types'
-import { type PackageMeta } from '@pnpm/registry.types'
+import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
+import type { PackageMeta } from '@pnpm/registry.types'
 import * as retry from '@zkochan/retry'
 
 interface RegistryResponse {

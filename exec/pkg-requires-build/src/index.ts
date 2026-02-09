@@ -1,4 +1,4 @@
-import { type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 
 type FilesIndexArg = Map<string, unknown> | Record<string, unknown>
 

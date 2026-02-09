@@ -1,5 +1,5 @@
 import path from 'path'
-import { type HeadlessOptions } from '@pnpm/headless'
+import type { HeadlessOptions } from '@pnpm/headless'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectsContext } from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

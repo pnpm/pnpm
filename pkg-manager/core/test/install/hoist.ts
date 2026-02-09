@@ -9,7 +9,7 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import { type DepPath, type ProjectRootDir } from '@pnpm/types'
+import type { DepPath, ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'

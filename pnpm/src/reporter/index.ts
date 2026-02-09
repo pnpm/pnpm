@@ -1,6 +1,6 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { initDefaultReporter } from '@pnpm/default-reporter'
-import { type Log } from '@pnpm/core-loggers'
+import type { Log } from '@pnpm/core-loggers'
 import { type LogLevel, type StreamParser, streamParser, writeToConsole } from '@pnpm/logger'
 import { silentReporter } from './silentReporter.js'
 
