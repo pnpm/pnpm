@@ -72,6 +72,12 @@ export async function toJsonResult (
       if (Object.keys(subDependencies).length > 0) {
         dep.dependencies = subDependencies
       }
+      if (node.deduped) {
+        dep.deduped = true
+        if (node.dedupedDependenciesCount) {
+          dep.dedupedDependenciesCount = node.dedupedDependenciesCount
+        }
+      }
       if (!dep.resolved) {
         delete dep.resolved
       }
@@ -83,5 +89,7 @@ export async function toJsonResult (
 }
 
 interface PackageJsonListItem extends PkgInfo {
+  deduped?: true
+  dedupedDependenciesCount?: number
   dependencies?: Record<string, PackageJsonListItem>
 }

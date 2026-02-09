@@ -60,8 +60,14 @@ export interface DependencyGraph {
 // Materialization cache types (Phase 2)
 // ---------------------------------------------------------------------------
 
+interface CachedSubtree {
+  children: PackageNode[]
+  /** Total number of PackageNode objects in the subtree (recursive). */
+  count: number
+}
+
 export interface MaterializationCache {
-  results: Map<string, PackageNode[]>
+  results: Map<string, CachedSubtree>
   /**
    * Tracks cache keys whose results have already been returned to at
    * least one parent.  On subsequent cache hits the subtree is elided
@@ -181,6 +187,17 @@ function materializeCacheKey (nodeId: string, depth: number): string {
   return `${nodeId}@d${depth}`
 }
 
+function countNodes (nodes: PackageNode[]): number {
+  let count = 0
+  for (const node of nodes) {
+    count += 1
+    if (node.dependencies?.length) {
+      count += countNodes(node.dependencies)
+    }
+  }
+  return count
+}
+
 /**
  * Core materialization function.  Walks the pre-built dependency graph to
  * produce the `PackageNode[]` tree that downstream renderers expect.
@@ -256,6 +273,7 @@ function materializeChildren (
       }
     } else {
       let dependencies: PackageNode[]
+      let dedupedCount: number | undefined
       const circular = ancestors.has(edge.targetId!)
 
       if (circular) {
@@ -270,9 +288,12 @@ function materializeChildren (
           // this bounds the total output to O(N) nodes.
           if (cache.expanded.has(cacheKey)) {
             dependencies = []
+            if (cached.count > 0) {
+              dedupedCount = cached.count
+            }
           } else {
             cache.expanded.add(cacheKey)
-            dependencies = cached
+            dependencies = cached.children
           }
         } else {
           ancestors.add(edge.targetId!)
@@ -284,7 +305,7 @@ function materializeChildren (
           ancestors.delete(edge.targetId!)
 
           // Always cache — even results with circular truncations.
-          cache.results.set(cacheKey, dependencies)
+          cache.results.set(cacheKey, { children: dependencies, count: countNodes(dependencies) })
           cache.expanded.add(cacheKey)
         }
       }
@@ -300,6 +321,10 @@ function materializeChildren (
 
       if (newEntry != null && circular) {
         newEntry.circular = true
+      }
+      if (newEntry != null && dedupedCount != null) {
+        newEntry.deduped = true
+        newEntry.dedupedDependenciesCount = dedupedCount
       }
     }
 

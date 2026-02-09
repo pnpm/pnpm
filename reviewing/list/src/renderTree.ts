@@ -162,6 +162,12 @@ function printLabel (getPkgColor: GetPkgColor, node: PackageNode): string {
   if (node.isSkipped) {
     txt += ' skipped'
   }
+  if (node.deduped) {
+    txt += chalk.dim(' deduped')
+    if (node.dedupedDependenciesCount) {
+      txt += chalk.dim(` (${node.dedupedDependenciesCount} dep${node.dedupedDependenciesCount === 1 ? '' : 's'} hidden)`)
+    }
+  }
   return node.searched ? chalk.bold(txt) : txt
 }
 
