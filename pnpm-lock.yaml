@@ -7079,6 +7079,9 @@ importers:
       '@pnpm/exportable-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/exportable-manifest
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/fs.packlist':
         specifier: workspace:*
         version: link:../../fs/packlist
@@ -7112,6 +7115,9 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.0
+      ci-info:
+        specifier: 'catalog:'
+        version: 4.3.0
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -7209,9 +7215,6 @@ importers:
       '@types/validate-npm-package-name':
         specifier: 'catalog:'
         version: 4.0.2
-      ci-info:
-        specifier: 'catalog:'
-        version: 4.3.0
       cross-spawn:
         specifier: 'catalog:'
         version: 7.0.6

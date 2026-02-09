@@ -844,8 +844,9 @@ test('publish: exit with non-zero code when publish tgz', async () => {
   ])).rejects.toStrictEqual(expect.anything())
 })
 
-// TODO: implement provenance and unskip this test
-test.skip('publish: provenance', async () => {
+// NOTE: this test is probably bullshit.
+// TODO: fix this test.
+test('publish: provenance', async () => {
   prepare({
     name: 'test-publish-package.json',
     version: '0.0.2',
@@ -853,6 +854,7 @@ test.skip('publish: provenance', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
+    provenance: true,
     argv: { original: ['publish', '--provenance'] },
     dir: process.cwd(),
   }, [])

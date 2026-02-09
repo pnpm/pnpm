@@ -6,6 +6,7 @@ import { type ExportedManifest } from '@pnpm/exportable-manifest'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
+import { OidcError, oidc } from './oidc.js'
 import { type PackResult } from './pack.js'
 import { allRegistryConfigKeys, longestRegistryConfigKey } from './registryConfigKeys.js'
 
@@ -42,14 +43,8 @@ export type PublishPackedPkgOptions = Pick<Config,
   access?: 'public' | 'restricted'
   ci?: boolean
   otp?: string // NOTE: There is no existing test for the One-time Password feature
-
-  // NOTE: the provenance feature requires a custom implementation of OIDC and Sigstore client, and as such, not yet available
-  //       see <https://github.com/npm/cli/blob/7d900c4656cfffc8cca93240c6cda4b441fbbfaa/lib/utils/oidc.js>
-  //       see <https://github.com/watson/ci-info>
-  //       see <https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect>
-  // TODO: implement provenance
   provenance?: boolean
-  provenanceFile?: string
+  provenanceFile?: string // NOTE: This field is currently not supported
 }
 
 // @types/libnpmpublish unfortunately uses an outdated type definition of package.json
@@ -64,6 +59,9 @@ export async function publishPackedPkg (
   const publishOptions = createPublishOptions(publishedManifest, opts)
   const { name, version } = publishedManifest
   const { registry } = publishOptions
+  if (registry) {
+    await addAuthTokenByOidcIfApplicable(publishOptions, name, registry, opts)
+  }
   globalInfo(`📦 ${name}@${version} → ${registry ?? 'the default registry'}`)
   if (opts.dryRun) {
     globalWarn(`Skip publishing ${name}@${version} (dry run)`)
@@ -86,8 +84,6 @@ function createPublishOptions (manifest: ExportedManifest, {
   fetchRetryMintimeout,
   fetchTimeout: timeout,
   otp,
-  provenance,
-  provenanceFile,
   tag: defaultTag,
   userAgent,
   ...options
@@ -103,8 +99,6 @@ function createPublishOptions (manifest: ExportedManifest, {
     fetchRetryMintimeout,
     isFromCI,
     otp,
-    provenance,
-    provenanceFile,
     timeout,
     registry,
     userAgent,
@@ -200,6 +194,38 @@ export class PublishUnsupportedRegistryProtocolError extends PnpmError {
       hint: '`pnpm publish` only supports HTTP and HTTPS registries',
     })
     this.registryUrl = registryUrl
+  }
+}
+
+/**
+ * If {@link provenance} is `true`, and authentication information doesn't already set in {@link targetPublishOptions},
+ * try fetching an authentication token by OpenID Connect and set it to `token` of {@link targetPublishOptions}.
+ */
+async function addAuthTokenByOidcIfApplicable (
+  targetPublishOptions: PublishOptions,
+  packageName: string,
+  registry: string,
+  options: PublishPackedPkgOptions
+): Promise<void> {
+  if (
+    !options.provenance ||
+    targetPublishOptions.token ||
+    (targetPublishOptions.username && targetPublishOptions.password)
+  ) return
+
+  try {
+    targetPublishOptions.token = await oidc({
+      options,
+      packageName,
+      registry,
+    })
+  } catch (error) {
+    if (error instanceof OidcError) {
+      globalWarn(`Skipped OIDC: ${error.message}`)
+      return
+    }
+
+    throw error
   }
 }
 
