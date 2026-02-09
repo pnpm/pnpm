@@ -848,7 +848,7 @@ test('publish: exit with non-zero code when publish tgz', async () => {
 // TODO: fix this test.
 test('publish: provenance', async () => {
   prepare({
-    name: 'test-publish-package.json',
+    name: 'test-publish-package-oidc.json',
     version: '0.0.2',
   })
 
