@@ -844,9 +844,8 @@ test('publish: exit with non-zero code when publish tgz', async () => {
   ])).rejects.toStrictEqual(expect.anything())
 })
 
-// NOTE: this test is probably bullshit.
-// TODO: fix this test.
-test('publish: provenance', async () => {
+// This test doesn't work. Verdaccio doesn't support OIDC, neither does local environment.
+test.skip('publish: provenance', async () => {
   prepare({
     name: 'test-publish-package-oidc.json',
     version: '0.0.2',
