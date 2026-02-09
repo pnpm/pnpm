@@ -385,6 +385,108 @@ test('recursive update --latest foo should only update packages that have foo', 
   }
 })
 
+test('recursive update --latest updates workspace peerDependencies', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+
+  preparePackages([
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+      },
+    },
+    {
+      name: 'lib',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/foo': '>=1.0.0',
+      },
+    },
+  ])
+
+  const lockfileDir = process.cwd()
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+    autoInstallPeers: true,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    latest: true,
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+    autoInstallPeers: true,
+  }, [])
+
+  const lockfile = readYamlFile<LockfileObject>('./pnpm-lock.yaml')
+  expect(lockfile.packages?.['@pnpm.e2e/foo@2.0.0']).toBeTruthy()
+})
+
+test('recursive update with pattern matches peerDependencies', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+
+  preparePackages([
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+      },
+    },
+    {
+      name: 'lib',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/foo': '>=1.0.0',
+      },
+    },
+  ])
+
+  const lockfileDir = process.cwd()
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+    autoInstallPeers: true,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    latest: true,
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+    autoInstallPeers: true,
+  }, ['@pnpm.e2e/foo'])
+
+  const lockfile = readYamlFile<LockfileObject>('./pnpm-lock.yaml')
+  expect(lockfile.packages?.['@pnpm.e2e/foo@2.0.0']).toBeTruthy()
+})
+
 test('recursive update in workspace should not add new dependencies', async () => {
   const projects = preparePackages([
     {

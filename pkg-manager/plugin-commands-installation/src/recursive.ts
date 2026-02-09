@@ -54,6 +54,7 @@ import { getPinnedVersion } from './getPinnedVersion.js'
 import { type PreferredVersions } from '@pnpm/resolver-base'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
+| 'autoInstallPeers'
 | 'bail'
 | 'configDependencies'
 | 'dedupePeerDependents'
@@ -219,14 +220,14 @@ export async function recursive (
       const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       let currentInput = [...params]
       if (updateMatch != null) {
-        currentInput = matchDependencies(updateMatch, manifest, includeDirect)
+        currentInput = matchDependencies(updateMatch, manifest, includeDirect, { autoInstallPeers: opts.autoInstallPeers })
         if ((currentInput.length === 0) && (typeof opts.depth === 'undefined' || opts.depth <= 0)) {
           installOpts.pruneLockfileImporters = false
           return
         }
       }
       if (updateToLatest && (!params || (params.length === 0))) {
-        currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
+        currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect, { autoInstallPeers: opts.autoInstallPeers }))
       }
       if (opts.workspace) {
         if (!currentInput || (currentInput.length === 0)) {
@@ -338,11 +339,11 @@ export async function recursive (
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...params]
         if (updateMatch != null) {
-          currentInput = matchDependencies(updateMatch, manifest, includeDirect)
+          currentInput = matchDependencies(updateMatch, manifest, includeDirect, { autoInstallPeers: opts.autoInstallPeers })
           if (currentInput.length === 0) return
         }
         if (updateToLatest && (!params || (params.length === 0))) {
-          currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
+          currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect, { autoInstallPeers: opts.autoInstallPeers }))
         }
         if (opts.workspace) {
           if (!currentInput || (currentInput.length === 0)) {
@@ -501,9 +502,10 @@ function calculateRepositoryRoot (
 export function matchDependencies (
   match: (input: string) => string | null,
   manifest: ProjectManifest,
-  include: IncludedDependencies
+  include: IncludedDependencies,
+  opts?: { autoInstallPeers?: boolean }
 ): string[] {
-  const deps = Object.keys(filterDependenciesByType(manifest, include))
+  const deps = Object.keys(filterDependenciesByType(manifest, include, opts))
   const matchedDeps = []
   for (const dep of deps) {
     const spec = match(dep)

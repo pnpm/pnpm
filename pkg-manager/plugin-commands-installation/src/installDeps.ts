@@ -288,7 +288,7 @@ when running add/update with the --workspace option')
     updateMatch = null
   }
   if (updateMatch != null) {
-    params = matchDependencies(updateMatch, manifest, includeDirect)
+    params = matchDependencies(updateMatch, manifest, includeDirect, { autoInstallPeers: opts.autoInstallPeers })
     if (params.length === 0) {
       if (opts.latest) return
       if (opts.depth === 0) {
@@ -303,7 +303,7 @@ when running add/update with the --workspace option')
   }
 
   if (opts.update && opts.latest && (!params || (params.length === 0))) {
-    params = Object.keys(filterDependenciesByType(manifest, includeDirect))
+    params = Object.keys(filterDependenciesByType(manifest, includeDirect, { autoInstallPeers: opts.autoInstallPeers }))
   }
   if (opts.workspace) {
     if (!params || (params.length === 0)) {

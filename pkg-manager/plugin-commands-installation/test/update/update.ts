@@ -381,6 +381,96 @@ test('do not update anything if all the dependencies are ignored and trying to u
   expect(lockfileUpdated.packages['@pnpm.e2e/foo@100.0.0']).toBeTruthy()
 })
 
+test('update --latest includes direct peerDependencies', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/bar': '100.0.0',
+    },
+    peerDependencies: {
+      '@pnpm.e2e/foo': '>=1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    autoInstallPeers: true,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+    autoInstallPeers: true,
+  }, [])
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/foo@2.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/bar@100.1.0']).toBeTruthy()
+})
+
+test('update specific package matches peerDependencies', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    peerDependencies: {
+      '@pnpm.e2e/foo': '>=1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    autoInstallPeers: true,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+    autoInstallPeers: true,
+  }, ['@pnpm.e2e/foo'])
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/foo@2.0.0']).toBeTruthy()
+})
+
+test('update --latest does NOT include peerDependencies when autoInstallPeers is false', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    peerDependencies: {
+      '@pnpm.e2e/foo': '>=1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    autoInstallPeers: false,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+    autoInstallPeers: false,
+  }, [])
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages?.['@pnpm.e2e/foo@2.0.0']).toBeFalsy()
+})
+
 test('should not update tag version when --latest not set', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'canary' })
