@@ -23,18 +23,13 @@ export function getWantedDependencies (
     includeDirect?: IncludedDependencies
   }
 ): WantedDependency[] {
-  let depsToInstall = filterDependenciesByType(pkg,
+  const depsToInstall = filterDependenciesByType(pkg,
     opts?.includeDirect ?? {
       dependencies: true,
       devDependencies: true,
       optionalDependencies: true,
-    })
-  if (opts?.autoInstallPeers) {
-    depsToInstall = {
-      ...pkg.peerDependencies,
-      ...depsToInstall,
-    }
-  }
+    },
+    { autoInstallPeers: opts?.autoInstallPeers })
   return getWantedDependenciesFromGivenSet(depsToInstall, {
     dependencies: pkg.dependencies ?? {},
     devDependencies: pkg.devDependencies ?? {},
