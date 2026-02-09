@@ -10,5 +10,5 @@ export function getAllDependenciesFromManifest (
     ...pkg.devDependencies,
     ...pkg.dependencies,
     ...pkg.optionalDependencies,
-  } as Dependencies
+  }
 }
