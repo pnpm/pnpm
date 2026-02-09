@@ -2,7 +2,7 @@ import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
 import { Readable } from 'stream'
-import { type FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
+import type { FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
 import { tempDir } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
 

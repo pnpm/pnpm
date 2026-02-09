@@ -38,7 +38,7 @@
     "@pnpm/cli-meta": "workspace:*"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"
