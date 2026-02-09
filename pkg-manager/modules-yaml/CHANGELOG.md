@@ -1,5 +1,15 @@
 # @pnpm/modules-yaml
 
+## 1002.0.0
+
+### Major Changes
+
+- 9821d2d: Remove options from writeModulesManifest.
+
+### Minor Changes
+
+- 9821d2d: Save node_modules/.modules.yaml in JSON format.
+
 ## 1001.0.2
 
 ### Patch Changes

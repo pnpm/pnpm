@@ -1,5 +1,14 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1001.2.6
+
+### Patch Changes
+
+- 9b0c33c: Fixed `pnpm list --json` returning incorrect paths when using global virtual store [#10187](https://github.com/pnpm/pnpm/issues/10187).
+- Updated dependencies [9821d2d]
+- Updated dependencies [9821d2d]
+  - @pnpm/modules-yaml@1002.0.0
+
 ## 1001.2.5
 
 ### Patch Changes

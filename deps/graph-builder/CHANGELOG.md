@@ -1,5 +1,14 @@
 # @pnpm/deps.graph-builder
 
+## 1002.3.10
+
+### Patch Changes
+
+- 7adf26b: Skip local `file:` protocol dependencies during `pnpm fetch`. This fixes an issue where `pnpm fetch` would fail in Docker builds when local directory dependencies were not available [#10460](https://github.com/pnpm/pnpm/issues/10460).
+- Updated dependencies [9821d2d]
+- Updated dependencies [9821d2d]
+  - @pnpm/modules-yaml@1002.0.0
+
 ## 1002.3.9
 
 ### Patch Changes

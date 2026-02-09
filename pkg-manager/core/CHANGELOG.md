@@ -1,5 +1,38 @@
 # @pnpm/core
 
+## 1016.1.5
+
+### Patch Changes
+
+- @pnpm/build-modules@1007.0.6
+- @pnpm/plugin-commands-rebuild@1008.0.6
+- @pnpm/headless@1010.1.5
+- @pnpm/package-requester@1011.2.2
+
+## 1016.1.4
+
+### Patch Changes
+
+- 7adf26b: Skip local `file:` protocol dependencies during `pnpm fetch`. This fixes an issue where `pnpm fetch` would fail in Docker builds when local directory dependencies were not available [#10460](https://github.com/pnpm/pnpm/issues/10460).
+- Updated dependencies [9821d2d]
+- Updated dependencies [43d44c8]
+- Updated dependencies [7adf26b]
+- Updated dependencies [b2347e7]
+- Updated dependencies [9821d2d]
+  - @pnpm/modules-yaml@1002.0.0
+  - @pnpm/resolve-dependencies@1008.7.3
+  - @pnpm/headless@1010.1.4
+  - @pnpm/worker@1000.6.4
+  - @pnpm/plugin-commands-rebuild@1008.0.5
+  - @pnpm/get-context@1001.2.4
+  - @pnpm/build-modules@1007.0.5
+  - @pnpm/lockfile.verification@1001.2.20
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/lifecycle@1001.0.34
+  - @pnpm/symlink-dependency@1000.0.17
+  - @pnpm/lockfile.settings-checker@1001.0.27
+  - @pnpm/package-requester@1011.2.2
+
 ## 1016.1.3
 
 ### Patch Changes

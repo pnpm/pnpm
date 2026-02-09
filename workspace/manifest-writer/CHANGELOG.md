@@ -1,5 +1,17 @@
 # @pnpm/workspace.manifest-writer
 
+## 1001.2.0
+
+### Minor Changes
+
+- 4471eb8: New option added: updatedOverrides.
+
+### Patch Changes
+
+- f249b16: Fix YAML formatting preservation in `pnpm-workspace.yaml` when running commands like `pnpm update`. Previously, quotes and other formatting were lost even when catalog values didn't change.
+
+  Closes #10425
+
 ## 1001.1.2
 
 ### Patch Changes

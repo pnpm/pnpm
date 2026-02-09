@@ -1,5 +1,18 @@
 # @pnpm/find-workspace-packages
 
+## 1000.0.58
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.3.3
+
+## 1000.0.57
+
+### Patch Changes
+
+- Updated dependencies [7f18264]
+  - @pnpm/cli-utils@1001.3.2
+
 ## 1000.0.56
 
 ### Patch Changes

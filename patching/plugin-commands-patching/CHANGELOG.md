@@ -1,5 +1,35 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.36
+
+### Patch Changes
+
+- Updated dependencies [595cd41]
+  - @pnpm/config@1004.10.1
+  - @pnpm/cli-utils@1001.3.3
+  - @pnpm/plugin-commands-installation@1004.9.5
+  - @pnpm/store-connection-manager@1002.3.14
+
+## 1000.3.35
+
+### Patch Changes
+
+- Updated dependencies [9821d2d]
+- Updated dependencies [7adf26b]
+- Updated dependencies [4471eb8]
+- Updated dependencies [7d8be9f]
+- Updated dependencies [7f18264]
+- Updated dependencies [9821d2d]
+- Updated dependencies [a57ba4e]
+  - @pnpm/modules-yaml@1002.0.0
+  - @pnpm/plugin-commands-installation@1004.9.4
+  - @pnpm/config.config-writer@1000.1.0
+  - @pnpm/config@1004.10.0
+  - @pnpm/cli-utils@1001.3.2
+  - @pnpm/store-connection-manager@1002.3.13
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/patching.apply-patch@1000.0.7
+
 ## 1000.3.34
 
 ### Patch Changes

@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.2.1
+
+### Patch Changes
+
+- Updated dependencies [595cd41]
+  - @pnpm/config@1004.10.1
+  - @pnpm/cli-utils@1001.3.3
+
+## 1002.2.0
+
+### Minor Changes
+
+- 7d8be9f: Support configuring `auditLevel` in the `pnpm-workspace.yaml` file [#10540](https://github.com/pnpm/pnpm/issues/10540).
+
+### Patch Changes
+
+- 22eaf9b: Fixed `pnpm audit --json` to respect the `--audit-level` setting for both exit code and output filtering [#10540](https://github.com/pnpm/pnpm/issues/10540).
+- 4471eb8: Fix `pnpm audit --fix` replacing reference overrides (e.g. `$foo`) with concrete versions [#10325](https://github.com/pnpm/pnpm/issues/10325).
+- Updated dependencies [4471eb8]
+- Updated dependencies [7d8be9f]
+- Updated dependencies [7f18264]
+- Updated dependencies [a57ba4e]
+  - @pnpm/config.config-writer@1000.1.0
+  - @pnpm/config@1004.10.0
+  - @pnpm/cli-utils@1001.3.2
+
 ## 1002.1.32
 
 ### Patch Changes

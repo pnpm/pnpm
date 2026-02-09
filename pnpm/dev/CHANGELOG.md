@@ -1,5 +1,19 @@
 # pd
 
+## 1000.0.26
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.58
+
+## 1000.0.25
+
+### Patch Changes
+
+- Updated dependencies [25ed567]
+  - @pnpm/find-workspace-dir@1000.1.4
+  - @pnpm/workspace.find-packages@1000.0.57
+
 ## 1000.0.24
 
 ### Patch Changes

@@ -1,5 +1,30 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.3.8
+
+### Patch Changes
+
+- Updated dependencies [595cd41]
+  - @pnpm/config@1004.10.1
+  - @pnpm/cli-utils@1001.3.3
+  - @pnpm/plugin-commands-env@1000.0.59
+  - @pnpm/client@1001.1.19
+
+## 1000.3.7
+
+### Patch Changes
+
+- Updated dependencies [7d8be9f]
+- Updated dependencies [ed87c99]
+- Updated dependencies [7f18264]
+- Updated dependencies [a57ba4e]
+  - @pnpm/config@1004.10.0
+  - @pnpm/exportable-manifest@1000.4.0
+  - @pnpm/cli-utils@1001.3.2
+  - @pnpm/plugin-commands-env@1000.0.58
+  - @pnpm/client@1001.1.18
+  - @pnpm/lifecycle@1001.0.34
+
 ## 1000.3.6
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-completion
 
+## 1000.0.33
+
+### Patch Changes
+
+- 5c7ee66: Fixed the documentation URL shown in `pnpm completion --help` to point to the correct page at https://pnpm.io/completion [#10281](https://github.com/pnpm/pnpm/issues/10281).
+- Updated dependencies [25ed567]
+- Updated dependencies [7f18264]
+  - @pnpm/find-workspace-dir@1000.1.4
+  - @pnpm/cli-utils@1001.3.2
+  - @pnpm/parse-cli-args@1000.1.5
+  - @pnpm/workspace.find-packages@1000.0.57
+
 ## 1000.0.32
 
 ### Patch Changes

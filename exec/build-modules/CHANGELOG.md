@@ -1,5 +1,26 @@
 # @pnpm/build-modules
 
+## 1007.0.6
+
+### Patch Changes
+
+- Updated dependencies [595cd41]
+  - @pnpm/config@1004.10.1
+
+## 1007.0.5
+
+### Patch Changes
+
+- Updated dependencies [7d8be9f]
+- Updated dependencies [b2347e7]
+- Updated dependencies [7f18264]
+- Updated dependencies [a57ba4e]
+  - @pnpm/config@1004.10.0
+  - @pnpm/worker@1000.6.4
+  - @pnpm/lifecycle@1001.0.34
+  - @pnpm/fs.hard-link-dir@1000.0.5
+  - @pnpm/patching.apply-patch@1000.0.7
+
 ## 1007.0.4
 
 ### Patch Changes

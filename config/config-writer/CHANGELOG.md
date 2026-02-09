@@ -1,5 +1,17 @@
 # @pnpm/config.config-writer
 
+## 1000.1.0
+
+### Minor Changes
+
+- 4471eb8: New option added: updatedOverrides.
+
+### Patch Changes
+
+- Updated dependencies [4471eb8]
+- Updated dependencies [f249b16]
+  - @pnpm/workspace.manifest-writer@1001.2.0
+
 ## 1000.0.21
 
 ### Patch Changes

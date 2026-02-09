@@ -366,6 +366,7 @@ overrides:
   glob-parent@<5.1.2: '>=5.1.2'
   hosted-git-info@1: 'catalog:'
   http-proxy-middleware@<2.0.7: ^2.0.7
+  isexe@3: 3.1.1
   istanbul-reports: npm:@zkochan/istanbul-reports
   js-yaml@<3.14.2: '^3.14.2'
   js-yaml@^4.0.0: 'catalog:'

@@ -1,5 +1,25 @@
 # @pnpm/config
 
+## 1004.10.1
+
+### Patch Changes
+
+- 595cd41: Reverted a fix shipped in v10.29.1, which caused another issue [#10571](https://github.com/pnpm/pnpm/issues/10571).
+  Reverted fix: Fixed pnpm run -r failing with "No projects matched the filters" when an empty pnpm-workspace.yaml exists [#10497](https://github.com/pnpm/pnpm/issues/10497).
+
+## 1004.10.0
+
+### Minor Changes
+
+- 7d8be9f: Support configuring `auditLevel` in the `pnpm-workspace.yaml` file [#10540](https://github.com/pnpm/pnpm/issues/10540).
+
+### Patch Changes
+
+- 7f18264: Fix `shamefullyHoist` set via `updateConfig` in `.pnpmfile.cjs` not being converted to `publicHoistPattern` [#10271](https://github.com/pnpm/pnpm/issues/10271).
+- a57ba4e: Add a warning when the current directory contains the PATH delimiter character. On macOS, folder names containing forward slashes (/) appear as colons (:) at the Unix layer. Since colons are PATH separators in POSIX systems, this breaks PATH injection for `node_modules/.bin`, causing binaries to not be found when running commands like `pnpm exec`.
+
+  Closes [#10457](https://github.com/pnpm/pnpm/issues/10457).
+
 ## 1004.9.2
 
 ### Patch Changes
