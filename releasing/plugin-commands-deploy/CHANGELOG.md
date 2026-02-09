@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-deploy
 
+## 1002.0.29
+
+### Patch Changes
+
+- Updated dependencies [595cd41]
+  - @pnpm/config@1004.10.1
+  - @pnpm/cli-utils@1001.3.3
+  - @pnpm/plugin-commands-installation@1004.9.5
+
 ## 1002.0.28
 
 ### Patch Changes

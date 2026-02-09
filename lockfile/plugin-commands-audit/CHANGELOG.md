@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.2.1
+
+### Patch Changes
+
+- Updated dependencies [595cd41]
+  - @pnpm/config@1004.10.1
+  - @pnpm/cli-utils@1001.3.3
+
 ## 1002.2.0
 
 ### Minor Changes

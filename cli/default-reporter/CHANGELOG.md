@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 1002.1.9
+
+### Patch Changes
+
+- Updated dependencies [595cd41]
+  - @pnpm/config@1004.10.1
+
 ## 1002.1.8
 
 ### Patch Changes

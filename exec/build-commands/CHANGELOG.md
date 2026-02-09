@@ -1,5 +1,13 @@
 # @pnpm/exec.build-commands
 
+## 1002.0.9
+
+### Patch Changes
+
+- Updated dependencies [595cd41]
+  - @pnpm/config@1004.10.1
+  - @pnpm/plugin-commands-rebuild@1008.0.6
+
 ## 1002.0.8
 
 ### Patch Changes
