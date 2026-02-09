@@ -17,7 +17,7 @@ import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
 import { type PackageNode } from './PackageNode.js'
-import { getTree } from './getTree.js'
+import { getTree, buildDependencyGraph, type MaterializationCache } from './getTree.js'
 import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { type TreeNodeId } from './TreeNodeId.js'
@@ -134,8 +134,10 @@ async function dependenciesHierarchyForPackage (
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
 
   const depTypes = detectDepTypes(currentLockfile)
+  const currentPackages = currentLockfile.packages ?? {}
+  const wantedPackages = wantedLockfile?.packages ?? {}
   const getTreeOpts = {
-    currentPackages: currentLockfile.packages ?? {},
+    currentPackages,
     excludePeerDependencies: opts.excludePeerDependencies,
     importers: currentLockfile.importers,
     includeOptionalDependencies: opts.include.optionalDependencies,
@@ -147,14 +149,25 @@ async function dependenciesHierarchyForPackage (
     registries: opts.registries,
     search: opts.search,
     skipped: opts.skipped,
-    wantedPackages: wantedLockfile?.packages ?? {},
+    wantedPackages,
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir,
   }
-  const getChildrenTree = (nodeId: TreeNodeId, parentDir?: string) =>
-    getTree({ ...getTreeOpts, parentDir }, nodeId)
   const parentId: TreeNodeId = { type: 'importer', importerId }
+
+  // Build ONE shared graph and cache for the entire project, reused
+  // across all dependency fields and top-level deps.
+  const graph = buildDependencyGraph(parentId, {
+    currentPackages,
+    importers: currentLockfile.importers,
+    includeOptionalDependencies: opts.include.optionalDependencies,
+    lockfileDir: opts.lockfileDir,
+  })
+  const materializationCache: MaterializationCache = { results: new Map(), expanded: new Set() }
+
+  const getChildrenTree = (nodeId: TreeNodeId, parentDir?: string) =>
+    getTree({ ...getTreeOpts, parentDir, graph, materializationCache }, nodeId)
   const result: DependenciesHierarchy = {}
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciesField => opts.include[dependenciesField])) {
     const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
