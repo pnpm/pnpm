@@ -209,7 +209,7 @@ async function addAuthTokenByOidcIfApplicable (
 ): Promise<void> {
   if (
     !options.provenance ||
-    targetPublishOptions.token ||
+    targetPublishOptions.token != null ||
     (targetPublishOptions.username && targetPublishOptions.password)
   ) return
 
