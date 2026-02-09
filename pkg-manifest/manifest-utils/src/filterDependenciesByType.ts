@@ -5,8 +5,8 @@ export function filterDependenciesByType (
   include: IncludedDependencies
 ): Dependencies {
   return {
-    ...(include.dependencies ? manifest.dependencies : {}),
     ...(include.devDependencies ? manifest.devDependencies : {}),
+    ...(include.dependencies ? manifest.dependencies : {}),
     ...(include.optionalDependencies ? manifest.optionalDependencies : {}),
   }
 }
