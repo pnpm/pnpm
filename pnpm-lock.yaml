@@ -5357,6 +5357,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/resolving.registry.types':
+        specifier: workspace:*
+        version: link:../../resolving/registry/types
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
