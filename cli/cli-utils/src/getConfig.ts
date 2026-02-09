@@ -116,4 +116,24 @@ function applyDerivedConfig (config: Config): void {
     delete config.hoistPattern
     delete config.publicHoistPattern
   }
+  if (config.allowBuilds) {
+    config.onlyBuiltDependencies ??= []
+    config.ignoredBuiltDependencies ??= []
+    const onlyBuiltSet = new Set(config.onlyBuiltDependencies)
+    const ignoredBuiltSet = new Set(config.ignoredBuiltDependencies)
+    for (const [packagePattern, build] of Object.entries(config.allowBuilds)) {
+      switch (build) {
+      case true:
+        if (!onlyBuiltSet.has(packagePattern)) {
+          config.onlyBuiltDependencies.push(packagePattern)
+        }
+        break
+      case false:
+        if (!ignoredBuiltSet.has(packagePattern)) {
+          config.ignoredBuiltDependencies.push(packagePattern)
+        }
+        break
+      }
+    }
+  }
 }
