@@ -132,6 +132,7 @@ export async function handler (
   | 'configDependencies'
   | 'dev'
   | 'engineStrict'
+  | 'global'
   | 'globalPnpmfile'
   | 'hooks'
   | 'ignorePnpmfile'
@@ -235,8 +236,10 @@ export async function handler (
       }
     }
   }
-  await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-    cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-    allProjects: updatedProjects,
-  })
+  if (opts.workspaceDir != null || !opts.global) {
+    await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+      cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+      allProjects: updatedProjects,
+    })
+  }
 }

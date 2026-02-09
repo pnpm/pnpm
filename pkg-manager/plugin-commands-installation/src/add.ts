@@ -271,7 +271,9 @@ export async function handler (
         })
       }
     }
-    const allowBuilds: Record<string, boolean> = {}
+    const allowBuilds: Record<string, boolean | string> = {
+      ...opts.allowBuilds,
+    }
     for (const pkg of opts.allowBuild) {
       allowBuilds[pkg] = true
     }

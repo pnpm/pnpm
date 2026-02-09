@@ -326,13 +326,17 @@ when running add/update with the --workspace option')
     }
     const { updatedCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
-      await Promise.all([
-        writeProjectManifest(updatedProject.manifest),
-        updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+      const shouldUpdateWorkspaceManifest = opts.workspaceDir != null || !opts.global
+      const updateWorkspaceManifestPromise = shouldUpdateWorkspaceManifest
+        ? updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
           updatedCatalogs,
           cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
           allProjects: opts.allProjects,
-        }),
+        })
+        : Promise.resolve()
+      await Promise.all([
+        writeProjectManifest(updatedProject.manifest),
+        updateWorkspaceManifestPromise,
       ])
     }
     if (!opts.lockfileOnly) {
@@ -346,7 +350,7 @@ when running add/update with the --workspace option')
       })
     }
     if (opts.strictDepBuilds && ignoredBuilds?.size) {
-      throw new IgnoredBuildsError(ignoredBuilds)
+      throw new IgnoredBuildsError(ignoredBuilds, { global: opts.global })
     }
     return
   }
@@ -357,17 +361,21 @@ when running add/update with the --workspace option')
     updateMatching,
   })
   if (opts.update === true && opts.save !== false) {
-    await Promise.all([
-      writeProjectManifest(updatedManifest),
-      updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+    const shouldUpdateWorkspaceManifest = opts.workspaceDir != null || !opts.global
+    const updateWorkspaceManifestPromise = shouldUpdateWorkspaceManifest
+      ? updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
         updatedCatalogs,
         cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
         allProjects,
-      }),
+      })
+      : Promise.resolve()
+    await Promise.all([
+      writeProjectManifest(updatedManifest),
+      updateWorkspaceManifestPromise,
     ])
   }
   if (opts.strictDepBuilds && ignoredBuilds?.size) {
-    throw new IgnoredBuildsError(ignoredBuilds)
+    throw new IgnoredBuildsError(ignoredBuilds, { global: opts.global })
   }
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {

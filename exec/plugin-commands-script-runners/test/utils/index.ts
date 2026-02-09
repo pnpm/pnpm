@@ -68,6 +68,7 @@ export const DLX_DEFAULT_OPTS = {
   bail: false,
   bin: 'node_modules/.bin',
   cacheDir: path.join(tmp, 'cache'),
+  dangerouslyAllowAllBuilds: false,
   excludeLinksFromLockfile: false,
   extraEnv: {},
   extraBinPaths: [],
