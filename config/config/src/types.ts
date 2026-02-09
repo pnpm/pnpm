@@ -139,6 +139,7 @@ export const pnpmTypes = {
   cpu: [String, Array],
   libc: [String, Array],
   os: [String, Array],
+  'audit-level': ['low', 'moderate', 'high', 'critical'],
 }
 
 // NOTE: There is an oversight I just now notice thanks to a test failure: pnpmTypes (which used to be the object literal inside `Object.assign`)

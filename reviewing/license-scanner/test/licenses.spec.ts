@@ -1,9 +1,9 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type DepPath, type ProjectManifest, type Registries, type ProjectId } from '@pnpm/types'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import type { DepPath, ProjectManifest, Registries, ProjectId } from '@pnpm/types'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { jest } from '@jest/globals'
-import { type LicensePackage } from '../lib/licenses.js'
-import { type GetPackageInfoOptions, type PackageInfo } from '../lib/getPkgInfo.js'
+import type { LicensePackage } from '../lib/licenses.js'
+import type { GetPackageInfoOptions, PackageInfo } from '../lib/getPkgInfo.js'
 
 const actualModule = await import('../lib/getPkgInfo.js')
 jest.unstable_mockModule('../lib/getPkgInfo.js', () => {

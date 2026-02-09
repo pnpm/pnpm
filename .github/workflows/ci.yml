@@ -9,7 +9,8 @@ jobs:
   compile-and-lint:
     # Skip pull_request events from PRs in the same repo. This prevents
     # duplicate build jobs from running when creating a PR in the original repo.
-    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository }}
+    # Exception: chore/update-lockfile PRs (created by automation with GITHUB_TOKEN, which doesn't trigger push events)
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile' }}
 
     name: Compile & Lint
     runs-on: ubuntu-latest
@@ -44,7 +45,8 @@ jobs:
     needs: compile-and-lint
     # Skip pull_request events from PRs in the same repo. This prevents
     # duplicate test jobs from running when creating a PR in the original repo.
-    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository }}
+    # Exception: chore/update-lockfile PRs (created by automation with GITHUB_TOKEN, which doesn't trigger push events)
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile' }}
 
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.platform }}-${{ matrix.node[0] }}
@@ -54,8 +56,7 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - [20, 19, 4]
-          - [22, 12, 0]
+          - [22, 13, 0]
           - [24, 0, 0]
           - [25, 0, 0]
         platform:
@@ -94,13 +95,13 @@ jobs:
       run: tar -xzf compiled.tar.gz
     - name: run tests (main)
       timeout-minutes: 70
-      if: github.ref_name == 'main'
+      if: github.ref_name == 'main' || github.ref_name == 'chore/update-lockfile'
       run: pnpm run ci:test-main
       env:
         PNPM_WORKERS: 3
     - name: run tests (branch)
       timeout-minutes: 70
-      if: github.ref_name != 'main'
+      if: github.ref_name != 'main' && github.ref_name != 'chore/update-lockfile'
       run: pnpm run ci:test-branch
       env:
         PNPM_WORKERS: 3

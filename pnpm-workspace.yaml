@@ -63,8 +63,7 @@ auditConfig:
 
 catalog:
   '@babel/core': ^7.28.3
-  '@babel/preset-typescript': ^7.27.1
-  '@babel/types': ^7.28.2
+  '@babel/plugin-transform-explicit-resource-management': ^7.27.1
   '@changesets/cli': ^2.29.6
   '@commitlint/cli': ^19.8.1
   '@commitlint/config-conventional': ^19.8.1
@@ -116,11 +115,11 @@ catalog:
   '@types/normalize-path': ^3.0.2
   '@types/object-hash': 3.0.6
   '@types/parse-json': ^4.0.2
+  '@types/picomatch': ^4.0.2
   '@types/pnpm__byline': npm:@types/byline@^4.2.36
   '@types/proxyquire': ^1.3.31
   '@types/ramda': 0.29.12
   '@types/retry': ^0.12.5
-  '@types/rimraf': ^3.0.2
   '@types/semver': 7.5.3
   '@types/sinon': ^10.0.20
   '@types/ssri': ^7.1.5
@@ -293,7 +292,6 @@ catalog:
   tinyglobby: ^0.2.14
   touch: 3.1.0
   tree-kill: ^1.2.2
-  ts-jest: 29.4.1
   ts-jest-resolver: 2.0.1
   typescript: 5.9.2
   typescript-eslint: ^8.53.0
@@ -345,7 +343,7 @@ minimumReleaseAgeExclude:
   - tar@7.5.7
   - lodash@4.17.23
 
-nodeVersion: 20.19.4
+nodeVersion: 22.12.0
 
 optimisticRepeatInstall: true
 

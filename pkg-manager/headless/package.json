@@ -94,7 +94,6 @@
     "@pnpm/testing.temp-store": "workspace:*",
     "@types/fs-extra": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/rimraf": "catalog:",
     "@types/sinon": "catalog:",
     "concurrently": "catalog:",
     "isexe": "catalog:",
@@ -104,7 +103,7 @@
     "write-json-file": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

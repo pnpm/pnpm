@@ -1,8 +1,8 @@
-import { type Stats } from 'fs'
-import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
-import { type WorkspaceState } from '@pnpm/workspace.state'
+import type { Stats } from 'fs'
+import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
+import type { WorkspaceState } from '@pnpm/workspace.state'
 import { jest } from '@jest/globals'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 
 {
   const original = await import('@pnpm/workspace.state')
