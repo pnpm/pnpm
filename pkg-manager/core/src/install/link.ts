@@ -10,31 +10,31 @@ import {
   filterLockfileByImporters,
 } from '@pnpm/lockfile.filtering'
 import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
-import { type InstallationResultStats } from '@pnpm/headless'
+import type { InstallationResultStats } from '@pnpm/headless'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
-import { type IncludedDependencies } from '@pnpm/modules-yaml'
-import {
-  type DependenciesGraph,
-  type DependenciesGraphNode,
-  type LinkedDependency,
+import type { IncludedDependencies } from '@pnpm/modules-yaml'
+import type {
+  DependenciesGraph,
+  DependenciesGraphNode,
+  LinkedDependency,
 } from '@pnpm/resolve-dependencies'
-import { type StoreController, type TarballResolution } from '@pnpm/store-controller-types'
+import type { StoreController, TarballResolution } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
-import {
-  type AllowBuild,
-  type DepPath,
-  type HoistedDependencies,
-  type Registries,
-  type ProjectId,
+import type {
+  AllowBuild,
+  DepPath,
+  HoistedDependencies,
+  Registries,
+  ProjectId,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
 import { equals, isEmpty, difference, pick, pickBy, props } from 'ramda'
-import { type ImporterToUpdate } from './index.js'
+import type { ImporterToUpdate } from './index.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 

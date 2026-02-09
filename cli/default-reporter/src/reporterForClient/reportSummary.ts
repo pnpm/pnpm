@@ -1,11 +1,11 @@
 import path from 'path'
-import {
-  type DeprecationLog,
-  type PackageManifestLog,
-  type RootLog,
-  type SummaryLog,
+import type {
+  DeprecationLog,
+  PackageManifestLog,
+  RootLog,
+  SummaryLog,
 } from '@pnpm/core-loggers'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'

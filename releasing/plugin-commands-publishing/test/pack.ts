@@ -6,7 +6,7 @@ import * as tar from 'tar'
 import chalk from 'chalk'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { type PackResultJson } from '../src/pack.js'
+import type { PackResultJson } from '../src/pack.js'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 test('pack: package with package.json', async () => {

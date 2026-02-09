@@ -1,4 +1,4 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'

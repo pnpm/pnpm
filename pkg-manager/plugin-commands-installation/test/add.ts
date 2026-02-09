@@ -1,10 +1,10 @@
 import fs from 'fs'
 import path from 'path'
-import { type PnpmError } from '@pnpm/error'
+import type { PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 

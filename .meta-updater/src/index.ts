@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { readWantedLockfile, type LockfileObject } from '@pnpm/lockfile.fs'
-import { type ProjectId, type ProjectManifest } from '@pnpm/types'
+import type { ProjectId, ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
 import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
 import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'

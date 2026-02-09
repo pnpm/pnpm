@@ -1,16 +1,16 @@
 import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import {
-  type PackageManifestLog,
-  type RootLog,
-  type StatsLog,
+import type {
+  PackageManifestLog,
+  RootLog,
+  StatsLog,
 } from '@pnpm/core-loggers'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectRootDir, type PackageManifest } from '@pnpm/types'
+import type { ProjectRootDir, PackageManifest } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
 import {

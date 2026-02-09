@@ -1,6 +1,6 @@
 import path from 'path'
 import { LAYOUT_VERSION } from '@pnpm/constants'
-import { type Modules } from '@pnpm/modules-yaml'
+import type { Modules } from '@pnpm/modules-yaml'
 import { ModulesBreakingChangeError } from './ModulesBreakingChangeError.js'
 import { UnexpectedStoreError } from './UnexpectedStoreError.js'
 import { UnexpectedVirtualStoreDirError } from './UnexpectedVirtualStoreDirError.js'

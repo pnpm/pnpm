@@ -1,14 +1,14 @@
 import { removeSuffix } from '@pnpm/dependency-path'
-import {
-  type LockfileObject,
-  type ProjectSnapshot,
-  type LockfilePackageSnapshot,
-  type ResolvedDependencies,
-  type LockfileFile,
-  type LockfileFileProjectSnapshot,
-  type LockfileFileProjectResolvedDependencies,
-  type LockfilePackageInfo,
-  type PackageSnapshots,
+import type {
+  LockfileObject,
+  ProjectSnapshot,
+  LockfilePackageSnapshot,
+  ResolvedDependencies,
+  LockfileFile,
+  LockfileFileProjectSnapshot,
+  LockfileFileProjectResolvedDependencies,
+  LockfilePackageInfo,
+  PackageSnapshots,
 } from '@pnpm/lockfile.types'
 import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { isEmpty, map as _mapValues, omit, pickBy, pick } from 'ramda'

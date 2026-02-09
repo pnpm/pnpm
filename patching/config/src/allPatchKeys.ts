@@ -1,4 +1,4 @@
-import { type PatchGroupRecord } from '@pnpm/patching.types'
+import type { PatchGroupRecord } from '@pnpm/patching.types'
 
 export function * allPatchKeys (patchedDependencies: PatchGroupRecord): Generator<string> {
   for (const name in patchedDependencies) {

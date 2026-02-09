@@ -48,13 +48,13 @@ import {
   type Modules,
   writeModulesManifest,
 } from '@pnpm/modules-yaml'
-import { type PatchGroupRecord } from '@pnpm/patching.config'
-import { type HoistingLimits } from '@pnpm/real-hoist'
+import type { PatchGroupRecord } from '@pnpm/patching.config'
+import type { HoistingLimits } from '@pnpm/real-hoist'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import {
-  type PackageFilesResponse,
-  type StoreController,
+import type {
+  PackageFilesResponse,
+  StoreController,
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {

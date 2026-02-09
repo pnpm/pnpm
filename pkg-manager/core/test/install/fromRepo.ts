@@ -1,6 +1,6 @@
 import path from 'path'
 import fs from 'fs'
-import { type RootLog } from '@pnpm/core-loggers'
+import type { RootLog } from '@pnpm/core-loggers'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { prepareEmpty } from '@pnpm/prepare'
 import {

@@ -1,7 +1,7 @@
 import { calcDepState, calcGraphNodeHash } from '@pnpm/calc-dep-state'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
+import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
 const depsGraph = {
   'foo@1.0.0': {

@@ -1,4 +1,4 @@
-import { type DepType } from '@pnpm/lockfile.detect-dep-types'
+import type { DepType } from '@pnpm/lockfile.detect-dep-types'
 
 export interface SbomComponent {
   name: string

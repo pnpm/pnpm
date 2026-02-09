@@ -2,7 +2,7 @@ import path from 'path'
 import PATH_NAME from 'path-name'
 import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import {

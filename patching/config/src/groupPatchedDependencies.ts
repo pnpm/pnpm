@@ -1,6 +1,6 @@
 import * as dp from '@pnpm/dependency-path'
 import { PnpmError } from '@pnpm/error'
-import { type PatchFile, type PatchGroup, type PatchGroupRecord } from '@pnpm/patching.types'
+import type { PatchFile, PatchGroup, PatchGroupRecord } from '@pnpm/patching.types'
 import { validRange } from 'semver'
 
 export function groupPatchedDependencies (patchedDependencies: Record<string, PatchFile>): PatchGroupRecord {

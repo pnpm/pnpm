@@ -5,7 +5,7 @@ import {
 import { getSystemNodeVersion } from '@pnpm/env.system-node-version'
 import { checkEngine, UnsupportedEngineError, type WantedEngine } from './checkEngine.js'
 import { checkPlatform, UnsupportedPlatformError } from './checkPlatform.js'
-import { type SupportedArchitectures } from '@pnpm/types'
+import type { SupportedArchitectures } from '@pnpm/types'
 
 export type { Engine } from './checkEngine.js'
 export type { Platform, WantedPlatform } from './checkPlatform.js'

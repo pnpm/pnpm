@@ -1,4 +1,4 @@
-import { type ExtendedPatchInfo, type PatchFile, type PatchGroupRecord } from '@pnpm/patching.types'
+import type { ExtendedPatchInfo, PatchFile, PatchGroupRecord } from '@pnpm/patching.types'
 import { groupPatchedDependencies } from '../src/groupPatchedDependencies.js'
 
 function sanitizePatchGroupRecord (patchGroups: PatchGroupRecord): PatchGroupRecord {
