@@ -61,3 +61,17 @@ function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string): Co
   }
   return cmds
 }
+
+/**
+ * The property `"bin"` of a `package.json` could be either an object or a string.
+ * This function normalizes either forms into an object.
+ */
+export function normalizeBinObject (pkgName: string, bin: string | Record<string, string>): Record<string, string> {
+  if (typeof bin === 'object') return bin
+  const binName = normalizeBinName(pkgName)
+  return { [binName]: bin }
+}
+
+function normalizeBinName (name: string): string {
+  return name[0] === '@' ? name.slice(name.indexOf('/') + 1) : name
+}
