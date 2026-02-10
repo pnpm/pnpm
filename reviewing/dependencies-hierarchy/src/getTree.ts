@@ -93,7 +93,13 @@ export function getTree (
   const ancestors = new Set<string>()
   ancestors.add(serializeTreeNodeId(parentId))
 
-  return materializeChildren(graph, parentId, opts.maxDepth, ancestors, cache, opts)
+  const tree = materializeChildren(graph, parentId, opts.maxDepth, ancestors, cache, opts)
+
+  // Phase 3: Fix circular references that were missed due to cache reuse.
+  // Cached subtrees may contain nodes that are not marked circular but should
+  // be because they are ancestors in the current traversal path (the cache was
+  // populated from a different path where those nodes were not ancestors).
+  return fixCircularRefs(tree, new Set())
 }
 
 // ---------------------------------------------------------------------------
@@ -342,4 +348,42 @@ function materializeChildren (
   }
 
   return resultDependencies
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3: Fix circular refs missed by cache reuse
+// ---------------------------------------------------------------------------
+
+/**
+ * Walks the materialized PackageNode[] tree and corrects nodes that should be
+ * marked `circular` but were not, because their subtree came from a cached
+ * result computed under a different ancestor context.
+ *
+ * With deduplication in place (deduped nodes are leaves), the walk is O(N).
+ */
+function fixCircularRefs (
+  nodes: PackageNode[],
+  ancestors: Set<string>
+): PackageNode[] {
+  let changed = false
+  const result = nodes.map(node => {
+    // A node whose path matches an ancestor should be a circular back-edge.
+    if (node.path && ancestors.has(node.path) && !node.circular) {
+      changed = true
+      const { dependencies: _, deduped: _d, dedupedDependenciesCount: _c, ...rest } = node
+      return { ...rest, circular: true as const }
+    }
+    if (!node.dependencies?.length) return node
+
+    ancestors.add(node.path)
+    const fixedDeps = fixCircularRefs(node.dependencies, ancestors)
+    ancestors.delete(node.path)
+
+    if (fixedDeps !== node.dependencies) {
+      changed = true
+      return { ...node, dependencies: fixedDeps }
+    }
+    return node
+  })
+  return changed ? result : nodes
 }
