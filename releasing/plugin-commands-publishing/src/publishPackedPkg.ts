@@ -181,13 +181,13 @@ function findAuthSslInfo (
 }
 
 function extractToken ({
-  token,
+  authToken,
   tokenHelper,
 }: {
-  token?: string
+  authToken?: string
   tokenHelper?: [string, ...string[]]
 }): string | undefined {
-  if (token) return token
+  if (authToken) return authToken
   if (tokenHelper) {
     return executeTokenHelper(tokenHelper, { globalWarn })
   }
