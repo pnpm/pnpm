@@ -29,7 +29,6 @@ export function importIndexedDir (
       // Keeping node_modules is needed only when the hoisted node linker is used.
       moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
     }
-    renameOverwrite.sync(stage, newDir)
   } catch (err: unknown) {
     try {
       rimraf(stage)
@@ -61,6 +60,25 @@ They were renamed.`)
       return
     }
     throw err
+  }
+  try {
+    renameOverwrite.sync(stage, newDir)
+  } catch (renameErr: unknown) {
+    // When enableGlobalVirtualStore is true, multiple worker threads may import
+    // the same package to the same global store location concurrently. Their
+    // rename operations can race. If the rename fails but the target already
+    // has the expected content, another thread completed the import.
+    try {
+      rimraf(stage)
+    } catch {} // eslint-disable-line:no-empty
+    if (util.types.isNativeError(renameErr) && 'code' in renameErr && (renameErr.code === 'ENOTEMPTY' || renameErr.code === 'EEXIST')) {
+      const firstFile = filenames.keys().next().value
+      if (firstFile && fs.existsSync(path.join(newDir, firstFile))) {
+        logger('_virtual-store-race').debug({ target: newDir })
+        return
+      }
+    }
+    throw renameErr
   }
 }
 
