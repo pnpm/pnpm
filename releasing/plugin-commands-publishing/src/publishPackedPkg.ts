@@ -260,7 +260,7 @@ function appendAuthOptionsForRegistry (targetPublishOptions: PublishOptions, reg
 
   targetPublishOptions[`${registryConfigKey}:_authToken`] ??= targetPublishOptions.token
   targetPublishOptions[`${registryConfigKey}:username`] ??= targetPublishOptions.username
-  targetPublishOptions[`${registryConfigKey}:_password`] ??= targetPublishOptions._password
+  targetPublishOptions[`${registryConfigKey}:_password`] ??= targetPublishOptions.password
 }
 
 function pruneUndefined (object: Record<string, unknown>): void {
