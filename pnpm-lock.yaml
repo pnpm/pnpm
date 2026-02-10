@@ -6678,6 +6678,9 @@ importers:
       '@pnpm/plugin-commands-rebuild':
         specifier: workspace:*
         version: link:../exec/plugin-commands-rebuild
+      '@pnpm/plugin-commands-sbom':
+        specifier: workspace:*
+        version: link:../reviewing/plugin-commands-sbom
       '@pnpm/plugin-commands-script-runners':
         specifier: workspace:*
         version: link:../exec/plugin-commands-script-runners
@@ -8126,6 +8129,119 @@ importers:
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
+
+  reviewing/plugin-commands-sbom:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/command':
+        specifier: workspace:*
+        version: link:../../cli/command
+      '@pnpm/common-cli-options-help':
+        specifier: workspace:*
+        version: link:../../cli/common-cli-options-help
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/sbom':
+        specifier: workspace:*
+        version: link:../sbom
+      '@pnpm/store-path':
+        specifier: workspace:*
+        version: link:../../store/store-path
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      render-help:
+        specifier: 'catalog:'
+        version: 1.0.3
+    devDependencies:
+      '@pnpm/plugin-commands-installation':
+        specifier: workspace:*
+        version: link:../../pkg-manager/plugin-commands-installation
+      '@pnpm/plugin-commands-sbom':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 5.2.1(verdaccio@6.1.6(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+
+  reviewing/sbom:
+    dependencies:
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/directory-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/directory-fetcher
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fs.msgpack-file':
+        specifier: workspace:*
+        version: link:../../fs/msgpack-file
+      '@pnpm/lockfile.detect-dep-types':
+        specifier: workspace:*
+        version: link:../../lockfile/detect-dep-types
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../lockfile/utils
+      '@pnpm/lockfile.walker':
+        specifier: workspace:*
+        version: link:../../lockfile/walker
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.0
+      ssri:
+        specifier: 'catalog:'
+        version: 13.0.0
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/sbom':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/ssri':
+        specifier: 'catalog:'
+        version: 7.1.5
 
   semver/peer-range:
     dependencies:

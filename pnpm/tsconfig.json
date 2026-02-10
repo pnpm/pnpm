@@ -141,6 +141,9 @@
       "path": "../reviewing/plugin-commands-licenses"
     },
     {
+      "path": "../reviewing/plugin-commands-sbom"
+    },
+    {
       "path": "../reviewing/plugin-commands-listing"
     },
     {
