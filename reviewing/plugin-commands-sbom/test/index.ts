@@ -34,7 +34,7 @@ test('pnpm sbom --sbom-format cyclonedx', async () => {
 
   const parsed = JSON.parse(output)
   expect(parsed.bomFormat).toBe('CycloneDX')
-  expect(parsed.specVersion).toBe('1.6')
+  expect(parsed.specVersion).toBe('1.7')
   expect(parsed.metadata.component.name).toBe('simple-sbom-test')
   expect(parsed.components.length).toBeGreaterThan(0)
 

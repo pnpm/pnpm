@@ -651,6 +651,9 @@ catalogs:
     sort-keys:
       specifier: ^6.0.0
       version: 6.0.0
+    spdx-license-ids:
+      specifier: ^3.0.22
+      version: 3.0.22
     split-cmd:
       specifier: ^1.1.0
       version: 1.1.0
@@ -8132,6 +8135,9 @@ importers:
 
   reviewing/plugin-commands-sbom:
     dependencies:
+      '@pnpm/cli-meta':
+        specifier: workspace:*
+        version: link:../../cli/cli-meta
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
@@ -8226,6 +8232,9 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0
+      spdx-license-ids:
+        specifier: 'catalog:'
+        version: 3.0.22
       ssri:
         specifier: 'catalog:'
         version: 13.0.0

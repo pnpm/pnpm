@@ -5,7 +5,7 @@ import { DepType } from '@pnpm/lockfile.detect-dep-types'
 function makeSbomResult (): SbomResult {
   return {
     rootComponent: {
-      name: 'my-app',
+      name: '@myorg/my-app',
       version: '1.0.0',
       type: 'application',
     },
@@ -19,7 +19,7 @@ function makeSbomResult (): SbomResult {
         integrity: 'sha512-LCt5klFGBqVfMfB1GL1o2Ll+0w/DeN2OZGR8U2/9fns=',
         license: 'MIT',
         description: 'Lodash modular utilities',
-        author: 'John-David Dalton',
+        author: 'Jane Doe',
         homepage: 'https://lodash.com/',
       },
       {
@@ -32,32 +32,56 @@ function makeSbomResult (): SbomResult {
       },
     ],
     relationships: [
-      { from: 'pkg:npm/my-app@1.0.0', to: 'pkg:npm/lodash@4.17.21' },
-      { from: 'pkg:npm/my-app@1.0.0', to: 'pkg:npm/%40babel/core@7.23.0' },
+      { from: 'pkg:npm/%40myorg/my-app@1.0.0', to: 'pkg:npm/lodash@4.17.21' },
+      { from: 'pkg:npm/%40myorg/my-app@1.0.0', to: 'pkg:npm/%40babel/core@7.23.0' },
     ],
   }
 }
 
 describe('serializeCycloneDx', () => {
-  it('should produce valid CycloneDX 1.6 JSON', () => {
+  it('should produce valid CycloneDX 1.7 JSON', () => {
     const result = makeSbomResult()
     const json = serializeCycloneDx(result)
     const parsed = JSON.parse(json)
 
     expect(parsed.bomFormat).toBe('CycloneDX')
-    expect(parsed.specVersion).toBe('1.6')
+    expect(parsed.specVersion).toBe('1.7')
     expect(parsed.version).toBe(1)
     expect(parsed.serialNumber).toMatch(/^urn:uuid:[0-9a-f-]+$/)
   })
 
-  it('should include metadata with tool and root component', () => {
+  it('should split scoped root component into group and name', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeCycloneDx(result))
 
-    expect(parsed.metadata.tools).toEqual([{ name: 'pnpm' }])
+    expect(parsed.metadata.component.group).toBe('@myorg')
     expect(parsed.metadata.component.name).toBe('my-app')
     expect(parsed.metadata.component.version).toBe('1.0.0')
     expect(parsed.metadata.component.type).toBe('application')
+  })
+
+  it('should split scoped component names into group and name', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeCycloneDx(result))
+
+    const babel = parsed.components[1]
+    expect(babel.group).toBe('@babel')
+    expect(babel.name).toBe('core')
+
+    const lodash = parsed.components[0]
+    expect(lodash.group).toBeUndefined()
+    expect(lodash.name).toBe('lodash')
+  })
+
+  it('should include tools.components with versions when toolInfo is provided', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeCycloneDx(result, {
+      pnpmVersion: '11.0.0',
+    }))
+
+    const tools = parsed.metadata.tools.components
+    expect(tools).toHaveLength(1)
+    expect(tools[0]).toEqual({ type: 'application', name: 'pnpm', version: '11.0.0' })
   })
 
   it('should include all components with PURLs', () => {
@@ -70,23 +94,48 @@ describe('serializeCycloneDx', () => {
     expect(parsed.components[1].purl).toBe('pkg:npm/%40babel/core@7.23.0')
   })
 
-  it('should include hashes when integrity is present', () => {
+  it('should place hashes in externalReferences with type distribution', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeCycloneDx(result))
 
     const lodash = parsed.components[0]
-    expect(lodash.hashes).toBeDefined()
-    expect(lodash.hashes.length).toBeGreaterThan(0)
-    expect(lodash.hashes[0].alg).toBeDefined()
-    expect(lodash.hashes[0].content).toBeDefined()
+    expect(lodash.hashes).toBeUndefined()
+
+    const distRef = lodash.externalReferences.find(
+      (r: { type: string }) => r.type === 'distribution'
+    )
+    expect(distRef).toBeDefined()
+    expect(distRef.hashes.length).toBeGreaterThan(0)
+    expect(distRef.hashes[0].alg).toBeDefined()
+    expect(distRef.hashes[0].content).toBeDefined()
   })
 
-  it('should include license info', () => {
+  it('should use license.id for known SPDX identifiers', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeCycloneDx(result))
 
     expect(parsed.components[0].licenses).toEqual([
-      { license: { name: 'MIT' } },
+      { license: { id: 'MIT' } },
+    ])
+  })
+
+  it('should use expression for compound SPDX licenses', () => {
+    const result = makeSbomResult()
+    result.components[0].license = 'MIT OR Apache-2.0'
+    const parsed = JSON.parse(serializeCycloneDx(result))
+
+    expect(parsed.components[0].licenses).toEqual([
+      { expression: 'MIT OR Apache-2.0' },
+    ])
+  })
+
+  it('should use license.name for non-SPDX license strings', () => {
+    const result = makeSbomResult()
+    result.components[0].license = 'SEE LICENSE IN LICENSE.md'
+    const parsed = JSON.parse(serializeCycloneDx(result))
+
+    expect(parsed.components[0].licenses).toEqual([
+      { license: { name: 'SEE LICENSE IN LICENSE.md' } },
     ])
   })
 
@@ -94,7 +143,7 @@ describe('serializeCycloneDx', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeCycloneDx(result))
 
-    expect(parsed.components[0].authors).toEqual([{ name: 'John-David Dalton' }])
+    expect(parsed.components[0].authors).toEqual([{ name: 'Jane Doe' }])
     expect(parsed.components[1].authors).toBeUndefined()
   })
 
@@ -104,7 +153,7 @@ describe('serializeCycloneDx', () => {
 
     expect(parsed.dependencies).toBeDefined()
     const rootDep = parsed.dependencies.find(
-      (d: { ref: string }) => d.ref === 'pkg:npm/my-app@1.0.0'
+      (d: { ref: string }) => d.ref === 'pkg:npm/%40myorg/my-app@1.0.0'
     )
     expect(rootDep).toBeDefined()
     expect(rootDep.dependsOn).toContain('pkg:npm/lodash@4.17.21')

@@ -1,5 +1,5 @@
 export { collectSbomComponents, type CollectSbomComponentsOptions } from './collectComponents.js'
-export { serializeCycloneDx } from './serializeCycloneDx.js'
+export { serializeCycloneDx, type CycloneDxToolInfo } from './serializeCycloneDx.js'
 export { serializeSpdx } from './serializeSpdx.js'
 export { buildPurl, encodePurlName } from './purl.js'
 export { integrityToHashes } from './integrity.js'

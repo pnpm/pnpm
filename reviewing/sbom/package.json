@@ -46,6 +46,7 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-limit": "catalog:",
+    "spdx-license-ids": "catalog:",
     "ssri": "catalog:"
   },
   "peerDependencies": {

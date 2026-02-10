@@ -126,4 +126,73 @@ describe('serializeSpdx', () => {
 
     expect(parsed.documentNamespace).toMatch(/^https:\/\/spdx\.org\/spdxdocs\//)
   })
+
+  it('should include description when present', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    expect(parsed.packages[1].description).toBe('Lodash modular utilities')
+  })
+
+  it('should include homepage when present', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    expect(parsed.packages[1].homepage).toBe('https://lodash.com/')
+  })
+
+  it('should include supplier from author', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    expect(parsed.packages[1].supplier).toBe('Person: John-David Dalton')
+  })
+
+  it('should omit supplier when author is absent', () => {
+    const result = makeSbomResult()
+    result.components[0].author = undefined
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    expect(parsed.packages[1].supplier).toBeUndefined()
+  })
+
+  it('should include checksums from integrity', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    const lodashPkg = parsed.packages[1]
+    expect(lodashPkg.checksums).toBeDefined()
+    expect(lodashPkg.checksums.length).toBeGreaterThan(0)
+    expect(lodashPkg.checksums[0].algorithm).toBeDefined()
+    expect(lodashPkg.checksums[0].checksumValue).toBeDefined()
+  })
+
+  it('should deduplicate relationships', () => {
+    const result = makeSbomResult()
+    // Add a duplicate relationship
+    result.relationships.push(
+      { from: 'pkg:npm/my-app@1.0.0', to: 'pkg:npm/lodash@4.17.21' }
+    )
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    const dependsOn = parsed.relationships.filter(
+      (r: { relationshipType: string }) => r.relationshipType === 'DEPENDS_ON'
+    )
+    expect(dependsOn).toHaveLength(1)
+  })
+
+  it('should use APPLICATION for application root type', () => {
+    const result = makeSbomResult()
+    result.rootComponent.type = 'application'
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    expect(parsed.packages[0].primaryPackagePurpose).toBe('APPLICATION')
+  })
+
+  it('should use LIBRARY for library root type', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    expect(parsed.packages[0].primaryPackagePurpose).toBe('LIBRARY')
+  })
 })

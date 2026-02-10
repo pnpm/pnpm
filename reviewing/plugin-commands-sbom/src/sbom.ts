@@ -5,6 +5,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { getStorePath } from '@pnpm/store-path'
+import { packageManager } from '@pnpm/cli-meta'
 import {
   collectSbomComponents,
   serializeCycloneDx,
@@ -179,7 +180,9 @@ export async function handler (
   })
 
   const output = format === 'cyclonedx'
-    ? serializeCycloneDx(result)
+    ? serializeCycloneDx(result, {
+      pnpmVersion: packageManager.version,
+    })
     : serializeSpdx(result)
 
   return { output, exitCode: 0 }
