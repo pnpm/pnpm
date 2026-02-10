@@ -95,11 +95,36 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
   <tbody>
     <tr>
       <td align="center" valign="middle">
+        <a href="https://sanity.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/sanity.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/sanity_light.svg" />
+            <img src="https://pnpm.io/img/users/sanity.svg" width="120" alt="Sanity" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
         <a href="https://discord.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/discord.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/discord_light.svg" />
             <img src="https://pnpm.io/img/users/discord.svg" width="220" alt="Discord" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <img src="https://pnpm.io/img/users/vitejs.svg" width="42" alt="Vite">
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://serpapi.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/serpapi_dark.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/serpapi_light.svg" />
+            <img src="https://pnpm.io/img/users/serpapi_dark.svg" width="160" alt="SerpApi" />
           </picture>
         </a>
       </td>
@@ -133,8 +158,12 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <img src="https://pnpm.io/img/users/vitejs.svg" width="42" alt="Vite">
+        <a href="https://nx.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/nx.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/nx_light.svg" />
+            <img src="https://pnpm.io/img/users/nx.svg" width="50" alt="Nx" />
+          </picture>
         </a>
       </td>
     </tr>
