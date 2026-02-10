@@ -277,7 +277,7 @@ function appendAuthOptionsForRegistry (targetPublishOptions: PublishOptions, reg
   const registryConfigKey = registryInfo.longestConfigKey
   targetPublishOptions[`${registryConfigKey}:_authToken`] ??= targetPublishOptions.token
   targetPublishOptions[`${registryConfigKey}:username`] ??= targetPublishOptions.username
-  targetPublishOptions[`${registryConfigKey}:_password`] ??= targetPublishOptions.password
+  targetPublishOptions[`${registryConfigKey}:_password`] ??= targetPublishOptions.password && btoa(targetPublishOptions.password)
 }
 
 function removeEmptyStringProperty<Key extends string> (object: Partial<Record<Key, string>>, key: Key): void {
