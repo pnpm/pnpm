@@ -1,21 +1,31 @@
-import { type RegistryConfigKey, allRegistryConfigKeys, longestRegistryConfigKey } from '../src/registryConfigKeys.js'
+import {
+  type NormalizedRegistryUrl,
+  type RegistryConfigKey,
+  type SupportedRegistryUrlInfo,
+  allRegistryConfigKeys,
+  parseSupportedRegistryUrl,
+} from '../src/registryConfigKeys.js'
 
-describe('longestRegistryConfigKey', () => {
-  type Case = [string, RegistryConfigKey | undefined]
+describe('parseSupportedRegistryUrl', () => {
+  type Case = [string, SupportedRegistryUrlInfo | undefined]
+  const createValue = (
+    normalizedUrl: NormalizedRegistryUrl,
+    longestConfigKey: RegistryConfigKey
+  ): SupportedRegistryUrlInfo => ({ normalizedUrl, longestConfigKey })
   test.each([
-    ['https://example.com/foo/bar/', '//example.com/foo/bar/'],
-    ['https://example.com/foo/bar', '//example.com/foo/bar/'],
-    ['http://example.com/foo/bar/', '//example.com/foo/bar/'],
-    ['http://example.com/foo/bar', '//example.com/foo/bar/'],
-    ['https://example.com/', '//example.com/'],
-    ['https://example.com', '//example.com/'],
-    ['http://example.com/', '//example.com/'],
-    ['http://example.com', '//example.com/'],
+    ['https://example.com/foo/bar/', createValue('https://example.com/foo/bar/', '//example.com/foo/bar/')],
+    ['https://example.com/foo/bar', createValue('https://example.com/foo/bar/', '//example.com/foo/bar/')],
+    ['http://example.com/foo/bar/', createValue('http://example.com/foo/bar/', '//example.com/foo/bar/')],
+    ['http://example.com/foo/bar', createValue('http://example.com/foo/bar/', '//example.com/foo/bar/')],
+    ['https://example.com/', createValue('https://example.com/', '//example.com/')],
+    ['https://example.com', createValue('https://example.com/', '//example.com/')],
+    ['http://example.com/', createValue('http://example.com/', '//example.com/')],
+    ['http://example.com', createValue('http://example.com/', '//example.com/')],
     ['ftp://example.com/', undefined],
     ['sftp://example.com/', undefined],
     ['file:///example.tgz', undefined],
-  ] as Case[])('%p → %p', (registryUrl, registryConfigKey) => {
-    expect(longestRegistryConfigKey(registryUrl)).toBe(registryConfigKey)
+  ] as Case[])('%p → %p', (registryUrl, registryInfo) => {
+    expect(parseSupportedRegistryUrl(registryUrl)).toStrictEqual(registryInfo)
   })
 })
 

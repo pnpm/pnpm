@@ -24,20 +24,39 @@ const ensureSuffix = <
   text.endsWith(suffix) ? text as `${Text}${Suffix}` : `${text}${suffix}`
 
 /**
+ * Protocols currently supported.
+ */
+type SupportedRegistryScheme = 'http' | 'https'
+
+/**
+ * A registry URL that has been normalize to match its corresponding {@link RegistryConfigKey}.
+ */
+export type NormalizedRegistryUrl = `${SupportedRegistryScheme}://${string}/`
+
+/**
  * A config key of a registry url is a key on the `.npmrc` file. This key starts with
  * a "//" prefix followed by a hostname and the rest of the URI and ends with a "/".
  * They usually specify authentication information.
  */
 export type RegistryConfigKey = `//${string}/`
 
+export interface SupportedRegistryUrlInfo {
+  normalizedUrl: NormalizedRegistryUrl
+  longestConfigKey: RegistryConfigKey
+}
+
 /**
  * If the {@link registryUrl} is an HTTP or an HTTPS registry url, return the longest
- * {@link RegistryConfigKey} that corresponds to the registry url.
+ * {@link RegistryConfigKey} that corresponds to the registry url and a {@link NormalizedRegistryUrl}
+ * that matches it.
  */
-export function longestRegistryConfigKey (registryUrl: string): RegistryConfigKey | undefined {
+export function parseSupportedRegistryUrl (registryUrl: string): SupportedRegistryUrlInfo | undefined {
   registryUrl = normalizeRegistryUrl(registryUrl)
   const keyPrefix = replacePrefix(registryUrl, 'http://', '//') ?? replacePrefix(registryUrl, 'https://', '//')
-  return keyPrefix && ensureSuffix(keyPrefix, '/')
+  if (!keyPrefix) return undefined
+  const normalizedUrl = ensureSuffix(registryUrl, '/') as NormalizedRegistryUrl
+  const longestConfigKey = ensureSuffix(keyPrefix, '/')
+  return { normalizedUrl, longestConfigKey }
 }
 
 /**

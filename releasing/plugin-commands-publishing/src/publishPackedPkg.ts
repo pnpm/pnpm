@@ -8,7 +8,7 @@ import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
 import { OidcError, oidc } from './oidc.js'
 import { type PackResult } from './pack.js'
-import { allRegistryConfigKeys, longestRegistryConfigKey } from './registryConfigKeys.js'
+import { type NormalizedRegistryUrl, allRegistryConfigKeys, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 
 type AuthConfigKey =
 | 'authToken'
@@ -129,7 +129,7 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
 }
 
 interface AuthSslInfo {
-  registry: string
+  registry: NormalizedRegistryUrl
   auth: Pick<Config, AuthConfigKey>
   ssl: Pick<Config, SslConfigKey>
 }
@@ -152,12 +152,17 @@ function findAuthSslInfo (
   const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
 
   const registryName = scopedMatches?.groups ? `@${scopedMatches.groups.scope}` : 'default'
-  const registry = registries[registryName] ?? registries.default
+  const nonNormalizedRegistry = registries[registryName] ?? registries.default
 
-  const initialRegistryConfigKey = longestRegistryConfigKey(registry)
-  if (!initialRegistryConfigKey) {
-    throw new PublishUnsupportedRegistryProtocolError(registry)
+  const supportedRegistryInfo = parseSupportedRegistryUrl(nonNormalizedRegistry)
+  if (!supportedRegistryInfo) {
+    throw new PublishUnsupportedRegistryProtocolError(nonNormalizedRegistry)
   }
+
+  const {
+    normalizedUrl: registry,
+    longestConfigKey: initialRegistryConfigKey,
+  } = supportedRegistryInfo
 
   const result: Partial<AuthSslInfo> = { registry }
 
@@ -173,7 +178,11 @@ function findAuthSslInfo (
     }
   }
 
-  if (registry !== registries.default) {
+  if (
+    nonNormalizedRegistry !== registries.default &&
+    registry !== registries.default &&
+    registry !== parseSupportedRegistryUrl(registries.default)?.normalizedUrl
+  ) {
     return result
   }
 
@@ -258,13 +267,14 @@ async function getAuthTokenByOidcIfApplicable (
  * instead of `token`.
  * This function fixes that by making sure the registry specific authentication information exists.
  */
-function appendAuthOptionsForRegistry (targetPublishOptions: PublishOptions, registry: string): void {
-  const registryConfigKey = longestRegistryConfigKey(registry)
-  if (!registryConfigKey) {
+function appendAuthOptionsForRegistry (targetPublishOptions: PublishOptions, registry: NormalizedRegistryUrl): void {
+  const registryInfo = parseSupportedRegistryUrl(registry)
+  if (!registryInfo) {
     globalWarn(`The registry ${registry} cannot be converted into a config key. Supplement is skipped. Subsequent libnpmpublish call may fail.`)
     return
   }
 
+  const registryConfigKey = registryInfo.longestConfigKey
   targetPublishOptions[`${registryConfigKey}:_authToken`] ??= targetPublishOptions.token
   targetPublishOptions[`${registryConfigKey}:username`] ??= targetPublishOptions.username
   targetPublishOptions[`${registryConfigKey}:_password`] ??= targetPublishOptions.password
