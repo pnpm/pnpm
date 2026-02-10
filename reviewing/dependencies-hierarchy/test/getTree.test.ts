@@ -99,7 +99,7 @@ describe('getTree', () => {
       rewriteLinkVersionDir: '',
       virtualStoreDir: '.pnpm',
       importers: {},
-      includeOptionalDependencies: false,
+      include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
@@ -175,7 +175,7 @@ describe('getTree', () => {
       rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
-      includeOptionalDependencies: false,
+      include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
@@ -313,7 +313,7 @@ describe('getTree', () => {
       rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
-      includeOptionalDependencies: false,
+      include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
@@ -566,7 +566,7 @@ describe('getTree', () => {
       rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
-      includeOptionalDependencies: false,
+      include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
@@ -665,7 +665,7 @@ describe('getTree', () => {
       depTypes: {},
       rewriteLinkVersionDir: lockfileDir,
       modulesDir: '',
-      includeOptionalDependencies: false,
+      include: { optionalDependencies: false },
       lockfileDir,
       skipped: new Set<string>(),
       registries: {
@@ -760,7 +760,7 @@ describe('getTree', () => {
       rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
-      includeOptionalDependencies: false,
+      include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
@@ -994,7 +994,7 @@ describe('getTree', () => {
       rewriteLinkVersionDir: '',
       virtualStoreDir: '.pnpm',
       importers: {},
-      includeOptionalDependencies: false,
+      include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
       registries: {

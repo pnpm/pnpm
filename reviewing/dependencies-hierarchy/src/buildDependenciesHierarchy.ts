@@ -144,7 +144,7 @@ async function dependenciesHierarchyForPackage (
     currentPackages,
     excludePeerDependencies: opts.excludePeerDependencies,
     importers: currentLockfile.importers,
-    includeOptionalDependencies: opts.include.optionalDependencies,
+    include: opts.include,
     depTypes,
     lockfileDir: opts.lockfileDir,
     onlyProjects: opts.onlyProjects,
@@ -166,7 +166,7 @@ async function dependenciesHierarchyForPackage (
   const graph = buildDependencyGraph(parentId, {
     currentPackages,
     importers: currentLockfile.importers,
-    includeOptionalDependencies: opts.include.optionalDependencies,
+    include: opts.include,
     lockfileDir: opts.lockfileDir,
   })
   const materializationCache: MaterializationCache = new Map()

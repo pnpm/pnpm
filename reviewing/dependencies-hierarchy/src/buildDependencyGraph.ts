@@ -26,16 +26,21 @@ export function buildDependencyGraph (
   opts: {
     currentPackages: PackageSnapshots
     importers: Record<string, ProjectSnapshot>
-    includeOptionalDependencies: boolean
+    include: {
+      dependencies?: boolean
+      devDependencies?: boolean
+      optionalDependencies?: boolean
+    }
     lockfileDir: string
   }
 ): DependencyGraph {
   const graph: DependencyGraph = { nodes: new Map() }
   const queue: TreeNodeId[] = [rootId]
+  let queueIdx = 0
   const visited = new Set<string>()
 
-  while (queue.length > 0) {
-    const nodeId = queue.shift()!
+  while (queueIdx < queue.length) {
+    const nodeId = queue[queueIdx++]
     const serialized = serializeTreeNodeId(nodeId)
     if (visited.has(serialized)) continue
     visited.add(serialized)
@@ -46,16 +51,15 @@ export function buildDependencyGraph (
       continue
     }
 
-    // For importers, merge all dependency fields so the graph covers
-    // every top-level dep that buildDependenciesHierarchy may look up.
+    // For importers, only include the dependency fields the caller selected.
     // For packages, devDependencies don't exist in the lockfile.
     const deps = nodeId.type === 'importer'
       ? {
-        ...snapshot.dependencies,
-        ...(snapshot as ProjectSnapshot).devDependencies,
-        ...(opts.includeOptionalDependencies ? snapshot.optionalDependencies : undefined),
+        ...(opts.include.dependencies !== false ? snapshot.dependencies : undefined),
+        ...(opts.include.devDependencies !== false ? (snapshot as ProjectSnapshot).devDependencies : undefined),
+        ...(opts.include.optionalDependencies ? snapshot.optionalDependencies : undefined),
       }
-      : !opts.includeOptionalDependencies
+      : !opts.include.optionalDependencies
         ? snapshot.dependencies
         : {
           ...snapshot.dependencies,

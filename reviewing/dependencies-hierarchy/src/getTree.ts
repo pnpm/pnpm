@@ -10,7 +10,11 @@ import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
 interface GetTreeOpts {
   maxDepth: number
   rewriteLinkVersionDir: string
-  includeOptionalDependencies: boolean
+  include: {
+    dependencies?: boolean
+    devDependencies?: boolean
+    optionalDependencies?: boolean
+  }
   excludePeerDependencies?: boolean
   lockfileDir: string
   onlyProjects?: boolean
@@ -43,7 +47,6 @@ type MaterializationContext =
 // ---------------------------------------------------------------------------
 
 interface CachedSubtree {
-  children: PackageNode[]
   /** Total number of PackageNode objects in the subtree (recursive). */
   count: number
   /** Whether any node in this subtree matched the search. */
@@ -142,7 +145,7 @@ function materializeChildren (
   const resultDependencies: PackageNode[] = []
   let resultCount = 0
   let resultHasSearchMatch = false
-  const resultSearchMessages: string[] = []
+  const resultSearchMessages = ctx.showDedupedSearchMatches ? [] as string[] : undefined
 
   for (const edge of graphNode.edges) {
     if (ctx.onlyProjects && edge.target?.nodeId.type !== 'importer') {
@@ -213,7 +216,6 @@ function materializeChildren (
 
           // Always cache — even results with circular truncations.
           ctx.materializationCache.set(cacheKey, {
-            children: dependencies,
             count: childCount,
             hasSearchMatch: childHasSearchMatch,
             searchMessages: childSearchMessages,
@@ -222,7 +224,7 @@ function materializeChildren (
         if (childHasSearchMatch || dedupedHasSearchMatch) {
           resultHasSearchMatch = true
         }
-        resultSearchMessages.push(...childSearchMessages, ...dedupedSearchMessages)
+        resultSearchMessages?.push(...childSearchMessages, ...dedupedSearchMessages)
       }
 
       if (dependencies.length > 0) {
@@ -247,7 +249,7 @@ function materializeChildren (
       resultHasSearchMatch = true
       if (typeof searchMatch === 'string') {
         newEntry.searchMessage = searchMatch
-        resultSearchMessages.push(searchMatch)
+        resultSearchMessages?.push(searchMatch)
       }
     } else if (dedupedHasSearchMatch) {
       newEntry.searched = true
@@ -265,7 +267,7 @@ function materializeChildren (
     count: resultCount,
     hasSearchMatch: resultHasSearchMatch,
     nodes: resultDependencies,
-    searchMessages: resultSearchMessages,
+    searchMessages: resultSearchMessages ?? [],
   }
 }
 
