@@ -559,6 +559,105 @@ describe('getTree', () => {
       ])
     })
   })
+  describe('circular dependency detection', () => {
+    const commonMockGetTreeArgs = {
+      depTypes: {},
+      rewriteLinkVersionDir: '',
+      modulesDir: '',
+      importers: {},
+      includeOptionalDependencies: false,
+      lockfileDir: '',
+      skipped: new Set<string>(),
+      registries: {
+        default: 'mock-registry-for-testing.example',
+      },
+      virtualStoreDirMaxLength: 120,
+    }
+
+    test('marks back-edge as circular in a simple cycle', () => {
+      // root → a → b → a(circular)
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a'],
+        a: ['b'],
+        b: ['a'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const result = getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+      }, rootNodeId)
+
+      expect(normalizePackageNodeForTesting(result)).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'a',
+                  circular: true,
+                  dependencies: undefined,
+                }),
+              ],
+            }),
+          ],
+        }),
+      ])
+    })
+
+    test('does not mark a node as circular when reached from a non-cyclic path', () => {
+      // root → a → b → a(circular)
+      // root → c → b(deduped — b was already expanded under a)
+      //
+      // The node "b" under "c" should be deduped, NOT circular.
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'c'],
+        a: ['b'],
+        b: ['a'],
+        c: ['b'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const result = getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+      }, rootNodeId)
+
+      expect(normalizePackageNodeForTesting(result)).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'a',
+                  circular: true,
+                  dependencies: undefined,
+                }),
+              ],
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          alias: 'c',
+          dependencies: [
+            // b is deduped (already expanded under a), not circular.
+            expect.not.objectContaining({ circular: true }),
+          ],
+        }),
+      ])
+    })
+  })
+
   test('exclude peers', () => {
     const version = '1.0.0'
     const currentPackages = {

@@ -93,11 +93,19 @@ export function getTree (
 
   const tree = materializeChildren(ctx, parentId, opts.maxDepth, opts.parentDir)
 
-  // Fix circular references that were missed due to cache reuse.
-  // Cached subtrees may contain nodes that are not marked circular but should
-  // be because they are ancestors in the current traversal path (the cache was
-  // populated from a different path where those nodes were not ancestors).
-  return fixCircularRefs(tree, new Set())
+  // Mark circular back-edges.  materializeChildren truncates dependencies
+  // at cycle boundaries but does not set the `circular` flag, so that cached
+  // subtrees stay context-independent.  fixCircularRefs walks the final tree
+  // and adds `circular: true` wherever a node's path matches an ancestor.
+  //
+  // Seed the ancestors with parentDir (the filesystem path of parentId) so
+  // that back-edges to the root of this subtree are detected — the root
+  // itself does not appear as a node in the tree, only its children do.
+  const circularAncestors = new Set<string>()
+  if (opts.parentDir) {
+    circularAncestors.add(opts.parentDir)
+  }
+  return fixCircularRefs(tree, circularAncestors)
 }
 
 // ---------------------------------------------------------------------------
@@ -208,16 +216,11 @@ function countNodes (nodes: PackageNode[]): number {
  *
  * The cache is keyed by `(nodeId, remainingDepth)` and stores the
  * `PackageNode[]` children of a given node.  It is populated
- * unconditionally: results that contain circular-dependency truncations
- * are cached as well.  This means a cached subtree may show a node as
- * "circular" even when it is not strictly an ancestor in a later
- * traversal path, but the full subtree of that node will have been
- * expanded elsewhere in the output tree.  Accepting this minor
- * inaccuracy makes the cache effective on highly cyclic graphs and
- * prevents the exponential blowup that caused the original OOM.
- *
- * Cycle detection itself uses a mutable `ancestors` Set that is
- * completely separate from the cache.
+ * unconditionally, including results where recursion was truncated at a
+ * cycle boundary.  Cycle detection uses a mutable `ancestors` Set to
+ * stop recursion but does NOT set the `circular` flag — that is handled
+ * by `fixCircularRefs` in a separate pass over the final tree.  This
+ * keeps cached subtrees free of context-dependent circular markers.
  */
 function materializeChildren (
   ctx: MaterializationContext,
@@ -317,9 +320,6 @@ function materializeChildren (
         newEntry = packageInfo
       }
 
-      if (newEntry != null && circular) {
-        newEntry.circular = true
-      }
       if (newEntry != null && dedupedCount != null) {
         newEntry.deduped = true
         newEntry.dedupedDependenciesCount = dedupedCount
@@ -347,9 +347,9 @@ function materializeChildren (
 // ---------------------------------------------------------------------------
 
 /**
- * Walks the materialized PackageNode[] tree and corrects nodes that should be
- * marked `circular` but were not, because their subtree came from a cached
- * result computed under a different ancestor context.
+ * Walks the materialized PackageNode[] tree and marks circular back-edges.
+ * A node whose `path` matches an ancestor is a cycle — it gets
+ * `circular: true` and its dependencies (if any) are stripped.
  *
  * With deduplication in place (deduped nodes are leaves), the walk is O(N).
  */
@@ -359,8 +359,8 @@ function fixCircularRefs (
 ): PackageNode[] {
   let changed = false
   const result = nodes.map(node => {
-    // A node whose path matches an ancestor should be a circular back-edge.
-    if (node.path && ancestors.has(node.path) && !node.circular) {
+    // A node whose path matches an ancestor is a circular back-edge.
+    if (node.path && ancestors.has(node.path)) {
       changed = true
       const { dependencies: _, deduped: _d, dedupedDependenciesCount: _c, ...rest } = node
       return { ...rest, circular: true as const }
