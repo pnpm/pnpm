@@ -5,8 +5,8 @@
   "keywords": [
     "pnpm",
     "pnpm11",
-    "sbom",
     "cyclonedx",
+    "sbom",
     "spdx"
   ],
   "license": "MIT",
@@ -53,8 +53,8 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/sbom": "workspace:*",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/sbom": "workspace:*",
     "@types/ssri": "catalog:"
   },
   "engines": {

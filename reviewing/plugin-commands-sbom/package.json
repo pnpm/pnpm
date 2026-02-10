@@ -45,13 +45,13 @@
     "render-help": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/plugin-commands-sbom": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
-    "@types/ramda": "catalog:",
+    "@pnpm/plugin-commands-sbom": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
-    "@pnpm/test-fixtures": "workspace:*"
+    "@pnpm/test-fixtures": "workspace:*",
+    "@types/ramda": "catalog:"
   },
   "engines": {
     "node": ">=22.12"

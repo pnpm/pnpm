@@ -141,13 +141,13 @@
       "path": "../reviewing/plugin-commands-licenses"
     },
     {
-      "path": "../reviewing/plugin-commands-sbom"
-    },
-    {
       "path": "../reviewing/plugin-commands-listing"
     },
     {
       "path": "../reviewing/plugin-commands-outdated"
+    },
+    {
+      "path": "../reviewing/plugin-commands-sbom"
     },
     {
       "path": "../store/cafs"
