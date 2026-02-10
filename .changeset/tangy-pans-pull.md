@@ -10,7 +10,7 @@
 
 `pnpm publish` now works without the `npm` CLI.
 
-Provenance and OIDC now requires explicit `--provenance` flag:
+Provenance and OIDC now require explicit `--provenance` flag:
 
 ```sh
 pnpm publish --provenance --no-git-checks
