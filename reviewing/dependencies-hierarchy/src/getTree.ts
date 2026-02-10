@@ -25,6 +25,7 @@ interface GetTreeOpts {
   virtualStoreDirMaxLength: number
   modulesDir?: string
   parentDir?: string
+  showDedupedSearchMatches?: boolean
 
   graph: DependencyGraph
   materializationCache: MaterializationCache
@@ -194,8 +195,10 @@ function materializeChildren (
           if (cached.count > 0) {
             dedupedCount = cached.count
           }
-          dedupedHasSearchMatch = cached.hasSearchMatch
-          dedupedSearchMessages = cached.searchMessages
+          if (ctx.showDedupedSearchMatches) {
+            dedupedHasSearchMatch = cached.hasSearchMatch
+            dedupedSearchMessages = cached.searchMessages
+          }
         } else {
           ctx.ancestors.add(edge.target.id)
           const childResult = materializeChildren(ctx, edge.target.nodeId, childTreeMaxDepth, packageInfo.path)

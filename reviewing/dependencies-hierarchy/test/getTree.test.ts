@@ -793,6 +793,7 @@ describe('getTree', () => {
         currentPackages,
         wantedPackages: currentPackages,
         search,
+        showDedupedSearchMatches: true,
       }, rootNodeId))
 
       expect(result).toEqual([
@@ -845,6 +846,7 @@ describe('getTree', () => {
         currentPackages,
         wantedPackages: currentPackages,
         search,
+        showDedupedSearchMatches: true,
       }, rootNodeId))
 
       // The deduped "b" under "c" should carry the search message from "target"
@@ -873,6 +875,49 @@ describe('getTree', () => {
               searched: true,
               searchMessage: 'depends on target',
               dependencies: undefined,
+            }),
+          ],
+        }),
+      ])
+    })
+
+    test('deduped subtree with search match is hidden by default', () => {
+      // Same graph: root → a → b → target, root → c → b (deduped)
+      // Without showDedupedSearchMatches, "c → b" should NOT appear
+      // even though b's subtree contains a match.
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'c'],
+        a: ['b'],
+        b: ['target'],
+        c: ['b'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const search: Finder = ({ name }) => name === 'target'
+
+      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        search,
+      }, rootNodeId))
+
+      // Only "a → b → target" should appear; "c" is excluded because
+      // its only child "b" is deduped and doesn't directly match.
+      expect(result).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'target',
+                  searched: true,
+                }),
+              ],
             }),
           ],
         }),

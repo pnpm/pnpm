@@ -39,6 +39,7 @@ export async function buildDependenciesHierarchy (
     registries?: Registries
     onlyProjects?: boolean
     search?: Finder
+    showDedupedSearchMatches?: boolean
     lockfileDir: string
     checkWantedLockfileOnly?: boolean
     modulesDir?: string
@@ -86,6 +87,7 @@ export async function buildDependenciesHierarchy (
     onlyProjects: maybeOpts.onlyProjects,
     registries,
     search: maybeOpts.search,
+    showDedupedSearchMatches: maybeOpts.showDedupedSearchMatches,
     skipped: new Set(modules?.skipped ?? []),
     modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
@@ -114,6 +116,7 @@ async function dependenciesHierarchyForPackage (
     registries: Registries
     onlyProjects?: boolean
     search?: Finder
+    showDedupedSearchMatches?: boolean
     skipped: Set<string>
     lockfileDir: string
     checkWantedLockfileOnly?: boolean
@@ -149,6 +152,7 @@ async function dependenciesHierarchyForPackage (
     maxDepth: opts.depth,
     registries: opts.registries,
     search: opts.search,
+    showDedupedSearchMatches: opts.showDedupedSearchMatches,
     skipped: opts.skipped,
     wantedPackages,
     virtualStoreDir: opts.virtualStoreDir,
