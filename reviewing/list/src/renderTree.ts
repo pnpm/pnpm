@@ -168,7 +168,7 @@ function printLabel (getPkgColor: GetPkgColor, node: PackageNode): string {
       txt += chalk.dim(` (${node.dedupedDependenciesCount} dep${node.dedupedDependenciesCount === 1 ? '' : 's'} hidden)`)
     }
   }
-  return node.searched ? chalk.bold.magenta(txt) : txt
+  return node.searched ? chalk.bold(txt) : txt
 }
 
 function getPkgColor (node: PackageNode): (text: string) => string {

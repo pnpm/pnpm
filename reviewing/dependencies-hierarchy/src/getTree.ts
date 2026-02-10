@@ -174,6 +174,8 @@ function materializeChildren (
       // External link or unresolvable — no traversal possible
       if (ctx.search == null || searchMatch) {
         newEntry = packageInfo
+      } else {
+        continue
       }
     } else {
       let dependencies: PackageNode[]
@@ -219,6 +221,11 @@ function materializeChildren (
         }
       }
 
+      if (childHasSearchMatch || dedupedHasSearchMatch) {
+        resultHasSearchMatch = true
+      }
+      resultSearchMessages.push(...childSearchMessages, ...dedupedSearchMessages)
+
       if (dependencies.length > 0) {
         newEntry = {
           ...packageInfo,
@@ -226,37 +233,32 @@ function materializeChildren (
         }
       } else if (ctx.search == null || searchMatch || dedupedHasSearchMatch) {
         newEntry = packageInfo
+      } else {
+        continue
       }
 
-      if (newEntry != null && dedupedCount != null) {
+      if (dedupedCount != null) {
         newEntry.deduped = true
         newEntry.dedupedDependenciesCount = dedupedCount
       }
-
-      if (childHasSearchMatch || dedupedHasSearchMatch) {
-        resultHasSearchMatch = true
-      }
-      resultSearchMessages.push(...childSearchMessages, ...dedupedSearchMessages)
     }
 
-    if (newEntry != null) {
-      if (searchMatch) {
-        newEntry.searched = true
-        resultHasSearchMatch = true
-        if (typeof searchMatch === 'string') {
-          newEntry.searchMessage = searchMatch
-          resultSearchMessages.push(searchMatch)
-        }
-      } else if (dedupedHasSearchMatch) {
-        newEntry.searched = true
-        if (dedupedSearchMessages.length > 0) {
-          newEntry.searchMessage = dedupedSearchMessages.join('\n')
-        }
+    if (searchMatch) {
+      newEntry.searched = true
+      resultHasSearchMatch = true
+      if (typeof searchMatch === 'string') {
+        newEntry.searchMessage = searchMatch
+        resultSearchMessages.push(searchMatch)
       }
-      if (!newEntry.isPeer || !ctx.excludePeerDependencies || newEntry.dependencies?.length) {
-        resultDependencies.push(newEntry)
-        resultCount += 1 + (newEntry.dependencies?.length ? childCount : 0)
+    } else if (dedupedHasSearchMatch) {
+      newEntry.searched = true
+      if (dedupedSearchMessages.length > 0) {
+        newEntry.searchMessage = dedupedSearchMessages.join('\n')
       }
+    }
+    if (!newEntry.isPeer || !ctx.excludePeerDependencies || newEntry.dependencies?.length) {
+      resultDependencies.push(newEntry)
+      resultCount += 1 + (newEntry.dependencies?.length ? childCount : 0)
     }
   }
 
