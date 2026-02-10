@@ -57,6 +57,7 @@
     "eagain",
     "ebadplatform",
     "ebusy",
+    "eexist",
     "ehrkoext",
     "eintegrity",
     "eisdir",
@@ -67,6 +68,7 @@
     "endregion",
     "eneedauth",
     "enoent",
+    "enotempty",
     "enten",
     "eperm",
     "epipe",
@@ -312,3 +314,4 @@
     "zoltan"
   ]
 }
+
