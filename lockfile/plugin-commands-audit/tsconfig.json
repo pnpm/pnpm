@@ -41,6 +41,9 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
+      "path": "../../workspace/filter-workspace-packages"
+    },
+    {
       "path": "../audit"
     },
     {

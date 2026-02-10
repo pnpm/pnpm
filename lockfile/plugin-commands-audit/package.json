@@ -55,6 +55,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-audit": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",

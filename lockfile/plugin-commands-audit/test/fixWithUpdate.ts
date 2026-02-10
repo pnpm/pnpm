@@ -4,6 +4,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { type DepPath } from '@pnpm/types'
 import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
 import chalk from 'chalk'
@@ -320,6 +321,160 @@ The fixed vulnerabilities are:
     // All other packages should remain the same
     for (const pkgId of Object.keys(originalLockfile!.packages!)) {
       if (pkgId === originalPkgId1 || pkgId === originalPkgId2) continue
+      expect(packagesArray).toContain(pkgId)
+    }
+  })
+
+  test('top-level workspace subpackage vulnerability is fixed by recursive update from root', async () => {
+    const tmp = f.prepare('update-workspace-depth-2')
+
+    const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+
+    const subPkgDir = join(tmp, 'packages', 'sub-pkg')
+
+    const { manifest: originalManifest } = await readProjectManifest(subPkgDir)
+    expect(originalManifest).toBeTruthy()
+    expect(originalManifest.dependencies).toBeDefined()
+    expect(originalManifest.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('^100.0.0')
+
+    const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(originalLockfile).toBeTruthy()
+    expect(originalLockfile!.packages).toBeDefined()
+    expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
+    expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
+
+    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    expect(mockResponse).toBeTruthy()
+
+    nock(AUDIT_REGISTRY)
+      .post('/-/npm/v1/security/audits')
+      .reply(200, mockResponse)
+
+    redirectGetRequestsToMockRegistry()
+
+    const {
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    } = await filterPackagesFromDir(tmp, [], {
+      workspaceDir: tmp,
+      prefix: tmp,
+    })
+    expect(allProjects).toHaveLength(2)
+    expect(new Set(allProjects.map(p => p.manifest.name))).toEqual(new Set(['update-workspace-depth-2', 'sub-pkg']))
+    expect(allProjectsGraph).toBeTruthy()
+    expect(selectedProjectsGraph).toEqual(allProjectsGraph)
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: tmp,
+      workspaceDir: tmp,
+      lockfileDir: tmp,
+      rootProjectManifestDir: tmp,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+    })
+
+    expect(exitCode).toBe(0)
+    expect(output).toBe(`${chalk.green(1)} vulnerability was fixed, ${chalk.red(0)} vulnerabilities remain.
+
+The fixed vulnerabilities are:
+- (${chalk.green('high')}) "${chalk.green('Title: mock vulnerability in @pnpm.e2e/pkg-with-1-dep')}" ${chalk.blue('@pnpm.e2e/pkg-with-1-dep')}
+`)
+
+    const { manifest } = await readProjectManifest(subPkgDir)
+    expect(manifest).toBeTruthy()
+    expect(manifest.dependencies).toBeDefined()
+    expect(manifest.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('^100.1.0')
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(lockfile!.packages).toBeDefined()
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    // The vulnerable dependency should be updated
+    expect(packagesArray).not.toContain(originalPkgId)
+    expect(packagesArray).toContain(expectedPkgId)
+
+    // All other packages should remain the same
+    for (const pkgId of Object.keys(originalLockfile!.packages!)) {
+      if (pkgId === originalPkgId) continue
+      expect(packagesArray).toContain(pkgId)
+    }
+  })
+
+  test('depth 2 workspace subpackage vulnerability is fixed by recursive update from root', async () => {
+    const tmp = f.prepare('update-workspace-depth-2')
+
+    const originalPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0' as DepPath
+    const expectedPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0' as DepPath
+
+    const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(originalLockfile).toBeTruthy()
+    expect(originalLockfile!.packages).toBeDefined()
+    expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
+    expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
+
+    const mockResponse = await readFile(join(tmp, 'responses', 'depth-2-vulnerability.json'), 'utf-8')
+    expect(mockResponse).toBeTruthy()
+
+    nock(AUDIT_REGISTRY)
+      .post('/-/npm/v1/security/audits')
+      .reply(200, mockResponse)
+
+    redirectGetRequestsToMockRegistry()
+
+    const {
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    } = await filterPackagesFromDir(tmp, [], {
+      workspaceDir: tmp,
+      prefix: tmp,
+    })
+    expect(allProjects).toHaveLength(2)
+    expect(new Set(allProjects.map(p => p.manifest.name))).toEqual(new Set(['update-workspace-depth-2', 'sub-pkg']))
+    expect(allProjectsGraph).toBeTruthy()
+    expect(selectedProjectsGraph).toEqual(allProjectsGraph)
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: tmp,
+      workspaceDir: tmp,
+      lockfileDir: tmp,
+      rootProjectManifestDir: tmp,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+    })
+
+    expect(exitCode).toBe(0)
+    expect(output).toBe(`${chalk.green(1)} vulnerability was fixed, ${chalk.red(0)} vulnerabilities remain.
+
+The fixed vulnerabilities are:
+- (${chalk.green('high')}) "${chalk.green('Title: mock vulnerability in @pnpm.e2e/dep-of-pkg-with-1-dep')}" ${chalk.blue('@pnpm.e2e/dep-of-pkg-with-1-dep')}
+`)
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(lockfile!.packages).toBeDefined()
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    // The vulnerable dependency should be updated
+    expect(packagesArray).not.toContain(originalPkgId)
+    expect(packagesArray).toContain(expectedPkgId)
+
+    // All other packages should remain the same
+    for (const pkgId of Object.keys(originalLockfile!.packages!)) {
+      if (pkgId === originalPkgId) continue
       expect(packagesArray).toContain(pkgId)
     }
   })

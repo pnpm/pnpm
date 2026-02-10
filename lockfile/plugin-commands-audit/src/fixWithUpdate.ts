@@ -83,8 +83,6 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
 
   await update.handler({
     ...opts,
-    // Update recursively by default to fix vulnerabilities in the entire workspace
-    recursive: opts.recursive ?? true,
     packageVulnerabilityAudit,
   }, [])
 
