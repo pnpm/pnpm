@@ -13,6 +13,15 @@ import { build } from 'esbuild'
       bundle: true,
       platform: 'node',
       outfile: 'dist/pnpm.mjs',
+      // Create separate source map files, but intentionally omit
+      // sourceMappingUrl comment links from the original *.mjs/*.cjs files. The
+      // resulting *.map file is also excluded from NPM publishing.
+      //
+      // This keeps pnpm distributions small, but still allows developers to use
+      // .map files to reverse minified stack traces using tools such as
+      // https://sourcemap.tools. For more examples, see
+      // https://github.com/pnpm/pnpm/pull/10378
+      sourcemap: 'external',
       format: 'esm',
       banner,
       external: [
@@ -36,6 +45,7 @@ import { build } from 'esbuild'
       entryPoints: ['../worker/lib/worker.js'],
       bundle: true,
       platform: 'node',
+      sourcemap: 'external',
       format: 'esm',
       outfile: 'dist/worker.js',
       banner,

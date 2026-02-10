@@ -26,12 +26,12 @@
     "!*.map"
   ],
   "scripts": {
-    "start": "tsc --watch",
+    "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
@@ -65,7 +65,7 @@
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
@@ -75,12 +75,13 @@
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
     "delay": "catalog:",
+    "load-json-file": "catalog:",
     "nock": "catalog:",
     "normalize-path": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

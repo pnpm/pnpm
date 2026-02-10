@@ -103,11 +103,7 @@ export interface Project {
 }
 
 export interface HeadlessOptions {
-  ignorePatchFailures?: boolean
-  neverBuiltDependencies?: string[]
-  ignoredBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
+  allowBuilds?: Record<string, boolean | string>
   autoInstallPeers?: boolean
   childConcurrency?: number
   currentLockfile?: LockfileObject
@@ -128,6 +124,12 @@ export interface HeadlessOptions {
   ignoreDepScripts: boolean
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
+  /**
+   * When true, skip fetching local dependencies (file: protocol pointing to directories).
+   * This is used by `pnpm fetch` which only downloads packages from the registry
+   * and doesn't need local packages that won't be available (e.g., in Docker builds).
+   */
+  ignoreLocalPackages?: boolean
   include: IncludedDependencies
   selectedProjectDirs: string[]
   allProjects: Record<string, Project>
@@ -539,8 +541,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       allowBuild,
-      ignoredBuiltDependencies: opts.ignoredBuiltDependencies,
-      ignorePatchFailures: opts.ignorePatchFailures,
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
       extraEnv,
@@ -639,8 +639,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       storeDir: opts.storeDir,
       virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    }, {
-      makeModulesDir: Object.keys(filteredLockfile.packages ?? {}).length > 0,
     })
     const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
     if (opts.useLockfile) {
@@ -875,7 +873,7 @@ async function linkAllPkgs (
 
       depNode.requiresBuild = filesResponse.requiresBuild
       let sideEffectsCacheKey: string | undefined
-      if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+      if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
         if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built

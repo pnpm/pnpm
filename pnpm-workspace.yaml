@@ -40,6 +40,7 @@ packages:
   - store/*
   - text/*
   - workspace/*
+  - yaml/*
   - '!**/example/**'
   - '!**/test/**'
   - '!resolving/local-resolver/example-package/**'
@@ -49,6 +50,7 @@ allowBuilds:
   esbuild: true
   fuse-native: true
   ghooks: true
+  msgpackr-extract: true
   unrs-resolver: true
 
 auditConfig:
@@ -61,14 +63,12 @@ auditConfig:
 
 catalog:
   '@babel/core': ^7.28.3
-  '@babel/preset-typescript': ^7.27.1
-  '@babel/types': ^7.28.2
+  '@babel/plugin-transform-explicit-resource-management': ^7.27.1
   '@changesets/cli': ^2.29.6
   '@commitlint/cli': ^19.8.1
   '@commitlint/config-conventional': ^19.8.1
   '@commitlint/prompt-cli': ^19.8.1
-  '@eslint/eslintrc': 3.1.0
-  '@eslint/js': 9.9.1
+  '@eslint/js': ^9.18.0
   '@jest/globals': 30.0.5
   '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
@@ -76,18 +76,17 @@ catalog:
   '@pnpm/config.env-replace': ^3.0.2
   '@pnpm/config.nerf-dart': ^1.0.0
   '@pnpm/exec': ^2.0.0
-  '@pnpm/fs.packlist': 2.0.0
   '@pnpm/log.group': 3.0.1
   '@pnpm/logger': '>=1001.0.0 <1002.0.0'
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/network.agent': ^2.0.3
   '@pnpm/nopt': ^0.3.1
-  '@pnpm/npm-conf': 3.0.1
+  '@pnpm/npm-conf': 3.0.2
   '@pnpm/npm-lifecycle': ^1001.0.0
   '@pnpm/npm-package-arg': ^2.0.0
   '@pnpm/os.env.path-extender': ^2.0.3
   '@pnpm/patch-package': 0.0.1
-  '@pnpm/registry-mock': 5.2.0
+  '@pnpm/registry-mock': 5.2.1
   '@pnpm/semver-diff': ^1.1.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
@@ -96,8 +95,9 @@ catalog:
   '@pnpm/workspace.read-manifest': ^1000.1.1
   '@reflink/reflink': 0.1.19
   '@rushstack/worker-pool': 0.5.26
+  '@stylistic/eslint-plugin': ^4.4.1
   '@types/adm-zip': ^0.5.7
-  '@types/archy': 0.0.33
+  '@types/archy': 0.0.36
   '@types/cross-spawn': ^6.0.6
   '@types/fs-extra': ^9.0.13
   '@types/graceful-fs': ^4.1.9
@@ -117,28 +117,25 @@ catalog:
   '@types/normalize-path': ^3.0.2
   '@types/object-hash': 3.0.6
   '@types/parse-json': ^4.0.2
+  '@types/picomatch': ^4.0.2
   '@types/pnpm__byline': npm:@types/byline@^4.2.36
   '@types/proxyquire': ^1.3.31
   '@types/ramda': 0.29.12
   '@types/retry': ^0.12.5
-  '@types/rimraf': ^3.0.2
   '@types/semver': 7.5.3
-  '@types/signal-exit': ^3.0.4
   '@types/sinon': ^10.0.20
   '@types/ssri': ^7.1.5
   '@types/tar': ^6.1.13
   '@types/tar-stream': ^2.2.3
   '@types/touch': ^3.1.5
-  '@types/uuid': ^8.3.4
   '@types/validate-npm-package-name': ^4.0.2
   '@types/which': ^2.0.2
   '@types/write-file-atomic': ^4.0.3
   '@types/yarnpkg__lockfile': ^1.1.9
   '@types/yazl': ^3.3.0
   '@types/zkochan__table': npm:@types/table@6.0.0
-  '@typescript-eslint/eslint-plugin': 6.18.1
-  '@typescript-eslint/parser': 6.18.1
-  '@typescript-eslint/utils': 6.18.1
+  '@typescript-eslint/utils': ^8.53.0
+  '@typescript/native-preview': 7.0.0-dev.20260112.1
   '@yarnpkg/core': 4.2.0
   '@yarnpkg/extensions': 2.0.3
   '@yarnpkg/lockfile': ^1.1.0
@@ -146,7 +143,6 @@ catalog:
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
   '@zkochan/cmd-shim': ^7.0.0
-  '@zkochan/diable': ^1.0.2
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^3.0.2
   '@zkochan/table': ^2.0.1
@@ -158,8 +154,8 @@ catalog:
   bole: ^5.0.17
   boxen: npm:@zkochan/boxen@5.1.2
   c8: ^7.14.0
-  camelcase: ^8.0.0
-  camelcase-keys: ^9.1.3
+  camelcase: ^9.0.0
+  camelcase-keys: ^10.0.1
   can-link: ^2.0.0
   can-write-to-dir: ^1.1.1
   chalk: ^5.6.0
@@ -183,14 +179,12 @@ catalog:
   enquirer: ^2.4.1
   esbuild: ^0.25.9
   escape-string-regexp: ^5.0.0
-  eslint: ^8.57.1
-  eslint-config-standard-with-typescript: ^39.1.1
-  eslint-plugin-import: ^2.31.0
-  eslint-plugin-jest: 29.0.1
-  eslint-plugin-n: ^16.6.2
-  eslint-plugin-node: ^11.1.0
-  eslint-plugin-promise: ^6.6.0
-  eslint-plugin-regexp: 2.7.0
+  eslint: ^9.18.0
+  eslint-plugin-import-x: ^4.16.1
+  eslint-plugin-jest: ^29.12.1
+  eslint-plugin-n: ^17.23.2
+  eslint-plugin-promise: ^7.2.1
+  eslint-plugin-regexp: ^2.7.0
   execa: npm:safe-execa@0.2.0
   exists-link: 2.0.0
   fast-deep-equal: ^3.1.3
@@ -209,10 +203,9 @@ catalog:
   https-proxy-server-express: 0.1.2
   husky: ^9.1.7
   hyperdrive-schemas: ^2.0.0
-  ini: 5.0.0
+  ini: 6.0.0
   is-gzip: 2.0.0
   is-inner-link: ^4.0.0
-  is-port-reachable: 4.0.0
   is-subdir: ^1.2.0
   is-windows: ^1.0.2
   isexe: 2.0.0
@@ -232,12 +225,13 @@ catalog:
   mdast-util-to-string: ^2.0.0
   memoize: ^10.2.0
   micromatch: ^4.0.8
+  msgpackr: ^1.11.2
   nock: 13.3.4
   node-fetch: ^3.3.2
   normalize-newline: 4.1.0
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
-  normalize-registry-url: 2.0.0
+  normalize-registry-url: 2.0.1
   npm-packlist: 5.1.3
   object-hash: 3.0.0
   p-defer: ^4.0.1
@@ -258,7 +252,6 @@ catalog:
   preferred-pm: ^3.1.4
   pretty-bytes: ^7.0.1
   pretty-ms: ^9.2.0
-  process-exists: ^5.0.0
   promise-share: ^1.0.0
   proxyquire: ^2.1.3
   ps-list: ^8.1.1
@@ -285,39 +278,38 @@ catalog:
   semver-utils: ^1.1.4
   shlex: ^3.0.0
   shx: ^0.4.0
-  signal-exit: ^4.1.0
   sinon: ^16.1.3
   sort-keys: ^6.0.0
   split-cmd: ^1.1.0
   split2: ^4.2.0
-  ssri: 12.0.0
+  ssri: 13.0.0
   stacktracey: ^2.1.8
   string-length: ^6.0.0
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
   symlink-dir: ^7.0.0
-  tar: ^6.2.1
-  tar-stream: ^2.2.0
+  tar: ^7.5.7
+  tar-stream: ^3.1.7
   tempy: 3.0.0
   terminal-link: ^4.0.0
   tinyglobby: ^0.2.14
   touch: 3.1.0
   tree-kill: ^1.2.2
-  ts-jest: 29.4.1
   ts-jest-resolver: 2.0.1
   typescript: 5.9.2
+  typescript-eslint: ^8.53.0
   unified: ^9.2.2
-  uuid: ^9.0.1
-  validate-npm-package-name: 6.0.2
+  validate-npm-package-name: 7.0.2
   verdaccio: 6.1.6
   version-selector-type: ^3.0.0
   which: npm:@pnpm/which@^3.0.1
-  write-file-atomic: ^6.0.0
+  write-file-atomic: ^7.0.0
   write-ini-file: 4.0.1
-  write-json-file: ^6.0.0
+  write-json-file: ^7.0.0
   write-json5-file: ^3.1.0
   write-package: 7.2.0
   write-yaml-file: ^5.0.0
+  yaml: ^2.8.1
   yaml-tag: 1.1.0
   yazl: ^3.3.1
 
@@ -341,27 +333,32 @@ managePackageManagerVersions: true
 minimumReleaseAge: 1440 # At least a day
 
 minimumReleaseAgeExclude:
+  - '@pnpm/*'
   - body-parser@2.2.1
   - express@4.22.1
-  - pnpm
-  - '@pnpm/*'
-  - parse-npm-tarball-url@4.0.0
-  - publish-packed@5.0.0
   - glob@11.1.0
   - jws@3.2.3
+  - normalize-registry-url
+  - parse-npm-tarball-url@4.0.0
+  - pnpm
+  - publish-packed@5.0.0
   - run-groups@4.0.0
+  - tar@7.5.7
+  - lodash@4.17.23
 
-nodeVersion: 20.19.4
+nodeVersion: 22.12.0
 
 optimisticRepeatInstall: true
 
 overrides:
+  '@cypress/request@3.0.9>qs': ^6.14.1
   '@yarnpkg/fslib@2': '3'
   body-parser@<2.2.1: '^2.2.1'
   clipanion: 3.2.0-rc.6
   cookie@<0.7.0: '>=0.7.0'
   cross-spawn@<7.0.5: '>=7.0.5'
   debug@<3.1.0: '>=3.1.0'
+  diff@<8.0.3: '^8.0.3'
   express@<4.22.1: ^4.22.1
   follow-redirects@<=1.15.5: '>=1.15.6'
   glob-parent@<5.1.2: '>=5.1.2'
@@ -374,16 +371,19 @@ overrides:
   json5@<2.2.2: 'catalog:'
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   jws@<3.2.3: '^3.2.3'
+  lodash@>=4.0.0 <=4.17.22: '^4.17.23'
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
   path-to-regexp@<0.1.12: ^0.1.12
   path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
   path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
+  postman-request>qs: ^6.14.1
   request: npm:postman-request@2.88.1-postman.40
   semver@<7.5.2: 'catalog:'
   send@<0.19.0: ^0.19.0
   serve-static@<1.16.0: ^1.16.0
   socks@2: ^2.8.1
+  tar@<=7.5.6: '>=7.5.7'
   tmp@<=0.2.3: '>=0.2.4'
   tough-cookie@<4.1.3: '>=4.1.3'
   validator@<13.15.22: '>=13.15.22'
@@ -425,16 +425,10 @@ sharedWorkspaceLockfile: true
 trustPolicy: no-downgrade
 
 trustPolicyExclude:
-  - '@typescript-eslint/eslint-plugin@6.18.1'
-  - '@typescript-eslint/parser@6.18.1'
-  - '@typescript-eslint/scope-manager@6.18.1'
-  - '@typescript-eslint/type-utils@6.18.1'
-  - '@typescript-eslint/types@6.18.1'
-  - '@typescript-eslint/typescript-estree@6.18.1'
-  - '@typescript-eslint/utils@6.18.1'
-  - '@typescript-eslint/visitor-keys@6.18.1'
   - '@yarnpkg/libzip@3.2.2'
   - rxjs@7.8.2
   - undici-types@6.21.0
+
+trustPolicyIgnoreAfter: 10080 # 1 week
 
 verifyDepsBeforeRun: install

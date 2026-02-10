@@ -29,12 +29,12 @@
     "test": "pnpm run compile && pnpm run _test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/fs.packlist": "catalog:",
+    "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:"
@@ -50,10 +50,11 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

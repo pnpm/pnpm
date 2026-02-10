@@ -3,9 +3,8 @@ import path from 'path'
 import {
   type CafsLocker,
   createCafs,
-  getFilePathByModeInCafs,
 } from '@pnpm/store.cafs'
-import { type Cafs, type PackageFilesResponse, type PackageFiles, type SideEffectsDiff } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
   type ImportIndexedPackage,
@@ -82,33 +81,37 @@ function getFlatMap (
   storeDir: string,
   filesResponse: PackageFilesResponse,
   targetEngine?: string
-): { filesMap: Map<string, string>, isBuilt: boolean } {
-  let isBuilt!: boolean
-  let filesIndex!: PackageFiles
-  if (targetEngine && filesResponse.sideEffects?.has(targetEngine)) {
-    filesIndex = applySideEffectsDiff(filesResponse.filesIndex as PackageFiles, filesResponse.sideEffects.get(targetEngine)!)
-    isBuilt = true
-  } else if (filesResponse.unprocessed !== true) {
+): { filesMap: FilesMap, isBuilt: boolean } {
+  if (targetEngine && filesResponse.sideEffectsMaps?.has(targetEngine)) {
+    const sideEffectMap = filesResponse.sideEffectsMaps.get(targetEngine)!
+    const filesMap = applySideEffectsDiffWithMaps(filesResponse.filesMap, sideEffectMap)
     return {
-      filesMap: filesResponse.filesIndex,
-      isBuilt: false,
+      filesMap,
+      isBuilt: true,
     }
-  } else {
-    filesIndex = filesResponse.filesIndex
-    isBuilt = false
   }
-  const filesMap = new Map<string, string>()
-  for (const [fileName, { integrity, mode }] of filesIndex) {
-    filesMap.set(fileName, getFilePathByModeInCafs(storeDir, integrity, mode))
+  return {
+    filesMap: filesResponse.filesMap,
+    isBuilt: false,
   }
-  return { filesMap, isBuilt }
 }
 
-function applySideEffectsDiff (baseFiles: PackageFiles, { added, deleted }: SideEffectsDiff): PackageFiles {
-  const filesWithSideEffects: PackageFiles = new Map(added)
-  for (const [fileName, fileInfo] of baseFiles) {
+// Apply side effects when we already have file location maps (fast path)
+function applySideEffectsDiffWithMaps (
+  baseFiles: FilesMap,
+  { added, deleted }: { added?: FilesMap, deleted?: string[] }
+): FilesMap {
+  const filesWithSideEffects = new Map<string, string>()
+  // Add side effect files (already have file paths)
+  if (added) {
+    for (const [name, filePath] of added.entries()) {
+      filesWithSideEffects.set(name, filePath)
+    }
+  }
+  // Add base files that weren't deleted
+  for (const [fileName, filePath] of baseFiles) {
     if (!deleted?.includes(fileName) && !filesWithSideEffects.has(fileName)) {
-      filesWithSideEffects.set(fileName, fileInfo)
+      filesWithSideEffects.set(fileName, filePath)
     }
   }
   return filesWithSideEffects

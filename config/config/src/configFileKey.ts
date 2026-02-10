@@ -47,8 +47,6 @@ export const pnpmConfigFileKeys = [
   'resolution-mode',
   'store-dir',
   'use-beta-cli',
-  'use-running-store-server',
-  'use-store-server',
 ] as const satisfies readonly PnpmKey[]
 export type PnpmConfigFileKey = typeof pnpmConfigFileKeys[number]
 
@@ -99,7 +97,6 @@ export const excludedPnpmKeys = [
   'modules-dir',
   'node-linker',
   'offline',
-  'only-built-dependencies',
   'pack-destination',
   'pack-gzip-level',
   'patches-dir',
@@ -156,6 +153,7 @@ export const excludedPnpmKeys = [
   'cpu',
   'libc',
   'os',
+  'audit-level',
 ] as const satisfies ReadonlyArray<Exclude<PnpmKey, PnpmConfigFileKey>>
 export type ExcludedPnpmKey = typeof excludedPnpmKeys[number]
 

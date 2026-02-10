@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import PATH from 'path-name'
 import { sync as writeYamlFile } from 'write-yaml-file'
@@ -169,8 +170,8 @@ test('.npmrc does not load pnpm settings', async () => {
 
     // pnpm options
     'dlx-cache-max-age=1234',
-    'only-built-dependencies[]=foo',
-    'only-built-dependencies[]=bar',
+    'trust-policy-exclude[]=foo',
+    'trust-policy-exclude[]=bar',
     'packages[]=baz',
     'packages[]=qux',
   ].join('\n')
@@ -200,9 +201,9 @@ test('.npmrc does not load pnpm settings', async () => {
   expect(config.rawConfig['dlx-cache-max-age']).toBeUndefined()
   expect(config.rawConfig['dlxCacheMaxAge']).toBeUndefined()
   expect(config.dlxCacheMaxAge).toBe(24 * 60) // TODO: refactor to make defaultOptions importable
-  expect(config.rawConfig['only-built-dependencies']).toBeUndefined()
-  expect(config.rawConfig['onlyBuiltDependencies']).toBeUndefined()
-  expect(config.onlyBuiltDependencies).toBeUndefined()
+  expect(config.rawConfig['trust-policy-exclude']).toBeUndefined()
+  expect(config.rawConfig['trustPolicyExclude']).toBeUndefined()
+  expect(config.trustPolicyExclude).toBeUndefined()
   expect(config.rawConfig.packages).toBeUndefined()
 })
 
@@ -502,7 +503,8 @@ test('convert shamefully-flatten to hoist-pattern=* and warn', async () => {
   ])
 })
 
-test('hoist-pattern is undefined if --no-hoist used', async () => {
+// hoist → hoistPattern processing is done in @pnpm/cli-utils
+test('hoist-pattern is unchanged if --no-hoist used', async () => {
   const { config } = await getConfig({
     cliOptions: {
       hoist: false,
@@ -513,7 +515,8 @@ test('hoist-pattern is undefined if --no-hoist used', async () => {
     },
   })
 
-  expect(config.hoistPattern).toBeUndefined()
+  expect(config.hoist).toBe(false)
+  expect(config.hoistPattern).toStrictEqual(['*'])
 })
 
 test('throw error if --no-hoist is used with --shamefully-hoist', async () => {
@@ -564,6 +567,7 @@ test('throw error if --no-hoist is used with --hoist-pattern', async () => {
   })
 })
 
+// public-hoist-pattern normalization is done in @pnpm/cli-utils
 test('normalizing the value of public-hoist-pattern', async () => {
   {
     const { config } = await getConfig({
@@ -576,7 +580,7 @@ test('normalizing the value of public-hoist-pattern', async () => {
       },
     })
 
-    expect(config.publicHoistPattern).toBeUndefined()
+    expect(config.publicHoistPattern).toBe('')
   }
   {
     const { config } = await getConfig({
@@ -589,7 +593,7 @@ test('normalizing the value of public-hoist-pattern', async () => {
       },
     })
 
-    expect(config.publicHoistPattern).toBeUndefined()
+    expect(config.publicHoistPattern).toStrictEqual([''])
   }
 })
 
@@ -1118,7 +1122,7 @@ test('preferSymlinkedExecutables should be true when nodeLinker is hoisted', asy
 })
 
 test('return a warning when the .npmrc has an env variable that does not exist', async () => {
-  fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8') // eslint-disable-line
+  fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8')
   const { warnings } = await getConfig({
     cliOptions: {},
     packageManager: {
@@ -1227,8 +1231,8 @@ test('settings from pnpm-workspace.yaml are read', async () => {
     },
   })
 
-  expect(config.onlyBuiltDependencies).toStrictEqual(['foo'])
-  expect(config.rawConfig['only-built-dependencies']).toStrictEqual(['foo'])
+  expect(config.trustPolicyExclude).toStrictEqual(['foo', 'bar'])
+  expect(config.rawConfig['trust-policy-exclude']).toStrictEqual(['foo', 'bar'])
 })
 
 test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect', async () => {
@@ -1247,6 +1251,7 @@ test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect
   expect(config.lockfileDir).toBeUndefined()
 })
 
+// shamefullyHoist → publicHoistPattern conversion is done in @pnpm/cli-utils
 test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async () => {
   const workspaceDir = f.find('settings-in-workspace-yaml')
   process.chdir(workspaceDir)
@@ -1260,7 +1265,6 @@ test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async
   })
 
   expect(config.shamefullyHoist).toBe(true)
-  expect(config.publicHoistPattern).toStrictEqual(['*'])
   expect(config.rawConfig['shamefully-hoist']).toBe(true)
 })
 
@@ -1281,38 +1285,6 @@ test('settings gitBranchLockfile in pnpm-workspace.yaml should take effect', asy
   expect(config.rawConfig['git-branch-lockfile']).toBe(true)
 })
 
-test('when dangerouslyAllowAllBuilds is set to true neverBuiltDependencies is set to an empty array', async () => {
-  const { config } = await getConfig({
-    cliOptions: {
-      'dangerously-allow-all-builds': true,
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-
-  expect(config.neverBuiltDependencies).toStrictEqual([])
-})
-
-test('when dangerouslyAllowAllBuilds is set to true and neverBuiltDependencies not empty, a warning is returned', async () => {
-  const workspaceDir = f.find('never-built-dependencies')
-  process.chdir(workspaceDir)
-  const { config, warnings } = await getConfig({
-    cliOptions: {
-      'dangerously-allow-all-builds': true,
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-    workspaceDir,
-  })
-
-  expect(config.neverBuiltDependencies).toStrictEqual([])
-  expect(warnings).toStrictEqual(['You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.'])
-})
-
 test('loads setting from environment variable pnpm_config_*', async () => {
   prepareEmpty()
   const { config } = await getConfig({
@@ -1321,7 +1293,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
       pnpm_config_fetch_retries: '100',
       pnpm_config_hoist_pattern: '["react", "react-dom"]',
       pnpm_config_use_node_version: '22.0.0',
-      pnpm_config_only_built_dependencies: '["is-number", "is-positive", "is-negative"]',
+      pnpm_config_trust_policy_exclude: '["foo", "bar"]',
       pnpm_config_registry: 'https://registry.example.com',
     },
     packageManager: {
@@ -1332,7 +1304,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
   })
   expect(config.fetchRetries).toBe(100)
   expect(config.hoistPattern).toStrictEqual(['react', 'react-dom'])
-  expect(config.onlyBuiltDependencies).toStrictEqual(['is-number', 'is-positive', 'is-negative'])
+  expect(config.trustPolicyExclude).toStrictEqual(['foo', 'bar'])
   expect(config.registry).toBe('https://registry.example.com/')
   expect(config.registries.default).toBe('https://registry.example.com/')
 })
@@ -1388,6 +1360,48 @@ test('CLI should override environment variable pnpm_config_*', async () => {
   expect(await getConfigValue({
     'fetch-retries': 10,
   })).toBe(10)
+})
+
+test('warn when directory contains PATH delimiter character', async () => {
+  const tempDir = path.join(os.tmpdir(), `pnpm-test${path.delimiter}project-${Date.now()}`)
+  fs.mkdirSync(tempDir, { recursive: true })
+
+  try {
+    const { warnings } = await getConfig({
+      cliOptions: { dir: tempDir },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(warnings).toContainEqual(
+      expect.stringContaining('path delimiter character')
+    )
+  } finally {
+    fs.rmSync(tempDir, { recursive: true })
+  }
+})
+
+test('no warning when directory does not contain PATH delimiter character', async () => {
+  const tempDir = path.join(os.tmpdir(), `pnpm-test-normal-${Date.now()}`)
+  fs.mkdirSync(tempDir, { recursive: true })
+
+  try {
+    const { warnings } = await getConfig({
+      cliOptions: { dir: tempDir },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(warnings).not.toContainEqual(
+      expect.stringContaining('path delimiter character')
+    )
+  } finally {
+    fs.rmSync(tempDir, { recursive: true })
+  }
 })
 
 describe('global config.yaml', () => {

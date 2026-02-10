@@ -40,10 +40,10 @@
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../fs/symlink-dependency"
+      "path": "../../fs/msgpack-file"
     },
     {
-      "path": "../../fs/v8-file"
+      "path": "../../fs/symlink-dependency"
     },
     {
       "path": "../../lockfile/filtering"

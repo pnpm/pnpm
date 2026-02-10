@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "compile": "tsc --build"
+    "compile": "tsgo --build"
   },
   "dependencies": {
     "@pnpm/lockfile.fs": "workspace:*",
@@ -14,6 +14,7 @@
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*",
     "@types/normalize-path": "catalog:",
     "is-subdir": "catalog:",

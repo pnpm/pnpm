@@ -29,14 +29,15 @@
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "@pnpm/crypto.integrity": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
@@ -75,7 +76,7 @@
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

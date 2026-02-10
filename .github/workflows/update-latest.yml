@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Setup Node
-      uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+      uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
     - name: Update tag
       env:
         "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}
@@ -63,7 +63,7 @@ jobs:
     steps:
       - name: Send toot to Mastodon
         id: mastodon
-        uses: cbrgm/mastodon-github-action@771a3605941f6e3e8a900efed5807d3e74586e1c # v2.1.22
+        uses: cbrgm/mastodon-github-action@3ebdc72dcd894e1be460179eb0d01835f3689b2f # v2.1.23
         with:
           message: |
             pnpm@${{ github.event.inputs.version }} is out!

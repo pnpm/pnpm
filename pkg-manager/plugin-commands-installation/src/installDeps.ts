@@ -12,7 +12,7 @@ import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir } from '@pnpm/types'
 import {
   IgnoredBuildsError,
@@ -26,10 +26,8 @@ import { sequenceGraph } from '@pnpm/sort-packages'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
-import isSubdir from 'is-subdir'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
-import { getNodeExecPath } from './nodeExecPath.js'
 import {
   type CommandFullName,
   type RecursiveOptions,
@@ -95,6 +93,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'shellEmulator'
 | 'tag'
+| 'allowBuilds'
 | 'optional'
 | 'workspaceConcurrency'
 | 'workspaceDir'
@@ -173,7 +172,7 @@ when running add/update with the --workspace option')
     // @ts-expect-error
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
-  const store = await createOrConnectStoreController(opts)
+  const store = await createStoreController(opts)
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
     devDependencies: true,
@@ -212,11 +211,16 @@ when running add/update with the --workspace option')
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
 
+      const recursiveRootManifestOpts = getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {})
       await recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
           ...opts,
-          ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
+          ...recursiveRootManifestOpts,
+          allowBuilds: {
+            ...recursiveRootManifestOpts.allowBuilds,
+            ...opts.allowBuilds,
+          },
           forceHoistPattern,
           forcePublicHoistPattern,
           allProjectsGraph,
@@ -247,9 +251,14 @@ when running add/update with the --workspace option')
     manifest = {}
   }
 
+  const rootManifestOpts = getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest))
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest)),
+    ...rootManifestOpts,
+    allowBuilds: {
+      ...rootManifestOpts.allowBuilds,
+      ...opts.allowBuilds,
+    },
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository
@@ -262,12 +271,6 @@ when running add/update with the --workspace option')
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,
-  }
-  if (opts.global && opts.pnpmHomeDir != null) {
-    const nodeExecPath = await getNodeExecPath()
-    if (isSubdir(opts.pnpmHomeDir, nodeExecPath)) {
-      installOpts['nodeExecPath'] = nodeExecPath
-    }
   }
 
   let updateMatch: UpdateDepsMatcher | null

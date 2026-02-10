@@ -549,7 +549,7 @@ test('bin specified in the directories property symlinked to .bin folder when pr
 testOnNonWindows('building native addons', async () => {
   prepareEmpty()
 
-  await addDependenciesToPackage({}, ['diskusage@1.1.3'], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['diskusage@1.1.3'], testDefaults({ fastUnpack: false, allowBuilds: { diskusage: true } }))
 
   expect(fs.existsSync('node_modules/diskusage/build')).toBeTruthy()
 })

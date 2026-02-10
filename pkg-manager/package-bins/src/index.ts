@@ -14,6 +14,10 @@ export async function getBinsFromPackageManifest (manifest: DependencyManifest, 
   }
   if (manifest.directories?.bin) {
     const binDir = path.join(pkgPath, manifest.directories.bin)
+    // Validate: directories.bin must be within the package root
+    if (!isSubdir(pkgPath, binDir)) {
+      return []
+    }
     const files = await findFiles(binDir)
     return files.map((file) => ({
       name: path.basename(file),
@@ -39,22 +43,23 @@ async function findFiles (dir: string): Promise<string[]> {
   }
 }
 
-function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string) {
-  if (typeof bin === 'string') {
-    return [
-      {
-        name: normalizeBinName(pkgName),
-        path: path.join(pkgPath, bin),
-      },
-    ]
+function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string): Command[] {
+  const cmds: Command[] = []
+  for (const [commandName, binRelativePath] of typeof bin === 'string' ? [[pkgName, bin]] : Object.entries(bin)) {
+    const binName = commandName[0] === '@'
+      ? commandName.slice(commandName.indexOf('/') + 1)
+      : commandName
+    // Validate: must be safe (no path traversal) - only allow URL-safe chars or $
+    if (binName !== encodeURIComponent(binName) && binName !== '$') {
+      continue
+    }
+    const binPath = path.join(pkgPath, binRelativePath)
+    if (!isSubdir(pkgPath, binPath)) {
+      continue
+    }
+    cmds.push({ name: binName, path: binPath })
   }
-  return Object.keys(bin)
-    .filter((commandName) => encodeURIComponent(commandName) === commandName || commandName === '$' || commandName[0] === '@')
-    .map((commandName) => ({
-      name: normalizeBinName(commandName),
-      path: path.join(pkgPath, bin[commandName]),
-    }))
-    .filter((cmd) => isSubdir(pkgPath, cmd.path))
+  return cmds
 }
 
 /**

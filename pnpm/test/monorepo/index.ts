@@ -63,19 +63,47 @@ test('no projects found', async () => {
   }
 })
 
-test('incorrect workspace manifest', async () => {
-  preparePackages([
-    {
-      name: 'project',
-      version: '1.0.0',
+test('empty pnpm-workspace.yaml should not break pnpm run -r', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+    scripts: {
+      test: 'echo Passed',
     },
-  ])
+  })
 
-  writeYamlFile('pnpm-workspace.yml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('pnpm-workspace.yaml', '')
 
-  const { status, stderr } = execPnpmSync(['install'])
-  expect(stderr.toString()).toMatch(/The workspace manifest file should be named "pnpm-workspace.yaml"/)
-  expect(status).toBe(1)
+  const { stdout, status } = execPnpmSync(['run', '-r', 'test'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Passed')
+})
+
+const invalidWorkspaceManifests = [
+  'pnpm-workspaces.yaml',
+  'pnpm-workspaces.yml',
+  'pnpm-workspace.yml',
+  '.pnpm-workspaces.yaml',
+  '.pnpm-workspaces.yml',
+  '.pnpm-workspace.yml',
+  '.pnpm-workspace.yaml',
+]
+
+invalidWorkspaceManifests.forEach((filename) => {
+  test('incorrect workspace manifest ' + filename, async () => {
+    preparePackages([
+      {
+        name: 'project',
+        version: '1.0.0',
+      },
+    ])
+
+    writeYamlFile(filename, { packages: ['**', '!store/**'] })
+
+    const { status, stderr } = execPnpmSync(['install'])
+    expect(stderr.toString()).toMatch(/The workspace manifest file should be named "pnpm-workspace.yaml"/)
+    expect(status).toBe(1)
+  })
 })
 
 test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies', async () => {
@@ -1251,11 +1279,7 @@ test('dependencies of workspace projects are built during headless installation'
   const projects = preparePackages([
     {
       location: '.',
-      package: {
-        pnpm: {
-          neverBuiltDependencies: [],
-        },
-      },
+      package: {},
     },
     {
       name: 'project-1',
@@ -1270,6 +1294,9 @@ test('dependencies of workspace projects are built during headless installation'
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     sharedWorkspaceLockfile: false,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
   })
 
   await execPnpm(['install', '--lockfile-only'])
@@ -1890,9 +1917,6 @@ test('deploy should keep files created by lifecycle scripts', async () => {
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {
-        neverBuiltDependencies: [],
-      },
     },
     'project-0': {
       name: 'project-0',
@@ -1914,6 +1938,9 @@ test('deploy should keep files created by lifecycle scripts', async () => {
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     injectWorkspacePackages: true,
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': true,
+    },
   })
 
   const monorepoRoot = process.cwd()
@@ -1941,9 +1968,6 @@ test('rebuild in a directory created with "pnpm deploy" and with "pnpm.neverBuil
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {
-        neverBuiltDependencies: [],
-      },
     },
     'project-0': {
       name: 'project-0',
@@ -1965,6 +1989,9 @@ test('rebuild in a directory created with "pnpm deploy" and with "pnpm.neverBuil
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     injectWorkspacePackages: true,
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': true,
+    },
   })
 
   const monorepoRoot = process.cwd()

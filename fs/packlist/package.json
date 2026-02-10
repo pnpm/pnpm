@@ -26,7 +26,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix",
+    "compile": "tsgo --build && pnpm run lint --fix",
     "test": "pnpm run compile"
   },
   "dependencies": {
@@ -36,7 +36,7 @@
     "@pnpm/fs.packlist": "workspace:*"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

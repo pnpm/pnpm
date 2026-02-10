@@ -28,8 +28,8 @@
     "prepublishOnly": "pnpm run compile",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run compile",
-    "start": "tsc --watch",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "start": "tsgo --watch",
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/client": "workspace:*",
@@ -41,7 +41,7 @@
     "@pnpm/testing.temp-store": "workspace:*"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

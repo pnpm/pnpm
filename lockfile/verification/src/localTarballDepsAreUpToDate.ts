@@ -101,7 +101,7 @@ export async function localTarballDepsAreUpToDate (
         let fileIntegrity: string
         try {
           fileIntegrity = await fileIntegrityPromise
-        } catch (err) {
+        } catch (_err) {
           // If there was an error reading the tarball, assume the lockfile is
           // out of date. The full resolution process will emit a clearer error
           // later during install.

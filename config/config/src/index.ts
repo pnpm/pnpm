@@ -274,6 +274,12 @@ export async function getConfig (opts: {
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
   const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
 
+  // Unfortunately, there is no way to escape the PATH delimiter,
+  // so directories added to PATH should not contain it.
+  if (cwd.includes(path.delimiter)) {
+    warnings.push(`Directory "${cwd}" contains the path delimiter character (${path.delimiter}), so binaries from node_modules/.bin will not be accessible via PATH. Consider renaming the directory.`)
+  }
+
   pnpmConfig.maxSockets = npmConfig.maxsockets
   // @ts-expect-error
   delete pnpmConfig['maxsockets']
@@ -414,6 +420,17 @@ export async function getConfig (opts: {
           workspaceManifest,
         })
       }
+    } else if (cliOptions['global']) {
+      // For global installs, read settings from pnpm-workspace.yaml in the global package directory
+      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.globalPkgDir)
+      if (workspaceManifest) {
+        addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+          configFromCliOpts,
+          projectManifest: pnpmConfig.rootProjectManifest,
+          workspaceDir: pnpmConfig.globalPkgDir,
+          workspaceManifest,
+        })
+      }
     }
   }
 
@@ -461,13 +478,8 @@ export async function getConfig (opts: {
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
 
-  if (opts.cliOptions['global']) {
-    extractAndRemoveDependencyBuildOptions(pnpmConfig)
+  if (!hasDependencyBuildOptions(pnpmConfig)) {
     Object.assign(pnpmConfig, globalDepsBuildConfig)
-  } else {
-    if (!hasDependencyBuildOptions(pnpmConfig)) {
-      Object.assign(pnpmConfig, globalDepsBuildConfig)
-    }
   }
   if (opts.cliOptions['save-peer']) {
     if (opts.cliOptions['save-prod']) {
@@ -517,35 +529,6 @@ export async function getConfig (opts: {
   }
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
-  }
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
-  if (pnpmConfig.hoist === false) {
-    delete pnpmConfig.hoistPattern
-  }
-  switch (pnpmConfig.shamefullyHoist) {
-  case false:
-    delete pnpmConfig.publicHoistPattern
-    break
-  case true:
-    pnpmConfig.publicHoistPattern = ['*']
-    break
-  default:
-    if (
-      (pnpmConfig.publicHoistPattern == null) ||
-        (pnpmConfig.publicHoistPattern === '') ||
-        (
-          Array.isArray(pnpmConfig.publicHoistPattern) &&
-          pnpmConfig.publicHoistPattern.length === 1 &&
-          pnpmConfig.publicHoistPattern[0] === ''
-        )
-    ) {
-      delete pnpmConfig.publicHoistPattern
-    }
-    break
-  }
-  if (!pnpmConfig.symlink) {
-    delete pnpmConfig.hoistPattern
-    delete pnpmConfig.publicHoistPattern
   }
   if (typeof pnpmConfig['color'] === 'boolean') {
     switch (pnpmConfig['color']) {
@@ -623,12 +606,6 @@ export async function getConfig (opts: {
     pnpmConfig.dev = true
   }
 
-  if (pnpmConfig.dangerouslyAllowAllBuilds) {
-    if (pnpmConfig.neverBuiltDependencies && pnpmConfig.neverBuiltDependencies.length > 0) {
-      warnings.push('You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.')
-    }
-    pnpmConfig.neverBuiltDependencies = []
-  }
   if (pnpmConfig.ci) {
     // Using a global virtual store in CI makes little sense,
     // as there is never a warm cache in that environment.

@@ -1,9 +1,8 @@
 import fs from 'fs'
 import path from 'path'
-import v8 from 'v8'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { hashObject } from '@pnpm/crypto.object-hasher'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
+import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -79,11 +78,12 @@ test('using side effects cache', async () => {
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, {}, {}, { packageImportMethod: 'copy' })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
   const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const filesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -98,10 +98,10 @@ test('using side effects cache', async () => {
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
   const addedFiles = filesIndex.sideEffects!.get(sideEffectsKey)!.added!
-  expect(addedFiles.get('generated-by-preinstall.js')).toBeTruthy()
-  expect(addedFiles.get('generated-by-postinstall.js')).toBeTruthy()
+  expect(addedFiles.has('generated-by-preinstall.js')).toBeTruthy()
+  expect(addedFiles.has('generated-by-postinstall.js')).toBeTruthy()
   addedFiles.delete('generated-by-postinstall.js')
-  fs.writeFileSync(filesIndexFile, v8.serialize(filesIndex))
+  writeMsgpackFileSync(filesIndexFile, filesIndex)
 
   rimraf('node_modules')
   rimraf('pnpm-lock.yaml') // to avoid headless install
@@ -111,6 +111,7 @@ test('using side effects cache', async () => {
     sideEffectsCacheWrite: true,
     storeDir: opts.storeDir,
     verifyStoreIntegrity: false,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, {}, {}, { packageImportMethod: 'copy' })
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts2)
 
@@ -159,6 +160,7 @@ test('uploading errors do not interrupt installation', async () => {
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   })
   opts.storeController.upload = async () => {
     throw new Error('an unexpected error')
@@ -168,7 +170,7 @@ test('uploading errors do not interrupt installation', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
 
   const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const filesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeFalsy()
 })
 
@@ -179,29 +181,31 @@ test('a postinstall script does not modify the original sources added to the sto
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
+    allowBuilds: { '@pnpm/postinstall-modifies-source': true },
   }, {}, {}, { packageImportMethod: 'hardlink' })
   await addDependenciesToPackage({}, ['@pnpm/postinstall-modifies-source@1.0.0'], opts)
 
   expect(fs.readFileSync('node_modules/@pnpm/postinstall-modifies-source/empty-file.txt', 'utf8')).toContain('hello')
 
   const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0'), '@pnpm/postinstall-modifies-source@1.0.0')
-  const filesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy()
-  expect(filesIndex.sideEffects!.has(`${ENGINE_NAME};deps=${hashObject({
+  expect(filesIndex.sideEffects?.has(`${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm/postinstall-modifies-source@1.0.0:${getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0')}`,
     deps: {},
   })}`)).toBeTruthy()
-  const patchedFileIntegrity = filesIndex.sideEffects!.get(`${ENGINE_NAME};deps=${hashObject({
+  const sideEffectEntry = filesIndex.sideEffects!.get(`${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm/postinstall-modifies-source@1.0.0:${getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0')}`,
     deps: {},
-  })}`)!.added!.get('empty-file.txt')?.integrity
-  expect(patchedFileIntegrity).toBeTruthy()
-  const originalFileIntegrity = filesIndex.files.get('empty-file.txt')!.integrity
-  expect(originalFileIntegrity).toBeTruthy()
-  // The integrity of the original file differs from the integrity of the patched file
-  expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
+  })}`)!
+  const patchedFileDigest = sideEffectEntry.added!.get('empty-file.txt')?.digest
+  expect(patchedFileDigest).toBeTruthy()
+  const originalFileDigest = filesIndex.files.get('empty-file.txt')!.digest
+  expect(originalFileDigest).toBeTruthy()
+  // The digest of the original file differs from the digest of the patched file
+  expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
-  expect(fs.readFileSync(getFilePathByModeInCafs(opts.storeDir, originalFileIntegrity, 420), 'utf8')).toBe('')
+  expect(fs.readFileSync(getFilePathByModeInCafs(opts.storeDir, originalFileDigest, 420), 'utf8')).toBe('')
 })
 
 test('a corrupted side-effects cache is ignored', async () => {
@@ -211,11 +215,12 @@ test('a corrupted side-effects cache is ignored', async () => {
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
   const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const filesIndex = readV8FileStrictSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -232,7 +237,7 @@ test('a corrupted side-effects cache is ignored', async () => {
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added!.has('generated-by-preinstall.js')).toBeTruthy()
   const sideEffectFileStat = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('generated-by-preinstall.js')!
-  const sideEffectFile = getFilePathByModeInCafs(opts.storeDir, sideEffectFileStat.integrity, sideEffectFileStat.mode)
+  const sideEffectFile = getFilePathByModeInCafs(opts.storeDir, sideEffectFileStat.digest, sideEffectFileStat.mode)
   expect(fs.existsSync(sideEffectFile)).toBeTruthy()
   rimraf(sideEffectFile) // we remove the side effect file to break the store
 
@@ -242,6 +247,7 @@ test('a corrupted side-effects cache is ignored', async () => {
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     storeDir: opts.storeDir,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   })
   await install(manifest, opts2)
 

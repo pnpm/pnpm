@@ -123,7 +123,6 @@ export function help (): string {
 }
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
-  auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
   fix?: boolean
   ignoreRegistryErrors?: boolean
   json?: boolean
@@ -132,6 +131,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   ignore?: string[]
   ignoreUnfixable?: boolean
 } & Pick<Config, 'auditConfig'
+| 'auditLevel'
 | 'ca'
 | 'cert'
 | 'httpProxy'
@@ -258,9 +258,8 @@ ${newIgnores.join('\n')}`,
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   const ignoreGhsas = opts.auditConfig?.ignoreGhsas
   if (ignoreGhsas) {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    auditReport.advisories = pickBy(({ github_advisory_id, severity }) => {
-      if (!ignoreGhsas.includes(github_advisory_id)) {
+    auditReport.advisories = pickBy(({ github_advisory_id: githubAdvisoryId, severity }) => {
+      if (!ignoreGhsas.includes(githubAdvisoryId)) {
         return true
       }
       ignoredVulnerabilities[severity as AuditLevelString] += 1
@@ -277,20 +276,20 @@ ${newIgnores.join('\n')}`,
       return false
     }, auditReport.advisories)
   }
+  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
+  const advisoryEntries = Object.entries(auditReport.advisories)
+    .filter(([, { severity }]) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
   if (opts.json) {
+    const advisories = Object.fromEntries(advisoryEntries)
     return {
-      exitCode: totalVulnerabilityCount > 0 ? 1 : 0,
-      output: JSON.stringify(auditReport, null, 2),
+      exitCode: Object.keys(advisories).length > 0 ? 1 : 0,
+      output: JSON.stringify({ ...auditReport, advisories }, null, 2),
     }
   }
 
   let output = ''
-  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
-  let advisories = Object.values(auditReport.advisories)
-  advisories = advisories
-    .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
-    .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
-  for (const advisory of advisories) {
+  advisoryEntries.sort(([, a1], [, a2]) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
+  for (const [, advisory] of advisoryEntries) {
     const paths = advisory.findings.map(({ paths }) => paths).flat()
     output += table([
       [AUDIT_COLOR[advisory.severity](advisory.severity), chalk.bold(advisory.title)],
@@ -321,7 +320,7 @@ function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerab
   if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found\n'
   return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
     Object.entries(vulnerabilities)
-      .filter(([auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
+      .filter(([_auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
       .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount as string} ${auditLevel}${ignoredVulnerabilities[auditLevel as AuditLevelString] > 0 ? ` (${ignoredVulnerabilities[auditLevel as AuditLevelString]} ignored)` : ''}`))
       .join(' | ')
   }`

@@ -3,8 +3,8 @@ import path from 'path'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DirectoryResolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
-import { type DependencyManifest } from '@pnpm/types'
+import { type DirectoryResolution, type Resolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
+import { type DependencyManifest, type PkgResolutionId } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
 import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier.js'
 
@@ -12,7 +12,7 @@ export { type WantedLocalDependency }
 
 export interface LocalResolveResult extends ResolveResult {
   manifest?: DependencyManifest
-  normalizedBareSpecifier: string
+  normalizedBareSpecifier?: string
   resolution: DirectoryResolution | TarballResolution
   resolvedVia: 'local-filesystem'
 }
@@ -28,19 +28,35 @@ export async function resolveFromLocal (
   opts: {
     lockfileDir?: string
     projectDir: string
+    currentPkg?: {
+      id: PkgResolutionId
+      resolution: DirectoryResolution | TarballResolution | Resolution
+    }
+    update?: false | 'compatible' | 'latest'
   }
 ): Promise<LocalResolveResult | null> {
   const preserveAbsolutePaths = ctx.preserveAbsolutePaths ?? false
   const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, { preserveAbsolutePaths })
   if (spec == null) return null
+
   if (spec.type === 'file') {
+    const integrity = await getTarballIntegrity(spec.fetchSpec)
     return {
       id: spec.id,
       normalizedBareSpecifier: spec.normalizedBareSpecifier,
       resolution: {
-        integrity: await getTarballIntegrity(spec.fetchSpec),
+        integrity,
         tarball: spec.id,
       },
+      resolvedVia: 'local-filesystem',
+    }
+  }
+
+  // Skip resolution if we have a current package and not updating
+  if (opts.currentPkg?.resolution && spec.type === 'directory' && !opts.update) {
+    return {
+      id: opts.currentPkg.id,
+      resolution: opts.currentPkg.resolution as DirectoryResolution,
       resolvedVia: 'local-filesystem',
     }
   }

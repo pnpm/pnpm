@@ -3,6 +3,7 @@ import pathAbsolute from 'path-absolute'
 import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
 import { depPathToFilename, parse } from '@pnpm/dependency-path'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import pLimit from 'p-limit'
 import { type PackageManifest, type Registries } from '@pnpm/types'
 import {
@@ -16,7 +17,6 @@ import { PnpmError } from '@pnpm/error'
 import { type LicensePackage } from './licenses.js'
 import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile.utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
 
 const limitPkgReads = pLimit(4)
 
@@ -155,7 +155,7 @@ async function parseLicense (
   pkg: {
     manifest: PackageManifest
     files:
-    | { local: true, files: Map<string, string> }
+    | { local: true, files: Record<string, string> }
     | { local: false, files: PackageFiles }
   },
   opts: { storeDir: string }
@@ -172,15 +172,28 @@ async function parseLicense (
 
   // check if we discovered a license, if not attempt to parse the LICENSE file
   if (!license || /see license/i.test(license)) {
-    const { files: pkgFileIndex } = pkg.files
-    const licenseFile = LICENSE_FILES.find((licenseFile) => pkgFileIndex.has(licenseFile))
-    if (licenseFile) {
-      const licensePackageFileInfo = pkgFileIndex.get(licenseFile)
+    let licensePackageFileInfo: string | PackageFileInfo | undefined
+
+    let licenseFile: string | undefined
+    if (pkg.files.local) {
+      const filesRecord = pkg.files.files
+      licenseFile = LICENSE_FILES.find((f) => filesRecord[f])
+      if (licenseFile) {
+        licensePackageFileInfo = filesRecord[licenseFile]
+      }
+    } else {
+      const filesMap = pkg.files.files
+      licenseFile = LICENSE_FILES.find((f) => filesMap.has(f))
+      if (licenseFile) {
+        licensePackageFileInfo = filesMap.get(licenseFile)
+      }
+    }
+    if (licenseFile && licensePackageFileInfo) {
       let licenseContents: Buffer | undefined
-      if (pkg.files.local) {
-        licenseContents = await readFile(licensePackageFileInfo as string)
+      if (typeof licensePackageFileInfo === 'string') {
+        licenseContents = await readFile(licensePackageFileInfo)
       } else {
-        licenseContents = await readLicenseFileFromCafs(opts.storeDir, licensePackageFileInfo as PackageFileInfo)
+        licenseContents = await readLicenseFileFromCafs(opts.storeDir, licensePackageFileInfo)
       }
       const licenseContent = licenseContents?.toString('utf-8')
       let name = 'Unknown'
@@ -208,15 +221,15 @@ async function parseLicense (
  * @param opts the options for reading file
  * @returns Promise<Buffer>
  */
-async function readLicenseFileFromCafs (storeDir: string, { integrity, mode }: PackageFileInfo): Promise<Buffer> {
-  const fileName = getFilePathByModeInCafs(storeDir, integrity, mode)
+async function readLicenseFileFromCafs (storeDir: string, { digest, mode }: PackageFileInfo): Promise<Buffer> {
+  const fileName = getFilePathByModeInCafs(storeDir, digest, mode)
   const fileContents = await readFile(fileName)
   return fileContents
 }
 
 export type ReadPackageIndexFileResult =
   | { local: false, files: PackageFiles }
-  | { local: true, files: Map<string, string> }
+  | { local: true, files: Record<string, string> }
 
 export interface ReadPackageIndexFileOptions {
   storeDir: string
@@ -246,7 +259,7 @@ export async function readPackageIndexFile (
     )
     return {
       local: true,
-      files: localInfo.filesIndex,
+      files: Object.fromEntries(localInfo.filesMap),
     }
   }
 
@@ -266,7 +279,7 @@ export async function readPackageIndexFile (
     pkgIndexFilePath = path.join(
       opts.storeDir,
       packageDirInStore,
-      'integrity.json'
+      'integrity.mpk'
     )
   } else {
     throw new PnpmError(
@@ -276,7 +289,7 @@ export async function readPackageIndexFile (
   }
 
   try {
-    const { files } = await readV8FileStrictAsync<PackageFilesIndex>(pkgIndexFilePath)
+    const { files } = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
     return {
       local: false,
       files,
@@ -344,13 +357,13 @@ export async function getPkgInfo (
   // Fetch the package manifest
   let packageManifestDir!: string
   if (packageFileIndexInfo.local) {
-    packageManifestDir = packageFileIndexInfo.files.get('package.json') as string
+    packageManifestDir = packageFileIndexInfo.files['package.json'] as string
   } else {
     const packageFileIndex = packageFileIndexInfo.files
     const packageManifestFile = packageFileIndex.get('package.json') as PackageFileInfo
     packageManifestDir = getFilePathByModeInCafs(
       opts.storeDir,
-      packageManifestFile.integrity,
+      packageManifestFile.digest,
       packageManifestFile.mode
     )
   }

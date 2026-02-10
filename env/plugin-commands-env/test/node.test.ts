@@ -6,7 +6,17 @@ import tar from 'tar-stream'
 import { jest } from '@jest/globals'
 import { ZipFile } from 'yazl'
 import { tempDir } from '@pnpm/prepare'
-import { type NvmNodeCommandOptions } from '../lib/node.js'
+import type { NvmNodeCommandOptions } from '../lib/node.js'
+
+async function createEmptyTarballBuffer (): Promise<Buffer> {
+  const pack = tar.pack()
+  const chunks: Buffer[] = []
+  pack.on('data', (chunk: Buffer) => chunks.push(chunk))
+  return new Promise((resolve) => {
+    pack.on('end', () => resolve(Buffer.concat(chunks)))
+    pack.finalize()
+  })
+}
 
 const fetchMock = jest.fn(async (url: string) => {
   if (url.endsWith('SHASUMS256.txt')) {
@@ -22,9 +32,11 @@ a08f3386090e6511772b949d41970b75a6b71d28abb551dff9854ceb1929dae1  node-v16.4.0-w
 `)
   }
   if (url.endsWith('.tar.gz')) {
-    const pack = tar.pack()
-    pack.finalize()
-    return new Response(pack) // pack is a readable stream
+    // Collect tarball data before creating Response.
+    // With tar-stream@3.x, passing pack stream directly to Response
+    // doesn't properly pipe all data through async iteration.
+    const buffer = await createEmptyTarballBuffer()
+    return new Response(buffer)
   } else if (url.endsWith('.zip')) {
     // The Windows code path for pnpm's node bootstrapping expects a subdir
     // within the .zip file.

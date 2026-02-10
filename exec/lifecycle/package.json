@@ -31,9 +31,10 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
@@ -57,12 +58,11 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/is-windows": "catalog:",
-    "@types/rimraf": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "load-json-file": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

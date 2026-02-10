@@ -27,7 +27,7 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "compile": "tsc --build && pnpm run lint --fix",
+    "compile": "tsgo --build && pnpm run lint --fix",
     "prepublishOnly": "pnpm run compile"
   },
   "dependencies": {
@@ -39,6 +39,6 @@
     "@pnpm/lockfile.types": "workspace:*"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.12"
   }
 }

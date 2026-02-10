@@ -1,6 +1,6 @@
 # @pnpm/store-connection-manager
 
-> Create a direct pnpm store controller or connect to a running store server
+> Create a pnpm store controller
 
 [![npm version](https://img.shields.io/npm/v/@pnpm/store-connection-manager.svg)](https://www.npmjs.com/package/@pnpm/store-connection-manager)
 

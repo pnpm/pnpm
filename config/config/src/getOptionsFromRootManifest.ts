@@ -9,47 +9,35 @@ import {
   type ProjectManifest,
   type PnpmSettings,
 } from '@pnpm/types'
-import { map as mapValues, omit, pick } from 'ramda'
-import { globalWarn } from '@pnpm/logger'
+import { map as mapValues, pick } from 'ramda'
 
 export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
-  ignorePatchFailures?: boolean
   overrides?: Record<string, string>
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
-  ignoredBuiltDependencies?: string[]
   packageExtensions?: Record<string, PackageExtension>
   ignoredOptionalDependencies?: string[]
   patchedDependencies?: Record<string, string>
   peerDependencyRules?: PeerDependencyRules
   supportedArchitectures?: SupportedArchitectures
   allowBuilds?: Record<string, boolean | string>
+  requiredScripts?: string[]
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'updateConfig'>
 
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
   const settings: OptionsFromRootManifest = getOptionsFromPnpmSettings(manifestDir, {
     ...pick([
-      'allowNonAppliedPatches',
       'allowBuilds',
       'allowUnusedPatches',
       'allowedDeprecatedVersions',
       'auditConfig',
-      'auditConfig',
-      'auditConfig',
       'configDependencies',
-      'ignorePatchFailures',
-      'ignoredBuiltDependencies',
       'ignoredOptionalDependencies',
-      'neverBuiltDependencies',
-      'onlyBuiltDependencies',
-      'onlyBuiltDependenciesFile',
       'overrides',
       'packageExtensions',
       'patchedDependencies',
       'peerDependencyRules',
+      'requiredScripts',
       'supportedArchitectures',
       'updateConfig',
     ], manifest.pnpm ?? {}),
@@ -65,8 +53,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
 }
 
 export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
-  const renamedKeys = ['allowNonAppliedPatches', 'allowBuilds'] as const satisfies Array<keyof PnpmSettings>
-  const settings: OptionsFromRootManifest = omit(renamedKeys, replaceEnvInSettings(pnpmSettings))
+  const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings)
   if (settings.overrides) {
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
@@ -74,36 +61,11 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
       settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
     }
   }
-  if (pnpmSettings.onlyBuiltDependenciesFile && manifestDir != null) {
-    settings.onlyBuiltDependenciesFile = path.join(manifestDir, pnpmSettings.onlyBuiltDependenciesFile)
-  }
   if (pnpmSettings.patchedDependencies) {
     settings.patchedDependencies = { ...pnpmSettings.patchedDependencies }
     for (const [dep, patchFile] of Object.entries(pnpmSettings.patchedDependencies)) {
       if (manifestDir == null || path.isAbsolute(patchFile)) continue
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
-    }
-  }
-  if (pnpmSettings.allowNonAppliedPatches != null) {
-    globalWarn('allowNonAppliedPatches is deprecated, use allowUnusedPatches instead.')
-    settings.allowUnusedPatches ??= pnpmSettings.allowNonAppliedPatches
-  }
-  if (pnpmSettings.ignorePatchFailures != null) {
-    settings.ignorePatchFailures = pnpmSettings.ignorePatchFailures
-  }
-
-  if (pnpmSettings.allowBuilds) {
-    settings.onlyBuiltDependencies ??= []
-    settings.ignoredBuiltDependencies ??= []
-    for (const [packagePattern, build] of Object.entries(pnpmSettings.allowBuilds)) {
-      switch (build) {
-      case true:
-        settings.onlyBuiltDependencies.push(packagePattern)
-        break
-      case false:
-        settings.ignoredBuiltDependencies.push(packagePattern)
-        break
-      }
     }
   }
 

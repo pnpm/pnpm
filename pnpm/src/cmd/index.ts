@@ -23,7 +23,6 @@ import {
   restart,
   run,
 } from '@pnpm/plugin-commands-script-runners'
-import { server } from '@pnpm/plugin-commands-server'
 import { setup } from '@pnpm/plugin-commands-setup'
 import { store } from '@pnpm/plugin-commands-store'
 import { catFile, catIndex, findHash } from '@pnpm/plugin-commands-store-inspecting'
@@ -152,7 +151,6 @@ const commands: CommandDefinition[] = [
   restart,
   root,
   run,
-  server,
   setup,
   store,
   catFile,

@@ -22,7 +22,7 @@ import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { type StoreController } from '@pnpm/package-store'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { sortPackages } from '@pnpm/sort-packages'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
   type IgnoredBuilds,
   type IncludedDependencies,
@@ -67,6 +67,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
+| 'allowBuilds'
 | 'rawLocalConfig'
 | 'registries'
 | 'rootProjectManifest'
@@ -110,13 +111,13 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   }
   pnpmfile: string[]
 } & Partial<
-Pick<Config,
+  Pick<Config,
 | 'sort'
 | 'strictDepBuilds'
 | 'workspaceConcurrency'
->
+  >
 > & Required<
-Pick<Config, 'workspaceDir'>
+  Pick<Config, 'workspaceDir'>
 >
 
 export type CommandFullName = 'install' | 'add' | 'remove' | 'update' | 'import'
@@ -141,7 +142,7 @@ export async function recursive (
 
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmdFullName}`)
 
-  const store = opts.storeControllerAndDir ?? await createOrConnectStoreController(opts)
+  const store = opts.storeControllerAndDir ?? await createStoreController(opts)
 
   const workspacePackages: WorkspacePackages = arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
   const targetDependenciesField = getSaveType(opts)
@@ -564,7 +565,9 @@ function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: Pro
   })).flat()
 }
 
-interface ManifestsByPath { [dir: string]: Omit<Project, 'rootDir' | 'rootDirRealPath'> }
+interface ManifestsByPath {
+  [dir: string]: Omit<Project, 'rootDir' | 'rootDirRealPath'>
+}
 
 function getManifestsByPath (projects: Project[]): Record<ProjectRootDir, Omit<Project, 'rootDir' | 'rootDirRealPath'>> {
   const manifestsByPath: Record<string, Omit<Project, 'rootDir' | 'rootDirRealPath'>> = {}

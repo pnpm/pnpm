@@ -29,7 +29,7 @@
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/builder.policy": "workspace:*",
@@ -43,6 +43,7 @@
     "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pkg-requires-build": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
@@ -74,7 +75,6 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare": "workspace:*",
@@ -90,7 +90,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { install, fetch } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
@@ -131,4 +132,51 @@ test('fetch only dev dependencies', async () => {
 
   project.storeHas('is-negative')
   project.storeHasNot('is-positive')
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/10460
+// pnpm fetch should skip local file: protocol dependencies
+// because they won't be available in Docker builds
+test('fetch skips file: protocol dependencies that do not exist', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+      '@local/pkg': 'file:./local-pkg',
+    },
+  })
+  const storeDir = path.resolve('store')
+  const localPkgDir = path.resolve(project.dir(), 'local-pkg')
+
+  // Create the local package for initial install to generate lockfile
+  fs.mkdirSync(localPkgDir, { recursive: true })
+  fs.writeFileSync(
+    path.join(localPkgDir, 'package.json'),
+    JSON.stringify({ name: '@local/pkg', version: '1.0.0' })
+  )
+
+  // Create a lockfile with the file: dependency
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    storeDir,
+  })
+
+  rimraf(path.resolve(project.dir(), 'node_modules'))
+  rimraf(path.resolve(project.dir(), './package.json'))
+  // Remove the local package directory to simulate Docker build scenario
+  rimraf(localPkgDir)
+
+  project.storeHasNot('is-positive')
+
+  // This should not throw an error even though the file: dependency doesn't exist
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    storeDir,
+  })
+
+  project.storeHas('is-positive')
 })

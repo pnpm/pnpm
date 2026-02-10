@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { temporaryDirectory } from 'tempy'
 import execa from 'execa'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
@@ -126,16 +127,23 @@ skipOnWindowsCI('pack packages with workspace LICENSE if no own LICENSE is prese
     workspaceDir,
   })
 
-  process.chdir('../target')
+  // Create a target directory outside the workspace to avoid workspace interference
+  const externalTarget = temporaryDirectory()
+  fs.writeFileSync(path.join(externalTarget, 'package.json'), JSON.stringify({ name: 'target', version: '1.0.0' }))
 
-  crossSpawn.sync(pnpmBin, ['add', '../project-1/project-1-1.0.0.tgz', '../project-2/project-2-1.0.0.tgz'])
+  // Get absolute paths to tarballs (relative to workspaceDir)
+  const tarball1 = path.join(workspaceDir, 'project-1/project-1-1.0.0.tgz')
+  const tarball2 = path.join(workspaceDir, 'project-2/project-2-1.0.0.tgz')
+
+  process.chdir(externalTarget)
+  crossSpawn.sync(pnpmBin, ['add', tarball1, tarball2])
 
   expect(fs.existsSync('node_modules/project-1/LICENSE')).toBeTruthy()
   expect(fs.readFileSync('node_modules/project-1/LICENSE', 'utf8')).toBe('workspace license')
   expect(fs.existsSync('node_modules/project-2/LICENSE')).toBeTruthy()
   expect(fs.readFileSync('node_modules/project-2/LICENSE', 'utf8')).toBe('project-2 license')
 
-  process.chdir('..')
+  process.chdir(workspaceDir)
   expect(fs.existsSync('project-1/LICENSE')).toBeFalsy()
   expect(fs.existsSync('project-2/LICENSE')).toBeTruthy()
 })
@@ -177,14 +185,17 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
     workspaceDir,
   }, [])
 
-  process.chdir('../target')
+  // Create a target directory outside the workspace to avoid workspace interference
+  const externalTarget = temporaryDirectory()
+  fs.writeFileSync(path.join(externalTarget, 'package.json'), JSON.stringify({ name: 'target', version: '1.0.0' }))
 
-  crossSpawn.sync(pnpmBin, ['add', 'project-100', 'project-200', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+  process.chdir(externalTarget)
+  crossSpawn.sync(pnpmBin, ['add', 'project-100', 'project-200', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   expect(fs.readFileSync('node_modules/project-100/LICENSE', 'utf8')).toBe('workspace license')
   expect(fs.readFileSync('node_modules/project-200/LICENSE', 'utf8')).toBe('project-200 license')
 
-  process.chdir('..')
+  process.chdir(workspaceDir)
   expect(fs.existsSync('project-100/LICENSE')).toBeFalsy()
   expect(fs.existsSync('project-200/LICENSE')).toBeTruthy()
 })

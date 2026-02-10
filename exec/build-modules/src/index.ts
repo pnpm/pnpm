@@ -4,7 +4,6 @@ import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { getWorkspaceConcurrency } from '@pnpm/config'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import * as dp from '@pnpm/dependency-path'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
@@ -30,8 +29,6 @@ export async function buildModules<T extends string> (
   rootDepPaths: T[],
   opts: {
     allowBuild?: AllowBuild
-    ignorePatchFailures?: boolean
-    ignoredBuiltDependencies?: string[]
     childConcurrency?: number
     depsToBuild?: Set<string>
     depsStateCache: DepsStateCache
@@ -67,8 +64,8 @@ export async function buildModules<T extends string> (
   }
   const chunks = buildSequence<T>(depGraph, rootDepPaths)
   if (!chunks.length) return {}
-  let ignoredBuilds = new Set<DepPath>()
-  const allowBuild = opts.allowBuild ?? (() => true)
+  const ignoredBuilds = new Set<DepPath>()
+  const allowBuild = opts.allowBuild ?? (() => undefined)
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
@@ -82,9 +79,21 @@ export async function buildModules<T extends string> (
       () => {
         let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
         if (!ignoreScripts) {
-          if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name, depGraph[depPath].version)) {
-            ignoredBuilds.add(depGraph[depPath].depPath)
-            ignoreScripts = true
+          const node = depGraph[depPath]
+          if (node.requiresBuild) {
+            const allowed = allowBuild(node.name, node.version)
+            switch (allowed) {
+            case false:
+              // Explicitly disallowed - don't report as ignored
+              ignoreScripts = true
+              break
+            case undefined:
+              // Not in allowlist - report as ignored
+              ignoredBuilds.add(node.depPath)
+              ignoreScripts = true
+              break
+            }
+            // allowed === true means build is permitted
           }
         }
         return buildDependency(depPath, depGraph, {
@@ -95,15 +104,6 @@ export async function buildModules<T extends string> (
     )
   })
   await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)
-  if (opts.ignoredBuiltDependencies?.length) {
-    // We already ignore the build of these dependencies.
-    // No need to report them.
-    ignoredBuilds = new Set(Array.from(ignoredBuilds).filter((ignoredPkgDepPath) =>
-      !opts.ignoredBuiltDependencies!.some((ignoredInSettings) =>
-        (ignoredInSettings === ignoredPkgDepPath) || (dp.parse(ignoredPkgDepPath).name === ignoredInSettings)
-      )
-    ))
-  }
   return { ignoredBuilds }
 }
 
@@ -111,7 +111,6 @@ async function buildDependency<T extends string> (
   depPath: T,
   depGraph: DependenciesGraph<T>,
   opts: {
-    ignorePatchFailures?: boolean
     extraBinPaths?: string[]
     extraNodePaths?: string[]
     extraEnv?: Record<string, string>
@@ -146,11 +145,8 @@ async function buildDependency<T extends string> (
     await linkBinsOfDependencies(depNode, depGraph, opts)
     let isPatched = false
     if (depNode.patch) {
-      const { file, strict } = depNode.patch
-      // `strict` is a legacy property which was kept to preserve backward compatibility.
-      // Once a major version of pnpm is released, `strict` should be removed completely.
-      const allowFailure: boolean = opts.ignorePatchFailures ?? !strict
-      isPatched = applyPatchToDir({ allowFailure, patchedDir: depNode.dir, patchFilePath: file.path })
+      const { file } = depNode.patch
+      isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: file.path })
     }
     const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
       depPath,
@@ -178,18 +174,11 @@ async function buildDependency<T extends string> (
         })
       } catch (err: unknown) {
         assert(util.types.isNativeError(err))
-        if (err && 'statusCode' in err && err.statusCode === 403) {
-          logger.warn({
-            message: `The store server disabled upload requests, could not upload ${depNode.dir}`,
-            prefix: opts.lockfileDir,
-          })
-        } else {
-          logger.warn({
-            error: err,
-            message: `An error occurred while uploading ${depNode.dir}`,
-            prefix: opts.lockfileDir,
-          })
-        }
+        logger.warn({
+          error: err,
+          message: `An error occurred while uploading ${depNode.dir}`,
+          prefix: opts.lockfileDir,
+        })
       }
     }
   } catch (err: unknown) {

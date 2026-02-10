@@ -25,7 +25,7 @@ import {
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import { createStoreController } from '@pnpm/store-connection-manager'
 import {
   type DepPath,
   type IgnoredBuilds,
@@ -36,9 +36,9 @@ import {
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { hardLinkDir } from '@pnpm/worker'
-import { loadJsonFile } from 'load-json-file'
 import { runGroups } from 'run-groups'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import npa from '@pnpm/npm-package-arg'
@@ -189,7 +189,7 @@ export async function rebuildProjects (
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((depPath) => !pkgsThatWereRebuilt.has(depPath))
 
-  const store = await createOrConnectStoreController(opts)
+  const store = await createStoreController(opts)
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
     extraNodePaths: ctx.extraNodePaths,
@@ -316,11 +316,14 @@ async function _rebuild (
   }
 
   const ignoredPkgs = new Set<DepPath>()
-  const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
+  const _allowBuild = createAllowBuildFunction(opts) ?? (() => undefined)
   const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
-    if (_allowBuild(pkgName, version)) return true
-    if (!opts.ignoredBuiltDependencies?.includes(pkgName)) {
+    switch (_allowBuild(pkgName, version)) {
+    case true: return true
+    case undefined: {
       ignoredPkgs.add(depPath)
+      break
+    }
     }
     return false
   }
@@ -356,7 +359,7 @@ async function _rebuild (
           const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
           let pkgFilesIndex: PackageFilesIndex | undefined
           try {
-            pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+            pkgFilesIndex = await readMsgpackFile<PackageFilesIndex>(filesIndexFile)
           } catch {}
           if (pkgFilesIndex) {
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
@@ -403,18 +406,11 @@ async function _rebuild (
             })
           } catch (err: unknown) {
             assert(util.types.isNativeError(err))
-            if ('statusCode' in err && err.statusCode === 403) {
-              logger.warn({
-                message: `The store server disabled upload requests, could not upload ${pkgRoot}`,
-                prefix: opts.lockfileDir,
-              })
-            } else {
-              logger.warn({
-                error: err,
-                message: `An error occurred while uploading ${pkgRoot}`,
-                prefix: opts.lockfileDir,
-              })
-            }
+            logger.warn({
+              error: err,
+              message: `An error occurred while uploading ${pkgRoot}`,
+              prefix: opts.lockfileDir,
+            })
           }
         }
         pkgsThatWereRebuilt.add(depPath)

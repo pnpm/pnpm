@@ -50,6 +50,12 @@ export interface StrictInstallOptions {
   ignoreCompatibilityDb: boolean
   ignoreDepScripts: boolean
   ignorePackageManifest: boolean
+  /**
+   * When true, skip fetching local dependencies (file: protocol pointing to directories).
+   * This is used by `pnpm fetch` which only downloads packages from the registry
+   * and doesn't need local packages that won't be available (e.g., in Docker builds).
+   */
+  ignoreLocalPackages: boolean
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean | 'rolling'
   lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
@@ -71,11 +77,7 @@ export interface StrictInstallOptions {
   rawConfig: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
   verifyStoreIntegrity: boolean
   engineStrict: boolean
-  ignoredBuiltDependencies?: string[]
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  onlyBuiltDependenciesFile?: string
-  nodeExecPath?: string
+  allowBuilds?: Record<string, boolean | string>
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
@@ -122,7 +124,6 @@ export interface StrictInstallOptions {
   modulesCacheMaxAge: number
   peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
-  ignorePatchFailures?: boolean
   allowUnusedPatches: boolean
   preferSymlinkedExecutables: boolean
   resolutionMode: 'highest' | 'time-based' | 'lowest-direct'
@@ -187,7 +188,6 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
   return {
     allowedDeprecatedVersions: {},
     allowUnusedPatches: false,
-    ignorePatchFailures: undefined,
     autoInstallPeers: true,
     autoInstallPeersFromHighestMatch: false,
     catalogs: {},
@@ -225,6 +225,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     ownLifecycleHooksStdio: 'inherit',
     ignoreCompatibilityDb: false,
     ignorePackageManifest: false,
+    ignoreLocalPackages: false,
     packageExtensions: {},
     ignoredOptionalDependencies: [] as string[],
     packageManager,
@@ -291,12 +292,7 @@ export function extendOptions (
       }
     }
   }
-  if (opts.neverBuiltDependencies == null && opts.onlyBuiltDependencies == null && opts.onlyBuiltDependenciesFile == null) {
-    opts.onlyBuiltDependencies = []
-  }
-  if (opts.onlyBuiltDependencies && opts.neverBuiltDependencies) {
-    throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies')
-  }
+
   const defaultOpts = defaults(opts)
   const extendedOpts: ProcessedInstallOptions = {
     ...defaultOpts,

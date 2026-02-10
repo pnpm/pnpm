@@ -68,7 +68,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache',
     'store-dir',
     'unsafe-perm',
-    'use-running-store-server',
   ], allTypes)
 }
 

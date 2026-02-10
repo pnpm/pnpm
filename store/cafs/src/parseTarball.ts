@@ -104,9 +104,10 @@ export function parseTarball (buffer: Buffer): IParseResult {
       }
     }
 
-    if (fileName.includes('./')) {
-      // Bizarre edge case
-      fileName = path.posix.join('/', fileName).slice(1)
+    if (fileName.includes('./') || fileName.includes('.\\')) {
+      // Normalize path traversal attempts (including Windows backslash traversal)
+      // Replaces backslashes with forward slashes and uses POSIX path normalization to resolve ..
+      fileName = path.posix.join('/', fileName.replaceAll('\\', '/')).slice(1)
     }
 
     // Values '\0' and '0' are normal files.

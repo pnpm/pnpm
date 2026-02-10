@@ -6,18 +6,20 @@
     "changeset": "changeset",
     "preinstall": "npx only-allow pnpm",
     "prepare": "husky",
-    "pretest": "pnpm run compile-only && pnpm --dir=__fixtures__ run prepareFixtures",
+    "pretest": "pnpm run compile-only && pnpm run prepare-fixtures",
+    "prepare-fixtures": "pnpm --dir=__fixtures__ run prepareFixtures",
     "lint": "pnpm run spellcheck && pnpm lint:meta && pnpm run lint:ts",
     "spellcheck": "cspell \"**/*.ts\" \"**/README.md\" \".changeset/*.md\" --no-progress",
-    "lint:ts": "eslint \"**/src/**/*.ts\" \"**/test/**/*.ts\"",
+    "lint:ts": "eslint \"**/src/**/*.ts\" \"**/test/**/*.ts\" --cache",
     "test-main": "pnpm pretest && pnpm lint && pnpm run test-pkgs-main",
+    "ci:test-main": "pnpm run prepare-fixtures && pnpm run test-pkgs-main",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
     "test-pkgs-main": "pnpm remove-temp-dir && pnpm run --no-sort --workspace-concurrency=1 -r _test",
     "test-branch": "pnpm pretest && pnpm lint && git remote set-branches --add origin main && git fetch origin main && pnpm run test-pkgs-branch",
+    "ci:test-branch": "pnpm run prepare-fixtures && git remote set-branches --add origin main && git fetch origin main && pnpm run test-pkgs-branch",
     "test-pkgs-branch": "pnpm remove-temp-dir && pnpm --workspace-concurrency=1 --filter=...[origin/main] run --no-sort _test",
-    "compile-only": "pnpm --config.useNodeVersion=24.6.0 node __utils__/scripts/src/typecheck-only.ts && pnpm -F pnpm compile",
+    "compile-only": "pnpm dlx node@runtime:24.6.0 __utils__/scripts/src/typecheck-only.ts && pnpm -F pnpm compile",
     "compile": "pnpm compile-only && pnpm run update-manifests",
-    "watch": "pnpm --filter=@pnpm/fetch run compile && pnpm --filter=pnpm run compile --watch",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "pnpm run meta-updater && pnpm install",
     "meta-updater": "pnpm --filter=@pnpm-private/updater compile && pnpm exec meta-updater",
@@ -28,9 +30,6 @@
     "dev-setup": "pnpm -C=./pnpm/dev link -g"
   },
   "devDependencies": {
-    "@babel/core": "catalog:",
-    "@babel/preset-typescript": "catalog:",
-    "@babel/types": "catalog:",
     "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",
@@ -42,6 +41,8 @@
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "catalog:",
     "@types/node": "catalog:",
+    "@types/picomatch": "catalog:",
+    "@typescript/native-preview": "catalog:",
     "c8": "catalog:",
     "concurrently": "catalog:",
     "cross-env": "catalog:",
@@ -55,12 +56,11 @@
     "publish-packed": "catalog:",
     "rimraf": "catalog:",
     "shx": "catalog:",
-    "ts-jest": "catalog:",
     "typescript": "catalog:",
     "verdaccio": "catalog:"
   },
   "engines": {
     "pnpm": ">=9.6.0"
   },
-  "packageManager": "pnpm@11.0.0-alpha.2"
+  "packageManager": "pnpm@11.0.0-alpha.3"
 }

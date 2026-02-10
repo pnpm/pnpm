@@ -380,7 +380,7 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
   expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
 })
 
-test('`pnpm recursive run` succeeds when run against a subset of packages and no package has the desired command', async () => {
+test('`pnpm recursive run` fails when run against a subset of packages and no package has the desired command, unless if-present is set', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -422,14 +422,28 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
     [{ namePattern: 'project-1' }],
     { workspaceDir: process.cwd() }
   )
+
+  // Recursive run does not fail when if-present is true
   await run.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
+    ifPresent: true,
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, ['this-command-does-not-exist'])
+
+  await expect(
+    run.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    }, ['this-command-does-not-exist'])
+  ).rejects.toThrow(/None of the selected packages has a/)
 })
 
 test('"pnpm run --filter <pkg>" without specifying the script name', async () => {
@@ -783,12 +797,10 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
       ...await filterPackagesFromDir(process.cwd(), [{ namePattern: '*' }]),
       dir: process.cwd(),
       recursive: true,
+      requiredScripts: ['build'],
       rootProjectManifest: {
         name: 'test-workspaces',
         private: true,
-        pnpm: {
-          requiredScripts: ['build'],
-        },
       },
       workspaceDir: process.cwd(),
     }, ['build'])

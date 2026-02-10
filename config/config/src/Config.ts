@@ -184,7 +184,6 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   embedReadme?: boolean
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean
-  onlyBuiltDependencies?: string[]
   allowBuilds?: Record<string, boolean | string>
   dedupePeerDependents?: boolean
   patchesDir?: string
@@ -239,6 +238,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
+  auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
 
   packageConfigs?: ProjectConfigSet
 }

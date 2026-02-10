@@ -2,7 +2,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { logger, type LogBase } from '@pnpm/logger'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { getStorePath } from '@pnpm/store-path'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
@@ -74,7 +74,7 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & CreateStoreControllerOptions & {
+export type StoreCommandOptions = Pick<Config, 'dir' | 'lockfileDir' | 'registries' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & CreateStoreControllerOptions & {
   reporter?: (logObj: LogBase) => void
 }
 
@@ -85,12 +85,12 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
     return statusCmd(opts) as Promise<undefined>
   case 'path':
     return getStorePath({
-      pkgRoot: opts.dir,
+      pkgRoot: opts.workspaceDir ?? opts.dir,
       storePath: opts.storeDir,
       pnpmHomeDir: opts.pnpmHomeDir,
     })
   case 'prune': {
-    store = await createOrConnectStoreController(opts)
+    store = await createStoreController(opts)
     const storePruneOptions = Object.assign(opts, {
       storeController: store.ctrl,
       storeDir: store.dir,
@@ -101,7 +101,7 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
     return storePrune(storePruneOptions) as Promise<undefined>
   }
   case 'add':
-    store = await createOrConnectStoreController(opts)
+    store = await createStoreController(opts)
     return storeAdd(params.slice(1), {
       prefix: opts.dir,
       reporter: opts.reporter,
@@ -115,8 +115,9 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
 
 async function statusCmd (opts: StoreCommandOptions): Promise<void> {
   const modifiedPkgs = await storeStatus(Object.assign(opts, {
+    lockfileDir: opts.lockfileDir ?? opts.workspaceDir ?? opts.dir,
     storeDir: await getStorePath({
-      pkgRoot: opts.dir,
+      pkgRoot: opts.workspaceDir ?? opts.dir,
       storePath: opts.storeDir,
       pnpmHomeDir: opts.pnpmHomeDir,
     }),

@@ -7,12 +7,7 @@ export async function fix (auditReport: AuditReport, opts: AuditOptions): Promis
   const vulnOverrides = createOverrides(Object.values(auditReport.advisories), opts.auditConfig?.ignoreCves)
   if (Object.values(vulnOverrides).length === 0) return vulnOverrides
   await writeSettings({
-    updatedSettings: {
-      overrides: {
-        ...opts.overrides,
-        ...vulnOverrides,
-      },
-    },
+    updatedOverrides: vulnOverrides,
     rootProjectManifest: opts.rootProjectManifest,
     rootProjectManifestDir: opts.rootProjectManifestDir,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
@@ -26,7 +21,7 @@ function createOverrides (advisories: AuditAdvisory[], ignoreCves?: string[]): R
   }
   return Object.fromEntries(
     advisories
-      .filter(({ vulnerable_versions, patched_versions }) => vulnerable_versions !== '>=0.0.0' && patched_versions !== '<0.0.0') // eslint-disable-line
+      .filter(({ vulnerable_versions: vulnerableVersions, patched_versions: patchedVersions }) => vulnerableVersions !== '>=0.0.0' && patchedVersions !== '<0.0.0')
       .map((advisory) => [
         `${advisory.module_name}@${advisory.vulnerable_versions}`,
         advisory.patched_versions,

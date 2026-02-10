@@ -15,7 +15,7 @@ afterEach(() => {
 test('console a warning when the .npmrc has an env variable that does not exist', async () => {
   prepare()
 
-  fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8') // eslint-disable-line
+  fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8')
 
   await getConfig({
     json: false,
@@ -25,6 +25,20 @@ test('console a warning when the .npmrc has an env variable that does not exist'
     rcOptionsTypes: {},
   })
 
-  // eslint-disable-next-line no-template-curly-in-string
   expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
+})
+
+test('hoist: false removes hoistPattern', async () => {
+  prepare()
+
+  const config = await getConfig({
+    hoist: false,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+    rcOptionsTypes: {},
+  })
+
+  expect(config.hoist).toBe(false)
+  expect(config.hoistPattern).toBeUndefined()
 })
