@@ -1,7 +1,7 @@
 import { refToRelative } from '@pnpm/dependency-path'
 import { type PackageSnapshots } from '@pnpm/lockfile.fs'
 import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
-import { type DepPath } from '@pnpm/types'
+import { type DepPath, type Finder } from '@pnpm/types'
 import { buildDependencyGraph } from '../lib/buildDependencyGraph.js'
 import { getTree, type MaterializationCache } from '../lib/getTree.js'
 import { type TreeNodeId } from '../lib/TreeNodeId.js'
@@ -751,6 +751,160 @@ describe('getTree', () => {
           ],
         }),
       ])
+    })
+  })
+
+  describe('search with deduplication', () => {
+    const commonMockGetTreeArgs = {
+      depTypes: {},
+      rewriteLinkVersionDir: '',
+      modulesDir: '',
+      importers: {},
+      includeOptionalDependencies: false,
+      lockfileDir: '',
+      skipped: new Set<string>(),
+      registries: {
+        default: 'mock-registry-for-testing.example',
+      },
+      virtualStoreDirMaxLength: 120,
+    }
+
+    test('deduped subtree containing a search match still appears in output', () => {
+      // root → a → b → target (search match)
+      // root → c → b (deduped, but subtree contains a search match)
+      //
+      // Without the fix, "c → b" would be excluded because b is deduped
+      // (empty deps) and b itself doesn't match the search.
+      // With the fix, "c → b" appears as deduped + searched.
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'c'],
+        a: ['b'],
+        b: ['target'],
+        c: ['b'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const search: Finder = ({ name }) => name === 'target'
+
+      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        search,
+      }, rootNodeId))
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'target',
+                  searched: true,
+                }),
+              ],
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          alias: 'c',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              deduped: true,
+              searched: true,
+              dependencies: undefined,
+            }),
+          ],
+        }),
+      ])
+    })
+
+    test('deduped subtree propagates string search messages to the deduped node', () => {
+      // Same graph as above, but the Finder returns a string message.
+      // root → a → b → target (search match with message)
+      // root → c → b (deduped — should show the message from target)
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'c'],
+        a: ['b'],
+        b: ['target'],
+        c: ['b'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const search: Finder = ({ name }) => name === 'target' ? 'depends on target' : false
+
+      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        search,
+      }, rootNodeId))
+
+      // The deduped "b" under "c" should carry the search message from "target"
+      expect(result).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'target',
+                  searched: true,
+                  searchMessage: 'depends on target',
+                }),
+              ],
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          alias: 'c',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              deduped: true,
+              searched: true,
+              searchMessage: 'depends on target',
+              dependencies: undefined,
+            }),
+          ],
+        }),
+      ])
+    })
+
+    test('deduped subtree without search match is excluded when search is active', () => {
+      // root → a → b → leaf (no match)
+      // root → c → b (deduped, subtree has no search match)
+      //
+      // When searching for "target" (which doesn't exist), neither a nor c
+      // should appear because nothing matches.
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'c'],
+        a: ['b'],
+        b: ['leaf'],
+        c: ['b'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const search: Finder = ({ name }) => name === 'target'
+
+      const result = getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        search,
+      }, rootNodeId)
+
+      expect(result).toEqual([])
     })
   })
 

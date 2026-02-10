@@ -45,6 +45,10 @@ interface CachedSubtree {
   children: PackageNode[]
   /** Total number of PackageNode objects in the subtree (recursive). */
   count: number
+  /** Whether any node in this subtree matched the search. */
+  hasSearchMatch: boolean
+  /** Search match messages (string-typed matches) found in this subtree. */
+  searchMessages: string[]
 }
 
 /**
@@ -66,7 +70,7 @@ export function getTree (
     ancestors,
   }
 
-  const tree = materializeChildren(ctx, parentId, opts.maxDepth, opts.parentDir)
+  const { nodes: tree } = materializeChildren(ctx, parentId, opts.maxDepth, opts.parentDir)
 
   // Mark circular back-edges.  materializeChildren truncates dependencies
   // at cycle boundaries but does not set the `circular` flag, so that cached
@@ -92,15 +96,14 @@ function materializeCacheKey (nodeId: string, depth: number): string {
   return `${nodeId}@d${depth}`
 }
 
-function countNodes (nodes: PackageNode[]): number {
-  let count = 0
-  for (const node of nodes) {
-    count += 1
-    if (node.dependencies?.length) {
-      count += countNodes(node.dependencies)
-    }
-  }
-  return count
+interface MaterializationResult {
+  nodes: PackageNode[]
+  /** Total number of PackageNode objects in `nodes` (recursive). */
+  count: number
+  /** Whether any node in this subtree matched the search. */
+  hasSearchMatch: boolean
+  /** Search match messages (string-typed matches) collected from this subtree. */
+  searchMessages: string[]
 }
 
 /**
@@ -120,8 +123,8 @@ function materializeChildren (
   parentId: TreeNodeId,
   maxDepth: number,
   parentDir?: string
-): PackageNode[] {
-  if (maxDepth <= 0) return []
+): MaterializationResult {
+  if (maxDepth <= 0) return { nodes: [], count: 0, hasSearchMatch: false, searchMessages: [] }
 
   const parentSerialized = serializeTreeNodeId(parentId)
   const graphNode = ctx.graph.nodes.get(parentSerialized)
@@ -136,6 +139,9 @@ function materializeChildren (
     : ctx.lockfileDir
 
   const resultDependencies: PackageNode[] = []
+  let resultCount = 0
+  let resultHasSearchMatch = false
+  const resultSearchMessages: string[] = []
 
   for (const edge of graphNode.edges) {
     const { pkgInfo: packageInfo, readManifest } = getPkgInfo({
@@ -155,6 +161,9 @@ function materializeChildren (
     })
 
     let newEntry: PackageNode | null = null
+    let childCount = 0
+    let dedupedHasSearchMatch = false
+    let dedupedSearchMessages: string[] = []
 
     if (ctx.onlyProjects && edge.target?.nodeId.type !== 'importer') {
       continue
@@ -167,6 +176,8 @@ function materializeChildren (
       }
     } else {
       let dependencies: PackageNode[]
+      let childHasSearchMatch = false
+      let childSearchMessages: string[] = []
       let dedupedCount: number | undefined
       const circular = ctx.ancestors.has(edge.target.id)
 
@@ -183,15 +194,24 @@ function materializeChildren (
           if (cached.count > 0) {
             dedupedCount = cached.count
           }
+          dedupedHasSearchMatch = cached.hasSearchMatch
+          dedupedSearchMessages = cached.searchMessages
         } else {
           ctx.ancestors.add(edge.target.id)
-          dependencies = materializeChildren(ctx, edge.target.nodeId, childTreeMaxDepth, packageInfo.path)
+          const childResult = materializeChildren(ctx, edge.target.nodeId, childTreeMaxDepth, packageInfo.path)
           ctx.ancestors.delete(edge.target.id)
+
+          dependencies = childResult.nodes
+          childCount = childResult.count
+          childHasSearchMatch = childResult.hasSearchMatch
+          childSearchMessages = childResult.searchMessages
 
           // Always cache — even results with circular truncations.
           ctx.materializationCache.set(cacheKey, {
             children: dependencies,
-            count: countNodes(dependencies),
+            count: childCount,
+            hasSearchMatch: childHasSearchMatch,
+            searchMessages: childSearchMessages,
           })
         }
       }
@@ -201,7 +221,7 @@ function materializeChildren (
           ...packageInfo,
           dependencies,
         }
-      } else if (ctx.search == null || searchMatch) {
+      } else if (ctx.search == null || searchMatch || dedupedHasSearchMatch) {
         newEntry = packageInfo
       }
 
@@ -209,27 +229,41 @@ function materializeChildren (
         newEntry.deduped = true
         newEntry.dedupedDependenciesCount = dedupedCount
       }
+
+      if (childHasSearchMatch || dedupedHasSearchMatch) {
+        resultHasSearchMatch = true
+      }
+      resultSearchMessages.push(...childSearchMessages, ...dedupedSearchMessages)
     }
 
     if (newEntry != null) {
       if (searchMatch) {
         newEntry.searched = true
+        resultHasSearchMatch = true
         if (typeof searchMatch === 'string') {
           newEntry.searchMessage = searchMatch
+          resultSearchMessages.push(searchMatch)
+        }
+      } else if (dedupedHasSearchMatch) {
+        newEntry.searched = true
+        if (dedupedSearchMessages.length > 0) {
+          newEntry.searchMessage = dedupedSearchMessages.join('\n')
         }
       }
       if (!newEntry.isPeer || !ctx.excludePeerDependencies || newEntry.dependencies?.length) {
         resultDependencies.push(newEntry)
+        resultCount += 1 + (newEntry.dependencies?.length ? childCount : 0)
       }
     }
   }
 
-  return resultDependencies
+  return {
+    count: resultCount,
+    hasSearchMatch: resultHasSearchMatch,
+    nodes: resultDependencies,
+    searchMessages: resultSearchMessages,
+  }
 }
-
-// ---------------------------------------------------------------------------
-// Phase 3: Fix circular refs missed by cache reuse
-// ---------------------------------------------------------------------------
 
 /**
  * Walks the materialized PackageNode[] tree and marks circular back-edges.
