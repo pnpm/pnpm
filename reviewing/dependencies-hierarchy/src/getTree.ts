@@ -145,6 +145,10 @@ function materializeChildren (
   const resultSearchMessages: string[] = []
 
   for (const edge of graphNode.edges) {
+    if (ctx.onlyProjects && edge.target?.nodeId.type !== 'importer') {
+      continue
+    }
+
     const { pkgInfo: packageInfo, readManifest } = getPkgInfo({
       ...ctx,
       alias: edge.alias,
@@ -165,10 +169,6 @@ function materializeChildren (
     let childCount = 0
     let dedupedHasSearchMatch = false
     let dedupedSearchMessages: string[] = []
-
-    if (ctx.onlyProjects && edge.target?.nodeId.type !== 'importer') {
-      continue
-    }
 
     if (edge.target == null) {
       // External link or unresolvable — no traversal possible
@@ -219,12 +219,11 @@ function materializeChildren (
             searchMessages: childSearchMessages,
           })
         }
+        if (childHasSearchMatch || dedupedHasSearchMatch) {
+          resultHasSearchMatch = true
+        }
+        resultSearchMessages.push(...childSearchMessages, ...dedupedSearchMessages)
       }
-
-      if (childHasSearchMatch || dedupedHasSearchMatch) {
-        resultHasSearchMatch = true
-      }
-      resultSearchMessages.push(...childSearchMessages, ...dedupedSearchMessages)
 
       if (dependencies.length > 0) {
         newEntry = {
