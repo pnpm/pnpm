@@ -2,7 +2,8 @@ import { refToRelative } from '@pnpm/dependency-path'
 import { type PackageSnapshots } from '@pnpm/lockfile.fs'
 import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { type DepPath } from '@pnpm/types'
-import { getTree, buildDependencyGraph, type MaterializationCache } from '../lib/getTree.js'
+import { buildDependencyGraph } from '../lib/buildDependencyGraph.js'
+import { getTree, type MaterializationCache } from '../lib/getTree.js'
 import { type TreeNodeId } from '../lib/TreeNodeId.js'
 
 /**
