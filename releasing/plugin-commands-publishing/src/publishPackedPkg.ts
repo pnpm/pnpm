@@ -56,12 +56,9 @@ export async function publishPackedPkg (
 ): Promise<void> {
   const { publishedManifest, tarballPath } = packResult
   const tarballData = await fs.readFile(tarballPath)
-  const publishOptions = createPublishOptions(publishedManifest, opts)
+  const publishOptions = await createPublishOptions(publishedManifest, opts)
   const { name, version } = publishedManifest
   const { registry } = publishOptions
-  if (registry) {
-    await addAuthTokenByOidcIfApplicable(publishOptions, name, registry, opts)
-  }
   globalInfo(`📦 ${name}@${version} → ${registry ?? 'the default registry'}`)
   if (opts.dryRun) {
     globalWarn(`Skip publishing ${name}@${version} (dry run)`)
@@ -75,22 +72,23 @@ export async function publishPackedPkg (
   throw await createFailedToPublishError(packResult, response)
 }
 
-function createPublishOptions (manifest: ExportedManifest, {
-  access,
-  ci: isFromCI,
-  fetchRetries,
-  fetchRetryFactor,
-  fetchRetryMaxtimeout,
-  fetchRetryMintimeout,
-  fetchTimeout: timeout,
-  otp,
-  provenance,
-  provenanceFile,
-  tag: defaultTag,
-  userAgent,
-  ...options
-}: PublishPackedPkgOptions): PublishOptions {
+async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
   const { registry, auth, ssl } = findAuthSslInfo(manifest, options)
+
+  const {
+    access,
+    ci: isFromCI,
+    fetchRetries,
+    fetchRetryFactor,
+    fetchRetryMaxtimeout,
+    fetchRetryMintimeout,
+    fetchTimeout: timeout,
+    otp,
+    provenance,
+    provenanceFile,
+    tag: defaultTag,
+    userAgent,
+  } = options
 
   const publishOptions: PublishOptions = {
     access,
@@ -112,6 +110,10 @@ function createPublishOptions (manifest: ExportedManifest, {
     token: auth && extractToken(auth),
     username: auth?.authUserPass?.username,
     password: auth?.authUserPass?.password,
+  }
+
+  if (registry) {
+    publishOptions.token ??= await getAuthTokenByOidcIfApplicable(publishOptions, manifest.name, registry, options)
   }
 
   pruneUndefined(publishOptions)
@@ -203,27 +205,28 @@ export class PublishUnsupportedRegistryProtocolError extends PnpmError {
 
 /**
  * If {@link provenance} is `true`, and authentication information doesn't already set in {@link targetPublishOptions},
- * try fetching an authentication token by OpenID Connect and set it to `token` of {@link targetPublishOptions}.
+ * try fetching an authentication token by OpenID Connect and return it.
  *
  * @todo Other package managers' OIDC mechanism is activated even if `--provenance` was not provided.
  *       pnpm should also active OIDC mechanism when {@link provenance} is `undefined`, and then set
  *       it to `true` when `access` was `"public"`. But this is too complex for now, so we require the
  *       user to explicitly specify `--provenance` for now.
  */
-async function addAuthTokenByOidcIfApplicable (
+async function getAuthTokenByOidcIfApplicable (
   targetPublishOptions: PublishOptions,
   packageName: string,
   registry: string,
   options: PublishPackedPkgOptions
-): Promise<void> {
+): Promise<string | undefined> {
   if (
     !options.provenance ||
     targetPublishOptions.token != null ||
     (targetPublishOptions.username && targetPublishOptions.password)
-  ) return
+  ) return undefined
 
+  let token: string | undefined
   try {
-    targetPublishOptions.token = await oidc({
+    token = await oidc({
       options,
       packageName,
       registry,
@@ -236,6 +239,8 @@ async function addAuthTokenByOidcIfApplicable (
 
     throw error
   }
+
+  return token
 }
 
 function pruneUndefined (object: Record<string, unknown>): void {
