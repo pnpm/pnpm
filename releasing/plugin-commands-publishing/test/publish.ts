@@ -274,7 +274,9 @@ test('publish: package with all possible fields in publishConfig', async () => {
     name: 'test-publish-config',
     version: '1.0.0',
 
-    bin: './published-bin.js',
+    bin: {
+      'test-publish-config': './published-bin.js',
+    },
     main: './published.js',
     module: './published.mjs',
     types: './published-types.d.ts',
@@ -842,7 +844,7 @@ test('publish: exit with non-zero code when publish tgz', async () => {
     version: '0.0.2',
   })
 
-  const result = await publish.handler({
+  await expect(publish.handler({
     ...DEFAULT_OPTS,
     argv: { original: ['publish', './non-exists.tgz', '--no-git-checks'] },
     dir: process.cwd(),
@@ -850,18 +852,19 @@ test('publish: exit with non-zero code when publish tgz', async () => {
 
   }, [
     './non-exists.tgz',
-  ])
-  expect(result?.exitCode).not.toBe(0)
+  ])).rejects.toStrictEqual(expect.anything())
 })
 
-test('publish: provenance', async () => {
+// This test doesn't work. Verdaccio doesn't support OIDC, neither does local environment.
+test.skip('publish: provenance', async () => {
   prepare({
-    name: 'test-publish-package.json',
+    name: 'test-publish-package-oidc.json',
     version: '0.0.2',
   })
 
   await publish.handler({
     ...DEFAULT_OPTS,
+    provenance: true,
     argv: { original: ['publish', '--provenance'] },
     dir: process.cwd(),
   }, [])
