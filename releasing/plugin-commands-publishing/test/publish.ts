@@ -838,7 +838,7 @@ test('publish: with specified publish branch name', async () => {
   }, [])
 })
 
-test('publish: exit with non-zero code when publish tgz', async () => {
+test('publish: errors when publishing a non-existing tgz', async () => {
   prepare({
     name: 'test-publish-package.json',
     version: '0.0.2',
