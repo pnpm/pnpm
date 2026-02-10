@@ -29,7 +29,7 @@ const ensureSuffix = <
 type SupportedRegistryScheme = 'http' | 'https'
 
 /**
- * A registry URL that has been normalize to match its corresponding {@link RegistryConfigKey}.
+ * A registry URL that has been normalized to match its corresponding {@link RegistryConfigKey}.
  */
 export type NormalizedRegistryUrl = `${SupportedRegistryScheme}://${string}/`
 
