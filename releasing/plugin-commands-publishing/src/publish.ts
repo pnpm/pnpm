@@ -230,14 +230,17 @@ Do you want to continue?`,
   // from the current working directory, ignoring the package.json file
   // that was generated and packed to the tarball.
   const packDestination = temporaryDirectory()
-  const packResult = await pack.api({
-    ...opts,
-    dir,
-    packDestination,
-    dryRun: false,
-  })
-  await publishPackedPkg(packResult, opts)
-  await rimraf(packDestination)
+  try {
+    const packResult = await pack.api({
+      ...opts,
+      dir,
+      packDestination,
+      dryRun: false,
+    })
+    await publishPackedPkg(packResult, opts)
+  } finally {
+    await rimraf(packDestination)
+  }
 
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent([
