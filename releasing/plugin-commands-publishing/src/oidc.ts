@@ -211,7 +211,7 @@ export class OidcGitHubWorkflowIncorrectPermissionsError extends OidcError {
 
 export class OidcGitHubIdTokenInvalidResponseError extends OidcError {
   constructor () {
-    super('OIDC_GITHUB_ID_TOKEN_INVALID_RESPONSE', 'Fetched to fetch idToken from GitHub: received an invalid response')
+    super('OIDC_GITHUB_ID_TOKEN_INVALID_RESPONSE', 'Failed to fetch idToken from GitHub: received an invalid response')
   }
 }
 
