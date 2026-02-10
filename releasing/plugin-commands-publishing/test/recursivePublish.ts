@@ -294,7 +294,7 @@ test('errors on fake registry', async () => {
 
   const fakeRegistry = 'https://__fake_npm_registry__.com'
 
-  await expect(publish.handler({
+  const promise = publish.handler({
     ...DEFAULT_OPTS,
     ...await filterPackagesFromDir(process.cwd(), []),
     rawConfig: {
@@ -308,5 +308,10 @@ test('errors on fake registry', async () => {
     dir: process.cwd(),
     recursive: true,
     force: true,
-  }, [])).rejects.toStrictEqual(expect.anything())
+  }, [])
+
+  // NOTE: normally this should be a PnpmError, but we'd like to keep the code
+  //       simple so we just let the internal functions throw error for now.
+  await expect(promise).rejects.toHaveProperty(['code'], 'ENOTFOUND')
+  await expect(promise).rejects.toHaveProperty(['hostname'], '__fake_npm_registry__.com')
 })
