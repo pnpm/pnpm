@@ -1,8 +1,9 @@
 import { refToRelative } from '@pnpm/dependency-path'
 import { type PackageSnapshots } from '@pnpm/lockfile.fs'
 import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
-import { type DepPath } from '@pnpm/types'
-import { getTree } from '../lib/getTree.js'
+import { type DepPath, type Finder } from '@pnpm/types'
+import { buildDependencyGraph } from '../lib/buildDependencyGraph.js'
+import { getTree, type MaterializationCache } from '../lib/getTree.js'
 import { type TreeNodeId } from '../lib/TreeNodeId.js'
 
 /**
@@ -73,6 +74,15 @@ function normalizePackageNodeForTesting (nodes: readonly PackageNode[]): Package
   }))
 }
 
+function getTreeWithGraph (
+  opts: Omit<Parameters<typeof getTree>[0], 'graph' | 'materializationCache'>,
+  rootNodeId: TreeNodeId
+) {
+  const graph = buildDependencyGraph(rootNodeId, opts)
+  const materializationCache: MaterializationCache = new Map()
+  return getTree({ ...opts, graph, materializationCache }, rootNodeId)
+}
+
 describe('getTree', () => {
   describe('prints at expected depth', () => {
     const version = '1.0.0'
@@ -89,7 +99,7 @@ describe('getTree', () => {
       rewriteLinkVersionDir: '',
       virtualStoreDir: '.pnpm',
       importers: {},
-      includeOptionalDependencies: false,
+      include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
@@ -100,7 +110,7 @@ describe('getTree', () => {
     }
 
     test('full test case to print when max depth is large', () => {
-      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
+      const result = normalizePackageNodeForTesting(getTreeWithGraph({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
 
       expect(result).toEqual([
         expect.objectContaining({
@@ -120,12 +130,12 @@ describe('getTree', () => {
     })
 
     test('no result when current depth exceeds max depth', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 0, virtualStoreDirMaxLength: 120 }, rootNodeId)
+      const result = getTreeWithGraph({ ...getTreeArgs, maxDepth: 0, virtualStoreDirMaxLength: 120 }, rootNodeId)
       expect(result).toEqual([])
     })
 
     test('max depth of 1 to print flat dependencies', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 1, virtualStoreDirMaxLength: 120 }, rootNodeId)
+      const result = getTreeWithGraph({ ...getTreeArgs, maxDepth: 1, virtualStoreDirMaxLength: 120 }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({ alias: 'b1', dependencies: undefined }),
@@ -135,7 +145,7 @@ describe('getTree', () => {
     })
 
     test('max depth of 2 to print a1 -> b1 -> c1, but not d1', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 2, virtualStoreDirMaxLength: 120 }, rootNodeId)
+      const result = getTreeWithGraph({ ...getTreeArgs, maxDepth: 2, virtualStoreDirMaxLength: 120 }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -165,7 +175,7 @@ describe('getTree', () => {
       rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
-      includeOptionalDependencies: false,
+      include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
@@ -193,7 +203,7 @@ describe('getTree', () => {
       })
       const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
-      const result = getTree({
+      const result = getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: 3,
         currentPackages,
@@ -252,7 +262,7 @@ describe('getTree', () => {
       })
       const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
-      const result = getTree({
+      const result = getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: 3,
         currentPackages,
@@ -303,7 +313,7 @@ describe('getTree', () => {
       rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
-      includeOptionalDependencies: false,
+      include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
@@ -330,7 +340,7 @@ describe('getTree', () => {
       })
       const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
-      const result = getTree({
+      const result = getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: 4,
         currentPackages,
@@ -382,7 +392,7 @@ describe('getTree', () => {
       })
       const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
-      const result = getTree({
+      const result = getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: 4,
         currentPackages,
@@ -433,7 +443,7 @@ describe('getTree', () => {
       })
       const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
-      const result = getTree({
+      const result = getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: 3,
         currentPackages,
@@ -494,7 +504,7 @@ describe('getTree', () => {
       })
       const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
-      const result = getTree({
+      const result = getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: 5,
         currentPackages,
@@ -550,6 +560,399 @@ describe('getTree', () => {
       ])
     })
   })
+  describe('circular dependency detection', () => {
+    const commonMockGetTreeArgs = {
+      depTypes: {},
+      rewriteLinkVersionDir: '',
+      modulesDir: '',
+      importers: {},
+      include: { optionalDependencies: false },
+      lockfileDir: '',
+      skipped: new Set<string>(),
+      registries: {
+        default: 'mock-registry-for-testing.example',
+      },
+      virtualStoreDirMaxLength: 120,
+    }
+
+    test('marks back-edge as circular in a simple cycle', () => {
+      // root → a → b → a(circular)
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a'],
+        a: ['b'],
+        b: ['a'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const result = getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+      }, rootNodeId)
+
+      expect(normalizePackageNodeForTesting(result)).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'a',
+                  circular: true,
+                  dependencies: undefined,
+                }),
+              ],
+            }),
+          ],
+        }),
+      ])
+    })
+
+    test('does not mark a node as circular when reached from a non-cyclic path', () => {
+      // root → a → b → a(circular)
+      // root → c → b(deduped — b was already expanded under a)
+      //
+      // The node "b" under "c" should be deduped, NOT circular.
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'c'],
+        a: ['b'],
+        b: ['a'],
+        c: ['b'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const result = getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+      }, rootNodeId)
+
+      expect(normalizePackageNodeForTesting(result)).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'a',
+                  circular: true,
+                  dependencies: undefined,
+                }),
+              ],
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          alias: 'c',
+          dependencies: [
+            // b is deduped (already expanded under a), not circular.
+            expect.not.objectContaining({ circular: true }),
+          ],
+        }),
+      ])
+    })
+  })
+
+  describe('linked dependencies', () => {
+    const lockfileDir = '/project'
+    const commonMockGetTreeArgs = {
+      depTypes: {},
+      rewriteLinkVersionDir: lockfileDir,
+      modulesDir: '',
+      include: { optionalDependencies: false },
+      lockfileDir,
+      skipped: new Set<string>(),
+      registries: {
+        default: 'mock-registry-for-testing.example',
+      },
+      virtualStoreDirMaxLength: 120,
+    }
+
+    test('link outside workspace appears as leaf node', () => {
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        'regular-dep': ['transitive'],
+      })
+      const importers = {
+        '.': {
+          specifiers: {},
+          dependencies: {
+            'regular-dep': '1.0.0',
+            'my-link': 'link:../external-pkg',
+          },
+        },
+      }
+      const rootNodeId: TreeNodeId = { type: 'importer', importerId: '.' }
+
+      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        importers,
+      }, rootNodeId))
+
+      expect(result).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          alias: 'my-link',
+          version: expect.stringContaining('link:'),
+          dependencies: undefined,
+        }),
+        expect.objectContaining({
+          alias: 'regular-dep',
+          dependencies: [
+            expect.objectContaining({ alias: 'transitive', dependencies: undefined }),
+          ],
+        }),
+      ]))
+    })
+
+    test('link inside workspace resolves to importer and is traversed', () => {
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        leaf: [],
+      })
+      const importers = {
+        '.': {
+          specifiers: {},
+          dependencies: {
+            'workspace-pkg': 'link:packages/workspace-pkg',
+          },
+        },
+        'packages/workspace-pkg': {
+          specifiers: {},
+          dependencies: {
+            leaf: '1.0.0',
+          },
+        },
+      }
+      const rootNodeId: TreeNodeId = { type: 'importer', importerId: '.' }
+
+      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        importers,
+      }, rootNodeId))
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          alias: 'workspace-pkg',
+          version: expect.stringContaining('link:'),
+          dependencies: [
+            expect.objectContaining({ alias: 'leaf', dependencies: undefined }),
+          ],
+        }),
+      ])
+    })
+  })
+
+  describe('search with deduplication', () => {
+    const commonMockGetTreeArgs = {
+      depTypes: {},
+      rewriteLinkVersionDir: '',
+      modulesDir: '',
+      importers: {},
+      include: { optionalDependencies: false },
+      lockfileDir: '',
+      skipped: new Set<string>(),
+      registries: {
+        default: 'mock-registry-for-testing.example',
+      },
+      virtualStoreDirMaxLength: 120,
+    }
+
+    test('deduped subtree containing a search match still appears in output', () => {
+      // root → a → b → target (search match)
+      // root → c → b (deduped, but subtree contains a search match)
+      //
+      // Without the fix, "c → b" would be excluded because b is deduped
+      // (empty deps) and b itself doesn't match the search.
+      // With the fix, "c → b" appears as deduped + searched.
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'c'],
+        a: ['b'],
+        b: ['target'],
+        c: ['b'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const search: Finder = ({ name }) => name === 'target'
+
+      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        search,
+        showDedupedSearchMatches: true,
+      }, rootNodeId))
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'target',
+                  searched: true,
+                }),
+              ],
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          alias: 'c',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              deduped: true,
+              searched: true,
+              dependencies: undefined,
+            }),
+          ],
+        }),
+      ])
+    })
+
+    test('deduped subtree propagates string search messages to the deduped node', () => {
+      // Same graph as above, but the Finder returns a string message.
+      // root → a → b → target (search match with message)
+      // root → c → b (deduped — should show the message from target)
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'c'],
+        a: ['b'],
+        b: ['target'],
+        c: ['b'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const search: Finder = ({ name }) => name === 'target' ? 'depends on target' : false
+
+      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        search,
+        showDedupedSearchMatches: true,
+      }, rootNodeId))
+
+      // The deduped "b" under "c" should carry the search message from "target"
+      expect(result).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'target',
+                  searched: true,
+                  searchMessage: 'depends on target',
+                }),
+              ],
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          alias: 'c',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              deduped: true,
+              searched: true,
+              searchMessage: 'depends on target',
+              dependencies: undefined,
+            }),
+          ],
+        }),
+      ])
+    })
+
+    test('deduped subtree with search match is hidden by default', () => {
+      // Same graph: root → a → b → target, root → c → b (deduped)
+      // Without showDedupedSearchMatches, "c → b" should NOT appear
+      // even though b's subtree contains a match.
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'c'],
+        a: ['b'],
+        b: ['target'],
+        c: ['b'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const search: Finder = ({ name }) => name === 'target'
+
+      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        search,
+      }, rootNodeId))
+
+      // Only "a → b → target" should appear; "c" is excluded because
+      // its only child "b" is deduped and doesn't directly match.
+      expect(result).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'target',
+                  searched: true,
+                }),
+              ],
+            }),
+          ],
+        }),
+      ])
+    })
+
+    test('deduped subtree without search match is excluded when search is active', () => {
+      // root → a → b → leaf (no match)
+      // root → c → b (deduped, subtree has no search match)
+      //
+      // When searching for "target" (which doesn't exist), neither a nor c
+      // should appear because nothing matches.
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'c'],
+        a: ['b'],
+        b: ['leaf'],
+        c: ['b'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const search: Finder = ({ name }) => name === 'target'
+
+      const result = getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        search,
+      }, rootNodeId)
+
+      expect(result).toEqual([])
+    })
+  })
+
   test('exclude peers', () => {
     const version = '1.0.0'
     const currentPackages = {
@@ -591,7 +994,7 @@ describe('getTree', () => {
       rewriteLinkVersionDir: '',
       virtualStoreDir: '.pnpm',
       importers: {},
-      includeOptionalDependencies: false,
+      include: { optionalDependencies: false },
       lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
@@ -600,7 +1003,7 @@ describe('getTree', () => {
       currentPackages,
       wantedPackages: currentPackages,
     }
-    const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
+    const result = normalizePackageNodeForTesting(getTreeWithGraph({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
 
     expect(result).toEqual([
       expect.objectContaining({

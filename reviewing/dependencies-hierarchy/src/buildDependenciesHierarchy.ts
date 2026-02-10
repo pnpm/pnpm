@@ -17,7 +17,8 @@ import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
 import { type PackageNode } from './PackageNode.js'
-import { getTree } from './getTree.js'
+import { buildDependencyGraph } from './buildDependencyGraph.js'
+import { getTree, type MaterializationCache } from './getTree.js'
 import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { type TreeNodeId } from './TreeNodeId.js'
@@ -38,6 +39,7 @@ export async function buildDependenciesHierarchy (
     registries?: Registries
     onlyProjects?: boolean
     search?: Finder
+    showDedupedSearchMatches?: boolean
     lockfileDir: string
     checkWantedLockfileOnly?: boolean
     modulesDir?: string
@@ -85,6 +87,7 @@ export async function buildDependenciesHierarchy (
     onlyProjects: maybeOpts.onlyProjects,
     registries,
     search: maybeOpts.search,
+    showDedupedSearchMatches: maybeOpts.showDedupedSearchMatches,
     skipped: new Set(modules?.skipped ?? []),
     modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
@@ -113,6 +116,7 @@ async function dependenciesHierarchyForPackage (
     registries: Registries
     onlyProjects?: boolean
     search?: Finder
+    showDedupedSearchMatches?: boolean
     skipped: Set<string>
     lockfileDir: string
     checkWantedLockfileOnly?: boolean
@@ -134,11 +138,13 @@ async function dependenciesHierarchyForPackage (
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
 
   const depTypes = detectDepTypes(currentLockfile)
+  const currentPackages = currentLockfile.packages ?? {}
+  const wantedPackages = wantedLockfile?.packages ?? {}
   const getTreeOpts = {
-    currentPackages: currentLockfile.packages ?? {},
+    currentPackages,
     excludePeerDependencies: opts.excludePeerDependencies,
     importers: currentLockfile.importers,
-    includeOptionalDependencies: opts.include.optionalDependencies,
+    include: opts.include,
     depTypes,
     lockfileDir: opts.lockfileDir,
     onlyProjects: opts.onlyProjects,
@@ -146,15 +152,27 @@ async function dependenciesHierarchyForPackage (
     maxDepth: opts.depth,
     registries: opts.registries,
     search: opts.search,
+    showDedupedSearchMatches: opts.showDedupedSearchMatches,
     skipped: opts.skipped,
-    wantedPackages: wantedLockfile?.packages ?? {},
+    wantedPackages,
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir,
   }
-  const getChildrenTree = (nodeId: TreeNodeId, parentDir?: string) =>
-    getTree({ ...getTreeOpts, parentDir }, nodeId)
   const parentId: TreeNodeId = { type: 'importer', importerId }
+
+  // Build ONE shared graph and cache for the entire project, reused
+  // across all dependency fields and top-level deps.
+  const graph = buildDependencyGraph(parentId, {
+    currentPackages,
+    importers: currentLockfile.importers,
+    include: opts.include,
+    lockfileDir: opts.lockfileDir,
+  })
+  const materializationCache: MaterializationCache = new Map()
+
+  const getChildrenTree = (nodeId: TreeNodeId, parentDir?: string) =>
+    getTree({ ...getTreeOpts, parentDir, graph, materializationCache }, nodeId)
   const result: DependenciesHierarchy = {}
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciesField => opts.include[dependenciesField])) {
     const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
@@ -176,7 +194,7 @@ async function dependenciesHierarchyForPackage (
         modulesDir,
       })
       let newEntry: PackageNode | null = null
-      const matchedSearched = opts.search?.({
+      const searchMatch = opts.search?.({
         alias,
         name: packageInfo.name,
         version: packageInfo.version,
@@ -191,7 +209,7 @@ async function dependenciesHierarchyForPackage (
       if (opts.onlyProjects && nodeId?.type !== 'importer') {
         continue
       } else if (nodeId == null) {
-        if ((opts.search != null) && !matchedSearched) continue
+        if ((opts.search != null) && !searchMatch) continue
         newEntry = packageInfo
       } else {
         const dependencies = getChildrenTree(nodeId, packageInfo.path)
@@ -200,15 +218,15 @@ async function dependenciesHierarchyForPackage (
             ...packageInfo,
             dependencies,
           }
-        } else if ((opts.search == null) || matchedSearched) {
+        } else if ((opts.search == null) || searchMatch) {
           newEntry = packageInfo
         }
       }
       if (newEntry != null) {
-        if (matchedSearched) {
+        if (searchMatch) {
           newEntry.searched = true
-          if (typeof matchedSearched === 'string') {
-            newEntry.searchMessage = matchedSearched
+          if (typeof searchMatch === 'string') {
+            newEntry.searchMessage = searchMatch
           }
         }
         result[dependenciesField]!.push(newEntry)
@@ -237,18 +255,18 @@ async function dependenciesHierarchyForPackage (
         path: pkgPath,
         version,
       }
-      const matchedSearched = opts.search?.({
+      const searchMatch = opts.search?.({
         alias: pkg.alias,
         name: pkg.name,
         version: pkg.version,
         readManifest: () => readPackageJsonFromDirSync(pkgPath),
       })
-      if ((opts.search != null) && !matchedSearched) return
+      if ((opts.search != null) && !searchMatch) return
       const newEntry: PackageNode = pkg
-      if (matchedSearched) {
+      if (searchMatch) {
         newEntry.searched = true
-        if (typeof matchedSearched === 'string') {
-          newEntry.searchMessage = matchedSearched
+        if (typeof searchMatch === 'string') {
+          newEntry.searchMessage = searchMatch
         }
       }
       result.unsavedDependencies = result.unsavedDependencies ?? []

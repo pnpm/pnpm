@@ -2,16 +2,19 @@ import path from 'path'
 import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile.fs'
 import { type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { type Finder, type Registries } from '@pnpm/types'
+import { type DependencyGraph } from './buildDependencyGraph.js'
 import { type PackageNode } from './PackageNode.js'
 import { getPkgInfo } from './getPkgInfo.js'
-import { getTreeNodeChildId } from './getTreeNodeChildId.js'
-import { DependenciesCache } from './DependenciesCache.js'
 import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
 
 interface GetTreeOpts {
   maxDepth: number
   rewriteLinkVersionDir: string
-  includeOptionalDependencies: boolean
+  include: {
+    dependencies?: boolean
+    devDependencies?: boolean
+    optionalDependencies?: boolean
+  }
   excludePeerDependencies?: boolean
   lockfileDir: string
   onlyProjects?: boolean
@@ -26,182 +29,202 @@ interface GetTreeOpts {
   virtualStoreDirMaxLength: number
   modulesDir?: string
   parentDir?: string
+  showDedupedSearchMatches?: boolean
+
+  graph: DependencyGraph
+  materializationCache: MaterializationCache
 }
 
-interface DependencyInfo {
-  dependencies: PackageNode[]
+// Context object for materializeChildren — holds everything that stays the
+// same across recursive calls.
+type MaterializationContext =
+  Omit<GetTreeOpts, 'maxDepth' | 'parentDir'> & {
+    ancestors: Set<string>
+  }
 
-  circular?: true
+// ---------------------------------------------------------------------------
+// Materialization cache types
+// ---------------------------------------------------------------------------
 
-  /**
-   * The number of edges along the longest path, including the parent node.
-   *
-   *   - `"unknown"` if traversal was limited by a max depth option, therefore
-   *      making the true height of a package undetermined.
-   *   - `0` if the dependencies array is empty.
-   *   - `1` if the dependencies array has at least 1 element and no child
-   *     dependencies.
-   */
-  height: number | 'unknown'
+interface CachedSubtree {
+  /** Total number of PackageNode objects in the subtree (recursive). */
+  count: number
+  /** Whether any node in this subtree matched the search. */
+  hasSearchMatch: boolean
+  /** Search match messages (string-typed matches) found in this subtree. */
+  searchMessages: string[]
 }
+
+/**
+ * Caches already-materialized subtrees.  When a subtree is encountered a
+ * second time (cache hit), an empty array is returned and the node is marked
+ * as deduped — bounding the total output to O(N) nodes.
+ */
+export type MaterializationCache = Map<string, CachedSubtree>
 
 export function getTree (
   opts: GetTreeOpts,
   parentId: TreeNodeId
 ): PackageNode[] {
-  const dependenciesCache = new DependenciesCache()
+  const ancestors = new Set<string>()
+  ancestors.add(serializeTreeNodeId(parentId))
 
-  return getTreeHelper(dependenciesCache, opts, Keypath.initialize(parentId), parentId).dependencies
+  const ctx: MaterializationContext = {
+    ...opts,
+    ancestors,
+  }
+
+  const { nodes: tree } = materializeChildren(ctx, parentId, opts.maxDepth, opts.parentDir)
+
+  // Mark circular back-edges.  materializeChildren truncates dependencies
+  // at cycle boundaries but does not set the `circular` flag, so that cached
+  // subtrees stay context-independent.  fixCircularRefs walks the final tree
+  // and adds `circular: true` wherever a node's path matches an ancestor.
+  //
+  // Seed the ancestors with parentDir (the filesystem path of parentId) so
+  // that back-edges to the root of this subtree are detected — the root
+  // itself does not appear as a node in the tree, only its children do.
+  const circularAncestors = new Set<string>()
+  if (opts.parentDir) {
+    circularAncestors.add(opts.parentDir)
+  }
+  return fixCircularRefs(tree, circularAncestors)
 }
 
-function getTreeHelper (
-  dependenciesCache: DependenciesCache,
-  opts: GetTreeOpts,
-  keypath: Keypath,
-  parentId: TreeNodeId
-): DependencyInfo {
-  if (opts.maxDepth <= 0) {
-    return { dependencies: [], height: 'unknown' }
+// ---------------------------------------------------------------------------
+// Materialize PackageNode[] tree from the graph
+// ---------------------------------------------------------------------------
+
+function materializeCacheKey (nodeId: string, depth: number): string {
+  if (depth === Infinity) return nodeId
+  return `${nodeId}@d${depth}`
+}
+
+interface MaterializationResult {
+  nodes: PackageNode[]
+  /** Total number of PackageNode objects in `nodes` (recursive). */
+  count: number
+  /** Whether any node in this subtree matched the search. */
+  hasSearchMatch: boolean
+  /** Search match messages (string-typed matches) collected from this subtree. */
+  searchMessages: string[]
+}
+
+/**
+ * Core materialization function.  Walks the pre-built dependency graph to
+ * produce the `PackageNode[]` tree that downstream renderers expect.
+ *
+ * The cache is keyed by `(nodeId, remainingDepth)` and stores the
+ * `PackageNode[]` children of a given node.  It is populated
+ * unconditionally, including results where recursion was truncated at a
+ * cycle boundary.  Cycle detection uses a mutable `ancestors` Set to
+ * stop recursion but does NOT set the `circular` flag — that is handled
+ * by `fixCircularRefs` in a separate pass over the final tree.  This
+ * keeps cached subtrees free of context-dependent circular markers.
+ */
+function materializeChildren (
+  ctx: MaterializationContext,
+  parentId: TreeNodeId,
+  maxDepth: number,
+  parentDir?: string
+): MaterializationResult {
+  if (maxDepth <= 0) return { nodes: [], count: 0, hasSearchMatch: false, searchMessages: [] }
+
+  const parentSerialized = serializeTreeNodeId(parentId)
+  const graphNode = ctx.graph.nodes.get(parentSerialized)
+  if (!graphNode) {
+    throw new Error(`Node ${parentSerialized} not found in the dependency graph`)
   }
 
-  function getSnapshot (treeNodeId: TreeNodeId) {
-    switch (treeNodeId.type) {
-    case 'importer':
-      return opts.importers[treeNodeId.importerId]
-    case 'package':
-      return opts.currentPackages[treeNodeId.depPath]
-    }
-  }
+  const childTreeMaxDepth = maxDepth - 1
 
-  const snapshot = getSnapshot(parentId)
-
-  if (!snapshot) {
-    return { dependencies: [], height: 0 }
-  }
-
-  const deps = !opts.includeOptionalDependencies
-    ? snapshot.dependencies
-    : {
-      ...snapshot.dependencies,
-      ...snapshot.optionalDependencies,
-    }
-
-  if (deps == null) {
-    return { dependencies: [], height: 0 }
-  }
-
-  const childTreeMaxDepth = opts.maxDepth - 1
-  const getChildrenTree = (keypath: Keypath, nodeId: TreeNodeId, parentDir: string) =>
-    getTreeHelper(dependenciesCache, {
-      ...opts,
-      maxDepth: childTreeMaxDepth,
-      parentDir,
-    }, keypath, nodeId)
-
-  function getPeerDependencies () {
-    switch (parentId.type) {
-    case 'importer':
-      // Projects in the pnpm workspace can declare peer dependencies, but pnpm
-      // doesn't record this block to the importers lockfile object. Returning
-      // undefined for now.
-      return undefined
-    case 'package':
-      return opts.currentPackages[parentId.depPath]?.peerDependencies
-    }
-  }
-  const peers = new Set(Object.keys(getPeerDependencies() ?? {}))
-
-  // If the "ref" of any dependency is a file system path (e.g. link:../), the
-  // base directory of this relative path depends on whether the dependent
-  // package is in the pnpm workspace or from node_modules.
-  function getLinkedPathBaseDir () {
-    switch (parentId.type) {
-    case 'importer':
-      return path.join(opts.lockfileDir, parentId.importerId)
-    case 'package':
-      return opts.lockfileDir
-    }
-  }
-  const linkedPathBaseDir = getLinkedPathBaseDir()
+  const linkedPathBaseDir = parentId.type === 'importer'
+    ? path.join(ctx.lockfileDir, parentId.importerId)
+    : ctx.lockfileDir
 
   const resultDependencies: PackageNode[] = []
-  let resultHeight: number | 'unknown' = 0
-  let resultCircular: boolean = false
+  let resultCount = 0
+  let resultHasSearchMatch = false
+  const resultSearchMessages = ctx.showDedupedSearchMatches ? [] as string[] : undefined
 
-  for (const alias in deps) {
-    const ref = deps[alias]
+  for (const edge of graphNode.edges) {
+    if (ctx.onlyProjects && edge.target?.nodeId.type !== 'importer') {
+      continue
+    }
+
     const { pkgInfo: packageInfo, readManifest } = getPkgInfo({
-      alias,
-      currentPackages: opts.currentPackages,
-      depTypes: opts.depTypes,
-      rewriteLinkVersionDir: opts.rewriteLinkVersionDir,
+      ...ctx,
+      alias: edge.alias,
+      ref: edge.ref,
+      peers: graphNode.peers,
       linkedPathBaseDir,
-      peers,
-      ref,
-      registries: opts.registries,
-      skipped: opts.skipped,
-      wantedPackages: opts.wantedPackages,
-      virtualStoreDir: opts.virtualStoreDir,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-      modulesDir: opts.modulesDir,
-      parentDir: opts.parentDir,
+      parentDir,
     })
-    let circular: boolean
-    const matchedSearched = opts.search?.({
-      alias,
+
+    const searchMatch = ctx.search?.({
+      alias: edge.alias,
       name: packageInfo.name,
       version: packageInfo.version,
       readManifest,
     })
-    let newEntry: PackageNode | null = null
-    const nodeId = getTreeNodeChildId({
-      parentId,
-      dep: { alias, ref },
-      lockfileDir: opts.lockfileDir,
-      importers: opts.importers,
-    })
 
-    if (opts.onlyProjects && nodeId?.type !== 'importer') {
-      continue
-    } else if (nodeId == null) {
-      circular = false
-      if (opts.search == null || matchedSearched) {
+    let newEntry: PackageNode | null = null
+    let childCount = 0
+    let dedupedHasSearchMatch = false
+    let dedupedSearchMessages: string[] = []
+
+    if (edge.target == null) {
+      // External link or unresolvable — no traversal possible
+      if (ctx.search == null || searchMatch) {
         newEntry = packageInfo
+      } else {
+        continue
       }
     } else {
-      let dependencies: PackageNode[] | undefined
-
-      circular = keypath.includes(nodeId)
+      let dependencies: PackageNode[]
+      let childHasSearchMatch = false
+      let childSearchMessages: string[] = []
+      let dedupedCount: number | undefined
+      const circular = ctx.ancestors.has(edge.target.id)
 
       if (circular) {
         dependencies = []
       } else {
-        const cacheEntry = dependenciesCache.get({ parentId: nodeId, requestedDepth: childTreeMaxDepth })
-        const children = cacheEntry ?? getChildrenTree(keypath.concat(nodeId), nodeId, packageInfo.path)
+        const cacheKey = materializeCacheKey(edge.target.id, childTreeMaxDepth)
+        const cached = ctx.materializationCache.get(cacheKey)
 
-        if (cacheEntry == null && !children.circular) {
-          if (children.height === 'unknown') {
-            dependenciesCache.addPartiallyVisitedResult(nodeId, {
-              dependencies: children.dependencies,
-              depth: childTreeMaxDepth,
-            })
-          } else {
-            dependenciesCache.addFullyVisitedResult(nodeId, {
-              dependencies: children.dependencies,
-              height: children.height,
-            })
+        if (cached !== undefined) {
+          // This subtree was already returned to a parent elsewhere in
+          // the output tree — elide it to avoid repeating the same nodes.
+          dependencies = []
+          if (cached.count > 0) {
+            dedupedCount = cached.count
           }
+          if (ctx.showDedupedSearchMatches) {
+            dedupedHasSearchMatch = cached.hasSearchMatch
+            dedupedSearchMessages = cached.searchMessages
+          }
+        } else {
+          ctx.ancestors.add(edge.target.id)
+          const childResult = materializeChildren(ctx, edge.target.nodeId, childTreeMaxDepth, packageInfo.path)
+          ctx.ancestors.delete(edge.target.id)
+
+          dependencies = childResult.nodes
+          childCount = childResult.count
+          childHasSearchMatch = childResult.hasSearchMatch
+          childSearchMessages = childResult.searchMessages
+
+          // Always cache — even results with circular truncations.
+          ctx.materializationCache.set(cacheKey, {
+            count: childCount,
+            hasSearchMatch: childHasSearchMatch,
+            searchMessages: childSearchMessages,
+          })
         }
-
-        const heightOfCurrentDepNode = children.height === 'unknown'
-          ? 'unknown'
-          : children.height + 1
-
-        dependencies = children.dependencies
-        resultHeight = resultHeight === 'unknown' || heightOfCurrentDepNode === 'unknown'
-          ? 'unknown'
-          : Math.max(resultHeight, heightOfCurrentDepNode)
-        resultCircular = resultCircular || (children.circular ?? false)
+        if (childHasSearchMatch || dedupedHasSearchMatch) {
+          resultHasSearchMatch = true
+        }
+        resultSearchMessages?.push(...childSearchMessages, ...dedupedSearchMessages)
       }
 
       if (dependencies.length > 0) {
@@ -209,58 +232,75 @@ function getTreeHelper (
           ...packageInfo,
           dependencies,
         }
-      } else if ((opts.search == null) || matchedSearched) {
+      } else if (ctx.search == null || searchMatch || dedupedHasSearchMatch) {
         newEntry = packageInfo
+      } else {
+        continue
+      }
+
+      if (dedupedCount != null) {
+        newEntry.deduped = true
+        newEntry.dedupedDependenciesCount = dedupedCount
       }
     }
-    if (newEntry != null) {
-      if (circular) {
-        newEntry.circular = true
-        resultCircular = true
+
+    if (searchMatch) {
+      newEntry.searched = true
+      resultHasSearchMatch = true
+      if (typeof searchMatch === 'string') {
+        newEntry.searchMessage = searchMatch
+        resultSearchMessages?.push(searchMatch)
       }
-      if (matchedSearched) {
-        newEntry.searched = true
-        if (typeof matchedSearched === 'string') {
-          newEntry.searchMessage = matchedSearched
-        }
+    } else if (dedupedHasSearchMatch) {
+      newEntry.searched = true
+      if (dedupedSearchMessages.length > 0) {
+        newEntry.searchMessage = dedupedSearchMessages.join('\n')
       }
-      if (!newEntry.isPeer || !opts.excludePeerDependencies || newEntry.dependencies?.length) {
-        resultDependencies.push(newEntry)
-      }
+    }
+    if (!newEntry.isPeer || !ctx.excludePeerDependencies || newEntry.dependencies?.length) {
+      resultDependencies.push(newEntry)
+      resultCount += 1 + (newEntry.dependencies?.length ? childCount : 0)
     }
   }
 
-  const result: DependencyInfo = {
-    dependencies: resultDependencies,
-    height: resultHeight,
+  return {
+    count: resultCount,
+    hasSearchMatch: resultHasSearchMatch,
+    nodes: resultDependencies,
+    searchMessages: resultSearchMessages ?? [],
   }
-
-  if (resultCircular) {
-    result.circular = resultCircular
-  }
-
-  return result
 }
 
 /**
- * Useful for detecting cycles.
+ * Walks the materialized PackageNode[] tree and marks circular back-edges.
+ * A node whose `path` matches an ancestor is a cycle — it gets
+ * `circular: true` and its dependencies (if any) are stripped.
+ *
+ * With deduplication in place (deduped nodes are leaves), the walk is O(N).
  */
-class Keypath {
-  private readonly keypath: readonly string[]
+function fixCircularRefs (
+  nodes: PackageNode[],
+  ancestors: Set<string>
+): PackageNode[] {
+  let changed = false
+  const result = nodes.map(node => {
+    // A node whose path matches an ancestor is a circular back-edge.
+    if (node.path && ancestors.has(node.path)) {
+      changed = true
+      const { dependencies: _, deduped: _d, dedupedDependenciesCount: _c, ...rest } = node
+      return { ...rest, circular: true as const }
+    }
+    if (!node.dependencies?.length) return node
 
-  private constructor (keypath: readonly string[]) {
-    this.keypath = keypath
-  }
+    ancestors.add(node.path)
+    const fixedDeps = fixCircularRefs(node.dependencies, ancestors)
+    ancestors.delete(node.path)
 
-  public static initialize (treeNodeId: TreeNodeId): Keypath {
-    return new Keypath([serializeTreeNodeId(treeNodeId)])
-  }
-
-  public includes (treeNodeId: TreeNodeId): boolean {
-    return this.keypath.includes(serializeTreeNodeId(treeNodeId))
-  }
-
-  public concat (treeNodeId: TreeNodeId): Keypath {
-    return new Keypath([...this.keypath, serializeTreeNodeId(treeNodeId)])
-  }
+    if (fixedDeps !== node.dependencies) {
+      changed = true
+      return { ...node, dependencies: fixedDeps }
+    }
+    return node
+  })
+  return changed ? result : nodes
 }
