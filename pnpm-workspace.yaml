@@ -243,7 +243,7 @@ catalog:
   path-absolute: ^1.0.1
   path-exists: ^5.0.0
   path-name: ^1.0.0
-  path-temp: ^2.1.0
+  path-temp: ^2.1.1
   pidtree: ^0.6.0
   pkg: npm:@yao-pkg/pkg@6.6.0
   preferred-pm: ^3.1.4
@@ -336,6 +336,7 @@ minimumReleaseAgeExclude:
   - glob@11.1.0
   - jws@3.2.3
   - normalize-registry-url
+  - path-temp@2.1.1
   - parse-npm-tarball-url@4.0.0
   - pnpm
   - publish-packed@5.0.0
