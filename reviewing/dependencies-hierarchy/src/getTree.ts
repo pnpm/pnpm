@@ -47,16 +47,12 @@ interface CachedSubtree {
   count: number
 }
 
-export interface MaterializationCache {
-  results: Map<string, CachedSubtree>
-  /**
-   * Tracks cache keys whose results have already been returned to at
-   * least one parent.  On subsequent cache hits the subtree is elided
-   * (an empty array is returned) so that the same dependency is not
-   * serialized repeatedly — bounding the output tree to O(N) nodes.
-   */
-  expanded: Set<string>
-}
+/**
+ * Caches already-materialized subtrees.  When a subtree is encountered a
+ * second time (cache hit), an empty array is returned and the node is marked
+ * as deduped — bounding the total output to O(N) nodes.
+ */
+export type MaterializationCache = Map<string, CachedSubtree>
 
 export function getTree (
   opts: GetTreeOpts,
@@ -129,7 +125,9 @@ function materializeChildren (
 
   const parentSerialized = serializeTreeNodeId(parentId)
   const graphNode = ctx.graph.nodes.get(parentSerialized)
-  if (!graphNode) return []
+  if (!graphNode) {
+    throw new Error(`Node ${parentSerialized} not found in the dependency graph`)
+  }
 
   const childTreeMaxDepth = maxDepth - 1
 
@@ -141,23 +139,15 @@ function materializeChildren (
 
   for (const edge of graphNode.edges) {
     const { pkgInfo: packageInfo, readManifest } = getPkgInfo({
+      ...ctx,
       alias: edge.alias,
-      currentPackages: ctx.currentPackages,
-      depTypes: ctx.depTypes,
-      rewriteLinkVersionDir: ctx.rewriteLinkVersionDir,
-      linkedPathBaseDir,
-      peers: graphNode.peers,
       ref: edge.ref,
-      registries: ctx.registries,
-      skipped: ctx.skipped,
-      wantedPackages: ctx.wantedPackages,
-      virtualStoreDir: ctx.virtualStoreDir,
-      virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
-      modulesDir: ctx.modulesDir,
+      peers: graphNode.peers,
+      linkedPathBaseDir,
       parentDir,
     })
 
-    const matchedSearched = ctx.search?.({
+    const searchMatch = ctx.search?.({
       alias: edge.alias,
       name: packageInfo.name,
       version: packageInfo.version,
@@ -166,45 +156,43 @@ function materializeChildren (
 
     let newEntry: PackageNode | null = null
 
-    if (ctx.onlyProjects && edge.targetNodeId?.type !== 'importer') {
+    if (ctx.onlyProjects && edge.target?.nodeId.type !== 'importer') {
       continue
-    } else if (edge.targetNodeId == null) {
+    }
+
+    if (edge.target == null) {
       // External link or unresolvable — no traversal possible
-      if (ctx.search == null || matchedSearched) {
+      if (ctx.search == null || searchMatch) {
         newEntry = packageInfo
       }
     } else {
       let dependencies: PackageNode[]
       let dedupedCount: number | undefined
-      const circular = ctx.ancestors.has(edge.targetId!)
+      const circular = ctx.ancestors.has(edge.target.id)
 
       if (circular) {
         dependencies = []
       } else {
-        const cacheKey = materializeCacheKey(edge.targetId!, childTreeMaxDepth)
-        const cached = ctx.materializationCache.results.get(cacheKey)
+        const cacheKey = materializeCacheKey(edge.target.id, childTreeMaxDepth)
+        const cached = ctx.materializationCache.get(cacheKey)
 
         if (cached !== undefined) {
-          // If this subtree was already returned to a parent elsewhere in
-          // the output tree, elide it to avoid repeating the same nodes —
-          // this bounds the total output to O(N) nodes.
-          if (ctx.materializationCache.expanded.has(cacheKey)) {
-            dependencies = []
-            if (cached.count > 0) {
-              dedupedCount = cached.count
-            }
-          } else {
-            ctx.materializationCache.expanded.add(cacheKey)
-            dependencies = cached.children
+          // This subtree was already returned to a parent elsewhere in
+          // the output tree — elide it to avoid repeating the same nodes.
+          dependencies = []
+          if (cached.count > 0) {
+            dedupedCount = cached.count
           }
         } else {
-          ctx.ancestors.add(edge.targetId!)
-          dependencies = materializeChildren(ctx, edge.targetNodeId, childTreeMaxDepth, packageInfo.path)
-          ctx.ancestors.delete(edge.targetId!)
+          ctx.ancestors.add(edge.target.id)
+          dependencies = materializeChildren(ctx, edge.target.nodeId, childTreeMaxDepth, packageInfo.path)
+          ctx.ancestors.delete(edge.target.id)
 
           // Always cache — even results with circular truncations.
-          ctx.materializationCache.results.set(cacheKey, { children: dependencies, count: countNodes(dependencies) })
-          ctx.materializationCache.expanded.add(cacheKey)
+          ctx.materializationCache.set(cacheKey, {
+            children: dependencies,
+            count: countNodes(dependencies),
+          })
         }
       }
 
@@ -213,7 +201,7 @@ function materializeChildren (
           ...packageInfo,
           dependencies,
         }
-      } else if (ctx.search == null || matchedSearched) {
+      } else if (ctx.search == null || searchMatch) {
         newEntry = packageInfo
       }
 
@@ -224,10 +212,10 @@ function materializeChildren (
     }
 
     if (newEntry != null) {
-      if (matchedSearched) {
+      if (searchMatch) {
         newEntry.searched = true
-        if (typeof matchedSearched === 'string') {
-          newEntry.searchMessage = matchedSearched
+        if (typeof searchMatch === 'string') {
+          newEntry.searchMessage = searchMatch
         }
       }
       if (!newEntry.isPeer || !ctx.excludePeerDependencies || newEntry.dependencies?.length) {

@@ -5,8 +5,10 @@ import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
 interface DependencyEdge {
   alias: string
   ref: string
-  targetId: string | undefined
-  targetNodeId: TreeNodeId | undefined
+  target?: {
+    id: string
+    nodeId: TreeNodeId
+  }
 }
 
 interface DependencyGraphNode {
@@ -44,12 +46,21 @@ export function buildDependencyGraph (
       continue
     }
 
-    const deps = !opts.includeOptionalDependencies
-      ? snapshot.dependencies
-      : {
+    // For importers, merge all dependency fields so the graph covers
+    // every top-level dep that buildDependenciesHierarchy may look up.
+    // For packages, devDependencies don't exist in the lockfile.
+    const deps = nodeId.type === 'importer'
+      ? {
         ...snapshot.dependencies,
-        ...snapshot.optionalDependencies,
+        ...(snapshot as ProjectSnapshot).devDependencies,
+        ...(opts.includeOptionalDependencies ? snapshot.optionalDependencies : undefined),
       }
+      : !opts.includeOptionalDependencies
+        ? snapshot.dependencies
+        : {
+          ...snapshot.dependencies,
+          ...snapshot.optionalDependencies,
+        }
 
     const peers = new Set(Object.keys(
       nodeId.type === 'package'
@@ -67,11 +78,13 @@ export function buildDependencyGraph (
           lockfileDir: opts.lockfileDir,
           importers: opts.importers,
         })
-        const targetId = targetNodeId != null ? serializeTreeNodeId(targetNodeId) : undefined
-        edges.push({ alias, ref, targetId, targetNodeId })
+        const target = targetNodeId != null
+          ? { id: serializeTreeNodeId(targetNodeId), nodeId: targetNodeId }
+          : undefined
+        edges.push({ alias, ref, target })
 
-        if (targetNodeId && !visited.has(targetId!)) {
-          queue.push(targetNodeId)
+        if (target && !visited.has(target.id)) {
+          queue.push(target.nodeId)
         }
       }
     }

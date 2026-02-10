@@ -79,7 +79,7 @@ function getTreeWithGraph (
   rootNodeId: TreeNodeId
 ) {
   const graph = buildDependencyGraph(rootNodeId, opts)
-  const materializationCache: MaterializationCache = { results: new Map(), expanded: new Set() }
+  const materializationCache: MaterializationCache = new Map()
   return getTree({ ...opts, graph, materializationCache }, rootNodeId)
 }
 
@@ -653,6 +653,101 @@ describe('getTree', () => {
           dependencies: [
             // b is deduped (already expanded under a), not circular.
             expect.not.objectContaining({ circular: true }),
+          ],
+        }),
+      ])
+    })
+  })
+
+  describe('linked dependencies', () => {
+    const lockfileDir = '/project'
+    const commonMockGetTreeArgs = {
+      depTypes: {},
+      rewriteLinkVersionDir: lockfileDir,
+      modulesDir: '',
+      includeOptionalDependencies: false,
+      lockfileDir,
+      skipped: new Set<string>(),
+      registries: {
+        default: 'mock-registry-for-testing.example',
+      },
+      virtualStoreDirMaxLength: 120,
+    }
+
+    test('link outside workspace appears as leaf node', () => {
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        'regular-dep': ['transitive'],
+      })
+      const importers = {
+        '.': {
+          specifiers: {},
+          dependencies: {
+            'regular-dep': '1.0.0',
+            'my-link': 'link:../external-pkg',
+          },
+        },
+      }
+      const rootNodeId: TreeNodeId = { type: 'importer', importerId: '.' }
+
+      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        importers,
+      }, rootNodeId))
+
+      expect(result).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          alias: 'my-link',
+          version: expect.stringContaining('link:'),
+          dependencies: undefined,
+        }),
+        expect.objectContaining({
+          alias: 'regular-dep',
+          dependencies: [
+            expect.objectContaining({ alias: 'transitive', dependencies: undefined }),
+          ],
+        }),
+      ]))
+    })
+
+    test('link inside workspace resolves to importer and is traversed', () => {
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        leaf: [],
+      })
+      const importers = {
+        '.': {
+          specifiers: {},
+          dependencies: {
+            'workspace-pkg': 'link:packages/workspace-pkg',
+          },
+        },
+        'packages/workspace-pkg': {
+          specifiers: {},
+          dependencies: {
+            leaf: '1.0.0',
+          },
+        },
+      }
+      const rootNodeId: TreeNodeId = { type: 'importer', importerId: '.' }
+
+      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        importers,
+      }, rootNodeId))
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          alias: 'workspace-pkg',
+          version: expect.stringContaining('link:'),
+          dependencies: [
+            expect.objectContaining({ alias: 'leaf', dependencies: undefined }),
           ],
         }),
       ])

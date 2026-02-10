@@ -165,7 +165,7 @@ async function dependenciesHierarchyForPackage (
     includeOptionalDependencies: opts.include.optionalDependencies,
     lockfileDir: opts.lockfileDir,
   })
-  const materializationCache: MaterializationCache = { results: new Map(), expanded: new Set() }
+  const materializationCache: MaterializationCache = new Map()
 
   const getChildrenTree = (nodeId: TreeNodeId, parentDir?: string) =>
     getTree({ ...getTreeOpts, parentDir, graph, materializationCache }, nodeId)
@@ -190,7 +190,7 @@ async function dependenciesHierarchyForPackage (
         modulesDir,
       })
       let newEntry: PackageNode | null = null
-      const matchedSearched = opts.search?.({
+      const searchMatch = opts.search?.({
         alias,
         name: packageInfo.name,
         version: packageInfo.version,
@@ -205,7 +205,7 @@ async function dependenciesHierarchyForPackage (
       if (opts.onlyProjects && nodeId?.type !== 'importer') {
         continue
       } else if (nodeId == null) {
-        if ((opts.search != null) && !matchedSearched) continue
+        if ((opts.search != null) && !searchMatch) continue
         newEntry = packageInfo
       } else {
         const dependencies = getChildrenTree(nodeId, packageInfo.path)
@@ -214,15 +214,15 @@ async function dependenciesHierarchyForPackage (
             ...packageInfo,
             dependencies,
           }
-        } else if ((opts.search == null) || matchedSearched) {
+        } else if ((opts.search == null) || searchMatch) {
           newEntry = packageInfo
         }
       }
       if (newEntry != null) {
-        if (matchedSearched) {
+        if (searchMatch) {
           newEntry.searched = true
-          if (typeof matchedSearched === 'string') {
-            newEntry.searchMessage = matchedSearched
+          if (typeof searchMatch === 'string') {
+            newEntry.searchMessage = searchMatch
           }
         }
         result[dependenciesField]!.push(newEntry)
@@ -251,18 +251,18 @@ async function dependenciesHierarchyForPackage (
         path: pkgPath,
         version,
       }
-      const matchedSearched = opts.search?.({
+      const searchMatch = opts.search?.({
         alias: pkg.alias,
         name: pkg.name,
         version: pkg.version,
         readManifest: () => readPackageJsonFromDirSync(pkgPath),
       })
-      if ((opts.search != null) && !matchedSearched) return
+      if ((opts.search != null) && !searchMatch) return
       const newEntry: PackageNode = pkg
-      if (matchedSearched) {
+      if (searchMatch) {
         newEntry.searched = true
-        if (typeof matchedSearched === 'string') {
-          newEntry.searchMessage = matchedSearched
+        if (typeof searchMatch === 'string') {
+          newEntry.searchMessage = searchMatch
         }
       }
       result.unsavedDependencies = result.unsavedDependencies ?? []
