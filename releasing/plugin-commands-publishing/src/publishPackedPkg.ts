@@ -112,6 +112,13 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     password: auth?.authUserPass?.password,
   }
 
+  // This is necessary because getNetworkConfigs initialized them as { cert: '', key: '' }
+  // which may be a problem.
+  // The real fix is to change the type `SslConfig` into that of partial properties, but that
+  // is out of scope for now.
+  removeEmptyStringProperty(publishOptions, 'cert')
+  removeEmptyStringProperty(publishOptions, 'key')
+
   if (registry) {
     publishOptions.token ??= await getAuthTokenByOidcIfApplicable(publishOptions, manifest.name, registry, options)
     appendAuthOptionsForRegistry(publishOptions, registry)
@@ -261,6 +268,12 @@ function appendAuthOptionsForRegistry (targetPublishOptions: PublishOptions, reg
   targetPublishOptions[`${registryConfigKey}:_authToken`] ??= targetPublishOptions.token
   targetPublishOptions[`${registryConfigKey}:username`] ??= targetPublishOptions.username
   targetPublishOptions[`${registryConfigKey}:_password`] ??= targetPublishOptions.password
+}
+
+function removeEmptyStringProperty<Key extends string> (object: Partial<Record<Key, string>>, key: Key): void {
+  if (!object[key]) {
+    delete object[key]
+  }
 }
 
 function pruneUndefined (object: Record<string, unknown>): void {
