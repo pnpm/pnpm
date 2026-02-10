@@ -114,6 +114,7 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
 
   if (registry) {
     publishOptions.token ??= await getAuthTokenByOidcIfApplicable(publishOptions, manifest.name, registry, options)
+    appendAuthOptionsForRegistry(publishOptions, registry)
   }
 
   pruneUndefined(publishOptions)
@@ -241,6 +242,25 @@ async function getAuthTokenByOidcIfApplicable (
   }
 
   return token
+}
+
+/**
+ * Appends authentication information to {@link targetPublishOptions} to explicitly target {@link registry}.
+ *
+ * `libnpmpublish` has a quirk in which it only read the authentication information from `//<registry>:_authToken`
+ * instead of `token`.
+ * This function fixes that by making sure the registry specific authentication information exists.
+ */
+function appendAuthOptionsForRegistry (targetPublishOptions: PublishOptions, registry: string): void {
+  const registryConfigKey = longestRegistryConfigKey(registry)
+  if (!registryConfigKey) {
+    globalWarn(`The registry ${registry} cannot be converted into a config key. Supplement is skipped. Subsequent libnpmpublish call may fail.`)
+    return
+  }
+
+  targetPublishOptions[`${registryConfigKey}:_authToken`] ??= targetPublishOptions.token
+  targetPublishOptions[`${registryConfigKey}:username`] ??= targetPublishOptions.username
+  targetPublishOptions[`${registryConfigKey}:_password`] ??= targetPublishOptions._password
 }
 
 function pruneUndefined (object: Record<string, unknown>): void {
