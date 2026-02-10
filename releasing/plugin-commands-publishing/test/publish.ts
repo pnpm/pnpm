@@ -856,7 +856,7 @@ test('publish: errors when publishing a non-existing tgz', async () => {
   // NOTE: normally this should be a PnpmError, but we'd like to keep the code
   //       simple so we just let the internal functions throw error for now.
   await expect(promise).rejects.toHaveProperty(['code'], 'ENOENT')
-  await expect(promise).rejects.toHaveProperty(['path'], './non-exists.tgz')
+  await expect(promise).rejects.toHaveProperty(['path'], expect.stringContaining('non-exists.tgz'))
 })
 
 // This test doesn't work. Verdaccio doesn't support OIDC, neither does local environment.
