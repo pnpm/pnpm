@@ -25,6 +25,7 @@ export async function writePnpFile (
     dependencyTreeRoots: [],
     ignorePattern: undefined,
     packageRegistry,
+    // @ts-expect-error
     pnpZipBackend: 'libzip',
     shebang: undefined,
   })
