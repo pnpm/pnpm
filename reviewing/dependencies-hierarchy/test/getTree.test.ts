@@ -2,7 +2,7 @@ import { refToRelative } from '@pnpm/dependency-path'
 import { type PackageSnapshots } from '@pnpm/lockfile.fs'
 import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { type DepPath } from '@pnpm/types'
-import { getTree } from '../lib/getTree.js'
+import { getTree, buildDependencyGraph, type MaterializationCache } from '../lib/getTree.js'
 import { type TreeNodeId } from '../lib/TreeNodeId.js'
 
 /**
@@ -73,6 +73,15 @@ function normalizePackageNodeForTesting (nodes: readonly PackageNode[]): Package
   }))
 }
 
+function getTreeWithGraph (
+  opts: Omit<Parameters<typeof getTree>[0], 'graph' | 'materializationCache'>,
+  rootNodeId: TreeNodeId
+) {
+  const graph = buildDependencyGraph(rootNodeId, opts)
+  const materializationCache: MaterializationCache = { results: new Map(), expanded: new Set() }
+  return getTree({ ...opts, graph, materializationCache }, rootNodeId)
+}
+
 describe('getTree', () => {
   describe('prints at expected depth', () => {
     const version = '1.0.0'
@@ -100,7 +109,7 @@ describe('getTree', () => {
     }
 
     test('full test case to print when max depth is large', () => {
-      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
+      const result = normalizePackageNodeForTesting(getTreeWithGraph({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
 
       expect(result).toEqual([
         expect.objectContaining({
@@ -120,12 +129,12 @@ describe('getTree', () => {
     })
 
     test('no result when current depth exceeds max depth', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 0, virtualStoreDirMaxLength: 120 }, rootNodeId)
+      const result = getTreeWithGraph({ ...getTreeArgs, maxDepth: 0, virtualStoreDirMaxLength: 120 }, rootNodeId)
       expect(result).toEqual([])
     })
 
     test('max depth of 1 to print flat dependencies', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 1, virtualStoreDirMaxLength: 120 }, rootNodeId)
+      const result = getTreeWithGraph({ ...getTreeArgs, maxDepth: 1, virtualStoreDirMaxLength: 120 }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({ alias: 'b1', dependencies: undefined }),
@@ -135,7 +144,7 @@ describe('getTree', () => {
     })
 
     test('max depth of 2 to print a1 -> b1 -> c1, but not d1', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 2, virtualStoreDirMaxLength: 120 }, rootNodeId)
+      const result = getTreeWithGraph({ ...getTreeArgs, maxDepth: 2, virtualStoreDirMaxLength: 120 }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -193,7 +202,7 @@ describe('getTree', () => {
       })
       const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
-      const result = getTree({
+      const result = getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: 3,
         currentPackages,
@@ -252,7 +261,7 @@ describe('getTree', () => {
       })
       const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
-      const result = getTree({
+      const result = getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: 3,
         currentPackages,
@@ -330,7 +339,7 @@ describe('getTree', () => {
       })
       const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
-      const result = getTree({
+      const result = getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: 4,
         currentPackages,
@@ -382,7 +391,7 @@ describe('getTree', () => {
       })
       const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
-      const result = getTree({
+      const result = getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: 4,
         currentPackages,
@@ -433,7 +442,7 @@ describe('getTree', () => {
       })
       const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
-      const result = getTree({
+      const result = getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: 3,
         currentPackages,
@@ -494,7 +503,7 @@ describe('getTree', () => {
       })
       const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
-      const result = getTree({
+      const result = getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: 5,
         currentPackages,
@@ -600,7 +609,7 @@ describe('getTree', () => {
       currentPackages,
       wantedPackages: currentPackages,
     }
-    const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
+    const result = normalizePackageNodeForTesting(getTreeWithGraph({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
 
     expect(result).toEqual([
       expect.objectContaining({
