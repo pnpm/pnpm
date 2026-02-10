@@ -204,6 +204,11 @@ export class PublishUnsupportedRegistryProtocolError extends PnpmError {
 /**
  * If {@link provenance} is `true`, and authentication information doesn't already set in {@link targetPublishOptions},
  * try fetching an authentication token by OpenID Connect and set it to `token` of {@link targetPublishOptions}.
+ *
+ * @todo Other package managers' OIDC mechanism is activated even if `--provenance` was not provided.
+ *       pnpm should also active OIDC mechanism when {@link provenance} is `undefined`, and then set
+ *       it to `true` when `access` was `"public"`. But this is too complex for now, so we require the
+ *       user to explicitly specify `--provenance` for now.
  */
 async function addAuthTokenByOidcIfApplicable (
   targetPublishOptions: PublishOptions,
