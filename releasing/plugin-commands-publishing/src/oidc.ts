@@ -4,7 +4,7 @@ import { fetch } from '@pnpm/fetch'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { type PublishPackedPkgOptions } from './publishPackedPkg.js'
 
-export interface CIInfo {
+export interface OidcCIInfo {
   GITHUB_ACTIONS?: boolean
   GITLAB?: boolean
 }
@@ -62,7 +62,7 @@ export interface OidcFetchResponse {
 }
 
 export interface OidcContext {
-  ciInfo: CIInfo
+  ciInfo: OidcCIInfo
   fetch: (url: string, options: OidcFetchOptions) => Promise<OidcFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
