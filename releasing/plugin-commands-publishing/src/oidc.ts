@@ -170,7 +170,7 @@ export async function oidc ({
   }
 
   if (!idToken) {
-    throw new OidcIdTokenNotAvailable()
+    throw new OidcIdTokenNotAvailableError()
   }
 
   // see <https://github.com/npm/npm-package-arg/blob/0d7bd85a85fa2571fa532d2fc842ed099b236ad2/lib/npa.js#L188>
@@ -198,7 +198,7 @@ export async function oidc ({
       }
     )
   } catch (error) {
-    throw new OidcFailedToFetchAuthToken(error, packageName, registry)
+    throw new OidcFailedToFetchAuthTokenError(error, packageName, registry)
   }
 
   if (!authTokenResponse.ok) {
@@ -311,13 +311,13 @@ export class OidcGitHubIdTokenJsonInvalidValueError extends OidcError {
   }
 }
 
-export class OidcIdTokenNotAvailable extends OidcError {
+export class OidcIdTokenNotAvailableError extends OidcError {
   constructor () {
     super('OIDC_ID_TOKEN_NOT_AVAILABLE', 'No idToken available')
   }
 }
 
-export class OidcFailedToFetchAuthToken extends OidcError {
+export class OidcFailedToFetchAuthTokenError extends OidcError {
   readonly errorSource: unknown
   readonly packageName: string
   readonly registry: string
