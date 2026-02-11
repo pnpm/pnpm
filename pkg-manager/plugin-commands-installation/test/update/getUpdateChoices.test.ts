@@ -156,17 +156,14 @@ test('getUpdateChoices() handles long version strings without wrapping', () => {
     },
   ], false)
 
-  expect(choices[0].choices).toStrictEqual([
-    {
-      name: expect.stringContaining('Package'),
-      disabled: true,
-      hint: '',
-      value: '',
-    },
-    {
-      message: expect.stringContaining('7.0.0-dev.20251209.1'),
-      value: '@typescript/native-preview',
-      name: '@typescript/native-preview',
-    },
-  ])
+  const dataRow = choices[0].choices[1] as { message: string; value: string; name: string }
+  expect(dataRow).toStrictEqual({
+    message: expect.stringContaining('7.0.0-dev.20251209.1'),
+    value: '@typescript/native-preview',
+    name: '@typescript/native-preview',
+  })
+  // The rendered message must be a single line (no wrapping)
+  expect(dataRow.message).not.toContain('\n')
+  // Both current and target versions must appear in the output
+  expect(dataRow.message).toContain('7.0.0-dev.20251214.1')
 })
