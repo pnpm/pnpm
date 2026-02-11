@@ -7,6 +7,8 @@ import { type SbomResult } from './types.js'
 export interface CycloneDxOptions {
   pnpmVersion?: string
   lockfileOnly?: boolean
+  sbomAuthors?: string[]
+  sbomSupplier?: string
 }
 
 export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions): string {
@@ -35,7 +37,6 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
 
     if (comp.author) {
       cdxComp.authors = [{ name: comp.author }]
-      cdxComp.supplier = { name: comp.author }
     }
 
     if (comp.license) {
@@ -44,16 +45,19 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
 
     const externalRefs: Array<Record<string, unknown>> = []
 
-    const hashes = integrityToHashes(comp.integrity)
-    if (hashes.length > 0) {
-      externalRefs.push({
+    if (comp.tarballUrl) {
+      const hashes = integrityToHashes(comp.integrity)
+      const distRef: Record<string, unknown> = {
         type: 'distribution',
-        url: comp.tarballUrl ?? comp.purl,
-        hashes: hashes.map((h) => ({
+        url: comp.tarballUrl,
+      }
+      if (hashes.length > 0) {
+        distRef.hashes = hashes.map((h) => ({
           alg: h.algorithm,
           content: h.digest,
-        })),
-      })
+        }))
+      }
+      externalRefs.push(distRef)
     }
 
     if (comp.homepage) {
@@ -109,7 +113,6 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
   }
   if (rootComponent.author) {
     rootCdxComponent.authors = [{ name: rootComponent.author }]
-    rootCdxComponent.supplier = { name: rootComponent.author }
   }
   if (rootComponent.license) {
     rootCdxComponent.licenses = [classifyLicense(rootComponent.license)]
@@ -136,10 +139,14 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
   const metadata: Record<string, unknown> = {
     timestamp: new Date().toISOString(),
     lifecycles: [{ phase: opts?.lockfileOnly ? 'pre-build' : 'build' }],
-    authors: [{ name: 'pnpm' }],
-    supplier: { name: 'pnpm' },
     tools: { components: toolComponents },
     component: rootCdxComponent,
+  }
+  if (opts?.sbomAuthors?.length) {
+    metadata.authors = opts.sbomAuthors.map((name) => ({ name }))
+  }
+  if (opts?.sbomSupplier) {
+    metadata.supplier = { name: opts.sbomSupplier }
   }
 
   const bom: Record<string, unknown> = {

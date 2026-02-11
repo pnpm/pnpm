@@ -34,6 +34,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@cyclonedx/cyclonedx-library": "catalog:",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
@@ -46,7 +47,6 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-limit": "catalog:",
-    "spdx-license-ids": "catalog:",
     "ssri": "catalog:"
   },
   "peerDependencies": {

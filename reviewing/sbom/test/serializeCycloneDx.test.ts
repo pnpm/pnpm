@@ -101,18 +101,30 @@ describe('serializeCycloneDx', () => {
     expect(root.licenses).toEqual([{ license: { id: 'MIT' } }])
     expect(root.description).toBe('ACME SBOM application')
     expect(root.authors).toEqual([{ name: 'ACME Corp' }])
-    expect(root.supplier).toEqual({ name: 'ACME Corp' })
+    expect(root.supplier).toBeUndefined()
     const vcsRef = root.externalReferences.find(
       (r: { type: string }) => r.type === 'vcs'
     )
     expect(vcsRef.url).toBe('https://github.com/acme/sbom-app.git')
   })
 
-  it('should include metadata.supplier', () => {
+  it('should not include metadata.authors or metadata.supplier by default', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeCycloneDx(result))
 
-    expect(parsed.metadata.supplier).toEqual({ name: 'pnpm' })
+    expect(parsed.metadata.authors).toBeUndefined()
+    expect(parsed.metadata.supplier).toBeUndefined()
+  })
+
+  it('should include metadata.authors and metadata.supplier when provided via options', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeCycloneDx(result, {
+      sbomAuthors: ['Jane Doe', 'John Smith'],
+      sbomSupplier: 'ACME Corp',
+    }))
+
+    expect(parsed.metadata.authors).toEqual([{ name: 'Jane Doe' }, { name: 'John Smith' }])
+    expect(parsed.metadata.supplier).toEqual({ name: 'ACME Corp' })
   })
 
   it('should split scoped component names into group and name', () => {
@@ -195,21 +207,13 @@ describe('serializeCycloneDx', () => {
     ])
   })
 
-  it('should include metadata.authors', () => {
-    const result = makeSbomResult()
-    const parsed = JSON.parse(serializeCycloneDx(result))
-
-    expect(parsed.metadata.authors).toEqual([{ name: 'pnpm' }])
-  })
-
-  it('should include authors and supplier when author is present', () => {
+  it('should include component authors without supplier', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeCycloneDx(result))
 
     expect(parsed.components[0].authors).toEqual([{ name: 'Jane Doe' }])
-    expect(parsed.components[0].supplier).toEqual({ name: 'Jane Doe' })
+    expect(parsed.components[0].supplier).toBeUndefined()
     expect(parsed.components[1].authors).toBeUndefined()
-    expect(parsed.components[1].supplier).toBeUndefined()
   })
 
   it('should include vcs externalReference when repository is present', () => {

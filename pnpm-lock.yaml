@@ -24,6 +24,9 @@ catalogs:
     '@commitlint/prompt-cli':
       specifier: ^19.8.1
       version: 19.8.1
+    '@cyclonedx/cyclonedx-library':
+      specifier: 9.4.1
+      version: 9.4.1
     '@eslint/js':
       specifier: ^9.18.0
       version: 9.39.2
@@ -651,9 +654,6 @@ catalogs:
     sort-keys:
       specifier: ^6.0.0
       version: 6.0.0
-    spdx-license-ids:
-      specifier: ^3.0.22
-      version: 3.0.22
     split-cmd:
       specifier: ^1.1.0
       version: 1.1.0
@@ -8196,6 +8196,9 @@ importers:
 
   reviewing/sbom:
     dependencies:
+      '@cyclonedx/cyclonedx-library':
+        specifier: 'catalog:'
+        version: 9.4.1(ajv@8.17.1)
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -8232,9 +8235,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0
-      spdx-license-ids:
-        specifier: 'catalog:'
-        version: 3.0.22
       ssri:
         specifier: 'catalog:'
         version: 13.0.0
@@ -9791,6 +9791,27 @@ packages:
   '@cspell/url@9.2.0':
     resolution: {integrity: sha512-plB0wwdAESqBl4xDAT2db2/K1FZHJXfYlJTiV6pkn0XffTGyg4UGLaSCm15NzUoPxdSmzqj5jQb7y+mB9kFK8g==}
     engines: {node: '>=20'}
+
+  '@cyclonedx/cyclonedx-library@9.4.1':
+    resolution: {integrity: sha512-fY/ZEFXEKM4X/eC2vClPrpucgb4IsyKYT1q9SBFx2+ySJ0jA2NELIf1va+8SDlcv6yUgwyLqtJ92g2KivQp3eA==}
+    engines: {node: '>=20.18.0'}
+    peerDependencies:
+      ajv: ^8.12.0
+      ajv-formats: ^3.0.1
+      ajv-formats-draft2019: ^1.6.1
+      libxmljs2: ^0.35||^0.37
+      xmlbuilder2: ^3.0.2||^4.0.0
+    peerDependenciesMeta:
+      ajv:
+        optional: true
+      ajv-formats:
+        optional: true
+      ajv-formats-draft2019:
+        optional: true
+      libxmljs2:
+        optional: true
+      xmlbuilder2:
+        optional: true
 
   '@cypress/request@3.0.9':
     resolution: {integrity: sha512-I3l7FdGRXluAS44/0NguwWlO83J18p0vlr2FYHrJkWdNYhgVoiYo61IXPqaOsL+vNxU1ZqMACzItGK3/KKDsdw==}
@@ -14809,6 +14830,9 @@ packages:
   package-manager-detector@0.2.11:
     resolution: {integrity: sha512-BEnLolu+yuz22S56CU1SUKq3XC3PkwD5wv4ikR4MfGvnRVcmzXR9DwSlW2fEamyTPyXHomBJRzgapeuBvRNzJQ==}
 
+  packageurl-js@2.0.1:
+    resolution: {integrity: sha512-N5ixXjzTy4QDQH0Q9YFjqIWd6zH6936Djpl2m9QNFmDv5Fum8q8BjkpAcHNMzOFE0IwQrFhJWex3AN6kS0OSwg==}
+
   pako@0.2.9:
     resolution: {integrity: sha512-NUcwaKxUxWrZLpDG+z/xZaCgQITkA/Dv4V/T6bw7VON6l1Xz/VnrBqrYjZQ12TamKHzITTfOEIYUj48y2KXImA==}
 
@@ -17211,6 +17235,13 @@ snapshots:
   '@cspell/strong-weak-map@9.2.0': {}
 
   '@cspell/url@9.2.0': {}
+
+  '@cyclonedx/cyclonedx-library@9.4.1(ajv@8.17.1)':
+    dependencies:
+      packageurl-js: 2.0.1
+      spdx-expression-parse: 3.0.1
+    optionalDependencies:
+      ajv: 8.17.1
 
   '@cypress/request@3.0.9':
     dependencies:
@@ -23773,6 +23804,8 @@ snapshots:
   package-manager-detector@0.2.11:
     dependencies:
       quansync: 0.2.11
+
+  packageurl-js@2.0.1: {}
 
   pako@0.2.9: {}
 

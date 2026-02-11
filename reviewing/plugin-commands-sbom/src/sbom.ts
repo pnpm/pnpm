@@ -20,6 +20,8 @@ export type SbomCommandOptions = {
   sbomFormat?: string
   sbomType?: string
   lockfileOnly?: boolean
+  sbomAuthors?: string
+  sbomSupplier?: string
 } & Pick<
   Config,
   | 'dev'
@@ -51,6 +53,8 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   recursive: Boolean,
   'sbom-format': String,
   'sbom-type': String,
+  'sbom-authors': String,
+  'sbom-supplier': String,
   'lockfile-only': Boolean,
 })
 
@@ -79,6 +83,14 @@ export function help (): string {
           {
             description: 'Only use lockfile data (skip reading from the store)',
             name: '--lockfile-only',
+          },
+          {
+            description: 'Comma-separated list of SBOM authors (CycloneDX metadata.authors)',
+            name: '--sbom-authors <names>',
+          },
+          {
+            description: 'SBOM supplier name (CycloneDX metadata.supplier)',
+            name: '--sbom-supplier <name>',
           },
           {
             description: 'Only include "dependencies" and "optionalDependencies"',
@@ -194,6 +206,8 @@ export async function handler (
     ? serializeCycloneDx(result, {
       pnpmVersion: packageManager.version,
       lockfileOnly: opts.lockfileOnly,
+      sbomAuthors: opts.sbomAuthors?.split(',').map((s) => s.trim()).filter(Boolean),
+      sbomSupplier: opts.sbomSupplier,
     })
     : serializeSpdx(result)
 
