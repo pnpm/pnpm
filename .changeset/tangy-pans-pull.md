@@ -10,12 +10,6 @@
 
 `pnpm publish` now works without the `npm` CLI.
 
-Provenance and OIDC now require explicit `--provenance` flag:
-
-```sh
-pnpm publish --provenance --no-git-checks
-```
-
 The One-time Password feature now reads from `PNPM_CONFIG_OTP` instead of `NPM_CONFIG_OTP`:
 
 ```sh

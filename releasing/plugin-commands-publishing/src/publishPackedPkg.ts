@@ -6,7 +6,7 @@ import { type ExportedManifest } from '@pnpm/exportable-manifest'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
-import { OidcError, oidc } from './oidc.js'
+import { type OidcResult, OidcError, oidc } from './oidc.js'
 import { type PackResult } from './pack.js'
 import { type NormalizedRegistryUrl, allRegistryConfigKeys, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 
@@ -120,7 +120,9 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
   removeEmptyStringProperty(publishOptions, 'key')
 
   if (registry) {
-    publishOptions.token ??= await getAuthTokenByOidcIfApplicable(publishOptions, manifest.name, registry, options)
+    const oidcResult = await runOidcIfApplicable(publishOptions, manifest.name, registry, options)
+    publishOptions.token ??= oidcResult?.token
+    publishOptions.provenance ??= oidcResult?.provenance
     appendAuthOptionsForRegistry(publishOptions, registry)
   }
 
@@ -221,29 +223,23 @@ export class PublishUnsupportedRegistryProtocolError extends PnpmError {
 }
 
 /**
- * If {@link provenance} is `true`, and authentication information doesn't already set in {@link targetPublishOptions},
- * try fetching an authentication token by OpenID Connect and return it.
- *
- * @todo Other package managers' OIDC mechanism is activated even if `--provenance` was not provided.
- *       pnpm should also active OIDC mechanism when {@link provenance} is `undefined`, and then set
- *       it to `true` when `access` was `"public"`. But this is too complex for now, so we require the
- *       user to explicitly specify `--provenance` for now.
+ * If authentication information doesn't already set in {@link targetPublishOptions},
+ * try fetching an authentication token and provenance by OpenID Connect and return it.
  */
-async function getAuthTokenByOidcIfApplicable (
+async function runOidcIfApplicable (
   targetPublishOptions: PublishOptions,
   packageName: string,
   registry: string,
   options: PublishPackedPkgOptions
-): Promise<string | undefined> {
+): Promise<OidcResult | undefined> {
   if (
-    !options.provenance ||
     targetPublishOptions.token != null ||
     (targetPublishOptions.username && targetPublishOptions.password)
   ) return undefined
 
-  let token: string | undefined
+  let result: OidcResult | undefined
   try {
-    token = await oidc({
+    result = await oidc({
       options,
       packageName,
       registry,
@@ -257,7 +253,7 @@ async function getAuthTokenByOidcIfApplicable (
     throw error
   }
 
-  return token
+  return result
 }
 
 /**

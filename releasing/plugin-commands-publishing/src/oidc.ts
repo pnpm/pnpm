@@ -1,7 +1,7 @@
 import ciInfo from 'ci-info'
 import { PnpmError } from '@pnpm/error'
 import { fetch } from '@pnpm/fetch'
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { type PublishPackedPkgOptions } from './publishPackedPkg.js'
 
 export interface CIInfo {
@@ -13,6 +13,7 @@ export interface OidcEnv extends NodeJS.ProcessEnv {
   ACTIONS_ID_TOKEN_REQUEST_TOKEN?: string
   ACTIONS_ID_TOKEN_REQUEST_URL?: string
   NPM_ID_TOKEN?: string
+  SIGSTORE_ID_TOKEN?: string
 }
 
 interface OidcFetchOptionsBase {
@@ -45,7 +46,14 @@ interface OidcFetchOptionsAuthToken extends OidcFetchOptionsBase {
   method: 'POST'
 }
 
-export type OidcFetchOptions = OidcFetchOptionsIdToken | OidcFetchOptionsAuthToken
+interface OidcFetchOptionsVisibility extends OidcFetchOptionsBase {
+  method: 'GET'
+}
+
+export type OidcFetchOptions =
+| OidcFetchOptionsIdToken
+| OidcFetchOptionsAuthToken
+| OidcFetchOptionsVisibility
 
 export interface OidcFetchResponse {
   readonly json: (this: this) => Promise<unknown>
@@ -57,6 +65,7 @@ export interface OidcContext {
   ciInfo: CIInfo
   fetch: (url: string, options: OidcFetchOptions) => Promise<OidcFetchResponse>
   globalInfo: (message: string) => void
+  globalWarn: (message: string) => void
   process: { env?: OidcEnv }
 }
 
@@ -64,6 +73,7 @@ const DEFAULT_OIDC_CONTEXT: OidcContext = {
   ciInfo,
   fetch,
   globalInfo,
+  globalWarn,
   process,
 }
 
@@ -83,6 +93,11 @@ export interface OidcParams {
   registry: string
 }
 
+export interface OidcResult {
+  token: string
+  provenance: boolean | undefined
+}
+
 /**
  * Handles OpenID Connect.
  *
@@ -100,12 +115,13 @@ export async function oidc ({
     ciInfo: { GITHUB_ACTIONS, GITLAB },
     fetch,
     globalInfo,
+    globalWarn,
     process: { env },
   } = DEFAULT_OIDC_CONTEXT,
   options,
   packageName,
   registry,
-}: OidcParams): Promise<string | undefined> {
+}: OidcParams): Promise<OidcResult | undefined> {
   if (!GITHUB_ACTIONS && !GITLAB) return undefined
 
   let idToken = env?.NPM_ID_TOKEN
@@ -198,7 +214,71 @@ export async function oidc ({
     throw new OidcAuthTokenMalformedJsonError(json, packageName, registry)
   }
 
-  return json.token
+  const result: OidcResult = {
+    token: json.token,
+    provenance: options?.provenance,
+  }
+
+  if (result.provenance == null) {
+    globalInfo('Provenance was not set. Determining provenance...')
+
+    const [headerB64, payloadB64] = idToken.split('.')
+    if (!headerB64 || !payloadB64) {
+      globalWarn('The received idToken is not a valid JWT')
+      return result
+    }
+
+    try {
+      interface Payload {
+        repository_visibility?: unknown
+        project_visibility?: unknown
+      }
+
+      const payloadJson = Buffer.from(payloadB64, 'base64').toString('utf8')
+      const payload: Payload = JSON.parse(payloadJson)
+
+      if (
+        (!GITHUB_ACTIONS || payload.repository_visibility !== 'public') &&
+        (!GITLAB || payload.project_visibility !== 'public' || !env?.SIGSTORE_ID_TOKEN)
+      ) {
+        globalWarn('The environment does not provide enough information to determine visibility. Skipping provenance.')
+        return result
+      }
+
+      const visibilityUrl = new URL(`/-/package/${escapedPackageName}/visibility`, registry)
+      const response = await fetch(visibilityUrl.href, {
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${result.token}`,
+        },
+        method: 'GET',
+        retry: {
+          factor: options?.fetchRetryFactor,
+          maxTimeout: options?.fetchRetryMaxtimeout,
+          minTimeout: options?.fetchRetryMintimeout,
+          retries: options?.fetchRetries,
+        },
+        timeout: options?.fetchTimeout,
+      })
+
+      if (!response.ok) {
+        globalWarn(`Failed to fetch visibility for package ${packageName} from registry ${registry} (status code ${response.status})`)
+        return result
+      }
+
+      const visibility = await response.json() as { public?: boolean } | undefined
+      if (visibility?.public) {
+        globalInfo('Enabling provenance')
+        result.provenance = true
+        return result
+      }
+    } catch (error) {
+      globalWarn(`Failed to determine provenance due to error: ${String(error)}`)
+      return result
+    }
+  }
+
+  return result
 }
 
 export abstract class OidcError extends PnpmError {}
