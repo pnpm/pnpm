@@ -35,6 +35,11 @@ declare module 'semver-utils' {
   }>
 }
 
+declare module 'spdx-license-ids' {
+  const ids: string[]
+  export default ids
+}
+
 declare module 'split-cmd' {
   export function split (cmd: string): string[]
   export function splitToObject (cmd: string): { command: string, args: string[] }

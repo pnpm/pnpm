@@ -1,7 +1,5 @@
-import { createRequire } from 'module'
+import spdxLicenseIds from 'spdx-license-ids'
 
-const require = createRequire(import.meta.url)
-const spdxLicenseIds: string[] = require('spdx-license-ids')
 const spdxIdSet = new Set(spdxLicenseIds)
 
 // Classifies a license string from package.json into the appropriate
