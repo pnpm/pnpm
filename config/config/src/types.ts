@@ -129,6 +129,7 @@ export const pnpmTypes = {
   'workspace-concurrency': Number,
   'workspace-packages': [String, Array],
   'workspace-root': Boolean,
+  yes: Boolean,
   'test-pattern': [String, Array],
   'changed-files-ignore-pattern': [String, Array],
   'embed-readme': Boolean,
