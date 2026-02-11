@@ -135,13 +135,6 @@ function getPkgUrl (pkg: OutdatedPackage): string {
   return ''
 }
 
-function getColumnWidth (rows: string[][], columnIndex: number, minWidth: number): number {
-  return rows.reduce((max, row) => {
-    if (row[columnIndex] == null) return max
-    return Math.max(max, stripVTControlCharacters(row[columnIndex]).length)
-  }, minWidth)
-}
-
 function alignColumns (rows: string[][]): string[] {
   return table(
     rows,
@@ -163,4 +156,11 @@ function alignColumns (rows: string[][]): string[] {
       drawHorizontalLine: () => false,
     }
   ).split('\n')
+}
+
+function getColumnWidth (rows: string[][], columnIndex: number, minWidth: number): number {
+  return rows.reduce((max, row) => {
+    if (row[columnIndex] == null) return max
+    return Math.max(max, stripVTControlCharacters(row[columnIndex]).length)
+  }, minWidth)
 }
