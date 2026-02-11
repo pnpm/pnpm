@@ -401,6 +401,26 @@ test('dlx should fail when the requested package does not meet the minimum age r
   ).rejects.toThrow(/Version 0\.3\.4 \(released .+\) of shx does not meet the minimumReleaseAge constraint/)
 })
 
+test('dlx should respect minimumReleaseAgeExclude', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    minimumReleaseAge: 60 * 24 * 10000,
+    minimumReleaseAgeExclude: ['*'],
+    registries: {
+      // We must use the public registry instead of verdaccio here
+      // because verdaccio has the "times" field in the abbreviated metadata too.
+      default: 'https://registry.npmjs.org/',
+    },
+  }, ['shx@0.3.4', 'touch', 'foo'])
+
+  expect(fs.existsSync('foo')).toBeTruthy()
+})
+
 test('dlx with catalog', async () => {
   prepareEmpty()
 
