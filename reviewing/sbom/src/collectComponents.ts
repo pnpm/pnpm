@@ -1,5 +1,5 @@
 import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { nameVerFromPkgSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
@@ -94,6 +94,8 @@ async function walkStep (
       if (componentsMap.has(purl)) return
 
       const integrity = (pkgSnapshot.resolution as TarballResolution).integrity
+      const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
+      const tarballUrl = (resolution as TarballResolution).tarball
 
       let metadata: { license?: string, description?: string, author?: string, homepage?: string, repository?: string } = {}
       if (metadataOpts) {
@@ -107,6 +109,7 @@ async function walkStep (
         depPath,
         depType: depTypes[depPath] ?? DepType.ProdOnly,
         integrity,
+        tarballUrl,
         ...metadata,
       }
 

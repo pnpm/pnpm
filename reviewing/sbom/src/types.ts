@@ -7,6 +7,7 @@ export interface SbomComponent {
   depPath: string
   depType: DepType
   integrity?: string
+  tarballUrl?: string
   license?: string
   description?: string
   author?: string

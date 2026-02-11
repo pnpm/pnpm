@@ -46,7 +46,7 @@ export function serializeCycloneDx (result: SbomResult, toolInfo?: CycloneDxTool
     if (hashes.length > 0) {
       externalRefs.push({
         type: 'distribution',
-        url: comp.purl,
+        url: comp.tarballUrl ?? comp.purl,
         hashes: hashes.map((h) => ({
           alg: h.algorithm,
           content: h.digest,

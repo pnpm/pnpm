@@ -17,6 +17,7 @@ function makeSbomResult (): SbomResult {
         depPath: 'lodash@4.17.21',
         depType: DepType.ProdOnly,
         integrity: 'sha512-LCt5klFGBqVfMfB1GL1o2Ll+0w/DeN2OZGR8U2/9fns=',
+        tarballUrl: 'https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz',
         license: 'MIT',
         description: 'Lodash modular utilities',
         author: 'Jane Doe',
@@ -105,6 +106,7 @@ describe('serializeCycloneDx', () => {
       (r: { type: string }) => r.type === 'distribution'
     )
     expect(distRef).toBeDefined()
+    expect(distRef.url).toBe('https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz')
     expect(distRef.hashes.length).toBeGreaterThan(0)
     expect(distRef.hashes[0].alg).toBeDefined()
     expect(distRef.hashes[0].content).toBeDefined()
