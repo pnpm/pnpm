@@ -285,6 +285,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'deployAllFiles'
 | 'depth'
 | 'dev'
+| 'enableGlobalVirtualStore'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
 | 'frozenLockfile'
