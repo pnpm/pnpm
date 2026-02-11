@@ -474,6 +474,79 @@ test('select changed packages', async () => {
   }
 })
 
+test('select changed packages when operating under a git worktree', async () => {
+  if (isCI && isWindows()) {
+    return
+  }
+
+  const mainRepoDir = tempy.directory()
+  await execa('git', ['init', '--initial-branch=main'], { cwd: mainRepoDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: mainRepoDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: mainRepoDir })
+  await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: mainRepoDir })
+
+  const mainPkgADir = path.join(mainRepoDir, 'package-a')
+  const mainPkgBDir = path.join(mainRepoDir, 'package-b')
+  const mainPkgCDir = path.join(mainRepoDir, 'package-c')
+  await mkdir(mainPkgADir)
+  await mkdir(mainPkgBDir)
+  await mkdir(mainPkgCDir)
+  await touch(path.join(mainPkgADir, 'file.js'))
+  await touch(path.join(mainPkgBDir, 'file.js'))
+  await touch(path.join(mainPkgCDir, 'file.js'))
+  await execa('git', ['add', '.'], { cwd: mainRepoDir })
+  await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: mainRepoDir })
+
+  const worktreeParent = tempy.directory()
+  const worktreeDir = path.join(worktreeParent, 'worktree')
+  await execa('git', ['worktree', 'add', '-b', 'worktree-branch', worktreeDir, 'main'], { cwd: mainRepoDir })
+
+  const worktreePkgADir = path.join(worktreeDir, 'package-a') as ProjectRootDir
+  const worktreePkgBDir = path.join(worktreeDir, 'package-b') as ProjectRootDir
+  const worktreePkgCDir = path.join(worktreeDir, 'package-c') as ProjectRootDir
+
+  await touch(path.join(worktreePkgADir, 'new-file.js'))
+  await execa('git', ['add', '.'], { cwd: worktreeDir })
+  await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: worktreeDir })
+
+  const pkgsGraph: PackageGraph<Package> = {
+    [worktreeDir as ProjectRootDir]: {
+      dependencies: [],
+      package: {
+        rootDir: worktreeDir as ProjectRootDir,
+        manifest: { name: 'root', version: '0.0.0' },
+      },
+    },
+    [worktreePkgADir]: {
+      dependencies: [],
+      package: {
+        rootDir: worktreePkgADir,
+        manifest: { name: 'package-a', version: '0.0.0' },
+      },
+    },
+    [worktreePkgBDir]: {
+      dependencies: [],
+      package: {
+        rootDir: worktreePkgBDir,
+        manifest: { name: 'package-b', version: '0.0.0' },
+      },
+    },
+    [worktreePkgCDir]: {
+      dependencies: [],
+      package: {
+        rootDir: worktreePkgCDir,
+        manifest: { name: 'package-c', version: '0.0.0' },
+      },
+    },
+  }
+
+  const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
+    diff: 'HEAD~1',
+  }], { workspaceDir: worktreeDir })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual([worktreePkgADir])
+})
+
 test('selection should fail when diffing to a branch that does not exist', async () => {
   let err!: PnpmError
   try {
