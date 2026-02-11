@@ -86,6 +86,7 @@
     "@pnpm/command": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",

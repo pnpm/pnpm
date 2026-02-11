@@ -6,6 +6,7 @@ import { createResolver } from '@pnpm/client'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
+import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
@@ -82,7 +83,7 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
+} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -112,6 +113,9 @@ export async function handler (
   })
   const resolvedPkgAliases: string[] = []
   const publishedBy = opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined
+  const publishedByExclude = opts.minimumReleaseAgeExclude
+    ? createPackageVersionPolicy(opts.minimumReleaseAgeExclude)
+    : undefined
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
     const { alias, bareSpecifier } = parseWantedDependency(pkg) || {}
     if (alias == null) return pkg
@@ -124,6 +128,7 @@ export async function handler (
       preferredVersions: {},
       projectDir: opts.dir,
       publishedBy,
+      publishedByExclude,
     })
     return resolved.id
   }))
