@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "1004.9.5",
+  "version": "1004.9.6",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",

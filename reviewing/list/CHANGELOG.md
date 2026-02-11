@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 1000.2.7
+
+### Patch Changes
+
+- ba1f596: Fixed an out-of-memory error in `pnpm list` (and `pnpm why`) on large dependency graphs by replacing the recursive tree builder with a two-phase approach: a BFS dependency graph followed by cached tree materialization. Duplicate subtrees are now deduplicated in the output, shown as "deduped (N deps hidden)" [#10586](https://github.com/pnpm/pnpm/pull/10586).
+- Updated dependencies [ba1f596]
+  - @pnpm/reviewing.dependencies-hierarchy@1001.2.7
+
 ## 1000.2.6
 
 ### Patch Changes

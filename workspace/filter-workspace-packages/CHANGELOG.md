@@ -1,5 +1,15 @@
 # @pnpm/filter-workspace-packages
 
+## 1000.1.0
+
+### Minor Changes
+
+- 9a131f4: Drop `directory` as required filetype for `findUp` to allow git-based filtering to work inside git worktrees, which store `.git` as a file rather than directory.
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.59
+
 ## 1000.0.58
 
 ### Patch Changes

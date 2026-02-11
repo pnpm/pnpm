@@ -1,5 +1,11 @@
 # @pnpm/core
 
+## 1016.1.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@1008.0.7
+
 ## 1016.1.5
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/cli-utils
 
+## 1001.3.4
+
+### Patch Changes
+
+- 00c7677: Fixed `allowBuilds` not working when set via `.pnpmfile.cjs` [#10516](https://github.com/pnpm/pnpm/issues/10516).
+
 ## 1001.3.3
 
 ### Patch Changes

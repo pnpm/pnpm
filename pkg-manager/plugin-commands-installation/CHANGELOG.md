@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.9.6
+
+### Patch Changes
+
+- 4794c61: When the [`enableGlobalVirtualStore`](https://pnpm.io/settings#enableglobalvirtualstore) option is set, the `pnpm deploy` command would incorrectly create symlinks to the global virtual store. To keep the deploy directory self-contained, `pnpm deploy` now ignores this setting and always creates a localized virtual store within the deploy directory.
+- Updated dependencies [00c7677]
+- Updated dependencies [9a131f4]
+  - @pnpm/cli-utils@1001.3.4
+  - @pnpm/filter-workspace-packages@1000.1.0
+  - @pnpm/plugin-commands-env@1000.0.60
+  - @pnpm/plugin-commands-rebuild@1008.0.7
+  - @pnpm/workspace.find-packages@1000.0.59
+  - @pnpm/core@1016.1.6
+  - @pnpm/deps.status@1003.0.31
+
 ## 1004.9.5
 
 ### Patch Changes

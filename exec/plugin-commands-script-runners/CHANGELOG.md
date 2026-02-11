@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.2.2
+
+### Patch Changes
+
+- 0d3798c: Fixed `minimumReleaseAgeExclude` not being respected by `pnpm dlx` [#10338](https://github.com/pnpm/pnpm/issues/10338).
+- Updated dependencies [00c7677]
+- Updated dependencies [4794c61]
+  - @pnpm/cli-utils@1001.3.4
+  - @pnpm/plugin-commands-installation@1004.9.6
+  - @pnpm/plugin-commands-env@1000.0.60
+  - @pnpm/deps.status@1003.0.31
+  - @pnpm/workspace.injected-deps-syncer@1000.0.33
+
 ## 1001.2.1
 
 ### Patch Changes

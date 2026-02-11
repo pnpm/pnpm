@@ -1,5 +1,14 @@
 # pnpm
 
+## 10.29.3
+
+### Patch Changes
+
+- Fixed an out-of-memory error in `pnpm list` (and `pnpm why`) on large dependency graphs by replacing the recursive tree builder with a two-phase approach: a BFS dependency graph followed by cached tree materialization. Duplicate subtrees are now deduplicated in the output, shown as "deduped (N deps hidden)" [#10586](https://github.com/pnpm/pnpm/pull/10586).
+- Fixed `allowBuilds` not working when set via `.pnpmfile.cjs` [#10516](https://github.com/pnpm/pnpm/issues/10516).
+- When the [`enableGlobalVirtualStore`](https://pnpm.io/settings#enableglobalvirtualstore) option is set, the `pnpm deploy` command would incorrectly create symlinks to the global virtual store. To keep the deploy directory self-contained, `pnpm deploy` now ignores this setting and always creates a localized virtual store within the deploy directory.
+- Fixed `minimumReleaseAgeExclude` not being respected by `pnpm dlx` [#10338](https://github.com/pnpm/pnpm/issues/10338).
+
 ## 10.29.2
 
 ### Patch Changes
