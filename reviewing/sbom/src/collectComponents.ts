@@ -14,6 +14,10 @@ export interface CollectSbomComponentsOptions {
   lockfile: LockfileObject
   rootName: string
   rootVersion: string
+  rootLicense?: string
+  rootDescription?: string
+  rootAuthor?: string
+  rootRepository?: string
   sbomType?: SbomComponentType
   include?: { [dependenciesField in DependenciesField]: boolean }
   registries: Registries
@@ -65,6 +69,10 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
       name: opts.rootName,
       version: opts.rootVersion,
       type: opts.sbomType ?? 'library',
+      license: opts.rootLicense,
+      description: opts.rootDescription,
+      author: opts.rootAuthor,
+      repository: opts.rootRepository,
     },
     components: Array.from(componentsMap.values()),
     relationships,

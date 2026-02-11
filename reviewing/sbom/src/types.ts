@@ -25,6 +25,10 @@ export interface SbomResult {
     name: string
     version: string
     type: 'library' | 'application'
+    license?: string
+    description?: string
+    author?: string
+    repository?: string
   }
   components: SbomComponent[]
   relationships: SbomRelationship[]

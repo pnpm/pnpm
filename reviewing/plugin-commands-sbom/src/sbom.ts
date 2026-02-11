@@ -41,7 +41,7 @@ Partial<Pick<Config, 'userConfig'>>
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick(
-    ['dev', 'global-dir', 'global', 'optional', 'production'],
+    ['dev', 'global-dir', 'global', 'optional', 'production', 'store-dir'],
     allTypes
   )
 }
@@ -150,6 +150,13 @@ export async function handler (
   const manifest = await readProjectManifestOnly(opts.dir)
   const rootName = manifest.name ?? 'unknown'
   const rootVersion = manifest.version ?? '0.0.0'
+  const rootLicense = typeof manifest.license === 'string' ? manifest.license : undefined
+  const rootAuthor = typeof manifest.author === 'string'
+    ? manifest.author
+    : (manifest.author as { name?: string } | undefined)?.name
+  const rootRepository = typeof manifest.repository === 'string'
+    ? manifest.repository
+    : (manifest.repository as { url?: string } | undefined)?.url
 
   const includedImporterIds = opts.selectedProjectsGraph
     ? Object.keys(opts.selectedProjectsGraph)
@@ -169,6 +176,10 @@ export async function handler (
     lockfile,
     rootName,
     rootVersion,
+    rootLicense,
+    rootDescription: manifest.description,
+    rootAuthor,
+    rootRepository,
     sbomType,
     include,
     registries: opts.registries,
@@ -182,6 +193,7 @@ export async function handler (
   const output = format === 'cyclonedx'
     ? serializeCycloneDx(result, {
       pnpmVersion: packageManager.version,
+      lockfileOnly: opts.lockfileOnly,
     })
     : serializeSpdx(result)
 

@@ -9,6 +9,8 @@ export function serializeSpdx (result: SbomResult): string {
   const rootSpdxId = 'SPDXRef-RootPackage'
   const documentNamespace = `https://spdx.org/spdxdocs/${sanitizeSpdxId(rootComponent.name)}-${rootComponent.version}-${crypto.randomUUID()}`
 
+  const rootPurl = `pkg:npm/${encodePurlName(rootComponent.name)}@${rootComponent.version}`
+
   const rootPackage: Record<string, unknown> = {
     SPDXID: rootSpdxId,
     name: rootComponent.name,
@@ -16,10 +18,38 @@ export function serializeSpdx (result: SbomResult): string {
     downloadLocation: 'NOASSERTION',
     filesAnalyzed: false,
     primaryPackagePurpose: rootComponent.type === 'application' ? 'APPLICATION' : 'LIBRARY',
+    externalRefs: [
+      {
+        referenceCategory: 'PACKAGE-MANAGER',
+        referenceType: 'purl',
+        referenceLocator: rootPurl,
+      },
+    ],
+  }
+
+  if (rootComponent.license) {
+    rootPackage.licenseConcluded = rootComponent.license
+    rootPackage.licenseDeclared = rootComponent.license
+  } else {
+    rootPackage.licenseConcluded = 'NOASSERTION'
+    rootPackage.licenseDeclared = 'NOASSERTION'
+  }
+
+  rootPackage.copyrightText = 'NOASSERTION'
+
+  if (rootComponent.description) {
+    rootPackage.description = rootComponent.description
+  }
+
+  if (rootComponent.author) {
+    rootPackage.supplier = `Person: ${rootComponent.author}`
+  }
+
+  if (rootComponent.repository) {
+    rootPackage.homepage = rootComponent.repository
   }
 
   const purlToSpdxId = new Map<string, string>()
-  const rootPurl = `pkg:npm/${encodePurlName(rootComponent.name)}@${rootComponent.version}`
   purlToSpdxId.set(rootPurl, rootSpdxId)
 
   const spdxPackages = components.map((comp, idx) => {
@@ -30,7 +60,7 @@ export function serializeSpdx (result: SbomResult): string {
       SPDXID: spdxId,
       name: comp.name,
       versionInfo: comp.version,
-      downloadLocation: 'NOASSERTION',
+      downloadLocation: comp.tarballUrl ?? 'NOASSERTION',
       filesAnalyzed: false,
       externalRefs: [
         {
