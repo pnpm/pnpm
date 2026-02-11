@@ -81,6 +81,7 @@ export async function searchForPackages (
       onlyProjects: opts.onlyProjects,
       registries: opts.registries,
       search,
+      showDedupedSearchMatches: true,
       modulesDir: opts.modulesDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }))

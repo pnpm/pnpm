@@ -78,7 +78,7 @@ function getTreeWithGraph (
   opts: Omit<Parameters<typeof getTree>[0], 'graph' | 'materializationCache'>,
   rootNodeId: TreeNodeId
 ) {
-  const graph = buildDependencyGraph(rootNodeId, opts)
+  const graph = buildDependencyGraph([rootNodeId], opts)
   const materializationCache: MaterializationCache = new Map()
   return getTree({ ...opts, graph, materializationCache }, rootNodeId)
 }

@@ -17,7 +17,7 @@ import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
 import { type PackageNode } from './PackageNode.js'
-import { buildDependencyGraph } from './buildDependencyGraph.js'
+import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
 import { getTree, type MaterializationCache } from './getTree.js'
 import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 import { getPkgInfo } from './getPkgInfo.js'
@@ -93,10 +93,27 @@ export async function buildDependenciesHierarchy (
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
   }
+  // Build the dependency graph ONCE for all importers and share a single
+  // MaterializationCache so that identical subtrees are only materialized once.
+  const allRootIds: TreeNodeId[] = projectPaths
+    .map((projectPath) => {
+      const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
+      if (!lockfileToUse.importers[importerId]) return null
+      return { type: 'importer' as const, importerId } as TreeNodeId
+    })
+    .filter((id): id is TreeNodeId => id != null)
+  const sharedGraph = buildDependencyGraph(allRootIds, {
+    currentPackages: lockfileToUse.packages ?? {},
+    importers: lockfileToUse.importers,
+    include: opts.include,
+    lockfileDir: opts.lockfileDir,
+  })
+  const sharedMaterializationCache: MaterializationCache = new Map()
+
   const pairs = await Promise.all(projectPaths.map(async (projectPath) => {
     return [
       projectPath,
-      await dependenciesHierarchyForPackage(projectPath, lockfileToUse, wantedLockfile, opts),
+      await dependenciesHierarchyForPackage(projectPath, lockfileToUse, wantedLockfile, opts, sharedGraph, sharedMaterializationCache),
     ] as [string, DependenciesHierarchy]
   }))
   for (const [projectPath, dependenciesHierarchy] of pairs) {
@@ -123,7 +140,9 @@ async function dependenciesHierarchyForPackage (
     modulesDir?: string
     virtualStoreDir?: string
     virtualStoreDirMaxLength: number
-  }
+  },
+  graph: DependencyGraph,
+  materializationCache: MaterializationCache
 ): Promise<DependenciesHierarchy> {
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
 
@@ -160,16 +179,6 @@ async function dependenciesHierarchyForPackage (
     modulesDir,
   }
   const parentId: TreeNodeId = { type: 'importer', importerId }
-
-  // Build ONE shared graph and cache for the entire project, reused
-  // across all dependency fields and top-level deps.
-  const graph = buildDependencyGraph(parentId, {
-    currentPackages,
-    importers: currentLockfile.importers,
-    include: opts.include,
-    lockfileDir: opts.lockfileDir,
-  })
-  const materializationCache: MaterializationCache = new Map()
 
   const getChildrenTree = (nodeId: TreeNodeId, parentDir?: string) =>
     getTree({ ...getTreeOpts, parentDir, graph, materializationCache }, nodeId)
