@@ -1,10 +1,13 @@
-import { parse as parseDepPath } from '@pnpm/dependency-path'
 import { type LockfileObject } from '@pnpm/lockfile.types'
-import { type CustomResolver, type WantedDependency, checkCustomResolverCanResolve } from '@pnpm/hooks.types'
+import { type CustomResolver } from '@pnpm/hooks.types'
 
-// Sentinel for Promise.any rejections (not an error condition)
-const SKIP = new Error('skip')
-
+/**
+ * Check if any custom resolver's shouldForceResolve returns true for any
+ * package in the lockfile. shouldForceResolve is called independently of
+ * canResolve — it runs before resolution, so the original specifier is not
+ * available. Each resolver's shouldForceResolve is responsible for its own
+ * filtering logic.
+ */
 export async function checkCustomResolverForceResolve (
   customResolvers: CustomResolver[],
   wantedLockfile: LockfileObject
@@ -14,28 +17,9 @@ export async function checkCustomResolverForceResolve (
   const resolversWithHook = customResolvers.filter(resolver => resolver.shouldForceResolve)
   if (resolversWithHook.length === 0) return false
 
-  // Run shouldForceResolve checks in parallel
-  const pendingForceResolveChecks = Object.entries(wantedLockfile.packages).flatMap(([depPath, pkgSnapshot]) => {
-    const { name: alias, version, nonSemverVersion } = parseDepPath(depPath)
-    if (!alias) return []
-
-    const wantedDependency: WantedDependency = {
-      alias,
-      bareSpecifier: version ?? nonSemverVersion,
-    }
-
-    return resolversWithHook.map(async resolver => {
-      const canResolve = await checkCustomResolverCanResolve(resolver, wantedDependency)
-      if (!canResolve) return Promise.reject(SKIP)
-      const result = await resolver.shouldForceResolve!(depPath, pkgSnapshot)
-      return result ? true : Promise.reject(SKIP)
-    })
-  })
-
-  // Return true immediately if any check resolves as true; otherwise, return false
-  try {
-    return await Promise.any(pendingForceResolveChecks)
-  } catch {
-    return false
-  }
+  const checks = Object.entries(wantedLockfile.packages).flatMap(([depPath, pkgSnapshot]) =>
+    resolversWithHook.map(resolver => resolver.shouldForceResolve!(depPath, pkgSnapshot))
+  )
+  const results = await Promise.all(checks)
+  return results.some(Boolean)
 }
