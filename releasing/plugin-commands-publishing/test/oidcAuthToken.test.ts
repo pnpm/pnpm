@@ -125,7 +125,7 @@ describe('fetchAuthToken', () => {
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_AUTH_TOKEN_FETCH')
   })
 
-  test('throws AuthTokenExchangeError when response is not ok', async () => {
+  test('throws AuthTokenExchangeError when response is not ok and returns a payload of error', async () => {
     const mockFetch = jest.fn(async () => ({
       ok: false,
       status: 401,
@@ -142,6 +142,35 @@ describe('fetchAuthToken', () => {
     await expect(promise).rejects.toHaveProperty(['httpStatus'], 401)
     await expect(promise).rejects.toHaveProperty(['errorResponse', 'body', 'message'], 'Unauthorized')
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_AUTH_TOKEN_EXCHANGE')
+    await expect(promise).rejects.toHaveProperty(
+      ['message'],
+      'Failed token exchange request with body message: Unauthorized (status code 401)'
+    )
+  })
+
+  test('throws AuthTokenExchangeError when response is not ok and the returned payload could not be fetched', async () => {
+    const mockFetch = jest.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => {
+        throw new Error('no json')
+      },
+    }))
+
+    const context: AuthTokenContext = {
+      fetch: mockFetch,
+    }
+
+    const promise = fetchAuthToken({ context, idToken, packageName, registry })
+
+    await expect(promise).rejects.toBeInstanceOf(AuthTokenExchangeError)
+    await expect(promise).rejects.toHaveProperty(['httpStatus'], 401)
+    await expect(promise).rejects.toHaveProperty(['errorResponse'], undefined)
+    await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_AUTH_TOKEN_EXCHANGE')
+    await expect(promise).rejects.toHaveProperty(
+      ['message'],
+      'Failed token exchange request with body message: Unknown error (status code 401)'
+    )
   })
 
   test('handles exchange error with missing body message', async () => {
@@ -159,7 +188,10 @@ describe('fetchAuthToken', () => {
 
     await expect(promise).rejects.toBeInstanceOf(AuthTokenExchangeError)
     await expect(promise).rejects.toHaveProperty(['httpStatus'], 403)
-    await expect(promise).rejects.toMatchObject({ message: expect.stringContaining('Unknown error') })
+    await expect(promise).rejects.toHaveProperty(
+      ['message'],
+      'Failed token exchange request with body message: Unknown error (status code 403)'
+    )
   })
 
   test('handles exchange error when json response is valid', async () => {
@@ -232,8 +264,7 @@ describe('fetchAuthToken', () => {
       fetch: mockFetch,
     }
 
-    await expect(fetchAuthToken({ context, idToken, packageName, registry }))
-      .rejects.toThrow(AuthTokenMalformedJsonError)
+    await expect(fetchAuthToken({ context, idToken, packageName, registry })).rejects.toThrow(AuthTokenMalformedJsonError)
   })
 
   test('throws AuthTokenMalformedJsonError when JSON response is null', async () => {
@@ -247,8 +278,7 @@ describe('fetchAuthToken', () => {
       fetch: mockFetch,
     }
 
-    await expect(fetchAuthToken({ context, idToken, packageName, registry }))
-      .rejects.toThrow(AuthTokenMalformedJsonError)
+    await expect(fetchAuthToken({ context, idToken, packageName, registry })).rejects.toThrow(AuthTokenMalformedJsonError)
   })
 
   test('throws AuthTokenMalformedJsonError when JSON response is not an object', async () => {
@@ -262,7 +292,6 @@ describe('fetchAuthToken', () => {
       fetch: mockFetch,
     }
 
-    await expect(fetchAuthToken({ context, idToken, packageName, registry }))
-      .rejects.toThrow(AuthTokenMalformedJsonError)
+    await expect(fetchAuthToken({ context, idToken, packageName, registry })).rejects.toThrow(AuthTokenMalformedJsonError)
   })
 })

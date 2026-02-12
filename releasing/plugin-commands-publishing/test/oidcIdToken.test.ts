@@ -81,8 +81,7 @@ describe('getIdToken', () => {
       process: { env: {} },
     }
 
-    await expect(getIdToken({ context, registry }))
-      .rejects.toThrow(IdTokenGitHubWorkflowIncorrectPermissionsError)
+    await expect(getIdToken({ context, registry })).rejects.toThrow(IdTokenGitHubWorkflowIncorrectPermissionsError)
   })
 
   test('throws error when only ACTIONS_ID_TOKEN_REQUEST_TOKEN is set', async () => {
@@ -94,8 +93,7 @@ describe('getIdToken', () => {
       process: { env: { ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'token' } },
     }
 
-    await expect(getIdToken({ context, registry }))
-      .rejects.toThrow(IdTokenGitHubWorkflowIncorrectPermissionsError)
+    await expect(getIdToken({ context, registry })).rejects.toThrow(IdTokenGitHubWorkflowIncorrectPermissionsError)
   })
 
   test('throws error when only ACTIONS_ID_TOKEN_REQUEST_URL is set', async () => {
@@ -107,8 +105,7 @@ describe('getIdToken', () => {
       process: { env: { ACTIONS_ID_TOKEN_REQUEST_URL: 'https://example.com' } },
     }
 
-    await expect(getIdToken({ context, registry }))
-      .rejects.toThrow(IdTokenGitHubWorkflowIncorrectPermissionsError)
+    await expect(getIdToken({ context, registry })).rejects.toThrow(IdTokenGitHubWorkflowIncorrectPermissionsError)
   })
 
   test('fetches ID token from GitHub Actions successfully', async () => {
