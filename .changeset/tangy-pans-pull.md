@@ -3,7 +3,6 @@
 "pnpm": major
 "@pnpm/make-dedicated-lockfile": minor
 "@pnpm/exportable-manifest": minor
-"@pnpm/package-bins": minor
 "@pnpm/types": minor
 "@pnpm/config": minor
 ---

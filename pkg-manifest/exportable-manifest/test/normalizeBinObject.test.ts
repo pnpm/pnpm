@@ -1,4 +1,4 @@
-import { normalizeBinObject } from '../src/index.js'
+import { normalizeBinObject } from '../lib/transform/bin.js'
 
 test('string', () => {
   expect(normalizeBinObject('foo', 'bin.js')).toStrictEqual({ foo: 'bin.js' })

@@ -1,4 +1,3 @@
-import { normalizeBinObject } from '@pnpm/package-bins'
 import { type ProjectManifest } from '@pnpm/types'
 import { type ExportedManifest } from './index.js'
 
@@ -12,4 +11,18 @@ export function transformBin<Manifest extends Input> (manifest: Manifest): Outpu
     ...rest,
     bin: normalizeBinObject(manifest.name, bin),
   }
+}
+
+/**
+ * The property `"bin"` of a `package.json` could be either an object or a string.
+ * This function normalizes either forms into an object.
+ */
+export function normalizeBinObject (pkgName: string, bin: string | Record<string, string>): Record<string, string> {
+  if (typeof bin === 'object') return bin
+  const binName = normalizeBinName(pkgName)
+  return { [binName]: bin }
+}
+
+function normalizeBinName (name: string): string {
+  return name[0] === '@' ? name.slice(name.indexOf('/') + 1) : name
 }
