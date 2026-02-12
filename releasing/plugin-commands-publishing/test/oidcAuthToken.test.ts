@@ -280,18 +280,4 @@ describe('fetchAuthToken', () => {
     await expect(fetchAuthToken({ context, idToken, packageName, registry }))
       .rejects.toThrow(AuthTokenMalformedJsonError)
   })
-
-  test('uses default context when not provided', async () => {
-    // This test verifies that the function can be called without a context
-    // In a real scenario, this would use SHARED_CONTEXT
-    // We can't easily test this without mocking the module, but we can verify the function signature allows it
-    const params = {
-      idToken,
-      packageName,
-      registry,
-    }
-
-    // This should not throw a type error
-    expect(() => params).toBeDefined()
-  })
 })
