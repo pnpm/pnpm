@@ -13,7 +13,6 @@ describe('determineProvenance', () => {
   const packageName = '@pnpm/test-package'
   const authToken = 'test-auth-token'
 
-  // Helper to create a valid JWT-like token
   function createIdToken (payload: Record<string, unknown>): string {
     const header = { alg: 'RS256', typ: 'JWT' }
     const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url')
