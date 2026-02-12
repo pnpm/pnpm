@@ -48,6 +48,7 @@ export interface DependenciesMeta {
   [dependencyName: string]: {
     injected?: boolean
     patch?: string
+    ejected?: boolean
   }
 }
 
