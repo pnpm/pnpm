@@ -4,6 +4,7 @@ import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
 import { globalInfo, globalWarn } from '@pnpm/logger'
+import { displayError } from './displayError.js'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
 import { type OidcResult, OidcError, oidc } from './oidc.js'
@@ -251,7 +252,7 @@ async function fetchOidcTokenAndProvenanceIfApplicable (
     })
   } catch (error) {
     if (error instanceof OidcError) {
-      globalWarn(`Skipped OIDC: ${error.message}`)
+      globalWarn(`Skipped OIDC: ${displayError(error)}`)
       return
     }
 
@@ -281,7 +282,7 @@ async function fetchOidcTokenAndProvenanceIfApplicable (
     })
   } catch (error) {
     if (error instanceof ProvenanceError) {
-      globalWarn(`Skipped setting provenance: ${error.message}`)
+      globalWarn(`Skipped setting provenance: ${displayError(error)}`)
       return
     }
 

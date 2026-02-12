@@ -2,6 +2,7 @@ import ciInfo from 'ci-info'
 import { PnpmError } from '@pnpm/error'
 import { fetch } from '@pnpm/fetch'
 import { globalInfo } from '@pnpm/logger'
+import { displayError } from './displayError.js'
 import { type PublishPackedPkgOptions } from './publishPackedPkg.js'
 
 export interface OidcCIInfo {
@@ -232,7 +233,7 @@ export class OidcGitHubIdTokenInvalidResponseError extends OidcError {
 export class OidcGitHubIdTokenJsonInterruptedError extends OidcError {
   readonly errorSource: unknown
   constructor (error: unknown) {
-    super('OIDC_GITHUB_ID_TOKEN_JSON_INTERRUPTED_ERROR', `Fetching of idToken JSON interrupted: ${String(error)}`)
+    super('OIDC_GITHUB_ID_TOKEN_JSON_INTERRUPTED_ERROR', `Fetching of idToken JSON interrupted: ${displayError(error)}`)
     this.errorSource = error
   }
 }
@@ -256,7 +257,7 @@ export class OidcFailedToFetchAuthTokenError extends OidcError {
   readonly packageName: string
   readonly registry: string
   constructor (error: unknown, packageName: string, registry: string) {
-    super('OIDC_FAILED_TO_FETCH_AUTH_TOKEN', `Failed to fetch authToken for package ${packageName} from registry ${registry}: ${String(error)}`)
+    super('OIDC_FAILED_TO_FETCH_AUTH_TOKEN', `Failed to fetch authToken for package ${packageName} from registry ${registry}: ${displayError(error)}`)
     this.errorSource = error
     this.packageName = packageName
     this.registry = registry
@@ -277,7 +278,7 @@ export class OidcFailedAuthTokenExchangeError extends OidcError {
 export class OidcAuthTokenJsonInterruptedError extends OidcError {
   readonly errorSource: unknown
   constructor (error: unknown) {
-    super('OIDC_AUTH_TOKEN_JSON_INTERRUPTED', `Fetching of authToken JSON interrupted: ${String(error)}`)
+    super('OIDC_AUTH_TOKEN_JSON_INTERRUPTED', `Fetching of authToken JSON interrupted: ${displayError(error)}`)
     this.errorSource = error
   }
 }
