@@ -19,7 +19,12 @@ module.exports = {
       if (manifest.name === 'pnpm') {
         delete manifest.dependencies
         delete manifest.devDependencies
-        delete manifest.optionalDependencies
+
+        for (const depKind of ['peerDependencies', 'optionalDependencies']) {
+          if (Object.keys(manifest[depKind] ?? {}).length > 0) {
+            throw new Error(`The main 'pnpm' package should not declare '${depKind}'. Consider moving to 'devDependencies' if the dependency can be included in the esbuild bundle, or to 'dependencies' if the dependency needs to be externalized and resolved at runtime.`)
+          }
+        }
       }
 
       return manifest
