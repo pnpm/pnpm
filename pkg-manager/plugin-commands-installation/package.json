@@ -52,6 +52,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/matcher": "workspace:*",
+    "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/outdated": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",

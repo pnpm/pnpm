@@ -55,6 +55,8 @@ import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 
+export { getTrustEvidence } from './trustChecks.js'
+
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
   packageMeta: PackageMeta

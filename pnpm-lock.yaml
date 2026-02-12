@@ -5944,6 +5944,9 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
+      '@pnpm/npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/outdated':
         specifier: workspace:*
         version: link:../../reviewing/outdated
