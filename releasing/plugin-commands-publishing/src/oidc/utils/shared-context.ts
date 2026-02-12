@@ -11,6 +11,7 @@ type SharedContext =
 & ProvenanceContext
 
 export const SHARED_CONTEXT: SharedContext = {
+  Date,
   ciInfo,
   fetch,
   globalInfo,

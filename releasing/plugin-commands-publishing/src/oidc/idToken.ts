@@ -3,6 +3,10 @@ import { displayError } from '../displayError.js'
 import { type PublishPackedPkgOptions } from '../publishPackedPkg.js'
 import { SHARED_CONTEXT } from './utils/shared-context.js'
 
+export interface IdTokenDate {
+  now: (this: this) => number
+}
+
 export interface IdTokenCIInfo {
   GITHUB_ACTIONS?: boolean
   GITLAB?: boolean
@@ -38,6 +42,7 @@ export interface IdTokenFetchResponse {
 }
 
 export interface IdTokenContext {
+  Date: IdTokenDate
   ciInfo: IdTokenCIInfo
   fetch: (url: string, options: IdTokenFetchOptions) => Promise<IdTokenFetchResponse>
   globalInfo: (message: string) => void
@@ -69,6 +74,7 @@ export interface IdTokenParams {
  */
 export async function getIdToken ({
   context: {
+    Date,
     ciInfo: { GITHUB_ACTIONS, GITLAB },
     fetch,
     globalInfo,
