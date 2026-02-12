@@ -5,7 +5,7 @@ import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import { types as allTypes, type UniversalOptions, type Config, getWorkspaceConcurrency, getDefaultWorkspaceConcurrency } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
-import { createExportableManifest } from '@pnpm/exportable-manifest'
+import { type ExportedManifest, createExportableManifest } from '@pnpm/exportable-manifest'
 import { packlist } from '@pnpm/fs.packlist'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { type Hooks } from '@pnpm/pnpmfile'
@@ -292,7 +292,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
 }
 
 export interface PackResult {
-  publishedManifest: ProjectManifest
+  publishedManifest: ExportedManifest
   contents: string[]
   tarballPath: string
 }
@@ -323,7 +323,7 @@ async function packPkg (opts: {
   modulesDir: string
   packGzipLevel?: number
   bins: string[]
-  manifest: ProjectManifest
+  manifest: ExportedManifest
 }): Promise<void> {
   const {
     destFile,
@@ -359,7 +359,7 @@ async function createPublishManifest (opts: {
   manifest: ProjectManifest
   catalogs: Catalogs
   hooks?: Hooks
-}): Promise<ProjectManifest> {
+}): Promise<ExportedManifest> {
   const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks } = opts
   const readmeFile = embedReadme ? await readReadmeFile(projectDir) : undefined
   return createExportableManifest(projectDir, manifest, {

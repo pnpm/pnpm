@@ -70,6 +70,7 @@ catalog:
   '@commitlint/prompt-cli': ^19.8.1
   '@eslint/js': ^9.18.0
   '@jest/globals': 30.0.5
+  '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
   '@pnpm/colorize-semver-diff': ^1.0.1
   '@pnpm/config.env-replace': ^3.0.2
@@ -107,6 +108,7 @@ catalog:
   '@types/isexe': 2.0.2
   '@types/jest': ^30.0.0
   '@types/js-yaml': ^4.0.9
+  '@types/libnpmpublish': ^9.0.1
   '@types/lodash.kebabcase': 4.1.9
   '@types/lodash.throttle': 4.1.7
   '@types/micromatch': ^4.0.9
@@ -213,6 +215,7 @@ catalog:
   json5: ^2.2.3
   keyv: 4.5.4
   lcov-result-merger: ^3.3.0
+  libnpmpublish: ^11.1.3
   load-json-file: ^7.0.1
   lodash.kebabcase: ^4.1.1
   lodash.throttle: 4.1.1
