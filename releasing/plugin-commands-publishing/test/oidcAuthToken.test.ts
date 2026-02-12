@@ -235,8 +235,7 @@ describe('fetchAuthToken', () => {
       fetch: mockFetch,
     }
 
-    await expect(fetchAuthToken({ context, idToken, packageName, registry }))
-      .rejects.toThrow(AuthTokenMalformedJsonError)
+    await expect(fetchAuthToken({ context, idToken, packageName, registry })).rejects.toThrow(AuthTokenMalformedJsonError)
   })
 
   test('throws AuthTokenMalformedJsonError when JSON response is null', async () => {
@@ -250,8 +249,7 @@ describe('fetchAuthToken', () => {
       fetch: mockFetch,
     }
 
-    await expect(fetchAuthToken({ context, idToken, packageName, registry }))
-      .rejects.toThrow(AuthTokenMalformedJsonError)
+    await expect(fetchAuthToken({ context, idToken, packageName, registry })).rejects.toThrow(AuthTokenMalformedJsonError)
   })
 
   test('throws AuthTokenMalformedJsonError when JSON response is not an object', async () => {
@@ -265,7 +263,6 @@ describe('fetchAuthToken', () => {
       fetch: mockFetch,
     }
 
-    await expect(fetchAuthToken({ context, idToken, packageName, registry }))
-      .rejects.toThrow(AuthTokenMalformedJsonError)
+    await expect(fetchAuthToken({ context, idToken, packageName, registry })).rejects.toThrow(AuthTokenMalformedJsonError)
   })
 })
