@@ -956,3 +956,50 @@ test('publish from a tarball', async () => {
 
   await checkPkgExists(pkg.name, pkg.version)
 })
+
+test('publish from multiple tarballs', async () => {
+  const packages = [
+    {
+      name: 'test-publish-tarball-a',
+      version: '0.0.0',
+    },
+    {
+      name: 'test-publish-tarball-b',
+      version: '0.0.1',
+    },
+    {
+      name: 'test-publish-tarball-c',
+      version: '0.1.0',
+    },
+  ]
+
+  preparePackages(packages)
+
+  for (const pkg of packages) {
+    // eslint-disable-next-line no-await-in-loop
+    await pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: path.resolve(pkg.name),
+      extraBinPaths: [],
+    })
+
+    fs.rmSync(path.resolve(pkg.name, 'package.json'))
+  }
+
+  const tarballPaths = [
+    'test-publish-tarball-a/test-publish-tarball-a-0.0.0.tgz',
+    'test-publish-tarball-b/test-publish-tarball-b-0.0.1.tgz',
+    'test-publish-tarball-c/test-publish-tarball-c-0.1.0.tgz',
+  ]
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...tarballPaths, ...CREDENTIALS] },
+    dir: process.cwd(),
+  }, tarballPaths)
+
+  await checkPkgExists('test-publish-tarball-a', '0.0.0')
+  await checkPkgExists('test-publish-tarball-b', '0.0.1')
+  await checkPkgExists('test-publish-tarball-c', '0.1.0')
+})
