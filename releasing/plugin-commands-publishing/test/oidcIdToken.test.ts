@@ -129,6 +129,7 @@ describe('getIdToken', () => {
 
     const [url, options] = mockFetch.mock.calls[0]
     expect(url).toContain('https://actions.example.com/token')
+    // cspell:disable-next-line
     expect(url).toContain('audience=npm%3Aregistry.npmjs.org')
     expect(options.headers.Authorization).toBe('Bearer request-token')
     expect(options.method).toBe('GET')
