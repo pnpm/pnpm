@@ -1,12 +1,12 @@
 import { jest } from '@jest/globals'
 import {
-  getIdToken,
+  type IdTokenContext,
+  type IdTokenFetchOptions,
   IdTokenGitHubWorkflowIncorrectPermissionsError,
   IdTokenGitHubInvalidResponseError,
   IdTokenGitHubJsonInterruptedError,
   IdTokenGitHubJsonInvalidValueError,
-  type IdTokenContext,
-  type IdTokenFetchOptions,
+  getIdToken,
 } from '../src/oidc/idToken.js'
 
 describe('getIdToken', () => {

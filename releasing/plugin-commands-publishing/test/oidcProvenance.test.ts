@@ -1,11 +1,11 @@
 import { jest } from '@jest/globals'
 import {
-  determineProvenance,
+  type ProvenanceContext,
+  type ProvenanceFetchOptions,
   ProvenanceMalformedIdTokenError,
   ProvenanceInsufficientInformationError,
   ProvenanceFailedToFetchVisibilityError,
-  type ProvenanceContext,
-  type ProvenanceFetchOptions,
+  determineProvenance,
 } from '../src/oidc/provenance.js'
 
 describe('determineProvenance', () => {
