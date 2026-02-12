@@ -35,6 +35,7 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
       cdxComp.description = comp.description
     }
 
+    // CycloneDX supplier is the registry/distributor, not the package author
     if (comp.author) {
       cdxComp.authors = [{ name: comp.author }]
     }
@@ -45,6 +46,8 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
 
     const externalRefs: Array<Record<string, unknown>> = []
 
+    // Lockfile integrity is a tarball hash, not a source hash — belongs on the
+    // distribution reference, not component.hashes
     if (comp.tarballUrl) {
       const hashes = integrityToHashes(comp.integrity)
       const distRef: Record<string, unknown> = {
@@ -142,6 +145,8 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
     tools: { components: toolComponents },
     component: rootCdxComponent,
   }
+  // authors/supplier describe who authored/supplies the BOM document,
+  // not the tool — opt-in via --sbom-authors and --sbom-supplier
   if (opts?.sbomAuthors?.length) {
     metadata.authors = opts.sbomAuthors.map((name) => ({ name }))
   }
