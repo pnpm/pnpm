@@ -154,9 +154,12 @@ export async function oidc ({
       throw new OidcGitHubIdTokenInvalidResponseError()
     }
 
-    const json = await response.json().catch(error => {
+    let json: unknown
+    try {
+      json = await response.json()
+    } catch (error) {
       throw new OidcGitHubIdTokenJsonInterruptedError(error)
-    })
+    }
 
     if (!json || typeof json !== 'object' || !('value' in json) || typeof json.value !== 'string') {
       throw new OidcGitHubIdTokenJsonInvalidValueError(json)
@@ -202,9 +205,12 @@ export async function oidc ({
     throw new OidcFailedAuthTokenExchangeError(error as OidcFailedAuthTokenExchangeError['errorResponse'], authTokenResponse.status)
   }
 
-  const json = await authTokenResponse.json().catch(error => {
+  let json: unknown
+  try {
+    json = await authTokenResponse.json()
+  } catch (error) {
     throw new OidcAuthTokenJsonInterruptedError(error)
-  })
+  }
 
   if (!json || typeof json !== 'object' || !('token' in json) || typeof json.token !== 'string') {
     throw new OidcAuthTokenMalformedJsonError(json, packageName, registry)
