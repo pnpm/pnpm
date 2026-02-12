@@ -155,7 +155,11 @@ export async function publish (
     return { exitCode: 0 }
   }
 
-  if (opts.gitChecks !== false && await isGitRepo()) {
+  if (
+    params.length === 0 && // the current implementation of gitChecks only makes sense for the current directory
+    opts.gitChecks !== false &&
+    await isGitRepo()
+  ) {
     if (!(await isWorkingTreeClean())) {
       throw new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {
         hint: GIT_CHECKS_HINT,
