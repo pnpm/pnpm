@@ -44,8 +44,8 @@ export async function extractManifestFromPacked<Output = ExportedManifest> (tarb
       const normalizedPath = path.normalize(header.name).replaceAll('\\', '/')
 
       if (normalizedPath !== 'package/package.json') {
+        stream.once('end', next)
         stream.resume()
-        next()
         return
       }
 
