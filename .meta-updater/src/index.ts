@@ -76,6 +76,14 @@ export default async (workspaceDir: string) => { // eslint-disable-line
             }
           }
         }
+
+        // The main 'pnpm' package should not declare 'peerDependencies' or
+        // 'optionalDependencies'. Consider moving to 'devDependencies' if the
+        // dependency can be included in the esbuild bundle, or to
+        // 'dependencies' if the dependency needs to be externalized and
+        // resolved at runtime.
+        delete manifest.peerDependencies
+        delete manifest.optionalDependencies
       }
       if (manifest.peerDependencies?.['@pnpm/logger'] != null) {
         manifest.peerDependencies['@pnpm/logger'] = 'catalog:'
