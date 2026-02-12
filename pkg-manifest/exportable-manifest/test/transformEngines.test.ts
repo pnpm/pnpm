@@ -73,7 +73,7 @@ describe('transformEngines', () => {
     })
   })
 
-  test('does not modify manifest when engines field is not present', () => {
+  test('does not modify manifest when engines field is empty', () => {
     const manifest = {
       name: 'test-package',
       version: '1.0.0',
