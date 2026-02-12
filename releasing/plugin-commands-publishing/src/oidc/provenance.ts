@@ -11,7 +11,7 @@ export interface ProvenanceEnv extends NodeJS.ProcessEnv {
   SIGSTORE_ID_TOKEN?: string
 }
 
-interface ProvenanceFetchOptions {
+export interface ProvenanceFetchOptions {
   headers: {
     Accept: 'application/json'
     Authorization: `Bearer ${string}`
