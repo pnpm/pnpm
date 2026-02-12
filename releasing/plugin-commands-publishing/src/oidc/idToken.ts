@@ -38,6 +38,7 @@ export interface IdTokenFetchResponse {
 }
 
 export interface IdTokenContext {
+  Date: { now: () => number }
   ciInfo: IdTokenCIInfo
   fetch: (url: string, options: IdTokenFetchOptions) => Promise<IdTokenFetchResponse>
   globalInfo: (message: string) => void
@@ -69,6 +70,7 @@ export interface IdTokenParams {
  */
 export async function getIdToken ({
   context: {
+    Date: dateContext,
     ciInfo: { GITHUB_ACTIONS, GITLAB },
     fetch,
     globalInfo,
@@ -91,7 +93,7 @@ export async function getIdToken ({
   const audience = `npm:${parsedRegistry.hostname}` as const
   const url = new URL(env.ACTIONS_ID_TOKEN_REQUEST_URL)
   url.searchParams.append('audience', audience)
-  const startTime = Date.now()
+  const startTime = dateContext.now()
   const response = await fetch(url.href, {
     headers: {
       Accept: 'application/json',
@@ -107,7 +109,7 @@ export async function getIdToken ({
     timeout: options?.fetchTimeout,
   })
 
-  const elapsedTime = Date.now() - startTime
+  const elapsedTime = dateContext.now() - startTime
   globalInfo(`GET ${url.href} ${response.status} ${elapsedTime}ms`)
 
   if (!response.ok) {

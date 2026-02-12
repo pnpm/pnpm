@@ -13,6 +13,7 @@ describe('getIdToken', () => {
 
   test('returns undefined when not in GitHub Actions or GitLab', async () => {
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: false, GITLAB: false },
       fetch: jest.fn(),
       globalInfo: jest.fn(),
@@ -27,6 +28,7 @@ describe('getIdToken', () => {
 
   test('returns NPM_ID_TOKEN from environment when available', async () => {
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: jest.fn(),
       globalInfo: jest.fn(),
@@ -41,6 +43,7 @@ describe('getIdToken', () => {
 
   test('returns NPM_ID_TOKEN from environment in GitLab', async () => {
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: false, GITLAB: true },
       fetch: jest.fn(),
       globalInfo: jest.fn(),
@@ -55,6 +58,7 @@ describe('getIdToken', () => {
 
   test('returns undefined for GitLab when NPM_ID_TOKEN is not set', async () => {
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: false, GITLAB: true },
       fetch: jest.fn(),
       globalInfo: jest.fn(),
@@ -69,6 +73,7 @@ describe('getIdToken', () => {
 
   test('throws error when GitHub Actions environment variables are missing', async () => {
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: jest.fn(),
       globalInfo: jest.fn(),
@@ -81,6 +86,7 @@ describe('getIdToken', () => {
 
   test('throws error when only ACTIONS_ID_TOKEN_REQUEST_TOKEN is set', async () => {
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: jest.fn(),
       globalInfo: jest.fn(),
@@ -93,6 +99,7 @@ describe('getIdToken', () => {
 
   test('throws error when only ACTIONS_ID_TOKEN_REQUEST_URL is set', async () => {
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: jest.fn(),
       globalInfo: jest.fn(),
@@ -111,6 +118,7 @@ describe('getIdToken', () => {
     }))
 
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: mockFetch,
       globalInfo: jest.fn(),
@@ -143,6 +151,7 @@ describe('getIdToken', () => {
     }))
 
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: mockFetch,
       globalInfo: jest.fn(),
@@ -182,8 +191,14 @@ describe('getIdToken', () => {
       json: async () => ({ value: 'token' }),
     }))
     const mockGlobalInfo = jest.fn()
+    let callCount = 0
+    const mockDateNow = jest.fn(() => {
+      callCount++
+      return callCount === 1 ? 1000 : 1500 // 500ms elapsed
+    })
 
     const context: IdTokenContext = {
+      Date: { now: mockDateNow },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: mockFetch,
       globalInfo: mockGlobalInfo,
@@ -197,12 +212,13 @@ describe('getIdToken', () => {
 
     await getIdToken({ context, registry })
 
+    expect(mockDateNow).toHaveBeenCalledTimes(2)
     expect(mockGlobalInfo).toHaveBeenCalledTimes(1)
     const logMessage = mockGlobalInfo.mock.calls[0][0]
     expect(logMessage).toContain('GET')
     expect(logMessage).toContain('https://actions.example.com/token')
     expect(logMessage).toContain('200')
-    expect(logMessage).toMatch(/\d+ms$/)
+    expect(logMessage).toContain('500ms')
   })
 
   test('throws error when fetch response is not ok', async () => {
@@ -213,6 +229,7 @@ describe('getIdToken', () => {
     }))
 
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: mockFetch,
       globalInfo: jest.fn(),
@@ -238,6 +255,7 @@ describe('getIdToken', () => {
     }))
 
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: mockFetch,
       globalInfo: jest.fn(),
@@ -261,6 +279,7 @@ describe('getIdToken', () => {
     }))
 
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: mockFetch,
       globalInfo: jest.fn(),
@@ -284,6 +303,7 @@ describe('getIdToken', () => {
     }))
 
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: mockFetch,
       globalInfo: jest.fn(),
@@ -307,6 +327,7 @@ describe('getIdToken', () => {
     }))
 
     const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: mockFetch,
       globalInfo: jest.fn(),
