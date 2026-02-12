@@ -1,3 +1,4 @@
+import { PnpmError } from '@pnpm/error'
 import { type ProjectManifest } from '@pnpm/types'
 import { type ExportedManifest } from './index.js'
 
@@ -24,5 +25,18 @@ export function normalizeBinObject (pkgName: string, bin: string | Record<string
 }
 
 function normalizeBinName (name: string): string {
-  return name[0] === '@' ? name.slice(name.indexOf('/') + 1) : name
+  if (name[0] !== '@') return name
+  const slashIndex = name.indexOf('/')
+  if (slashIndex < 0) {
+    throw new InvalidScopedPackageNameError(name)
+  }
+  return name.slice(slashIndex + 1)
+}
+
+export class InvalidScopedPackageNameError extends PnpmError {
+  readonly invalidName: string
+  constructor (invalidName: string) {
+    super('INVALID_SCOPED_PACKAGE_NAME', `The name ${JSON.stringify(invalidName)} is not a valid scoped package name`)
+    this.invalidName = invalidName
+  }
 }
