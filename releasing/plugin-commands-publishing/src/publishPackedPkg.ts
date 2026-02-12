@@ -7,9 +7,10 @@ import { globalInfo, globalWarn } from '@pnpm/logger'
 import { displayError } from './displayError.js'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
-import { type OidcResult, OidcError, oidc } from './oidc.js'
+import { AuthTokenError, fetchAuthToken } from './oidc/authToken.js'
+import { IdTokenError, getIdToken } from './oidc/idToken.js'
+import { ProvenanceError, determineProvenance } from './oidc/provenance.js'
 import { type PackResult } from './pack.js'
-import { ProvenanceError, determineProvenance } from './provenance.js'
 import { type NormalizedRegistryUrl, allRegistryConfigKeys, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 
 type AuthConfigKey =
@@ -122,9 +123,9 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
   removeEmptyStringProperty(publishOptions, 'key')
 
   if (registry) {
-    const oidcProvenanceResult = await fetchOidcTokenAndProvenanceIfApplicable(publishOptions, manifest.name, registry, options)
-    publishOptions.token ??= oidcProvenanceResult?.authToken
-    publishOptions.provenance ??= oidcProvenanceResult?.provenance
+    const oidcTokenProvenance = await fetchTokenAndProvenanceByOidcIfApplicable(publishOptions, manifest.name, registry, options)
+    publishOptions.token ??= oidcTokenProvenance?.authToken
+    publishOptions.provenance ??= oidcTokenProvenance?.provenance
     appendAuthOptionsForRegistry(publishOptions, registry)
   }
 
@@ -224,7 +225,8 @@ export class PublishUnsupportedRegistryProtocolError extends PnpmError {
   }
 }
 
-interface OidcProvenanceResult extends OidcResult {
+interface OidcTokenProvenanceResult {
+  authToken: string
   provenance?: boolean
 }
 
@@ -232,41 +234,56 @@ interface OidcProvenanceResult extends OidcResult {
  * If authentication information doesn't already set in {@link targetPublishOptions},
  * try fetching an authentication token and provenance by OpenID Connect and return it.
  */
-async function fetchOidcTokenAndProvenanceIfApplicable (
+async function fetchTokenAndProvenanceByOidcIfApplicable (
   targetPublishOptions: PublishOptions,
   packageName: string,
   registry: string,
   options: PublishPackedPkgOptions
-): Promise<OidcProvenanceResult | undefined> {
+): Promise<OidcTokenProvenanceResult | undefined> {
   if (
     targetPublishOptions.token != null ||
     (targetPublishOptions.username && targetPublishOptions.password)
   ) return undefined
 
-  let oidcTokens: OidcResult | undefined
+  let idToken: string | undefined
   try {
-    oidcTokens = await oidc({
+    idToken = await getIdToken({
+      options,
+      registry,
+    })
+  } catch (error) {
+    if (error instanceof IdTokenError) {
+      globalWarn(`Skipped OIDC: ${displayError(error)}`)
+      return undefined
+    }
+
+    throw error
+  }
+  if (!idToken) {
+    globalWarn('Skipped OIDC: idToken is not available')
+    return undefined
+  }
+
+  let authToken: string
+  try {
+    authToken = await fetchAuthToken({
+      idToken,
       options,
       packageName,
       registry,
     })
   } catch (error) {
-    if (error instanceof OidcError) {
+    if (error instanceof AuthTokenError) {
       globalWarn(`Skipped OIDC: ${displayError(error)}`)
-      return
+      return undefined
     }
 
     throw error
   }
 
-  if (!oidcTokens) return undefined
-
-  const { authToken, idToken } = oidcTokens
-
   if (options.provenance != null) {
     return {
       authToken,
-      idToken,
       provenance: options.provenance,
     }
   }
@@ -283,13 +300,13 @@ async function fetchOidcTokenAndProvenanceIfApplicable (
   } catch (error) {
     if (error instanceof ProvenanceError) {
       globalWarn(`Skipped setting provenance: ${displayError(error)}`)
-      return
+      return undefined
     }
 
     throw error
   }
 
-  return { authToken, idToken, provenance }
+  return { authToken, provenance }
 }
 
 /**

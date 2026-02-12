@@ -1,7 +1,6 @@
-import ciInfo from 'ci-info'
 import { PnpmError } from '@pnpm/error'
-import { fetch } from '@pnpm/fetch'
-import { type PublishPackedPkgOptions } from './publishPackedPkg.js'
+import { type PublishPackedPkgOptions } from '../publishPackedPkg.js'
+import { SHARED_CONTEXT } from './utils/shared-context.js'
 
 export interface ProvenanceCIInfo {
   GITHUB_ACTIONS?: boolean
@@ -40,12 +39,6 @@ export interface ProvenanceContext {
   process: { env?: ProvenanceEnv }
 }
 
-const DEFAULT_PROVENANCE_CONTEXT: ProvenanceContext = {
-  ciInfo,
-  fetch,
-  process,
-}
-
 export type ProvenanceOptions = Pick<PublishPackedPkgOptions,
 | 'fetchRetries'
 | 'fetchRetryFactor'
@@ -80,7 +73,7 @@ export async function determineProvenance ({
     ciInfo: { GITHUB_ACTIONS, GITLAB },
     fetch,
     process: { env },
-  } = DEFAULT_PROVENANCE_CONTEXT,
+  } = SHARED_CONTEXT,
 }: ProvenanceParams): Promise<boolean | undefined> {
 
   const [headerB64, payloadB64] = idToken.split('.')
