@@ -14,7 +14,7 @@ describe('getIdToken', () => {
 
   test('returns undefined when not in GitHub Actions or GitLab', async () => {
     const context: IdTokenContext = {
-      Date: { now: jest.fn(() => 1000) } as IdTokenContext['Date'],
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: false, GITLAB: false },
       fetch: jest.fn() as IdTokenContext['fetch'],
       globalInfo: jest.fn() as IdTokenContext['globalInfo'],
@@ -29,7 +29,7 @@ describe('getIdToken', () => {
 
   test('returns NPM_ID_TOKEN from environment when available', async () => {
     const context: IdTokenContext = {
-      Date: { now: jest.fn(() => 1000) } as IdTokenContext['Date'],
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: jest.fn() as IdTokenContext['fetch'],
       globalInfo: jest.fn() as IdTokenContext['globalInfo'],
@@ -44,7 +44,7 @@ describe('getIdToken', () => {
 
   test('returns NPM_ID_TOKEN from environment in GitLab', async () => {
     const context: IdTokenContext = {
-      Date: { now: jest.fn(() => 1000) } as IdTokenContext['Date'],
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: false, GITLAB: true },
       fetch: jest.fn() as IdTokenContext['fetch'],
       globalInfo: jest.fn() as IdTokenContext['globalInfo'],
@@ -59,7 +59,7 @@ describe('getIdToken', () => {
 
   test('returns undefined for GitLab when NPM_ID_TOKEN is not set', async () => {
     const context: IdTokenContext = {
-      Date: { now: jest.fn(() => 1000) } as IdTokenContext['Date'],
+      Date: { now: jest.fn(() => 1000) },
       ciInfo: { GITHUB_ACTIONS: false, GITLAB: true },
       fetch: jest.fn() as IdTokenContext['fetch'],
       globalInfo: jest.fn() as IdTokenContext['globalInfo'],
