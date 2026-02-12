@@ -200,10 +200,13 @@ describe('getIdToken', () => {
       json: async () => ({ value: 'token' }),
     }))
     const mockGlobalInfo = jest.fn()
-    let callCount = 0
+
+    let dateIndex = 0
+    const mockDateNowTable = [1000, 1500]
     const mockDateNow = jest.fn(() => {
-      callCount++
-      return callCount === 1 ? 1000 : 1500 // 500ms elapsed
+      const result = mockDateNowTable[dateIndex]
+      dateIndex += 1
+      return result
     })
 
     const context: IdTokenContext = {
