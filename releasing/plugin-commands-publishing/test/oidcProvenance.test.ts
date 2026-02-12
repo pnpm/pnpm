@@ -298,24 +298,21 @@ describe('determineProvenance', () => {
       context,
     })).rejects.toThrow(ProvenanceFailedToFetchVisibilityError)
 
-    try {
-      await determineProvenance({
-        authToken,
-        idToken,
-        packageName,
-        registry,
-        context,
-      })
-    } catch (error) {
-      if (error instanceof ProvenanceFailedToFetchVisibilityError) {
-        expect(error.status).toBe(404)
-        expect(error.packageName).toBe(packageName)
-        expect(error.registry).toBe(registry)
-        expect(error.errorResponse?.code).toBe('NOT_FOUND')
-        expect(error.errorResponse?.message).toBe('Package not found')
-        expect(error.message).toContain('NOT_FOUND: Package not found')
-      }
-    }
+    const promise = determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })
+
+    await expect(promise).rejects.toBeInstanceOf(ProvenanceFailedToFetchVisibilityError)
+    await expect(promise).rejects.toHaveProperty('status', 404)
+    await expect(promise).rejects.toHaveProperty('packageName', packageName)
+    await expect(promise).rejects.toHaveProperty('registry', registry)
+    await expect(promise).rejects.toHaveProperty(['errorResponse', 'code'], 'NOT_FOUND')
+    await expect(promise).rejects.toHaveProperty(['errorResponse', 'message'], 'Package not found')
+    await expect(promise).rejects.toMatchObject({ message: expect.stringContaining('NOT_FOUND: Package not found') })
   })
 
   test('handles visibility fetch error with only code', async () => {
@@ -333,20 +330,17 @@ describe('determineProvenance', () => {
 
     const idToken = createIdToken({ repository_visibility: 'public' })
 
-    try {
-      await determineProvenance({
-        authToken,
-        idToken,
-        packageName,
-        registry,
-        context,
-      })
-    } catch (error) {
-      if (error instanceof ProvenanceFailedToFetchVisibilityError) {
-        expect(error.message).toContain('UNAUTHORIZED')
-        expect(error.message).not.toContain(': ')
-      }
-    }
+    const promise = determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })
+
+    await expect(promise).rejects.toBeInstanceOf(ProvenanceFailedToFetchVisibilityError)
+    await expect(promise).rejects.toMatchObject({ message: expect.stringContaining('UNAUTHORIZED') })
+    await expect(promise).rejects.toMatchObject({ message: expect.not.stringContaining(': ') })
   })
 
   test('handles visibility fetch error with only message', async () => {
@@ -364,19 +358,16 @@ describe('determineProvenance', () => {
 
     const idToken = createIdToken({ repository_visibility: 'public' })
 
-    try {
-      await determineProvenance({
-        authToken,
-        idToken,
-        packageName,
-        registry,
-        context,
-      })
-    } catch (error) {
-      if (error instanceof ProvenanceFailedToFetchVisibilityError) {
-        expect(error.message).toContain('Internal server error')
-      }
-    }
+    const promise = determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })
+
+    await expect(promise).rejects.toBeInstanceOf(ProvenanceFailedToFetchVisibilityError)
+    await expect(promise).rejects.toMatchObject({ message: expect.stringContaining('Internal server error') })
   })
 
   test('handles visibility fetch error with no error details', async () => {
