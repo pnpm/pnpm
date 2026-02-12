@@ -328,7 +328,10 @@ describe('determineProvenance', () => {
     await expect(promise).rejects.toHaveProperty(['registry'], registry)
     await expect(promise).rejects.toHaveProperty(['errorResponse', 'code'], 'NOT_FOUND')
     await expect(promise).rejects.toHaveProperty(['errorResponse', 'message'], 'Package not found')
-    await expect(promise).rejects.toMatchObject({ message: expect.stringContaining('NOT_FOUND: Package not found') })
+    await expect(promise).rejects.toHaveProperty(
+      ['message'],
+      'Failed to fetch visibility for package @pnpm/test-package from registry https://registry.npmjs.org due to NOT_FOUND: Package not found (status code 404)'
+    )
   })
 
   test('handles visibility fetch error with only code', async () => {
@@ -355,8 +358,10 @@ describe('determineProvenance', () => {
     })
 
     await expect(promise).rejects.toBeInstanceOf(ProvenanceFailedToFetchVisibilityError)
-    await expect(promise).rejects.toMatchObject({ message: expect.stringContaining('UNAUTHORIZED') })
-    await expect(promise).rejects.toMatchObject({ message: expect.not.stringContaining(': ') })
+    await expect(promise).rejects.toHaveProperty(
+      ['message'],
+      'Failed to fetch visibility for package @pnpm/test-package from registry https://registry.npmjs.org due to UNAUTHORIZED (status code 401)'
+    )
   })
 
   test('handles visibility fetch error with only message', async () => {
@@ -383,7 +388,10 @@ describe('determineProvenance', () => {
     })
 
     await expect(promise).rejects.toBeInstanceOf(ProvenanceFailedToFetchVisibilityError)
-    await expect(promise).rejects.toMatchObject({ message: expect.stringContaining('Internal server error') })
+    await expect(promise).rejects.toHaveProperty(
+      ['message'],
+      'Failed to fetch visibility for package @pnpm/test-package from registry https://registry.npmjs.org due to Internal server error (status code 500)'
+    )
   })
 
   test('handles visibility fetch error with no error details', async () => {
@@ -410,7 +418,10 @@ describe('determineProvenance', () => {
     })
 
     await expect(promise).rejects.toBeInstanceOf(ProvenanceFailedToFetchVisibilityError)
-    await expect(promise).rejects.toMatchObject({ message: expect.stringContaining('an unknown error') })
+    await expect(promise).rejects.toHaveProperty(
+      ['message'],
+      'Failed to fetch visibility for package @pnpm/test-package from registry https://registry.npmjs.org due to an unknown error (status code 503)'
+    )
   })
 
   test('handles visibility fetch error when JSON parsing fails', async () => {

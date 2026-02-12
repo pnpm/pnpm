@@ -159,7 +159,10 @@ describe('fetchAuthToken', () => {
 
     await expect(promise).rejects.toBeInstanceOf(AuthTokenExchangeError)
     await expect(promise).rejects.toHaveProperty(['httpStatus'], 403)
-    await expect(promise).rejects.toMatchObject({ message: expect.stringContaining('Unknown error') })
+    await expect(promise).rejects.toHaveProperty(
+      ['message'],
+      'Failed token exchange request with body message: Unknown error (status code 403)'
+    )
   })
 
   test('handles exchange error when json response is valid', async () => {
