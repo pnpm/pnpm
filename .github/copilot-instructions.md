@@ -94,37 +94,6 @@ await expect(promise).rejects.toHaveProperty(['body', 'message'], 'Not Found')
 
 ### Additional Testing Guidelines
 
-#### Use Dependency Injection for Testability
-
-Always inject dependencies through context objects rather than using globals:
-
-```typescript
-// ❌ BAD: Uses global Date.now()
-function logTiming() {
-  const start = Date.now()
-  // ... do work ...
-  const duration = Date.now() - start
-  console.log(`Duration: ${duration}ms`)
-}
-
-// ✅ GOOD: Injects Date through context
-interface Context {
-  Date: { now: () => number }
-}
-
-function logTiming(context: Context) {
-  const start = context.Date.now()
-  // ... do work ...
-  const duration = context.Date.now() - start
-  console.log(`Duration: ${duration}ms`)
-}
-
-// Now easily testable with mocked Date:
-const context = {
-  Date: { now: jest.fn(() => 1000) }
-}
-```
-
 #### Keep Test Code Simple
 
 - **Inline literal values**: Don't create variables for simple test data unless reused
@@ -137,10 +106,7 @@ When mocking functions, use type assertions to maintain type safety:
 
 ```typescript
 // ✅ GOOD: Type assertion for mock functions
-const context: SomeContext = {
-  fetch: jest.fn() as SomeContext['fetch'],
-  Date: { now: jest.fn(() => 1000) } as SomeContext['Date'],
-}
+const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>
 ```
 
 ## Summary
@@ -148,10 +114,8 @@ const context: SomeContext = {
 **Golden Rules for Testing:**
 
 1. ✅ **DO** use `const promise = asyncFunc()` then `await expect(promise).rejects.*`
-2. ✅ **DO** inject dependencies through context objects
-3. ✅ **DO** keep test code simple and explicit
-4. ❌ **DON'T** use try/catch to test error scenarios
-5. ❌ **DON'T** wrap assertions in `if` statements
-6. ❌ **DON'T** use global state (Date.now(), process.env, etc.) directly in production code
+2. ✅ **DO** keep test code simple and explicit
+3. ❌ **DON'T** use try/catch to test error scenarios
+4. ❌ **DON'T** wrap assertions in `if` statements
 
 Following these patterns ensures reliable, maintainable tests that catch real bugs and don't create false confidence through passing tests that don't actually verify behavior.
