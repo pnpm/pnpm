@@ -6566,6 +6566,9 @@ importers:
 
   pnpm:
     dependencies:
+      node-gyp:
+        specifier: ^11.5.0
+        version: 11.5.0
       v8-compile-cache:
         specifier: 2.4.0
         version: 2.4.0
@@ -6879,10 +6882,6 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
-    optionalDependencies:
-      node-gyp:
-        specifier: ^11.5.0
-        version: 11.5.0
 
   pnpm/artifacts/exe:
     devDependencies:
