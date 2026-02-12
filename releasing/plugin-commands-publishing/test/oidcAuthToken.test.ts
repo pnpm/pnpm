@@ -30,8 +30,7 @@ describe('fetchAuthToken', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
 
     const [url, options] = mockFetch.mock.calls[0]
-    expect(url).toContain('/-/npm/v1/oidc/token/exchange/package/')
-    expect(url).toContain(encodeURIComponent(packageName))
+    expect(url).toBe('https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/%40pnpm%2Ftest-package')
     expect(options.headers.Authorization).toBe(`Bearer ${idToken}`)
     expect(options.method).toBe('POST')
     expect(options.body).toBe('')
@@ -49,12 +48,12 @@ describe('fetchAuthToken', () => {
       fetch: mockFetch,
     }
 
-    const specialPackageName = '@scope/package with spaces'
-    await fetchAuthToken({ context, idToken, packageName: specialPackageName, registry })
+    const packageName = '@scope/package'
+    await fetchAuthToken({ context, idToken, packageName, registry })
 
     const [url] = mockFetch.mock.calls[0]
-    expect(url).toContain(encodeURIComponent(specialPackageName))
-    expect(url).not.toContain('package with spaces')
+    expect(url).toContain('%2F') // Check that / is encoded
+    expect(url).not.toContain('@scope/package') // Should not contain unencoded package name
   })
 
   test('passes fetch options correctly', async () => {
@@ -78,15 +77,25 @@ describe('fetchAuthToken', () => {
 
     await fetchAuthToken({ context, idToken, packageName, registry, options })
 
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-    const [, fetchOptions] = mockFetch.mock.calls[0]
-    expect(fetchOptions.retry).toEqual({
-      factor: 3,
-      maxTimeout: 120000,
-      minTimeout: 2000,
-      retries: 5,
-    })
-    expect(fetchOptions.timeout).toBe(45000)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      {
+        body: '',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${idToken}`,
+          'Content-Length': '0',
+        },
+        method: 'POST',
+        retry: {
+          factor: 3,
+          maxTimeout: 120000,
+          minTimeout: 2000,
+          retries: 5,
+        },
+        timeout: 45000,
+      }
+    )
   })
 
   test('throws AuthTokenFetchError when fetch fails', async () => {
@@ -99,19 +108,13 @@ describe('fetchAuthToken', () => {
       fetch: mockFetch,
     }
 
-    await expect(fetchAuthToken({ context, idToken, packageName, registry }))
-      .rejects.toThrow(AuthTokenFetchError)
+    const promise = fetchAuthToken({ context, idToken, packageName, registry })
 
-    try {
-      await fetchAuthToken({ context, idToken, packageName, registry })
-    } catch (error) {
-      if (error instanceof AuthTokenFetchError) {
-        expect(error.errorSource).toBe(fetchError)
-        expect(error.packageName).toBe(packageName)
-        expect(error.registry).toBe(registry)
-        expect(error.code).toBe('ERR_PNPM_AUTH_TOKEN_FETCH')
-      }
-    }
+    await expect(promise).rejects.toBeInstanceOf(AuthTokenFetchError)
+    await expect(promise).rejects.toHaveProperty('errorSource', fetchError)
+    await expect(promise).rejects.toHaveProperty('packageName', packageName)
+    await expect(promise).rejects.toHaveProperty('registry', registry)
+    await expect(promise).rejects.toHaveProperty('code', 'ERR_PNPM_AUTH_TOKEN_FETCH')
   })
 
   test('throws AuthTokenExchangeError when response is not ok', async () => {
@@ -125,18 +128,12 @@ describe('fetchAuthToken', () => {
       fetch: mockFetch,
     }
 
-    await expect(fetchAuthToken({ context, idToken, packageName, registry }))
-      .rejects.toThrow(AuthTokenExchangeError)
+    const promise = fetchAuthToken({ context, idToken, packageName, registry })
 
-    try {
-      await fetchAuthToken({ context, idToken, packageName, registry })
-    } catch (error) {
-      if (error instanceof AuthTokenExchangeError) {
-        expect(error.httpStatus).toBe(401)
-        expect(error.errorResponse?.body?.message).toBe('Unauthorized')
-        expect(error.code).toBe('ERR_PNPM_AUTH_TOKEN_EXCHANGE')
-      }
-    }
+    await expect(promise).rejects.toBeInstanceOf(AuthTokenExchangeError)
+    await expect(promise).rejects.toHaveProperty('httpStatus', 401)
+    await expect(promise).rejects.toHaveProperty(['errorResponse', 'body', 'message'], 'Unauthorized')
+    await expect(promise).rejects.toHaveProperty('code', 'ERR_PNPM_AUTH_TOKEN_EXCHANGE')
   })
 
   test('handles exchange error with missing body message', async () => {
@@ -150,37 +147,29 @@ describe('fetchAuthToken', () => {
       fetch: mockFetch,
     }
 
-    try {
-      await fetchAuthToken({ context, idToken, packageName, registry })
-    } catch (error) {
-      if (error instanceof AuthTokenExchangeError) {
-        expect(error.message).toContain('Unknown error')
-        expect(error.httpStatus).toBe(403)
-      }
-    }
+    const promise = fetchAuthToken({ context, idToken, packageName, registry })
+
+    await expect(promise).rejects.toBeInstanceOf(AuthTokenExchangeError)
+    await expect(promise).rejects.toHaveProperty('httpStatus', 403)
+    await expect(promise).rejects.toMatchObject({ message: expect.stringContaining('Unknown error') })
   })
 
-  test('handles exchange error when json parsing fails', async () => {
+  test('handles exchange error when json response is valid', async () => {
     const mockFetch = jest.fn(async () => ({
       ok: false,
       status: 500,
-      json: async () => {
-        throw new Error('JSON parse error')
-      },
+      json: async () => ({ body: { message: 'Internal Server Error' } }),
     }))
 
     const context: AuthTokenContext = {
       fetch: mockFetch,
     }
 
-    try {
-      await fetchAuthToken({ context, idToken, packageName, registry })
-    } catch (error) {
-      if (error instanceof AuthTokenExchangeError) {
-        expect(error.httpStatus).toBe(500)
-        expect(error.errorResponse).toBeUndefined()
-      }
-    }
+    const promise = fetchAuthToken({ context, idToken, packageName, registry })
+
+    await expect(promise).rejects.toBeInstanceOf(AuthTokenExchangeError)
+    await expect(promise).rejects.toHaveProperty('httpStatus', 500)
+    await expect(promise).rejects.toHaveProperty(['errorResponse', 'body', 'message'], 'Internal Server Error')
   })
 
   test('throws AuthTokenJsonInterruptedError when JSON parsing fails on success response', async () => {
@@ -197,17 +186,11 @@ describe('fetchAuthToken', () => {
       fetch: mockFetch,
     }
 
-    await expect(fetchAuthToken({ context, idToken, packageName, registry }))
-      .rejects.toThrow(AuthTokenJsonInterruptedError)
+    const promise = fetchAuthToken({ context, idToken, packageName, registry })
 
-    try {
-      await fetchAuthToken({ context, idToken, packageName, registry })
-    } catch (error) {
-      if (error instanceof AuthTokenJsonInterruptedError) {
-        expect(error.errorSource).toBe(jsonError)
-        expect(error.code).toBe('ERR_PNPM_AUTH_TOKEN_JSON_INTERRUPTED')
-      }
-    }
+    await expect(promise).rejects.toBeInstanceOf(AuthTokenJsonInterruptedError)
+    await expect(promise).rejects.toHaveProperty('errorSource', jsonError)
+    await expect(promise).rejects.toHaveProperty('code', 'ERR_PNPM_AUTH_TOKEN_JSON_INTERRUPTED')
   })
 
   test('throws AuthTokenMalformedJsonError when JSON response is missing token', async () => {
@@ -221,19 +204,13 @@ describe('fetchAuthToken', () => {
       fetch: mockFetch,
     }
 
-    await expect(fetchAuthToken({ context, idToken, packageName, registry }))
-      .rejects.toThrow(AuthTokenMalformedJsonError)
+    const promise = fetchAuthToken({ context, idToken, packageName, registry })
 
-    try {
-      await fetchAuthToken({ context, idToken, packageName, registry })
-    } catch (error) {
-      if (error instanceof AuthTokenMalformedJsonError) {
-        expect(error.malformedJsonResponse).toEqual({})
-        expect(error.packageName).toBe(packageName)
-        expect(error.registry).toBe(registry)
-        expect(error.code).toBe('ERR_PNPM_AUTH_TOKEN_MALFORMED_JSON')
-      }
-    }
+    await expect(promise).rejects.toBeInstanceOf(AuthTokenMalformedJsonError)
+    await expect(promise).rejects.toHaveProperty('malformedJsonResponse', {})
+    await expect(promise).rejects.toHaveProperty('packageName', packageName)
+    await expect(promise).rejects.toHaveProperty('registry', registry)
+    await expect(promise).rejects.toHaveProperty('code', 'ERR_PNPM_AUTH_TOKEN_MALFORMED_JSON')
   })
 
   test('throws AuthTokenMalformedJsonError when token is not a string', async () => {

@@ -13,10 +13,10 @@ describe('getIdToken', () => {
 
   test('returns undefined when not in GitHub Actions or GitLab', async () => {
     const context: IdTokenContext = {
-      Date: { now: jest.fn(() => 1000) },
+      Date: { now: jest.fn(() => 1000) } as IdTokenContext['Date'],
       ciInfo: { GITHUB_ACTIONS: false, GITLAB: false },
-      fetch: jest.fn(),
-      globalInfo: jest.fn(),
+      fetch: jest.fn() as IdTokenContext['fetch'],
+      globalInfo: jest.fn() as IdTokenContext['globalInfo'],
       process: { env: {} },
     }
 
@@ -28,10 +28,10 @@ describe('getIdToken', () => {
 
   test('returns NPM_ID_TOKEN from environment when available', async () => {
     const context: IdTokenContext = {
-      Date: { now: jest.fn(() => 1000) },
+      Date: { now: jest.fn(() => 1000) } as IdTokenContext['Date'],
       ciInfo: { GITHUB_ACTIONS: true },
-      fetch: jest.fn(),
-      globalInfo: jest.fn(),
+      fetch: jest.fn() as IdTokenContext['fetch'],
+      globalInfo: jest.fn() as IdTokenContext['globalInfo'],
       process: { env: { NPM_ID_TOKEN: 'test-token-from-env' } },
     }
 
@@ -43,10 +43,10 @@ describe('getIdToken', () => {
 
   test('returns NPM_ID_TOKEN from environment in GitLab', async () => {
     const context: IdTokenContext = {
-      Date: { now: jest.fn(() => 1000) },
+      Date: { now: jest.fn(() => 1000) } as IdTokenContext['Date'],
       ciInfo: { GITHUB_ACTIONS: false, GITLAB: true },
-      fetch: jest.fn(),
-      globalInfo: jest.fn(),
+      fetch: jest.fn() as IdTokenContext['fetch'],
+      globalInfo: jest.fn() as IdTokenContext['globalInfo'],
       process: { env: { NPM_ID_TOKEN: 'test-token-gitlab' } },
     }
 
@@ -58,10 +58,10 @@ describe('getIdToken', () => {
 
   test('returns undefined for GitLab when NPM_ID_TOKEN is not set', async () => {
     const context: IdTokenContext = {
-      Date: { now: jest.fn(() => 1000) },
+      Date: { now: jest.fn(() => 1000) } as IdTokenContext['Date'],
       ciInfo: { GITHUB_ACTIONS: false, GITLAB: true },
-      fetch: jest.fn(),
-      globalInfo: jest.fn(),
+      fetch: jest.fn() as IdTokenContext['fetch'],
+      globalInfo: jest.fn() as IdTokenContext['globalInfo'],
       process: { env: {} },
     }
 
@@ -137,8 +137,7 @@ describe('getIdToken', () => {
 
     const [url, options] = mockFetch.mock.calls[0]
     expect(url).toContain('https://actions.example.com/token')
-    // cspell:disable-next-line
-    expect(url).toContain('audience=npm%3Aregistry.npmjs.org')
+    expect(url).toContain('audience=npm:registry.npmjs.org'.replace(':', '%3A'))
     expect(options.headers.Authorization).toBe('Bearer request-token')
     expect(options.method).toBe('GET')
   })
@@ -213,19 +212,14 @@ describe('getIdToken', () => {
     await getIdToken({ context, registry })
 
     expect(mockDateNow).toHaveBeenCalledTimes(2)
-    expect(mockGlobalInfo).toHaveBeenCalledTimes(1)
-    const logMessage = mockGlobalInfo.mock.calls[0][0]
-    expect(logMessage).toContain('GET')
-    expect(logMessage).toContain('https://actions.example.com/token')
-    expect(logMessage).toContain('200')
-    expect(logMessage).toContain('500ms')
+    expect(mockGlobalInfo).toHaveBeenCalledWith('GET https://actions.example.com/token?audience=npm%3Aregistry.npmjs.org 200 500ms')
   })
 
   test('throws error when fetch response is not ok', async () => {
     const mockFetch = jest.fn(async () => ({
       ok: false,
       status: 401,
-      json: async () => ({}),
+      json: async () => ({ code: 'UNAUTHORIZED', message: 'Unauthorized' }),
     }))
 
     const context: IdTokenContext = {

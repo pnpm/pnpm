@@ -28,11 +28,9 @@ describe('determineProvenance', () => {
       process: { env: {} },
     }
 
-    const malformedToken = 'not-a-jwt-token'
-
     await expect(determineProvenance({
       authToken,
-      idToken: malformedToken,
+      idToken: 'not-a-jwt-token',
       packageName,
       registry,
       context,
@@ -49,11 +47,9 @@ describe('determineProvenance', () => {
       process: { env: {} },
     }
 
-    const malformedToken = 'header.'
-
     await expect(determineProvenance({
       authToken,
-      idToken: malformedToken,
+      idToken: 'header.',
       packageName,
       registry,
       context,
@@ -398,19 +394,16 @@ describe('determineProvenance', () => {
 
     const idToken = createIdToken({ repository_visibility: 'public' })
 
-    try {
-      await determineProvenance({
-        authToken,
-        idToken,
-        packageName,
-        registry,
-        context,
-      })
-    } catch (error) {
-      if (error instanceof ProvenanceFailedToFetchVisibilityError) {
-        expect(error.message).toContain('an unknown error')
-      }
-    }
+    const promise = determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })
+
+    await expect(promise).rejects.toBeInstanceOf(ProvenanceFailedToFetchVisibilityError)
+    await expect(promise).rejects.toMatchObject({ message: expect.stringContaining('an unknown error') })
   })
 
   test('handles visibility fetch error when JSON parsing fails', async () => {
@@ -430,20 +423,17 @@ describe('determineProvenance', () => {
 
     const idToken = createIdToken({ repository_visibility: 'public' })
 
-    try {
-      await determineProvenance({
-        authToken,
-        idToken,
-        packageName,
-        registry,
-        context,
-      })
-    } catch (error) {
-      if (error instanceof ProvenanceFailedToFetchVisibilityError) {
-        expect(error.status).toBe(500)
-        expect(error.errorResponse).toBeUndefined()
-      }
-    }
+    const promise = determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })
+
+    await expect(promise).rejects.toBeInstanceOf(ProvenanceFailedToFetchVisibilityError)
+    await expect(promise).rejects.toHaveProperty('status', 500)
+    await expect(promise).rejects.toHaveProperty('errorResponse', undefined)
   })
 
   test('encodes package name in URL', async () => {
