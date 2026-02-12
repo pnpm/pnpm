@@ -86,7 +86,7 @@ export async function determineProvenance ({
     project_visibility?: unknown
   }
 
-  const payloadJson = Buffer.from(payloadB64, 'base64').toString('utf8')
+  const payloadJson = Buffer.from(payloadB64, 'base64url').toString('utf8')
   const payload: Payload = JSON.parse(payloadJson)
 
   if (
