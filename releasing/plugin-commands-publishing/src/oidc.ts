@@ -170,7 +170,7 @@ export async function oidc ({
   }
 
   // see <https://github.com/npm/npm-package-arg/blob/0d7bd85a85fa2571fa532d2fc842ed099b236ad2/lib/npa.js#L188>
-  const escapedPackageName = packageName.replace('/', '%2f')
+  const escapedPackageName = encodeURIComponent(packageName)
 
   let authTokenResponse: OidcFetchResponse
   try {

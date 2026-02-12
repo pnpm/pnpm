@@ -103,7 +103,7 @@ export async function determineProvenance ({
     throw new ProvenanceInsufficientInformationError()
   }
 
-  const escapedPackageName = packageName.replace('/', '%2f')
+  const escapedPackageName = encodeURIComponent(packageName)
   const visibilityUrl = new URL(`/-/package/${escapedPackageName}/visibility`, registry)
   const response = await fetch(visibilityUrl, {
     headers: {
