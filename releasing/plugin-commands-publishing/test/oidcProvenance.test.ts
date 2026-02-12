@@ -1,0 +1,477 @@
+import { jest } from '@jest/globals'
+import {
+  determineProvenance,
+  ProvenanceMalformedIdTokenError,
+  ProvenanceInsufficientInformationError,
+  ProvenanceFailedToFetchVisibilityError,
+  type ProvenanceContext,
+} from '../src/oidc/provenance.js'
+
+describe('determineProvenance', () => {
+  const registry = 'https://registry.npmjs.org'
+  const packageName = '@pnpm/test-package'
+  const authToken = 'test-auth-token'
+
+  // Helper to create a valid JWT-like token
+  function createIdToken (payload: Record<string, unknown>): string {
+    const header = { alg: 'RS256', typ: 'JWT' }
+    const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url')
+    const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url')
+    return `${headerB64}.${payloadB64}.signature`
+  }
+
+  test('throws ProvenanceMalformedIdTokenError when idToken is malformed (no dots)', async () => {
+    const mockFetch = jest.fn()
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const malformedToken = 'not-a-jwt-token'
+
+    await expect(determineProvenance({
+      authToken,
+      idToken: malformedToken,
+      packageName,
+      registry,
+      context,
+    })).rejects.toThrow(ProvenanceMalformedIdTokenError)
+
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  test('throws ProvenanceMalformedIdTokenError when idToken has only one part', async () => {
+    const mockFetch = jest.fn()
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const malformedToken = 'header.'
+
+    await expect(determineProvenance({
+      authToken,
+      idToken: malformedToken,
+      packageName,
+      registry,
+      context,
+    })).rejects.toThrow(ProvenanceMalformedIdTokenError)
+  })
+
+  test('throws ProvenanceInsufficientInformationError for GitHub Actions with non-public repository', async () => {
+    const mockFetch = jest.fn()
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const idToken = createIdToken({ repository_visibility: 'private' })
+
+    await expect(determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })).rejects.toThrow(ProvenanceInsufficientInformationError)
+
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  test('throws ProvenanceInsufficientInformationError for GitLab with non-public project', async () => {
+    const mockFetch = jest.fn()
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: false, GITLAB: true },
+      fetch: mockFetch,
+      process: { env: { SIGSTORE_ID_TOKEN: 'token' } },
+    }
+
+    const idToken = createIdToken({ project_visibility: 'private' })
+
+    await expect(determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })).rejects.toThrow(ProvenanceInsufficientInformationError)
+
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  test('throws ProvenanceInsufficientInformationError for GitLab without SIGSTORE_ID_TOKEN', async () => {
+    const mockFetch = jest.fn()
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: false, GITLAB: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const idToken = createIdToken({ project_visibility: 'public' })
+
+    await expect(determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })).rejects.toThrow(ProvenanceInsufficientInformationError)
+
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  test('returns true when package is public in GitHub Actions', async () => {
+    const mockFetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ public: true }),
+    }))
+
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const idToken = createIdToken({ repository_visibility: 'public' })
+
+    const result = await determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })
+
+    expect(result).toBe(true)
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+
+    const [url, options] = mockFetch.mock.calls[0]
+    expect(url.href).toContain('/-/package/')
+    expect(url.href).toContain(encodeURIComponent(packageName))
+    expect(url.href).toContain('/visibility')
+    expect(options.headers.Authorization).toBe(`Bearer ${authToken}`)
+    expect(options.method).toBe('GET')
+  })
+
+  test('returns true when package is public in GitLab', async () => {
+    const mockFetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ public: true }),
+    }))
+
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: false, GITLAB: true },
+      fetch: mockFetch,
+      process: { env: { SIGSTORE_ID_TOKEN: 'token' } },
+    }
+
+    const idToken = createIdToken({ project_visibility: 'public' })
+
+    const result = await determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })
+
+    expect(result).toBe(true)
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  test('returns undefined when package visibility is not public', async () => {
+    const mockFetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ public: false }),
+    }))
+
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const idToken = createIdToken({ repository_visibility: 'public' })
+
+    const result = await determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })
+
+    expect(result).toBeUndefined()
+  })
+
+  test('returns undefined when visibility response is missing public field', async () => {
+    const mockFetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    }))
+
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const idToken = createIdToken({ repository_visibility: 'public' })
+
+    const result = await determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })
+
+    expect(result).toBeUndefined()
+  })
+
+  test('passes fetch options correctly', async () => {
+    const mockFetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ public: true }),
+    }))
+
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const idToken = createIdToken({ repository_visibility: 'public' })
+
+    const options = {
+      fetchRetries: 4,
+      fetchRetryFactor: 2.5,
+      fetchRetryMaxtimeout: 90000,
+      fetchRetryMintimeout: 1500,
+      fetchTimeout: 40000,
+    }
+
+    await determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+      options,
+    })
+
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    const [, fetchOptions] = mockFetch.mock.calls[0]
+    expect(fetchOptions.retry).toEqual({
+      factor: 2.5,
+      maxTimeout: 90000,
+      minTimeout: 1500,
+      retries: 4,
+    })
+    expect(fetchOptions.timeout).toBe(40000)
+  })
+
+  test('throws ProvenanceFailedToFetchVisibilityError when fetch fails', async () => {
+    const mockFetch = jest.fn(async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({ code: 'NOT_FOUND', message: 'Package not found' }),
+    }))
+
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const idToken = createIdToken({ repository_visibility: 'public' })
+
+    await expect(determineProvenance({
+      authToken,
+      idToken,
+      packageName,
+      registry,
+      context,
+    })).rejects.toThrow(ProvenanceFailedToFetchVisibilityError)
+
+    try {
+      await determineProvenance({
+        authToken,
+        idToken,
+        packageName,
+        registry,
+        context,
+      })
+    } catch (error) {
+      if (error instanceof ProvenanceFailedToFetchVisibilityError) {
+        expect(error.status).toBe(404)
+        expect(error.packageName).toBe(packageName)
+        expect(error.registry).toBe(registry)
+        expect(error.errorResponse?.code).toBe('NOT_FOUND')
+        expect(error.errorResponse?.message).toBe('Package not found')
+        expect(error.message).toContain('NOT_FOUND: Package not found')
+      }
+    }
+  })
+
+  test('handles visibility fetch error with only code', async () => {
+    const mockFetch = jest.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({ code: 'UNAUTHORIZED' }),
+    }))
+
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const idToken = createIdToken({ repository_visibility: 'public' })
+
+    try {
+      await determineProvenance({
+        authToken,
+        idToken,
+        packageName,
+        registry,
+        context,
+      })
+    } catch (error) {
+      if (error instanceof ProvenanceFailedToFetchVisibilityError) {
+        expect(error.message).toContain('UNAUTHORIZED')
+        expect(error.message).not.toContain(': ')
+      }
+    }
+  })
+
+  test('handles visibility fetch error with only message', async () => {
+    const mockFetch = jest.fn(async () => ({
+      ok: false,
+      status: 500,
+      json: async () => ({ message: 'Internal server error' }),
+    }))
+
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const idToken = createIdToken({ repository_visibility: 'public' })
+
+    try {
+      await determineProvenance({
+        authToken,
+        idToken,
+        packageName,
+        registry,
+        context,
+      })
+    } catch (error) {
+      if (error instanceof ProvenanceFailedToFetchVisibilityError) {
+        expect(error.message).toContain('Internal server error')
+      }
+    }
+  })
+
+  test('handles visibility fetch error with no error details', async () => {
+    const mockFetch = jest.fn(async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    }))
+
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const idToken = createIdToken({ repository_visibility: 'public' })
+
+    try {
+      await determineProvenance({
+        authToken,
+        idToken,
+        packageName,
+        registry,
+        context,
+      })
+    } catch (error) {
+      if (error instanceof ProvenanceFailedToFetchVisibilityError) {
+        expect(error.message).toContain('an unknown error')
+      }
+    }
+  })
+
+  test('handles visibility fetch error when JSON parsing fails', async () => {
+    const mockFetch = jest.fn(async () => ({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error('JSON parse error')
+      },
+    }))
+
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const idToken = createIdToken({ repository_visibility: 'public' })
+
+    try {
+      await determineProvenance({
+        authToken,
+        idToken,
+        packageName,
+        registry,
+        context,
+      })
+    } catch (error) {
+      if (error instanceof ProvenanceFailedToFetchVisibilityError) {
+        expect(error.status).toBe(500)
+        expect(error.errorResponse).toBeUndefined()
+      }
+    }
+  })
+
+  test('encodes package name in URL', async () => {
+    const mockFetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ public: true }),
+    }))
+
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    const idToken = createIdToken({ repository_visibility: 'public' })
+    const specialPackageName = '@scope/package with spaces'
+
+    await determineProvenance({
+      authToken,
+      idToken,
+      packageName: specialPackageName,
+      registry,
+      context,
+    })
+
+    const [url] = mockFetch.mock.calls[0]
+    expect(url.href).toContain(encodeURIComponent(specialPackageName))
+    expect(url.href).not.toContain('package with spaces')
+  })
+})
