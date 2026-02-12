@@ -50,7 +50,7 @@ export type PublishPackedPkgOptions = Pick<Config,
 }
 
 // @types/libnpmpublish unfortunately uses an outdated type definition of package.json
-type OutdatedManifest = typeof publish extends (_a: infer Manifest, ..._: never) => unknown ? Manifest : never
+type ManifestFromOutdatedDefinition = typeof publish extends (_a: infer Manifest, ..._: never) => unknown ? Manifest : never
 
 export async function publishPackedPkg (
   packResult: Pick<PackResult, 'publishedManifest' | 'tarballPath'>,
@@ -66,7 +66,7 @@ export async function publishPackedPkg (
     globalWarn(`Skip publishing ${name}@${version} (dry run)`)
     return
   }
-  const response = await publish(publishedManifest as OutdatedManifest, tarballData, publishOptions)
+  const response = await publish(publishedManifest as ManifestFromOutdatedDefinition, tarballData, publishOptions)
   if (response.ok) {
     globalInfo(`✅ Published package ${name}@${version}`)
     return
