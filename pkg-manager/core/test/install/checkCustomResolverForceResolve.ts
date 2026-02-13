@@ -227,4 +227,37 @@ describe('checkCustomResolverForceResolve', () => {
 
     expect(result).toBe(true)
   })
+
+  test('re-throws errors from shouldRefreshResolution', async () => {
+    const resolver: CustomResolver = {
+      shouldRefreshResolution: () => {
+        throw new Error('resolver crashed')
+      },
+    }
+
+    await expect(
+      checkCustomResolverForceResolve(
+        [resolver],
+        lockfileWithPackages({ 'test-pkg@1.0.0': TEST_PKG_SNAPSHOT })
+      )
+    ).rejects.toThrow('resolver crashed')
+  })
+
+  test('re-throws even when other resolvers return false', async () => {
+    const goodResolver: CustomResolver = {
+      shouldRefreshResolution: () => false,
+    }
+    const badResolver: CustomResolver = {
+      shouldRefreshResolution: () => {
+        throw new Error('unexpected failure')
+      },
+    }
+
+    await expect(
+      checkCustomResolverForceResolve(
+        [goodResolver, badResolver],
+        lockfileWithPackages({ 'test-pkg@1.0.0': TEST_PKG_SNAPSHOT })
+      )
+    ).rejects.toThrow('unexpected failure')
+  })
 })

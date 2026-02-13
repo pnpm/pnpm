@@ -1,6 +1,9 @@
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type CustomResolver } from '@pnpm/hooks.types'
 
+// Sentinel for Promise.any rejections (not an error condition)
+const SKIP = new Error('skip')
+
 /**
  * Check if any custom resolver's shouldRefreshResolution returns true for any
  * package in the lockfile. shouldRefreshResolution is called independently of
@@ -14,12 +17,27 @@ export async function checkCustomResolverForceResolve (
 ): Promise<boolean> {
   if (!wantedLockfile.packages) return false
 
-  const resolversWithHook = customResolvers.filter(resolver => resolver.shouldRefreshResolution)
-  if (resolversWithHook.length === 0) return false
+  const hooks: NonNullable<CustomResolver['shouldRefreshResolution']>[] = []
+  for (const resolver of customResolvers) {
+    if (resolver.shouldRefreshResolution) hooks.push(resolver.shouldRefreshResolution)
+  }
+  if (hooks.length === 0) return false
 
   const checks = Object.entries(wantedLockfile.packages).flatMap(([depPath, pkgSnapshot]) =>
-    resolversWithHook.map(resolver => resolver.shouldRefreshResolution!(depPath, pkgSnapshot))
+    hooks.map(async (shouldRefreshResolution) => {
+      if (await shouldRefreshResolution(depPath, pkgSnapshot)) {
+        return true
+      }
+      throw SKIP
+    })
   )
-  const results = await Promise.all(checks)
-  return results.some(Boolean)
+  try {
+    await Promise.any(checks)
+    return true
+  } catch (err) {
+    if (!(err instanceof AggregateError)) throw err
+    const realError = err.errors.find(e => e !== SKIP)
+    if (realError) throw realError
+    return false
+  }
 }
