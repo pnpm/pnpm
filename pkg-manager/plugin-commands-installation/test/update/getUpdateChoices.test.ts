@@ -139,3 +139,31 @@ test('getUpdateChoices()', () => {
       },
     ])
 })
+
+test('getUpdateChoices() handles long version strings without wrapping', () => {
+  const choices = getUpdateChoices([
+    {
+      alias: '@typescript/native-preview',
+      belongsTo: 'devDependencies' as const,
+      current: '7.0.0-dev.20251209.1',
+      latestManifest: {
+        name: '@typescript/native-preview',
+        version: '7.0.0-dev.20251214.1',
+        homepage: 'https://github.com/nicolo-ribaudo/tc39-proposal-structs',
+      },
+      packageName: '@typescript/native-preview',
+      wanted: '7.0.0-dev.20251209.1',
+    },
+  ], false)
+
+  const dataRow = choices[0].choices[1] as { message: string; value: string; name: string }
+  expect(dataRow).toStrictEqual({
+    message: expect.stringContaining('7.0.0-dev.20251209.1'),
+    value: '@typescript/native-preview',
+    name: '@typescript/native-preview',
+  })
+  // The rendered message must be a single line (no wrapping)
+  expect(dataRow.message).not.toContain('\n')
+  // Both current and target versions must appear in the output
+  expect(dataRow.message).toContain('7.0.0-dev.20251214.1')
+})
