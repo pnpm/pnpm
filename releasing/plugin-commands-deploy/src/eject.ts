@@ -143,8 +143,13 @@ export async function handler (opts: EjectOptions, params: string[]): Promise<vo
     JSON.stringify(ejectedManifest, null, 2) + '\n'
   )
 
+  const totalEjected =
+  (ejectedDeps.dependencies ? Object.keys(ejectedDeps.dependencies).length : 0) +
+  (ejectedDeps.devDependencies ? Object.keys(ejectedDeps.devDependencies).length : 0) +
+  (ejectedDeps.optionalDependencies ? Object.keys(ejectedDeps.optionalDependencies).length : 0)
+
   logger.info({
-    message: `Ejecting ${Object.keys(ejectedDeps).length} dependencies to ${targetDir}`,
+    message: `Ejecting ${totalEjected} ${totalEjected === 1 ? 'dependency' : 'dependencies'} to ${targetDir}`,
     prefix: opts.dir,
   })
 

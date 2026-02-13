@@ -45,8 +45,6 @@ test('eject basic dependencies', async () => {
   await eject.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    //production: false,
-    //dev: false,
   }, ['dist'])
 
   const project = assertProject(path.resolve('dist'))
