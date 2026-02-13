@@ -806,7 +806,7 @@ ajv ${VERSION_CLR('6.10.2')}
 ├── fast-json-stable-stringify ${VERSION_CLR('2.0.0')}
 ├── json-schema-traverse ${VERSION_CLR('0.4.1')}
 └── uri-js ${VERSION_CLR('4.2.2')}
-ajv-keywords ${VERSION_CLR('3.4.1')}
+ajv-keywords ${VERSION_CLR('3.4.1')}${chalk.dim(' #9665')}
 └── ajv ${VERSION_CLR('6.10.2')} peer`)
 })
 
@@ -819,7 +819,7 @@ ${boldHighlighted(`with-peer@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
 ${highlighted(`ajv ${VERSION_CLR('6.10.2')}`)}
-ajv-keywords ${VERSION_CLR('3.4.1')}
+ajv-keywords ${VERSION_CLR('3.4.1')}${chalk.dim(' #9665')}
 └── ${highlighted(`ajv ${VERSION_CLR('6.10.2')} peer`)}`)
 })
 
