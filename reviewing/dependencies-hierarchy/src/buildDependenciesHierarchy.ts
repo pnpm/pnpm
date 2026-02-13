@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import path from 'path'
 import {
   getLockfileImporterId,
@@ -9,7 +8,6 @@ import {
   type ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
-import { parseDepPath } from '@pnpm/dependency-path'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
@@ -19,7 +17,7 @@ import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
 import { type PackageNode } from './PackageNode.js'
-import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
+import { buildDependencyGraph } from './buildDependencyGraph.js'
 import { getTree, type BaseTreeOpts, type GetTreeResult, type MaterializationCache } from './getTree.js'
 import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 import { getPkgInfo } from './getPkgInfo.js'
@@ -41,7 +39,6 @@ export async function buildDependenciesHierarchy (
     registries?: Registries
     onlyProjects?: boolean
     search?: Finder
-    fastSearch?: (alias: string) => boolean
     showDedupedSearchMatches?: boolean
     lockfileDir: string
     checkWantedLockfileOnly?: boolean
@@ -114,13 +111,6 @@ export async function buildDependenciesHierarchy (
   const sharedMaterializationCache: MaterializationCache = new Map()
   const sharedDepTypes = detectDepTypes(lockfileToUse)
 
-  // When searching, pre-filter importers to only those that can transitively
-  // reach a package matching the search queries. This avoids per-importer work
-  // (readModulesDir, getPkgInfo, getTree) for importers that can't match.
-  const importerFilter = opts.search && maybeOpts.fastSearch
-    ? findImportersReachingSearchTarget(sharedGraph, maybeOpts.fastSearch)
-    : undefined
-
   const ctx: HierarchyContext = {
     currentLockfile: lockfileToUse,
     wantedLockfile,
@@ -133,12 +123,6 @@ export async function buildDependenciesHierarchy (
   const getHierarchy = dependenciesHierarchyForPackage.bind(null, ctx)
 
   const pairs = await Promise.all(projectPaths.map(async (projectPath) => {
-    if (importerFilter) {
-      const importerId = getLockfileImporterId(ctx.lockfileDir, projectPath)
-      if (!importerFilter.has(importerId)) {
-        return [projectPath, {}] as [string, DependenciesHierarchy]
-      }
-    }
     return [
       projectPath,
       await getHierarchy(projectPath),
@@ -254,12 +238,6 @@ async function dependenciesHierarchyForPackage (
         }
       }
       if (newEntry != null) {
-        if (nodeId?.type === 'package') {
-          const { peerDepGraphHash } = parseDepPath(nodeId.depPath)
-          if (peerDepGraphHash) {
-            newEntry.peersSuffixHash = crypto.createHash('md5').update(peerDepGraphHash).digest('hex').slice(0, 4)
-          }
-        }
         if (searchMatch) {
           newEntry.searched = true
           if (typeof searchMatch === 'string') {
@@ -317,66 +295,6 @@ async function dependenciesHierarchyForPackage (
   )
 
   return result
-}
-
-/**
- * Given the shared dependency graph and a list of search query strings,
- * finds which importers can transitively reach a package whose alias
- * matches any of the queries.
- *
- * Returns the set of importer IDs that should be processed.
- */
-function findImportersReachingSearchTarget (
-  graph: DependencyGraph,
-  fastSearch: (alias: string) => boolean
-): Set<string> {
-  // 1. Build reverse edges and find nodes whose alias matches the query.
-  const reverseEdges = new Map<string, Set<string>>()
-  const matchingParentIds = new Set<string>()
-
-  for (const [parentId, graphNode] of graph.nodes) {
-    for (const edge of graphNode.edges) {
-      if (edge.target != null) {
-        let parents = reverseEdges.get(edge.target.id)
-        if (parents == null) {
-          parents = new Set()
-          reverseEdges.set(edge.target.id, parents)
-        }
-        parents.add(parentId)
-      }
-      if (fastSearch(edge.alias)) {
-        matchingParentIds.add(parentId)
-      }
-    }
-  }
-
-  // 2. BFS backward from matching parent nodes to find reachable importers.
-  const visited = new Set<string>()
-  const queue = [...matchingParentIds]
-  let queueIdx = 0
-  const reachableImporterIds = new Set<string>()
-
-  while (queueIdx < queue.length) {
-    const nodeId = queue[queueIdx++]
-    if (visited.has(nodeId)) continue
-    visited.add(nodeId)
-
-    const graphNode = graph.nodes.get(nodeId)
-    if (graphNode?.nodeId.type === 'importer') {
-      reachableImporterIds.add(graphNode.nodeId.importerId)
-    }
-
-    const parents = reverseEdges.get(nodeId)
-    if (parents != null) {
-      for (const parent of parents) {
-        if (!visited.has(parent)) {
-          queue.push(parent)
-        }
-      }
-    }
-  }
-
-  return reachableImporterIds
 }
 
 function getAllDirectDependencies (projectSnapshot: ProjectSnapshot): ResolvedDependencies {
