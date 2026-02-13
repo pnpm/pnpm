@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import path from 'path'
 import {
   getLockfileImporterId,
@@ -8,6 +9,7 @@ import {
   type ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
 import { detectDepTypes, type DepTypes } from '@pnpm/lockfile.detect-dep-types'
+import { parseDepPath } from '@pnpm/dependency-path'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
@@ -18,7 +20,7 @@ import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
 import { type PackageNode } from './PackageNode.js'
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
-import { getTree, type MaterializationCache } from './getTree.js'
+import { getTree, type GetTreeResult, type MaterializationCache } from './getTree.js'
 import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { type TreeNodeId } from './TreeNodeId.js'
@@ -91,7 +93,7 @@ export async function buildDependenciesHierarchy (
     onlyProjects: maybeOpts.onlyProjects,
     registries,
     search: maybeOpts.search,
-    showDedupedSearchMatches: maybeOpts.showDedupedSearchMatches,
+    showDedupedSearchMatches: maybeOpts.showDedupedSearchMatches ?? (maybeOpts.search != null),
     skipped: new Set(modules?.skipped ?? []),
     modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
@@ -112,10 +114,7 @@ export async function buildDependenciesHierarchy (
     include: opts.include,
     lockfileDir: opts.lockfileDir,
   })
-  // When searching, each importer needs its own materialization cache so that
-  // every importer shows the full paths to matching packages.  Without search,
-  // a single shared cache deduplicates identical subtrees across importers.
-  const sharedMaterializationCache: MaterializationCache | undefined = opts.search ? undefined : new Map()
+  const sharedMaterializationCache: MaterializationCache = new Map()
   const sharedDepTypes = detectDepTypes(lockfileToUse)
 
   // When searching, pre-filter importers to only those that can transitively
@@ -132,10 +131,9 @@ export async function buildDependenciesHierarchy (
         return [projectPath, {}] as [string, DependenciesHierarchy]
       }
     }
-    const materializationCache = sharedMaterializationCache ?? new Map()
     return [
       projectPath,
-      await dependenciesHierarchyForPackage(projectPath, lockfileToUse, wantedLockfile, opts, sharedGraph, materializationCache, sharedDepTypes),
+      await dependenciesHierarchyForPackage(projectPath, lockfileToUse, wantedLockfile, opts, sharedGraph, sharedMaterializationCache, sharedDepTypes),
     ] as [string, DependenciesHierarchy]
   }))
   for (const [projectPath, dependenciesHierarchy] of pairs) {
@@ -241,25 +239,49 @@ async function dependenciesHierarchyForPackage (
       })
       if (opts.onlyProjects && nodeId?.type !== 'importer') {
         continue
-      } else if (nodeId == null) {
+      }
+      let treeResult: GetTreeResult | undefined
+      if (nodeId == null) {
         if ((opts.search != null) && !searchMatch) continue
         newEntry = packageInfo
       } else {
-        const dependencies = getChildrenTree(nodeId, packageInfo.path)
-        if (dependencies.length > 0) {
+        treeResult = getChildrenTree(nodeId, packageInfo.path)
+        if (treeResult.deduped) {
+          // This subtree was already materialized for a previous importer.
+          const showDeduped = opts.search == null || Boolean(searchMatch) ||
+            Boolean(opts.showDedupedSearchMatches && treeResult.hasSearchMatch)
+          if (showDeduped) {
+            newEntry = packageInfo
+            if (treeResult.count > 0) {
+              newEntry.deduped = true
+              newEntry.dedupedDependenciesCount = treeResult.count
+            }
+          }
+        } else if (treeResult.nodes.length > 0) {
           newEntry = {
             ...packageInfo,
-            dependencies,
+            dependencies: treeResult.nodes,
           }
         } else if ((opts.search == null) || searchMatch) {
           newEntry = packageInfo
         }
       }
       if (newEntry != null) {
+        if (nodeId?.type === 'package') {
+          const { peerDepGraphHash } = parseDepPath(nodeId.depPath)
+          if (peerDepGraphHash) {
+            newEntry.peersSuffixHash = crypto.createHash('md5').update(peerDepGraphHash).digest('hex').slice(0, 4)
+          }
+        }
         if (searchMatch) {
           newEntry.searched = true
           if (typeof searchMatch === 'string') {
             newEntry.searchMessage = searchMatch
+          }
+        } else if (newEntry.deduped && opts.showDedupedSearchMatches && treeResult?.hasSearchMatch) {
+          newEntry.searched = true
+          if (treeResult.searchMessages.length > 0) {
+            newEntry.searchMessage = treeResult.searchMessages.join('\n')
           }
         }
         result[dependenciesField]!.push(newEntry)

@@ -1,5 +1,7 @@
+import crypto from 'crypto'
 import path from 'path'
 import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile.fs'
+import { parseDepPath } from '@pnpm/dependency-path'
 import { type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { type Finder, type Registries } from '@pnpm/types'
 import { type DependencyGraph } from './buildDependencyGraph.js'
@@ -62,19 +64,52 @@ interface CachedSubtree {
  */
 export type MaterializationCache = Map<string, CachedSubtree>
 
+export interface GetTreeResult {
+  nodes: PackageNode[]
+  /** Total count of PackageNode objects in the subtree (recursive). */
+  count: number
+  /** Whether any node in the subtree matched the search. */
+  hasSearchMatch: boolean
+  /** Search match messages found in the subtree. */
+  searchMessages: string[]
+  /** True when this subtree was already materialized elsewhere and elided. */
+  deduped: boolean
+}
+
 export function getTree (
   opts: GetTreeOpts,
   parentId: TreeNodeId
-): PackageNode[] {
+): GetTreeResult {
+  const parentSerialized = serializeTreeNodeId(parentId)
+  const cacheKey = materializeCacheKey(parentSerialized, opts.maxDepth)
+  const cached = opts.materializationCache.get(cacheKey)
+
+  if (cached) {
+    return {
+      nodes: [],
+      count: cached.count,
+      hasSearchMatch: cached.hasSearchMatch,
+      searchMessages: cached.searchMessages,
+      deduped: true,
+    }
+  }
+
   const ancestors = new Set<string>()
-  ancestors.add(serializeTreeNodeId(parentId))
+  ancestors.add(parentSerialized)
 
   const ctx: MaterializationContext = {
     ...opts,
     ancestors,
   }
 
-  const { nodes: tree } = materializeChildren(ctx, parentId, opts.maxDepth, opts.parentDir)
+  const result = materializeChildren(ctx, parentId, opts.maxDepth, opts.parentDir)
+
+  // Cache the root node's subtree for top-level dedupe across importers.
+  opts.materializationCache.set(cacheKey, {
+    count: result.count,
+    hasSearchMatch: result.hasSearchMatch,
+    searchMessages: result.searchMessages,
+  })
 
   // Mark circular back-edges.  materializeChildren truncates dependencies
   // at cycle boundaries but does not set the `circular` flag, so that cached
@@ -88,7 +123,13 @@ export function getTree (
   if (opts.parentDir) {
     circularAncestors.add(opts.parentDir)
   }
-  return fixCircularRefs(tree, circularAncestors)
+  return {
+    nodes: fixCircularRefs(result.nodes, circularAncestors),
+    count: result.count,
+    hasSearchMatch: result.hasSearchMatch,
+    searchMessages: result.searchMessages,
+    deduped: false,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -241,6 +282,12 @@ function materializeChildren (
       if (dedupedCount != null) {
         newEntry.deduped = true
         newEntry.dedupedDependenciesCount = dedupedCount
+      }
+      if (edge.target.nodeId.type === 'package') {
+        const { peerDepGraphHash } = parseDepPath(edge.target.nodeId.depPath)
+        if (peerDepGraphHash) {
+          newEntry.peersSuffixHash = crypto.createHash('md5').update(peerDepGraphHash).digest('hex').slice(0, 4)
+        }
       }
     }
 
