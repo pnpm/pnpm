@@ -42,7 +42,7 @@ export async function renderTree (
 async function renderTreeForPackage (
   pkg: PackageDependencyHierarchy,
   opts: RenderTreeOptions,
-  multiPeerPkgs: Set<string>
+  multiPeerPkgs: Map<string, number>
 ): Promise<string> {
   if (
     !opts.alwaysPrintRootPackage &&
@@ -111,7 +111,7 @@ export async function toArchyTree (
   opts: {
     long: boolean
     modules: string
-    multiPeerPkgs?: Set<string>
+    multiPeerPkgs?: Map<string, number>
   }
 ): Promise<archy.Data[]> {
   return Promise.all(
@@ -146,7 +146,7 @@ export async function toArchyTree (
   )
 }
 
-function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Set<string> | undefined, node: PackageNode): string {
+function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number> | undefined, node: PackageNode): string {
   const color = getPkgColor(node)
   let txt: string
   if (node.alias !== node.name) {
@@ -166,8 +166,12 @@ function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Set<string> | unde
   if (node.isSkipped) {
     txt += ' skipped'
   }
-  if (node.peersSuffixHash && multiPeerPkgs?.has(`${node.name}@${node.version}`)) {
-    txt += chalk.dim(` #${node.peersSuffixHash}`)
+  if (node.peersSuffixHash) {
+    const pkgKey = `${node.name}@${node.version}`
+    const variantCount = multiPeerPkgs?.get(pkgKey)
+    if (variantCount != null) {
+      txt += chalk.dim(` #${node.peersSuffixHash} (${variantCount} variant${variantCount === 1 ? '' : 's'})`)
+    }
   }
   if (node.deduped) {
     txt += chalk.dim(' deduped')
@@ -188,7 +192,7 @@ function getPkgColor (node: PackageNode): (text: string) => string {
  * Walks all package trees and returns the set of `name@version` strings
  * that appear with more than one distinct `peersSuffixHash`.
  */
-function findMultiPeerPackages (packages: PackageDependencyHierarchy[]): Set<string> {
+function findMultiPeerPackages (packages: PackageDependencyHierarchy[]): Map<string, number> {
   const hashesPerPkg = new Map<string, Set<string>>()
 
   function walk (nodes: PackageNode[]): void {
@@ -216,10 +220,10 @@ function findMultiPeerPackages (packages: PackageDependencyHierarchy[]): Set<str
     }
   }
 
-  const result = new Set<string>()
+  const result = new Map<string, number>()
   for (const [key, hashes] of hashesPerPkg) {
     if (hashes.size > 1) {
-      result.add(key)
+      result.set(key, hashes.size)
     }
   }
   return result
