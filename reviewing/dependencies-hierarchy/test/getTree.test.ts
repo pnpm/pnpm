@@ -80,7 +80,7 @@ function getTreeWithGraph (
 ) {
   const graph = buildDependencyGraph([rootNodeId], opts)
   const materializationCache: MaterializationCache = new Map()
-  return getTree({ ...opts, graph, materializationCache }, rootNodeId).nodes
+  return getTree({ ...opts, graph, materializationCache }, rootNodeId)
 }
 
 describe('getTree', () => {
@@ -1031,7 +1031,7 @@ describe('getTree', () => {
       virtualStoreDirMaxLength: 120,
     }
 
-    test('second getTree call for same node returns deduped result with correct metadata', () => {
+    test('second getTree call for same node returns deduped children', () => {
       // root → a → b → c
       const version = '1.0.0'
       const currentPackages = generateMockCurrentPackages(version, {
@@ -1061,15 +1061,17 @@ describe('getTree', () => {
 
       // First call: full materialization
       const result1 = getTree(opts, rootNodeId)
-      expect(result1.deduped).toBe(false)
-      expect(result1.nodes.length).toBeGreaterThan(0)
-      expect(result1.count).toBeGreaterThan(0)
+      expect(result1).toHaveLength(1)
+      expect(result1[0].alias).toBe('a')
+      expect(result1[0].dependencies).toBeDefined()
 
-      // Second call with same cache: should be deduped
+      // Second call with same cache: child 'a' should be deduped
       const result2 = getTree(opts, rootNodeId)
-      expect(result2.deduped).toBe(true)
-      expect(result2.nodes).toEqual([])
-      expect(result2.count).toBe(result1.count)
+      expect(result2).toHaveLength(1)
+      expect(result2[0].alias).toBe('a')
+      expect(result2[0].deduped).toBe(true)
+      expect(result2[0].dedupedDependenciesCount).toBeGreaterThan(0)
+      expect(result2[0].dependencies).toBeUndefined()
     })
 
     test('deduped result preserves search match metadata', () => {
@@ -1104,20 +1106,21 @@ describe('getTree', () => {
 
       // First call materializes the tree
       const result1 = getTree(opts, rootNodeId)
-      expect(result1.deduped).toBe(false)
-      expect(result1.hasSearchMatch).toBe(true)
-      expect(result1.searchMessages).toContain('found target')
+      expect(result1).toHaveLength(1)
+      expect(result1[0].dependencies?.[0]?.searched).toBe(true)
+      expect(result1[0].dependencies?.[0]?.searchMessage).toBe('found target')
 
-      // Second call returns deduped with same search metadata
+      // Second call: 'a' is deduped but carries search metadata from cache
       const result2 = getTree(opts, rootNodeId)
-      expect(result2.deduped).toBe(true)
-      expect(result2.hasSearchMatch).toBe(true)
-      expect(result2.searchMessages).toContain('found target')
+      expect(result2).toHaveLength(1)
+      expect(result2[0].deduped).toBe(true)
+      expect(result2[0].searched).toBe(true)
+      expect(result2[0].searchMessage).toBe('found target')
     })
 
-    test('GetTreeResult count correctly reflects subtree size', () => {
+    test('dedupedDependenciesCount correctly reflects subtree size', () => {
       // root → a → b
-      //       └→ c
+      //            └→ c
       const version = '1.0.0'
       const currentPackages = generateMockCurrentPackages(version, {
         root: ['a'],
@@ -1142,12 +1145,17 @@ describe('getTree', () => {
         materializationCache,
       }
 
-      const result = getTree(opts, rootNodeId)
-      expect(result.deduped).toBe(false)
-      // root's children: a (1 node + its 2 children b and c) = 3 total
-      expect(result.count).toBe(3)
-      expect(result.nodes).toHaveLength(1) // just 'a'
-      expect(result.nodes[0].dependencies).toHaveLength(2) // b and c
+      // First call: full materialization
+      const result1 = getTree(opts, rootNodeId)
+      expect(result1).toHaveLength(1) // just 'a'
+      expect(result1[0].dependencies).toHaveLength(2) // b and c
+
+      // Second call: deduped, with correct count
+      const result2 = getTree(opts, rootNodeId)
+      expect(result2).toHaveLength(1) // just 'a'
+      expect(result2[0].deduped).toBe(true)
+      // a's subtree had 2 nodes (b and c)
+      expect(result2[0].dedupedDependenciesCount).toBe(2)
     })
 
     test('different maxDepth values are cached independently', () => {
@@ -1178,15 +1186,13 @@ describe('getTree', () => {
 
       // depth 1: should only show 'a' without children
       const shallow = getTree({ ...baseOpts, maxDepth: 1 }, rootNodeId)
-      expect(shallow.deduped).toBe(false)
-      expect(shallow.nodes).toHaveLength(1)
-      expect(shallow.nodes[0].dependencies).toBeUndefined()
+      expect(shallow).toHaveLength(1)
+      expect(shallow[0].dependencies).toBeUndefined()
 
-      // depth Infinity: should show full tree (not deduped from depth-1 cache)
+      // depth Infinity: should show full tree (not affected by depth-1 cache)
       const deep = getTree({ ...baseOpts, maxDepth: Infinity }, rootNodeId)
-      expect(deep.deduped).toBe(false)
-      expect(deep.nodes).toHaveLength(1)
-      expect(deep.nodes[0].dependencies).toHaveLength(1) // b
+      expect(deep).toHaveLength(1)
+      expect(deep[0].dependencies).toHaveLength(1) // b
     })
   })
 
