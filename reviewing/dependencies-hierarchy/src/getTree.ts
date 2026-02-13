@@ -7,9 +7,7 @@ import { type PackageNode } from './PackageNode.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
 
-interface GetTreeOpts {
-  maxDepth: number
-  rewriteLinkVersionDir: string
+export interface BaseTreeOpts {
   include: {
     dependencies?: boolean
     devDependencies?: boolean
@@ -21,18 +19,22 @@ interface GetTreeOpts {
   search?: Finder
   skipped: Set<string>
   registries: Registries
-  importers: Record<string, ProjectSnapshot>
   depTypes: DepTypes
-  currentPackages: PackageSnapshots
-  wantedPackages: PackageSnapshots
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
   modulesDir?: string
-  parentDir?: string
   showDedupedSearchMatches?: boolean
-
   graph: DependencyGraph
   materializationCache: MaterializationCache
+}
+
+interface GetTreeOpts extends BaseTreeOpts {
+  maxDepth: number
+  rewriteLinkVersionDir: string
+  importers: Record<string, ProjectSnapshot>
+  currentPackages: PackageSnapshots
+  wantedPackages: PackageSnapshots
+  parentDir?: string
 }
 
 // Context object for materializeChildren — holds everything that stays the
@@ -62,19 +64,52 @@ interface CachedSubtree {
  */
 export type MaterializationCache = Map<string, CachedSubtree>
 
+export interface GetTreeResult {
+  nodes: PackageNode[]
+  /** Total count of PackageNode objects in the subtree (recursive). */
+  count: number
+  /** Whether any node in the subtree matched the search. */
+  hasSearchMatch: boolean
+  /** Search match messages found in the subtree. */
+  searchMessages: string[]
+  /** True when this subtree was already materialized elsewhere and elided. */
+  deduped: boolean
+}
+
 export function getTree (
   opts: GetTreeOpts,
   parentId: TreeNodeId
-): PackageNode[] {
+): GetTreeResult {
+  const parentSerialized = serializeTreeNodeId(parentId)
+  const cacheKey = materializeCacheKey(parentSerialized, opts.maxDepth)
+  const cached = opts.materializationCache.get(cacheKey)
+
+  if (cached) {
+    return {
+      nodes: [],
+      count: cached.count,
+      hasSearchMatch: cached.hasSearchMatch,
+      searchMessages: cached.searchMessages,
+      deduped: true,
+    }
+  }
+
   const ancestors = new Set<string>()
-  ancestors.add(serializeTreeNodeId(parentId))
+  ancestors.add(parentSerialized)
 
   const ctx: MaterializationContext = {
     ...opts,
     ancestors,
   }
 
-  const { nodes: tree } = materializeChildren(ctx, parentId, opts.maxDepth, opts.parentDir)
+  const result = materializeChildren(ctx, parentId, opts.maxDepth, opts.parentDir)
+
+  // Cache the root node's subtree for top-level dedupe across importers.
+  opts.materializationCache.set(cacheKey, {
+    count: result.count,
+    hasSearchMatch: result.hasSearchMatch,
+    searchMessages: result.searchMessages,
+  })
 
   // Mark circular back-edges.  materializeChildren truncates dependencies
   // at cycle boundaries but does not set the `circular` flag, so that cached
@@ -88,7 +123,13 @@ export function getTree (
   if (opts.parentDir) {
     circularAncestors.add(opts.parentDir)
   }
-  return fixCircularRefs(tree, circularAncestors)
+  return {
+    nodes: fixCircularRefs(result.nodes, circularAncestors),
+    count: result.count,
+    hasSearchMatch: result.hasSearchMatch,
+    searchMessages: result.searchMessages,
+    deduped: false,
+  }
 }
 
 // ---------------------------------------------------------------------------
