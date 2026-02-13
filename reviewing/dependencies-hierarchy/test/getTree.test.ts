@@ -953,6 +953,243 @@ describe('getTree', () => {
     })
   })
 
+  describe('buildDependencyGraph with multiple roots', () => {
+    test('graph includes nodes reachable from all specified root IDs', () => {
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        a: ['shared'],
+        b: ['unique-to-b'],
+        shared: ['deep'],
+      })
+      const importers = {
+        'project-a': {
+          specifiers: {},
+          dependencies: {
+            a: '1.0.0',
+          },
+        },
+        'project-b': {
+          specifiers: {},
+          dependencies: {
+            b: '1.0.0',
+          },
+        },
+      }
+      const rootA: TreeNodeId = { type: 'importer', importerId: 'project-a' }
+      const rootB: TreeNodeId = { type: 'importer', importerId: 'project-b' }
+
+      // Build graph from both roots
+      const multiGraph = buildDependencyGraph([rootA, rootB], {
+        currentPackages,
+        importers,
+        include: { optionalDependencies: false },
+        lockfileDir: '',
+      })
+
+      // Build graphs from individual roots for comparison
+      const graphA = buildDependencyGraph([rootA], {
+        currentPackages,
+        importers,
+        include: { optionalDependencies: false },
+        lockfileDir: '',
+      })
+      const graphB = buildDependencyGraph([rootB], {
+        currentPackages,
+        importers,
+        include: { optionalDependencies: false },
+        lockfileDir: '',
+      })
+
+      // Multi-root graph should include all nodes from both individual graphs
+      for (const key of graphA.nodes.keys()) {
+        expect(multiGraph.nodes.has(key)).toBe(true)
+      }
+      for (const key of graphB.nodes.keys()) {
+        expect(multiGraph.nodes.has(key)).toBe(true)
+      }
+
+      // Multi-root graph should include nodes unique to each root
+      const allKeys = [...multiGraph.nodes.keys()]
+      expect(allKeys.some(k => k.includes('unique-to-b'))).toBe(true)
+      expect(allKeys.some(k => k.includes('shared'))).toBe(true)
+      expect(allKeys.some(k => k.includes('deep'))).toBe(true)
+    })
+  })
+
+  describe('cross-call deduplication via shared MaterializationCache', () => {
+    const commonMockGetTreeArgs = {
+      depTypes: {},
+      rewriteLinkVersionDir: '',
+      modulesDir: '',
+      importers: {},
+      include: { optionalDependencies: false },
+      lockfileDir: '',
+      skipped: new Set<string>(),
+      registries: {
+        default: 'mock-registry-for-testing.example',
+      },
+      virtualStoreDirMaxLength: 120,
+    }
+
+    test('second getTree call for same node returns deduped result with correct metadata', () => {
+      // root → a → b → c
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a'],
+        a: ['b'],
+        b: ['c'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const graph = buildDependencyGraph([rootNodeId], {
+        currentPackages,
+        importers: {},
+        include: { optionalDependencies: false },
+        lockfileDir: '',
+      })
+      // Share a single cache across two calls
+      const materializationCache: MaterializationCache = new Map()
+
+      const opts = {
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        graph,
+        materializationCache,
+      }
+
+      // First call: full materialization
+      const result1 = getTree(opts, rootNodeId)
+      expect(result1.deduped).toBe(false)
+      expect(result1.nodes.length).toBeGreaterThan(0)
+      expect(result1.count).toBeGreaterThan(0)
+
+      // Second call with same cache: should be deduped
+      const result2 = getTree(opts, rootNodeId)
+      expect(result2.deduped).toBe(true)
+      expect(result2.nodes).toEqual([])
+      expect(result2.count).toBe(result1.count)
+    })
+
+    test('deduped result preserves search match metadata', () => {
+      // root → a → target (search match)
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a'],
+        a: ['target'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const graph = buildDependencyGraph([rootNodeId], {
+        currentPackages,
+        importers: {},
+        include: { optionalDependencies: false },
+        lockfileDir: '',
+      })
+      const materializationCache: MaterializationCache = new Map()
+
+      const search: Finder = ({ name }) => name === 'target' ? 'found target' : false
+
+      const opts = {
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        graph,
+        materializationCache,
+        search,
+        showDedupedSearchMatches: true,
+      }
+
+      // First call materializes the tree
+      const result1 = getTree(opts, rootNodeId)
+      expect(result1.deduped).toBe(false)
+      expect(result1.hasSearchMatch).toBe(true)
+      expect(result1.searchMessages).toContain('found target')
+
+      // Second call returns deduped with same search metadata
+      const result2 = getTree(opts, rootNodeId)
+      expect(result2.deduped).toBe(true)
+      expect(result2.hasSearchMatch).toBe(true)
+      expect(result2.searchMessages).toContain('found target')
+    })
+
+    test('GetTreeResult count correctly reflects subtree size', () => {
+      // root → a → b
+      //       └→ c
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a'],
+        a: ['b', 'c'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const graph = buildDependencyGraph([rootNodeId], {
+        currentPackages,
+        importers: {},
+        include: { optionalDependencies: false },
+        lockfileDir: '',
+      })
+      const materializationCache: MaterializationCache = new Map()
+
+      const opts = {
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages,
+        wantedPackages: currentPackages,
+        graph,
+        materializationCache,
+      }
+
+      const result = getTree(opts, rootNodeId)
+      expect(result.deduped).toBe(false)
+      // root's children: a (1 node + its 2 children b and c) = 3 total
+      expect(result.count).toBe(3)
+      expect(result.nodes).toHaveLength(1) // just 'a'
+      expect(result.nodes[0].dependencies).toHaveLength(2) // b and c
+    })
+
+    test('different maxDepth values are cached independently', () => {
+      // root → a → b → c
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a'],
+        a: ['b'],
+        b: ['c'],
+      })
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+
+      const graph = buildDependencyGraph([rootNodeId], {
+        currentPackages,
+        importers: {},
+        include: { optionalDependencies: false },
+        lockfileDir: '',
+      })
+      const materializationCache: MaterializationCache = new Map()
+
+      const baseOpts = {
+        ...commonMockGetTreeArgs,
+        currentPackages,
+        wantedPackages: currentPackages,
+        graph,
+        materializationCache,
+      }
+
+      // depth 1: should only show 'a' without children
+      const shallow = getTree({ ...baseOpts, maxDepth: 1 }, rootNodeId)
+      expect(shallow.deduped).toBe(false)
+      expect(shallow.nodes).toHaveLength(1)
+      expect(shallow.nodes[0].dependencies).toBeUndefined()
+
+      // depth Infinity: should show full tree (not deduped from depth-1 cache)
+      const deep = getTree({ ...baseOpts, maxDepth: Infinity }, rootNodeId)
+      expect(deep.deduped).toBe(false)
+      expect(deep.nodes).toHaveLength(1)
+      expect(deep.nodes[0].dependencies).toHaveLength(1) // b
+    })
+  })
+
   test('exclude peers', () => {
     const version = '1.0.0'
     const currentPackages = {
