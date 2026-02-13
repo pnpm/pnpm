@@ -83,7 +83,7 @@ export interface CustomResolver {
    * @param pkgSnapshot - The lockfile entry for this dependency
    * @returns true to force re-resolution of all dependencies
    */
-  shouldForceResolve?: (depPath: string, pkgSnapshot: PackageSnapshot) => boolean | Promise<boolean>
+  shouldRefreshResolution?: (depPath: string, pkgSnapshot: PackageSnapshot) => boolean | Promise<boolean>
 }
 
 export interface CustomFetcher {

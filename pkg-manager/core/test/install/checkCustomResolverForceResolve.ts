@@ -26,7 +26,7 @@ describe('checkCustomResolverForceResolve', () => {
 
   test('returns false when lockfile has no packages', async () => {
     const resolver: CustomResolver = {
-      shouldForceResolve: () => true,
+      shouldRefreshResolution: () => true,
     }
 
     const result = await checkCustomResolverForceResolve([resolver], lockfileWithPackages())
@@ -34,7 +34,7 @@ describe('checkCustomResolverForceResolve', () => {
     expect(result).toBe(false)
   })
 
-  test('returns false when custom resolver has no shouldForceResolve', async () => {
+  test('returns false when custom resolver has no shouldRefreshResolution', async () => {
     const resolver: CustomResolver = {
       canResolve: () => true,
     }
@@ -47,9 +47,9 @@ describe('checkCustomResolverForceResolve', () => {
     expect(result).toBe(false)
   })
 
-  test('returns false when shouldForceResolve returns false', async () => {
+  test('returns false when shouldRefreshResolution returns false', async () => {
     const resolver: CustomResolver = {
-      shouldForceResolve: () => false,
+      shouldRefreshResolution: () => false,
     }
 
     const result = await checkCustomResolverForceResolve(
@@ -60,9 +60,9 @@ describe('checkCustomResolverForceResolve', () => {
     expect(result).toBe(false)
   })
 
-  test('returns true when shouldForceResolve returns true', async () => {
+  test('returns true when shouldRefreshResolution returns true', async () => {
     const resolver: CustomResolver = {
-      shouldForceResolve: () => true,
+      shouldRefreshResolution: () => true,
     }
 
     const result = await checkCustomResolverForceResolve(
@@ -73,12 +73,12 @@ describe('checkCustomResolverForceResolve', () => {
     expect(result).toBe(true)
   })
 
-  test('shouldForceResolve is called independently of canResolve', async () => {
-    // canResolve returning false should NOT prevent shouldForceResolve from
+  test('shouldRefreshResolution is called independently of canResolve', async () => {
+    // canResolve returning false should NOT prevent shouldRefreshResolution from
     // being called -- they operate on different paths.
     const resolver: CustomResolver = {
       canResolve: () => false,
-      shouldForceResolve: () => true,
+      shouldRefreshResolution: () => true,
     }
 
     const result = await checkCustomResolverForceResolve(
@@ -91,10 +91,10 @@ describe('checkCustomResolverForceResolve', () => {
 
   test('returns true when any resolver among multiple returns true', async () => {
     const resolver1: CustomResolver = {
-      shouldForceResolve: () => false,
+      shouldRefreshResolution: () => false,
     }
     const resolver2: CustomResolver = {
-      shouldForceResolve: () => true,
+      shouldRefreshResolution: () => true,
     }
 
     const result = await checkCustomResolverForceResolve(
@@ -105,9 +105,9 @@ describe('checkCustomResolverForceResolve', () => {
     expect(result).toBe(true)
   })
 
-  test('handles async shouldForceResolve', async () => {
+  test('handles async shouldRefreshResolution', async () => {
     const resolver: CustomResolver = {
-      shouldForceResolve: async () => {
+      shouldRefreshResolution: async () => {
         await new Promise(resolve => setTimeout(resolve, 10))
         return true
       },
@@ -124,7 +124,7 @@ describe('checkCustomResolverForceResolve', () => {
   test('runs checks in parallel', async () => {
     const callOrder: string[] = []
     const resolver: CustomResolver = {
-      shouldForceResolve: async (depPath) => {
+      shouldRefreshResolution: async (depPath) => {
         const delays: Record<string, number> = { 'pkg1@1.0.0': 30, 'pkg2@1.0.0': 20 }
         const delay = delays[depPath] ?? 10
         await new Promise(resolve => setTimeout(resolve, delay))
@@ -152,11 +152,11 @@ describe('checkCustomResolverForceResolve', () => {
     expect(callOrder).toEqual(['pkg3@1.0.0', 'pkg2@1.0.0', 'pkg1@1.0.0'])
   })
 
-  test('passes depPath and pkgSnapshot to shouldForceResolve', async () => {
+  test('passes depPath and pkgSnapshot to shouldRefreshResolution', async () => {
     let receivedDepPath: string | undefined
     let receivedPkgSnapshot: unknown
     const resolver: CustomResolver = {
-      shouldForceResolve: (depPath, pkgSnapshot) => {
+      shouldRefreshResolution: (depPath, pkgSnapshot) => {
         receivedDepPath = depPath
         receivedPkgSnapshot = pkgSnapshot
         return false
@@ -172,12 +172,12 @@ describe('checkCustomResolverForceResolve', () => {
     expect(receivedPkgSnapshot).toEqual(TEST_PKG_SNAPSHOT)
   })
 
-  test('shouldForceResolve can filter by depPath to match specific packages', async () => {
-    // Resolver uses shouldForceResolve to do its own filtering -- this is
+  test('shouldRefreshResolution can filter by depPath to match specific packages', async () => {
+    // Resolver uses shouldRefreshResolution to do its own filtering -- this is
     // the expected pattern now that canResolve is not used as a gate.
     const resolver: CustomResolver = {
       canResolve: (wantedDependency) => wantedDependency.alias === 'indirect-pkg',
-      shouldForceResolve: (depPath) => depPath.startsWith('indirect-pkg@'),
+      shouldRefreshResolution: (depPath) => depPath.startsWith('indirect-pkg@'),
     }
     const lockfile: LockfileObject = {
       lockfileVersion: '9.0',
@@ -203,11 +203,11 @@ describe('checkCustomResolverForceResolve', () => {
     expect(result).toBe(true)
   })
 
-  test('shouldForceResolve can inspect pkgSnapshot resolution type', async () => {
+  test('shouldRefreshResolution can inspect pkgSnapshot resolution type', async () => {
     // A resolver that uses the resolution type to decide whether to force
     // re-resolution -- this is the pattern for custom protocol resolvers.
     const resolver: CustomResolver = {
-      shouldForceResolve: (_depPath, pkgSnapshot) => {
+      shouldRefreshResolution: (_depPath, pkgSnapshot) => {
         const resolution = pkgSnapshot.resolution as Record<string, unknown>
         return resolution.type === 'custom:cdn'
       },
