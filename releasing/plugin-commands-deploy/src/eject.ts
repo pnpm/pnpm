@@ -13,7 +13,7 @@ export const shorthands = {
   ...install.shorthands,
 }
 
-// For while, no especific options from eject
+// For while, no specific options from eject
 const EJECT_OWN_OPTIONS = {}
 
 export function rcOptionsTypes (): Record<string, unknown> {

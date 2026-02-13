@@ -158,7 +158,7 @@ test('eject respects --prod flag', async () => {
 
   const project = assertProject(path.resolve('dist'))
 
-  // Include only normal dependencies and not devDepencencies
+  // Include only normal dependencies and not devDependencies
   project.has('is-positive')
   project.hasNot('is-negative')
 })
