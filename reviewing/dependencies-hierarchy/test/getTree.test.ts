@@ -80,7 +80,7 @@ function getTreeWithGraph (
 ) {
   const graph = buildDependencyGraph([rootNodeId], opts)
   const materializationCache: MaterializationCache = new Map()
-  return getTree({ ...opts, graph, materializationCache }, rootNodeId)
+  return getTree({ ...opts, graph, materializationCache }, rootNodeId).nodes
 }
 
 describe('getTree', () => {
