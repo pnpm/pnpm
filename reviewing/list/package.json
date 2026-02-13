@@ -36,6 +36,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/matcher": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",

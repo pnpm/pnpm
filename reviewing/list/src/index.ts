@@ -1,5 +1,6 @@
 import path from 'path'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+import { createMatcher } from '@pnpm/matcher'
 import { type DependenciesField, type Registries, type Finder } from '@pnpm/types'
 import { type PackageNode, buildDependenciesHierarchy, type DependenciesHierarchy, createPackagesSearcher } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderJson } from './renderJson.js'
@@ -81,6 +82,7 @@ export async function searchForPackages (
       onlyProjects: opts.onlyProjects,
       registries: opts.registries,
       search,
+      fastSearch: packages.length > 0 && !opts.finders?.length ? createMatcher(packages) : undefined,
       showDedupedSearchMatches: true,
       modulesDir: opts.modulesDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,

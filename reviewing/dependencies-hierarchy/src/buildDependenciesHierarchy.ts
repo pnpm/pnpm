@@ -7,7 +7,7 @@ import {
   readWantedLockfile,
   type ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
-import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
+import { detectDepTypes, type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
@@ -39,6 +39,7 @@ export async function buildDependenciesHierarchy (
     registries?: Registries
     onlyProjects?: boolean
     search?: Finder
+    fastSearch?: (alias: string) => boolean
     showDedupedSearchMatches?: boolean
     lockfileDir: string
     checkWantedLockfileOnly?: boolean
@@ -57,7 +58,10 @@ export async function buildDependenciesHierarchy (
   })
   const internalPnpmDir = path.join(modulesDir, '.pnpm')
   const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
-  const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
+  const needsWantedLockfile = projectPaths == null || maybeOpts.checkWantedLockfileOnly
+  const wantedLockfile = needsWantedLockfile
+    ? await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
+    : null
   if (projectPaths == null) {
     projectPaths = Object.keys(wantedLockfile?.importers ?? {})
       .map((id) => path.join(maybeOpts.lockfileDir, id))
@@ -108,12 +112,30 @@ export async function buildDependenciesHierarchy (
     include: opts.include,
     lockfileDir: opts.lockfileDir,
   })
-  const sharedMaterializationCache: MaterializationCache = new Map()
+  // When searching, each importer needs its own materialization cache so that
+  // every importer shows the full paths to matching packages.  Without search,
+  // a single shared cache deduplicates identical subtrees across importers.
+  const sharedMaterializationCache: MaterializationCache | undefined = opts.search ? undefined : new Map()
+  const sharedDepTypes = detectDepTypes(lockfileToUse)
+
+  // When searching, pre-filter importers to only those that can transitively
+  // reach a package matching the search queries. This avoids per-importer work
+  // (readModulesDir, getPkgInfo, getTree) for importers that can't match.
+  const importerFilter = opts.search && maybeOpts.fastSearch
+    ? findImportersReachingSearchTarget(sharedGraph, maybeOpts.fastSearch)
+    : undefined
 
   const pairs = await Promise.all(projectPaths.map(async (projectPath) => {
+    if (importerFilter) {
+      const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
+      if (!importerFilter.has(importerId)) {
+        return [projectPath, {}] as [string, DependenciesHierarchy]
+      }
+    }
+    const materializationCache = sharedMaterializationCache ?? new Map()
     return [
       projectPath,
-      await dependenciesHierarchyForPackage(projectPath, lockfileToUse, wantedLockfile, opts, sharedGraph, sharedMaterializationCache),
+      await dependenciesHierarchyForPackage(projectPath, lockfileToUse, wantedLockfile, opts, sharedGraph, materializationCache, sharedDepTypes),
     ] as [string, DependenciesHierarchy]
   }))
   for (const [projectPath, dependenciesHierarchy] of pairs) {
@@ -142,7 +164,8 @@ async function dependenciesHierarchyForPackage (
     virtualStoreDirMaxLength: number
   },
   graph: DependencyGraph,
-  materializationCache: MaterializationCache
+  materializationCache: MaterializationCache,
+  depTypes: DepTypes
 ): Promise<DependenciesHierarchy> {
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
 
@@ -153,10 +176,11 @@ async function dependenciesHierarchyForPackage (
     : path.join(projectPath, opts.modulesDir ?? 'node_modules')
 
   const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
-  const allDirectDeps = await readModulesDir(modulesDir) ?? []
-  const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
-
-  const depTypes = detectDepTypes(currentLockfile)
+  // When searching, unsaved deps are irrelevant — they aren't in the lockfile
+  // graph and can't have dependency subtrees showing paths to the search target.
+  const unsavedDeps = opts.search
+    ? []
+    : ((await readModulesDir(modulesDir)) ?? []).filter((directDep) => !savedDeps[directDep])
   const currentPackages = currentLockfile.packages ?? {}
   const wantedPackages = wantedLockfile?.packages ?? {}
   const getTreeOpts = {
@@ -243,7 +267,7 @@ async function dependenciesHierarchyForPackage (
     }
   }
 
-  await Promise.all(
+  if (unsavedDeps.length > 0) await Promise.all(
     unsavedDeps.map(async (unsavedDep) => {
       let pkgPath = path.join(modulesDir, unsavedDep)
       let version!: string
@@ -284,6 +308,66 @@ async function dependenciesHierarchyForPackage (
   )
 
   return result
+}
+
+/**
+ * Given the shared dependency graph and a list of search query strings,
+ * finds which importers can transitively reach a package whose alias
+ * matches any of the queries.
+ *
+ * Returns the set of importer IDs that should be processed.
+ */
+function findImportersReachingSearchTarget (
+  graph: DependencyGraph,
+  fastSearch: (alias: string) => boolean
+): Set<string> {
+  // 1. Build reverse edges and find nodes whose alias matches the query.
+  const reverseEdges = new Map<string, Set<string>>()
+  const matchingParentIds = new Set<string>()
+
+  for (const [parentId, graphNode] of graph.nodes) {
+    for (const edge of graphNode.edges) {
+      if (edge.target != null) {
+        let parents = reverseEdges.get(edge.target.id)
+        if (parents == null) {
+          parents = new Set()
+          reverseEdges.set(edge.target.id, parents)
+        }
+        parents.add(parentId)
+      }
+      if (fastSearch(edge.alias)) {
+        matchingParentIds.add(parentId)
+      }
+    }
+  }
+
+  // 2. BFS backward from matching parent nodes to find reachable importers.
+  const visited = new Set<string>()
+  const queue = [...matchingParentIds]
+  let queueIdx = 0
+  const reachableImporterIds = new Set<string>()
+
+  while (queueIdx < queue.length) {
+    const nodeId = queue[queueIdx++]
+    if (visited.has(nodeId)) continue
+    visited.add(nodeId)
+
+    const graphNode = graph.nodes.get(nodeId)
+    if (graphNode?.nodeId.type === 'importer') {
+      reachableImporterIds.add(graphNode.nodeId.importerId)
+    }
+
+    const parents = reverseEdges.get(nodeId)
+    if (parents != null) {
+      for (const parent of parents) {
+        if (!visited.has(parent)) {
+          queue.push(parent)
+        }
+      }
+    }
+  }
+
+  return reachableImporterIds
 }
 
 function getAllDirectDependencies (projectSnapshot: ProjectSnapshot): ResolvedDependencies {
