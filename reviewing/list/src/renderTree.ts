@@ -30,8 +30,9 @@ export async function renderTree (
   packages: PackageDependencyHierarchy[],
   opts: RenderTreeOptions
 ): Promise<string> {
+  const multiPeerPkgs = findMultiPeerPackages(packages)
   const output = (
-    await Promise.all(packages.map(async (pkg) => renderTreeForPackage(pkg, opts)))
+    await Promise.all(packages.map(async (pkg) => renderTreeForPackage(pkg, opts, multiPeerPkgs)))
   )
     .filter(Boolean)
     .join('\n\n')
@@ -40,7 +41,8 @@ export async function renderTree (
 
 async function renderTreeForPackage (
   pkg: PackageDependencyHierarchy,
-  opts: RenderTreeOptions
+  opts: RenderTreeOptions,
+  multiPeerPkgs: Set<string>
 ): Promise<string> {
   if (
     !opts.alwaysPrintRootPackage &&
@@ -81,12 +83,13 @@ async function renderTreeForPackage (
         let output = `${depsLabel}\n`
         const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
         if (useColumns && pkg[dependenciesField]!.length > 10) {
-          output += cliColumns(pkg[dependenciesField]!.map(printLabel.bind(printLabel, gPkgColor))) + '\n'
+          output += cliColumns(pkg[dependenciesField]!.map((node) => printLabel(gPkgColor, multiPeerPkgs, node))) + '\n'
           return output
         }
         const data = await toArchyTree(gPkgColor, pkg[dependenciesField]!, {
           long: opts.long,
           modules: path.join(pkg.path, 'node_modules'),
+          multiPeerPkgs,
         })
         for (const d of data) {
           output += archy(d)
@@ -108,13 +111,14 @@ export async function toArchyTree (
   opts: {
     long: boolean
     modules: string
+    multiPeerPkgs?: Set<string>
   }
 ): Promise<archy.Data[]> {
   return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
       const nodes = await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
       const labelLines: string[] = [
-        printLabel(getPkgColor, node),
+        printLabel(getPkgColor, opts.multiPeerPkgs, node),
       ]
       if (node.searchMessage) {
         labelLines.push(node.searchMessage)
@@ -142,7 +146,7 @@ export async function toArchyTree (
   )
 }
 
-function printLabel (getPkgColor: GetPkgColor, node: PackageNode): string {
+function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Set<string> | undefined, node: PackageNode): string {
   const color = getPkgColor(node)
   let txt: string
   if (node.alias !== node.name) {
@@ -162,6 +166,9 @@ function printLabel (getPkgColor: GetPkgColor, node: PackageNode): string {
   if (node.isSkipped) {
     txt += ' skipped'
   }
+  if (node.peersSuffixHash && multiPeerPkgs?.has(`${node.name}@${node.version}`)) {
+    txt += chalk.dim(` #${node.peersSuffixHash}`)
+  }
   if (node.deduped) {
     txt += chalk.dim(' deduped')
     if (node.dedupedDependenciesCount) {
@@ -175,4 +182,45 @@ function getPkgColor (node: PackageNode): (text: string) => string {
   if (node.dev === true) return DEV_DEP_ONLY_CLR
   if (node.optional) return OPTIONAL_DEP_CLR
   return PROD_DEP_CLR
+}
+
+/**
+ * Walks all package trees and returns the set of `name@version` strings
+ * that appear with more than one distinct `peersSuffixHash`.
+ */
+function findMultiPeerPackages (packages: PackageDependencyHierarchy[]): Set<string> {
+  const hashesPerPkg = new Map<string, Set<string>>()
+
+  function walk (nodes: PackageNode[]): void {
+    for (const node of nodes) {
+      if (node.peersSuffixHash) {
+        const key = `${node.name}@${node.version}`
+        let hashes = hashesPerPkg.get(key)
+        if (hashes == null) {
+          hashes = new Set()
+          hashesPerPkg.set(key, hashes)
+        }
+        hashes.add(node.peersSuffixHash)
+      }
+      if (node.dependencies) {
+        walk(node.dependencies)
+      }
+    }
+  }
+
+  for (const pkg of packages) {
+    for (const field of DEPENDENCIES_FIELDS) {
+      if (pkg[field]) {
+        walk(pkg[field])
+      }
+    }
+  }
+
+  const result = new Set<string>()
+  for (const [key, hashes] of hashesPerPkg) {
+    if (hashes.size > 1) {
+      result.add(key)
+    }
+  }
+  return result
 }
