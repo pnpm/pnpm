@@ -40,7 +40,7 @@ function hasPeerA (context) {
   await execPnpm(['add', 'is-positive@1.0.0', '@pnpm.e2e/abc@1.0.0'])
   const result = execPnpmSync(['list', '--find-by=hasPeerA'])
   expect(result.stdout.toString()).toMatch(`dependencies:
-@pnpm.e2e/abc 1.0.0
+@pnpm.e2e/abc 1.0.0 #d1b2
   @pnpm.e2e/peer-a@^1.0.0`)
 })
 
