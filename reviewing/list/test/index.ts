@@ -42,7 +42,7 @@ test('list all deps of a package that has an external lockfile', async () => {
 ${boldHighlighted(`pkg@1.0.0 ${fixtureWithExternalLockfile}`)}
 
 ${DEPENDENCIES}
-is-positive ${VERSION_CLR('1.0.0')}`)
+is-positive${VERSION_CLR('@1.0.0')}`)
 })
 
 test('print legend only once', async () => {
@@ -57,12 +57,12 @@ test('print legend only once', async () => {
 ${boldHighlighted(`bar@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/bar')}`)}
 
 ${DEPENDENCIES}
-is-positive ${VERSION_CLR('1.0.0')}
+is-positive${VERSION_CLR('@1.0.0')}
 
 ${boldHighlighted(`foo@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/foo')}`)}
 
 ${DEPENDENCIES}
-is-positive ${VERSION_CLR('1.0.0')}`)
+is-positive${VERSION_CLR('@1.0.0')}`)
 })
 
 test('list in workspace with private package', async () => {
@@ -77,12 +77,12 @@ test('list in workspace with private package', async () => {
 ${boldHighlighted(`private@1.0.0 ${path.join(workspaceWithPrivatePkgs, 'packages/private')} (PRIVATE)`)}
 
 ${DEPENDENCIES}
-is-positive ${VERSION_CLR('1.0.0')}
+is-positive${VERSION_CLR('@1.0.0')}
 
 ${boldHighlighted(`public@1.0.0 ${path.join(workspaceWithPrivatePkgs, 'packages/public')}`)}
 
 ${DEPENDENCIES}
-is-positive ${VERSION_CLR('1.0.0')}`)
+is-positive${VERSION_CLR('@1.0.0')}`)
 })
 
 test('list with default parameters', async () => {
@@ -91,13 +91,13 @@ test('list with default parameters', async () => {
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
-write-json-file ${VERSION_CLR('2.3.0')}
+write-json-file${VERSION_CLR('@2.3.0')}
 
 ${DEV_DEPENDENCIES}
-${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
+${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}
 
 ${OPTIONAL_DEPENDENCIES}
-${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
+${OPTIONAL_DEP_CLR('is-negative')}${VERSION_CLR('@2.1.0')}`)
 })
 
 test('list with default parameters in pkg that has no name and version', async () => {
@@ -106,13 +106,13 @@ test('list with default parameters in pkg that has no name and version', async (
 ${boldHighlighted(fixtureWithNoPkgNameAndNoVersion)}
 
 ${DEPENDENCIES}
-write-json-file ${VERSION_CLR('2.3.0')}
+write-json-file${VERSION_CLR('@2.3.0')}
 
 ${DEV_DEPENDENCIES}
-${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
+${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}
 
 ${OPTIONAL_DEPENDENCIES}
-${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
+${OPTIONAL_DEP_CLR('is-negative')}${VERSION_CLR('@2.1.0')}`)
 })
 
 test('list with default parameters in pkg that has no version', async () => {
@@ -121,13 +121,13 @@ test('list with default parameters in pkg that has no version', async () => {
 ${boldHighlighted(`fixture ${fixtureWithNoPkgVersion}`)}
 
 ${DEPENDENCIES}
-write-json-file ${VERSION_CLR('2.3.0')}
+write-json-file${VERSION_CLR('@2.3.0')}
 
 ${DEV_DEPENDENCIES}
-${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
+${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}
 
 ${OPTIONAL_DEPENDENCIES}
-${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
+${OPTIONAL_DEP_CLR('is-negative')}${VERSION_CLR('@2.1.0')}`)
 })
 
 test('list dev only', async () => {
@@ -142,7 +142,7 @@ test('list dev only', async () => {
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEV_DEPENDENCIES}
-${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}`
+${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}`
   )
 })
 
@@ -158,7 +158,7 @@ test('list prod only', async () => {
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
-write-json-file ${VERSION_CLR('2.3.0')}`
+write-json-file${VERSION_CLR('@2.3.0')}`
   )
 })
 
@@ -175,18 +175,18 @@ test('list prod only with depth 2', async () => {
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
-write-json-file ${VERSION_CLR('2.3.0')}
-├── detect-indent ${VERSION_CLR('5.0.0')}
-├── graceful-fs ${VERSION_CLR('4.2.2')}
-├─┬ make-dir ${VERSION_CLR('1.3.0')}
-│ └── pify ${VERSION_CLR('3.0.0')}
-├── pify ${VERSION_CLR('3.0.0')}
-├─┬ sort-keys ${VERSION_CLR('2.0.0')}
-│ └── is-plain-obj ${VERSION_CLR('1.1.0')}
-└─┬ write-file-atomic ${VERSION_CLR('2.4.3')}
-  ├── graceful-fs ${VERSION_CLR('4.2.2')}
-  ├── imurmurhash ${VERSION_CLR('0.1.4')}
-  └── signal-exit ${VERSION_CLR('3.0.2')}`
+write-json-file${VERSION_CLR('@2.3.0')}
+├── detect-indent${VERSION_CLR('@5.0.0')}
+├── graceful-fs${VERSION_CLR('@4.2.2')}
+├─┬ make-dir${VERSION_CLR('@1.3.0')}
+│ └── pify${VERSION_CLR('@3.0.0')}
+├── pify${VERSION_CLR('@3.0.0')}
+├─┬ sort-keys${VERSION_CLR('@2.0.0')}
+│ └── is-plain-obj${VERSION_CLR('@1.1.0')}
+└─┬ write-file-atomic${VERSION_CLR('@2.4.3')}
+  ├── graceful-fs${VERSION_CLR('@4.2.2')}
+  ├── imurmurhash${VERSION_CLR('@0.1.4')}
+  └── signal-exit${VERSION_CLR('@3.0.2')}`
   )
 })
 
@@ -196,19 +196,19 @@ test('list with depth 1', async () => {
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
-write-json-file ${VERSION_CLR('2.3.0')}
-├── detect-indent ${VERSION_CLR('5.0.0')}
-├── graceful-fs ${VERSION_CLR('4.2.2')}
-├── make-dir ${VERSION_CLR('1.3.0')}
-├── pify ${VERSION_CLR('3.0.0')}
-├── sort-keys ${VERSION_CLR('2.0.0')}
-└── write-file-atomic ${VERSION_CLR('2.4.3')}
+write-json-file${VERSION_CLR('@2.3.0')}
+├── detect-indent${VERSION_CLR('@5.0.0')}
+├── graceful-fs${VERSION_CLR('@4.2.2')}
+├── make-dir${VERSION_CLR('@1.3.0')}
+├── pify${VERSION_CLR('@3.0.0')}
+├── sort-keys${VERSION_CLR('@2.0.0')}
+└── write-file-atomic${VERSION_CLR('@2.4.3')}
 
 ${DEV_DEPENDENCIES}
-${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
+${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}
 
 ${OPTIONAL_DEPENDENCIES}
-${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
+${OPTIONAL_DEP_CLR('is-negative')}${VERSION_CLR('@2.1.0')}`)
 })
 
 test('list with depth -1', async () => {
@@ -223,12 +223,12 @@ test('list with depth 1 and selected packages', async () => {
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
-write-json-file ${VERSION_CLR('2.3.0')}
-├── ${highlighted('make-dir ' + VERSION_CLR('1.3.0'))}
-└── ${highlighted('sort-keys ' + VERSION_CLR('2.0.0'))}
+write-json-file${VERSION_CLR('@2.3.0')}
+├── ${highlighted('make-dir' + VERSION_CLR('@1.3.0'))}
+└── ${highlighted('sort-keys' + VERSION_CLR('@2.0.0'))}
 
 ${OPTIONAL_DEPENDENCIES}
-${highlighted(OPTIONAL_DEP_CLR('is-negative') + ' ' + VERSION_CLR('2.1.0'))}`
+${highlighted(OPTIONAL_DEP_CLR('is-negative') + VERSION_CLR('@2.1.0'))}`
   )
 })
 
@@ -238,21 +238,21 @@ test('list in long format', async () => {
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
-write-json-file ${VERSION_CLR('2.3.0')}
+write-json-file${VERSION_CLR('@2.3.0')}
   Stringify and write JSON to a file atomically
   git+https://github.com/sindresorhus/write-json-file.git
   https://github.com/sindresorhus/write-json-file#readme
   ${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}
 
 ${DEV_DEPENDENCIES}
-${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
+${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}
   Check if something is a positive number
   git+https://github.com/kevva/is-positive.git
   https://github.com/kevva/is-positive#readme
   ${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}
 
 ${OPTIONAL_DEPENDENCIES}
-${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}
+${OPTIONAL_DEP_CLR('is-negative')}${VERSION_CLR('@2.1.0')}
   Check if something is a negative number
   git+https://github.com/kevva/is-negative.git
   https://github.com/kevva/is-negative#readme
@@ -593,7 +593,7 @@ test('unsaved dependencies are marked', async () => {
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${UNSAVED_DEPENDENCIES}
-${NOT_SAVED_DEP_CLR('foo')} ${VERSION_CLR('1.0.0')}`)
+${NOT_SAVED_DEP_CLR('foo')}${VERSION_CLR('@1.0.0')}`)
 })
 
 test('write long lists in columns', async () => {
@@ -720,17 +720,17 @@ ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}` + '\n' +
     cliColumns([
-      `a ${VERSION_CLR('1.0.0')}`,
-      `b ${VERSION_CLR('1.0.0')}`,
-      `c ${VERSION_CLR('1.0.0')}`,
-      `d ${VERSION_CLR('1.0.0')}`,
-      `e ${VERSION_CLR('1.0.0')}`,
-      `f ${VERSION_CLR('1.0.0')}`,
-      `g ${VERSION_CLR('1.0.0')}`,
-      `h ${VERSION_CLR('1.0.0')}`,
-      `i ${VERSION_CLR('1.0.0')}`,
-      `k ${VERSION_CLR('1.0.0')}`,
-      `l ${VERSION_CLR('1.0.0')}`,
+      `a${VERSION_CLR('@1.0.0')}`,
+      `b${VERSION_CLR('@1.0.0')}`,
+      `c${VERSION_CLR('@1.0.0')}`,
+      `d${VERSION_CLR('@1.0.0')}`,
+      `e${VERSION_CLR('@1.0.0')}`,
+      `f${VERSION_CLR('@1.0.0')}`,
+      `g${VERSION_CLR('@1.0.0')}`,
+      `h${VERSION_CLR('@1.0.0')}`,
+      `i${VERSION_CLR('@1.0.0')}`,
+      `k${VERSION_CLR('@1.0.0')}`,
+      `l${VERSION_CLR('@1.0.0')}`,
     ]))
 })
 
@@ -788,9 +788,9 @@ test('sort list items', async () => {
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
-foo ${VERSION_CLR('1.0.0')}
-├── bar ${VERSION_CLR('1.0.0')}
-└── qar ${VERSION_CLR('1.0.0')}`)
+foo${VERSION_CLR('@1.0.0')}
+├── bar${VERSION_CLR('@1.0.0')}
+└── qar${VERSION_CLR('@1.0.0')}`)
 })
 
 test('peer dependencies are marked', async () => {
@@ -801,13 +801,13 @@ test('peer dependencies are marked', async () => {
 ${boldHighlighted(`with-peer@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
-ajv ${VERSION_CLR('6.10.2')}
-├── fast-deep-equal ${VERSION_CLR('2.0.1')}
-├── fast-json-stable-stringify ${VERSION_CLR('2.0.0')}
-├── json-schema-traverse ${VERSION_CLR('0.4.1')}
-└── uri-js ${VERSION_CLR('4.2.2')}
-ajv-keywords ${VERSION_CLR('3.4.1')}
-└── ajv ${VERSION_CLR('6.10.2')} peer`)
+ajv${VERSION_CLR('@6.10.2')}
+├── fast-deep-equal${VERSION_CLR('@2.0.1')}
+├── fast-json-stable-stringify${VERSION_CLR('@2.0.0')}
+├── json-schema-traverse${VERSION_CLR('@0.4.1')}
+└── uri-js${VERSION_CLR('@4.2.2')}
+ajv-keywords${VERSION_CLR('@3.4.1')}
+└── ajv${VERSION_CLR('@6.10.2')} peer`)
 })
 
 test('peer dependencies are marked when searching', async () => {
@@ -818,9 +818,9 @@ test('peer dependencies are marked when searching', async () => {
 ${boldHighlighted(`with-peer@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
-${highlighted(`ajv ${VERSION_CLR('6.10.2')}`)}
-ajv-keywords ${VERSION_CLR('3.4.1')}
-└── ${highlighted(`ajv ${VERSION_CLR('6.10.2')} peer`)}`)
+${highlighted(`ajv${VERSION_CLR('@6.10.2')}`)}
+ajv-keywords${VERSION_CLR('@3.4.1')}
+└── ${highlighted(`ajv${VERSION_CLR('@6.10.2')} peer`)}`)
 })
 
 test('--only-projects shows only projects', async () => {
@@ -835,9 +835,9 @@ test('--only-projects shows only projects', async () => {
 ${boldHighlighted(`root@1.0.0 ${fixture}`)}
 
 ${DEPENDENCIES}
-@scope/a ${VERSION_CLR('link:packages/a')}
-└─┬ @scope/b ${VERSION_CLR('link:packages/b')}
-  └── @scope/c ${VERSION_CLR('link:packages/c')}`)
+@scope/a${VERSION_CLR('@link:packages/a')}
+└─┬ @scope/b${VERSION_CLR('@link:packages/b')}
+  └── @scope/c${VERSION_CLR('@link:packages/c')}`)
 })
 
 test('renderTree displays npm: protocol for aliased packages', async () => {

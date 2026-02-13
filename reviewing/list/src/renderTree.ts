@@ -92,7 +92,7 @@ async function renderTreeForPackage (
           multiPeerPkgs,
         })
         for (const d of data) {
-          output += archy(d)
+          output += dimArchyLines(archy(d))
         }
         return output
       }
@@ -116,7 +116,10 @@ export async function toArchyTree (
 ): Promise<archy.Data[]> {
   return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
-      const nodes = await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
+      let nodes: archy.Data[] = await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
+      if (node.deduped && node.dedupedDependenciesCount) {
+        nodes = [{ label: chalk.dim(`[+${node.dedupedDependenciesCount}]`), nodes: [] }]
+      }
       const labelLines: string[] = [
         printLabel(getPkgColor, opts.multiPeerPkgs, node),
       ]
@@ -153,12 +156,12 @@ function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number
     // When using npm: protocol alias, display as "alias npm:name@version"
     // Only add npm: prefix if version doesn't already contain @ (to avoid file:, link:, etc.)
     if (!node.version.includes('@')) {
-      txt = `${color(node.alias)} ${chalk.gray(`npm:${node.name}@${node.version}`)}`
+      txt = `${color(node.alias)}${chalk.gray(`@npm:${node.name}@${node.version}`)}`
     } else {
-      txt = `${color(node.alias)} ${chalk.gray(node.version)}`
+      txt = `${color(node.alias)}${chalk.gray(`@${node.version}`)}`
     }
   } else {
-    txt = `${color(node.name)} ${chalk.gray(node.version)}`
+    txt = `${color(node.name)}${chalk.gray(`@${node.version}`)}`
   }
   if (node.isPeer) {
     txt += ' peer'
@@ -170,16 +173,21 @@ function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number
     const pkgKey = `${node.name}@${node.version}`
     const variantCount = multiPeerPkgs?.get(pkgKey)
     if (variantCount != null) {
-      txt += chalk.dim(` #${node.peersSuffixHash} (${variantCount} variant${variantCount === 1 ? '' : 's'})`)
+      txt += chalk.red(` peer#${node.peersSuffixHash} (${variantCount} variation${variantCount === 1 ? '' : 's'})`)
     }
   }
-  if (node.deduped) {
+  if (node.deduped && !node.dedupedDependenciesCount) {
     txt += chalk.dim(' deduped')
-    if (node.dedupedDependenciesCount) {
-      txt += chalk.dim(` (${node.dedupedDependenciesCount} dep${node.dedupedDependenciesCount === 1 ? '' : 's'} hidden)`)
-    }
   }
   return node.searched ? chalk.bold(txt) : txt
+}
+
+/**
+ * Dims the box-drawing tree lines produced by archy so that
+ * the package labels stand out more clearly.
+ */
+function dimArchyLines (output: string): string {
+  return output.replace(/^[│├└─┬ ]+/gm, (match) => chalk.dim(match))
 }
 
 function getPkgColor (node: PackageNode): (text: string) => string {
