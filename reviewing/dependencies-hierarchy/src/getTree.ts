@@ -9,9 +9,7 @@ import { type PackageNode } from './PackageNode.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
 
-interface GetTreeOpts {
-  maxDepth: number
-  rewriteLinkVersionDir: string
+export interface BaseTreeOpts {
   include: {
     dependencies?: boolean
     devDependencies?: boolean
@@ -23,18 +21,22 @@ interface GetTreeOpts {
   search?: Finder
   skipped: Set<string>
   registries: Registries
-  importers: Record<string, ProjectSnapshot>
   depTypes: DepTypes
-  currentPackages: PackageSnapshots
-  wantedPackages: PackageSnapshots
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
   modulesDir?: string
-  parentDir?: string
   showDedupedSearchMatches?: boolean
-
   graph: DependencyGraph
   materializationCache: MaterializationCache
+}
+
+interface GetTreeOpts extends BaseTreeOpts {
+  maxDepth: number
+  rewriteLinkVersionDir: string
+  importers: Record<string, ProjectSnapshot>
+  currentPackages: PackageSnapshots
+  wantedPackages: PackageSnapshots
+  parentDir?: string
 }
 
 // Context object for materializeChildren — holds everything that stays the

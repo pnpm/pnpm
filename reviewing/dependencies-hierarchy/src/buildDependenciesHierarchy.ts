@@ -8,7 +8,7 @@ import {
   readWantedLockfile,
   type ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
-import { detectDepTypes, type DepTypes } from '@pnpm/lockfile.detect-dep-types'
+import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { parseDepPath } from '@pnpm/dependency-path'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
@@ -20,7 +20,7 @@ import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
 import { type PackageNode } from './PackageNode.js'
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
-import { getTree, type GetTreeResult, type MaterializationCache } from './getTree.js'
+import { getTree, type BaseTreeOpts, type GetTreeResult, type MaterializationCache } from './getTree.js'
 import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { type TreeNodeId } from './TreeNodeId.js'
@@ -98,13 +98,13 @@ export async function buildDependenciesHierarchy (
   }
   // Build the dependency graph ONCE for all importers and share a single
   // MaterializationCache so that identical subtrees are only materialized once.
-  const allRootIds: TreeNodeId[] = projectPaths
-    .map((projectPath) => {
-      const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
-      if (!lockfileToUse.importers[importerId]) return null
-      return { type: 'importer' as const, importerId } as TreeNodeId
-    })
-    .filter((id): id is TreeNodeId => id != null)
+  const allRootIds: TreeNodeId[] = []
+  for (const projectPath of projectPaths) {
+    const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
+    if (lockfileToUse.importers[importerId]) {
+      allRootIds.push({ type: 'importer', importerId })
+    }
+  }
   const sharedGraph = buildDependencyGraph(allRootIds, {
     currentPackages: lockfileToUse.packages ?? {},
     importers: lockfileToUse.importers,
@@ -121,16 +121,27 @@ export async function buildDependenciesHierarchy (
     ? findImportersReachingSearchTarget(sharedGraph, maybeOpts.fastSearch)
     : undefined
 
+  const ctx: HierarchyContext = {
+    currentLockfile: lockfileToUse,
+    wantedLockfile,
+    ...opts,
+    graph: sharedGraph,
+    materializationCache: sharedMaterializationCache,
+    depTypes: sharedDepTypes,
+  }
+
+  const getHierarchy = dependenciesHierarchyForPackage.bind(null, ctx)
+
   const pairs = await Promise.all(projectPaths.map(async (projectPath) => {
     if (importerFilter) {
-      const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
+      const importerId = getLockfileImporterId(ctx.lockfileDir, projectPath)
       if (!importerFilter.has(importerId)) {
         return [projectPath, {}] as [string, DependenciesHierarchy]
       }
     }
     return [
       projectPath,
-      await dependenciesHierarchyForPackage(projectPath, lockfileToUse, wantedLockfile, opts, sharedGraph, sharedMaterializationCache, sharedDepTypes),
+      await getHierarchy(projectPath),
     ] as [string, DependenciesHierarchy]
   }))
   for (const [projectPath, dependenciesHierarchy] of pairs) {
@@ -139,29 +150,18 @@ export async function buildDependenciesHierarchy (
   return result
 }
 
+interface HierarchyContext extends BaseTreeOpts {
+  currentLockfile: LockfileObject
+  wantedLockfile: LockfileObject | null
+  depth: number
+  checkWantedLockfileOnly?: boolean
+}
+
 async function dependenciesHierarchyForPackage (
-  projectPath: string,
-  currentLockfile: LockfileObject,
-  wantedLockfile: LockfileObject | null,
-  opts: {
-    depth: number
-    excludePeerDependencies?: boolean
-    include: { [dependenciesField in DependenciesField]: boolean }
-    registries: Registries
-    onlyProjects?: boolean
-    search?: Finder
-    showDedupedSearchMatches?: boolean
-    skipped: Set<string>
-    lockfileDir: string
-    checkWantedLockfileOnly?: boolean
-    modulesDir?: string
-    virtualStoreDir?: string
-    virtualStoreDirMaxLength: number
-  },
-  graph: DependencyGraph,
-  materializationCache: MaterializationCache,
-  depTypes: DepTypes
+  opts: HierarchyContext,
+  projectPath: string
 ): Promise<DependenciesHierarchy> {
+  const { currentLockfile, wantedLockfile, graph, materializationCache, depTypes } = opts
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
 
   if (!currentLockfile.importers[importerId]) return {}
@@ -179,22 +179,12 @@ async function dependenciesHierarchyForPackage (
   const currentPackages = currentLockfile.packages ?? {}
   const wantedPackages = wantedLockfile?.packages ?? {}
   const getTreeOpts = {
+    ...opts,
     currentPackages,
-    excludePeerDependencies: opts.excludePeerDependencies,
     importers: currentLockfile.importers,
-    include: opts.include,
-    depTypes,
-    lockfileDir: opts.lockfileDir,
-    onlyProjects: opts.onlyProjects,
     rewriteLinkVersionDir: projectPath,
     maxDepth: opts.depth,
-    registries: opts.registries,
-    search: opts.search,
-    showDedupedSearchMatches: opts.showDedupedSearchMatches,
-    skipped: opts.skipped,
     wantedPackages,
-    virtualStoreDir: opts.virtualStoreDir,
-    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir,
   }
   const parentId: TreeNodeId = { type: 'importer', importerId }
