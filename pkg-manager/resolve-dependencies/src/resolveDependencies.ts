@@ -41,7 +41,6 @@ import {
   type PkgIdWithPatchHash,
   type PinnedVersion,
   type PackageVersionPolicy,
-  type PackageVulnerabilityAudit,
   type TrustPolicy,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
@@ -290,7 +289,6 @@ interface ResolvedDependenciesOptions {
   supportedArchitectures?: SupportedArchitectures
   updateToLatest?: boolean
   pinnedVersion?: PinnedVersion
-  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
 interface PostponedResolutionOpts {
@@ -871,7 +869,6 @@ async function resolveDependenciesOfDependency (
     supportedArchitectures: options.supportedArchitectures,
     parentIds: options.parentIds,
     pinnedVersion: options.pinnedVersion,
-    packageVulnerabilityAudit: options.packageVulnerabilityAudit,
   }
 
   // The catalog protocol is normally replaced when resolving the dependencies
@@ -946,7 +943,6 @@ async function resolveDependenciesOfDependency (
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
     updateToLatest: options.updateToLatest,
-    packageVulnerabilityAudit: options.packageVulnerabilityAudit,
   })
   return {
     resolveDependencyResult,
@@ -996,7 +992,6 @@ async function resolveChildren (
     updateMatching,
     prefix,
     supportedArchitectures,
-    packageVulnerabilityAudit,
   }: {
     parentPkg: PkgAddress
     parentIds: PkgResolutionId[]
@@ -1007,7 +1002,6 @@ async function resolveChildren (
     updateMatching?: UpdateMatchingFunction
     supportedArchitectures?: SupportedArchitectures
     updateToLatest?: boolean
-    packageVulnerabilityAudit?: PackageVulnerabilityAudit
   },
   {
     parentPkgAliases,
@@ -1055,7 +1049,6 @@ async function resolveChildren (
       updateMatching,
       supportedArchitectures,
       parentIds,
-      packageVulnerabilityAudit,
     }
   )
   ctx.childrenByParentId[parentPkg.pkgId] = pkgAddresses.map((child) => ({
@@ -1271,7 +1264,6 @@ interface ResolveDependencyOptions {
   updateRequested: boolean
   supportedArchitectures?: SupportedArchitectures
   pinnedVersion?: PinnedVersion
-  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
 type ResolveDependencyResult = PkgAddressOrLink | null
@@ -1370,7 +1362,6 @@ async function resolveDependency (
       injectWorkspacePackages: ctx.injectWorkspacePackages,
       calcSpecifier,
       pinnedVersion: options.pinnedVersion,
-      packageVulnerabilityAudit: options.packageVulnerabilityAudit,
     })
   } catch (err: any) { // eslint-disable-line
     const wantedDependencyDetails = {

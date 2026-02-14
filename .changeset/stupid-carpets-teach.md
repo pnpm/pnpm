@@ -2,8 +2,6 @@
 "@pnpm/plugin-commands-installation": minor
 "@pnpm/resolve-dependencies": minor
 "@pnpm/plugin-commands-audit": minor
-"@pnpm/store-controller-types": minor
-"@pnpm/resolver-base": minor
 "@pnpm/npm-resolver": minor
 "@pnpm/core": minor
 "@pnpm/types": minor

@@ -76,8 +76,12 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
       }
       return false
     },
-    getVulnerabilities (packageName: string): PackageVulnerability[] {
-      return vulnerabilitiesByPackage.get(packageName)?.map(v => v.vulnerability) ?? []
+    getVulnerabilities (): Map<string, PackageVulnerability[]> {
+      const allVulnerabilities = new Map<string, PackageVulnerability[]>()
+      for (const [pkgName, vulnerabilities] of vulnerabilitiesByPackage) {
+        allVulnerabilities.set(pkgName, vulnerabilities.map(v => v.vulnerability))
+      }
+      return allVulnerabilities
     },
   }
 

@@ -71,7 +71,6 @@ import {
   type PeerDependencyIssues,
   type ProjectId,
   type ProjectManifest,
-  type PackageVulnerabilityAudit,
   type ReadPackageHook,
   type ProjectRootDir,
 } from '@pnpm/types'
@@ -114,7 +113,6 @@ interface InstallMutationOptions {
   updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean
-  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
 export interface InstallDepsMutation extends InstallMutationOptions {
@@ -1043,7 +1041,6 @@ export async function addDependenciesToPackage (
         updateMatching: opts.updateMatching,
         updatePackageManifest: opts.updatePackageManifest,
         updateToLatest: opts.updateToLatest,
-        packageVulnerabilityAudit: opts.packageVulnerabilityAudit,
       },
     ],
     {
@@ -1255,7 +1252,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       trustPolicy: opts.trustPolicy,
       trustPolicyExclude: opts.trustPolicyExclude,
       trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
-      packageVulnerabilityAudit: opts.packageVulnerabilityAudit,
       blockExoticSubdeps: opts.blockExoticSubdeps,
     }
   )

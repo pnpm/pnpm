@@ -28,7 +28,6 @@ import {
   type PackageVersionPolicy,
   type PinnedVersion,
   type Registries,
-  type PackageVulnerabilityAudit,
   type TrustPolicy,
 } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
@@ -264,7 +263,6 @@ export type ResolveFromNpmOptions = {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
-  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -356,7 +354,6 @@ async function resolveNpm (
       registry,
       updateToLatest: opts.update === 'latest',
       optional: wantedDependency.optional,
-      packageVulnerabilityAudit: opts.packageVulnerabilityAudit,
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {

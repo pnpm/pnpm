@@ -19,6 +19,7 @@ import {
   type ProjectsGraph,
   type ProjectRootDir,
   type PackageVulnerabilityAudit,
+  type VulnerabilitySeverity,
 } from '@pnpm/types'
 import {
   IgnoredBuildsError,
@@ -33,6 +34,7 @@ import { sequenceGraph } from '@pnpm/sort-packages'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { type PreferredVersions, type VersionSelectors } from '@pnpm/resolver-base'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import {
@@ -279,6 +281,7 @@ when running add/update with the --workspace option')
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,
+    preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
   }
 
   let updateMatch: UpdateDepsMatcher | null
@@ -456,4 +459,56 @@ async function recursiveInstallThenUpdateWorkspaceState (
     })
   }
   return recursiveResult
+}
+
+function severityStringToNumber (severity: VulnerabilitySeverity): number {
+  switch (severity) {
+  case 'low': return 0
+  case 'moderate': return 1
+  case 'high': return 2
+  case 'critical': return 3
+  default: return -1
+  }
+}
+
+function getVulnerabilityPenalty (severity: VulnerabilitySeverity): number {
+  switch (severity) {
+  case 'low': return -1000
+  case 'moderate': return -2000
+  case 'high': return -3000
+  case 'critical': return -4000
+  // Treat unrecognized severity as the lowest severity
+  default: return -1000
+  }
+}
+
+function preferNonvulnerablePackageVersions (packageVulnerabilityAudit: PackageVulnerabilityAudit): PreferredVersions {
+  const preferredVersions: PreferredVersions = {}
+  for (const [packageName, vulnerabilities] of packageVulnerabilityAudit.getVulnerabilities()) {
+    const vulnerableRanges = new Map<string, VulnerabilitySeverity>()
+    for (const vuln of vulnerabilities) {
+      const existingSeverity = vulnerableRanges.get(vuln.versionRange)
+      if (existingSeverity == null) {
+        vulnerableRanges.set(vuln.versionRange, vuln.severity)
+        continue
+      }
+      // Choose the highest severity for the same version range
+      if (severityStringToNumber(vuln.severity) > severityStringToNumber(existingSeverity)) {
+        vulnerableRanges.set(vuln.versionRange, vuln.severity)
+      }
+    }
+    const preferredVersionSelectors: VersionSelectors = {}
+    for (const [vulnRange, severity] of vulnerableRanges) {
+      if (vulnRange === '__proto__' || vulnRange === 'constructor' || vulnRange === 'prototype') {
+        // Prevent prototype pollution
+        continue
+      }
+      preferredVersionSelectors[vulnRange] = {
+        selectorType: 'range',
+        weight: getVulnerabilityPenalty(severity),
+      }
+    }
+    preferredVersions[packageName] = preferredVersionSelectors
+  }
+  return preferredVersions
 }

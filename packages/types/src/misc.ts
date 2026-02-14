@@ -51,9 +51,10 @@ export interface PackageVulnerabilityAudit {
    */
   isVulnerable: (packageName: string, version: string) => boolean
   /**
-   * Get vulnerabilities for the given package.
+   * Get all vulnerabilities for all packages.
+   * @returns A map where the keys are package names and the values are arrays of vulnerabilities for those packages.
    */
-  getVulnerabilities: (packageName: string) => PackageVulnerability[]
+  getVulnerabilities: () => Map<string, PackageVulnerability[]>
 }
 
 export interface PackageVulnerability {

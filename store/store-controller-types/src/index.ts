@@ -21,7 +21,6 @@ import {
   type PackageManifest,
   type PinnedVersion,
   type PackageVersionPolicy,
-  type PackageVulnerabilityAudit,
   type TrustPolicy,
 } from '@pnpm/types'
 
@@ -143,7 +142,6 @@ export interface RequestPackageOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
-  packageVulnerabilityAudit?: PackageVulnerabilityAudit
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number

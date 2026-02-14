@@ -20,7 +20,6 @@ import {
   type ProjectRootDir,
   type PackageVersionPolicy,
   type TrustPolicy,
-  type PackageVulnerabilityAudit,
 } from '@pnpm/types'
 import { partition, zipObj } from 'ramda'
 import { type WantedDependency } from './getNonDevWantedDependencies.js'
@@ -145,7 +144,6 @@ export interface ResolveDependenciesOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
-  packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
 }
 
@@ -250,7 +248,6 @@ export async function resolveDependencyTree<T> (
       updateDepth: -1,
       updateMatching: importer.updateMatching,
       updateToLatest: importer.updateToLatest,
-      packageVulnerabilityAudit: opts.packageVulnerabilityAudit,
       prefix: importer.rootDir,
       supportedArchitectures: opts.supportedArchitectures,
     }
