@@ -130,7 +130,6 @@ export async function handler (
       lockfileDir,
       reportAs: opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree'),
       modulesDir: opts.modulesDir,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       checkWantedLockfileOnly: opts.lockfileOnly,
       finders,
     })
@@ -141,7 +140,6 @@ export async function handler (
     lockfileDir,
     reportAs: opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree'),
     modulesDir: opts.modulesDir,
-    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     checkWantedLockfileOnly: opts.lockfileOnly,
     finders,
   })

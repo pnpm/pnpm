@@ -226,7 +226,6 @@ export async function whyForPackages (
     include?: { [dependenciesField in DependenciesField]: boolean }
     reportAs?: 'parseable' | 'tree' | 'json'
     modulesDir?: string
-    virtualStoreDirMaxLength: number
     finders?: Finder[]
   }
 ): Promise<string> {
@@ -255,7 +254,6 @@ export async function whyForPackages (
     lockfileDir: opts.lockfileDir,
     include: opts.include,
     modulesDir: opts.modulesDir,
-    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
     finders: opts.finders,
     importerInfoMap,

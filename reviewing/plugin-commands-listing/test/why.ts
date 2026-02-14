@@ -119,6 +119,97 @@ test('"why" should display parseable output', async () => {
   expect(lines.some(line => line.includes('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'))).toBe(true)
 })
 
+test('"why" should display finder message in tree output', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+
+  const output = await why.handler({
+    dir: process.cwd(),
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    findBy: ['test-finder'],
+    finders: {
+      'test-finder': (ctx) => {
+        if (ctx.name === '@pnpm.e2e/pkg-with-1-dep') {
+          return 'Found: has 1 dep'
+        }
+        return false
+      },
+    },
+  }, [])
+
+  const lines = stripAnsi(output).split('\n')
+  expect(lines[0]).toBe('@pnpm.e2e/pkg-with-1-dep@100.0.0')
+  expect(lines[1]).toBe('Found: has 1 dep')
+})
+
+test('"why" should display finder message in JSON output', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+
+  const output = await why.handler({
+    dir: process.cwd(),
+    json: true,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    findBy: ['test-finder'],
+    finders: {
+      'test-finder': (ctx) => {
+        if (ctx.name === '@pnpm.e2e/pkg-with-1-dep') {
+          return 'custom message'
+        }
+        return false
+      },
+    },
+  }, [])
+
+  const parsed = JSON.parse(output)
+  const match = parsed.find((r: any) => r.name === '@pnpm.e2e/pkg-with-1-dep') // eslint-disable-line
+  expect(match).toBeDefined()
+  expect(match.searchMessage).toBe('custom message')
+})
+
+test('"why" finder can read manifest from store', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+
+  const output = await why.handler({
+    dir: process.cwd(),
+    json: true,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    findBy: ['manifest-reader'],
+    finders: {
+      'manifest-reader': (ctx) => {
+        const manifest = ctx.readManifest()
+        // The manifest should contain the actual package name
+        if (manifest.name === '@pnpm.e2e/pkg-with-1-dep') {
+          return `description: ${manifest.description ?? 'none'}`
+        }
+        return false
+      },
+    },
+  }, [])
+
+  const parsed = JSON.parse(output)
+  const match = parsed.find((r: any) => r.name === '@pnpm.e2e/pkg-with-1-dep') // eslint-disable-line
+  expect(match).toBeDefined()
+  // The finder should have been able to read the manifest and produce a message
+  expect(match.searchMessage).toMatch(/^description: /)
+})
+
 test('"why" should find file: protocol local packages', async () => {
   prepare({
     dependencies: {

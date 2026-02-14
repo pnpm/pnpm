@@ -19,6 +19,9 @@
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../fs/msgpack-file"
+    },
+    {
       "path": "../../fs/read-modules-dir"
     },
     {
@@ -44,6 +47,9 @@
     },
     {
       "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../store/cafs"
     }
   ]
 }

@@ -798,7 +798,7 @@ overrides:
 
 packageExtensionsChecksum: sha256-1qxck4M+gjHKVxNHtl5ISCI+egyJsA5Hru0aRTpMm9I=
 
-pnpmfileChecksum: sha256-mx8+uzkaD2WO2V3h9zTchFZZX3QdTTMrkVNvy8svgCY=
+pnpmfileChecksum: sha256-wWS8pd4RWXcibTBMmfBovomIjneDZhwa6bW2R9l/rrw=
 
 patchedDependencies:
   '@pnpm/npm-lifecycle':
@@ -7672,6 +7672,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/fs.msgpack-file':
+        specifier: workspace:*
+        version: link:../../fs/msgpack-file
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../lockfile/detect-dep-types
@@ -7699,6 +7702,9 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types

@@ -14,8 +14,12 @@ export function renderWhyTree (results: WhyPackageResult[]): string {
 
   const trees = results
     .map((result) => {
-      let rootLabel = chalk.bold(nameAtVersion(result.name, result.version))
-      rootLabel += peerHashSuffix(result.name, result.version, result.peersSuffixHash, multiPeerPkgs)
+      const rootLabelParts = [chalk.bold(nameAtVersion(result.name, result.version)) +
+        peerHashSuffix(result.name, result.version, result.peersSuffixHash, multiPeerPkgs)]
+      if (result.searchMessage) {
+        rootLabelParts.push(result.searchMessage)
+      }
+      const rootLabel = rootLabelParts.join('\n')
       if (result.dependants.length === 0) {
         return rootLabel
       }

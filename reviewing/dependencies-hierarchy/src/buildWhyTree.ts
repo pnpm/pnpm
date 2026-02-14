@@ -1,4 +1,5 @@
 import path from 'path'
+import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import {
   readCurrentLockfile,
   readWantedLockfile,
@@ -6,6 +7,8 @@ import {
   type PackageSnapshots,
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { readModulesManifest } from '@pnpm/modules-yaml'
+import { getIndexFilePathInCafs, readManifestFromStore, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependenciesField, type DependencyManifest, type Finder } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import realpathMissing from 'realpath-missing'
@@ -37,6 +40,8 @@ export interface WhyPackageResult {
   version: string
   /** Short hash distinguishing peer-dep variants of the same name@version */
   peersSuffixHash?: string
+  /** Message returned by the finder function, if any */
+  searchMessage?: string
   dependants: WhyDependant[]
 }
 
@@ -187,14 +192,15 @@ export async function buildWhyTrees (
     lockfileDir: string
     include?: { [field in DependenciesField]?: boolean }
     modulesDir?: string
-    virtualStoreDirMaxLength: number
     checkWantedLockfileOnly?: boolean
     finders?: Finder[]
     importerInfoMap: Map<string, ImporterInfo>
   }
 ): Promise<WhyPackageResult[]> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
+  const modules = await readModulesManifest(modulesDir)
   const internalPnpmDir = path.join(modulesDir, '.pnpm')
+  const storeDir = modules?.storeDir
   const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
 
@@ -238,7 +244,23 @@ export async function buildWhyTrees (
     if (snapshot == null) continue
 
     const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
-    const readManifest = () => ({ name, version }) as DependencyManifest
+    const readManifest = (): DependencyManifest => {
+      const integrity = 'integrity' in snapshot.resolution
+        ? snapshot.resolution.integrity as string
+        : undefined
+      if (integrity && storeDir) {
+        try {
+          const pkgId = `${name}@${version}`
+          const indexPath = getIndexFilePathInCafs(storeDir, integrity, pkgId)
+          const pkgIndex = readMsgpackFileSync<PackageFilesIndex>(indexPath)
+          const manifest = readManifestFromStore(storeDir, pkgIndex)
+          if (manifest) return manifest as DependencyManifest
+        } catch {
+          // Fall through to fallback
+        }
+      }
+      return { name, version } as DependencyManifest
+    }
 
     // Check canonical name first
     let matched = search({ alias: name, name, version, readManifest })
@@ -270,7 +292,11 @@ export async function buildWhyTrees (
     }
     const dependants = walkReverse(serialized, ctx)
 
-    results.push({ name, version, peersSuffixHash: peerHash, dependants })
+    const result: WhyPackageResult = { name, version, peersSuffixHash: peerHash, dependants }
+    if (typeof matched === 'string') {
+      result.searchMessage = matched
+    }
+    results.push(result)
   }
 
   results.sort((a, b) => lexCompare(a.name, b.name))
