@@ -6,7 +6,7 @@ import chalk from 'chalk'
 import { sortBy, path as ramdaPath } from 'ramda'
 import { type Ord } from 'ramda'
 import { getPkgInfo } from './getPkgInfo.js'
-import { filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
+import { DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 import { type PackageDependencyHierarchy } from './types.js'
 
 const sortPackages = sortBy(ramdaPath(['name']) as (pkg: PackageNode) => Ord)
@@ -110,10 +110,9 @@ export async function toArchyTree (
 ): Promise<TreeNode[]> {
   return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
-      let nodes: TreeNode[] = await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
-      if (node.deduped && node.dedupedDependenciesCount) {
-        nodes = [{ label: chalk.dim(`[+${node.dedupedDependenciesCount}]`), nodes: [] }]
-      }
+      const nodes: TreeNode[] = node.deduped
+        ? []
+        : await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
       const labelLines: string[] = [
         printLabel(getPkgColor, opts.multiPeerPkgs, node),
       ]
@@ -166,8 +165,8 @@ function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number
   if (multiPeerPkgs) {
     txt += peerHashSuffix(node.name, node.version, node.peersSuffixHash, multiPeerPkgs)
   }
-  if (node.deduped && !node.dedupedDependenciesCount) {
-    txt += chalk.dim(' deduped')
+  if (node.deduped) {
+    txt += DEDUPED_LABEL
   }
   return node.searched ? chalk.bold(txt) : txt
 }

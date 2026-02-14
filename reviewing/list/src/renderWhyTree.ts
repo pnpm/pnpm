@@ -1,7 +1,7 @@
 import { type WhyPackageResult, type WhyDependant } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
-import { filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
+import { DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 
 function plainNameAtVersion (name: string, version: string): string {
   return version ? `${name}@${version}` : name
@@ -73,7 +73,7 @@ function dependantsToTreeNodes (dependants: WhyDependant[], multiPeerPkgs: Map<s
       label += chalk.dim(' [circular]')
     }
     if (dep.deduped) {
-      label += chalk.dim(' [deduped]')
+      label += DEDUPED_LABEL
     }
 
     const nodes = dep.dependants ? dependantsToTreeNodes(dep.dependants, multiPeerPkgs) : []

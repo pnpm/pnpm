@@ -19,6 +19,8 @@ export function peerHashSuffix (
   return chalk.red(` peer#${hash} (${variantCount} variation${variantCount === 1 ? '' : 's'})`)
 }
 
+export const DEDUPED_LABEL = chalk.dim(' [deduped]')
+
 /**
  * Given a map of `name@version` → Set of distinct peer hashes,
  * returns only those entries with more than one variant.
