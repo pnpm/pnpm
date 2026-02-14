@@ -3,7 +3,6 @@ import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
-import cliColumns from 'cli-columns'
 import { sortBy, path as ramdaPath } from 'ramda'
 import { type Ord } from 'ramda'
 import { getPkgInfo } from './getPkgInfo.js'
@@ -65,42 +64,37 @@ async function renderTreeForPackage (
   if (pkg.private) {
     label += ' (PRIVATE)'
   }
-  const useColumns = opts.depth === 0 && !opts.long && !opts.search
   const dependenciesFields: Array<DependenciesField | 'unsavedDependencies'> = [
     ...DEPENDENCIES_FIELDS.sort(),
   ]
   if (opts.showExtraneous) {
     dependenciesFields.push('unsavedDependencies')
   }
-  const output = (await Promise.all(
+  const groupNodes: archy.Data[] = (await Promise.all(
     dependenciesFields.map(async (dependenciesField) => {
-      if (pkg[dependenciesField]?.length) {
-        const depsLabel = chalk.cyanBright(
-          dependenciesField !== 'unsavedDependencies'
-            ? `${dependenciesField}:`
-            : 'not saved (you should add these dependencies to package.json if you need them):'
-        )
-        let output = `${depsLabel}\n`
-        const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
-        if (useColumns && pkg[dependenciesField]!.length > 10) {
-          output += cliColumns(pkg[dependenciesField]!.map((node) => printLabel(gPkgColor, multiPeerPkgs, node))) + '\n'
-          return output
-        }
-        const data = await toArchyTree(gPkgColor, pkg[dependenciesField]!, {
-          long: opts.long,
-          modules: path.join(pkg.path, 'node_modules'),
-          multiPeerPkgs,
-        })
-        for (const d of data) {
-          output += dimArchyLines(archy(d))
-        }
-        return output
-      }
-      return null
-    }))).filter(Boolean).join('\n')
+      if (!pkg[dependenciesField]?.length) return null
+      const depsLabel = chalk.cyanBright(
+        dependenciesField !== 'unsavedDependencies'
+          ? `${dependenciesField}:`
+          : 'not saved (you should add these dependencies to package.json if you need them):'
+      )
+      const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
+      const depNodes = await toArchyTree(gPkgColor, pkg[dependenciesField]!, {
+        long: opts.long,
+        modules: path.join(pkg.path, 'node_modules'),
+        multiPeerPkgs,
+      })
+      return { label: depsLabel, nodes: depNodes } as archy.Data
+    })
+  )).filter((n): n is archy.Data => n != null)
 
+  const rootLabel = chalk.bold.underline(label)
+  if (groupNodes.length === 0) {
+    return rootLabel
+  }
+  const tree: archy.Data = { label: rootLabel, nodes: groupNodes }
   // eslint-disable-next-line regexp/no-unused-capturing-group
-  return `${chalk.bold.underline(label)}\n\n${output}`.replace(/(\n)+$/, '')
+  return dimArchyLines(archy(tree)).replace(/(\n)+$/, '')
 }
 
 type GetPkgColor = (node: PackageNode) => (s: string) => string
