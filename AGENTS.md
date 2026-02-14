@@ -119,12 +119,22 @@ Follow the [Conventional Commits](https://www.conventionalcommits.org/) specific
     -   `test`: adding missing tests
     -   `chore`: changes to build process or auxiliary tools
 
+## Code Reuse and Avoiding Duplication
+
+**Before writing new code, always analyze the existing codebase for similar functionality.** This is a large monorepo with many shared utilities — duplication is a real risk.
+
+-   **Search before you write.** Before implementing any non-trivial logic, search the codebase for existing functions, utilities, or patterns that do the same or similar thing. Check `packages/`, `fs/`, `crypto/`, `text/`, and other shared directories first.
+-   **Extract shared code.** If you find that the logic you need already exists in another package but is not exported or reusable, refactor it into a shared package rather than duplicating it. If you are adding new code that is similar to code that already exists elsewhere in the repo, move the common parts into a shared package that both locations can use.
+-   **Prefer open source packages over custom implementations.** Do not reimplement functionality that is already available as a well-maintained open source package. Use established libraries for common tasks (e.g., path manipulation, string utilities, data structures, schema validation). Only write custom code when no suitable package exists or when the existing packages are too heavy or unmaintained.
+-   **Keep the dependency on the right level.** When adding a new open source dependency, add it to the most specific package that needs it, not to the root or to a shared package unless multiple packages depend on it.
+
 ## Code Style
 
 This repository uses [Standard Style](https://github.com/standard/standard) with a few modifications:
 -   **Trailing commas** are used.
 -   **Functions are preferred** over classes.
 -   **Functions are declared after they are used** (hoisting is relied upon).
+-   **Functions should have no more than two or three arguments.** If a function needs more parameters, use a single options object instead.
 -   **Import Order**:
     1.  Standard libraries (e.g., `fs`, `path`).
     2.  External dependencies (sorted alphabetically).
