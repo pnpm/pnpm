@@ -176,6 +176,48 @@ test('should approve builds with package.json that has no allowBuilds field defi
   })
 })
 
+test('approve all builds with --all flag', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/install-script-example': '*',
+    },
+  })
+
+  const cliOptions = {
+    argv: [],
+    dir: process.cwd(),
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
+  }
+  const config = {
+    ...omit(['reporter'], (await getConfig({
+      cliOptions,
+      packageManager: { name: 'pnpm', version: '' },
+    })).config),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    pnpmfile: [],
+    enableGlobalVirtualStore: false,
+    strictDepBuilds: false,
+  }
+  await install.handler({ ...config, argv: { original: [] } })
+
+  prompt.mockClear()
+  await approveBuilds.handler({ ...config, all: true })
+
+  expect(prompt).not.toHaveBeenCalled()
+
+  const workspaceManifest = readYamlFile<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': true,
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+  })
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+})
+
 test('should retain existing allowBuilds entries when approving builds', async () => {
   const temp = tempDir()
 
