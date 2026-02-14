@@ -5,7 +5,7 @@ import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import chalk from 'chalk'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { getPkgInfo } from './getPkgInfo.js'
-import { DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
+import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 import { type PackageDependencyHierarchy } from './types.js'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
@@ -184,15 +184,7 @@ function findMultiPeerPackages (packages: PackageDependencyHierarchy[]): Map<str
 
   function walk (nodes: PackageNode[]): void {
     for (const node of nodes) {
-      if (node.peersSuffixHash) {
-        const key = `${node.name}@${node.version}`
-        let hashes = hashesPerPkg.get(key)
-        if (hashes == null) {
-          hashes = new Set()
-          hashesPerPkg.set(key, hashes)
-        }
-        hashes.add(node.peersSuffixHash)
-      }
+      collectHashes(hashesPerPkg, node.name, node.version, node.peersSuffixHash)
       if (node.dependencies) {
         walk(node.dependencies)
       }

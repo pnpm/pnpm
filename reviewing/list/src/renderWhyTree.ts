@@ -1,7 +1,7 @@
 import { type WhyPackageResult, type WhyDependant } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
-import { DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
+import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 
 function plainNameAtVersion (name: string, version: string): string {
   return version ? `${name}@${version}` : name
@@ -41,17 +41,6 @@ function whySummary (results: WhyPackageResult[]): string {
     parts.push(`${results.length} instances`)
   }
   return chalk.dim(`Found ${parts.join(', ')} of ${results[0].name}`)
-}
-
-function collectHashes (hashesPerPkg: Map<string, Set<string>>, name: string, version: string, hash: string | undefined): void {
-  if (!hash) return
-  const key = `${name}@${version}`
-  let hashes = hashesPerPkg.get(key)
-  if (hashes == null) {
-    hashes = new Set()
-    hashesPerPkg.set(key, hashes)
-  }
-  hashes.add(hash)
 }
 
 function findMultiPeerPackages (results: WhyPackageResult[]): Map<string, number> {

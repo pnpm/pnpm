@@ -22,6 +22,7 @@ export interface BaseTreeOpts {
   skipped: Set<string>
   registries: Registries
   depTypes: DepTypes
+  storeDir?: string
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
   modulesDir?: string

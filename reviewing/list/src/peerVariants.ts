@@ -21,6 +21,22 @@ export function peerHashSuffix (
 
 export const DEDUPED_LABEL = chalk.dim(' [deduped]')
 
+export function collectHashes (
+  hashesPerPkg: Map<string, Set<string>>,
+  name: string,
+  version: string,
+  hash: string | undefined
+): void {
+  if (!hash) return
+  const key = `${name}@${version}`
+  let hashes = hashesPerPkg.get(key)
+  if (hashes == null) {
+    hashes = new Set()
+    hashesPerPkg.set(key, hashes)
+  }
+  hashes.add(hash)
+}
+
 /**
  * Given a map of `name@version` → Set of distinct peer hashes,
  * returns only those entries with more than one variant.

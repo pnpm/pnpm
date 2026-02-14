@@ -1,5 +1,4 @@
 import path from 'path'
-import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import {
   readCurrentLockfile,
   readWantedLockfile,
@@ -8,9 +7,9 @@ import {
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { readModulesManifest } from '@pnpm/modules-yaml'
-import { getIndexFilePathInCafs, readManifestFromStore, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependenciesField, type DependencyManifest, type Finder } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { readManifestFromCafs } from './readManifestFromCafs.js'
 import realpathMissing from 'realpath-missing'
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
@@ -249,15 +248,8 @@ export async function buildWhyTrees (
         ? snapshot.resolution.integrity as string
         : undefined
       if (integrity && storeDir) {
-        try {
-          const pkgId = `${name}@${version}`
-          const indexPath = getIndexFilePathInCafs(storeDir, integrity, pkgId)
-          const pkgIndex = readMsgpackFileSync<PackageFilesIndex>(indexPath)
-          const manifest = readManifestFromStore(storeDir, pkgIndex)
-          if (manifest) return manifest as DependencyManifest
-        } catch {
-          // Fall through to fallback
-        }
+        const manifest = readManifestFromCafs(storeDir, integrity, name, version)
+        if (manifest) return manifest
       }
       return { name, version } as DependencyManifest
     }
