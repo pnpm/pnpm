@@ -7,6 +7,7 @@ import {
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { type DependenciesField, type DependencyManifest, type Finder } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import realpathMissing from 'realpath-missing'
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
@@ -87,6 +88,18 @@ interface WalkContext {
   expanded: Set<string>
 }
 
+function resolveParentName (edge: ReverseEdge, ctx: WalkContext): string {
+  const graphNode = ctx.graph.nodes.get(edge.parentSerialized)
+  if (graphNode == null) return ''
+  if (graphNode.nodeId.type === 'importer') {
+    const info = ctx.importerInfoMap.get(graphNode.nodeId.importerId)
+    return info?.name ?? graphNode.nodeId.importerId
+  }
+  const snapshot = ctx.currentPackages[graphNode.nodeId.depPath]
+  if (snapshot == null) return ''
+  return nameVerFromPkgSnapshot(graphNode.nodeId.depPath, snapshot).name
+}
+
 function walkReverse (
   nodeId: string,
   ctx: WalkContext
@@ -94,9 +107,15 @@ function walkReverse (
   const reverseEdges = ctx.reverseMap.get(nodeId)
   if (reverseEdges == null || reverseEdges.length === 0) return []
 
+  // Sort edges by parent name so that deduplication is deterministic:
+  // the alphabetically-first parent always gets fully expanded.
+  const sortedEdges = [...reverseEdges].sort((a, b) =>
+    lexCompare(resolveParentName(a, ctx), resolveParentName(b, ctx))
+  )
+
   const dependants: WhyDependant[] = []
 
-  for (const edge of reverseEdges) {
+  for (const edge of sortedEdges) {
     // Cycle detection: this node is already on our current path
     if (ctx.visited.has(edge.parentSerialized)) {
       const parentNode = ctx.graph.nodes.get(edge.parentSerialized)
@@ -254,5 +273,6 @@ export async function buildWhyTrees (
     results.push({ name, version, peersSuffixHash: peerHash, dependants })
   }
 
+  results.sort((a, b) => lexCompare(a.name, b.name))
   return results
 }

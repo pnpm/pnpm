@@ -2,6 +2,7 @@ import path from 'path'
 import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile.fs'
 import { type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { type Finder, type Registries } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { type DependencyGraph } from './buildDependencyGraph.js'
 import { type PackageNode } from './PackageNode.js'
 import { getPkgInfo } from './getPkgInfo.js'
@@ -150,7 +151,11 @@ function materializeChildren (
   let resultHasSearchMatch = false
   const resultSearchMessages = ctx.showDedupedSearchMatches ? [] as string[] : undefined
 
-  for (const edge of graphNode.edges) {
+  // Sort edges by alias so that deduplication is deterministic:
+  // the alphabetically-first dependency always gets fully expanded.
+  const sortedEdges = [...graphNode.edges].sort((a, b) => lexCompare(a.alias, b.alias))
+
+  for (const edge of sortedEdges) {
     if (ctx.onlyProjects && edge.target?.nodeId.type !== 'importer') {
       continue
     }

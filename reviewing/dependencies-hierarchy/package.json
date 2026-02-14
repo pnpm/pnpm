@@ -45,6 +45,7 @@
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "normalize-path": "catalog:",
     "realpath-missing": "catalog:",
     "resolve-link-target": "catalog:",

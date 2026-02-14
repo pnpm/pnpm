@@ -3,13 +3,10 @@ import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode, type TreeNodeGroup } from '@pnpm/text.tree-renderer'
 import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import chalk from 'chalk'
-import { sortBy, path as ramdaPath } from 'ramda'
-import { type Ord } from 'ramda'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { getPkgInfo } from './getPkgInfo.js'
 import { DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 import { type PackageDependencyHierarchy } from './types.js'
-
-const sortPackages = sortBy(ramdaPath(['name']) as (pkg: PackageNode) => Ord)
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color
@@ -105,8 +102,9 @@ export async function toArchyTree (
     multiPeerPkgs?: Map<string, number>
   }
 ): Promise<TreeNode[]> {
+  const sorted = [...entryNodes].sort((a, b) => lexCompare(a.name, b.name))
   return Promise.all(
-    sortPackages(entryNodes).map(async (node) => {
+    sorted.map(async (node) => {
       const nodes: TreeNode[] = node.deduped
         ? []
         : await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
