@@ -91,7 +91,7 @@ async function renderTreeForPackage (
     return rootLabel
   }
   const tree: TreeNode = { label: rootLabel, nodes: childNodes }
-  return renderArchyTree(tree, { treeChars: chalk.dim }).replace(/\n+$/, '')
+  return renderArchyTree(tree, { treeChars: chalk.dim }).trimEnd()
 }
 
 type GetPkgColor = (node: PackageNode) => (s: string) => string
