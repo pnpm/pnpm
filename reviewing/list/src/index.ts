@@ -117,6 +117,7 @@ export async function listForPackages (
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
+    showSummary?: boolean
   }
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -130,6 +131,7 @@ export async function listForPackages (
     long: opts.long,
     search: Boolean(packages.length),
     showExtraneous: opts.showExtraneous,
+    showSummary: opts.showSummary,
   })
 }
 
@@ -150,6 +152,7 @@ export async function list (
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
+    showSummary?: boolean
   }
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -193,6 +196,7 @@ export async function list (
     long: opts.long,
     search: false,
     showExtraneous: opts.showExtraneous,
+    showSummary: opts.showSummary,
   })
 }
 
@@ -202,6 +206,7 @@ type Printer = (packages: PackageDependencyHierarchy[], opts: {
   long: boolean
   search: boolean
   showExtraneous: boolean
+  showSummary?: boolean
 }) => Promise<string>
 
 function getPrinter (reportAs: 'parseable' | 'tree' | 'json'): Printer {

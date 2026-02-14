@@ -214,6 +214,7 @@ export async function render (
     onlyProjects: opts.onlyProjects,
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
     showExtraneous: false,
+    showSummary: true,
     modulesDir: opts.modulesDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     finders,

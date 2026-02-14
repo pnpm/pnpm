@@ -21,6 +21,7 @@ export interface RenderTreeOptions {
   long: boolean
   search: boolean
   showExtraneous: boolean
+  showSummary?: boolean
 }
 
 export async function renderTree (
@@ -33,7 +34,9 @@ export async function renderTree (
   )
     .filter(Boolean)
     .join('\n\n')
-  return `${(opts.depth > -1 && output ? LEGEND : '')}${output}`
+  const legend = opts.depth > -1 && output ? LEGEND : ''
+  const summary = opts.showSummary && opts.depth > -1 && output ? `\n\n${listSummary(packages)}` : ''
+  return `${legend}${output}${summary}`
 }
 
 async function renderTreeForPackage (
@@ -205,4 +208,31 @@ function findMultiPeerPackages (packages: PackageDependencyHierarchy[]): Map<str
   }
 
   return filterMultiPeerEntries(hashesPerPkg)
+}
+
+function listSummary (packages: PackageDependencyHierarchy[]): string {
+  let total = 0
+
+  function walk (nodes: PackageNode[]): void {
+    for (const node of nodes) {
+      total++
+      if (node.dependencies) {
+        walk(node.dependencies)
+      }
+    }
+  }
+
+  for (const pkg of packages) {
+    for (const field of DEPENDENCIES_FIELDS) {
+      if (pkg[field]) {
+        walk(pkg[field])
+      }
+    }
+  }
+
+  const parts: string[] = [`${total} package${total === 1 ? '' : 's'}`]
+  if (packages.length > 1) {
+    parts.push(`${packages.length} projects`)
+  }
+  return chalk.dim(parts.join(' in '))
 }
