@@ -1,7 +1,7 @@
 import path from 'path'
 import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
-import archy from 'archy'
 import chalk from 'chalk'
 import { sortBy, path as ramdaPath } from 'ramda'
 import { type Ord } from 'ramda'
@@ -70,7 +70,7 @@ async function renderTreeForPackage (
   if (opts.showExtraneous) {
     dependenciesFields.push('unsavedDependencies')
   }
-  const groupNodes: archy.Data[] = (await Promise.all(
+  const childNodes: TreeNode[] = (await Promise.all(
     dependenciesFields.map(async (dependenciesField) => {
       if (!pkg[dependenciesField]?.length) return null
       const depsLabel = chalk.cyanBright(
@@ -84,17 +84,16 @@ async function renderTreeForPackage (
         modules: path.join(pkg.path, 'node_modules'),
         multiPeerPkgs,
       })
-      return { label: depsLabel, nodes: depNodes } as archy.Data
+      return [{ label: depsLabel, nodes: [] } as TreeNode, ...depNodes]
     })
-  )).filter((n): n is archy.Data => n != null)
+  )).filter((n): n is TreeNode[] => n != null).flat()
 
   const rootLabel = chalk.bold.underline(label)
-  if (groupNodes.length === 0) {
+  if (childNodes.length === 0) {
     return rootLabel
   }
-  const tree: archy.Data = { label: rootLabel, nodes: groupNodes }
-  // eslint-disable-next-line regexp/no-unused-capturing-group
-  return dimArchyLines(archy(tree)).replace(/(\n)+$/, '')
+  const tree: TreeNode = { label: rootLabel, nodes: childNodes }
+  return renderArchyTree(tree, { treeChars: chalk.dim }).replace(/\n+$/, '')
 }
 
 type GetPkgColor = (node: PackageNode) => (s: string) => string
@@ -107,10 +106,10 @@ export async function toArchyTree (
     modules: string
     multiPeerPkgs?: Map<string, number>
   }
-): Promise<archy.Data[]> {
+): Promise<TreeNode[]> {
   return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
-      let nodes: archy.Data[] = await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
+      let nodes: TreeNode[] = await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
       if (node.deduped && node.dedupedDependenciesCount) {
         nodes = [{ label: chalk.dim(`[+${node.dedupedDependenciesCount}]`), nodes: [] }]
       }
@@ -174,14 +173,6 @@ function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number
     txt += chalk.dim(' deduped')
   }
   return node.searched ? chalk.bold(txt) : txt
-}
-
-/**
- * Dims the box-drawing tree lines produced by archy so that
- * the package labels stand out more clearly.
- */
-function dimArchyLines (output: string): string {
-  return output.replace(/^[│├└─┬ ]+/gm, (match) => chalk.dim(match))
 }
 
 function getPkgColor (node: PackageNode): (text: string) => string {

@@ -22,6 +22,9 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
+      "path": "../../text/tree-renderer"
+    },
+    {
       "path": "../dependencies-hierarchy"
     }
   ]

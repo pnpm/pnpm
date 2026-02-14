@@ -2125,9 +2125,9 @@ importers:
       '@pnpm/dedupe.types':
         specifier: workspace:*
         version: link:../types
-      archy:
-        specifier: 'catalog:'
-        version: 1.0.0
+      '@pnpm/text.tree-renderer':
+        specifier: workspace:*
+        version: link:../../text/tree-renderer
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
@@ -2135,9 +2135,6 @@ importers:
       '@pnpm/dedupe.issues-renderer':
         specifier: workspace:*
         version: 'link:'
-      '@types/archy':
-        specifier: 'catalog:'
-        version: 0.0.36
 
   dedupe/types:
     devDependencies:
@@ -4702,12 +4699,12 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
+      '@pnpm/text.tree-renderer':
+        specifier: workspace:*
+        version: link:../../text/tree-renderer
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
-      archy:
-        specifier: 'catalog:'
-        version: 1.0.0
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
@@ -4718,9 +4715,6 @@ importers:
       '@pnpm/render-peer-issues':
         specifier: workspace:*
         version: 'link:'
-      '@types/archy':
-        specifier: 'catalog:'
-        version: 0.0.36
 
   packages/types:
     devDependencies:
@@ -7821,18 +7815,15 @@ importers:
       '@pnpm/reviewing.dependencies-hierarchy':
         specifier: workspace:*
         version: link:../dependencies-hierarchy
+      '@pnpm/text.tree-renderer':
+        specifier: workspace:*
+        version: link:../../text/tree-renderer
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      archy:
-        specifier: 'catalog:'
-        version: 1.0.0
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
-      cli-columns:
-        specifier: 'catalog:'
-        version: 4.0.0
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0
@@ -7846,9 +7837,6 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
-      '@types/archy':
-        specifier: 'catalog:'
-        version: 0.0.36
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -8657,6 +8645,12 @@ importers:
         version: 1.2.0
     devDependencies:
       '@pnpm/text.comments-parser':
+        specifier: workspace:*
+        version: 'link:'
+
+  text/tree-renderer:
+    devDependencies:
+      '@pnpm/text.tree-renderer':
         specifier: workspace:*
         version: 'link:'
 
