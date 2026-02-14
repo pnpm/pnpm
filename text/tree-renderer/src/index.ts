@@ -1,6 +1,11 @@
+export interface TreeNodeGroup {
+  group: string
+  nodes: Array<TreeNode | string>
+}
+
 export interface TreeNode {
   label: string
-  nodes?: Array<TreeNode | string>
+  nodes?: Array<TreeNode | string | TreeNodeGroup>
 }
 
 export interface TreeRendererOptions {
@@ -48,22 +53,46 @@ function render (
     result += fmt(prefix + continuationChars) + lines[l] + '\n'
   }
 
-  // Children
-  for (let i = 0; i < nodes.length; i++) {
-    const child = nodes[i]
-    const last = i === nodes.length - 1
-    const childNode = typeof child === 'string' ? { label: child } : child
-    const more = childNode.nodes != null && childNode.nodes.length > 0
+  // Flatten groups into items with group annotations
+  const items: Array<{ node: TreeNode, group?: string }> = []
+  for (const child of nodes) {
+    if (isGroup(child)) {
+      for (const gn of child.nodes) {
+        items.push({ node: typeof gn === 'string' ? { label: gn } : gn, group: child.group })
+      }
+    } else {
+      items.push({ node: typeof child === 'string' ? { label: child } : child })
+    }
+  }
 
+  // Render items, emitting group headers when the group changes
+  let currentGroup: string | undefined
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    const last = i === items.length - 1
+
+    if (item.group !== currentGroup) {
+      currentGroup = item.group
+      if (currentGroup != null) {
+        result += fmt(prefix + chr('│')) + '\n'
+        result += fmt(prefix + chr('│') + '   ') + currentGroup + '\n'
+      }
+    }
+
+    const more = item.node.nodes != null && item.node.nodes.length > 0
     const childConnector = prefix +
       (last ? chr('└') : chr('├')) + chr('─') +
       (more ? chr('┬') : chr('─')) + ' '
     const childPrefix = prefix + (last ? '  ' : chr('│') + ' ')
 
-    result += render(childNode, childConnector, childPrefix, opts)
+    result += render(item.node, childConnector, childPrefix, opts)
   }
 
   return result
+}
+
+function isGroup (node: TreeNode | string | TreeNodeGroup): node is TreeNodeGroup {
+  return typeof node !== 'string' && 'group' in node
 }
 
 function identity (s: string): string {

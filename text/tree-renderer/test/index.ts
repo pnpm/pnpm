@@ -1,4 +1,4 @@
-import { renderTree, type TreeNode } from '@pnpm/text.tree-renderer'
+import { renderTree, type TreeNode, type TreeNodeGroup } from '@pnpm/text.tree-renderer'
 
 test('single root with no children', () => {
   expect(renderTree({ label: 'root' })).toBe('root\n')
@@ -305,5 +305,165 @@ test('matches archy output for pnpm list-like structure', () => {
     '│ └── graceful-fs@4.2.2\n' +
     '├── devDependencies:\n' +
     '└── is-positive@3.1.0\n'
+  )
+})
+
+test('single group', () => {
+  expect(renderTree({
+    label: 'root',
+    nodes: [
+      { group: 'dependencies:', nodes: [{ label: 'a' }, { label: 'b' }] },
+    ],
+  })).toBe(
+    'root\n' +
+    '│\n' +
+    '│   dependencies:\n' +
+    '├── a\n' +
+    '└── b\n'
+  )
+})
+
+test('multiple groups with last/not-last spanning across all', () => {
+  expect(renderTree({
+    label: 'root',
+    nodes: [
+      { group: 'dependencies:', nodes: [{ label: 'a' }] },
+      { group: 'devDependencies:', nodes: [{ label: 'b' }] },
+    ],
+  })).toBe(
+    'root\n' +
+    '│\n' +
+    '│   dependencies:\n' +
+    '├── a\n' +
+    '│\n' +
+    '│   devDependencies:\n' +
+    '└── b\n'
+  )
+})
+
+test('groups with nested children', () => {
+  expect(renderTree({
+    label: 'root',
+    nodes: [
+      {
+        group: 'dependencies:',
+        nodes: [
+          {
+            label: 'write-json-file@2.3.0',
+            nodes: [
+              { label: 'detect-indent@5.0.0' },
+              { label: 'graceful-fs@4.2.2' },
+            ],
+          },
+        ],
+      },
+      { group: 'devDependencies:', nodes: [{ label: 'is-positive@3.1.0' }] },
+    ],
+  })).toBe(
+    'root\n' +
+    '│\n' +
+    '│   dependencies:\n' +
+    '├─┬ write-json-file@2.3.0\n' +
+    '│ ├── detect-indent@5.0.0\n' +
+    '│ └── graceful-fs@4.2.2\n' +
+    '│\n' +
+    '│   devDependencies:\n' +
+    '└── is-positive@3.1.0\n'
+  )
+})
+
+test('groups with treeChars formatter', () => {
+  const wrapped = (s: string) => `[${s}]`
+  expect(renderTree({
+    label: 'root',
+    nodes: [
+      { group: 'deps:', nodes: [{ label: 'a' }] },
+      { group: 'dev:', nodes: [{ label: 'b' }] },
+    ],
+  }, { treeChars: wrapped })).toBe(
+    'root\n' +
+    '[│]\n' +
+    '[│   ]deps:\n' +
+    '[├── ]a\n' +
+    '[│]\n' +
+    '[│   ]dev:\n' +
+    '[└── ]b\n'
+  )
+})
+
+test('mixed groups and plain nodes', () => {
+  expect(renderTree({
+    label: 'root',
+    nodes: [
+      { label: 'plain-first' },
+      { group: 'dependencies:', nodes: [{ label: 'a' }] },
+    ],
+  })).toBe(
+    'root\n' +
+    '├── plain-first\n' +
+    '│\n' +
+    '│   dependencies:\n' +
+    '└── a\n'
+  )
+})
+
+test('empty group is skipped', () => {
+  expect(renderTree({
+    label: 'root',
+    nodes: [
+      { group: 'empty:', nodes: [] } as TreeNodeGroup,
+      { group: 'deps:', nodes: [{ label: 'a' }] },
+    ],
+  })).toBe(
+    'root\n' +
+    '│\n' +
+    '│   deps:\n' +
+    '└── a\n'
+  )
+})
+
+test('group matching pnpm list output', () => {
+  const tree: TreeNode = {
+    label: 'my-pkg@1.0.0 /path',
+    nodes: [
+      {
+        group: 'dependencies:',
+        nodes: [
+          {
+            label: 'write-json-file@2.3.0',
+            nodes: [
+              { label: 'detect-indent@5.0.0' },
+              { label: 'graceful-fs@4.2.2' },
+            ],
+          },
+        ],
+      },
+      {
+        group: 'devDependencies:',
+        nodes: [
+          { label: 'is-positive@3.1.0' },
+        ],
+      },
+      {
+        group: 'optionalDependencies:',
+        nodes: [
+          { label: 'is-negative@2.1.0' },
+        ],
+      },
+    ],
+  }
+  expect(renderTree(tree)).toBe(
+    'my-pkg@1.0.0 /path\n' +
+    '│\n' +
+    '│   dependencies:\n' +
+    '├─┬ write-json-file@2.3.0\n' +
+    '│ ├── detect-indent@5.0.0\n' +
+    '│ └── graceful-fs@4.2.2\n' +
+    '│\n' +
+    '│   devDependencies:\n' +
+    '├── is-positive@3.1.0\n' +
+    '│\n' +
+    '│   optionalDependencies:\n' +
+    '└── is-negative@2.1.0\n'
   )
 })

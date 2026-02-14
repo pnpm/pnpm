@@ -1,6 +1,6 @@
 import path from 'path'
 import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
-import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
+import { renderTree as renderArchyTree, type TreeNode, type TreeNodeGroup } from '@pnpm/text.tree-renderer'
 import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import chalk from 'chalk'
 import { sortBy, path as ramdaPath } from 'ramda'
@@ -70,7 +70,7 @@ async function renderTreeForPackage (
   if (opts.showExtraneous) {
     dependenciesFields.push('unsavedDependencies')
   }
-  const childNodes: TreeNode[] = (await Promise.all(
+  const childNodes: TreeNodeGroup[] = (await Promise.all(
     dependenciesFields.map(async (dependenciesField) => {
       if (!pkg[dependenciesField]?.length) return null
       const depsLabel = chalk.cyanBright(
@@ -84,9 +84,9 @@ async function renderTreeForPackage (
         modules: path.join(pkg.path, 'node_modules'),
         multiPeerPkgs,
       })
-      return [{ label: depsLabel, nodes: [] } as TreeNode, ...depNodes]
+      return { group: depsLabel, nodes: depNodes } as TreeNodeGroup
     })
-  )).filter((n): n is TreeNode[] => n != null).flat()
+  )).filter((n): n is TreeNodeGroup => n != null)
 
   const rootLabel = chalk.bold.underline(label)
   if (childNodes.length === 0) {

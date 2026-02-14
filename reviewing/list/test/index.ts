@@ -39,7 +39,8 @@ test('list all deps of a package that has an external lockfile', async () => {
   })).toBe(`${LEGEND}
 
 ${boldHighlighted(`pkg@1.0.0 ${fixtureWithExternalLockfile}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 └── is-positive${VERSION_CLR('@1.0.0')}`)
 })
 
@@ -53,11 +54,13 @@ test('print legend only once', async () => {
   })).toBe(`${LEGEND}
 
 ${boldHighlighted(`bar@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/bar')}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 └── is-positive${VERSION_CLR('@1.0.0')}
 
 ${boldHighlighted(`foo@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/foo')}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 └── is-positive${VERSION_CLR('@1.0.0')}`)
 })
 
@@ -71,11 +74,13 @@ test('list in workspace with private package', async () => {
   })).toBe(`${LEGEND}
 
 ${boldHighlighted(`private@1.0.0 ${path.join(workspaceWithPrivatePkgs, 'packages/private')} (PRIVATE)`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 └── is-positive${VERSION_CLR('@1.0.0')}
 
 ${boldHighlighted(`public@1.0.0 ${path.join(workspaceWithPrivatePkgs, 'packages/public')}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 └── is-positive${VERSION_CLR('@1.0.0')}`)
 })
 
@@ -83,11 +88,14 @@ test('list with default parameters', async () => {
   expect(await list([fixture], { lockfileDir: fixture, virtualStoreDirMaxLength: 120 })).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 ├── write-json-file${VERSION_CLR('@2.3.0')}
-├── ${DEV_DEPENDENCIES}
+│
+│   ${DEV_DEPENDENCIES}
 ├── ${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}
-├── ${OPTIONAL_DEPENDENCIES}
+│
+│   ${OPTIONAL_DEPENDENCIES}
 └── ${OPTIONAL_DEP_CLR('is-negative')}${VERSION_CLR('@2.1.0')}`)
 })
 
@@ -95,11 +103,14 @@ test('list with default parameters in pkg that has no name and version', async (
   expect(await list([fixtureWithNoPkgNameAndNoVersion], { lockfileDir: fixtureWithNoPkgNameAndNoVersion, virtualStoreDirMaxLength: 120 })).toBe(`${LEGEND}
 
 ${boldHighlighted(fixtureWithNoPkgNameAndNoVersion)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 ├── write-json-file${VERSION_CLR('@2.3.0')}
-├── ${DEV_DEPENDENCIES}
+│
+│   ${DEV_DEPENDENCIES}
 ├── ${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}
-├── ${OPTIONAL_DEPENDENCIES}
+│
+│   ${OPTIONAL_DEPENDENCIES}
 └── ${OPTIONAL_DEP_CLR('is-negative')}${VERSION_CLR('@2.1.0')}`)
 })
 
@@ -107,11 +118,14 @@ test('list with default parameters in pkg that has no version', async () => {
   expect(await list([fixtureWithNoPkgVersion], { lockfileDir: fixtureWithNoPkgVersion, virtualStoreDirMaxLength: 120 })).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture ${fixtureWithNoPkgVersion}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 ├── write-json-file${VERSION_CLR('@2.3.0')}
-├── ${DEV_DEPENDENCIES}
+│
+│   ${DEV_DEPENDENCIES}
 ├── ${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}
-├── ${OPTIONAL_DEPENDENCIES}
+│
+│   ${OPTIONAL_DEPENDENCIES}
 └── ${OPTIONAL_DEP_CLR('is-negative')}${VERSION_CLR('@2.1.0')}`)
 })
 
@@ -125,7 +139,8 @@ test('list dev only', async () => {
   ).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
-├── ${DEV_DEPENDENCIES}
+│
+│   ${DEV_DEPENDENCIES}
 └── ${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}`
   )
 })
@@ -140,7 +155,8 @@ test('list prod only', async () => {
   ).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 └── write-json-file${VERSION_CLR('@2.3.0')}`
   )
 })
@@ -156,7 +172,8 @@ test('list prod only with depth 2', async () => {
   ).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 └─┬ write-json-file${VERSION_CLR('@2.3.0')}
   ├── detect-indent${VERSION_CLR('@5.0.0')}
   ├── graceful-fs${VERSION_CLR('@4.2.2')}
@@ -176,7 +193,8 @@ test('list with depth 1', async () => {
   expect(await list([fixture], { depth: 1, lockfileDir: fixture, virtualStoreDirMaxLength: 120 })).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 ├─┬ write-json-file${VERSION_CLR('@2.3.0')}
 │ ├── detect-indent${VERSION_CLR('@5.0.0')}
 │ ├── graceful-fs${VERSION_CLR('@4.2.2')}
@@ -184,9 +202,11 @@ ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 │ ├── pify${VERSION_CLR('@3.0.0')}
 │ ├── sort-keys${VERSION_CLR('@2.0.0')}
 │ └── write-file-atomic${VERSION_CLR('@2.4.3')}
-├── ${DEV_DEPENDENCIES}
+│
+│   ${DEV_DEPENDENCIES}
 ├── ${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}
-├── ${OPTIONAL_DEPENDENCIES}
+│
+│   ${OPTIONAL_DEPENDENCIES}
 └── ${OPTIONAL_DEP_CLR('is-negative')}${VERSION_CLR('@2.1.0')}`)
 })
 
@@ -200,11 +220,13 @@ test('list with depth 1 and selected packages', async () => {
   ).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 ├─┬ write-json-file${VERSION_CLR('@2.3.0')}
 │ ├── ${highlighted('make-dir' + VERSION_CLR('@1.3.0'))}
 │ └── ${highlighted('sort-keys' + VERSION_CLR('@2.0.0'))}
-├── ${OPTIONAL_DEPENDENCIES}
+│
+│   ${OPTIONAL_DEPENDENCIES}
 └── ${highlighted(OPTIONAL_DEP_CLR('is-negative') + VERSION_CLR('@2.1.0'))}`
   )
 })
@@ -213,19 +235,22 @@ test('list in long format', async () => {
   expect(await list([fixture], { long: true, lockfileDir: fixture, virtualStoreDirMaxLength: 0 })).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 ├── write-json-file${VERSION_CLR('@2.3.0')}
 │   Stringify and write JSON to a file atomically
 │   git+https://github.com/sindresorhus/write-json-file.git
 │   https://github.com/sindresorhus/write-json-file#readme
 │   ${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}
-├── ${DEV_DEPENDENCIES}
+│
+│   ${DEV_DEPENDENCIES}
 ├── ${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}
 │   Check if something is a positive number
 │   git+https://github.com/kevva/is-positive.git
 │   https://github.com/kevva/is-positive#readme
 │   ${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}
-├── ${OPTIONAL_DEPENDENCIES}
+│
+│   ${OPTIONAL_DEPENDENCIES}
 └── ${OPTIONAL_DEP_CLR('is-negative')}${VERSION_CLR('@2.1.0')}
     Check if something is a negative number
     git+https://github.com/kevva/is-negative.git
@@ -565,7 +590,8 @@ test('unsaved dependencies are marked', async () => {
   )).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
-├── ${UNSAVED_DEPENDENCIES}
+│
+│   ${UNSAVED_DEPENDENCIES}
 └── ${NOT_SAVED_DEP_CLR('foo')}${VERSION_CLR('@1.0.0')}`)
 })
 
@@ -690,7 +716,8 @@ test('list with many dependencies', async () => {
   )).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 ├── a${VERSION_CLR('@1.0.0')}
 ├── b${VERSION_CLR('@1.0.0')}
 ├── c${VERSION_CLR('@1.0.0')}
@@ -756,7 +783,8 @@ test('sort list items', async () => {
   )).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 └─┬ foo${VERSION_CLR('@1.0.0')}
   ├── bar${VERSION_CLR('@1.0.0')}
   └── qar${VERSION_CLR('@1.0.0')}`)
@@ -768,7 +796,8 @@ test('peer dependencies are marked', async () => {
   expect(output).toBe(`${LEGEND}
 
 ${boldHighlighted(`with-peer@1.0.0 ${fixture}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 ├─┬ ajv${VERSION_CLR('@6.10.2')}
 │ ├── fast-deep-equal${VERSION_CLR('@2.0.1')}
 │ ├── fast-json-stable-stringify${VERSION_CLR('@2.0.0')}
@@ -784,7 +813,8 @@ test('peer dependencies are marked when searching', async () => {
   expect(output).toBe(`${LEGEND}
 
 ${boldHighlighted(`with-peer@1.0.0 ${fixture}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 ├── ${highlighted(`ajv${VERSION_CLR('@6.10.2')}`)}
 └─┬ ajv-keywords${VERSION_CLR('@3.4.1')}
   └── ${highlighted(`ajv${VERSION_CLR('@6.10.2')} peer`)}`)
@@ -800,7 +830,8 @@ test('--only-projects shows only projects', async () => {
   expect(output).toBe(`${LEGEND}
 
 ${boldHighlighted(`root@1.0.0 ${fixture}`)}
-├── ${DEPENDENCIES}
+│
+│   ${DEPENDENCIES}
 └─┬ @scope/a${VERSION_CLR('@link:packages/a')}
   └─┬ @scope/b${VERSION_CLR('@link:packages/b')}
     └── @scope/c${VERSION_CLR('@link:packages/c')}`)
