@@ -54,16 +54,13 @@ async function renderTreeForPackage (
 
   let label = ''
   if (pkg.name) {
-    label += pkg.name
-    if (pkg.version) {
-      label += `@${pkg.version}`
-    }
+    label += nameAtVersion(pkg.name, pkg.version ?? '')
     label += ' '
   }
-  label += pkg.path
+  label += chalk.dim(pkg.path)
 
   if (pkg.private) {
-    label += ' (PRIVATE)'
+    label += chalk.dim(' (PRIVATE)')
   }
   const dependenciesFields: Array<DependenciesField | 'unsavedDependencies'> = [
     ...DEPENDENCIES_FIELDS.sort(),
@@ -89,7 +86,7 @@ async function renderTreeForPackage (
     })
   )).filter((n): n is TreeNodeGroup => n != null)
 
-  const rootLabel = chalk.bold.underline(label)
+  const rootLabel = chalk.bold(label)
   if (childNodes.length === 0) {
     return rootLabel
   }
