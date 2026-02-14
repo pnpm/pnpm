@@ -555,6 +555,17 @@ export async function mutateModules (
         includeDirect: opts.includeDirect,
       })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
+      if (opts.packageVulnerabilityAudit) {
+        for (const dep of wantedDependencies) {
+          const validVersion = semver.valid(dep.bareSpecifier)
+          if (!validVersion) continue
+          if (opts.packageVulnerabilityAudit.isVulnerable(dep.alias, validVersion)) {
+            // If the current version is pinned and vulnerable, expand the specifier to a range
+            // that will allow updating to a non-vulnerable, semver-compatible version, if available.
+            dep.bareSpecifier = '^' + validVersion
+          }
+        }
+      }
 
       if (ctx.wantedLockfile?.importers) {
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
@@ -1032,6 +1043,7 @@ export async function addDependenciesToPackage (
         updateMatching: opts.updateMatching,
         updatePackageManifest: opts.updatePackageManifest,
         updateToLatest: opts.updateToLatest,
+        packageVulnerabilityAudit: opts.packageVulnerabilityAudit,
       },
     ],
     {

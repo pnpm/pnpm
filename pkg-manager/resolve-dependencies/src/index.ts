@@ -4,12 +4,11 @@ import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
-import { isRuntimeDepPath, refToRelative } from '@pnpm/dependency-path'
+import { isRuntimeDepPath } from '@pnpm/dependency-path'
 import {
   type LockfileObject,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,
@@ -20,7 +19,6 @@ import {
   type DependenciesField,
   DEPENDENCIES_FIELDS,
   type DependencyManifest,
-  type PackageVulnerabilityAudit,
   type PeerDependencyIssuesByProjects,
   type PinnedVersion,
   type ProjectManifest,
@@ -132,9 +130,6 @@ export async function resolveDependencies (
     globalVirtualStoreDir: opts.globalVirtualStoreDir,
     workspacePackages: opts.workspacePackages,
     noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
-    isDirectDependencyVulnerable: opts.packageVulnerabilityAudit
-      ? isDirectDependencyVulnerable.bind(null, opts.packageVulnerabilityAudit, opts.wantedLockfile)
-      : undefined,
   })
   const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
   const {
@@ -355,24 +350,6 @@ export async function resolveDependencies (
     waitTillAllFetchingsFinish,
     wantedToBeSkippedPackageIds,
   }
-}
-
-function isDirectDependencyVulnerable (
-  packageVulnerabilityAudit: PackageVulnerabilityAudit,
-  lockfile: LockfileObject,
-  project: ImporterToResolve,
-  alias: string
-): boolean {
-  const importer = lockfile.importers[project.id]
-  const reference = importer?.dependencies?.[alias] ?? importer?.devDependencies?.[alias] ?? importer?.optionalDependencies?.[alias]
-  if (!reference) return false
-  const depPath = refToRelative(reference, alias)
-  if (!depPath) return false
-  const dependencyLockfile = lockfile.packages?.[depPath]
-  if (!dependencyLockfile) return false
-  const { name, version } = nameVerFromPkgSnapshot(depPath, dependencyLockfile)
-  if (!version) return false
-  return packageVulnerabilityAudit.isVulnerable(name, version)
 }
 
 function addDirectDependenciesToLockfile (

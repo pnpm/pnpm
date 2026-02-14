@@ -9,10 +9,10 @@ importers:
   .:
     dependencies:
       '@pnpm.e2e/bar':
-        specifier: ^100.0.0
+        specifier: 100.0.0
         version: 100.0.0
       '@pnpm.e2e/pkg-with-1-dep':
-        specifier: ^100.0.0
+        specifier: 100.0.0
         version: 100.0.0
 
 packages:

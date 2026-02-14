@@ -219,22 +219,22 @@ function penalizeVulnerableVersions (preferredVersionSelectors: VersionSelectors
       vulnerableRanges.set(vuln.versionRange, vuln.severity)
     }
   }
-  let lowestWeightInPreferred = 0
+  let mostExtremeWeightInPreferred = 0
   if (preferredVersionSelectors == null) {
     preferredVersionSelectors = {}
   } else {
     for (const weight of Object.values(preferredVersionSelectors)) {
       const w = typeof weight === 'string' ? DEFAULT_PREFERRED_VERSION_WEIGHT : weight.weight
-      if (w < lowestWeightInPreferred) {
-        lowestWeightInPreferred = w
+      if (Math.abs(w) > mostExtremeWeightInPreferred) {
+        mostExtremeWeightInPreferred = Math.abs(w)
       }
     }
   }
   const severityToWeight = new Map<VulnerabilitySeverity, number>([
-    ['low', lowestWeightInPreferred - 1],
-    ['moderate', lowestWeightInPreferred - 10],
-    ['high', lowestWeightInPreferred - 100],
-    ['critical', lowestWeightInPreferred - 1000],
+    ['low', -mostExtremeWeightInPreferred - 1],
+    ['moderate', -mostExtremeWeightInPreferred - 10],
+    ['high', -mostExtremeWeightInPreferred - 100],
+    ['critical', -mostExtremeWeightInPreferred - 1000],
   ])
   for (const [vulnRange, severity] of vulnerableRanges) {
     if (vulnRange === '__proto__' || vulnRange === 'constructor' || vulnRange === 'prototype') {
@@ -263,6 +263,15 @@ function prioritizePreferredVersions (
 ): string[][] {
   const preferredVerSelectorsArr = Object.entries(preferredVerSelectors ?? {})
   const versionsPrioritizer = new PreferredVersionsPrioritizer()
+
+  // First, add all versions that satisfy versionRange with default weight 0
+  for (const version of Object.keys(meta.versions)) {
+    if (semverSatisfiesLoose(version, versionRange)) {
+      versionsPrioritizer.add(version, 0)
+    }
+  }
+
+  // Then apply weights from preferred selectors
   for (const [preferredSelector, preferredSelectorType] of preferredVerSelectorsArr) {
     const { selectorType, weight } = typeof preferredSelectorType === 'string'
       ? { selectorType: preferredSelectorType, weight: DEFAULT_PREFERRED_VERSION_WEIGHT }

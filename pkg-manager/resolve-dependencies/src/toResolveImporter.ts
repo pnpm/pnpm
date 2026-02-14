@@ -30,7 +30,6 @@ export async function toResolveImporter (
     workspacePackages: WorkspacePackages
     updateToLatest?: boolean
     noDependencySelectors: boolean
-    isDirectDependencyVulnerable?: (project: ImporterToResolve, alias: string) => boolean
   },
   project: ImporterToResolve
 ): Promise<ResolveImporter> {
@@ -50,13 +49,6 @@ export async function toResolveImporter (
   if (opts.updateToLatest && opts.noDependencySelectors) {
     for (const dep of existingDeps) {
       dep.updateSpec = true
-    }
-  }
-  if (opts.isDirectDependencyVulnerable) {
-    for (const dep of existingDeps) {
-      if (opts.isDirectDependencyVulnerable(project, dep.alias)) {
-        dep.updateSpec = true
-      }
     }
   }
   let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>

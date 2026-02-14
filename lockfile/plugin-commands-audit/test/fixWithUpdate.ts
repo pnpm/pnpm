@@ -89,6 +89,79 @@ The fixed vulnerabilities are:
     }
   })
 
+  test('top-level pinned vulnerability is fixed by updating the vulnerable package', async () => {
+    const tmp = f.prepare('update-single-pinned')
+
+    const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+
+    const originalDepPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0' as DepPath
+    const expectedDepPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0' as DepPath
+
+    const { manifest: originalManifest } = await readProjectManifest(tmp)
+    expect(originalManifest).toBeTruthy()
+    expect(originalManifest.dependencies).toBeDefined()
+    expect(originalManifest.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('100.0.0')
+
+    const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(originalLockfile).toBeTruthy()
+    expect(originalLockfile!.packages).toBeDefined()
+    expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
+    expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
+    expect(originalLockfile!.packages![originalDepPkgId]).toBeDefined()
+    expect(originalLockfile!.packages![expectedDepPkgId]).toBeUndefined()
+
+    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    expect(mockResponse).toBeTruthy()
+
+    nock(AUDIT_REGISTRY)
+      .post('/-/npm/v1/security/audits')
+      .reply(200, mockResponse)
+
+    redirectGetRequestsToMockRegistry()
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: tmp,
+      rootProjectManifestDir: tmp,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+    })
+
+    expect(exitCode).toBe(0)
+    expect(output).toBe(`${chalk.green(1)} vulnerability was fixed, ${chalk.red(0)} vulnerabilities remain.
+
+The fixed vulnerabilities are:
+- (${chalk.green('high')}) "${chalk.green('Title: mock vulnerability in @pnpm.e2e/pkg-with-1-dep')}" ${chalk.blue('@pnpm.e2e/pkg-with-1-dep')}
+`)
+
+    const { manifest } = await readProjectManifest(tmp)
+    expect(manifest).toBeTruthy()
+    expect(manifest.dependencies).toBeDefined()
+    expect(manifest.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('100.1.0')
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(lockfile!.packages).toBeDefined()
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    // The vulnerable dependency should be updated
+    expect(packagesArray).not.toContain(originalPkgId)
+    expect(packagesArray).toContain(expectedPkgId)
+
+    // The vulnerable dependency's dependencies should also be updated
+    expect(packagesArray).not.toContain(originalDepPkgId)
+    expect(packagesArray).toContain(expectedDepPkgId)
+
+    // All other packages should remain the same
+    for (const pkgId of Object.keys(originalLockfile!.packages!)) {
+      if (pkgId === originalPkgId) continue
+      if (pkgId === originalDepPkgId) continue
+      expect(packagesArray).toContain(pkgId)
+    }
+  })
+
   test('depth 2 vulnerability is fixed by updating the vulnerable package', async () => {
     const tmp = f.prepare('update-single-depth-2')
 

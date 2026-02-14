@@ -106,6 +106,7 @@ export async function pickPackage (
     preferredVersionSelectors: opts.preferredVersionSelectors,
     publishedBy: opts.publishedBy,
     publishedByExclude: opts.publishedByExclude,
+    packageVulnerabilityAudit: opts.packageVulnerabilityAudit,
   })
 
   let _pickPackageFromMeta!: (meta: PackageMeta) => PackageInRegistry | null
