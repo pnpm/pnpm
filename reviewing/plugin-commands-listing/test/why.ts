@@ -26,7 +26,7 @@ test('`pnpm why` should fail if no package name was provided', async () => {
   expect(err.message).toMatch(/`pnpm why` requires the package name/)
 })
 
-test('"why" should find non-direct dependency', async () => {
+test('"why" should show reverse dependency tree for a non-direct dependency', async () => {
   prepare({
     dependencies: {
       '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
@@ -43,14 +43,13 @@ test('"why" should find non-direct dependency', async () => {
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['@pnpm.e2e/dep-of-pkg-with-1-dep'])
 
-  expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
-
-project@0.0.0 ${process.cwd()}
-
-dependencies:
-@pnpm.e2e/dep-of-pkg-with-1-dep 100.0.0
-@pnpm.e2e/pkg-with-1-dep 100.0.0
-└── @pnpm.e2e/dep-of-pkg-with-1-dep 100.0.0`)
+  const lines = stripAnsi(output).split('\n')
+  // Root is the searched package
+  expect(lines[0]).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0')
+  // It should show project@0.0.0 as a direct dependant
+  expect(lines.some(l => l.includes('project@0.0.0'))).toBe(true)
+  // It should show @pnpm.e2e/pkg-with-1-dep as a dependant (transitive path)
+  expect(lines.some(l => l.includes('@pnpm.e2e/pkg-with-1-dep@100.0.0'))).toBe(true)
 })
 
 test('"why" should find packages by alias name when using npm: protocol', async () => {
@@ -70,7 +69,9 @@ test('"why" should find packages by alias name when using npm: protocol', async 
   }, ['foo'])
 
   const lines = stripAnsi(output).split('\n')
-  expect(lines).toContain('foo npm:@pnpm.e2e/pkg-with-1-dep@100.0.0')
+  // Root should show the canonical package name
+  expect(lines[0]).toBe('@pnpm.e2e/pkg-with-1-dep@100.0.0')
+  expect(lines.some(l => l.includes('project@0.0.0'))).toBe(true)
 })
 
 test('"why" should find packages by actual package name when using npm: protocol', async () => {
@@ -90,13 +91,15 @@ test('"why" should find packages by actual package name when using npm: protocol
   }, ['@pnpm.e2e/pkg-with-1-dep'])
 
   const lines = stripAnsi(output).split('\n')
-  expect(lines).toContain('foo npm:@pnpm.e2e/pkg-with-1-dep@100.0.0')
+  expect(lines[0]).toBe('@pnpm.e2e/pkg-with-1-dep@100.0.0')
+  expect(lines.some(l => l.includes('project@0.0.0'))).toBe(true)
 })
 
-test('"why" should display npm: protocol in parseable format', async () => {
+test('"why" should display parseable output', async () => {
   prepare({
     dependencies: {
-      foo: 'npm:@pnpm.e2e/pkg-with-1-dep@100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
     },
   })
 
@@ -106,16 +109,17 @@ test('"why" should display npm: protocol in parseable format', async () => {
     dev: false,
     dir: process.cwd(),
     optional: false,
-    long: true,
     parseable: true,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
-  }, ['foo'])
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep'])
 
   const lines = output.split('\n')
-  expect(lines.some(line => line.includes('foo npm:@pnpm.e2e/pkg-with-1-dep@100.0.0'))).toBe(true)
+  // Parseable output should have paths from importer to target
+  expect(lines.some(line => line.includes('project@0.0.0'))).toBe(true)
+  expect(lines.some(line => line.includes('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'))).toBe(true)
 })
 
-test('"why" should display file: protocol correctly for aliased packages', async () => {
+test('"why" should find file: protocol local packages', async () => {
   prepare({
     dependencies: {
       'my-alias': 'file:./local-pkg',
@@ -140,5 +144,7 @@ test('"why" should display file: protocol correctly for aliased packages', async
   }, ['my-local-pkg'])
 
   const lines = stripAnsi(output).split('\n')
-  expect(lines).toContain('my-alias my-local-pkg@file:local-pkg')
+  // Should find the local package and show reverse tree
+  expect(lines[0]).toContain('my-local-pkg')
+  expect(lines.some(l => l.includes('project@0.0.0'))).toBe(true)
 })

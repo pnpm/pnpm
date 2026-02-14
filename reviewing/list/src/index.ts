@@ -1,10 +1,12 @@
 import path from 'path'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { type DependenciesField, type Registries, type Finder } from '@pnpm/types'
-import { type PackageNode, buildDependenciesHierarchy, type DependenciesHierarchy, createPackagesSearcher } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type PackageNode, buildDependenciesHierarchy, type DependenciesHierarchy, createPackagesSearcher, buildWhyTrees, type ImporterInfo } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderJson } from './renderJson.js'
 import { renderParseable } from './renderParseable.js'
 import { renderTree } from './renderTree.js'
+import { renderWhyTree, renderWhyJson, renderWhyParseable } from './renderWhyTree.js'
 import { type PackageDependencyHierarchy } from './types.js'
 
 export type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
@@ -207,5 +209,56 @@ function getPrinter (reportAs: 'parseable' | 'tree' | 'json'): Printer {
   case 'parseable': return renderParseable
   case 'json': return renderJson
   case 'tree': return renderTree
+  }
+}
+
+export async function whyForPackages (
+  packages: string[],
+  projectPaths: string[],
+  opts: {
+    lockfileDir: string
+    checkWantedLockfileOnly?: boolean
+    include?: { [dependenciesField in DependenciesField]: boolean }
+    reportAs?: 'parseable' | 'tree' | 'json'
+    modulesDir?: string
+    virtualStoreDirMaxLength: number
+    finders?: Finder[]
+  }
+): Promise<string> {
+  const reportAs = opts.reportAs ?? 'tree'
+
+  // Build importer info map by reading the lockfile to discover all importers,
+  // then reading each project's package.json for name/version.
+  const importerInfoMap = new Map<string, ImporterInfo>()
+  const lockfile = await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
+  if (lockfile) {
+    const importerIds = Object.keys(lockfile.importers)
+    const manifests = await Promise.all(
+      importerIds.map((importerId) => safeReadProjectManifestOnly(path.join(opts.lockfileDir, importerId)))
+    )
+    for (let i = 0; i < importerIds.length; i++) {
+      const importerId = importerIds[i]
+      const manifest = manifests[i]
+      importerInfoMap.set(importerId, {
+        name: manifest?.name ?? (importerId === '.' ? 'the root project' : importerId),
+        version: manifest?.version ?? '',
+      })
+    }
+  }
+
+  const results = await buildWhyTrees(packages, projectPaths, {
+    lockfileDir: opts.lockfileDir,
+    include: opts.include,
+    modulesDir: opts.modulesDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
+    finders: opts.finders,
+    importerInfoMap,
+  })
+
+  switch (reportAs) {
+  case 'json': return renderWhyJson(results)
+  case 'parseable': return renderWhyParseable(results)
+  case 'tree': return renderWhyTree(results)
   }
 }

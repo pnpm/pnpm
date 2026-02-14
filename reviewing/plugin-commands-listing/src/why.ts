@@ -2,13 +2,14 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { whyForPackages } from '@pnpm/list'
+import { type Finder } from '@pnpm/types'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
-import { handler as list, type ListCommandOptions, EXCLUDE_PEERS_HELP } from './list.js'
+import { type ListCommandOptions, EXCLUDE_PEERS_HELP } from './list.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
-    'depth',
     'dev',
     'global-dir',
     'global',
@@ -82,10 +83,6 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: "Don't display packages from `optionalDependencies`",
             name: '--no-optional',
           },
-          {
-            name: '--depth <number>',
-            description: 'Max display depth of the dependency graph',
-          },
           EXCLUDE_PEERS_HELP,
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
@@ -107,11 +104,45 @@ export async function handler (
   if (params.length === 0 && opts.findBy == null) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name or --find-by=<finder-name>')
   }
-  return list({
-    ...opts,
-    cliOptions: {
-      ...(opts.cliOptions ?? {}),
-      depth: opts.depth ?? Infinity,
-    },
-  }, params)
+
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
+
+  const finders: Finder[] = []
+  if (opts.findBy) {
+    for (const finderName of opts.findBy) {
+      if (opts.finders?.[finderName] == null) {
+        throw new PnpmError('FINDER_NOT_FOUND', `No finder with name ${finderName} is found`)
+      }
+      finders.push(opts.finders[finderName])
+    }
+  }
+
+  const lockfileDir = opts.lockfileDir ?? opts.dir
+
+  if (opts.recursive && (opts.selectedProjectsGraph != null)) {
+    const projectPaths = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package.rootDir)
+    return whyForPackages(params, projectPaths, {
+      include,
+      lockfileDir,
+      reportAs: opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree'),
+      modulesDir: opts.modulesDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      checkWantedLockfileOnly: opts.lockfileOnly,
+      finders,
+    })
+  }
+
+  return whyForPackages(params, [opts.dir], {
+    include,
+    lockfileDir,
+    reportAs: opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree'),
+    modulesDir: opts.modulesDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    checkWantedLockfileOnly: opts.lockfileOnly,
+    finders,
+  })
 }
