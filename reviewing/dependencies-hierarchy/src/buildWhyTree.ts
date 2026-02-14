@@ -1,5 +1,6 @@
 import path from 'path'
 import {
+  getLockfileImporterId,
   readCurrentLockfile,
   readWantedLockfile,
   type ProjectSnapshot,
@@ -8,8 +9,10 @@ import {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { type DependenciesField, type DependencyManifest, type Finder } from '@pnpm/types'
+import { readPackageJsonFromDirSync } from '@pnpm/read-package-json'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { readManifestFromCafs } from './readManifestFromCafs.js'
+import { resolvePackagePath } from './resolvePackagePath.js'
 import realpathMissing from 'realpath-missing'
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
@@ -37,6 +40,8 @@ export interface WhyDependant {
 export interface WhyPackageResult {
   name: string
   version: string
+  /** Resolved filesystem path to this package */
+  path?: string
   /** Short hash distinguishing peer-dep variants of the same name@version */
   peersSuffixHash?: string
   /** Message returned by the finder function, if any */
@@ -200,6 +205,8 @@ export async function buildWhyTrees (
   const modules = await readModulesManifest(modulesDir)
   const internalPnpmDir = path.join(modulesDir, '.pnpm')
   const storeDir = modules?.storeDir
+  const virtualStoreDir = modules?.virtualStoreDir ?? internalPnpmDir
+  const virtualStoreDirMaxLength = modules?.virtualStoreDirMaxLength ?? 120
   const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
 
@@ -212,10 +219,13 @@ export async function buildWhyTrees (
     optionalDependencies: true,
   }
 
-  // Build root IDs from all importers in the lockfile
+  // Build root IDs from the selected project paths (respects --filter / --recursive)
   const allRootIds: TreeNodeId[] = []
-  for (const importerId of Object.keys(lockfileToUse.importers)) {
-    allRootIds.push({ type: 'importer', importerId })
+  for (const projectPath of projectPaths) {
+    const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
+    if (lockfileToUse.importers[importerId]) {
+      allRootIds.push({ type: 'importer', importerId })
+    }
   }
 
   const graph = buildDependencyGraph(allRootIds, {
@@ -228,6 +238,15 @@ export async function buildWhyTrees (
   const reverseMap = invertGraph(graph)
   const search = createPackagesSearcher(packages, opts.finders)
   const currentPackages = lockfileToUse.packages ?? {}
+
+  // Pre-compute resolved filesystem paths for all package nodes by walking the
+  // graph top-down from importers.  This is needed for global virtual store
+  // where symlinks must be resolved through each parent's node_modules.
+  const resolvedPaths = resolveAllPackagePaths(graph, currentPackages, {
+    virtualStoreDir,
+    virtualStoreDirMaxLength,
+    modulesDir,
+  })
 
   // Scan all package nodes for matches.
   // A package matches if any of the aliases used to refer to it (from incoming
@@ -250,6 +269,14 @@ export async function buildWhyTrees (
       if (integrity && storeDir) {
         const manifest = readManifestFromCafs(storeDir, integrity, name, version)
         if (manifest) return manifest
+      }
+      const fullPackagePath = resolvedPaths.get(serialized)
+      if (fullPackagePath) {
+        try {
+          return readPackageJsonFromDirSync(fullPackagePath)
+        } catch {
+          // Fall through to stub
+        }
       }
       return { name, version } as DependencyManifest
     }
@@ -284,7 +311,7 @@ export async function buildWhyTrees (
     }
     const dependants = walkReverse(serialized, ctx)
 
-    const result: WhyPackageResult = { name, version, peersSuffixHash: peerHash, dependants }
+    const result: WhyPackageResult = { name, version, path: resolvedPaths.get(serialized), peersSuffixHash: peerHash, dependants }
     if (typeof matched === 'string') {
       result.searchMessage = matched
     }
@@ -293,4 +320,57 @@ export async function buildWhyTrees (
 
   results.sort((a, b) => lexCompare(a.name, b.name))
   return results
+}
+
+/**
+ * Walks the dependency graph top-down from importer nodes and resolves the
+ * filesystem path for every package node.  This is necessary for global virtual
+ * store where the correct path can only be obtained by following symlinks
+ * through each parent's node_modules directory.
+ */
+function resolveAllPackagePaths (
+  graph: DependencyGraph,
+  currentPackages: PackageSnapshots,
+  opts: {
+    virtualStoreDir: string
+    virtualStoreDirMaxLength: number
+    modulesDir: string
+  }
+): Map<string, string> {
+  const resolved = new Map<string, string>()
+
+  function walk (serialized: string, parentDir: string | undefined): void {
+    const node = graph.nodes.get(serialized)
+    if (!node) return
+    for (const edge of node.edges) {
+      if (edge.target == null) continue
+      const childSerialized = edge.target.id
+      if (resolved.has(childSerialized)) continue
+      if (edge.target.nodeId.type !== 'package') continue
+
+      const snapshot = currentPackages[edge.target.nodeId.depPath]
+      if (!snapshot) continue
+      const { name } = nameVerFromPkgSnapshot(edge.target.nodeId.depPath, snapshot)
+
+      const childPath = resolvePackagePath({
+        depPath: edge.target.nodeId.depPath,
+        name,
+        alias: edge.alias,
+        virtualStoreDir: opts.virtualStoreDir,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        modulesDir: opts.modulesDir,
+        parentDir,
+      })
+      resolved.set(childSerialized, childPath)
+      walk(childSerialized, childPath)
+    }
+  }
+
+  for (const [serialized, node] of graph.nodes) {
+    if (node.nodeId.type === 'importer') {
+      walk(serialized, undefined)
+    }
+  }
+
+  return resolved
 }

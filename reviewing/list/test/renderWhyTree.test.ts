@@ -3,7 +3,7 @@ import { renderWhyTree, renderWhyJson, renderWhyParseable } from '../lib/renderW
 import { type WhyPackageResult } from '@pnpm/reviewing.dependencies-hierarchy'
 
 describe('renderWhyTree', () => {
-  test('renders searchMessage below the root label', () => {
+  test('renders searchMessage below the root label', async () => {
     const results: WhyPackageResult[] = [
       {
         name: 'foo',
@@ -15,7 +15,7 @@ describe('renderWhyTree', () => {
       },
     ]
 
-    const output = stripAnsi(renderWhyTree(results))
+    const output = stripAnsi(await renderWhyTree(results, { long: false }))
     const lines = output.split('\n')
 
     // Root label should be the package name@version
@@ -26,7 +26,7 @@ describe('renderWhyTree', () => {
     expect(lines.some(l => l.includes('my-project@0.0.0'))).toBe(true)
   })
 
-  test('does not render extra line when searchMessage is undefined', () => {
+  test('does not render extra line when searchMessage is undefined', async () => {
     const results: WhyPackageResult[] = [
       {
         name: 'foo',
@@ -37,7 +37,7 @@ describe('renderWhyTree', () => {
       },
     ]
 
-    const output = stripAnsi(renderWhyTree(results))
+    const output = stripAnsi(await renderWhyTree(results, { long: false }))
     const lines = output.split('\n')
 
     expect(lines[0]).toBe('foo@1.0.0')
@@ -46,7 +46,7 @@ describe('renderWhyTree', () => {
     expect(lines[1]).toContain('my-project')
   })
 
-  test('renders package with no dependants and a searchMessage', () => {
+  test('renders package with no dependants and a searchMessage', async () => {
     const results: WhyPackageResult[] = [
       {
         name: 'bar',
@@ -56,7 +56,7 @@ describe('renderWhyTree', () => {
       },
     ]
 
-    const output = stripAnsi(renderWhyTree(results))
+    const output = stripAnsi(await renderWhyTree(results, { long: false }))
     const lines = output.split('\n')
 
     expect(lines[0]).toBe('bar@2.0.0')
@@ -65,7 +65,7 @@ describe('renderWhyTree', () => {
 })
 
 describe('renderWhyJson', () => {
-  test('includes searchMessage in JSON output', () => {
+  test('includes searchMessage in JSON output', async () => {
     const results: WhyPackageResult[] = [
       {
         name: 'foo',
@@ -77,12 +77,12 @@ describe('renderWhyJson', () => {
       },
     ]
 
-    const parsed = JSON.parse(renderWhyJson(results))
+    const parsed = JSON.parse(await renderWhyJson(results, { long: false }))
     expect(parsed).toHaveLength(1)
     expect(parsed[0].searchMessage).toBe('Matched by custom finder')
   })
 
-  test('does not include searchMessage when undefined', () => {
+  test('does not include searchMessage when undefined', async () => {
     const results: WhyPackageResult[] = [
       {
         name: 'foo',
@@ -91,7 +91,7 @@ describe('renderWhyJson', () => {
       },
     ]
 
-    const parsed = JSON.parse(renderWhyJson(results))
+    const parsed = JSON.parse(await renderWhyJson(results, { long: false }))
     expect(parsed[0].searchMessage).toBeUndefined()
   })
 })
@@ -109,7 +109,7 @@ describe('renderWhyParseable', () => {
       },
     ]
 
-    const output = renderWhyParseable(results)
+    const output = renderWhyParseable(results, { long: false })
     const lines = output.split('\n')
     // Parseable output should still contain the path
     expect(lines).toHaveLength(1)

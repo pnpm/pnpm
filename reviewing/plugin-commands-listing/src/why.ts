@@ -60,12 +60,13 @@ export async function handler (
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const reportAs = determineReportAs(opts)
 
-  const projectPaths = (opts.recursive && opts.selectedProjectsGraph != null)
-    ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package.rootDir)
+  const projectPaths = opts.recursive && opts.selectedProjectsGraph
+    ? Object.keys(opts.selectedProjectsGraph)
     : [opts.dir]
 
   return whyForPackages(params, projectPaths, {
     include,
+    long: opts.long,
     lockfileDir,
     reportAs,
     modulesDir: opts.modulesDir,

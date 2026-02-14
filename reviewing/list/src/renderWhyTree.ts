@@ -2,22 +2,36 @@ import { type WhyPackageResult, type WhyDependant } from '@pnpm/reviewing.depend
 import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
 import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
+import { getPkgInfo } from './getPkgInfo.js'
 
 function plainNameAtVersion (name: string, version: string): string {
   return version ? `${name}@${version}` : name
 }
 
-export function renderWhyTree (results: WhyPackageResult[]): string {
+export async function renderWhyTree (results: WhyPackageResult[], opts: { long: boolean }): Promise<string> {
   if (results.length === 0) return ''
 
   const multiPeerPkgs = findMultiPeerPackages(results)
 
-  const trees = results
-    .map((result) => {
+  const trees = (
+    await Promise.all(results.map(async (result) => {
       const rootLabelParts = [chalk.bold(nameAtVersion(result.name, result.version)) +
         peerHashSuffix(result.name, result.version, result.peersSuffixHash, multiPeerPkgs)]
       if (result.searchMessage) {
         rootLabelParts.push(result.searchMessage)
+      }
+      if (opts.long && result.path) {
+        const pkg = await getPkgInfo({ name: result.name, version: result.version, path: result.path, alias: undefined })
+        if (pkg.description) {
+          rootLabelParts.push(pkg.description)
+        }
+        if (pkg.repository) {
+          rootLabelParts.push(pkg.repository)
+        }
+        if (pkg.homepage) {
+          rootLabelParts.push(pkg.homepage)
+        }
+        rootLabelParts.push(pkg.path)
       }
       const rootLabel = rootLabelParts.join('\n')
       if (result.dependants.length === 0) {
@@ -26,8 +40,8 @@ export function renderWhyTree (results: WhyPackageResult[]): string {
       const childNodes = dependantsToTreeNodes(result.dependants, multiPeerPkgs)
       const tree: TreeNode = { label: rootLabel, nodes: childNodes }
       return renderArchyTree(tree, { treeChars: chalk.dim }).replace(/\n+$/, '')
-    })
-    .join('\n\n')
+    }))
+  ).join('\n\n')
 
   const summary = whySummary(results)
   return summary ? `${trees}\n\n${summary}` : trees
@@ -86,14 +100,30 @@ function dependantsToTreeNodes (dependants: WhyDependant[], multiPeerPkgs: Map<s
   })
 }
 
-export function renderWhyJson (results: WhyPackageResult[]): string {
-  return JSON.stringify(results, null, 2)
+export async function renderWhyJson (results: WhyPackageResult[], opts: { long: boolean }): Promise<string> {
+  if (!opts.long) {
+    return JSON.stringify(results, null, 2)
+  }
+  const enriched = await Promise.all(results.map(async (result) => {
+    if (!result.path) return result
+    const pkg = await getPkgInfo({ name: result.name, version: result.version, path: result.path, alias: undefined })
+    return {
+      ...result,
+      description: pkg.description,
+      repository: pkg.repository,
+      homepage: pkg.homepage,
+    }
+  }))
+  return JSON.stringify(enriched, null, 2)
 }
 
-export function renderWhyParseable (results: WhyPackageResult[]): string {
+export function renderWhyParseable (results: WhyPackageResult[], opts: { long: boolean }): string {
   const lines: string[] = []
   for (const result of results) {
-    collectPaths(result.dependants, [plainNameAtVersion(result.name, result.version)], lines)
+    const rootSegment = opts.long && result.path
+      ? `${result.path}:${plainNameAtVersion(result.name, result.version)}`
+      : plainNameAtVersion(result.name, result.version)
+    collectPaths(result.dependants, [rootSegment], lines)
   }
   return lines.join('\n')
 }

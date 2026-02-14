@@ -224,12 +224,14 @@ export async function whyForPackages (
     lockfileDir: string
     checkWantedLockfileOnly?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
+    long?: boolean
     reportAs?: 'parseable' | 'tree' | 'json'
     modulesDir?: string
     finders?: Finder[]
   }
 ): Promise<string> {
   const reportAs = opts.reportAs ?? 'tree'
+  const long = opts.long ?? false
 
   // Build importer info map by reading the lockfile to discover all importers,
   // then reading each project's package.json for name/version.
@@ -260,8 +262,8 @@ export async function whyForPackages (
   })
 
   switch (reportAs) {
-  case 'json': return renderWhyJson(results)
-  case 'parseable': return renderWhyParseable(results)
-  case 'tree': return renderWhyTree(results)
+  case 'json': return renderWhyJson(results, { long })
+  case 'parseable': return renderWhyParseable(results, { long })
+  case 'tree': return renderWhyTree(results, { long })
   }
 }
