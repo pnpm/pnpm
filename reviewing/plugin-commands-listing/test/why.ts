@@ -144,7 +144,7 @@ test('"why" should display finder message in tree output', async () => {
 
   const lines = stripAnsi(output).split('\n')
   expect(lines[0]).toBe('@pnpm.e2e/pkg-with-1-dep@100.0.0')
-  expect(lines[1]).toBe('Found: has 1 dep')
+  expect(lines[1]).toBe('│ Found: has 1 dep')
 })
 
 test('"why" should display finder message in JSON output', async () => {

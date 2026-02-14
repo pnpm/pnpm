@@ -7724,9 +7724,6 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
-      '@jest/globals':
-        specifier: 'catalog:'
-        version: 30.0.5
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
