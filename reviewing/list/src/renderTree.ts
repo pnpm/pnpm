@@ -6,6 +6,7 @@ import chalk from 'chalk'
 import { sortBy, path as ramdaPath } from 'ramda'
 import { type Ord } from 'ramda'
 import { getPkgInfo } from './getPkgInfo.js'
+import { filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 import { type PackageDependencyHierarchy } from './types.js'
 
 const sortPackages = sortBy(ramdaPath(['name']) as (pkg: PackageNode) => Ord)
@@ -154,7 +155,7 @@ function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number
       txt = `${color(node.alias)}${chalk.gray(`@${node.version}`)}`
     }
   } else {
-    txt = `${color(node.name)}${chalk.gray(`@${node.version}`)}`
+    txt = nameAtVersion(node.name, node.version, color)
   }
   if (node.isPeer) {
     txt += ' peer'
@@ -162,12 +163,8 @@ function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number
   if (node.isSkipped) {
     txt += ' skipped'
   }
-  if (node.peersSuffixHash) {
-    const pkgKey = `${node.name}@${node.version}`
-    const variantCount = multiPeerPkgs?.get(pkgKey)
-    if (variantCount != null) {
-      txt += chalk.red(` peer#${node.peersSuffixHash} (${variantCount} variation${variantCount === 1 ? '' : 's'})`)
-    }
+  if (multiPeerPkgs) {
+    txt += peerHashSuffix(node.name, node.version, node.peersSuffixHash, multiPeerPkgs)
   }
   if (node.deduped && !node.dedupedDependenciesCount) {
     txt += chalk.dim(' deduped')
@@ -213,11 +210,5 @@ function findMultiPeerPackages (packages: PackageDependencyHierarchy[]): Map<str
     }
   }
 
-  const result = new Map<string, number>()
-  for (const [key, hashes] of hashesPerPkg) {
-    if (hashes.size > 1) {
-      result.set(key, hashes.size)
-    }
-  }
-  return result
+  return filterMultiPeerEntries(hashesPerPkg)
 }

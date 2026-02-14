@@ -10,6 +10,7 @@ import { type DependenciesField, type DependencyManifest, type Finder } from '@p
 import realpathMissing from 'realpath-missing'
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
+import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
 import { type TreeNodeId } from './TreeNodeId.js'
 
 interface ReverseEdge {
@@ -24,6 +25,8 @@ export interface WhyDependant {
   dependants?: WhyDependant[]
   circular?: true
   deduped?: true
+  /** Short hash distinguishing peer-dep variants of the same name@version */
+  peersSuffixHash?: string
   /** For importer leaf nodes: which dep field */
   depField?: DependenciesField
 }
@@ -31,6 +34,8 @@ export interface WhyDependant {
 export interface WhyPackageResult {
   name: string
   version: string
+  /** Short hash distinguishing peer-dep variants of the same name@version */
+  peersSuffixHash?: string
   dependants: WhyDependant[]
 }
 
@@ -130,11 +135,12 @@ function walkReverse (
       const snapshot = ctx.currentPackages[parentGraphNode.nodeId.depPath]
       if (snapshot == null) continue
       const { name, version } = nameVerFromPkgSnapshot(parentGraphNode.nodeId.depPath, snapshot)
+      const peerHash = peersSuffixHashFromDepPath(parentGraphNode.nodeId.depPath)
 
       // Deduplication: if this package was already expanded elsewhere in the
       // tree, show it as a leaf to keep the output bounded.
       if (ctx.expanded.has(edge.parentSerialized)) {
-        dependants.push({ name, version, deduped: true })
+        dependants.push({ name, version, peersSuffixHash: peerHash, deduped: true })
         continue
       }
 
@@ -146,6 +152,7 @@ function walkReverse (
       dependants.push({
         name,
         version,
+        peersSuffixHash: peerHash,
         dependants: childDependants.length > 0 ? childDependants : undefined,
       })
     }
@@ -201,8 +208,9 @@ export async function buildWhyTrees (
   // Scan all package nodes for matches.
   // A package matches if any of the aliases used to refer to it (from incoming
   // edges in the graph) or its canonical name match the search query.
+  // Each distinct depPath (i.e. different peer dep resolutions) is kept as a
+  // separate result so that peer variants are visible in the output.
   const results: WhyPackageResult[] = []
-  const seenPackages = new Set<string>()
 
   for (const [serialized, node] of graph.nodes) {
     if (node.nodeId.type !== 'package') continue
@@ -230,10 +238,7 @@ export async function buildWhyTrees (
     }
     if (!matched) continue
 
-    // Deduplicate: same name@version may appear with different peer dep hashes
-    const key = `${name}@${version}`
-    if (seenPackages.has(key)) continue
-    seenPackages.add(key)
+    const peerHash = peersSuffixHashFromDepPath(depPath)
 
     const ctx: WalkContext = {
       reverseMap,
@@ -246,7 +251,7 @@ export async function buildWhyTrees (
     }
     const dependants = walkReverse(serialized, ctx)
 
-    results.push({ name, version, dependants })
+    results.push({ name, version, peersSuffixHash: peerHash, dependants })
   }
 
   return results

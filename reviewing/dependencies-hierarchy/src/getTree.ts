@@ -1,12 +1,11 @@
-import crypto from 'crypto'
 import path from 'path'
 import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile.fs'
-import { parseDepPath } from '@pnpm/dependency-path'
 import { type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { type Finder, type Registries } from '@pnpm/types'
 import { type DependencyGraph } from './buildDependencyGraph.js'
 import { type PackageNode } from './PackageNode.js'
 import { getPkgInfo } from './getPkgInfo.js'
+import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
 import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
 
 export interface BaseTreeOpts {
@@ -247,10 +246,7 @@ function materializeChildren (
         newEntry.dedupedDependenciesCount = dedupedCount
       }
       if (edge.target.nodeId.type === 'package') {
-        const { peerDepGraphHash } = parseDepPath(edge.target.nodeId.depPath)
-        if (peerDepGraphHash) {
-          newEntry.peersSuffixHash = crypto.createHash('md5').update(peerDepGraphHash).digest('hex').slice(0, 4)
-        }
+        newEntry.peersSuffixHash = peersSuffixHashFromDepPath(edge.target.nodeId.depPath)
       }
     }
 

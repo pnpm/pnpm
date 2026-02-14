@@ -1,36 +1,72 @@
 import { type WhyPackageResult, type WhyDependant } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
+import { filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
+
+function plainNameAtVersion (name: string, version: string): string {
+  return version ? `${name}@${version}` : name
+}
 
 export function renderWhyTree (results: WhyPackageResult[]): string {
   if (results.length === 0) return ''
 
+  const multiPeerPkgs = findMultiPeerPackages(results)
+
   return results
     .map((result) => {
-      const rootLabel = chalk.bold(
-        result.version ? `${result.name}@${result.version}` : result.name
-      )
+      let rootLabel = chalk.bold(nameAtVersion(result.name, result.version))
+      rootLabel += peerHashSuffix(result.name, result.version, result.peersSuffixHash, multiPeerPkgs)
       if (result.dependants.length === 0) {
         return rootLabel
       }
-      const childNodes = dependantsToTreeNodes(result.dependants)
+      const childNodes = dependantsToTreeNodes(result.dependants, multiPeerPkgs)
       const tree: TreeNode = { label: rootLabel, nodes: childNodes }
       return renderArchyTree(tree, { treeChars: chalk.dim }).replace(/\n+$/, '')
     })
     .join('\n\n')
 }
 
-function dependantsToTreeNodes (dependants: WhyDependant[]): TreeNode[] {
+function collectHashes (hashesPerPkg: Map<string, Set<string>>, name: string, version: string, hash: string | undefined): void {
+  if (!hash) return
+  const key = `${name}@${version}`
+  let hashes = hashesPerPkg.get(key)
+  if (hashes == null) {
+    hashes = new Set()
+    hashesPerPkg.set(key, hashes)
+  }
+  hashes.add(hash)
+}
+
+function findMultiPeerPackages (results: WhyPackageResult[]): Map<string, number> {
+  const hashesPerPkg = new Map<string, Set<string>>()
+
+  function walkDependants (dependants: WhyDependant[]): void {
+    for (const dep of dependants) {
+      collectHashes(hashesPerPkg, dep.name, dep.version, dep.peersSuffixHash)
+      if (dep.dependants) {
+        walkDependants(dep.dependants)
+      }
+    }
+  }
+
+  for (const result of results) {
+    collectHashes(hashesPerPkg, result.name, result.version, result.peersSuffixHash)
+    walkDependants(result.dependants)
+  }
+
+  return filterMultiPeerEntries(hashesPerPkg)
+}
+
+function dependantsToTreeNodes (dependants: WhyDependant[], multiPeerPkgs: Map<string, number>): TreeNode[] {
   return dependants.map((dep) => {
     let label: string
     if (dep.depField != null) {
       // This is an importer (leaf node)
       const fieldLabel = dep.depField === 'dependencies' ? '' : ` ${chalk.dim(`(${dep.depField})`)}`
-      label = dep.version
-        ? `${dep.name}@${dep.version}${fieldLabel}`
-        : `${dep.name}${fieldLabel}`
+      label = nameAtVersion(dep.name, dep.version) + fieldLabel
     } else {
-      label = dep.version ? `${dep.name}@${dep.version}` : dep.name
+      label = nameAtVersion(dep.name, dep.version)
+      label += peerHashSuffix(dep.name, dep.version, dep.peersSuffixHash, multiPeerPkgs)
     }
 
     if (dep.circular) {
@@ -40,7 +76,7 @@ function dependantsToTreeNodes (dependants: WhyDependant[]): TreeNode[] {
       label += chalk.dim(' [deduped]')
     }
 
-    const nodes = dep.dependants ? dependantsToTreeNodes(dep.dependants) : []
+    const nodes = dep.dependants ? dependantsToTreeNodes(dep.dependants, multiPeerPkgs) : []
     return { label, nodes }
   })
 }
@@ -52,16 +88,14 @@ export function renderWhyJson (results: WhyPackageResult[]): string {
 export function renderWhyParseable (results: WhyPackageResult[]): string {
   const lines: string[] = []
   for (const result of results) {
-    const rootLabel = result.version ? `${result.name}@${result.version}` : result.name
-    collectPaths(result.dependants, [rootLabel], lines)
+    collectPaths(result.dependants, [plainNameAtVersion(result.name, result.version)], lines)
   }
   return lines.join('\n')
 }
 
 function collectPaths (dependants: WhyDependant[], currentPath: string[], lines: string[]): void {
   for (const dep of dependants) {
-    const depLabel = dep.version ? `${dep.name}@${dep.version}` : dep.name
-    const newPath = [...currentPath, depLabel]
+    const newPath = [...currentPath, plainNameAtVersion(dep.name, dep.version)]
     if (dep.dependants && dep.dependants.length > 0) {
       collectPaths(dep.dependants, newPath, lines)
     } else {
