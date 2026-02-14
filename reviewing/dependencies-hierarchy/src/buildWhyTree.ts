@@ -9,15 +9,13 @@ import {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { type DependenciesField, type DependencyManifest, type Finder } from '@pnpm/types'
-import { readPackageJsonFromDirSync } from '@pnpm/read-package-json'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { readManifestFromCafs } from './readManifestFromCafs.js'
-import { resolvePackagePath } from './resolvePackagePath.js'
 import realpathMissing from 'realpath-missing'
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
 import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
 import { type TreeNodeId } from './TreeNodeId.js'
+import { getPkgInfo } from './getPkgInfo.js'
 
 interface ReverseEdge {
   parentSerialized: string
@@ -242,10 +240,12 @@ export async function buildWhyTrees (
   // Pre-compute resolved filesystem paths for all package nodes by walking the
   // graph top-down from importers.  This is needed for global virtual store
   // where symlinks must be resolved through each parent's node_modules.
-  const resolvedPaths = resolveAllPackagePaths(graph, currentPackages, {
+  const resolvedPackageNodes = resolvePackageNodes(graph, currentPackages, {
     virtualStoreDir,
     virtualStoreDirMaxLength,
     modulesDir,
+    wantedPackages: wantedLockfile?.packages ?? {},
+    storeDir,
   })
 
   // Scan all package nodes for matches.
@@ -263,20 +263,9 @@ export async function buildWhyTrees (
 
     const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
     const readManifest = (): DependencyManifest => {
-      const integrity = 'integrity' in snapshot.resolution
-        ? snapshot.resolution.integrity as string
-        : undefined
-      if (integrity && storeDir) {
-        const manifest = readManifestFromCafs(storeDir, integrity, name, version)
-        if (manifest) return manifest
-      }
-      const fullPackagePath = resolvedPaths.get(serialized)
-      if (fullPackagePath) {
-        try {
-          return readPackageJsonFromDirSync(fullPackagePath)
-        } catch {
-          // Fall through to stub
-        }
+      const resolvedNode = resolvedPackageNodes.get(serialized)
+      if (resolvedNode) {
+        return resolvedNode.readManifest()
       }
       return { name, version } as DependencyManifest
     }
@@ -311,7 +300,7 @@ export async function buildWhyTrees (
     }
     const dependants = walkReverse(serialized, ctx)
 
-    const result: WhyPackageResult = { name, version, path: resolvedPaths.get(serialized), peersSuffixHash: peerHash, dependants }
+    const result: WhyPackageResult = { name, version, path: resolvedPackageNodes.get(serialized)?.path, peersSuffixHash: peerHash, dependants }
     if (typeof matched === 'string') {
       result.searchMessage = matched
     }
@@ -328,16 +317,18 @@ export async function buildWhyTrees (
  * store where the correct path can only be obtained by following symlinks
  * through each parent's node_modules directory.
  */
-function resolveAllPackagePaths (
+function resolvePackageNodes (
   graph: DependencyGraph,
   currentPackages: PackageSnapshots,
   opts: {
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
     modulesDir: string
+    wantedPackages: PackageSnapshots
+    storeDir?: string
   }
-): Map<string, string> {
-  const resolved = new Map<string, string>()
+): Map<string, { path: string, readManifest: () => DependencyManifest }> {
+  const resolved = new Map<string, { path: string, readManifest: () => DependencyManifest }>()
 
   function walk (serialized: string, parentDir: string | undefined): void {
     const node = graph.nodes.get(serialized)
@@ -348,21 +339,26 @@ function resolveAllPackagePaths (
       if (resolved.has(childSerialized)) continue
       if (edge.target.nodeId.type !== 'package') continue
 
-      const snapshot = currentPackages[edge.target.nodeId.depPath]
-      if (!snapshot) continue
-      const { name } = nameVerFromPkgSnapshot(edge.target.nodeId.depPath, snapshot)
-
-      const childPath = resolvePackagePath({
-        depPath: edge.target.nodeId.depPath,
-        name,
+      const pkgInfo = getPkgInfo({
         alias: edge.alias,
+        ref: edge.target.nodeId.depPath,
+        currentPackages,
+        wantedPackages: opts.wantedPackages,
+        storeDir: opts.storeDir,
+        registries: {
+          default: 'https://registry.npmjs.org/',
+        },
+        skipped: new Set(),
+        depTypes: {},
         virtualStoreDir: opts.virtualStoreDir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         modulesDir: opts.modulesDir,
         parentDir,
+        linkedPathBaseDir: opts.modulesDir, // This might need adjustment for linked deps?
       })
-      resolved.set(childSerialized, childPath)
-      walk(childSerialized, childPath)
+
+      resolved.set(childSerialized, { path: pkgInfo.pkgInfo.path, readManifest: pkgInfo.readManifest })
+      walk(childSerialized, pkgInfo.pkgInfo.path)
     }
   }
 
