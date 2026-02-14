@@ -62,8 +62,7 @@ function dependantsToTreeNodes (dependants: WhyDependant[], multiPeerPkgs: Map<s
     let label: string
     if (dep.depField != null) {
       // This is an importer (leaf node)
-      const fieldLabel = dep.depField === 'dependencies' ? '' : ` ${chalk.dim(`(${dep.depField})`)}`
-      label = nameAtVersion(dep.name, dep.version) + fieldLabel
+      label = chalk.bold(nameAtVersion(dep.name, dep.version)) + ` ${chalk.dim(`(${dep.depField})`)}`
     } else {
       label = nameAtVersion(dep.name, dep.version)
       label += peerHashSuffix(dep.name, dep.version, dep.peersSuffixHash, multiPeerPkgs)
