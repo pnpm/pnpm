@@ -27,6 +27,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   allProjectsGraph?: ProjectsGraph
 
   allowNew: boolean
+  autoConfirmAllPrompts?: boolean
   autoInstallPeers?: boolean
   bail: boolean
   color: 'always' | 'auto' | 'never'

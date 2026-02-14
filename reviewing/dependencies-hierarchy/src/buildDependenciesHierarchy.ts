@@ -11,15 +11,14 @@ import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
-import { safeReadPackageJsonFromDir, readPackageJsonFromDirSync } from '@pnpm/read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type DependenciesField, type Finder, DEPENDENCIES_FIELDS, type Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
 import { type PackageNode } from './PackageNode.js'
-import { getTree } from './getTree.js'
-import { getTreeNodeChildId } from './getTreeNodeChildId.js'
-import { getPkgInfo } from './getPkgInfo.js'
+import { buildDependencyGraph } from './buildDependencyGraph.js'
+import { getTree, type BaseTreeOpts, type MaterializationCache } from './getTree.js'
 import { type TreeNodeId } from './TreeNodeId.js'
 
 export interface DependenciesHierarchy {
@@ -38,6 +37,7 @@ export async function buildDependenciesHierarchy (
     registries?: Registries
     onlyProjects?: boolean
     search?: Finder
+    showDedupedSearchMatches?: boolean
     lockfileDir: string
     checkWantedLockfileOnly?: boolean
     modulesDir?: string
@@ -85,15 +85,45 @@ export async function buildDependenciesHierarchy (
     onlyProjects: maybeOpts.onlyProjects,
     registries,
     search: maybeOpts.search,
+    showDedupedSearchMatches: maybeOpts.showDedupedSearchMatches ?? (maybeOpts.search != null),
     skipped: new Set(modules?.skipped ?? []),
     modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
   }
+  // Build the dependency graph ONCE for all importers and share a single
+  // MaterializationCache so that identical subtrees are only materialized once.
+  const allRootIds: TreeNodeId[] = []
+  for (const projectPath of projectPaths) {
+    const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
+    if (lockfileToUse.importers[importerId]) {
+      allRootIds.push({ type: 'importer', importerId })
+    }
+  }
+  const sharedGraph = buildDependencyGraph(allRootIds, {
+    currentPackages: lockfileToUse.packages ?? {},
+    importers: lockfileToUse.importers,
+    include: opts.include,
+    lockfileDir: opts.lockfileDir,
+  })
+  const sharedMaterializationCache: MaterializationCache = new Map()
+  const sharedDepTypes = detectDepTypes(lockfileToUse)
+
+  const ctx: HierarchyContext = {
+    currentLockfile: lockfileToUse,
+    wantedLockfile,
+    ...opts,
+    graph: sharedGraph,
+    materializationCache: sharedMaterializationCache,
+    depTypes: sharedDepTypes,
+  }
+
+  const getHierarchy = dependenciesHierarchyForPackage.bind(null, ctx)
+
   const pairs = await Promise.all(projectPaths.map(async (projectPath) => {
     return [
       projectPath,
-      await dependenciesHierarchyForPackage(projectPath, lockfileToUse, wantedLockfile, opts),
+      await getHierarchy(projectPath),
     ] as [string, DependenciesHierarchy]
   }))
   for (const [projectPath, dependenciesHierarchy] of pairs) {
@@ -102,25 +132,18 @@ export async function buildDependenciesHierarchy (
   return result
 }
 
+interface HierarchyContext extends BaseTreeOpts {
+  currentLockfile: LockfileObject
+  wantedLockfile: LockfileObject | null
+  depth: number
+  checkWantedLockfileOnly?: boolean
+}
+
 async function dependenciesHierarchyForPackage (
-  projectPath: string,
-  currentLockfile: LockfileObject,
-  wantedLockfile: LockfileObject | null,
-  opts: {
-    depth: number
-    excludePeerDependencies?: boolean
-    include: { [dependenciesField in DependenciesField]: boolean }
-    registries: Registries
-    onlyProjects?: boolean
-    search?: Finder
-    skipped: Set<string>
-    lockfileDir: string
-    checkWantedLockfileOnly?: boolean
-    modulesDir?: string
-    virtualStoreDir?: string
-    virtualStoreDirMaxLength: number
-  }
+  opts: HierarchyContext,
+  projectPath: string
 ): Promise<DependenciesHierarchy> {
+  const { currentLockfile, wantedLockfile } = opts
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
 
   if (!currentLockfile.importers[importerId]) return {}
@@ -129,132 +152,76 @@ async function dependenciesHierarchyForPackage (
     ? opts.modulesDir
     : path.join(projectPath, opts.modulesDir ?? 'node_modules')
 
-  const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
-  const allDirectDeps = await readModulesDir(modulesDir) ?? []
-  const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
+  const currentPackages = currentLockfile.packages ?? {}
+  const wantedPackages = wantedLockfile?.packages ?? {}
 
-  const depTypes = detectDepTypes(currentLockfile)
-  const getTreeOpts = {
-    currentPackages: currentLockfile.packages ?? {},
-    excludePeerDependencies: opts.excludePeerDependencies,
-    importers: currentLockfile.importers,
-    includeOptionalDependencies: opts.include.optionalDependencies,
-    depTypes,
-    lockfileDir: opts.lockfileDir,
-    onlyProjects: opts.onlyProjects,
-    rewriteLinkVersionDir: projectPath,
-    maxDepth: opts.depth,
-    registries: opts.registries,
-    search: opts.search,
-    skipped: opts.skipped,
-    wantedPackages: wantedLockfile?.packages ?? {},
-    virtualStoreDir: opts.virtualStoreDir,
-    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    modulesDir,
-  }
-  const getChildrenTree = (nodeId: TreeNodeId, parentDir?: string) =>
-    getTree({ ...getTreeOpts, parentDir }, nodeId)
-  const parentId: TreeNodeId = { type: 'importer', importerId }
+  // Build a map from alias → dependency field for post-categorization.
   const result: DependenciesHierarchy = {}
-  for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciesField => opts.include[dependenciesField])) {
-    const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
-    result[dependenciesField] = []
-    for (const alias in topDeps) {
-      const ref = topDeps[alias]
-      const { pkgInfo: packageInfo, readManifest } = getPkgInfo({
-        alias,
-        currentPackages: currentLockfile.packages ?? {},
-        depTypes,
-        rewriteLinkVersionDir: projectPath,
-        linkedPathBaseDir: projectPath,
-        ref,
-        registries: opts.registries,
-        skipped: opts.skipped,
-        wantedPackages: wantedLockfile?.packages ?? {},
-        virtualStoreDir: opts.virtualStoreDir,
-        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-        modulesDir,
-      })
-      let newEntry: PackageNode | null = null
-      const matchedSearched = opts.search?.({
-        alias,
-        name: packageInfo.name,
-        version: packageInfo.version,
-        readManifest,
-      })
-      const nodeId = getTreeNodeChildId({
-        parentId,
-        dep: { alias, ref },
-        lockfileDir: opts.lockfileDir,
-        importers: currentLockfile.importers,
-      })
-      if (opts.onlyProjects && nodeId?.type !== 'importer') {
-        continue
-      } else if (nodeId == null) {
-        if ((opts.search != null) && !matchedSearched) continue
-        newEntry = packageInfo
-      } else {
-        const dependencies = getChildrenTree(nodeId, packageInfo.path)
-        if (dependencies.length > 0) {
-          newEntry = {
-            ...packageInfo,
-            dependencies,
-          }
-        } else if ((opts.search == null) || matchedSearched) {
-          newEntry = packageInfo
-        }
-      }
-      if (newEntry != null) {
-        if (matchedSearched) {
-          newEntry.searched = true
-          if (typeof matchedSearched === 'string') {
-            newEntry.searchMessage = matchedSearched
-          }
-        }
-        result[dependenciesField]!.push(newEntry)
-      }
+  const fieldMap = new Map<string, DependenciesField>()
+  for (const field of DEPENDENCIES_FIELDS.sort().filter(f => opts.include[f])) {
+    result[field] = []
+    const fieldDeps = currentLockfile.importers[importerId][field] ?? {}
+    for (const alias in fieldDeps) {
+      fieldMap.set(alias, field)
     }
   }
 
-  await Promise.all(
-    unsavedDeps.map(async (unsavedDep) => {
-      let pkgPath = path.join(modulesDir, unsavedDep)
-      let version!: string
-      try {
-        pkgPath = await resolveLinkTarget(pkgPath)
-        version = `link:${normalizePath(path.relative(projectPath, pkgPath))}`
-      } catch {
-        // if error happened. The package is not a link
-        const pkg = await safeReadPackageJsonFromDir(pkgPath)
-        version = pkg?.version ?? 'undefined'
-      }
-      const pkg = {
-        alias: unsavedDep,
-        isMissing: false,
-        isPeer: false,
-        isSkipped: false,
-        name: unsavedDep,
-        path: pkgPath,
-        version,
-      }
-      const matchedSearched = opts.search?.({
-        alias: pkg.alias,
-        name: pkg.name,
-        version: pkg.version,
-        readManifest: () => readPackageJsonFromDirSync(pkgPath),
-      })
-      if ((opts.search != null) && !matchedSearched) return
-      const newEntry: PackageNode = pkg
-      if (matchedSearched) {
-        newEntry.searched = true
-        if (typeof matchedSearched === 'string') {
-          newEntry.searchMessage = matchedSearched
+  const parentId: TreeNodeId = { type: 'importer', importerId }
+
+  // Materialize the tree rooted at this importer in a single getTree call.
+  // materializeChildren handles all dedup, search, and circular detection.
+  // The depth is incremented by 1 because the importer itself is one level;
+  // opts.depth controls how deep *below* the direct dependencies we go.
+  const nodes = getTree({
+    ...opts,
+    currentPackages,
+    importers: currentLockfile.importers,
+    rewriteLinkVersionDir: projectPath,
+    maxDepth: opts.depth + 1,
+    wantedPackages,
+    modulesDir,
+  }, parentId)
+
+  // Categorize the materialized nodes into their dependency fields.
+  for (const node of nodes) {
+    const field = fieldMap.get(node.alias)
+    if (field != null) {
+      result[field]!.push(node)
+    }
+  }
+
+  // Handle unsaved dependencies (packages in node_modules but not in lockfile).
+  // When searching, unsaved deps are irrelevant — they aren't in the lockfile
+  // graph and can't have dependency subtrees showing paths to the search target.
+  if (!opts.search) {
+    const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
+    const unsavedDeps = ((await readModulesDir(modulesDir)) ?? []).filter((directDep) => !savedDeps[directDep])
+    if (unsavedDeps.length > 0) await Promise.all(
+      unsavedDeps.map(async (unsavedDep) => {
+        let pkgPath = path.join(modulesDir, unsavedDep)
+        let version!: string
+        try {
+          pkgPath = await resolveLinkTarget(pkgPath)
+          version = `link:${normalizePath(path.relative(projectPath, pkgPath))}`
+        } catch {
+          // if error happened. The package is not a link
+          const pkg = await safeReadPackageJsonFromDir(pkgPath)
+          version = pkg?.version ?? 'undefined'
         }
-      }
-      result.unsavedDependencies = result.unsavedDependencies ?? []
-      result.unsavedDependencies.push(newEntry)
-    })
-  )
+        const pkg: PackageNode = {
+          alias: unsavedDep,
+          isMissing: false,
+          isPeer: false,
+          isSkipped: false,
+          name: unsavedDep,
+          path: pkgPath,
+          version,
+        }
+        result.unsavedDependencies = result.unsavedDependencies ?? []
+        result.unsavedDependencies.push(pkg)
+      })
+    )
+  }
 
   return result
 }

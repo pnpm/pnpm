@@ -26,6 +26,7 @@ import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import { type ReporterFunction } from '../types.js'
 
 export interface StrictInstallOptions {
+  autoConfirmAllPrompts: boolean
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
   catalogs: Catalogs
@@ -190,11 +191,12 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
   return {
     allowedDeprecatedVersions: {},
     allowUnusedPatches: false,
+    autoConfirmAllPrompts: opts.autoConfirmAllPrompts ?? false,
     autoInstallPeers: true,
     autoInstallPeersFromHighestMatch: false,
     catalogs: {},
     childConcurrency: 5,
-    confirmModulesPurge: !opts.force,
+    confirmModulesPurge: !(opts.autoConfirmAllPrompts || opts.force),
     depth: 0,
     dedupeInjectedDeps: true,
     enableGlobalVirtualStore: false,

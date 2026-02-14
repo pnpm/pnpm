@@ -1404,6 +1404,24 @@ test('no warning when directory does not contain PATH delimiter character', asyn
   }
 })
 
+test.each([
+  [undefined, undefined],
+  [false, undefined],
+  [true, true],
+])('sets autoConfirmAllPrompts when CLI is passed --yes=%s', async (cliValue?: boolean, expectedValue?: boolean) => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'yes': cliValue,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.autoConfirmAllPrompts).toBe(expectedValue)
+})
+
 describe('global config.yaml', () => {
   let XDG_CONFIG_HOME: string | undefined
 

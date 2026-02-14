@@ -121,7 +121,7 @@ test('auth infos', () => {
   expect(getNetworkConfigs({
     '@foo:registry': 'https://example.com/foo',
     '//example.com/foo:username': 'foo',
-    '//example.com/foo:_password': 'bar',
+    '//example.com/foo:_password': btoa('bar'),
   })).toStrictEqual({
     registries: {
       '@foo': 'https://example.com/foo',
