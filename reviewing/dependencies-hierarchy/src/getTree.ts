@@ -252,7 +252,10 @@ function materializeChildren (
         newEntry.dedupedDependenciesCount = dedupedCount
       }
       if (edge.target.nodeId.type === 'package') {
-        newEntry.peersSuffixHash = peersSuffixHashFromDepPath(edge.target.nodeId.depPath)
+        const peerHash = peersSuffixHashFromDepPath(edge.target.nodeId.depPath)
+        if (peerHash != null) {
+          newEntry.peersSuffixHash = peerHash
+        }
       }
     }
 
