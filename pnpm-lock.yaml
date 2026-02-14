@@ -798,7 +798,7 @@ overrides:
 
 packageExtensionsChecksum: sha256-1qxck4M+gjHKVxNHtl5ISCI+egyJsA5Hru0aRTpMm9I=
 
-pnpmfileChecksum: sha256-wWS8pd4RWXcibTBMmfBovomIjneDZhwa6bW2R9l/rrw=
+pnpmfileChecksum: sha256-mx8+uzkaD2WO2V3h9zTchFZZX3QdTTMrkVNvy8svgCY=
 
 patchedDependencies:
   '@pnpm/npm-lifecycle':
