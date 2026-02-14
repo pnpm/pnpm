@@ -12,7 +12,7 @@ export function renderWhyTree (results: WhyPackageResult[]): string {
 
   const multiPeerPkgs = findMultiPeerPackages(results)
 
-  return results
+  const trees = results
     .map((result) => {
       let rootLabel = chalk.bold(nameAtVersion(result.name, result.version))
       rootLabel += peerHashSuffix(result.name, result.version, result.peersSuffixHash, multiPeerPkgs)
@@ -24,6 +24,19 @@ export function renderWhyTree (results: WhyPackageResult[]): string {
       return renderArchyTree(tree, { treeChars: chalk.dim }).replace(/\n+$/, '')
     })
     .join('\n\n')
+
+  const summary = whySummary(results)
+  return summary ? `${trees}\n\n${summary}` : trees
+}
+
+function whySummary (results: WhyPackageResult[]): string {
+  if (results.length === 0) return ''
+  const versions = new Set(results.map(r => r.version))
+  const parts: string[] = [`${versions.size} version${versions.size === 1 ? '' : 's'}`]
+  if (results.length > versions.size) {
+    parts.push(`${results.length} instances`)
+  }
+  return chalk.dim(`Found ${parts.join(', ')} of ${results[0].name}`)
 }
 
 function collectHashes (hashesPerPkg: Map<string, Set<string>>, name: string, version: string, hash: string | undefined): void {
