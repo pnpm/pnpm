@@ -8,13 +8,13 @@ function plainNameAtVersion (name: string, version: string): string {
   return version ? `${name}@${version}` : name
 }
 
-export async function renderWhyTree (results: DependentsTree[], opts: { long: boolean }): Promise<string> {
-  if (results.length === 0) return ''
+export async function renderDependentsTree (trees: DependentsTree[], opts: { long: boolean }): Promise<string> {
+  if (trees.length === 0) return ''
 
-  const multiPeerPkgs = findMultiPeerPackages(results)
+  const multiPeerPkgs = findMultiPeerPackages(trees)
 
-  const trees = (
-    await Promise.all(results.map(async (result) => {
+  const output = (
+    await Promise.all(trees.map(async (result) => {
       const rootLabelParts = [chalk.bold(nameAtVersion(result.name, result.version)) +
         peerHashSuffix(result.name, result.version, result.peersSuffixHash, multiPeerPkgs)]
       if (result.searchMessage) {
@@ -43,21 +43,21 @@ export async function renderWhyTree (results: DependentsTree[], opts: { long: bo
     }))
   ).join('\n\n')
 
-  const summary = whySummary(results)
-  return summary ? `${trees}\n\n${summary}` : trees
+  const summary = whySummary(trees)
+  return summary ? `${output}\n\n${summary}` : output
 }
 
-function whySummary (results: DependentsTree[]): string {
-  if (results.length === 0) return ''
-  const versions = new Set(results.map(r => r.version))
+function whySummary (trees: DependentsTree[]): string {
+  if (trees.length === 0) return ''
+  const versions = new Set(trees.map(r => r.version))
   const parts: string[] = [`${versions.size} version${versions.size === 1 ? '' : 's'}`]
-  if (results.length > versions.size) {
-    parts.push(`${results.length} instances`)
+  if (trees.length > versions.size) {
+    parts.push(`${trees.length} instances`)
   }
-  return chalk.dim(`Found ${parts.join(', ')} of ${results[0].name}`)
+  return chalk.dim(`Found ${parts.join(', ')} of ${trees[0].name}`)
 }
 
-function findMultiPeerPackages (results: DependentsTree[]): Map<string, number> {
+function findMultiPeerPackages (trees: DependentsTree[]): Map<string, number> {
   const hashesPerPkg = new Map<string, Set<string>>()
 
   function walkDependents (dependents: Dependent[]): void {
@@ -69,9 +69,9 @@ function findMultiPeerPackages (results: DependentsTree[]): Map<string, number> 
     }
   }
 
-  for (const result of results) {
-    collectHashes(hashesPerPkg, result.name, result.version, result.peersSuffixHash)
-    walkDependents(result.dependents)
+  for (const tree of trees) {
+    collectHashes(hashesPerPkg, tree.name, tree.version, tree.peersSuffixHash)
+    walkDependents(tree.dependents)
   }
 
   return filterMultiPeerEntries(hashesPerPkg)
@@ -100,11 +100,11 @@ function dependentsToTreeNodes (dependents: Dependent[], multiPeerPkgs: Map<stri
   })
 }
 
-export async function renderWhyJson (results: DependentsTree[], opts: { long: boolean }): Promise<string> {
+export async function renderDependentsJson (trees: DependentsTree[], opts: { long: boolean }): Promise<string> {
   if (!opts.long) {
-    return JSON.stringify(results, null, 2)
+    return JSON.stringify(trees, null, 2)
   }
-  const enriched = await Promise.all(results.map(async (result) => {
+  const enriched = await Promise.all(trees.map(async (result) => {
     if (!result.path) return result
     const pkg = await getPkgInfo({ name: result.name, version: result.version, path: result.path, alias: undefined })
     return {
@@ -117,9 +117,9 @@ export async function renderWhyJson (results: DependentsTree[], opts: { long: bo
   return JSON.stringify(enriched, null, 2)
 }
 
-export function renderWhyParseable (results: DependentsTree[], opts: { long: boolean }): string {
+export function renderDependentsParseable (trees: DependentsTree[], opts: { long: boolean }): string {
   const lines: string[] = []
-  for (const result of results) {
+  for (const result of trees) {
     const rootSegment = opts.long && result.path
       ? `${result.path}:${plainNameAtVersion(result.name, result.version)}`
       : plainNameAtVersion(result.name, result.version)

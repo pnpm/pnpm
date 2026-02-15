@@ -1,8 +1,8 @@
 import { stripVTControlCharacters as stripAnsi } from 'util'
-import { renderWhyTree, renderWhyJson, renderWhyParseable } from '../lib/renderWhyTree.js'
+import { renderDependentsTree, renderDependentsJson, renderDependentsParseable } from '../lib/renderDependentsTree.js'
 import { type DependentsTree } from '@pnpm/reviewing.dependencies-hierarchy'
 
-describe('renderWhyTree', () => {
+describe('renderDependentsTree', () => {
   test('renders searchMessage below the root label', async () => {
     const results: DependentsTree[] = [
       {
@@ -15,7 +15,7 @@ describe('renderWhyTree', () => {
       },
     ]
 
-    const output = stripAnsi(await renderWhyTree(results, { long: false }))
+    const output = stripAnsi(await renderDependentsTree(results, { long: false }))
     const lines = output.split('\n')
 
     // Root label should be the package name@version
@@ -37,7 +37,7 @@ describe('renderWhyTree', () => {
       },
     ]
 
-    const output = stripAnsi(await renderWhyTree(results, { long: false }))
+    const output = stripAnsi(await renderDependentsTree(results, { long: false }))
     const lines = output.split('\n')
 
     expect(lines[0]).toBe('foo@1.0.0')
@@ -56,7 +56,7 @@ describe('renderWhyTree', () => {
       },
     ]
 
-    const output = stripAnsi(await renderWhyTree(results, { long: false }))
+    const output = stripAnsi(await renderDependentsTree(results, { long: false }))
     const lines = output.split('\n')
 
     expect(lines[0]).toBe('bar@2.0.0')
@@ -64,7 +64,7 @@ describe('renderWhyTree', () => {
   })
 })
 
-describe('renderWhyJson', () => {
+describe('renderDependentsJson', () => {
   test('includes searchMessage in JSON output', async () => {
     const results: DependentsTree[] = [
       {
@@ -77,7 +77,7 @@ describe('renderWhyJson', () => {
       },
     ]
 
-    const parsed = JSON.parse(await renderWhyJson(results, { long: false }))
+    const parsed = JSON.parse(await renderDependentsJson(results, { long: false }))
     expect(parsed).toHaveLength(1)
     expect(parsed[0].searchMessage).toBe('Matched by custom finder')
   })
@@ -91,12 +91,12 @@ describe('renderWhyJson', () => {
       },
     ]
 
-    const parsed = JSON.parse(await renderWhyJson(results, { long: false }))
+    const parsed = JSON.parse(await renderDependentsJson(results, { long: false }))
     expect(parsed[0].searchMessage).toBeUndefined()
   })
 })
 
-describe('renderWhyParseable', () => {
+describe('renderDependentsParseable', () => {
   test('renders parseable output with searchMessage result', () => {
     const results: DependentsTree[] = [
       {
@@ -109,7 +109,7 @@ describe('renderWhyParseable', () => {
       },
     ]
 
-    const output = renderWhyParseable(results, { long: false })
+    const output = renderDependentsParseable(results, { long: false })
     const lines = output.split('\n')
     // Parseable output should still contain the path
     expect(lines).toHaveLength(1)

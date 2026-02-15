@@ -6,7 +6,7 @@ import { type PackageNode, buildDependenciesTree, type DependenciesTree, createP
 import { renderJson } from './renderJson.js'
 import { renderParseable } from './renderParseable.js'
 import { renderTree } from './renderTree.js'
-import { renderWhyTree, renderWhyJson, renderWhyParseable } from './renderWhyTree.js'
+import { renderDependentsTree, renderDependentsJson, renderDependentsParseable } from './renderDependentsTree.js'
 import { type PackageDependencyHierarchy } from './types.js'
 
 export type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
@@ -262,8 +262,8 @@ export async function whyForPackages (
   })
 
   switch (reportAs) {
-  case 'json': return renderWhyJson(results, { long })
-  case 'parseable': return renderWhyParseable(results, { long })
-  case 'tree': return renderWhyTree(results, { long })
+  case 'json': return renderDependentsJson(results, { long })
+  case 'parseable': return renderDependentsParseable(results, { long })
+  case 'tree': return renderDependentsTree(results, { long })
   }
 }
