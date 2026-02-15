@@ -2,9 +2,11 @@ import path from 'path'
 import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile.fs'
 import { type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { type Finder, type Registries } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { type DependencyGraph } from './buildDependencyGraph.js'
-import { type PackageNode } from './PackageNode.js'
+import { type DependencyNode } from './DependencyNode.js'
 import { getPkgInfo } from './getPkgInfo.js'
+import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
 import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
 
 export interface BaseTreeOpts {
@@ -20,6 +22,7 @@ export interface BaseTreeOpts {
   skipped: Set<string>
   registries: Registries
   depTypes: DepTypes
+  storeDir?: string
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
   modulesDir?: string
@@ -49,7 +52,7 @@ type MaterializationContext =
 // ---------------------------------------------------------------------------
 
 interface CachedSubtree {
-  /** Total number of PackageNode objects in the subtree (recursive). */
+  /** Total number of DependencyNode objects in the subtree (recursive). */
   count: number
   /** Whether any node in this subtree matched the search. */
   hasSearchMatch: boolean
@@ -67,7 +70,7 @@ export type MaterializationCache = Map<string, CachedSubtree>
 export function getTree (
   opts: GetTreeOpts,
   parentId: TreeNodeId
-): PackageNode[] {
+): DependencyNode[] {
   const ancestors = new Set<string>()
   ancestors.add(serializeTreeNodeId(parentId))
 
@@ -94,7 +97,7 @@ export function getTree (
 }
 
 // ---------------------------------------------------------------------------
-// Materialize PackageNode[] tree from the graph
+// Materialize DependencyNode[] tree from the graph
 // ---------------------------------------------------------------------------
 
 function materializeCacheKey (nodeId: string, depth: number): string {
@@ -103,8 +106,8 @@ function materializeCacheKey (nodeId: string, depth: number): string {
 }
 
 interface MaterializationResult {
-  nodes: PackageNode[]
-  /** Total number of PackageNode objects in `nodes` (recursive). */
+  nodes: DependencyNode[]
+  /** Total number of DependencyNode objects in `nodes` (recursive). */
   count: number
   /** Whether any node in this subtree matched the search. */
   hasSearchMatch: boolean
@@ -114,10 +117,10 @@ interface MaterializationResult {
 
 /**
  * Core materialization function.  Walks the pre-built dependency graph to
- * produce the `PackageNode[]` tree that downstream renderers expect.
+ * produce the `DependencyNode[]` tree that downstream renderers expect.
  *
  * The cache is keyed by `(nodeId, remainingDepth)` and stores the
- * `PackageNode[]` children of a given node.  It is populated
+ * `DependencyNode[]` children of a given node.  It is populated
  * unconditionally, including results where recursion was truncated at a
  * cycle boundary.  Cycle detection uses a mutable `ancestors` Set to
  * stop recursion but does NOT set the `circular` flag — that is handled
@@ -144,12 +147,16 @@ function materializeChildren (
     ? path.join(ctx.lockfileDir, parentId.importerId)
     : ctx.lockfileDir
 
-  const resultDependencies: PackageNode[] = []
+  const resultDependencies: DependencyNode[] = []
   let resultCount = 0
   let resultHasSearchMatch = false
   const resultSearchMessages = ctx.showDedupedSearchMatches ? [] as string[] : undefined
 
-  for (const edge of graphNode.edges) {
+  // Sort edges by alias so that deduplication is deterministic:
+  // the alphabetically-first dependency always gets fully expanded.
+  const sortedEdges = [...graphNode.edges].sort((a, b) => lexCompare(a.alias, b.alias))
+
+  for (const edge of sortedEdges) {
     if (ctx.onlyProjects && edge.target?.nodeId.type !== 'importer') {
       continue
     }
@@ -170,7 +177,7 @@ function materializeChildren (
       readManifest,
     })
 
-    let newEntry: PackageNode | null = null
+    let newEntry: DependencyNode | null = null
     let childCount = 0
     let dedupedHasSearchMatch = false
     let dedupedSearchMessages: string[] = []
@@ -183,7 +190,7 @@ function materializeChildren (
         continue
       }
     } else {
-      let dependencies: PackageNode[]
+      let dependencies: DependencyNode[]
       let childHasSearchMatch = false
       let childSearchMessages: string[] = []
       let dedupedCount: number | undefined
@@ -244,6 +251,12 @@ function materializeChildren (
         newEntry.deduped = true
         newEntry.dedupedDependenciesCount = dedupedCount
       }
+      if (edge.target.nodeId.type === 'package') {
+        const peerHash = peersSuffixHashFromDepPath(edge.target.nodeId.depPath)
+        if (peerHash != null) {
+          newEntry.peersSuffixHash = peerHash
+        }
+      }
     }
 
     if (searchMatch) {
@@ -274,16 +287,16 @@ function materializeChildren (
 }
 
 /**
- * Walks the materialized PackageNode[] tree and marks circular back-edges.
+ * Walks the materialized DependencyNode[] tree and marks circular back-edges.
  * A node whose `path` matches an ancestor is a cycle — it gets
  * `circular: true` and its dependencies (if any) are stripped.
  *
  * With deduplication in place (deduped nodes are leaves), the walk is O(N).
  */
 function fixCircularRefs (
-  nodes: PackageNode[],
+  nodes: DependencyNode[],
   ancestors: Set<string>
-): PackageNode[] {
+): DependencyNode[] {
   let changed = false
   const result = nodes.map(node => {
     // A node whose path matches an ancestor is a circular back-edge.
