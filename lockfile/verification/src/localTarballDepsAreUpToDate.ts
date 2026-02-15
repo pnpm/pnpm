@@ -1,9 +1,9 @@
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import * as dp from '@pnpm/dependency-path'
-import {
-  type ProjectSnapshot,
-  type PackageSnapshots,
-  type TarballResolution,
+import type {
+  ProjectSnapshot,
+  PackageSnapshots,
+  TarballResolution,
 } from '@pnpm/lockfile.types'
 import { refIsLocalTarball } from '@pnpm/lockfile.utils'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'

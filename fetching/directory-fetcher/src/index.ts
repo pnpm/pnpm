@@ -3,11 +3,11 @@ import path from 'path'
 import util from 'util'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
-import { type FilesMap } from '@pnpm/cafs-types'
+import type { FilesMap } from '@pnpm/cafs-types'
 import { logger } from '@pnpm/logger'
 import { packlist } from '@pnpm/fs.packlist'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 
 const directoryFetcherLogger = logger('directory-fetcher')
 

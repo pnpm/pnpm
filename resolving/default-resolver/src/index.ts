@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type FetchFromRegistry, type GetAuthHeader } from '@pnpm/fetching-types'
+import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching-types'
 import { type GitResolveResult, createGitResolver } from '@pnpm/git-resolver'
 import { type LocalResolveResult, resolveFromLocal } from '@pnpm/local-resolver'
 import { resolveNodeRuntime, type NodeRuntimeResolveResult } from '@pnpm/node.resolver'
@@ -15,11 +15,11 @@ import {
   type ResolveFromNpmOptions,
   type ResolverFactoryOptions,
 } from '@pnpm/npm-resolver'
-import {
-  type ResolveFunction,
-  type ResolveOptions,
-  type ResolveResult,
-  type WantedDependency,
+import type {
+  ResolveFunction,
+  ResolveOptions,
+  ResolveResult,
+  WantedDependency,
 } from '@pnpm/resolver-base'
 import { type TarballResolveResult, resolveFromTarball } from '@pnpm/tarball-resolver'
 import { type CustomResolver, checkCustomResolverCanResolve } from '@pnpm/hooks.types'

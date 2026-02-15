@@ -1,4 +1,4 @@
-import { type LogLevel } from './LogLevel.js'
+import type { LogLevel } from './LogLevel.js'
 
 export interface OptionalErrorProperties {
   pkgsStack?: Array<{ id: string, name: string, version: string }>

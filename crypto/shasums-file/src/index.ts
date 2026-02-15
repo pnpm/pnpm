@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
-import {
-  type FetchFromRegistry,
+import type {
+  FetchFromRegistry,
 } from '@pnpm/fetching-types'
 
 export interface ShasumsFileItem {

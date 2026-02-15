@@ -5,7 +5,7 @@ import {
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import { addDistTag } from '@pnpm/registry-mock'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from '../utils/index.js'
 
 test('save to package.json (is-positive@^1.0.0)', async () => {

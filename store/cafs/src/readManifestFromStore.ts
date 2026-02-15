@@ -1,6 +1,6 @@
 import gfs from '@pnpm/graceful-fs'
-import { type PackageManifest } from '@pnpm/types'
-import { type PackageFilesIndex } from './checkPkgFilesIntegrity.js'
+import type { PackageManifest } from '@pnpm/types'
+import type { PackageFilesIndex } from './checkPkgFilesIntegrity.js'
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 import { parseJsonBufferSync } from './parseJson.js'
 

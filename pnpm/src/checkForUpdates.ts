@@ -1,6 +1,6 @@
 import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { createResolver } from '@pnpm/client'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import { loadJsonFile } from 'load-json-file'

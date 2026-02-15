@@ -1,6 +1,6 @@
 import { createMatcher } from '@pnpm/matcher'
 import npa from '@pnpm/npm-package-arg'
-import { type FinderContext, type Finder } from '@pnpm/types'
+import type { FinderContext, Finder } from '@pnpm/types'
 import semver from 'semver'
 
 export function createPackagesSearcher (queries: string[], finders?: Finder[]): Finder {

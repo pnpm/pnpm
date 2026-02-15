@@ -5,18 +5,18 @@ import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
-import {
-  type PackageManifestLog,
-  type RootLog,
-  type StageLog,
-  type StatsLog,
+import type {
+  PackageManifestLog,
+  RootLog,
+  StageLog,
+  StatsLog,
 } from '@pnpm/core-loggers'
 import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
-import { type DepPath } from '@pnpm/types'
+import type { DepPath } from '@pnpm/types'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'

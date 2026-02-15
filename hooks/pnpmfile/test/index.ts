@@ -1,5 +1,5 @@
 import path from 'path'
-import { type Log } from '@pnpm/core-loggers'
+import type { Log } from '@pnpm/core-loggers'
 import { requireHooks, BadReadPackageHookError, type HookContext } from '@pnpm/pnpmfile'
 import { fixtures } from '@pnpm/test-fixtures'
 import { requirePnpmfile } from '../src/requirePnpmfile.js'

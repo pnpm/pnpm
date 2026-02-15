@@ -1,9 +1,9 @@
 import { pathExists } from 'path-exists'
 import path from 'path'
-import {
-  type LockfileObject,
-  type PackageSnapshot,
-  type ProjectSnapshot,
+import type {
+  LockfileObject,
+  PackageSnapshot,
+  ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
@@ -11,22 +11,22 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { type IncludedDependencies } from '@pnpm/modules-yaml'
+import type { IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DepPath, type SupportedArchitectures, type ProjectId, type Registries, type AllowBuild } from '@pnpm/types'
-import {
-  type FetchPackageToStoreFunction,
-  type StoreController,
+import type { DepPath, SupportedArchitectures, ProjectId, Registries, AllowBuild } from '@pnpm/types'
+import type {
+  FetchPackageToStoreFunction,
+  StoreController,
 } from '@pnpm/store-controller-types'
 import { hoist, type HoistingLimits, type HoisterResult } from '@pnpm/real-hoist'
 import * as dp from '@pnpm/dependency-path'
-import {
-  type DependenciesGraph,
-  type DepHierarchy,
-  type DirectDependenciesByImporterId,
-  type LockfileToDepGraphResult,
+import type {
+  DependenciesGraph,
+  DepHierarchy,
+  DirectDependenciesByImporterId,
+  LockfileToDepGraphResult,
 } from '@pnpm/deps.graph-builder'
 
 export interface LockfileToHoistedDepGraphOptions {

@@ -4,7 +4,7 @@ import {
   type CatalogResolutionFound,
   type WantedDependency,
 } from '@pnpm/catalogs.resolver'
-import { type Catalogs } from '@pnpm/catalogs.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {

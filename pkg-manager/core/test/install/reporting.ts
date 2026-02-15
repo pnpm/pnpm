@@ -1,4 +1,4 @@
-import { type DeprecationLog } from '@pnpm/core-loggers'
+import type { DeprecationLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,

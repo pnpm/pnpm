@@ -4,7 +4,7 @@ import { type NumericLiteral, parseNumericLiteral } from './NumericLiteral.js'
 import { type StringLiteral, parseStringLiteral } from './StringLiteral.js'
 import { type Whitespace, parseWhitespace } from './Whitespace.js'
 import { combineParsers } from './combine.js'
-import { type TokenBase, type Tokenize } from './types.js'
+import type { TokenBase, Tokenize } from './types.js'
 
 export type ExpectedToken =
   | ExactToken<'.'>

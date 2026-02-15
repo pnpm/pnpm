@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
-import { type Catalogs } from '@pnpm/catalogs.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
 
 export interface WantedDependency {
   readonly bareSpecifier: string

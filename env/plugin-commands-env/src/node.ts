@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import util from 'util'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetchNode } from '@pnpm/node.fetcher'

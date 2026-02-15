@@ -5,7 +5,7 @@ import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/con
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
-import { type Registries } from '@pnpm/types'
+import type { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
 import { difference, pick, pickBy } from 'ramda'

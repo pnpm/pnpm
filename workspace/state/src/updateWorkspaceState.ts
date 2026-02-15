@@ -1,10 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import { logger } from '@pnpm/logger'
-import { type ConfigDependencies } from '@pnpm/types'
+import type { ConfigDependencies } from '@pnpm/types'
 import { getFilePath } from './filePath.js'
 import { createWorkspaceState } from './createWorkspaceState.js'
-import { type WorkspaceStateSettings, type ProjectsList } from './types.js'
+import type { WorkspaceStateSettings, ProjectsList } from './types.js'
 
 export interface UpdateWorkspaceStateOptions {
   allProjects: ProjectsList

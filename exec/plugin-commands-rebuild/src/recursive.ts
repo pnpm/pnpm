@@ -12,7 +12,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type Project, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
+import type { Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { rebuildProjects as rebuildAll, type RebuildOptions, rebuildSelectedPkgs } from './implementation/index.js'
 

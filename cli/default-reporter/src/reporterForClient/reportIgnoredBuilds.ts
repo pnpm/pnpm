@@ -1,5 +1,5 @@
-import { type Config } from '@pnpm/config'
-import { type IgnoredScriptsLog } from '@pnpm/core-loggers'
+import type { Config } from '@pnpm/config'
+import type { IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'

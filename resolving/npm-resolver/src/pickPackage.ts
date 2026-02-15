@@ -5,7 +5,7 @@ import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { readMsgpackFile, writeMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { logger } from '@pnpm/logger'
-import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
+import type { PackageMeta, PackageInRegistry } from '@pnpm/registry.types'
 import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
@@ -19,7 +19,7 @@ import {
   pickLowestVersionByVersionRange,
   type PickPackageFromMetaOptions,
 } from './pickPackageFromMeta.js'
-import { type RegistryPackageSpec } from './parseBareSpecifier.js'
+import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 
 export interface PackageMetaCache {
   get: (key: string) => PackageMeta | undefined

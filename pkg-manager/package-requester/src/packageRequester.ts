@@ -6,41 +6,41 @@ import {
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { PnpmError } from '@pnpm/error'
-import {
-  type DirectoryFetcherResult,
-  type Fetchers,
-  type FetchOptions,
-  type FetchResult,
+import type {
+  DirectoryFetcherResult,
+  Fetchers,
+  FetchOptions,
+  FetchResult,
 } from '@pnpm/fetcher-base'
-import { type Cafs } from '@pnpm/cafs-types'
+import type { Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
-import {
-  type PlatformAssetResolution,
-  type DirectoryResolution,
-  type PreferredVersions,
-  type Resolution,
-  type ResolveFunction,
-  type ResolveResult,
-  type TarballResolution,
-  type AtomicResolution,
+import type {
+  PlatformAssetResolution,
+  DirectoryResolution,
+  PreferredVersions,
+  Resolution,
+  ResolveFunction,
+  ResolveResult,
+  TarballResolution,
+  AtomicResolution,
 } from '@pnpm/resolver-base'
-import {
-  type BundledManifest,
-  type PkgRequestFetchResult,
-  type FetchPackageToStoreFunction,
-  type FetchPackageToStoreOptions,
-  type GetFilesIndexFilePath,
-  type PackageResponse,
-  type PkgNameVersion,
-  type RequestPackageFunction,
-  type RequestPackageOptions,
-  type WantedDependency,
+import type {
+  BundledManifest,
+  PkgRequestFetchResult,
+  FetchPackageToStoreFunction,
+  FetchPackageToStoreOptions,
+  GetFilesIndexFilePath,
+  PackageResponse,
+  PkgNameVersion,
+  RequestPackageFunction,
+  RequestPackageOptions,
+  WantedDependency,
 } from '@pnpm/store-controller-types'
-import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
-import { type CustomFetcher } from '@pnpm/hooks.types'
+import type { DependencyManifest, SupportedArchitectures } from '@pnpm/types'
+import type { CustomFetcher } from '@pnpm/hooks.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import {
   calcMaxWorkers,

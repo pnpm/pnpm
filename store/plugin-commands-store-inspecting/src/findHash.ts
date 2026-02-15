@@ -2,11 +2,11 @@ import path from 'path'
 import fs from 'fs'
 import chalk from 'chalk'
 
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { getStorePath } from '@pnpm/store-path'
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 
 import renderHelp from 'render-help'
 

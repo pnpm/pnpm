@@ -1,6 +1,6 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { type PackageManifest } from '@pnpm/types'
+import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFile, loadJsonFileSync } from 'load-json-file'
 import normalizePackageData from 'normalize-package-data'
 

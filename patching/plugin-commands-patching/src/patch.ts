@@ -3,9 +3,9 @@ import path from 'path'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { type LogBase } from '@pnpm/logger'
-import {
-  type CreateStoreControllerOptions,
+import type { LogBase } from '@pnpm/logger'
+import type {
+  CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'

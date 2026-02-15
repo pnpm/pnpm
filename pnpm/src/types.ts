@@ -1,7 +1,7 @@
-import { type Config } from '@pnpm/config'
-import {
-  type LogBase,
-  type ReadPackageHook,
+import type { Config } from '@pnpm/config'
+import type {
+  LogBase,
+  ReadPackageHook,
 } from '@pnpm/types'
 
 export type PnpmOptions = Omit<Config, 'reporter' | 'pnpmfile'> & {

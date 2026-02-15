@@ -1,8 +1,8 @@
-import {
-  type ResolutionChange,
-  type DedupeCheckIssues,
-  type ResolutionChangesByAlias,
-  type SnapshotsChanges,
+import type {
+  ResolutionChange,
+  DedupeCheckIssues,
+  ResolutionChangesByAlias,
+  SnapshotsChanges,
 } from '@pnpm/dedupe.types'
 import { renderTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'

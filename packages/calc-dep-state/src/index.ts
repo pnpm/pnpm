@@ -1,8 +1,8 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
-import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
+import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting, hashObject } from '@pnpm/crypto.object-hasher'
-import { type LockfileResolution, type LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileResolution, LockfileObject } from '@pnpm/lockfile.types'
 
 export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
 

@@ -4,9 +4,9 @@ import {
   type ResolverFactoryOptions,
 } from '@pnpm/default-resolver'
 import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
-import { type SslConfig } from '@pnpm/types'
-import { type CustomResolver, type CustomFetcher } from '@pnpm/hooks.types'
-import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
+import type { SslConfig } from '@pnpm/types'
+import type { CustomResolver, CustomFetcher } from '@pnpm/hooks.types'
+import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching-types'
 import type { GitFetcher, DirectoryFetcher, BinaryFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { createGitFetcher } from '@pnpm/git-fetcher'

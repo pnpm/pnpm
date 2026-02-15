@@ -1,5 +1,5 @@
 import { parse as parseDepPath } from '@pnpm/dependency-path'
-import { type ProjectId } from '@pnpm/types'
+import type { ProjectId } from '@pnpm/types'
 
 export function extendProjectsWithTargetDirs<T> (
   projects: Array<T & { id: ProjectId }>,

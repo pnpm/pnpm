@@ -6,7 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import cmdShim from '@zkochan/cmd-shim'
 import isWindows from 'is-windows'
 import symlinkDir from 'symlink-dir'
-import { type NvmNodeCommandOptions } from './node.js'
+import type { NvmNodeCommandOptions } from './node.js'
 import { CURRENT_NODE_DIRNAME, getNodeExecPathInBinDir, getNodeExecPathInNodeDir } from './utils.js'
 import { downloadNodeVersion } from './downloadNodeVersion.js'
 

@@ -16,10 +16,10 @@ import { type DependenciesField, type Finder, DEPENDENCIES_FIELDS, type Registri
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
-import { type DependencyNode } from './DependencyNode.js'
+import type { DependencyNode } from './DependencyNode.js'
 import { buildDependencyGraph } from './buildDependencyGraph.js'
 import { getTree, type BaseTreeOpts, type MaterializationCache } from './getTree.js'
-import { type TreeNodeId } from './TreeNodeId.js'
+import type { TreeNodeId } from './TreeNodeId.js'
 
 export interface DependenciesTree {
   dependencies?: DependencyNode[]

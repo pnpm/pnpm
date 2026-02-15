@@ -1,6 +1,6 @@
-import { type PatchFile } from '@pnpm/patching.types'
-import { type DependenciesMeta, type DepPath, type ProjectId } from '@pnpm/types'
-import { type PlatformAssetTarget } from '@pnpm/resolver-base'
+import type { PatchFile } from '@pnpm/patching.types'
+import type { DependenciesMeta, DepPath, ProjectId } from '@pnpm/types'
+import type { PlatformAssetTarget } from '@pnpm/resolver-base'
 
 export type { PatchFile, ProjectId }
 

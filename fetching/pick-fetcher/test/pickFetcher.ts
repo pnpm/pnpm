@@ -1,7 +1,7 @@
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { jest } from '@jest/globals'
-import { type FetchFunction, type Fetchers } from '@pnpm/fetcher-base'
-import { type CustomFetcher } from '@pnpm/hooks.types'
+import type { FetchFunction, Fetchers } from '@pnpm/fetcher-base'
+import type { CustomFetcher } from '@pnpm/hooks.types'
 
 // Helper to create a mock Fetchers object with only the needed fetcher
 function createMockFetchers (partial: Partial<Fetchers>): Fetchers {

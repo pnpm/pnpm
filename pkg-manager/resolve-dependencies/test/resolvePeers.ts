@@ -1,13 +1,13 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import {
-  type PkgResolutionId,
-  type PeerDependencyIssuesByProjects,
-  type PkgIdWithPatchHash,
-  type ProjectRootDir,
+import type {
+  PkgResolutionId,
+  PeerDependencyIssuesByProjects,
+  PkgIdWithPatchHash,
+  ProjectRootDir,
 } from '@pnpm/types'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
-import { type DependenciesTreeNode, type PeerDependencies } from '../lib/resolveDependencies.js'
-import { type NodeId } from '../lib/nextNodeId.js'
+import type { DependenciesTreeNode, PeerDependencies } from '../lib/resolveDependencies.js'
+import type { NodeId } from '../lib/nextNodeId.js'
 
 test('resolve peer dependencies of cyclic dependencies', async () => {
   const fooPkg = {

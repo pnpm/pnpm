@@ -4,7 +4,7 @@ import path from 'path'
 import { prepare } from '@pnpm/prepare'
 import { getConfig } from '@pnpm/config'
 import { findHash } from '@pnpm/plugin-commands-store-inspecting'
-import { type PnpmError } from '@pnpm/error'
+import type { PnpmError } from '@pnpm/error'
 
 import execa from 'execa'
 import { temporaryDirectory } from 'tempy'

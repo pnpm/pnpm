@@ -16,7 +16,7 @@ import renderHelp from 'render-help'
 import writeYamlFile from 'write-yaml-file'
 import { deployHook } from './deployHook.js'
 import { logger, globalWarn } from '@pnpm/logger'
-import { type Project } from '@pnpm/types'
+import type { Project } from '@pnpm/types'
 import { createDeployFiles } from './createDeployFiles.js'
 
 const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes

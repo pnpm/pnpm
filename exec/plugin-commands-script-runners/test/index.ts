@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import { type PnpmError } from '@pnpm/error'
+import type { PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import {
   restart,

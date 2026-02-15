@@ -15,7 +15,7 @@ import {
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
 import { linkBins } from '@pnpm/link-bins'
-import { type TarballResolution } from '@pnpm/lockfile.types'
+import type { TarballResolution } from '@pnpm/lockfile.types'
 import {
   type LockfileObject,
   nameVerFromPkgSnapshot,
@@ -26,12 +26,12 @@ import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createStoreController } from '@pnpm/store-connection-manager'
-import {
-  type DepPath,
-  type IgnoredBuilds,
-  type ProjectManifest,
-  type ProjectId,
-  type ProjectRootDir,
+import type {
+  DepPath,
+  IgnoredBuilds,
+  ProjectManifest,
+  ProjectId,
+  ProjectRootDir,
 } from '@pnpm/types'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'

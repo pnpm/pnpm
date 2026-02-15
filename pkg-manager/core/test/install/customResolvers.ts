@@ -1,6 +1,6 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage } from '@pnpm/core'
-import { type CustomResolver } from '@pnpm/hooks.types'
+import type { CustomResolver } from '@pnpm/hooks.types'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { testDefaults } from '../utils/index.js'
 

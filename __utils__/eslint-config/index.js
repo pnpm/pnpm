@@ -112,6 +112,10 @@ export default tseslint.config(
       '@typescript-eslint/triple-slash-reference': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/consistent-type-assertions': 'off',
+      // The typescript-eslint docs recommend disabling this rule if
+      // verbatimModuleSyntax is enabled.
+      // https://typescript-eslint.io/rules/consistent-type-imports/
+      '@typescript-eslint/consistent-type-imports': 'off',
       '@typescript-eslint/strict-boolean-expressions': 'off',
       '@typescript-eslint/no-base-to-string': 'off',
       '@typescript-eslint/no-dynamic-delete': 'off',
@@ -142,6 +146,7 @@ export default tseslint.config(
         varsIgnorePattern: '^_',
         caughtErrorsIgnorePattern: '^_',
       }],
+      "@typescript-eslint/no-import-type-side-effects": "error",
 
       // Core ESLint rules
       'no-return-await': 'error',

@@ -3,7 +3,7 @@ import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
 

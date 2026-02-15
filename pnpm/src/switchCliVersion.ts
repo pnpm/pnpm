@@ -1,5 +1,5 @@
 import path from 'path'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { packageManager } from '@pnpm/cli-meta'

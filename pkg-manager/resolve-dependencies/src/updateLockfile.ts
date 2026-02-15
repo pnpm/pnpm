@@ -5,15 +5,15 @@ import {
   type PackageSnapshot,
   pruneSharedLockfile,
 } from '@pnpm/lockfile.pruner'
-import { type Resolution } from '@pnpm/resolver-base'
-import { type DepPath, type Registries } from '@pnpm/types'
+import type { Resolution } from '@pnpm/resolver-base'
+import type { DepPath, Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
-import { type KeyValuePair } from 'ramda'
+import type { KeyValuePair } from 'ramda'
 import { partition } from 'ramda'
 import { depPathToRef } from './depPathToRef.js'
-import { type ResolvedPackage } from './resolveDependencies.js'
-import { type DependenciesGraph } from './index.js'
+import type { ResolvedPackage } from './resolveDependencies.js'
+import type { DependenciesGraph } from './index.js'
 
 export function updateLockfile (
   { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {

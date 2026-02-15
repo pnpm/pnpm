@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { type ReadPackageHook } from '@pnpm/types'
+import type { ReadPackageHook } from '@pnpm/types'
 import { createReadPackageHook } from '../lib/createReadPackageHook.js'
 
 test('createReadPackageHook() is passing directory to all hooks', async () => {

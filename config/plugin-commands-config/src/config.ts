@@ -4,7 +4,7 @@ import renderHelp from 'render-help'
 import { configGet } from './configGet.js'
 import { configSet } from './configSet.js'
 import { configList } from './configList.js'
-import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
+import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {}

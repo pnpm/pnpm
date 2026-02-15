@@ -5,15 +5,15 @@ import {
   statsLogger,
 } from '@pnpm/core-loggers'
 import { filterLockfile, filterLockfileByImporters } from '@pnpm/lockfile.filtering'
-import {
-  type LockfileObject,
-  type PackageSnapshots,
-  type ProjectSnapshot,
+import type {
+  LockfileObject,
+  PackageSnapshots,
+  ProjectSnapshot,
 } from '@pnpm/lockfile.types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { readModulesDir } from '@pnpm/read-modules-dir'
-import { type StoreController } from '@pnpm/store-controller-types'
+import type { StoreController } from '@pnpm/store-controller-types'
 import {
   type DepPath,
   type DependenciesField,

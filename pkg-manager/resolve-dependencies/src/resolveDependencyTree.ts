@@ -1,28 +1,28 @@
 import { PnpmError } from '@pnpm/error'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
-import { type Catalogs } from '@pnpm/catalogs.types'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import { type PatchGroupRecord } from '@pnpm/patching.config'
-import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
-import { type StoreController } from '@pnpm/store-controller-types'
-import {
-  type AllowBuild,
-  type SupportedArchitectures,
-  type AllowedDeprecatedVersions,
-  type PinnedVersion,
-  type PkgResolutionId,
-  type ProjectManifest,
-  type ProjectId,
-  type ReadPackageHook,
-  type Registries,
-  type ProjectRootDir,
-  type PackageVersionPolicy,
-  type TrustPolicy,
+import type { PatchGroupRecord } from '@pnpm/patching.config'
+import type { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolver-base'
+import type { StoreController } from '@pnpm/store-controller-types'
+import type {
+  AllowBuild,
+  SupportedArchitectures,
+  AllowedDeprecatedVersions,
+  PinnedVersion,
+  PkgResolutionId,
+  ProjectManifest,
+  ProjectId,
+  ReadPackageHook,
+  Registries,
+  ProjectRootDir,
+  PackageVersionPolicy,
+  TrustPolicy,
 } from '@pnpm/types'
 import { partition, zipObj } from 'ramda'
-import { type WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getNonDevWantedDependencies.js'
 import { type NodeId, nextNodeId } from './nextNodeId.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import {

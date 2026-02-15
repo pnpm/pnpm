@@ -4,8 +4,8 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, type MutatedProject, mutateModules } from '@pnpm/core'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { sync as readYamlFile } from 'read-yaml-file'
-import { type LockfileFile, type PackageSnapshots } from '@pnpm/lockfile.fs'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { LockfileFile, PackageSnapshots } from '@pnpm/lockfile.fs'
+import type { ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from '../utils/index.js'
 
 test('fix broken lockfile with --fix-lockfile', async () => {

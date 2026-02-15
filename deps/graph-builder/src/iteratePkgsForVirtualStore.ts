@@ -9,11 +9,11 @@ import {
   type HashedDepPath,
   type DepsStateCache,
 } from '@pnpm/calc-dep-state'
-import { type LockfileObject, type PackageSnapshot } from '@pnpm/lockfile.fs'
+import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
+import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 
 interface PkgSnapshotWithLocation {

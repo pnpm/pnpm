@@ -1,5 +1,5 @@
 import path from 'path'
-import { type DepPath, type ProjectId } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 import { jest } from '@jest/globals'
 import { temporaryDirectory } from 'tempy'
 

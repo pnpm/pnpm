@@ -1,6 +1,6 @@
 import prettyMs from 'pretty-ms'
 import { packageManager } from '@pnpm/cli-meta'
-import { type ExecutionTimeLog } from '@pnpm/core-loggers'
+import type { ExecutionTimeLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 

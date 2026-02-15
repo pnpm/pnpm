@@ -1,4 +1,4 @@
-import { type ProjectRootDir, type ProjectsGraph } from '@pnpm/types'
+import type { ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import type { Result as GraphSequencerResult } from '@pnpm/deps.graph-sequencer'
 

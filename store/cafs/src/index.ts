@@ -1,12 +1,12 @@
 import crypto from 'crypto'
-import {
-  type AddToStoreResult,
-  type FileWriteResult,
-  type PackageFiles,
-  type PackageFileInfo,
-  type FilesIndex,
-  type SideEffects,
-  type SideEffectsDiff,
+import type {
+  AddToStoreResult,
+  FileWriteResult,
+  PackageFiles,
+  PackageFileInfo,
+  FilesIndex,
+  SideEffects,
+  SideEffectsDiff,
 } from '@pnpm/cafs-types'
 import { addFilesFromDir } from './addFilesFromDir.js'
 import { addFilesFromTarball } from './addFilesFromTarball.js'

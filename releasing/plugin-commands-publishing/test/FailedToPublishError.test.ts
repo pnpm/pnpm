@@ -1,4 +1,4 @@
-import { type PackResult } from '../src/pack.js'
+import type { PackResult } from '../src/pack.js'
 import { type FailedToPublishError, createFailedToPublishError } from '../src/FailedToPublishError.js'
 
 const pack = (): PackResult => ({

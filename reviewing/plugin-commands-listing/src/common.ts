@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type Finder, type IncludedDependencies } from '@pnpm/types'
+import type { Finder, IncludedDependencies } from '@pnpm/types'
 
 export type ReportAs = 'parseable' | 'json' | 'tree'
 

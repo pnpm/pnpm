@@ -1,6 +1,6 @@
 import path from 'path'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
 import { jest } from '@jest/globals'

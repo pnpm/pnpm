@@ -1,7 +1,7 @@
 import { hoist } from '@pnpm/real-hoist'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectId } from '@pnpm/types'
+import type { ProjectId } from '@pnpm/types'
 
 const f = fixtures(import.meta.dirname)
 

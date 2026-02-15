@@ -1,4 +1,4 @@
-import { type SupportedArchitectures } from '@pnpm/types'
+import type { SupportedArchitectures } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { filterPkgsBySelectorObjects, type PackageSelector, type ReadProjectsResult } from '@pnpm/filter-workspace-packages'

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { prepare } from '@pnpm/prepare'
 import { execPnpmSync } from '../utils/index.js'
 

@@ -1,6 +1,6 @@
 import path from 'path'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { type LockfileFile } from '@pnpm/lockfile.types'
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import { install, remove } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { sync as readYamlFile } from 'read-yaml-file'

@@ -1,13 +1,13 @@
-import {
-  type PackageManifestLog,
-  type StatsLog,
+import type {
+  PackageManifestLog,
+  StatsLog,
 } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import sinon from 'sinon'
 import { testDefaults } from './../utils/index.js'
 

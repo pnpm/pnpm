@@ -6,10 +6,10 @@ import {
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import {
-  type LockfileObject,
-  type PackageSnapshot,
-  type ResolvedDependencies,
+import type {
+  LockfileObject,
+  PackageSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile.types'
 import {
   nameVerFromPkgSnapshot,
@@ -25,28 +25,28 @@ import {
   type WorkspacePackages,
   type PkgResolutionId,
 } from '@pnpm/resolver-base'
-import {
-  type PkgRequestFetchResult,
-  type PackageResponse,
-  type StoreController,
+import type {
+  PkgRequestFetchResult,
+  PackageResponse,
+  StoreController,
 } from '@pnpm/store-controller-types'
-import {
-  type AllowBuild,
-  type DepPath,
-  type SupportedArchitectures,
-  type AllowedDeprecatedVersions,
-  type PackageManifest,
-  type ReadPackageHook,
-  type Registries,
-  type PkgIdWithPatchHash,
-  type PinnedVersion,
-  type PackageVersionPolicy,
-  type TrustPolicy,
+import type {
+  AllowBuild,
+  DepPath,
+  SupportedArchitectures,
+  AllowedDeprecatedVersions,
+  PackageManifest,
+  ReadPackageHook,
+  Registries,
+  PkgIdWithPatchHash,
+  PinnedVersion,
+  PackageVersionPolicy,
+  TrustPolicy,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
-import { type PatchInfo } from '@pnpm/patching.types'
+import type { PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
 import { pathExists } from 'path-exists'
 import pDefer from 'p-defer'
@@ -60,7 +60,7 @@ import { type NodeId, nextNodeId } from './nextNodeId.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers.js'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable.js'
-import { type CatalogLookupMetadata } from './resolveDependencyTree.js'
+import type { CatalogLookupMetadata } from './resolveDependencyTree.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
 
 export type { WantedDependency }

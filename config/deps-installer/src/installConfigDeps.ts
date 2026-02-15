@@ -3,8 +3,8 @@ import { installingConfigDepsLogger } from '@pnpm/core-loggers'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import rimraf from '@zkochan/rimraf'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type StoreController } from '@pnpm/package-store'
-import { type ConfigDependencies, type Registries } from '@pnpm/types'
+import type { StoreController } from '@pnpm/package-store'
+import type { ConfigDependencies, Registries } from '@pnpm/types'
 import { normalizeConfigDeps } from './normalizeConfigDeps.js'
 
 export interface InstallConfigDepsOpts {

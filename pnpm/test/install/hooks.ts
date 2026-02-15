@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { type LockfileFile } from '@pnpm/lockfile.types'
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'

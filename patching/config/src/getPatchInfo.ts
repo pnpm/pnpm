@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type ExtendedPatchInfo, type PatchGroupRangeItem, type PatchGroupRecord } from '@pnpm/patching.types'
+import type { ExtendedPatchInfo, PatchGroupRangeItem, PatchGroupRecord } from '@pnpm/patching.types'
 import { satisfies } from 'semver'
 
 class PatchKeyConflictError extends PnpmError {

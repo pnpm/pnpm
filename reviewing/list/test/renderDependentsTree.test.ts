@@ -1,6 +1,6 @@
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import { renderDependentsTree, renderDependentsJson, renderDependentsParseable } from '../lib/renderDependentsTree.js'
-import { type DependentsTree } from '@pnpm/reviewing.dependencies-hierarchy'
+import type { DependentsTree } from '@pnpm/reviewing.dependencies-hierarchy'
 
 // Shared fixture: target → mid-a → root-project (2 levels of dependents)
 function deepTree (): DependentsTree[] {

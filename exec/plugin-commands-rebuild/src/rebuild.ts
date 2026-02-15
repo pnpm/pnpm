@@ -1,12 +1,12 @@
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { type LogBase } from '@pnpm/logger'
+import type { LogBase } from '@pnpm/logger'
 import {
   createStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import {

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { prepare } from '@pnpm/prepare'
-import { type PackageManifest, type ProjectManifest } from '@pnpm/types'
+import type { PackageManifest, ProjectManifest } from '@pnpm/types'
 import PATH from 'path-name'
 import { loadJsonFileSync } from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
