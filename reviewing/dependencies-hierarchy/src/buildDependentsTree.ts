@@ -23,10 +23,10 @@ interface ReverseEdge {
   alias: string
 }
 
-export interface WhyDependant {
+export interface Dependent {
   name: string
   version: string
-  dependants?: WhyDependant[]
+  dependents?: Dependent[]
   circular?: true
   deduped?: true
   /** Short hash distinguishing peer-dep variants of the same name@version */
@@ -35,7 +35,7 @@ export interface WhyDependant {
   depField?: DependenciesField
 }
 
-export interface WhyPackageResult {
+export interface DependentsTree {
   name: string
   version: string
   /** Resolved filesystem path to this package */
@@ -44,43 +44,12 @@ export interface WhyPackageResult {
   peersSuffixHash?: string
   /** Message returned by the finder function, if any */
   searchMessage?: string
-  dependants: WhyDependant[]
+  dependents: Dependent[]
 }
 
 export interface ImporterInfo {
   name: string
   version: string
-}
-
-function invertGraph (graph: DependencyGraph): Map<string, ReverseEdge[]> {
-  const reverse = new Map<string, ReverseEdge[]>()
-  for (const [parentSerialized, node] of graph.nodes) {
-    for (const edge of node.edges) {
-      if (edge.target == null) continue
-      const childSerialized = edge.target.id
-      let entries = reverse.get(childSerialized)
-      if (entries == null) {
-        entries = []
-        reverse.set(childSerialized, entries)
-      }
-      entries.push({
-        parentSerialized,
-        parentNodeId: node.nodeId,
-        alias: edge.alias,
-      })
-    }
-  }
-  return reverse
-}
-
-function getDepFieldForAlias (
-  alias: string,
-  importerSnapshot: ProjectSnapshot
-): DependenciesField | undefined {
-  if (importerSnapshot.devDependencies?.[alias] != null) return 'devDependencies'
-  if (importerSnapshot.optionalDependencies?.[alias] != null) return 'optionalDependencies'
-  if (importerSnapshot.dependencies?.[alias] != null) return 'dependencies'
-  return undefined
 }
 
 interface WalkContext {
@@ -95,99 +64,7 @@ interface WalkContext {
   expanded: Set<string>
 }
 
-function resolveParentName (edge: ReverseEdge, ctx: WalkContext): string {
-  const graphNode = ctx.graph.nodes.get(edge.parentSerialized)
-  if (graphNode == null) return ''
-  if (graphNode.nodeId.type === 'importer') {
-    const info = ctx.importerInfoMap.get(graphNode.nodeId.importerId)
-    return info?.name ?? graphNode.nodeId.importerId
-  }
-  const snapshot = ctx.currentPackages[graphNode.nodeId.depPath]
-  if (snapshot == null) return ''
-  return nameVerFromPkgSnapshot(graphNode.nodeId.depPath, snapshot).name
-}
-
-function walkReverse (
-  nodeId: string,
-  ctx: WalkContext
-): WhyDependant[] {
-  const reverseEdges = ctx.reverseMap.get(nodeId)
-  if (reverseEdges == null || reverseEdges.length === 0) return []
-
-  // Sort edges by parent name so that deduplication is deterministic:
-  // the alphabetically-first parent always gets fully expanded.
-  const sortedEdges = [...reverseEdges].sort((a, b) =>
-    lexCompare(resolveParentName(a, ctx), resolveParentName(b, ctx))
-  )
-
-  const dependants: WhyDependant[] = []
-
-  for (const edge of sortedEdges) {
-    // Cycle detection: this node is already on our current path
-    if (ctx.visited.has(edge.parentSerialized)) {
-      const parentNode = ctx.graph.nodes.get(edge.parentSerialized)
-      if (parentNode?.nodeId.type === 'importer') {
-        const info = ctx.importerInfoMap.get(parentNode.nodeId.importerId)
-        if (info) {
-          dependants.push({
-            name: info.name,
-            version: info.version,
-            circular: true,
-          })
-        }
-      } else if (parentNode?.nodeId.type === 'package') {
-        const snapshot = ctx.currentPackages[parentNode.nodeId.depPath]
-        if (snapshot) {
-          const { name, version } = nameVerFromPkgSnapshot(parentNode.nodeId.depPath, snapshot)
-          dependants.push({ name, version, circular: true })
-        }
-      }
-      continue
-    }
-
-    const parentGraphNode = ctx.graph.nodes.get(edge.parentSerialized)
-    if (parentGraphNode == null) continue
-
-    if (parentGraphNode.nodeId.type === 'importer') {
-      const importerId = parentGraphNode.nodeId.importerId
-      const info = ctx.importerInfoMap.get(importerId)!
-      const depField = getDepFieldForAlias(edge.alias, ctx.importers[importerId])
-      dependants.push({
-        name: info.name,
-        version: info.version,
-        depField,
-      })
-    } else if (parentGraphNode.nodeId.type === 'package') {
-      const snapshot = ctx.currentPackages[parentGraphNode.nodeId.depPath]
-      if (snapshot == null) continue
-      const { name, version } = nameVerFromPkgSnapshot(parentGraphNode.nodeId.depPath, snapshot)
-      const peerHash = peersSuffixHashFromDepPath(parentGraphNode.nodeId.depPath)
-
-      // Deduplication: if this package was already expanded elsewhere in the
-      // tree, show it as a leaf to keep the output bounded.
-      if (ctx.expanded.has(edge.parentSerialized)) {
-        dependants.push({ name, version, peersSuffixHash: peerHash, deduped: true })
-        continue
-      }
-
-      ctx.visited.add(edge.parentSerialized)
-      ctx.expanded.add(edge.parentSerialized)
-      const childDependants = walkReverse(edge.parentSerialized, ctx)
-      ctx.visited.delete(edge.parentSerialized)
-
-      dependants.push({
-        name,
-        version,
-        peersSuffixHash: peerHash,
-        dependants: childDependants.length > 0 ? childDependants : undefined,
-      })
-    }
-  }
-
-  return dependants
-}
-
-export async function buildWhyTrees (
+export async function buildDependentsTree (
   packages: string[],
   projectPaths: string[],
   opts: {
@@ -198,7 +75,7 @@ export async function buildWhyTrees (
     finders?: Finder[]
     importerInfoMap: Map<string, ImporterInfo>
   }
-): Promise<WhyPackageResult[]> {
+): Promise<DependentsTree[]> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
   const modules = await readModulesManifest(modulesDir)
   const internalPnpmDir = path.join(modulesDir, '.pnpm')
@@ -253,7 +130,7 @@ export async function buildWhyTrees (
   // edges in the graph) or its canonical name match the search query.
   // Each distinct depPath (i.e. different peer dep resolutions) is kept as a
   // separate result so that peer variants are visible in the output.
-  const results: WhyPackageResult[] = []
+  const results: DependentsTree[] = []
 
   for (const [serialized, node] of graph.nodes) {
     if (node.nodeId.type !== 'package') continue
@@ -298,9 +175,9 @@ export async function buildWhyTrees (
       visited: new Set([serialized]),
       expanded: new Set(),
     }
-    const dependants = walkReverse(serialized, ctx)
+    const dependents = walkReverse(serialized, ctx)
 
-    const result: WhyPackageResult = { name, version, path: resolvedPackageNodes.get(serialized)?.path, peersSuffixHash: peerHash, dependants }
+    const result: DependentsTree = { name, version, path: resolvedPackageNodes.get(serialized)?.path, peersSuffixHash: peerHash, dependents }
     if (typeof matched === 'string') {
       result.searchMessage = matched
     }
@@ -309,6 +186,27 @@ export async function buildWhyTrees (
 
   results.sort((a, b) => lexCompare(a.name, b.name))
   return results
+}
+
+function invertGraph (graph: DependencyGraph): Map<string, ReverseEdge[]> {
+  const reverse = new Map<string, ReverseEdge[]>()
+  for (const [parentSerialized, node] of graph.nodes) {
+    for (const edge of node.edges) {
+      if (edge.target == null) continue
+      const childSerialized = edge.target.id
+      let entries = reverse.get(childSerialized)
+      if (entries == null) {
+        entries = []
+        reverse.set(childSerialized, entries)
+      }
+      entries.push({
+        parentSerialized,
+        parentNodeId: node.nodeId,
+        alias: edge.alias,
+      })
+    }
+  }
+  return reverse
 }
 
 /**
@@ -369,4 +267,106 @@ function resolvePackageNodes (
   }
 
   return resolved
+}
+
+function walkReverse (
+  nodeId: string,
+  ctx: WalkContext
+): Dependent[] {
+  const reverseEdges = ctx.reverseMap.get(nodeId)
+  if (reverseEdges == null || reverseEdges.length === 0) return []
+
+  // Sort edges by parent name so that deduplication is deterministic:
+  // the alphabetically-first parent always gets fully expanded.
+  const sortedEdges = [...reverseEdges].sort((a, b) =>
+    lexCompare(resolveParentName(a, ctx), resolveParentName(b, ctx))
+  )
+
+  const dependents: Dependent[] = []
+
+  for (const edge of sortedEdges) {
+    // Cycle detection: this node is already on our current path
+    if (ctx.visited.has(edge.parentSerialized)) {
+      const parentNode = ctx.graph.nodes.get(edge.parentSerialized)
+      if (parentNode?.nodeId.type === 'importer') {
+        const info = ctx.importerInfoMap.get(parentNode.nodeId.importerId)
+        if (info) {
+          dependents.push({
+            name: info.name,
+            version: info.version,
+            circular: true,
+          })
+        }
+      } else if (parentNode?.nodeId.type === 'package') {
+        const snapshot = ctx.currentPackages[parentNode.nodeId.depPath]
+        if (snapshot) {
+          const { name, version } = nameVerFromPkgSnapshot(parentNode.nodeId.depPath, snapshot)
+          dependents.push({ name, version, circular: true })
+        }
+      }
+      continue
+    }
+
+    const parentGraphNode = ctx.graph.nodes.get(edge.parentSerialized)
+    if (parentGraphNode == null) continue
+
+    if (parentGraphNode.nodeId.type === 'importer') {
+      const importerId = parentGraphNode.nodeId.importerId
+      const info = ctx.importerInfoMap.get(importerId)!
+      const depField = getDepFieldForAlias(edge.alias, ctx.importers[importerId])
+      dependents.push({
+        name: info.name,
+        version: info.version,
+        depField,
+      })
+    } else if (parentGraphNode.nodeId.type === 'package') {
+      const snapshot = ctx.currentPackages[parentGraphNode.nodeId.depPath]
+      if (snapshot == null) continue
+      const { name, version } = nameVerFromPkgSnapshot(parentGraphNode.nodeId.depPath, snapshot)
+      const peerHash = peersSuffixHashFromDepPath(parentGraphNode.nodeId.depPath)
+
+      // Deduplication: if this package was already expanded elsewhere in the
+      // tree, show it as a leaf to keep the output bounded.
+      if (ctx.expanded.has(edge.parentSerialized)) {
+        dependents.push({ name, version, peersSuffixHash: peerHash, deduped: true })
+        continue
+      }
+
+      ctx.visited.add(edge.parentSerialized)
+      ctx.expanded.add(edge.parentSerialized)
+      const childDependents = walkReverse(edge.parentSerialized, ctx)
+      ctx.visited.delete(edge.parentSerialized)
+
+      dependents.push({
+        name,
+        version,
+        peersSuffixHash: peerHash,
+        dependents: childDependents.length > 0 ? childDependents : undefined,
+      })
+    }
+  }
+
+  return dependents
+}
+
+function resolveParentName (edge: ReverseEdge, ctx: WalkContext): string {
+  const graphNode = ctx.graph.nodes.get(edge.parentSerialized)
+  if (graphNode == null) return ''
+  if (graphNode.nodeId.type === 'importer') {
+    const info = ctx.importerInfoMap.get(graphNode.nodeId.importerId)
+    return info?.name ?? graphNode.nodeId.importerId
+  }
+  const snapshot = ctx.currentPackages[graphNode.nodeId.depPath]
+  if (snapshot == null) return ''
+  return nameVerFromPkgSnapshot(graphNode.nodeId.depPath, snapshot).name
+}
+
+function getDepFieldForAlias (
+  alias: string,
+  importerSnapshot: ProjectSnapshot
+): DependenciesField | undefined {
+  if (importerSnapshot.devDependencies?.[alias] != null) return 'devDependencies'
+  if (importerSnapshot.optionalDependencies?.[alias] != null) return 'optionalDependencies'
+  if (importerSnapshot.dependencies?.[alias] != null) return 'dependencies'
+  return undefined
 }

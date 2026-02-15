@@ -46,9 +46,9 @@ test('"why" should show reverse dependency tree for a non-direct dependency', as
   const lines = stripAnsi(output).split('\n')
   // Root is the searched package
   expect(lines[0]).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0')
-  // It should show project@0.0.0 as a direct dependant
+  // It should show project@0.0.0 as a direct dependent
   expect(lines.some(l => l.includes('project@0.0.0'))).toBe(true)
-  // It should show @pnpm.e2e/pkg-with-1-dep as a dependant (transitive path)
+  // It should show @pnpm.e2e/pkg-with-1-dep as a dependent (transitive path)
   expect(lines.some(l => l.includes('@pnpm.e2e/pkg-with-1-dep@100.0.0'))).toBe(true)
 })
 

@@ -2,7 +2,7 @@ import path from 'path'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { type DependenciesField, type Registries, type Finder } from '@pnpm/types'
-import { type PackageNode, buildDependenciesHierarchy, type DependenciesHierarchy, createPackagesSearcher, buildWhyTrees, type ImporterInfo } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type PackageNode, buildDependenciesTree, type DependenciesTree, createPackagesSearcher, buildDependentsTree, type ImporterInfo } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderJson } from './renderJson.js'
 import { renderParseable } from './renderParseable.js'
 import { renderTree } from './renderTree.js'
@@ -74,7 +74,7 @@ export async function searchForPackages (
   const search = createPackagesSearcher(packages, opts.finders)
 
   return Promise.all(
-    Object.entries(await buildDependenciesHierarchy(projectPaths, {
+    Object.entries(await buildDependenciesTree(projectPaths, {
       depth: opts.depth,
       excludePeerDependencies: opts.excludePeerDependencies,
       include: opts.include,
@@ -87,7 +87,7 @@ export async function searchForPackages (
       modulesDir: opts.modulesDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }))
-      .map(async ([projectPath, buildDependenciesHierarchy]) => {
+      .map(async ([projectPath, buildDependenciesTree]) => {
         const entryPkg = await safeReadProjectManifestOnly(projectPath) ?? {}
         return {
           name: entryPkg.name,
@@ -95,7 +95,7 @@ export async function searchForPackages (
           private: entryPkg.private,
 
           path: projectPath,
-          ...buildDependenciesHierarchy,
+          ...buildDependenciesTree,
         } as PackageDependencyHierarchy
       })
   )
@@ -163,8 +163,8 @@ export async function list (
         ? projectPaths.reduce((acc, projectPath) => {
           acc[projectPath] = {}
           return acc
-        }, {} as Record<string, DependenciesHierarchy>)
-        : await buildDependenciesHierarchy(projectPaths, {
+        }, {} as Record<string, DependenciesTree>)
+        : await buildDependenciesTree(projectPaths, {
           depth: opts.depth,
           excludePeerDependencies: maybeOpts?.excludePeerDependencies,
           include: maybeOpts?.include,
@@ -252,7 +252,7 @@ export async function whyForPackages (
     }
   }
 
-  const results = await buildWhyTrees(packages, projectPaths, {
+  const results = await buildDependentsTree(packages, projectPaths, {
     lockfileDir: opts.lockfileDir,
     include: opts.include,
     modulesDir: opts.modulesDir,

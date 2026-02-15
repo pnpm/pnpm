@@ -1,4 +1,4 @@
-import { type WhyPackageResult, type WhyDependant } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type DependentsTree, type Dependent } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
 import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
@@ -8,7 +8,7 @@ function plainNameAtVersion (name: string, version: string): string {
   return version ? `${name}@${version}` : name
 }
 
-export async function renderWhyTree (results: WhyPackageResult[], opts: { long: boolean }): Promise<string> {
+export async function renderWhyTree (results: DependentsTree[], opts: { long: boolean }): Promise<string> {
   if (results.length === 0) return ''
 
   const multiPeerPkgs = findMultiPeerPackages(results)
@@ -34,10 +34,10 @@ export async function renderWhyTree (results: WhyPackageResult[], opts: { long: 
         rootLabelParts.push(pkg.path)
       }
       const rootLabel = rootLabelParts.join('\n')
-      if (result.dependants.length === 0) {
+      if (result.dependents.length === 0) {
         return rootLabel
       }
-      const childNodes = dependantsToTreeNodes(result.dependants, multiPeerPkgs)
+      const childNodes = dependentsToTreeNodes(result.dependents, multiPeerPkgs)
       const tree: TreeNode = { label: rootLabel, nodes: childNodes }
       return renderArchyTree(tree, { treeChars: chalk.dim }).replace(/\n+$/, '')
     }))
@@ -47,7 +47,7 @@ export async function renderWhyTree (results: WhyPackageResult[], opts: { long: 
   return summary ? `${trees}\n\n${summary}` : trees
 }
 
-function whySummary (results: WhyPackageResult[]): string {
+function whySummary (results: DependentsTree[]): string {
   if (results.length === 0) return ''
   const versions = new Set(results.map(r => r.version))
   const parts: string[] = [`${versions.size} version${versions.size === 1 ? '' : 's'}`]
@@ -57,28 +57,28 @@ function whySummary (results: WhyPackageResult[]): string {
   return chalk.dim(`Found ${parts.join(', ')} of ${results[0].name}`)
 }
 
-function findMultiPeerPackages (results: WhyPackageResult[]): Map<string, number> {
+function findMultiPeerPackages (results: DependentsTree[]): Map<string, number> {
   const hashesPerPkg = new Map<string, Set<string>>()
 
-  function walkDependants (dependants: WhyDependant[]): void {
-    for (const dep of dependants) {
+  function walkDependents (dependents: Dependent[]): void {
+    for (const dep of dependents) {
       collectHashes(hashesPerPkg, dep.name, dep.version, dep.peersSuffixHash)
-      if (dep.dependants) {
-        walkDependants(dep.dependants)
+      if (dep.dependents) {
+        walkDependents(dep.dependents)
       }
     }
   }
 
   for (const result of results) {
     collectHashes(hashesPerPkg, result.name, result.version, result.peersSuffixHash)
-    walkDependants(result.dependants)
+    walkDependents(result.dependents)
   }
 
   return filterMultiPeerEntries(hashesPerPkg)
 }
 
-function dependantsToTreeNodes (dependants: WhyDependant[], multiPeerPkgs: Map<string, number>): TreeNode[] {
-  return dependants.map((dep) => {
+function dependentsToTreeNodes (dependents: Dependent[], multiPeerPkgs: Map<string, number>): TreeNode[] {
+  return dependents.map((dep) => {
     let label: string
     if (dep.depField != null) {
       // This is an importer (leaf node)
@@ -95,12 +95,12 @@ function dependantsToTreeNodes (dependants: WhyDependant[], multiPeerPkgs: Map<s
       label += DEDUPED_LABEL
     }
 
-    const nodes = dep.dependants ? dependantsToTreeNodes(dep.dependants, multiPeerPkgs) : []
+    const nodes = dep.dependents ? dependentsToTreeNodes(dep.dependents, multiPeerPkgs) : []
     return { label, nodes }
   })
 }
 
-export async function renderWhyJson (results: WhyPackageResult[], opts: { long: boolean }): Promise<string> {
+export async function renderWhyJson (results: DependentsTree[], opts: { long: boolean }): Promise<string> {
   if (!opts.long) {
     return JSON.stringify(results, null, 2)
   }
@@ -117,22 +117,22 @@ export async function renderWhyJson (results: WhyPackageResult[], opts: { long: 
   return JSON.stringify(enriched, null, 2)
 }
 
-export function renderWhyParseable (results: WhyPackageResult[], opts: { long: boolean }): string {
+export function renderWhyParseable (results: DependentsTree[], opts: { long: boolean }): string {
   const lines: string[] = []
   for (const result of results) {
     const rootSegment = opts.long && result.path
       ? `${result.path}:${plainNameAtVersion(result.name, result.version)}`
       : plainNameAtVersion(result.name, result.version)
-    collectPaths(result.dependants, [rootSegment], lines)
+    collectPaths(result.dependents, [rootSegment], lines)
   }
   return lines.join('\n')
 }
 
-function collectPaths (dependants: WhyDependant[], currentPath: string[], lines: string[]): void {
-  for (const dep of dependants) {
+function collectPaths (dependents: Dependent[], currentPath: string[], lines: string[]): void {
+  for (const dep of dependents) {
     const newPath = [...currentPath, plainNameAtVersion(dep.name, dep.version)]
-    if (dep.dependants && dep.dependants.length > 0) {
-      collectPaths(dep.dependants, newPath, lines)
+    if (dep.dependents && dep.dependents.length > 0) {
+      collectPaths(dep.dependents, newPath, lines)
     } else {
       // Leaf node (importer) — reverse to show importer first
       lines.push([...newPath].reverse().join(' > '))

@@ -1,15 +1,15 @@
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import { renderWhyTree, renderWhyJson, renderWhyParseable } from '../lib/renderWhyTree.js'
-import { type WhyPackageResult } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type DependentsTree } from '@pnpm/reviewing.dependencies-hierarchy'
 
 describe('renderWhyTree', () => {
   test('renders searchMessage below the root label', async () => {
-    const results: WhyPackageResult[] = [
+    const results: DependentsTree[] = [
       {
         name: 'foo',
         version: '1.0.0',
         searchMessage: 'Matched by custom finder',
-        dependants: [
+        dependents: [
           { name: 'my-project', version: '0.0.0', depField: 'dependencies' },
         ],
       },
@@ -22,16 +22,16 @@ describe('renderWhyTree', () => {
     expect(lines[0]).toContain('foo@1.0.0')
     // Search message should appear on a subsequent line
     expect(lines.some(l => l.includes('Matched by custom finder'))).toBe(true)
-    // Dependant should still be rendered
+    // Dependent should still be rendered
     expect(lines.some(l => l.includes('my-project@0.0.0'))).toBe(true)
   })
 
   test('does not render extra line when searchMessage is undefined', async () => {
-    const results: WhyPackageResult[] = [
+    const results: DependentsTree[] = [
       {
         name: 'foo',
         version: '1.0.0',
-        dependants: [
+        dependents: [
           { name: 'my-project', version: '0.0.0', depField: 'dependencies' },
         ],
       },
@@ -46,13 +46,13 @@ describe('renderWhyTree', () => {
     expect(lines[1]).toContain('my-project')
   })
 
-  test('renders package with no dependants and a searchMessage', async () => {
-    const results: WhyPackageResult[] = [
+  test('renders package with no dependents and a searchMessage', async () => {
+    const results: DependentsTree[] = [
       {
         name: 'bar',
         version: '2.0.0',
         searchMessage: 'Found via license check',
-        dependants: [],
+        dependents: [],
       },
     ]
 
@@ -66,12 +66,12 @@ describe('renderWhyTree', () => {
 
 describe('renderWhyJson', () => {
   test('includes searchMessage in JSON output', async () => {
-    const results: WhyPackageResult[] = [
+    const results: DependentsTree[] = [
       {
         name: 'foo',
         version: '1.0.0',
         searchMessage: 'Matched by custom finder',
-        dependants: [
+        dependents: [
           { name: 'my-project', version: '0.0.0', depField: 'dependencies' },
         ],
       },
@@ -83,11 +83,11 @@ describe('renderWhyJson', () => {
   })
 
   test('does not include searchMessage when undefined', async () => {
-    const results: WhyPackageResult[] = [
+    const results: DependentsTree[] = [
       {
         name: 'foo',
         version: '1.0.0',
-        dependants: [],
+        dependents: [],
       },
     ]
 
@@ -98,12 +98,12 @@ describe('renderWhyJson', () => {
 
 describe('renderWhyParseable', () => {
   test('renders parseable output with searchMessage result', () => {
-    const results: WhyPackageResult[] = [
+    const results: DependentsTree[] = [
       {
         name: 'dep-a',
         version: '1.0.0',
         searchMessage: 'Found via custom check',
-        dependants: [
+        dependents: [
           { name: 'my-project', version: '0.0.0', depField: 'dependencies' },
         ],
       },

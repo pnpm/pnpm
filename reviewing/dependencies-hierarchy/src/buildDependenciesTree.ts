@@ -21,14 +21,14 @@ import { buildDependencyGraph } from './buildDependencyGraph.js'
 import { getTree, type BaseTreeOpts, type MaterializationCache } from './getTree.js'
 import { type TreeNodeId } from './TreeNodeId.js'
 
-export interface DependenciesHierarchy {
+export interface DependenciesTree {
   dependencies?: PackageNode[]
   devDependencies?: PackageNode[]
   optionalDependencies?: PackageNode[]
   unsavedDependencies?: PackageNode[]
 }
 
-export async function buildDependenciesHierarchy (
+export async function buildDependenciesTree (
   projectPaths: string[] | undefined,
   maybeOpts: {
     depth: number
@@ -43,7 +43,7 @@ export async function buildDependenciesHierarchy (
     modulesDir?: string
     virtualStoreDirMaxLength: number
   }
-): Promise<{ [projectDir: string]: DependenciesHierarchy }> {
+): Promise<{ [projectDir: string]: DependenciesTree }> {
   if (!maybeOpts?.lockfileDir) {
     throw new TypeError('opts.lockfileDir is required')
   }
@@ -61,7 +61,7 @@ export async function buildDependenciesHierarchy (
       .map((id) => path.join(maybeOpts.lockfileDir, id))
   }
 
-  const result = {} as { [projectDir: string]: DependenciesHierarchy }
+  const result = {} as { [projectDir: string]: DependenciesTree }
 
   const lockfileToUse = maybeOpts.checkWantedLockfileOnly ? wantedLockfile : currentLockfile
 
@@ -125,7 +125,7 @@ export async function buildDependenciesHierarchy (
     return [
       projectPath,
       await getHierarchy(projectPath),
-    ] as [string, DependenciesHierarchy]
+    ] as [string, DependenciesTree]
   }))
   for (const [projectPath, dependenciesHierarchy] of pairs) {
     result[projectPath] = dependenciesHierarchy
@@ -143,7 +143,7 @@ interface HierarchyContext extends BaseTreeOpts {
 async function dependenciesHierarchyForPackage (
   opts: HierarchyContext,
   projectPath: string
-): Promise<DependenciesHierarchy> {
+): Promise<DependenciesTree> {
   const { currentLockfile, wantedLockfile } = opts
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
 
@@ -157,7 +157,7 @@ async function dependenciesHierarchyForPackage (
   const wantedPackages = wantedLockfile?.packages ?? {}
 
   // Build a map from alias → dependency field for post-categorization.
-  const result: DependenciesHierarchy = {}
+  const result: DependenciesTree = {}
   const fieldMap = new Map<string, DependenciesField>()
   for (const field of DEPENDENCIES_FIELDS.sort().filter(f => opts.include[f])) {
     result[field] = []
