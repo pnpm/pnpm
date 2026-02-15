@@ -83,6 +83,49 @@ describe('renderDependentsTree', () => {
     expect(withDepth).toContain('mid-a@2.0.0')
   })
 
+  test('renders displayName instead of name when provided', async () => {
+    const results: DependentsTree[] = [
+      {
+        name: 'foo',
+        displayName: 'my-component',
+        version: '1.0.0',
+        dependents: [
+          {
+            name: 'bar',
+            displayName: 'other-component',
+            version: '2.0.0',
+            dependents: [
+              { name: 'my-project', version: '0.0.0', depField: 'dependencies' },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const output = stripAnsi(await renderDependentsTree(results, { long: false }))
+    expect(output).toContain('my-component@1.0.0')
+    expect(output).not.toContain('foo@1.0.0')
+    expect(output).toContain('other-component@2.0.0')
+    expect(output).not.toContain('bar@2.0.0')
+    // Importer without displayName should still render its name
+    expect(output).toContain('my-project@0.0.0')
+  })
+
+  test('falls back to name when displayName is undefined', async () => {
+    const results: DependentsTree[] = [
+      {
+        name: 'foo',
+        version: '1.0.0',
+        dependents: [
+          { name: 'my-project', version: '0.0.0', depField: 'dependencies' },
+        ],
+      },
+    ]
+
+    const output = stripAnsi(await renderDependentsTree(results, { long: false }))
+    expect(output).toContain('foo@1.0.0')
+  })
+
   test('renders package with no dependents and a searchMessage', async () => {
     const results: DependentsTree[] = [
       {
@@ -175,6 +218,26 @@ describe('whySummary', () => {
     expect(output).toContain('Found 2 versions of bar')
   })
 
+  test('summary uses displayName when provided', async () => {
+    const results: DependentsTree[] = [
+      {
+        name: 'foo',
+        displayName: 'my-component',
+        version: '1.0.0',
+        dependents: [{ name: 'my-project', version: '0.0.0', depField: 'dependencies' }],
+      },
+      {
+        name: 'foo',
+        displayName: 'my-component',
+        version: '2.0.0',
+        dependents: [{ name: 'my-project', version: '0.0.0', depField: 'dependencies' }],
+      },
+    ]
+    const output = stripAnsi(await renderDependentsTree(results, { long: false }))
+    expect(output).toContain('Found 2 versions of my-component')
+    expect(output).not.toContain('Found 2 versions of foo')
+  })
+
   test('empty results produce no summary', async () => {
     const output = await renderDependentsTree([], { long: false })
     expect(output).toBe('')
@@ -222,6 +285,34 @@ describe('renderDependentsJson', () => {
     expect(midA.dependents[0].name).toBe('root-project')
   })
 
+  test('includes displayName in JSON output', async () => {
+    const results: DependentsTree[] = [
+      {
+        name: 'foo',
+        displayName: 'my-component',
+        version: '1.0.0',
+        dependents: [
+          {
+            name: 'bar',
+            displayName: 'other-component',
+            version: '2.0.0',
+            dependents: [
+              { name: 'my-project', version: '0.0.0', depField: 'dependencies' },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const parsed = JSON.parse(await renderDependentsJson(results, { long: false }))
+    expect(parsed[0].name).toBe('foo')
+    expect(parsed[0].displayName).toBe('my-component')
+    expect(parsed[0].dependents[0].name).toBe('bar')
+    expect(parsed[0].dependents[0].displayName).toBe('other-component')
+    // Nodes without displayName should not have the field
+    expect(parsed[0].dependents[0].dependents[0].displayName).toBeUndefined()
+  })
+
   test('does not include searchMessage when undefined', async () => {
     const results: DependentsTree[] = [
       {
@@ -256,6 +347,31 @@ describe('renderDependentsParseable', () => {
     expect(lines).toHaveLength(2)
     expect(lines.some(l => l === 'root-project@0.0.0 > mid-a@2.0.0 > target@1.0.0')).toBe(true)
     expect(lines.some(l => l === 'root-project@0.0.0 > target@1.0.0')).toBe(true)
+  })
+
+  test('uses displayName in parseable output', () => {
+    const results: DependentsTree[] = [
+      {
+        name: 'foo',
+        displayName: 'my-component',
+        version: '1.0.0',
+        dependents: [
+          {
+            name: 'bar',
+            displayName: 'other-component',
+            version: '2.0.0',
+            dependents: [
+              { name: 'my-project', version: '0.0.0', depField: 'dependencies' },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const output = renderDependentsParseable(results, { long: false })
+    const lines = output.split('\n')
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toBe('my-project@0.0.0 > other-component@2.0.0 > my-component@1.0.0')
   })
 
   test('renders parseable output with searchMessage result', () => {
