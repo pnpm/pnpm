@@ -10,7 +10,15 @@ import { renderDependentsTree, renderDependentsJson, renderDependentsParseable }
 import { type PackageDependencyHierarchy } from './types.js'
 
 export type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
-export { renderJson, renderParseable, renderTree, type PackageDependencyHierarchy }
+export {
+  renderJson,
+  renderParseable,
+  renderTree,
+  type PackageDependencyHierarchy,
+  renderDependentsTree,
+  renderDependentsParseable,
+  renderDependentsJson,
+}
 
 const DEFAULTS = {
   alwaysPrintRootPackage: true,
