@@ -7,7 +7,7 @@ import pLimit from 'p-limit'
 import { type PackageManifest, type Registries } from '@pnpm/types'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
 import { PnpmError } from '@pnpm/error'
-import { type LicensePackage } from './licenses.js'
+import type { LicensePackage } from './licenses.js'
 import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 
 const limitPkgReads = pLimit(4)
