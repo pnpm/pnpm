@@ -238,8 +238,8 @@ export async function whyForPackages (
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const lockfile = opts.checkWantedLockfileOnly
     ? await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
-    : await readCurrentLockfile(path.join(opts.lockfileDir, modulesDir, '.pnpm'), { ignoreIncompatible: false })
-      ?? await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
+    : await readCurrentLockfile(path.join(opts.lockfileDir, modulesDir, '.pnpm'), { ignoreIncompatible: false }) ??
+      await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
   if (!lockfile) return ''
 
   const importerIds = Object.keys(lockfile.importers)

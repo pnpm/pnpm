@@ -3,7 +3,7 @@ import { type Finder, type IncludedDependencies } from '@pnpm/types'
 
 export type ReportAs = 'parseable' | 'json' | 'tree'
 
-export function computeInclude (opts: { production?: boolean; dev?: boolean; optional?: boolean }): IncludedDependencies {
+export function computeInclude (opts: { production?: boolean, dev?: boolean, optional?: boolean }): IncludedDependencies {
   return {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
@@ -11,7 +11,7 @@ export function computeInclude (opts: { production?: boolean; dev?: boolean; opt
   }
 }
 
-export function resolveFinders (opts: { findBy?: string[]; finders?: Record<string, Finder> }): Finder[] {
+export function resolveFinders (opts: { findBy?: string[], finders?: Record<string, Finder> }): Finder[] {
   const finders: Finder[] = []
   if (opts.findBy) {
     for (const finderName of opts.findBy) {
@@ -24,7 +24,7 @@ export function resolveFinders (opts: { findBy?: string[]; finders?: Record<stri
   return finders
 }
 
-export function determineReportAs (opts: { parseable?: boolean; json?: boolean }): ReportAs {
+export function determineReportAs (opts: { parseable?: boolean, json?: boolean }): ReportAs {
   return opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')
 }
 
