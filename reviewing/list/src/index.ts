@@ -229,6 +229,7 @@ export async function whyForPackages (
   packages: string[],
   projectPaths: string[],
   opts: {
+    depth?: number
     lockfileDir: string
     checkWantedLockfileOnly?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
@@ -241,6 +242,7 @@ export async function whyForPackages (
 ): Promise<string> {
   const reportAs = opts.reportAs ?? 'tree'
   const long = opts.long ?? false
+  const depth = opts.depth
 
   const importerInfoMap = new Map<string, ImporterInfo>()
   const modulesDir = opts.modulesDir ?? 'node_modules'
@@ -274,8 +276,8 @@ export async function whyForPackages (
   })
 
   switch (reportAs) {
-  case 'json': return renderDependentsJson(trees, { long })
-  case 'parseable': return renderDependentsParseable(trees, { long })
-  case 'tree': return renderDependentsTree(trees, { long })
+  case 'json': return renderDependentsJson(trees, { long, depth })
+  case 'parseable': return renderDependentsParseable(trees, { long, depth })
+  case 'tree': return renderDependentsTree(trees, { long, depth })
   }
 }
