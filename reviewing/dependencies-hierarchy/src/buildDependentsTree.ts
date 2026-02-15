@@ -8,7 +8,8 @@ import {
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { readModulesManifest } from '@pnpm/modules-yaml'
-import { type DependenciesField, type DependencyManifest, type Finder } from '@pnpm/types'
+import { normalizeRegistries } from '@pnpm/normalize-registries'
+import { type DependenciesField, type DependencyManifest, type Finder, type Registries } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import realpathMissing from 'realpath-missing'
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
@@ -71,6 +72,7 @@ export async function buildDependentsTree (
     lockfileDir: string
     include?: { [field in DependenciesField]?: boolean }
     modulesDir?: string
+    registries?: Registries
     checkWantedLockfileOnly?: boolean
     finders?: Finder[]
     importerInfoMap: Map<string, ImporterInfo>
@@ -78,6 +80,10 @@ export async function buildDependentsTree (
 ): Promise<DependentsTree[]> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
   const modules = await readModulesManifest(modulesDir)
+  const registries = normalizeRegistries({
+    ...opts.registries,
+    ...modules?.registries,
+  })
   const internalPnpmDir = path.join(modulesDir, '.pnpm')
   const storeDir = modules?.storeDir
   const virtualStoreDir = modules?.virtualStoreDir ?? internalPnpmDir
@@ -121,6 +127,7 @@ export async function buildDependentsTree (
     virtualStoreDir,
     virtualStoreDirMaxLength,
     modulesDir,
+    registries,
     wantedPackages: wantedLockfile?.packages ?? {},
     storeDir,
   })
@@ -224,6 +231,7 @@ function resolvePackageNodes (
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
     modulesDir: string
+    registries: Registries
     wantedPackages: PackageSnapshots
     storeDir?: string
   }
@@ -239,26 +247,19 @@ function resolvePackageNodes (
       if (resolved.has(childSerialized)) continue
       if (edge.target.nodeId.type !== 'package') continue
 
-      const pkgInfo = getPkgInfo({
+      const { pkgInfo, readManifest } = getPkgInfo({
+        ...opts,
         alias: edge.alias,
-        ref: edge.target.nodeId.depPath,
         currentPackages,
-        wantedPackages: opts.wantedPackages,
-        storeDir: opts.storeDir,
-        registries: {
-          default: 'https://registry.npmjs.org/',
-        },
-        skipped: new Set(),
         depTypes: {},
-        virtualStoreDir: opts.virtualStoreDir,
-        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-        modulesDir: opts.modulesDir,
-        parentDir,
         linkedPathBaseDir: opts.modulesDir, // This might need adjustment for linked deps?
+        parentDir,
+        ref: edge.target.nodeId.depPath,
+        skipped: new Set(),
       })
 
-      resolved.set(childSerialized, { path: pkgInfo.pkgInfo.path, readManifest: pkgInfo.readManifest })
-      walk(childSerialized, pkgInfo.pkgInfo.path)
+      resolved.set(childSerialized, { path: pkgInfo.path, readManifest })
+      walk(childSerialized, pkgInfo.path)
     }
   }
 
@@ -325,12 +326,12 @@ function walkReverse (
       const snapshot = ctx.currentPackages[parentGraphNode.nodeId.depPath]
       if (snapshot == null) continue
       const { name, version } = nameVerFromPkgSnapshot(parentGraphNode.nodeId.depPath, snapshot)
-      const peerHash = peersSuffixHashFromDepPath(parentGraphNode.nodeId.depPath)
+      const peersSuffixHash = peersSuffixHashFromDepPath(parentGraphNode.nodeId.depPath)
 
       // Deduplication: if this package was already expanded elsewhere in the
       // tree, show it as a leaf to keep the output bounded.
       if (ctx.expanded.has(edge.parentSerialized)) {
-        dependents.push({ name, version, peersSuffixHash: peerHash, deduped: true })
+        dependents.push({ name, version, peersSuffixHash, deduped: true })
         continue
       }
 
@@ -342,7 +343,7 @@ function walkReverse (
       dependents.push({
         name,
         version,
-        peersSuffixHash: peerHash,
+        peersSuffixHash,
         dependents: childDependents.length > 0 ? childDependents : undefined,
       })
     }

@@ -225,6 +225,7 @@ export async function whyForPackages (
     checkWantedLockfileOnly?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     long?: boolean
+    registries?: Registries
     reportAs?: 'parseable' | 'tree' | 'json'
     modulesDir?: string
     finders?: Finder[]
@@ -256,6 +257,7 @@ export async function whyForPackages (
     lockfileDir: opts.lockfileDir,
     include: opts.include,
     modulesDir: opts.modulesDir,
+    registries: opts.registries,
     checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
     finders: opts.finders,
     importerInfoMap,
