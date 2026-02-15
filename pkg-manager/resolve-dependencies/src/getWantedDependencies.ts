@@ -11,7 +11,6 @@ export interface WantedDependency {
   bareSpecifier: string // package reference
   dev: boolean
   optional: boolean
-  nodeExecPath?: string
   saveCatalogName?: string
   updateSpec?: boolean
   prevSpecifier?: string
@@ -22,7 +21,6 @@ export function getWantedDependencies (
   opts?: {
     autoInstallPeers?: boolean
     includeDirect?: IncludedDependencies
-    nodeExecPath?: string
   }
 ): WantedDependency[] {
   let depsToInstall = filterDependenciesByType(pkg,
@@ -54,7 +52,6 @@ function getWantedDependenciesFromGivenSet (
     optionalDependencies: Dependencies
     peerDependencies: Dependencies
     dependenciesMeta: DependenciesMeta
-    nodeExecPath?: string
   }
 ): WantedDependency[] {
   if (!deps) return []
@@ -69,7 +66,6 @@ function getWantedDependenciesFromGivenSet (
       dev: depType === 'dev',
       injected: opts.dependenciesMeta[alias]?.injected,
       optional: depType === 'optional',
-      nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
       bareSpecifier,
       prevSpecifier: bareSpecifier,
     }

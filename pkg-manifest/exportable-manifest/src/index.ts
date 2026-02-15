@@ -9,6 +9,9 @@ import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import { omit } from 'ramda'
 import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig.js'
+import { type ExportedManifest, transform } from './transform/index.js'
+
+export { type ExportedManifest }
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
@@ -30,7 +33,7 @@ export async function createExportableManifest (
   dir: string,
   originalManifest: ProjectManifest,
   opts: MakePublishManifestOptions
-): Promise<ProjectManifest> {
+): Promise<ExportedManifest> {
   let publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
@@ -70,7 +73,7 @@ export async function createExportableManifest (
     publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
 
-  return publishManifest
+  return transform(publishManifest)
 }
 
 export type PublishDependencyConverter = (
@@ -136,13 +139,14 @@ async function replaceWorkspaceProtocol (depName: string, depSpec: string, dir: 
     return depSpec
   }
 
-  // Dependencies with bare "*", "^" and "~" versions
-  const versionAliasSpecParts = /^workspace:(.*?)@?([\^~*])$/.exec(depSpec)
+  // Dependencies with bare "*", "^", "~" versions, or no version (workspace:)
+  const versionAliasSpecParts = /^workspace:(?:(.+)@)?([\^~*])?$/.exec(depSpec)
   if (versionAliasSpecParts != null) {
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
     const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName))
 
-    const semverRangeToken = versionAliasSpecParts[2] !== '*' ? versionAliasSpecParts[2] : ''
+    const specifierSuffix: string | undefined = versionAliasSpecParts[2]
+    const semverRangeToken = specifierSuffix === '^' || specifierSuffix === '~' ? specifierSuffix : ''
     if (depName !== manifest.name) {
       return `npm:${manifest.name!}@${semverRangeToken}${manifest.version}`
     }

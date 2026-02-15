@@ -10,9 +10,11 @@ import {
 } from '@pnpm/lockfile.utils'
 import { type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
 import { type DependencyManifest, type Registries } from '@pnpm/types'
-import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
+import { refToRelative } from '@pnpm/dependency-path'
 import { readPackageJsonFromDirSync } from '@pnpm/read-package-json'
 import normalizePath from 'normalize-path'
+import { readManifestFromCafs } from './readManifestFromCafs.js'
+import { resolvePackagePath } from './resolvePackagePath.js'
 
 export interface GetPkgInfoOpts {
   readonly alias: string
@@ -21,6 +23,7 @@ export interface GetPkgInfoOpts {
   readonly peers?: Set<string>
   readonly registries: Registries
   readonly skipped: Set<string>
+  readonly storeDir?: string
   readonly wantedPackages: PackageSnapshots
   readonly virtualStoreDir?: string
   readonly virtualStoreDirMaxLength: number
@@ -39,6 +42,19 @@ export interface GetPkgInfoOpts {
    * version.
    */
   readonly rewriteLinkVersionDir?: string
+
+  /**
+   * The node_modules directory to resolve symlinks from when using global virtual store.
+   * This is used for top-level dependencies.
+   */
+  readonly modulesDir?: string
+
+  /**
+   * The resolved path of the parent package. When provided, the symlink resolution
+   * will use the parent's node_modules directory instead of the top-level modulesDir.
+   * This is needed for subdependencies when using global virtual store.
+   */
+  readonly parentDir?: string
 }
 
 export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readManifest: () => DependencyManifest } {
@@ -49,6 +65,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
   let optional: true | undefined
   let isSkipped: boolean = false
   let isMissing: boolean = false
+  let integrity: string | undefined
   const depPath = refToRelative(opts.ref, opts.alias)
   if (depPath) {
     let pkgSnapshot!: PackageSnapshot
@@ -73,6 +90,9 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
     resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
     depType = opts.depTypes[depPath]
     optional = pkgSnapshot.optional
+    if ('integrity' in pkgSnapshot.resolution) {
+      integrity = pkgSnapshot.resolution.integrity as string
+    }
   } else {
     name = opts.alias
     version = opts.ref
@@ -81,7 +101,15 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
     version = opts.ref
   }
   const fullPackagePath = depPath
-    ? path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules', name)
+    ? resolvePackagePath({
+      depPath,
+      name,
+      alias: opts.alias,
+      virtualStoreDir: opts.virtualStoreDir ?? '.pnpm',
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      modulesDir: opts.modulesDir,
+      parentDir: opts.parentDir,
+    })
     : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
 
   if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {
@@ -110,7 +138,13 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
   }
   return {
     pkgInfo: packageInfo,
-    readManifest: () => readPackageJsonFromDirSync(fullPackagePath),
+    readManifest: () => {
+      if (integrity && opts.storeDir) {
+        const manifest = readManifestFromCafs(opts.storeDir, { integrity, name, version })
+        if (manifest) return manifest
+      }
+      return readPackageJsonFromDirSync(fullPackagePath)
+    },
   }
 }
 

@@ -15,7 +15,6 @@ test('getPatchInfo() returns an exact version patch if the name and version matc
             hash: '00000000000000000000000000000000',
           },
           key: 'foo@1.0.0',
-          strict: true,
         },
       },
       range: [],
@@ -40,7 +39,6 @@ test('getPatchInfo() returns a range version patch if the name matches and the v
             hash: '00000000000000000000000000000000',
           },
           key: 'foo@1',
-          strict: true,
         },
       }],
       all: undefined,
@@ -63,7 +61,6 @@ test('getPatchInfo() returns name-only patch if the name matches', () => {
           hash: '00000000000000000000000000000000',
         },
         key: 'foo',
-        strict: true,
       },
     },
   } satisfies PatchGroupRecord
@@ -83,7 +80,6 @@ test('exact version patches override version range patches, version range patche
             hash: '00000000000000000000000000000000',
           },
           key: 'foo@1.0.0',
-          strict: true,
         },
         '1.1.0': {
           file: {
@@ -91,7 +87,6 @@ test('exact version patches override version range patches, version range patche
             hash: '00000000000000000000000000000000',
           },
           key: 'foo@1.1.0',
-          strict: true,
         },
       },
       range: [
@@ -103,7 +98,6 @@ test('exact version patches override version range patches, version range patche
               hash: '00000000000000000000000000000000',
             },
             key: 'foo@1',
-            strict: true,
           },
         },
         {
@@ -114,7 +108,6 @@ test('exact version patches override version range patches, version range patche
               hash: '00000000000000000000000000000000',
             },
             key: 'foo@2',
-            strict: true,
           },
         },
       ],
@@ -124,7 +117,6 @@ test('exact version patches override version range patches, version range patche
           hash: '00000000000000000000000000000000',
         },
         key: 'foo',
-        strict: true,
       },
     },
   } satisfies PatchGroupRecord
@@ -150,7 +142,6 @@ test('getPatchInfo(_, name, version) throws an error when name@version matches m
               hash: '00000000000000000000000000000000',
             },
             key: 'foo@>=1.0.0 <3.0.0',
-            strict: true,
           },
         },
         {
@@ -161,7 +152,6 @@ test('getPatchInfo(_, name, version) throws an error when name@version matches m
               hash: '00000000000000000000000000000000',
             },
             key: 'foo@>=2.0.0',
-            strict: true,
           },
         },
       ],
@@ -185,7 +175,6 @@ test('getPatchInfo(_, name, version) does not throw an error when name@version m
             hash: '00000000000000000000000000000000',
           },
           key: 'foo@>=1.0.0 <3.0.0',
-          strict: true,
         },
       },
       range: [
@@ -197,7 +186,6 @@ test('getPatchInfo(_, name, version) does not throw an error when name@version m
               hash: '00000000000000000000000000000000',
             },
             key: 'foo@>=1.0.0 <3.0.0',
-            strict: true,
           },
         },
         {
@@ -208,7 +196,6 @@ test('getPatchInfo(_, name, version) does not throw an error when name@version m
               hash: '00000000000000000000000000000000',
             },
             key: 'foo@>=2.0.0',
-            strict: true,
           },
         },
       ],

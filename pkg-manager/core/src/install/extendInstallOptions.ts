@@ -25,6 +25,7 @@ import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import { type ReporterFunction } from '../types.js'
 
 export interface StrictInstallOptions {
+  autoConfirmAllPrompts: boolean
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
   catalogs: Catalogs
@@ -50,6 +51,12 @@ export interface StrictInstallOptions {
   ignoreCompatibilityDb: boolean
   ignoreDepScripts: boolean
   ignorePackageManifest: boolean
+  /**
+   * When true, skip fetching local dependencies (file: protocol pointing to directories).
+   * This is used by `pnpm fetch` which only downloads packages from the registry
+   * and doesn't need local packages that won't be available (e.g., in Docker builds).
+   */
+  ignoreLocalPackages: boolean
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean | 'rolling'
   lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
@@ -72,7 +79,6 @@ export interface StrictInstallOptions {
   verifyStoreIntegrity: boolean
   engineStrict: boolean
   allowBuilds?: Record<string, boolean | string>
-  nodeExecPath?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
@@ -119,7 +125,6 @@ export interface StrictInstallOptions {
   modulesCacheMaxAge: number
   peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
-  ignorePatchFailures?: boolean
   allowUnusedPatches: boolean
   preferSymlinkedExecutables: boolean
   resolutionMode: 'highest' | 'time-based' | 'lowest-direct'
@@ -184,12 +189,12 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
   return {
     allowedDeprecatedVersions: {},
     allowUnusedPatches: false,
-    ignorePatchFailures: undefined,
+    autoConfirmAllPrompts: opts.autoConfirmAllPrompts ?? false,
     autoInstallPeers: true,
     autoInstallPeersFromHighestMatch: false,
     catalogs: {},
     childConcurrency: 5,
-    confirmModulesPurge: !opts.force,
+    confirmModulesPurge: !(opts.autoConfirmAllPrompts || opts.force),
     depth: 0,
     dedupeInjectedDeps: true,
     enableGlobalVirtualStore: false,
@@ -222,6 +227,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     ownLifecycleHooksStdio: 'inherit',
     ignoreCompatibilityDb: false,
     ignorePackageManifest: false,
+    ignoreLocalPackages: false,
     packageExtensions: {},
     ignoredOptionalDependencies: [] as string[],
     packageManager,

@@ -103,7 +103,6 @@ export interface Project {
 }
 
 export interface HeadlessOptions {
-  ignorePatchFailures?: boolean
   allowBuilds?: Record<string, boolean | string>
   autoInstallPeers?: boolean
   childConcurrency?: number
@@ -125,6 +124,12 @@ export interface HeadlessOptions {
   ignoreDepScripts: boolean
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
+  /**
+   * When true, skip fetching local dependencies (file: protocol pointing to directories).
+   * This is used by `pnpm fetch` which only downloads packages from the registry
+   * and doesn't need local packages that won't be available (e.g., in Docker builds).
+   */
+  ignoreLocalPackages?: boolean
   include: IncludedDependencies
   selectedProjectDirs: string[]
   allProjects: Record<string, Project>
@@ -536,7 +541,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       allowBuild,
-      ignorePatchFailures: opts.ignorePatchFailures,
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
       extraEnv,
@@ -635,8 +639,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       storeDir: opts.storeDir,
       virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    }, {
-      makeModulesDir: Object.keys(filteredLockfile.packages ?? {}).length > 0,
     })
     const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
     if (opts.useLockfile) {

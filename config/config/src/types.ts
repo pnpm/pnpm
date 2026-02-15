@@ -129,6 +129,7 @@ export const pnpmTypes = {
   'workspace-concurrency': Number,
   'workspace-packages': [String, Array],
   'workspace-root': Boolean,
+  yes: Boolean,
   'test-pattern': [String, Array],
   'changed-files-ignore-pattern': [String, Array],
   'embed-readme': Boolean,
@@ -139,6 +140,7 @@ export const pnpmTypes = {
   cpu: [String, Array],
   libc: [String, Array],
   os: [String, Array],
+  'audit-level': ['low', 'moderate', 'high', 'critical'],
 }
 
 // NOTE: There is an oversight I just now notice thanks to a test failure: pnpmTypes (which used to be the object literal inside `Object.assign`)

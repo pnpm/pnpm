@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import { ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { readMsgpackFile, writeMsgpackFile } from '@pnpm/fs.msgpack-file'
@@ -65,6 +66,7 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   registry: string
   dryRun: boolean
   updateToLatest?: boolean
+  optional?: boolean
 }
 
 const pickPackageFromMetaUsingTimeStrict = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
@@ -83,8 +85,8 @@ function pickPackageFromMetaUsingTime (
 
 export async function pickPackage (
   ctx: {
-    fetch: (pkgName: string, registry: string, authHeaderValue?: string) => Promise<PackageMeta>
-    metaDir: string
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean }) => Promise<PackageMeta>
+    fullMetadata?: boolean
     metaCache: PackageMetaCache
     cacheDir: string
     offline?: boolean
@@ -124,7 +126,15 @@ export async function pickPackage (
 
   validatePackageName(spec.name)
 
-  const cachedMeta = ctx.metaCache.get(spec.name)
+  // Use full metadata for optional dependencies to get libc field.
+  // See: https://github.com/pnpm/pnpm/issues/9950
+  const fullMetadata = opts.optional === true || ctx.fullMetadata === true
+  const metaDir = fullMetadata
+    ? (ctx.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR)
+    : ABBREVIATED_META_DIR
+  // Cache key includes fullMetadata to avoid returning abbreviated metadata when full metadata is requested.
+  const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
+  const cachedMeta = ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
     return {
       meta: cachedMeta,
@@ -133,7 +143,7 @@ export async function pickPackage (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.cacheDir, ctx.metaDir, registryName, `${encodePkgName(spec.name)}.mpk`)
+  const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.mpk`)
 
   return runLimited(pkgMirror, async (limit) => {
     let metaCachedInStore: PackageMeta | null | undefined
@@ -200,13 +210,17 @@ export async function pickPackage (
     }
 
     try {
-      let meta = await ctx.fetch(spec.name, opts.registry, opts.authHeaderValue)
+      let meta = await ctx.fetch(spec.name, {
+        authHeaderValue: opts.authHeaderValue,
+        fullMetadata,
+        registry: opts.registry,
+      })
       if (ctx.filterMetadata) {
         meta = clearMeta(meta)
       }
       meta.cachedAt = Date.now()
       // only save meta to cache, when it is fresh
-      ctx.metaCache.set(spec.name, meta)
+      ctx.metaCache.set(cacheKey, meta)
       if (!opts.dryRun) {
         // We clone this meta here to avoid saving any mutations that could happen to the meta object.
         const metaClone = structuredClone(meta)

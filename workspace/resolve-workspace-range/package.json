@@ -25,8 +25,9 @@
   ],
   "scripts": {
     "start": "tsgo --watch",
-    "test": "pnpm run compile",
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsgo --build && pnpm run lint --fix"
   },
@@ -38,7 +39,7 @@
     "@types/semver": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

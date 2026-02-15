@@ -47,7 +47,7 @@ describe('parseAuthInfo', () => {
   test('authUsername and authPassword', () => {
     expect(parseAuthInfo({
       authUsername: 'foo',
-      authPassword: 'bar',
+      authPassword: btoa('bar'),
     })).toStrictEqual({
       authUserPass: {
         username: 'foo',

@@ -30,9 +30,6 @@
     "dev-setup": "pnpm -C=./pnpm/dev link -g"
   },
   "devDependencies": {
-    "@babel/core": "catalog:",
-    "@babel/preset-typescript": "catalog:",
-    "@babel/types": "catalog:",
     "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",
@@ -44,6 +41,7 @@
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "catalog:",
     "@types/node": "catalog:",
+    "@types/picomatch": "catalog:",
     "@typescript/native-preview": "catalog:",
     "c8": "catalog:",
     "concurrently": "catalog:",
@@ -55,10 +53,8 @@
     "jest": "catalog:",
     "keyv": "catalog:",
     "lcov-result-merger": "catalog:",
-    "publish-packed": "catalog:",
     "rimraf": "catalog:",
     "shx": "catalog:",
-    "ts-jest": "catalog:",
     "typescript": "catalog:",
     "verdaccio": "catalog:"
   },
