@@ -1,5 +1,5 @@
 import path from 'path'
-import { readWantedLockfile } from '@pnpm/lockfile.fs'
+import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { type DependencyNode, buildDependenciesTree, type DependenciesTree, createPackagesSearcher, buildDependentsTree, type ImporterInfo } from '@pnpm/reviewing.dependencies-hierarchy'
 import { type DependenciesField, type Registries, type Finder } from '@pnpm/types'
@@ -234,23 +234,25 @@ export async function whyForPackages (
   const reportAs = opts.reportAs ?? 'tree'
   const long = opts.long ?? false
 
-  // Build importer info map by reading the lockfile to discover all importers,
-  // then reading each project's package.json for name/version.
   const importerInfoMap = new Map<string, ImporterInfo>()
-  const lockfile = await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
-  if (lockfile) {
-    const importerIds = Object.keys(lockfile.importers)
-    const manifests = await Promise.all(
-      importerIds.map((importerId) => safeReadProjectManifestOnly(path.join(opts.lockfileDir, importerId)))
-    )
-    for (let i = 0; i < importerIds.length; i++) {
-      const importerId = importerIds[i]
-      const manifest = manifests[i]
-      importerInfoMap.set(importerId, {
-        name: manifest?.name ?? (importerId === '.' ? 'the root project' : importerId),
-        version: manifest?.version ?? '',
-      })
-    }
+  const modulesDir = opts.modulesDir ?? 'node_modules'
+  const lockfile = opts.checkWantedLockfileOnly
+    ? await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
+    : await readCurrentLockfile(path.join(opts.lockfileDir, modulesDir, '.pnpm'), { ignoreIncompatible: false })
+      ?? await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
+  if (!lockfile) return ''
+
+  const importerIds = Object.keys(lockfile.importers)
+  const manifests = await Promise.all(
+    importerIds.map((importerId) => safeReadProjectManifestOnly(path.join(opts.lockfileDir, importerId)))
+  )
+  for (let i = 0; i < importerIds.length; i++) {
+    const importerId = importerIds[i]
+    const manifest = manifests[i]
+    importerInfoMap.set(importerId, {
+      name: manifest?.name ?? (importerId === '.' ? 'the root project' : importerId),
+      version: manifest?.version ?? '',
+    })
   }
 
   const trees = await buildDependentsTree(packages, projectPaths, {
@@ -258,9 +260,9 @@ export async function whyForPackages (
     include: opts.include,
     modulesDir: opts.modulesDir,
     registries: opts.registries,
-    checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
     finders: opts.finders,
     importerInfoMap,
+    lockfile,
   })
 
   switch (reportAs) {

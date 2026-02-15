@@ -1,8 +1,7 @@
 import path from 'path'
 import {
   getLockfileImporterId,
-  readCurrentLockfile,
-  readWantedLockfile,
+  type LockfileObject,
   type ProjectSnapshot,
   type PackageSnapshots,
 } from '@pnpm/lockfile.fs'
@@ -73,9 +72,9 @@ export async function buildDependentsTree (
     include?: { [field in DependenciesField]?: boolean }
     modulesDir?: string
     registries?: Registries
-    checkWantedLockfileOnly?: boolean
     finders?: Finder[]
     importerInfoMap: Map<string, ImporterInfo>
+    lockfile: LockfileObject
   }
 ): Promise<DependentsTree[]> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
@@ -84,15 +83,9 @@ export async function buildDependentsTree (
     ...opts.registries,
     ...modules?.registries,
   })
-  const internalPnpmDir = path.join(modulesDir, '.pnpm')
   const storeDir = modules?.storeDir
-  const virtualStoreDir = modules?.virtualStoreDir ?? internalPnpmDir
+  const virtualStoreDir = modules?.virtualStoreDir ?? path.join(modulesDir, '.pnpm')
   const virtualStoreDirMaxLength = modules?.virtualStoreDirMaxLength ?? 120
-  const wantedLockfile = await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
-  const lockfileToUse = opts.checkWantedLockfileOnly
-    ? wantedLockfile
-    : await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
-  if (!lockfileToUse) return []
 
   const include = opts.include ?? {
     dependencies: true,
@@ -104,21 +97,21 @@ export async function buildDependentsTree (
   const allRootIds: TreeNodeId[] = []
   for (const projectPath of projectPaths) {
     const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
-    if (lockfileToUse.importers[importerId]) {
+    if (opts.lockfile.importers[importerId]) {
       allRootIds.push({ type: 'importer', importerId })
     }
   }
 
   const graph = buildDependencyGraph(allRootIds, {
-    currentPackages: lockfileToUse.packages ?? {},
-    importers: lockfileToUse.importers,
+    currentPackages: opts.lockfile.packages ?? {},
+    importers: opts.lockfile.importers,
     include,
     lockfileDir: opts.lockfileDir,
   })
 
   const reverseMap = invertGraph(graph)
   const search = createPackagesSearcher(packages, opts.finders)
-  const currentPackages = lockfileToUse.packages ?? {}
+  const currentPackages = opts.lockfile.packages ?? {}
 
   // Pre-compute resolved filesystem paths for all package nodes by walking the
   // graph top-down from importers.  This is needed for global virtual store
@@ -128,7 +121,7 @@ export async function buildDependentsTree (
     virtualStoreDirMaxLength,
     modulesDir,
     registries,
-    wantedPackages: wantedLockfile?.packages ?? {},
+    wantedPackages: currentPackages,
     storeDir,
   })
 
@@ -141,7 +134,7 @@ export async function buildDependentsTree (
   const ctx: WalkContext = {
     reverseMap,
     graph,
-    importers: lockfileToUse.importers,
+    importers: opts.lockfile.importers,
     currentPackages,
     importerInfoMap: opts.importerInfoMap,
     visited: new Set(),
@@ -315,7 +308,7 @@ function walkReverse (
 
     if (parentGraphNode.nodeId.type === 'importer') {
       const importerId = parentGraphNode.nodeId.importerId
-      const info = ctx.importerInfoMap.get(importerId)!
+      const info = ctx.importerInfoMap.get(importerId) ?? { name: importerId, version: '' }
       const depField = getDepFieldForAlias(edge.alias, ctx.importers[importerId])
       dependents.push({
         name: info.name,

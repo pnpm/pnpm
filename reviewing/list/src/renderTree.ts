@@ -144,7 +144,7 @@ function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number
   const color = getPkgColor(node)
   let txt: string
   if (node.alias !== node.name) {
-    // When using npm: protocol alias, display as "alias npm:name@version"
+    // When using npm: protocol alias, display as "alias@npm:name@version"
     // Only add npm: prefix if version doesn't already contain @ (to avoid file:, link:, etc.)
     if (!node.version.includes('@')) {
       txt = `${color(node.alias)}${chalk.gray(`@npm:${node.name}@${node.version}`)}`

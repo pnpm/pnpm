@@ -15,7 +15,7 @@ export interface TreeRendererOptions {
    */
   treeChars?: (chars: string) => string
   /**
-   * When false, use ASCII characters (`+`, `` ` ``, `|`, `-`) instead of
+   * When false, use ASCII characters (+, `, |, -) instead of
    * unicode box-drawing characters. Defaults to true (unicode).
    */
   unicode?: boolean
