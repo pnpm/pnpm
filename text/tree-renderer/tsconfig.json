@@ -8,15 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../text/tree-renderer"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../types"
-    }
-  ]
+  "references": []
 }

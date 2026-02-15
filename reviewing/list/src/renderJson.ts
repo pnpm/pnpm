@@ -1,12 +1,12 @@
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import sortBy from 'ramda/src/sortBy'
 import path from 'ramda/src/path'
 import { type Ord } from 'ramda'
 import { getPkgInfo, type PkgInfo } from './getPkgInfo.js'
 import { type PackageDependencyHierarchy } from './types.js'
 
-const sortPackages = sortBy(path(['pkg', 'alias']) as (pkg: PackageNode) => Ord)
+const sortPackages = sortBy(path(['pkg', 'alias']) as (pkg: DependencyNode) => Ord)
 
 type RenderJsonResultItem = Pick<PackageDependencyHierarchy, 'name' | 'version' | 'path'> &
 Required<Pick<PackageDependencyHierarchy, 'private'>> &
@@ -53,7 +53,7 @@ export async function renderJson (
 }
 
 export async function toJsonResult (
-  entryNodes: PackageNode[],
+  entryNodes: DependencyNode[],
   opts: {
     long: boolean
   }

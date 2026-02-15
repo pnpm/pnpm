@@ -32,12 +32,11 @@
   },
   "dependencies": {
     "@pnpm/dedupe.types": "workspace:*",
-    "archy": "catalog:",
+    "@pnpm/text.tree-renderer": "workspace:*",
     "chalk": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/dedupe.issues-renderer": "workspace:*",
-    "@types/archy": "catalog:"
+    "@pnpm/dedupe.issues-renderer": "workspace:*"
   },
   "engines": {
     "node": ">=18.12"

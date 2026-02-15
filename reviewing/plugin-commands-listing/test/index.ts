@@ -34,9 +34,11 @@ test('listing packages', async () => {
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   dependencies:
+└── is-positive@1.0.0
 
-dependencies:
-is-positive 1.0.0`)
+1 package`)
   }
 
   {
@@ -50,9 +52,11 @@ is-positive 1.0.0`)
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   devDependencies:
+└── is-negative@1.0.0
 
-devDependencies:
-is-negative 1.0.0`)
+1 package`)
   }
 
   {
@@ -64,12 +68,14 @@ is-negative 1.0.0`)
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   dependencies:
+├── is-positive@1.0.0
+│
+│   devDependencies:
+└── is-negative@1.0.0
 
-dependencies:
-is-positive 1.0.0
-
-devDependencies:
-is-negative 1.0.0`)
+2 packages`)
   }
 })
 
@@ -101,9 +107,11 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
   expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 pkg@1.0.0 ${process.cwd()}
+│
+│   dependencies:
+└── is-positive@1.0.0
 
-dependencies:
-is-positive 1.0.0`)
+1 package`)
 })
 
 // Use a preinstalled fixture
@@ -192,9 +200,11 @@ test('listing packages should not fail on package that has local file directory 
   expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 pkg@1.0.0 ${pkgDir}
+│
+│   dependencies:
+└── dep@file:../dep
 
-dependencies:
-dep file:../dep`)
+1 package`)
 })
 
 test('listing packages with --lockfile-only', async () => {
@@ -221,9 +231,11 @@ test('listing packages with --lockfile-only', async () => {
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   dependencies:
+└── is-positive@1.0.0
 
-dependencies:
-is-positive 1.0.0`)
+1 package`)
   }
 
   {
@@ -238,9 +250,11 @@ is-positive 1.0.0`)
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   devDependencies:
+└── is-negative@1.0.0
 
-devDependencies:
-is-negative 1.0.0`)
+1 package`)
   }
 
   {
@@ -253,12 +267,14 @@ is-negative 1.0.0`)
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   dependencies:
+├── is-positive@1.0.0
+│
+│   devDependencies:
+└── is-negative@1.0.0
 
-dependencies:
-is-positive 1.0.0
-
-devDependencies:
-is-negative 1.0.0`)
+2 packages`)
   }
 })
 
@@ -304,7 +320,9 @@ test('listing specific package with --lockfile-only', async () => {
   expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   dependencies:
+└── is-positive@1.0.0
 
-dependencies:
-is-positive 1.0.0`)
+1 package`)
 })

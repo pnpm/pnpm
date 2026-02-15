@@ -1,6 +1,6 @@
 import { refToRelative } from '@pnpm/dependency-path'
 import { type PackageSnapshots } from '@pnpm/lockfile.fs'
-import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { type DepPath, type Finder } from '@pnpm/types'
 import { buildDependencyGraph } from '../lib/buildDependencyGraph.js'
 import { getTree, type MaterializationCache } from '../lib/getTree.js'
@@ -55,7 +55,7 @@ function refToRelativeOrThrow (reference: string, pkgName: string): DepPath {
 }
 
 /**
- * If {@see PackageNode} has no dependencies, the `dependencies` field is not
+ * If {@see DependencyNode} has no dependencies, the `dependencies` field is not
  * set at all.
  *
  * This is usually desirable. However, Jest structural matchers currently have
@@ -67,10 +67,10 @@ function refToRelativeOrThrow (reference: string, pkgName: string): DepPath {
  * expect(node).toMatchObject({ dependencies: undefined })
  * ```
  */
-function normalizePackageNodeForTesting (nodes: readonly PackageNode[]): PackageNode[] {
+function normalizeDependencyNodeForTesting (nodes: readonly DependencyNode[]): DependencyNode[] {
   return nodes.map(node => ({
     ...node,
-    dependencies: node.dependencies != null ? normalizePackageNodeForTesting(node.dependencies) : undefined,
+    dependencies: node.dependencies != null ? normalizeDependencyNodeForTesting(node.dependencies) : undefined,
   }))
 }
 
@@ -110,7 +110,7 @@ describe('getTree', () => {
     }
 
     test('full test case to print when max depth is large', () => {
-      const result = normalizePackageNodeForTesting(getTreeWithGraph({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
+      const result = normalizeDependencyNodeForTesting(getTreeWithGraph({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
 
       expect(result).toEqual([
         expect.objectContaining({
@@ -137,7 +137,7 @@ describe('getTree', () => {
     test('max depth of 1 to print flat dependencies', () => {
       const result = getTreeWithGraph({ ...getTreeArgs, maxDepth: 1, virtualStoreDirMaxLength: 120 }, rootNodeId)
 
-      expect(normalizePackageNodeForTesting(result)).toEqual([
+      expect(normalizeDependencyNodeForTesting(result)).toEqual([
         expect.objectContaining({ alias: 'b1', dependencies: undefined }),
         expect.objectContaining({ alias: 'b2', dependencies: undefined }),
         expect.objectContaining({ alias: 'b3', dependencies: undefined }),
@@ -147,7 +147,7 @@ describe('getTree', () => {
     test('max depth of 2 to print a1 -> b1 -> c1, but not d1', () => {
       const result = getTreeWithGraph({ ...getTreeArgs, maxDepth: 2, virtualStoreDirMaxLength: 120 }, rootNodeId)
 
-      expect(normalizePackageNodeForTesting(result)).toEqual([
+      expect(normalizeDependencyNodeForTesting(result)).toEqual([
         expect.objectContaining({
           alias: 'b1',
           dependencies: [
@@ -211,7 +211,7 @@ describe('getTree', () => {
         virtualStoreDirMaxLength: 120,
       }, rootNodeId)
 
-      expect(normalizePackageNodeForTesting(result)).toEqual([
+      expect(normalizeDependencyNodeForTesting(result)).toEqual([
         // depth 0
         expect.objectContaining({
           alias: 'glob',
@@ -270,7 +270,7 @@ describe('getTree', () => {
         virtualStoreDirMaxLength: 120,
       }, rootNodeId)
 
-      expect(normalizePackageNodeForTesting(result)).toEqual([
+      expect(normalizeDependencyNodeForTesting(result)).toEqual([
         expect.objectContaining({
           alias: 'a',
           dependencies: [
@@ -347,7 +347,7 @@ describe('getTree', () => {
         wantedPackages: currentPackages,
       }, rootNodeId)
 
-      expect(normalizePackageNodeForTesting(result)).toEqual([
+      expect(normalizeDependencyNodeForTesting(result)).toEqual([
         expect.objectContaining({
           alias: 'a',
           dependencies: [
@@ -409,7 +409,7 @@ describe('getTree', () => {
         ],
       })
 
-      expect(normalizePackageNodeForTesting(result)).toEqual([
+      expect(normalizeDependencyNodeForTesting(result)).toEqual([
         expectedA,
         expect.objectContaining({
           alias: 'c',
@@ -450,7 +450,7 @@ describe('getTree', () => {
         wantedPackages: currentPackages,
       }, rootNodeId)
 
-      expect(normalizePackageNodeForTesting(result)).toEqual([
+      expect(normalizeDependencyNodeForTesting(result)).toEqual([
         expect.objectContaining({
           alias: 'a',
           dependencies: [
@@ -511,7 +511,7 @@ describe('getTree', () => {
         wantedPackages: currentPackages,
       }, rootNodeId)
 
-      expect(normalizePackageNodeForTesting(result)).toEqual([
+      expect(normalizeDependencyNodeForTesting(result)).toEqual([
         expect.objectContaining({
           alias: 'a',
           dependencies: [
@@ -592,7 +592,7 @@ describe('getTree', () => {
         wantedPackages: currentPackages,
       }, rootNodeId)
 
-      expect(normalizePackageNodeForTesting(result)).toEqual([
+      expect(normalizeDependencyNodeForTesting(result)).toEqual([
         expect.objectContaining({
           alias: 'a',
           dependencies: [
@@ -632,7 +632,7 @@ describe('getTree', () => {
         wantedPackages: currentPackages,
       }, rootNodeId)
 
-      expect(normalizePackageNodeForTesting(result)).toEqual([
+      expect(normalizeDependencyNodeForTesting(result)).toEqual([
         expect.objectContaining({
           alias: 'a',
           dependencies: [
@@ -690,7 +690,7 @@ describe('getTree', () => {
       }
       const rootNodeId: TreeNodeId = { type: 'importer', importerId: '.' }
 
-      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+      const result = normalizeDependencyNodeForTesting(getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: Infinity,
         currentPackages,
@@ -734,7 +734,7 @@ describe('getTree', () => {
       }
       const rootNodeId: TreeNodeId = { type: 'importer', importerId: '.' }
 
-      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+      const result = normalizeDependencyNodeForTesting(getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: Infinity,
         currentPackages,
@@ -787,7 +787,7 @@ describe('getTree', () => {
 
       const search: Finder = ({ name }) => name === 'target'
 
-      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+      const result = normalizeDependencyNodeForTesting(getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: Infinity,
         currentPackages,
@@ -840,7 +840,7 @@ describe('getTree', () => {
 
       const search: Finder = ({ name }) => name === 'target' ? 'depends on target' : false
 
-      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+      const result = normalizeDependencyNodeForTesting(getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: Infinity,
         currentPackages,
@@ -896,7 +896,7 @@ describe('getTree', () => {
 
       const search: Finder = ({ name }) => name === 'target'
 
-      const result = normalizePackageNodeForTesting(getTreeWithGraph({
+      const result = normalizeDependencyNodeForTesting(getTreeWithGraph({
         ...commonMockGetTreeArgs,
         maxDepth: Infinity,
         currentPackages,
@@ -1246,7 +1246,7 @@ describe('getTree', () => {
       currentPackages,
       wantedPackages: currentPackages,
     }
-    const result = normalizePackageNodeForTesting(getTreeWithGraph({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
+    const result = normalizeDependencyNodeForTesting(getTreeWithGraph({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
 
     expect(result).toEqual([
       expect.objectContaining({
