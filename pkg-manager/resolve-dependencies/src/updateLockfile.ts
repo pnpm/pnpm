@@ -196,6 +196,11 @@ function toLockfileResolution (
       tarball: resolution['tarball'],
     }
   }
+  if (lockfileIncludeTarballUrl === false) {
+    return {
+      integrity: resolution['integrity'],
+    }
+  }
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
   // Or in other weird cases, like https://github.com/pnpm/pnpm/issues/1072
