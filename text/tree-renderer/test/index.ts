@@ -422,6 +422,48 @@ test('empty group is skipped', () => {
   )
 })
 
+test('multiline label with only empty groups uses plain continuation', () => {
+  // When all groups are empty, items.length is 0, so the multiline
+  // continuation prefix should be plain spaces, not │.
+  expect(renderTree({
+    label: 'root',
+    nodes: [
+      {
+        label: 'pkg@1.0.0\nA description',
+        nodes: [
+          { group: 'dependencies:', nodes: [] } as TreeNodeGroup,
+        ],
+      },
+      { label: 'other' },
+    ],
+  })).toBe(
+    'root\n' +
+    '├── pkg@1.0.0\n' +
+    '│   A description\n' +
+    '└── other\n'
+  )
+})
+
+test('child with only empty groups uses ── connector, not ─┬', () => {
+  // A child whose nodes array contains only empty groups has no renderable
+  // children, so its connector should be ── (leaf) not ─┬ (branch).
+  expect(renderTree({
+    label: 'root',
+    nodes: [
+      {
+        label: 'a',
+        nodes: [
+          { group: 'deps:', nodes: [] } as TreeNodeGroup,
+          { group: 'dev:', nodes: [] } as TreeNodeGroup,
+        ],
+      },
+    ],
+  })).toBe(
+    'root\n' +
+    '└── a\n'
+  )
+})
+
 test('group matching pnpm list output', () => {
   const tree: TreeNode = {
     label: 'my-pkg@1.0.0 /path',

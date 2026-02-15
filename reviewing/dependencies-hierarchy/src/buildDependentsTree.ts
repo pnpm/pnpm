@@ -10,6 +10,7 @@ import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { type DependenciesField, type DependencyManifest, type Finder, type Registries } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import semver from 'semver'
 import realpathMissing from 'realpath-missing'
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
@@ -186,7 +187,15 @@ export async function buildDependentsTree (
     trees.push(tree)
   }
 
-  trees.sort((a, b) => lexCompare(a.name, b.name))
+  trees.sort((a, b) => {
+    const nameCmp = lexCompare(a.name, b.name)
+    if (nameCmp !== 0) return nameCmp
+    const versionCmp = semver.valid(a.version) && semver.valid(b.version)
+      ? semver.compare(a.version, b.version)
+      : lexCompare(a.version, b.version)
+    if (versionCmp !== 0) return versionCmp
+    return lexCompare(a.peersSuffixHash ?? '', b.peersSuffixHash ?? '')
+  })
   return trees
 }
 
@@ -272,11 +281,13 @@ function walkReverse (
   const reverseEdges = ctx.reverseMap.get(nodeId)
   if (reverseEdges == null || reverseEdges.length === 0) return []
 
-  // Sort edges by parent name so that deduplication is deterministic:
-  // the alphabetically-first parent always gets fully expanded.
-  const sortedEdges = [...reverseEdges].sort((a, b) =>
-    lexCompare(resolveParentName(a, ctx), resolveParentName(b, ctx))
-  )
+  // Sort edges by parent name (with serialized ID as tiebreaker) so that
+  // deduplication is deterministic: the first parent always gets fully expanded.
+  const sortedEdges = [...reverseEdges].sort((a, b) => {
+    const cmp = lexCompare(resolveParentName(a, ctx), resolveParentName(b, ctx))
+    if (cmp !== 0) return cmp
+    return lexCompare(a.parentSerialized, b.parentSerialized)
+  })
 
   const dependents: DependentNode[] = []
 

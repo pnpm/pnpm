@@ -55,12 +55,6 @@ function render (
   // First line: connector + label
   let result = (connector ? fmt(connector) : '') + lines[0] + '\n'
 
-  // Continuation lines for multiline labels
-  const continuationChars = nodes.length ? chr('│') + ' ' : '  '
-  for (let l = 1; l < lines.length; l++) {
-    result += fmt(prefix + continuationChars) + lines[l] + '\n'
-  }
-
   // Flatten groups into items with group annotations
   const items: Array<{ node: TreeNode, group?: string }> = []
   for (const child of nodes) {
@@ -71,6 +65,12 @@ function render (
     } else {
       items.push({ node: typeof child === 'string' ? { label: child } : child })
     }
+  }
+
+  // Continuation lines for multiline labels
+  const continuationChars = items.length ? chr('│') + ' ' : '  '
+  for (let l = 1; l < lines.length; l++) {
+    result += fmt(prefix + continuationChars) + lines[l] + '\n'
   }
 
   // Render items, emitting group headers when the group changes
@@ -87,7 +87,7 @@ function render (
       }
     }
 
-    const more = item.node.nodes != null && item.node.nodes.length > 0
+    const more = hasRenderableChildren(item.node.nodes)
     const childConnector = prefix +
       (last ? chr('└') : chr('├')) + chr('─') +
       (more ? chr('┬') : chr('─')) + ' '
@@ -101,6 +101,18 @@ function render (
   }
 
   return result
+}
+
+function hasRenderableChildren (nodes: Array<TreeNode | string | TreeNodeGroup> | undefined): boolean {
+  if (nodes == null) return false
+  for (const child of nodes) {
+    if (isGroup(child)) {
+      if (child.nodes.length > 0) return true
+    } else {
+      return true
+    }
+  }
+  return false
 }
 
 function isGroup (node: TreeNode | string | TreeNodeGroup): node is TreeNodeGroup {

@@ -64,6 +64,86 @@ describe('renderDependentsTree', () => {
   })
 })
 
+describe('whySummary', () => {
+  test('single package, single version', async () => {
+    const results: DependentsTree[] = [
+      {
+        name: 'foo',
+        version: '1.0.0',
+        dependents: [{ name: 'my-project', version: '0.0.0', depField: 'dependencies' }],
+      },
+    ]
+    const output = stripAnsi(await renderDependentsTree(results, { long: false }))
+    expect(output).toContain('Found 1 version of foo')
+    expect(output).not.toContain('instances')
+  })
+
+  test('single package, multiple versions', async () => {
+    const results: DependentsTree[] = [
+      {
+        name: 'foo',
+        version: '1.0.0',
+        dependents: [{ name: 'my-project', version: '0.0.0', depField: 'dependencies' }],
+      },
+      {
+        name: 'foo',
+        version: '2.0.0',
+        dependents: [{ name: 'my-project', version: '0.0.0', depField: 'dependencies' }],
+      },
+    ]
+    const output = stripAnsi(await renderDependentsTree(results, { long: false }))
+    expect(output).toContain('Found 2 versions of foo')
+    expect(output).not.toContain('instances')
+  })
+
+  test('single package, same version with multiple peer variants shows instance count', async () => {
+    const results: DependentsTree[] = [
+      {
+        name: 'foo',
+        version: '1.0.0',
+        peersSuffixHash: 'aaaa',
+        dependents: [{ name: 'my-project', version: '0.0.0', depField: 'dependencies' }],
+      },
+      {
+        name: 'foo',
+        version: '1.0.0',
+        peersSuffixHash: 'bbbb',
+        dependents: [{ name: 'other', version: '0.0.0', depField: 'dependencies' }],
+      },
+    ]
+    const output = stripAnsi(await renderDependentsTree(results, { long: false }))
+    expect(output).toContain('Found 1 version, 2 instances of foo')
+  })
+
+  test('multiple different packages each get their own summary line', async () => {
+    const results: DependentsTree[] = [
+      {
+        name: 'foo',
+        version: '1.0.0',
+        dependents: [{ name: 'my-project', version: '0.0.0', depField: 'dependencies' }],
+      },
+      {
+        name: 'bar',
+        version: '2.0.0',
+        dependents: [{ name: 'my-project', version: '0.0.0', depField: 'dependencies' }],
+      },
+      {
+        name: 'bar',
+        version: '3.0.0',
+        dependents: [{ name: 'my-project', version: '0.0.0', depField: 'dependencies' }],
+      },
+    ]
+    const output = stripAnsi(await renderDependentsTree(results, { long: false }))
+    expect(output).toContain('Found 1 version of foo')
+    expect(output).toContain('Found 2 versions of bar')
+  })
+
+  test('empty results produce no summary', async () => {
+    const output = await renderDependentsTree([], { long: false })
+    expect(output).toBe('')
+  })
+})
+
 describe('renderDependentsJson', () => {
   test('includes searchMessage in JSON output', async () => {
     const results: DependentsTree[] = [

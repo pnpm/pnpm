@@ -45,12 +45,27 @@ export async function renderDependentsTree (trees: DependentsTree[], opts: { lon
 
 function whySummary (trees: DependentsTree[]): string {
   if (trees.length === 0) return ''
-  const versions = new Set(trees.map(r => r.version))
-  const parts: string[] = [`${versions.size} version${versions.size === 1 ? '' : 's'}`]
-  if (trees.length > versions.size) {
-    parts.push(`${trees.length} instances`)
+
+  const byName = new Map<string, { versions: Set<string>, count: number }>()
+  for (const tree of trees) {
+    let entry = byName.get(tree.name)
+    if (entry == null) {
+      entry = { versions: new Set<string>(), count: 0 }
+      byName.set(tree.name, entry)
+    }
+    entry.versions.add(tree.version)
+    entry.count++
   }
-  return chalk.dim(`Found ${parts.join(', ')} of ${trees[0].name}`)
+
+  const lines: string[] = []
+  for (const [name, info] of byName) {
+    const parts: string[] = [`${info.versions.size} version${info.versions.size === 1 ? '' : 's'}`]
+    if (info.count > info.versions.size) {
+      parts.push(`${info.count} instances`)
+    }
+    lines.push(`Found ${parts.join(', ')} of ${name}`)
+  }
+  return chalk.dim(lines.join('\n'))
 }
 
 function findMultiPeerPackages (trees: DependentsTree[]): Map<string, number> {
