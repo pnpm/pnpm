@@ -137,7 +137,7 @@ export async function buildDependentsTree (
   // edges in the graph) or its canonical name match the search query.
   // Each distinct depPath (i.e. different peer dep resolutions) is kept as a
   // separate result so that peer variants are visible in the output.
-  const results: DependentsTree[] = []
+  const trees: DependentsTree[] = []
   const ctx: WalkContext = {
     reverseMap,
     graph,
@@ -190,11 +190,11 @@ export async function buildDependentsTree (
     if (typeof matched === 'string') {
       tree.searchMessage = matched
     }
-    results.push(tree)
+    trees.push(tree)
   }
 
-  results.sort((a, b) => lexCompare(a.name, b.name))
-  return results
+  trees.sort((a, b) => lexCompare(a.name, b.name))
+  return trees
 }
 
 function invertGraph (graph: DependencyGraph): Map<string, ReverseEdge[]> {

@@ -253,7 +253,7 @@ export async function whyForPackages (
     }
   }
 
-  const results = await buildDependentsTree(packages, projectPaths, {
+  const trees = await buildDependentsTree(packages, projectPaths, {
     lockfileDir: opts.lockfileDir,
     include: opts.include,
     modulesDir: opts.modulesDir,
@@ -264,8 +264,8 @@ export async function whyForPackages (
   })
 
   switch (reportAs) {
-  case 'json': return renderDependentsJson(results, { long })
-  case 'parseable': return renderDependentsParseable(results, { long })
-  case 'tree': return renderDependentsTree(results, { long })
+  case 'json': return renderDependentsJson(trees, { long })
+  case 'parseable': return renderDependentsParseable(trees, { long })
+  case 'tree': return renderDependentsTree(trees, { long })
   }
 }
