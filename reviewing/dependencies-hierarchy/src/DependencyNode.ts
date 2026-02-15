@@ -1,4 +1,4 @@
-export interface PackageNode {
+export interface DependencyNode {
   alias: string
   circular?: true
   deduped?: true
@@ -7,7 +7,13 @@ export interface PackageNode {
    * elided because this subtree was already expanded elsewhere in the tree.
    */
   dedupedDependenciesCount?: number
-  dependencies?: PackageNode[]
+  /**
+   * Short hash of the peer dependency suffix in the depPath, used to
+   * distinguish deduped instances of the same package with different
+   * peer dependency resolutions.
+   */
+  peersSuffixHash?: string
+  dependencies?: DependencyNode[]
   dev?: boolean
   isPeer: boolean
   isSkipped: boolean

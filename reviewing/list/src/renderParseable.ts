@@ -1,4 +1,4 @@
-import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import sortBy from 'ramda/src/sortBy'
 import prop from 'ramda/src/prop'
 import { type PackageDependencyHierarchy } from './types.js'
@@ -57,7 +57,7 @@ function renderParseableForPackage (
     return [
       firstLine,
       ...pkgs.map((pkgNode) => {
-        const node = pkgNode as PackageNode
+        const node = pkgNode as DependencyNode
         if (node.alias !== node.name) {
           // Only add npm: prefix if version doesn't already contain @ (to avoid file:, link:, etc.)
           if (!node.version.includes('@')) {
@@ -88,7 +88,7 @@ interface PackageInfo {
 
 function flatten (
   depPaths: Set<string>,
-  nodes: PackageNode[]
+  nodes: DependencyNode[]
 ): PackageInfo[] {
   let packages: PackageInfo[] = []
   for (const node of nodes) {
