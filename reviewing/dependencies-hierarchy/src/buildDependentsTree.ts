@@ -150,7 +150,8 @@ export async function buildDependentsTree (
 
     const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
     const pkgNode = resolvedPackageNodes.get(serialized)
-    const readManifest = pkgNode!.readManifest
+    if (!pkgNode) continue
+    const readManifest = pkgNode.readManifest
 
     // Check canonical name first
     let matched = search({ alias: name, name, version, readManifest })
@@ -177,7 +178,7 @@ export async function buildDependentsTree (
     const tree: DependentsTree = {
       name,
       version,
-      path: pkgNode?.path,
+      path: pkgNode.path,
       peersSuffixHash,
       dependents,
     }
