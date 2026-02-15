@@ -173,7 +173,6 @@ export function createNpmResolver (
   }
   const fetch = pMemoize(fetchMetadataFromFromRegistry.bind(null, fetchOpts), {
     cacheKey: (...args) => JSON.stringify(args),
-    maxAge: 1000 * 20, // 20 seconds
   })
   const metaCache = new LRUCache<string, PackageMeta>({
     max: 10000,
