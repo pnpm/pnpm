@@ -22,21 +22,29 @@ export interface TreeRendererOptions {
 }
 
 export function renderTree (node: TreeNode | string, opts?: TreeRendererOptions): string {
-  return render(node, '', '', opts ?? {})
+  return render(opts ?? {}, { node, connector: '', prefix: '' })
 }
 
-/**
- * @param connector - The formatted connector string for this node's first line
- *   (e.g. `├─┬ `). Empty string for the root node.
- * @param prefix - The raw prefix for subsequent lines and children of this node.
- *   Built from unformatted characters so it can be extended for deeper levels.
- */
+interface RenderContext {
+  node: TreeNode | string
+  /**
+   * The formatted connector string for this node's first line
+   * (e.g. `├─┬ `). Empty string for the root node.
+   */
+  connector: string
+  /**
+   * The raw prefix for subsequent lines and children of this node.
+   * Built from unformatted characters so it can be extended for deeper levels.
+   */
+  prefix: string
+}
+
 function render (
-  node: TreeNode | string,
-  connector: string,
-  prefix: string,
-  opts: TreeRendererOptions
+  opts: TreeRendererOptions,
+  ctx: RenderContext
 ): string {
+  const { connector, prefix } = ctx
+  let { node } = ctx
   if (typeof node === 'string') node = { label: node }
 
   const fmt = opts.treeChars ?? identity
@@ -85,7 +93,11 @@ function render (
       (more ? chr('┬') : chr('─')) + ' '
     const childPrefix = prefix + (last ? '  ' : chr('│') + ' ')
 
-    result += render(item.node, childConnector, childPrefix, opts)
+    result += render(opts, {
+      node: item.node,
+      connector: childConnector,
+      prefix: childPrefix,
+    })
   }
 
   return result

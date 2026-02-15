@@ -6,35 +6,33 @@ export function nameAtVersion (name: string, version: string, colorName?: (s: st
   return `${styledName}${chalk.gray(`@${version}`)}`
 }
 
-export function peerHashSuffix (
-  name: string,
-  version: string,
-  hash: string | undefined,
-  multiPeerPkgs: Map<string, number>
-): string {
-  if (!hash) return ''
-  const key = `${name}@${version}`
+export function peerHashSuffix (pkg: {
+  name: string
+  version: string
+  peersSuffixHash?: string | undefined
+}, multiPeerPkgs: Map<string, number>): string {
+  if (!pkg.peersSuffixHash) return ''
+  const key = `${pkg.name}@${pkg.version}`
   const variantCount = multiPeerPkgs.get(key)
   if (variantCount == null) return ''
-  return chalk.red(` peer#${hash} (${variantCount} variation${variantCount === 1 ? '' : 's'})`)
+  return chalk.red(` peer#${pkg.peersSuffixHash} (${variantCount} variation${variantCount === 1 ? '' : 's'})`)
 }
 
 export const DEDUPED_LABEL = chalk.dim(' [deduped]')
 
-export function collectHashes (
-  hashesPerPkg: Map<string, Set<string>>,
-  name: string,
-  version: string,
-  hash: string | undefined
-): void {
-  if (!hash) return
-  const key = `${name}@${version}`
+export function collectHashes (hashesPerPkg: Map<string, Set<string>>, pkg: {
+  name: string
+  version: string
+  peersSuffixHash?: string | undefined
+}): void {
+  if (!pkg.peersSuffixHash) return
+  const key = `${pkg.name}@${pkg.version}`
   let hashes = hashesPerPkg.get(key)
   if (hashes == null) {
     hashes = new Set()
     hashesPerPkg.set(key, hashes)
   }
-  hashes.add(hash)
+  hashes.add(pkg.peersSuffixHash)
 }
 
 /**

@@ -140,7 +140,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
     pkgInfo: packageInfo,
     readManifest: () => {
       if (integrity && opts.storeDir) {
-        const manifest = readManifestFromCafs(opts.storeDir, integrity, name, version)
+        const manifest = readManifestFromCafs(opts.storeDir, { integrity, name, version })
         if (manifest) return manifest
       }
       return readPackageJsonFromDirSync(fullPackagePath)

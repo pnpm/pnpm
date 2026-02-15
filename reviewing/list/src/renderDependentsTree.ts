@@ -4,10 +4,6 @@ import chalk from 'chalk'
 import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 import { getPkgInfo } from './getPkgInfo.js'
 
-function plainNameAtVersion (name: string, version: string): string {
-  return version ? `${name}@${version}` : name
-}
-
 export async function renderDependentsTree (trees: DependentsTree[], opts: { long: boolean }): Promise<string> {
   if (trees.length === 0) return ''
 
@@ -16,7 +12,7 @@ export async function renderDependentsTree (trees: DependentsTree[], opts: { lon
   const output = (
     await Promise.all(trees.map(async (result) => {
       const rootLabelParts = [chalk.bold(nameAtVersion(result.name, result.version)) +
-        peerHashSuffix(result.name, result.version, result.peersSuffixHash, multiPeerPkgs)]
+        peerHashSuffix(result, multiPeerPkgs)]
       if (result.searchMessage) {
         rootLabelParts.push(result.searchMessage)
       }
@@ -62,7 +58,7 @@ function findMultiPeerPackages (trees: DependentsTree[]): Map<string, number> {
 
   function walkDependents (dependents: Dependent[]): void {
     for (const dep of dependents) {
-      collectHashes(hashesPerPkg, dep.name, dep.version, dep.peersSuffixHash)
+      collectHashes(hashesPerPkg, dep)
       if (dep.dependents) {
         walkDependents(dep.dependents)
       }
@@ -70,7 +66,7 @@ function findMultiPeerPackages (trees: DependentsTree[]): Map<string, number> {
   }
 
   for (const tree of trees) {
-    collectHashes(hashesPerPkg, tree.name, tree.version, tree.peersSuffixHash)
+    collectHashes(hashesPerPkg, tree)
     walkDependents(tree.dependents)
   }
 
@@ -85,7 +81,7 @@ function dependentsToTreeNodes (dependents: Dependent[], multiPeerPkgs: Map<stri
       label = chalk.bold(nameAtVersion(dep.name, dep.version)) + ` ${chalk.dim(`(${dep.depField})`)}`
     } else {
       label = nameAtVersion(dep.name, dep.version)
-      label += peerHashSuffix(dep.name, dep.version, dep.peersSuffixHash, multiPeerPkgs)
+      label += peerHashSuffix(dep, multiPeerPkgs)
     }
 
     if (dep.circular) {
@@ -138,4 +134,8 @@ function collectPaths (dependents: Dependent[], currentPath: string[], lines: st
       lines.push([...newPath].reverse().join(' > '))
     }
   }
+}
+
+function plainNameAtVersion (name: string, version: string): string {
+  return version ? `${name}@${version}` : name
 }

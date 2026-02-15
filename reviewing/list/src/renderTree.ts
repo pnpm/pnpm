@@ -2,8 +2,8 @@ import path from 'path'
 import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode, type TreeNodeGroup } from '@pnpm/text.tree-renderer'
 import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
-import chalk from 'chalk'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import chalk from 'chalk'
 import { getPkgInfo } from './getPkgInfo.js'
 import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 import { type PackageDependencyHierarchy } from './types.js'
@@ -161,7 +161,7 @@ function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number
     txt += ' skipped'
   }
   if (multiPeerPkgs) {
-    txt += peerHashSuffix(node.name, node.version, node.peersSuffixHash, multiPeerPkgs)
+    txt += peerHashSuffix(node, multiPeerPkgs)
   }
   if (node.deduped) {
     txt += DEDUPED_LABEL
@@ -184,7 +184,7 @@ function findMultiPeerPackages (packages: PackageDependencyHierarchy[]): Map<str
 
   function walk (nodes: PackageNode[]): void {
     for (const node of nodes) {
-      collectHashes(hashesPerPkg, node.name, node.version, node.peersSuffixHash)
+      collectHashes(hashesPerPkg, node)
       if (node.dependencies) {
         walk(node.dependencies)
       }
