@@ -1,4 +1,4 @@
-import { type PackageJSON as ExportedManifest } from '@npm/types'
+import type { PackageJSON as ExportedManifest } from '@npm/types'
 import { type ProjectManifest } from '@pnpm/types'
 import { pipe } from 'ramda'
 import { transformBin } from './bin.js'
