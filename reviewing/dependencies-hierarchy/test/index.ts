@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
-import { buildDependenciesTree, type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { buildDependenciesTree, type DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { depPathToFilename } from '@pnpm/dependency-path'
 
 const virtualStoreDirMaxLength = process.platform === 'win32' ? 60 : 120
@@ -314,14 +314,14 @@ test('circular dependency', async () => {
     [circularFixture]: {
       dependencies: JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'circularTree.json'), 'utf8'))
         .dependencies
-        .map((dep: PackageNode) => resolvePaths(modulesDir, dep)),
+        .map((dep: DependencyNode) => resolvePaths(modulesDir, dep)),
       devDependencies: [],
       optionalDependencies: [],
     },
   })
 })
 
-function resolvePaths (modulesDir: string, node: PackageNode): PackageNode {
+function resolvePaths (modulesDir: string, node: DependencyNode): DependencyNode {
   const p = path.resolve(modulesDir, '.pnpm', node.path, 'node_modules', node.name)
   if (node.dependencies == null) {
     return {

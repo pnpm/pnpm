@@ -16,16 +16,16 @@ import { type DependenciesField, type Finder, DEPENDENCIES_FIELDS, type Registri
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
-import { type PackageNode } from './PackageNode.js'
+import { type DependencyNode } from './DependencyNode.js'
 import { buildDependencyGraph } from './buildDependencyGraph.js'
 import { getTree, type BaseTreeOpts, type MaterializationCache } from './getTree.js'
 import { type TreeNodeId } from './TreeNodeId.js'
 
 export interface DependenciesTree {
-  dependencies?: PackageNode[]
-  devDependencies?: PackageNode[]
-  optionalDependencies?: PackageNode[]
-  unsavedDependencies?: PackageNode[]
+  dependencies?: DependencyNode[]
+  devDependencies?: DependencyNode[]
+  optionalDependencies?: DependencyNode[]
+  unsavedDependencies?: DependencyNode[]
 }
 
 export async function buildDependenciesTree (
@@ -209,7 +209,7 @@ async function dependenciesHierarchyForPackage (
           const pkg = await safeReadPackageJsonFromDir(pkgPath)
           version = pkg?.version ?? 'undefined'
         }
-        const pkg: PackageNode = {
+        const pkg: DependencyNode = {
           alias: unsavedDep,
           isMissing: false,
           isPeer: false,

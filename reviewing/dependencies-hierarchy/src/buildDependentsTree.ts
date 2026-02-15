@@ -24,10 +24,10 @@ interface ReverseEdge {
   alias: string
 }
 
-export interface Dependent {
+export interface DependentNode {
   name: string
   version: string
-  dependents?: Dependent[]
+  dependents?: DependentNode[]
   circular?: true
   deduped?: true
   /** Short hash distinguishing peer-dep variants of the same name@version */
@@ -45,7 +45,7 @@ export interface DependentsTree {
   peersSuffixHash?: string
   /** Message returned by the finder function, if any */
   searchMessage?: string
-  dependents: Dependent[]
+  dependents: DependentNode[]
 }
 
 export interface ImporterInfo {
@@ -275,7 +275,7 @@ function resolvePackageNodes (
 function walkReverse (
   nodeId: string,
   ctx: WalkContext
-): Dependent[] {
+): DependentNode[] {
   const reverseEdges = ctx.reverseMap.get(nodeId)
   if (reverseEdges == null || reverseEdges.length === 0) return []
 
@@ -285,7 +285,7 @@ function walkReverse (
     lexCompare(resolveParentName(a, ctx), resolveParentName(b, ctx))
   )
 
-  const dependents: Dependent[] = []
+  const dependents: DependentNode[] = []
 
   for (const edge of sortedEdges) {
     // Cycle detection: this node is already on our current path

@@ -1,4 +1,4 @@
-export interface PackageNode {
+export interface DependencyNode {
   alias: string
   circular?: true
   deduped?: true
@@ -13,7 +13,7 @@ export interface PackageNode {
    * peer dependency resolutions.
    */
   peersSuffixHash?: string
-  dependencies?: PackageNode[]
+  dependencies?: DependencyNode[]
   dev?: boolean
   isPeer: boolean
   isSkipped: boolean

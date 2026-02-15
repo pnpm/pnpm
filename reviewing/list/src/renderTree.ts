@@ -1,5 +1,5 @@
 import path from 'path'
-import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode, type TreeNodeGroup } from '@pnpm/text.tree-renderer'
 import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -94,11 +94,11 @@ async function renderTreeForPackage (
   return renderArchyTree(tree, { treeChars: chalk.dim }).trimEnd()
 }
 
-type GetPkgColor = (node: PackageNode) => (s: string) => string
+type GetPkgColor = (node: DependencyNode) => (s: string) => string
 
 export async function toArchyTree (
   getPkgColor: GetPkgColor,
-  entryNodes: PackageNode[],
+  entryNodes: DependencyNode[],
   opts: {
     long: boolean
     modules: string
@@ -140,7 +140,7 @@ export async function toArchyTree (
   )
 }
 
-function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number> | undefined, node: PackageNode): string {
+function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number> | undefined, node: DependencyNode): string {
   const color = getPkgColor(node)
   let txt: string
   if (node.alias !== node.name) {
@@ -169,7 +169,7 @@ function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number
   return node.searched ? chalk.bold(txt) : txt
 }
 
-function getPkgColor (node: PackageNode): (text: string) => string {
+function getPkgColor (node: DependencyNode): (text: string) => string {
   if (node.dev === true) return DEV_DEP_ONLY_CLR
   if (node.optional) return OPTIONAL_DEP_CLR
   return PROD_DEP_CLR
@@ -182,7 +182,7 @@ function getPkgColor (node: PackageNode): (text: string) => string {
 function findMultiPeerPackages (packages: PackageDependencyHierarchy[]): Map<string, number> {
   const hashesPerPkg = new Map<string, Set<string>>()
 
-  function walk (nodes: PackageNode[]): void {
+  function walk (nodes: DependencyNode[]): void {
     for (const node of nodes) {
       collectHashes(hashesPerPkg, node)
       if (node.dependencies) {
@@ -205,7 +205,7 @@ function findMultiPeerPackages (packages: PackageDependencyHierarchy[]): Map<str
 function listSummary (packages: PackageDependencyHierarchy[]): string {
   let total = 0
 
-  function walk (nodes: PackageNode[]): void {
+  function walk (nodes: DependencyNode[]): void {
     for (const node of nodes) {
       total++
       if (node.dependencies) {

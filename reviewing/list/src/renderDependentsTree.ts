@@ -1,4 +1,4 @@
-import { type DependentsTree, type Dependent } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type DependentsTree, type DependentNode} from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
 import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
@@ -56,7 +56,7 @@ function whySummary (trees: DependentsTree[]): string {
 function findMultiPeerPackages (trees: DependentsTree[]): Map<string, number> {
   const hashesPerPkg = new Map<string, Set<string>>()
 
-  function walkDependents (dependents: Dependent[]): void {
+  function walkDependents (dependents: DependentNode[]): void {
     for (const dep of dependents) {
       collectHashes(hashesPerPkg, dep)
       if (dep.dependents) {
@@ -73,7 +73,7 @@ function findMultiPeerPackages (trees: DependentsTree[]): Map<string, number> {
   return filterMultiPeerEntries(hashesPerPkg)
 }
 
-function dependentsToTreeNodes (dependents: Dependent[], multiPeerPkgs: Map<string, number>): TreeNode[] {
+function dependentsToTreeNodes (dependents: DependentNode[], multiPeerPkgs: Map<string, number>): TreeNode[] {
   return dependents.map((dep) => {
     let label: string
     if (dep.depField != null) {
@@ -124,7 +124,7 @@ export function renderDependentsParseable (trees: DependentsTree[], opts: { long
   return lines.join('\n')
 }
 
-function collectPaths (dependents: Dependent[], currentPath: string[], lines: string[]): void {
+function collectPaths (dependents: DependentNode[], currentPath: string[], lines: string[]): void {
   for (const dep of dependents) {
     const newPath = [...currentPath, plainNameAtVersion(dep.name, dep.version)]
     if (dep.dependents && dep.dependents.length > 0) {

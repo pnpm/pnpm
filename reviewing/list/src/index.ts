@@ -1,7 +1,7 @@
 import path from 'path'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type PackageNode, buildDependenciesTree, type DependenciesTree, createPackagesSearcher, buildDependentsTree, type ImporterInfo } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type DependencyNode, buildDependenciesTree, type DependenciesTree, createPackagesSearcher, buildDependentsTree, type ImporterInfo } from '@pnpm/reviewing.dependencies-hierarchy'
 import { type DependenciesField, type Registries, type Finder } from '@pnpm/types'
 import { renderJson } from './renderJson.js'
 import { renderParseable } from './renderParseable.js'
@@ -9,7 +9,7 @@ import { renderTree } from './renderTree.js'
 import { renderDependentsTree, renderDependentsJson, renderDependentsParseable } from './renderDependentsTree.js'
 import { type PackageDependencyHierarchy } from './types.js'
 
-export type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+export type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 export { renderJson, renderParseable, renderTree, type PackageDependencyHierarchy }
 
 const DEFAULTS = {
@@ -40,7 +40,7 @@ export function flattenSearchedPackages (pkgs: PackageDependencyHierarchy[], opt
 
   return flattedPkgs
 
-  function _walker (packages: PackageNode[], depPath: string): void {
+  function _walker (packages: DependencyNode[], depPath: string): void {
     for (const pkg of packages) {
       const nextDepPath = `${depPath} > ${pkg.name}@${pkg.version}`
       if (pkg.dependencies?.length) {
