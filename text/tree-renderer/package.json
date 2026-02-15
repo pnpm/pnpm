@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/text.tree-renderer",
-  "version": "1000.0.0",
+  "version": "1000.0.0-0",
   "description": "Renders a tree structure with box-drawing characters",
   "keywords": [
     "pnpm",
