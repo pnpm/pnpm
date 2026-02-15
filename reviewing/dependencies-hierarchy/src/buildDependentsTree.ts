@@ -82,10 +82,10 @@ export async function buildDependentsTree (
   const storeDir = modules?.storeDir
   const virtualStoreDir = modules?.virtualStoreDir ?? internalPnpmDir
   const virtualStoreDirMaxLength = modules?.virtualStoreDirMaxLength ?? 120
-  const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
-
-  const lockfileToUse = opts.checkWantedLockfileOnly ? wantedLockfile : currentLockfile
+  const lockfileToUse = opts.checkWantedLockfileOnly
+    ? wantedLockfile
+    : await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   if (!lockfileToUse) return []
 
   const include = opts.include ?? {
@@ -131,6 +131,15 @@ export async function buildDependentsTree (
   // Each distinct depPath (i.e. different peer dep resolutions) is kept as a
   // separate result so that peer variants are visible in the output.
   const results: DependentsTree[] = []
+  const ctx: WalkContext = {
+    reverseMap,
+    graph,
+    importers: lockfileToUse.importers,
+    currentPackages,
+    importerInfoMap: opts.importerInfoMap,
+    visited: new Set(),
+    expanded: new Set(),
+  }
 
   for (const [serialized, node] of graph.nodes) {
     if (node.nodeId.type !== 'package') continue
@@ -139,13 +148,8 @@ export async function buildDependentsTree (
     if (snapshot == null) continue
 
     const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
-    const readManifest = (): DependencyManifest => {
-      const resolvedNode = resolvedPackageNodes.get(serialized)
-      if (resolvedNode) {
-        return resolvedNode.readManifest()
-      }
-      return { name, version } as DependencyManifest
-    }
+    const pkgNode = resolvedPackageNodes.get(serialized)
+    const readManifest = pkgNode!.readManifest
 
     // Check canonical name first
     let matched = search({ alias: name, name, version, readManifest })
@@ -164,24 +168,22 @@ export async function buildDependentsTree (
     }
     if (!matched) continue
 
-    const peerHash = peersSuffixHashFromDepPath(depPath)
-
-    const ctx: WalkContext = {
-      reverseMap,
-      graph,
-      importers: lockfileToUse.importers,
-      currentPackages,
-      importerInfoMap: opts.importerInfoMap,
-      visited: new Set([serialized]),
-      expanded: new Set(),
-    }
+    ctx.visited = new Set([serialized])
+    ctx.expanded = new Set()
     const dependents = walkReverse(serialized, ctx)
+    const peersSuffixHash = peersSuffixHashFromDepPath(depPath)
 
-    const result: DependentsTree = { name, version, path: resolvedPackageNodes.get(serialized)?.path, peersSuffixHash: peerHash, dependents }
-    if (typeof matched === 'string') {
-      result.searchMessage = matched
+    const tree: DependentsTree = {
+      name,
+      version,
+      path: pkgNode?.path,
+      peersSuffixHash,
+      dependents,
     }
-    results.push(result)
+    if (typeof matched === 'string') {
+      tree.searchMessage = matched
+    }
+    results.push(tree)
   }
 
   results.sort((a, b) => lexCompare(a.name, b.name))

@@ -100,7 +100,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
   if (!version) {
     version = opts.ref
   }
-  let fullPackagePath = depPath
+  const fullPackagePath = depPath
     ? resolvePackagePath({
       depPath,
       name,
