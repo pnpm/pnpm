@@ -11,7 +11,7 @@ export async function renderDependentsTree (trees: DependentsTree[], opts: { lon
 
   const output = (
     await Promise.all(trees.map(async (result) => {
-      const rootLabelParts = [chalk.bold(nameAtVersion(result.name, result.version)) +
+      const rootLabelParts = [chalk.bold(nameAtVersion(result.displayName ?? result.name, result.version)) +
         peerHashSuffix(result, multiPeerPkgs)]
       if (result.searchMessage) {
         rootLabelParts.push(result.searchMessage)
@@ -48,10 +48,11 @@ function whySummary (trees: DependentsTree[]): string {
 
   const byName = new Map<string, { versions: Set<string>, count: number }>()
   for (const tree of trees) {
-    let entry = byName.get(tree.name)
+    const displayedName = tree.displayName ?? tree.name
+    let entry = byName.get(displayedName)
     if (entry == null) {
       entry = { versions: new Set<string>(), count: 0 }
-      byName.set(tree.name, entry)
+      byName.set(displayedName, entry)
     }
     entry.versions.add(tree.version)
     entry.count++
@@ -91,11 +92,12 @@ function findMultiPeerPackages (trees: DependentsTree[]): Map<string, number> {
 function dependentsToTreeNodes (dependents: DependentNode[], multiPeerPkgs: Map<string, number>, currentDepth: number, maxDepth?: number): TreeNode[] {
   return dependents.map((dep) => {
     let label: string
+    const displayedName = dep.displayName ?? dep.name
     if (dep.depField != null) {
       // This is an importer (leaf node)
-      label = chalk.bold(nameAtVersion(dep.name, dep.version)) + ` ${chalk.dim(`(${dep.depField})`)}`
+      label = chalk.bold(nameAtVersion(displayedName, dep.version)) + ` ${chalk.dim(`(${dep.depField})`)}`
     } else {
-      label = nameAtVersion(dep.name, dep.version)
+      label = nameAtVersion(displayedName, dep.version)
       label += peerHashSuffix(dep, multiPeerPkgs)
     }
 
@@ -140,9 +142,10 @@ export async function renderDependentsJson (trees: DependentsTree[], opts: { lon
 export function renderDependentsParseable (trees: DependentsTree[], opts: { long: boolean, depth?: number }): string {
   const lines: string[] = []
   for (const result of trees) {
+    const displayedName = result.displayName ?? result.name
     const rootSegment = opts.long && result.path
-      ? `${result.path}:${plainNameAtVersion(result.name, result.version)}`
-      : plainNameAtVersion(result.name, result.version)
+      ? `${result.path}:${plainNameAtVersion(displayedName, result.version)}`
+      : plainNameAtVersion(displayedName, result.version)
     collectPaths(result.dependents, [rootSegment], lines, 0, opts.depth)
   }
   return lines.join('\n')
@@ -150,7 +153,7 @@ export function renderDependentsParseable (trees: DependentsTree[], opts: { long
 
 function collectPaths (dependents: DependentNode[], currentPath: string[], lines: string[], currentDepth: number, maxDepth?: number): void {
   for (const dep of dependents) {
-    const newPath = [...currentPath, plainNameAtVersion(dep.name, dep.version)]
+    const newPath = [...currentPath, plainNameAtVersion(dep.displayName ?? dep.name, dep.version)]
     const atDepthLimit = maxDepth != null && currentDepth + 1 >= maxDepth
     if (dep.dependents && dep.dependents.length > 0 && !atDepthLimit) {
       collectPaths(dep.dependents, newPath, lines, currentDepth + 1, maxDepth)

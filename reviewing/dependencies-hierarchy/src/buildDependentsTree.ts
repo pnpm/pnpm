@@ -26,6 +26,7 @@ interface ReverseEdge {
 
 export interface DependentNode {
   name: string
+  displayName?: string
   version: string
   dependents?: DependentNode[]
   circular?: true
@@ -38,6 +39,7 @@ export interface DependentNode {
 
 export interface DependentsTree {
   name: string
+  displayName?: string
   version: string
   /** Resolved filesystem path to this package */
   path?: string
@@ -59,6 +61,8 @@ interface WalkContext {
   importers: Record<string, ProjectSnapshot>
   currentPackages: PackageSnapshots
   importerInfoMap: Map<string, ImporterInfo>
+  resolvedPackageNodes: Map<string, { path: string, readManifest: () => DependencyManifest }>
+  nameFormatter?: (info: { name: string, version: string, manifest: DependencyManifest }) => string | undefined
   /** Tracks nodes on the current path for cycle detection. Mutated during walk. */
   visited: Set<string>
   /** Tracks nodes already fully expanded, for deduplication across branches. */
@@ -76,6 +80,7 @@ export async function buildDependentsTree (
     finders?: Finder[]
     importerInfoMap: Map<string, ImporterInfo>
     lockfile: LockfileObject
+    nameFormatter?: (info: { name: string, version: string, manifest: DependencyManifest }) => string | undefined
   }
 ): Promise<DependentsTree[]> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
@@ -138,6 +143,8 @@ export async function buildDependentsTree (
     importers: opts.lockfile.importers,
     currentPackages,
     importerInfoMap: opts.importerInfoMap,
+    resolvedPackageNodes,
+    nameFormatter: opts.nameFormatter,
     visited: new Set(),
     expanded: new Set(),
   }
@@ -175,8 +182,12 @@ export async function buildDependentsTree (
     const dependents = walkReverse(serialized, ctx)
     const peersSuffixHash = peersSuffixHashFromDepPath(depPath)
 
+    const displayName = opts.nameFormatter
+      ? opts.nameFormatter({ name, version, manifest: readManifest() })
+      : undefined
     const tree: DependentsTree = {
       name,
+      displayName,
       version,
       path: pkgNode.path,
       peersSuffixHash,
@@ -309,7 +320,8 @@ function walkReverse (
         const snapshot = ctx.currentPackages[parentNode.nodeId.depPath]
         if (snapshot) {
           const { name, version } = nameVerFromPkgSnapshot(parentNode.nodeId.depPath, snapshot)
-          dependents.push({ name, version, circular: true })
+          const displayName = resolveDisplayName(edge.parentSerialized, name, version, ctx)
+          dependents.push({ name, displayName, version, circular: true })
         }
       }
       continue
@@ -335,8 +347,10 @@ function walkReverse (
 
       // Deduplication: if this package was already expanded elsewhere in the
       // tree, show it as a leaf to keep the output bounded.
+      const displayName = resolveDisplayName(edge.parentSerialized, name, version, ctx)
+
       if (ctx.expanded.has(edge.parentSerialized)) {
-        dependents.push({ name, version, peersSuffixHash, deduped: true })
+        dependents.push({ name, displayName, version, peersSuffixHash, deduped: true })
         continue
       }
 
@@ -347,6 +361,7 @@ function walkReverse (
 
       dependents.push({
         name,
+        displayName,
         version,
         peersSuffixHash,
         dependents: childDependents.length > 0 ? childDependents : undefined,
@@ -367,6 +382,13 @@ function resolveParentName (edge: ReverseEdge, ctx: WalkContext): string {
   const snapshot = ctx.currentPackages[graphNode.nodeId.depPath]
   if (snapshot == null) return ''
   return nameVerFromPkgSnapshot(graphNode.nodeId.depPath, snapshot).name
+}
+
+function resolveDisplayName (serialized: string, name: string, version: string, ctx: WalkContext): string | undefined {
+  if (!ctx.nameFormatter) return undefined
+  const pkgNode = ctx.resolvedPackageNodes.get(serialized)
+  if (!pkgNode) return undefined
+  return ctx.nameFormatter({ name, version, manifest: pkgNode.readManifest() })
 }
 
 function getDepFieldForAlias (
