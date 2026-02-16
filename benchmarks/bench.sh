@@ -32,16 +32,16 @@ else
     MAIN_DIR="$EXISTING"
     echo "── Using existing main worktree at $MAIN_DIR ──"
   else
-    MAIN_DIR="$BRANCH_DIR/.bench-main"
+    MAIN_DIR="$BRANCH_DIR/../.pnpm-bench-main"
     echo "── Creating main worktree at $MAIN_DIR ──"
     git -C "$BRANCH_DIR" worktree add "$MAIN_DIR" main
   fi
 
   cd "$MAIN_DIR"
   echo "Installing dependencies..."
-  pnpm install >/dev/null 2>&1
+  pnpm install
   echo "Compiling..."
-  pnpm run compile >/dev/null 2>&1
+  pnpm run compile
   echo ""
   cd "$BRANCH_DIR"
 fi
