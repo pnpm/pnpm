@@ -1,5 +1,5 @@
-import fs from 'fs'
 import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
 
@@ -19,8 +19,7 @@ export function readManifestFromCafs (storeDir: string, pkg: {
     const pkgJsonEntry = pkgIndex.files.get('package.json')
     if (pkgJsonEntry) {
       const filePath = getFilePathByModeInCafs(storeDir, pkgJsonEntry.digest, pkgJsonEntry.mode)
-      const content = fs.readFileSync(filePath, 'utf8')
-      return JSON.parse(content.charCodeAt(0) === 0xFEFF ? content.slice(1) : content) as DependencyManifest
+      return loadJsonFileSync<DependencyManifest>(filePath)
     }
   } catch {
     // Fall through to undefined
