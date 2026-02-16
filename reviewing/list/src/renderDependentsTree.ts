@@ -4,14 +4,14 @@ import chalk from 'chalk'
 import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 import { getPkgInfo } from './getPkgInfo.js'
 
-export async function renderDependentsTree (trees: DependentsTree[], opts: { long: boolean }): Promise<string> {
+export async function renderDependentsTree (trees: DependentsTree[], opts: { long: boolean, depth?: number }): Promise<string> {
   if (trees.length === 0) return ''
 
   const multiPeerPkgs = findMultiPeerPackages(trees)
 
   const output = (
     await Promise.all(trees.map(async (result) => {
-      const rootLabelParts = [chalk.bold(nameAtVersion(result.name, result.version)) +
+      const rootLabelParts = [chalk.bold(nameAtVersion(result.displayName ?? result.name, result.version)) +
         peerHashSuffix(result, multiPeerPkgs)]
       if (result.searchMessage) {
         rootLabelParts.push(result.searchMessage)
@@ -33,7 +33,7 @@ export async function renderDependentsTree (trees: DependentsTree[], opts: { lon
       if (result.dependents.length === 0) {
         return rootLabel
       }
-      const childNodes = dependentsToTreeNodes(result.dependents, multiPeerPkgs)
+      const childNodes = dependentsToTreeNodes(result.dependents, multiPeerPkgs, 0, opts.depth)
       const tree: TreeNode = { label: rootLabel, nodes: childNodes }
       return renderArchyTree(tree, { treeChars: chalk.dim }).replace(/\n+$/, '')
     }))
@@ -48,10 +48,11 @@ function whySummary (trees: DependentsTree[]): string {
 
   const byName = new Map<string, { versions: Set<string>, count: number }>()
   for (const tree of trees) {
-    let entry = byName.get(tree.name)
+    const displayedName = tree.displayName ?? tree.name
+    let entry = byName.get(displayedName)
     if (entry == null) {
       entry = { versions: new Set<string>(), count: 0 }
-      byName.set(tree.name, entry)
+      byName.set(displayedName, entry)
     }
     entry.versions.add(tree.version)
     entry.count++
@@ -88,14 +89,15 @@ function findMultiPeerPackages (trees: DependentsTree[]): Map<string, number> {
   return filterMultiPeerEntries(hashesPerPkg)
 }
 
-function dependentsToTreeNodes (dependents: DependentNode[], multiPeerPkgs: Map<string, number>): TreeNode[] {
+function dependentsToTreeNodes (dependents: DependentNode[], multiPeerPkgs: Map<string, number>, currentDepth: number, maxDepth?: number): TreeNode[] {
   return dependents.map((dep) => {
     let label: string
+    const displayedName = dep.displayName ?? dep.name
     if (dep.depField != null) {
       // This is an importer (leaf node)
-      label = chalk.bold(nameAtVersion(dep.name, dep.version)) + ` ${chalk.dim(`(${dep.depField})`)}`
+      label = chalk.bold(nameAtVersion(displayedName, dep.version)) + ` ${chalk.dim(`(${dep.depField})`)}`
     } else {
-      label = nameAtVersion(dep.name, dep.version)
+      label = nameAtVersion(displayedName, dep.version)
       label += peerHashSuffix(dep, multiPeerPkgs)
     }
 
@@ -106,49 +108,70 @@ function dependentsToTreeNodes (dependents: DependentNode[], multiPeerPkgs: Map<
       label += DEDUPED_LABEL
     }
 
-    const nodes = dep.dependents ? dependentsToTreeNodes(dep.dependents, multiPeerPkgs) : []
+    const atDepthLimit = maxDepth != null && currentDepth + 1 >= maxDepth
+    const nodes = dep.dependents && !atDepthLimit
+      ? dependentsToTreeNodes(dep.dependents, multiPeerPkgs, currentDepth + 1, maxDepth)
+      : []
     return { label, nodes }
   })
 }
 
-export async function renderDependentsJson (trees: DependentsTree[], opts: { long: boolean }): Promise<string> {
-  if (!opts.long) {
-    return JSON.stringify(trees, null, 2)
+export async function renderDependentsJson (trees: DependentsTree[], opts: { long: boolean, depth?: number }): Promise<string> {
+  let data: DependentsTree[] | Array<DependentsTree & { description?: string, repository?: string, homepage?: string }> = trees
+  if (opts.long) {
+    data = await Promise.all(trees.map(async (result) => {
+      if (!result.path) return result
+      const pkg = await getPkgInfo({ name: result.name, version: result.version, path: result.path, alias: undefined })
+      return {
+        ...result,
+        description: pkg.description,
+        repository: pkg.repository,
+        homepage: pkg.homepage,
+      }
+    }))
   }
-  const enriched = await Promise.all(trees.map(async (result) => {
-    if (!result.path) return result
-    const pkg = await getPkgInfo({ name: result.name, version: result.version, path: result.path, alias: undefined })
-    return {
-      ...result,
-      description: pkg.description,
-      repository: pkg.repository,
-      homepage: pkg.homepage,
-    }
-  }))
-  return JSON.stringify(enriched, null, 2)
+  if (opts.depth != null) {
+    data = data.map((tree) => ({
+      ...tree,
+      dependents: truncateDependents(tree.dependents, 0, opts.depth!),
+    }))
+  }
+  return JSON.stringify(data, null, 2)
 }
 
-export function renderDependentsParseable (trees: DependentsTree[], opts: { long: boolean }): string {
+export function renderDependentsParseable (trees: DependentsTree[], opts: { long: boolean, depth?: number }): string {
   const lines: string[] = []
   for (const result of trees) {
+    const displayedName = result.displayName ?? result.name
     const rootSegment = opts.long && result.path
-      ? `${result.path}:${plainNameAtVersion(result.name, result.version)}`
-      : plainNameAtVersion(result.name, result.version)
-    collectPaths(result.dependents, [rootSegment], lines)
+      ? `${result.path}:${plainNameAtVersion(displayedName, result.version)}`
+      : plainNameAtVersion(displayedName, result.version)
+    collectPaths(result.dependents, [rootSegment], lines, 0, opts.depth)
   }
   return lines.join('\n')
 }
 
-function collectPaths (dependents: DependentNode[], currentPath: string[], lines: string[]): void {
+function collectPaths (dependents: DependentNode[], currentPath: string[], lines: string[], currentDepth: number, maxDepth?: number): void {
   for (const dep of dependents) {
-    const newPath = [...currentPath, plainNameAtVersion(dep.name, dep.version)]
-    if (dep.dependents && dep.dependents.length > 0) {
-      collectPaths(dep.dependents, newPath, lines)
+    const newPath = [...currentPath, plainNameAtVersion(dep.displayName ?? dep.name, dep.version)]
+    const atDepthLimit = maxDepth != null && currentDepth + 1 >= maxDepth
+    if (dep.dependents && dep.dependents.length > 0 && !atDepthLimit) {
+      collectPaths(dep.dependents, newPath, lines, currentDepth + 1, maxDepth)
     } else {
-      // Leaf node (importer) — reverse to show importer first
+      // Leaf node (importer or depth-limited) — reverse to show importer first
       lines.push([...newPath].reverse().join(' > '))
     }
   }
+}
+
+function truncateDependents (dependents: DependentNode[], currentDepth: number, maxDepth: number): DependentNode[] {
+  return dependents.map((dep) => {
+    if (dep.dependents && currentDepth + 1 < maxDepth) {
+      return { ...dep, dependents: truncateDependents(dep.dependents, currentDepth + 1, maxDepth) }
+    }
+    const { dependents: _, ...rest } = dep
+    return rest
+  })
 }
 
 function plainNameAtVersion (name: string, version: string): string {
