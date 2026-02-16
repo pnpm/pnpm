@@ -6,7 +6,6 @@ import {
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { readPackageJson } from '@pnpm/read-package-json'
 import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
@@ -194,19 +193,15 @@ export function createNpmResolver (
       const request = readPkgFromCafs(
         {
           storeDir,
-          verifyStoreIntegrity: true,
+          verifyStoreIntegrity: false,
         },
         filesIndexFile,
         {
-          readManifest: true,
           expectedPkg: { name: peekOpts.name, version: peekOpts.version },
         }
-      ).then(async ({ files, verified }) => {
-        if (!verified) return undefined
-        // Read full manifest from CAFS to get peerDependencies for resolution
-        const pkgJsonPath = files.filesMap.get('package.json')
-        if (!pkgJsonPath) return undefined
-        return readPackageJson(pkgJsonPath) as Promise<DependencyManifest>
+      ).then(({ pkgIndexMeta }) => {
+        if (!pkgIndexMeta) return undefined
+        return pkgIndexMeta as DependencyManifest
       }).catch(() => undefined)
       peekLockerForPeek.set(filesIndexFile, request)
       return request

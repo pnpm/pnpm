@@ -41,7 +41,6 @@
     "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
     "@pnpm/registry.pkg-metadata-filter": "workspace:*",
     "@pnpm/registry.types": "workspace:*",
     "@pnpm/resolve-workspace-range": "workspace:*",

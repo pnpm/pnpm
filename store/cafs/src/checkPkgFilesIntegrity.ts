@@ -27,13 +27,27 @@ export interface VerifyResult {
 }
 
 /**
- * Package metadata stored in the index file for bin linking, build scripts, and installability checks.
+ * Package metadata stored in the index file.
  * This avoids reading package.json from the content-addressable store.
+ * Used for bin linking, build scripts, installability checks, and dependency resolution.
  * Note: name and version are stored at the top level of PackageFilesIndex.
- * Note: dependency fields are not stored - for git/tarball packages,
- * read package.json from CAFS when full manifest is needed.
  */
-export type IndexedPkgMeta = Pick<BaseManifest, 'bin' | 'cpu' | 'directories' | 'engines' | 'libc' | 'os' | 'scripts'>
+export type IndexedPkgMeta = Pick<BaseManifest,
+| 'bin'
+| 'bundledDependencies'
+| 'bundleDependencies'
+| 'cpu'
+| 'dependencies'
+| 'dependenciesMeta'
+| 'directories'
+| 'engines'
+| 'libc'
+| 'optionalDependencies'
+| 'os'
+| 'peerDependencies'
+| 'peerDependenciesMeta'
+| 'scripts'
+>
 
 export interface PackageFilesIndex {
   // name and version are nullable for backward compatibility

@@ -29,16 +29,24 @@ export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, Impo
 export * from '@pnpm/resolver-base'
 /**
  * Subset of package.json fields cached in the store index.
- * Used for bin linking, build scripts, and runtime selection.
- * Note: dependency and platform fields are not included - for git/tarball packages,
- * read package.json from CAFS when full manifest is needed.
+ * Used for bin linking, build scripts, runtime selection, and dependency resolution.
  */
 export type PkgIndexMeta = Pick<
   DependencyManifest,
 | 'bin'
+| 'bundledDependencies'
+| 'bundleDependencies'
+| 'cpu'
+| 'dependencies'
+| 'dependenciesMeta'
 | 'directories'
 | 'engines'
+| 'libc'
 | 'name'
+| 'optionalDependencies'
+| 'os'
+| 'peerDependencies'
+| 'peerDependenciesMeta'
 | 'scripts'
 | 'version'
 >

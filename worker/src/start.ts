@@ -421,18 +421,23 @@ function writeFilesIndexFile (
   }
 ): boolean {
   const requiresBuild = pkgRequiresBuild(manifest, files)
-  // Store only essential metadata fields to keep the index file small.
-  // Note: name and version are stored at the top level of PackageFilesIndex.
-  // These fields are needed for:
+  // Store metadata needed for install and resolution in the index file.
+  // This avoids reading package.json from CAFS during repeat installs.
+  // Fields stored:
   // - bin linking: bin, directories
-  // - build scripts: scripts (only preinstall/install/postinstall)
-  // - runtime selection: engines (for engines.runtime)
-  // - installability checks: cpu, os, libc
-  // Dependency fields are NOT stored - for git/tarball packages, read package.json from CAFS.
+  // - build scripts: scripts (only lifecycle + prepare)
+  // - runtime/installability: engines, cpu, os, libc
+  // - dependency resolution: dependencies, optionalDependencies, peerDependencies,
+  //   peerDependenciesMeta, bundledDependencies, bundleDependencies, dependenciesMeta
+  // Excluded: description, keywords, license, author, repository, devDependencies, etc.
   let meta: IndexedPkgMeta | undefined
   if (Object.keys(manifest).length > 0) {
-    const baseMeta = pickNonNullish(manifest, ['bin', 'cpu', 'directories', 'engines', 'libc', 'os'])
-    // Only store lifecycle scripts needed for build detection
+    const baseMeta = pickNonNullish(manifest, [
+      'bin', 'cpu', 'directories', 'engines', 'libc', 'os',
+      'dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta',
+      'bundledDependencies', 'bundleDependencies', 'dependenciesMeta',
+    ])
+    // Only store lifecycle scripts needed for build detection + prepare for git repos
     const lifecycleScripts = manifest.scripts
       ? pickNonNullish(manifest.scripts, ['preinstall', 'install', 'postinstall'])
       : undefined
