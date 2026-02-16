@@ -433,9 +433,9 @@ function writeFilesIndexFile (
       'name', 'version',
       'bin', 'cpu', 'directories', 'engines', 'libc', 'os',
       'dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta',
-      'bundledDependencies', 'bundleDependencies', 'dependenciesMeta',
+      'bundledDependencies', 'bundleDependencies',
     ])
-    // Only store lifecycle scripts needed for build detection + prepare for git repos
+    // Only store lifecycle scripts needed for build detection
     const lifecycleScripts = manifest.scripts
       ? pickNonNullish(manifest.scripts, ['preinstall', 'install', 'postinstall'])
       : undefined

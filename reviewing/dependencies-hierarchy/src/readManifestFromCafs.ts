@@ -19,7 +19,8 @@ export function readManifestFromCafs (storeDir: string, pkg: {
     const pkgJsonEntry = pkgIndex.files.get('package.json')
     if (pkgJsonEntry) {
       const filePath = getFilePathByModeInCafs(storeDir, pkgJsonEntry.digest, pkgJsonEntry.mode)
-      return JSON.parse(fs.readFileSync(filePath, 'utf8')) as DependencyManifest
+      const content = fs.readFileSync(filePath, 'utf8')
+      return JSON.parse(content.charCodeAt(0) === 0xFEFF ? content.slice(1) : content) as DependencyManifest
     }
   } catch {
     // Fall through to undefined
