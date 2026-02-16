@@ -15,7 +15,7 @@ pnpm run compile
 ./benchmarks/bench.sh
 ```
 
-If a git worktree with `main` already exists, the script finds and uses it automatically. Otherwise it creates one at `.bench-main`, installs dependencies, and compiles.
+If a git worktree with `main` already exists, the script finds and uses it automatically. Otherwise it creates one at `../.pnpm-bench-main` (a sibling of the repo), installs dependencies, and compiles.
 
 You can also point to a specific checkout of main:
 
