@@ -2,6 +2,7 @@ import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
 import {
   getIndexFilePathInCafs as _getIndexFilePathInCafs,
+  normalizeBundledManifest,
 } from '@pnpm/store.cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
@@ -53,7 +54,6 @@ import PQueue from 'p-queue'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import pShare from 'promise-share'
 import { pick } from 'ramda'
-import semver from 'semver'
 import ssri from 'ssri'
 
 let currentLibc: 'glibc' | 'musl' | undefined | null
@@ -66,30 +66,6 @@ function getLibcFamilySync () {
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
 
-const pickBundledManifest = pick([
-  'bin',
-  'bundledDependencies',
-  'bundleDependencies',
-  'cpu',
-  'dependencies',
-  'directories',
-  'engines',
-  'libc',
-  'name',
-  'optionalDependencies',
-  'os',
-  'peerDependencies',
-  'peerDependenciesMeta',
-  'scripts',
-  'version',
-])
-
-function normalizeBundledManifest (manifest: DependencyManifest): BundledManifest {
-  return {
-    ...pickBundledManifest(manifest),
-    version: semver.clean(manifest.version ?? '0.0.0', { loose: true }) ?? manifest.version,
-  }
-}
 
 export function createPackageRequester (
   opts: {
@@ -632,8 +608,8 @@ function fetchToStore (
   }
 }
 
-async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {
-  return pickBundledManifest(await loadJsonFile<DependencyManifest>(pkgJsonPath))
+async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest | undefined> {
+  return normalizeBundledManifest(await loadJsonFile<DependencyManifest>(pkgJsonPath))
 }
 
 async function tarballIsUpToDate (

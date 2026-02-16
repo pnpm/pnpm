@@ -473,7 +473,6 @@ test('fetchPackageToStore()', async () => {
     {
       engines: { node: '>=0.10.0' },
       name: 'is-positive',
-      scripts: { test: 'node test.js' },
       version: '1.0.0',
     }
   )
@@ -668,7 +667,6 @@ test('always return a package manifest in the response', async () => {
       {
         engines: { node: '>=0.10.0' },
         name: 'is-positive',
-        scripts: { test: 'node test.js' },
         version: '1.0.0',
       }
     )

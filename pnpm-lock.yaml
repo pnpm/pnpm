@@ -8180,6 +8180,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -8195,6 +8198,9 @@ importers:
       rename-overwrite:
         specifier: 'catalog:'
         version: 6.0.3
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
       strip-bom:
         specifier: 'catalog:'
         version: 5.0.0
@@ -8208,15 +8214,15 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@types/is-gzip':
         specifier: 'catalog:'
         version: 2.0.0
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.11
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
       symlink-dir:
         specifier: 'catalog:'
         version: 7.1.0

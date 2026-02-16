@@ -24,11 +24,13 @@ import {
   getFilePathByModeInCafs,
   modeIsExecutable,
 } from './getFilePathInCafs.js'
+import { normalizeBundledManifest } from './normalizeBundledManifest.js'
 import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCafs.js'
 
 export const HASH_ALGORITHM = 'sha512'
 
 export { type BundledManifest } from '@pnpm/store-controller-types'
+export { normalizeBundledManifest }
 
 export {
   checkPkgFilesIntegrity,

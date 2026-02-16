@@ -9,12 +9,12 @@ import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import {
-  type BundledManifest,
   type CafsFunctions,
   checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
   createCafs,
   HASH_ALGORITHM,
+  normalizeBundledManifest,
   type PackageFilesIndex,
   type FilesIndex,
   optimisticRenameOverwrite,
@@ -418,31 +418,9 @@ function writeFilesIndexFile (
   }
 ): boolean {
   const requiresBuild = pkgRequiresBuild(manifest, files)
-  // Store metadata needed for install and resolution in the index file.
-  // This avoids reading package.json from CAFS during repeat installs.
-  // Fields stored:
-  // - bin linking: bin, directories
-  // - build scripts: scripts (only lifecycle + prepare)
-  // - runtime/installability: engines, cpu, os, libc
-  // - dependency resolution: dependencies, optionalDependencies, peerDependencies,
-  //   peerDependenciesMeta, bundledDependencies, bundleDependencies, dependenciesMeta
-  // Excluded: description, keywords, license, author, repository, devDependencies, etc.
-  let bundledManifest: BundledManifest | undefined
-  if (Object.keys(manifest).length > 0) {
-    const baseMeta = pickNonNullish(manifest, [
-      'name', 'version',
-      'bin', 'cpu', 'directories', 'engines', 'libc', 'os',
-      'dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta',
-      'bundledDependencies', 'bundleDependencies',
-    ])
-    // Only store lifecycle scripts needed for build detection
-    const lifecycleScripts = manifest.scripts
-      ? pickNonNullish(manifest.scripts, ['preinstall', 'install', 'postinstall'])
-      : undefined
-    if (baseMeta || lifecycleScripts) {
-      bundledManifest = { ...baseMeta, scripts: lifecycleScripts }
-    }
-  }
+  const bundledManifest = Object.keys(manifest).length > 0
+    ? normalizeBundledManifest(manifest)
+    : undefined
   const filesIndex: PackageFilesIndex = {
     requiresBuild,
     manifest: bundledManifest,
@@ -465,16 +443,4 @@ function writeIndexFile (filePath: string, data: PackageFilesIndex): void {
   const temp = `${filePath.slice(0, -10)}${process.pid}`
   writeMsgpackFileSync(temp, data)
   optimisticRenameOverwrite(temp, filePath)
-}
-
-function pickNonNullish<T extends object, K extends keyof T> (obj: T, keys: K[]): Pick<T, K> | undefined {
-  const result = {} as Pick<T, K>
-  let hasKeys = false
-  for (const key of keys) {
-    if (obj[key] != null) {
-      result[key] = obj[key]
-      hasKeys = true
-    }
-  }
-  return hasKeys ? result : undefined
 }
