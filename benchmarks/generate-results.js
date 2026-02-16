@@ -16,7 +16,10 @@ function readResult (benchDir, name, variant) {
     const data = JSON.parse(fs.readFileSync(`${benchDir}/${name}-${variant}.json`, 'utf8'))
     const r = data.results[0]
     return `${r.mean.toFixed(3)}s ± ${r.stddev.toFixed(3)}s`
-  } catch {
+  } catch (err) {
+    if (err && err.code !== 'ENOENT') {
+      console.error(`Warning: failed to read ${name}-${variant}: ${err.message}`)
+    }
     return 'n/a'
   }
 }

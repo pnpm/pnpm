@@ -43,9 +43,10 @@ else
   echo "Compiling..."
   pnpm run compile >/dev/null 2>&1
   echo ""
+  cd "$BRANCH_DIR"
 fi
 
-BENCH_DIR="$(mktemp -d)"
+BENCH_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pnpm-bench.XXXXXX")"
 WARMUP=1
 RUNS=10
 
