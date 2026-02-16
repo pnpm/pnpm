@@ -9,12 +9,12 @@ import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import {
+  type BundledManifest,
   type CafsFunctions,
   checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
   createCafs,
   HASH_ALGORITHM,
-  type IndexedPkgMeta,
   type PackageFilesIndex,
   type FilesIndex,
   optimisticRenameOverwrite,
@@ -100,18 +100,18 @@ async function handleMessage (
       if (expectedPkg) {
         if (
           (
-            pkgFilesIndex.name != null &&
+            pkgFilesIndex.manifest?.name != null &&
             expectedPkg.name != null &&
-            pkgFilesIndex.name.toLowerCase() !== expectedPkg.name.toLowerCase()
+            pkgFilesIndex.manifest.name.toLowerCase() !== expectedPkg.name.toLowerCase()
           ) ||
           (
-            pkgFilesIndex.version != null &&
+            pkgFilesIndex.manifest?.version != null &&
             expectedPkg.version != null &&
-            !equalOrSemverEqual(pkgFilesIndex.version, expectedPkg.version)
+            !equalOrSemverEqual(pkgFilesIndex.manifest.version, expectedPkg.version)
           )
         ) {
           const msg = 'Package name or version mismatch found while reading from the store.'
-          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
+          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.manifest?.name}@${pkgFilesIndex.manifest?.version}.`
           if (strictStorePkgContentCheck ?? true) {
             throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
               hint: `${hint}\n\nIf you want to ignore this issue, set strictStorePkgContentCheck to false in your configuration`,
@@ -127,18 +127,15 @@ async function handleMessage (
       } else {
         verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
       }
-      // Reconstruct pkgIndexMeta with name/version from top-level fields
-      const pkgIndexMeta = pkgFilesIndex.meta
-        ? { name: pkgFilesIndex.name, version: pkgFilesIndex.version, ...pkgFilesIndex.meta }
-        : undefined
-      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(pkgIndexMeta, verifyResult.filesMap)
+      const bundledManifest = pkgFilesIndex.manifest
+      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(bundledManifest, verifyResult.filesMap)
 
       parentPort!.postMessage({
         status: 'success',
         warnings,
         value: {
           verified: verifyResult.passed,
-          pkgIndexMeta,
+          bundledManifest,
           files: {
             filesMap: verifyResult.filesMap,
             sideEffectsMaps: verifyResult.sideEffectsMaps,
@@ -430,9 +427,10 @@ function writeFilesIndexFile (
   // - dependency resolution: dependencies, optionalDependencies, peerDependencies,
   //   peerDependenciesMeta, bundledDependencies, bundleDependencies, dependenciesMeta
   // Excluded: description, keywords, license, author, repository, devDependencies, etc.
-  let meta: IndexedPkgMeta | undefined
+  let bundledManifest: BundledManifest | undefined
   if (Object.keys(manifest).length > 0) {
     const baseMeta = pickNonNullish(manifest, [
+      'name', 'version',
       'bin', 'cpu', 'directories', 'engines', 'libc', 'os',
       'dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta',
       'bundledDependencies', 'bundleDependencies', 'dependenciesMeta',
@@ -442,14 +440,12 @@ function writeFilesIndexFile (
       ? pickNonNullish(manifest.scripts, ['preinstall', 'install', 'postinstall'])
       : undefined
     if (baseMeta || lifecycleScripts) {
-      meta = { ...baseMeta, scripts: lifecycleScripts }
+      bundledManifest = { ...baseMeta, scripts: lifecycleScripts }
     }
   }
   const filesIndex: PackageFilesIndex = {
-    name: manifest.name,
-    version: manifest.version,
     requiresBuild,
-    meta,
+    manifest: bundledManifest,
     algo,
     files,
     sideEffects,

@@ -1441,7 +1441,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           (
             await Promise.all(
               directPkgs.map(async (dep) => {
-                const manifest = (await dep.fetching?.())?.pkgIndexMeta ?? await safeReadProjectManifestOnly(dep.dir)
+                const manifest = (await dep.fetching?.())?.bundledManifest ?? await safeReadProjectManifestOnly(dep.dir)
                 return {
                   location: dep.dir,
                   manifest,

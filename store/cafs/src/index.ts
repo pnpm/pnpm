@@ -13,7 +13,6 @@ import { addFilesFromTarball } from './addFilesFromTarball.js'
 import {
   checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
-  type IndexedPkgMeta,
   type Integrity,
   type PackageFilesIndex,
   type VerifyResult,
@@ -29,11 +28,12 @@ import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCaf
 
 export const HASH_ALGORITHM = 'sha512'
 
+export { type BundledManifest } from '@pnpm/store-controller-types'
+
 export {
   checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
   type FileType,
-  type IndexedPkgMeta,
   getFilePathByModeInCafs,
   getIndexFilePathInCafs,
   type Integrity,

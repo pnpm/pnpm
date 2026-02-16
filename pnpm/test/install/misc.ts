@@ -507,10 +507,9 @@ test('installation fails when the stored package name and version do not match t
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
   const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)
-  cacheIntegrity.name = 'foo'
   writeMsgpackFileSync(cacheIntegrityPath, {
     ...cacheIntegrity,
-    name: 'foo',
+    manifest: { ...cacheIntegrity.manifest, name: 'foo' },
   })
 
   rimraf('node_modules')

@@ -199,9 +199,9 @@ export function createNpmResolver (
         {
           expectedPkg: { name: peekOpts.name, version: peekOpts.version },
         }
-      ).then(({ pkgIndexMeta }) => {
-        if (!pkgIndexMeta) return undefined
-        return pkgIndexMeta as DependencyManifest
+      ).then(({ bundledManifest }) => {
+        if (!bundledManifest) return undefined
+        return bundledManifest as DependencyManifest
       }).catch(() => undefined)
       peekLockerForPeek.set(filesIndexFile, request)
       return request

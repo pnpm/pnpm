@@ -3,7 +3,7 @@ import fs from 'fs'
 import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { type PackageFiles, type PackageFileInfo, type SideEffects, type FilesMap } from '@pnpm/cafs-types'
-import { type BaseManifest } from '@pnpm/types'
+import { type BundledManifest } from '@pnpm/store-controller-types'
 import gfs from '@pnpm/graceful-fs'
 import rimraf from '@zkochan/rimraf'
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
@@ -26,40 +26,10 @@ export interface VerifyResult {
   sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
 }
 
-/**
- * Package metadata stored in the index file.
- * This avoids reading package.json from the content-addressable store.
- * Used for bin linking, build scripts, installability checks, and dependency resolution.
- * Note: name and version are stored at the top level of PackageFilesIndex.
- */
-export type IndexedPkgMeta = Pick<BaseManifest,
-| 'bin'
-| 'bundledDependencies'
-| 'bundleDependencies'
-| 'cpu'
-| 'dependencies'
-| 'dependenciesMeta'
-| 'directories'
-| 'engines'
-| 'libc'
-| 'optionalDependencies'
-| 'os'
-| 'peerDependencies'
-| 'peerDependenciesMeta'
-| 'scripts'
->
-
 export interface PackageFilesIndex {
-  // name and version are nullable for backward compatibility
-  // the initial specs of pnpm store v3 did not require these fields.
-  // However, it might be possible that some types of dependencies don't
-  // have the name/version fields, like the local tarball dependencies.
-  name?: string
-  version?: string
   requiresBuild?: boolean
-  meta?: IndexedPkgMeta
+  manifest?: BundledManifest
   algo: string
-
   files: PackageFiles
   sideEffects?: SideEffects
 }

@@ -16,8 +16,8 @@ import {
 } from '@pnpm/cafs-types'
 import {
   type AllowBuild,
+  type BaseManifest,
   type SupportedArchitectures,
-  type DependencyManifest,
   type PackageManifest,
   type PinnedVersion,
   type PackageVersionPolicy,
@@ -31,8 +31,8 @@ export * from '@pnpm/resolver-base'
  * Subset of package.json fields cached in the store index.
  * Used for bin linking, build scripts, runtime selection, and dependency resolution.
  */
-export type PkgIndexMeta = Pick<
-  DependencyManifest,
+export type BundledManifest = Pick<
+  BaseManifest,
 | 'bin'
 | 'bundledDependencies'
 | 'bundleDependencies'
@@ -70,7 +70,7 @@ export interface StoreController {
 }
 
 export interface PkgRequestFetchResult {
-  pkgIndexMeta?: PkgIndexMeta
+  bundledManifest?: BundledManifest
   files: PackageFilesResponse
   integrity?: string
 }
@@ -153,7 +153,7 @@ export interface RequestPackageOptions {
   trustPolicyIgnoreAfter?: number
 }
 
-export type PkgIndexMetaFunction = () => Promise<PkgIndexMeta | undefined>
+export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
 
 export interface PackageResponse {
   fetching?: () => Promise<PkgRequestFetchResult>
