@@ -68,12 +68,18 @@ const packageRequestLogger = logger('package-requester')
 
 const pickPkgIndexMeta = pick([
   'bin',
+  'bundledDependencies',
+  'bundleDependencies',
   'cpu',
+  'dependencies',
   'directories',
   'engines',
   'libc',
   'name',
+  'optionalDependencies',
   'os',
+  'peerDependencies',
+  'peerDependenciesMeta',
   'scripts',
   'version',
 ])
@@ -298,9 +304,9 @@ async function resolveAndFetch (
 
   if (!manifest) {
     const fetchedResult = await fetchResult.fetching()
-    // For git/tarball packages without registry metadata, read full package.json from CAFS
-    // since pkgIndexMeta doesn't include dependency fields
-    if (fetchedResult.files.filesMap.has('package.json')) {
+    if (fetchedResult.pkgIndexMeta) {
+      manifest = fetchedResult.pkgIndexMeta
+    } else if (fetchedResult.files.filesMap.has('package.json')) {
       manifest = await loadJsonFile<DependencyManifest>(fetchedResult.files.filesMap.get('package.json')!)
     }
     // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
