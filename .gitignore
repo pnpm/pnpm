@@ -48,6 +48,7 @@ RELEASE.md
 .turbo
 .eslintcache
 .claude
+.bench-main
 
 ## custom modules-dir fixture
 __fixtures__/custom-modules-dir/**/fake_modules/
