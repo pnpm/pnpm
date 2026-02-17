@@ -6,23 +6,12 @@ import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { type DepPath } from '@pnpm/types'
-import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
+import { addDistTag } from '@pnpm/registry-mock'
 import chalk from 'chalk'
 import nock from 'nock'
-import { AUDIT_REGISTRY_OPTS, AUDIT_REGISTRY } from './utils/options.js'
+import { MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
 
 const f = fixtures(import.meta.dirname)
-
-const mockRegistry = `http://localhost:${REGISTRY_MOCK_PORT}`
-
-function redirectGetRequestsToMockRegistry () {
-  nock(AUDIT_REGISTRY)
-    .persist()
-    .get(/.*/)
-    .reply(301, '', {
-      Location: (req) => mockRegistry + req.path,
-    })
-}
 
 describe('audit fix with update', () => {
   afterEach(() => nock.cleanAll())
@@ -46,14 +35,12 @@ describe('audit fix with update', () => {
     const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    nock(AUDIT_REGISTRY)
+    nock(MOCK_REGISTRY, { allowUnmocked: true })
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
 
-    redirectGetRequestsToMockRegistry()
-
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...MOCK_REGISTRY_OPTS,
       dir: tmp,
       rootProjectManifestDir: tmp,
       auditLevel: 'moderate',
@@ -114,14 +101,12 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    nock(AUDIT_REGISTRY)
+    nock(MOCK_REGISTRY, { allowUnmocked: true })
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
 
-    redirectGetRequestsToMockRegistry()
-
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...MOCK_REGISTRY_OPTS,
       dir: tmp,
       rootProjectManifestDir: tmp,
       auditLevel: 'moderate',
@@ -177,14 +162,12 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'depth-2-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    nock(AUDIT_REGISTRY)
+    nock(MOCK_REGISTRY, { allowUnmocked: true })
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
 
-    redirectGetRequestsToMockRegistry()
-
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...MOCK_REGISTRY_OPTS,
       dir: tmp,
       rootProjectManifestDir: tmp,
       auditLevel: 'moderate',
@@ -230,14 +213,12 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'depth-3-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    nock(AUDIT_REGISTRY)
+    nock(MOCK_REGISTRY, { allowUnmocked: true })
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
 
-    redirectGetRequestsToMockRegistry()
-
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...MOCK_REGISTRY_OPTS,
       dir: tmp,
       rootProjectManifestDir: tmp,
       auditLevel: 'moderate',
@@ -286,14 +267,12 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'unfixable-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    nock(AUDIT_REGISTRY)
+    nock(MOCK_REGISTRY, { allowUnmocked: true })
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
 
-    redirectGetRequestsToMockRegistry()
-
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...MOCK_REGISTRY_OPTS,
       dir: tmp,
       rootProjectManifestDir: tmp,
       auditLevel: 'moderate',
@@ -352,14 +331,12 @@ The remaining vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'form-data-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    nock(AUDIT_REGISTRY)
+    nock(MOCK_REGISTRY, { allowUnmocked: true })
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
 
-    redirectGetRequestsToMockRegistry()
-
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...MOCK_REGISTRY_OPTS,
       dir: tmp,
       rootProjectManifestDir: tmp,
       auditLevel: 'moderate',
@@ -420,11 +397,9 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    nock(AUDIT_REGISTRY)
+    nock(MOCK_REGISTRY, { allowUnmocked: true })
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
-
-    redirectGetRequestsToMockRegistry()
 
     const {
       allProjects,
@@ -440,7 +415,7 @@ The fixed vulnerabilities are:
     expect(selectedProjectsGraph).toEqual(allProjectsGraph)
 
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...MOCK_REGISTRY_OPTS,
       dir: tmp,
       workspaceDir: tmp,
       lockfileDir: tmp,
@@ -496,11 +471,9 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'depth-2-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    nock(AUDIT_REGISTRY)
+    nock(MOCK_REGISTRY, { allowUnmocked: true })
       .post('/-/npm/v1/security/audits')
       .reply(200, mockResponse)
-
-    redirectGetRequestsToMockRegistry()
 
     const {
       allProjects,
@@ -516,7 +489,7 @@ The fixed vulnerabilities are:
     expect(selectedProjectsGraph).toEqual(allProjectsGraph)
 
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...MOCK_REGISTRY_OPTS,
       dir: tmp,
       workspaceDir: tmp,
       lockfileDir: tmp,

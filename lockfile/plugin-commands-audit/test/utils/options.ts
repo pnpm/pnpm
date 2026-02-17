@@ -1,3 +1,5 @@
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+
 const registries = {
   default: 'https://registry.npmjs.org/',
 }
@@ -65,5 +67,17 @@ export const AUDIT_REGISTRY_OPTS = {
   },
   rawConfig: {
     registry: AUDIT_REGISTRY,
+  },
+}
+
+export const MOCK_REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
+export const MOCK_REGISTRY_OPTS = {
+  ...DEFAULT_OPTS,
+  registry: MOCK_REGISTRY,
+  registries: {
+    default: MOCK_REGISTRY,
+  },
+  rawConfig: {
+    registry: MOCK_REGISTRY,
   },
 }
