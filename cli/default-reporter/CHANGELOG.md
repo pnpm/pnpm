@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 1002.1.10
+
+### Patch Changes
+
+- Updated dependencies [d203a71]
+  - @pnpm/dedupe.issues-renderer@1000.0.2
+  - @pnpm/render-peer-issues@1002.0.11
+
 ## 1002.1.9
 
 ### Patch Changes

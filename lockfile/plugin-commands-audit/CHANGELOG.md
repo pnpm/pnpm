@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.2.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.3.5
+
 ## 1002.2.2
 
 ### Patch Changes

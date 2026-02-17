@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-listing
 
+## 1000.3.0
+
+### Minor Changes
+
+- d203a71: `pnpm why` now shows a reverse dependency tree. The searched package appears at the root with its dependents as branches, walking back to workspace roots. This replaces the previous forward-tree output which was noisy and hard to read for deeply nested dependencies.
+
+### Patch Changes
+
+- Updated dependencies [301d0de]
+- Updated dependencies [c342f0d]
+- Updated dependencies [4071cb7]
+- Updated dependencies [d203a71]
+  - @pnpm/list@1000.3.0
+  - @pnpm/cli-utils@1001.3.5
+
 ## 1000.2.13
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/dedupe.issues-renderer
 
+## 1000.0.2
+
+### Patch Changes
+
+- d203a71: Replaced `archy` with `@pnpm/text.tree-renderer` for tree output.
+- Updated dependencies [d203a71]
+  - @pnpm/text.tree-renderer@1000.0.0
+
 ## 1000.0.1
 
 ### Patch Changes

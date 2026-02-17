@@ -1,5 +1,16 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1001.3.0
+
+### Minor Changes
+
+- 301d0de: Added `nameFormatter` option to `buildDependentsTree` and `displayName` field to `DependentsTree`/`DependentNode`, allowing consumers to customize the displayed package name (e.g. showing component names instead of registry names).
+- d203a71: `pnpm why` now shows a reverse dependency tree. The searched package appears at the root with its dependents as branches, walking back to workspace roots. This replaces the previous forward-tree output which was noisy and hard to read for deeply nested dependencies.
+
+### Patch Changes
+
+- 4071cb7: Optimize `pnpm why` and `pnpm list` performance in workspaces with many importers by sharing the dependency graph and materialization cache across all importers instead of rebuilding them independently for each one [#10596](https://github.com/pnpm/pnpm/pull/10596/changes).
+
 ## 1001.2.7
 
 ### Patch Changes

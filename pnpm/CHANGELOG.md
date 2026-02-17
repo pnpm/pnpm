@@ -1,5 +1,16 @@
 # pnpm
 
+## 10.30.0
+
+### Minor Changes
+
+- `pnpm why` now shows a reverse dependency tree. The searched package appears at the root with its dependents as branches, walking back to workspace roots. This replaces the previous forward-tree output which was noisy and hard to read for deeply nested dependencies.
+
+### Patch Changes
+
+- Revert `pnpm why` dependency pruning to prefer correctness over memory consumption. Reverted PR: [#7122](https://github.com/pnpm/pnpm/pull/7122).
+- Optimize `pnpm why` and `pnpm list` performance in workspaces with many importers by sharing the dependency graph and materialization cache across all importers instead of rebuilding them independently for each one [#10596](https://github.com/pnpm/pnpm/pull/10596/changes).
+
 ## 10.29.3
 
 ### Patch Changes

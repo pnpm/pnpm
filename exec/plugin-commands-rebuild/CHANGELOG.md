@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1008.0.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.3.5
+- @pnpm/workspace.find-packages@1000.0.60
+
 ## 1008.0.7
 
 ### Patch Changes
