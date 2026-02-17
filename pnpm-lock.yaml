@@ -5124,6 +5124,9 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
+      ci-info:
+        specifier: 'catalog:'
+        version: 4.4.0
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -5227,9 +5230,6 @@ importers:
       '@yarnpkg/core':
         specifier: 'catalog:'
         version: 4.2.0(typanion@3.14.0)
-      ci-info:
-        specifier: 'catalog:'
-        version: 4.4.0
       deep-require-cwd:
         specifier: 'catalog:'
         version: 1.0.0
@@ -15873,6 +15873,7 @@ packages:
   tar@7.5.7:
     resolution: {integrity: sha512-fov56fJiRuThVFXD6o6/Q354S7pnWMJIVlDBYijsTNx6jKSE4pvrDTs6lUnmGvNyfJwFQQwWy3owKz1ucIhveQ==}
     engines: {node: '>=18'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   temp-dir@2.0.0:
     resolution: {integrity: sha512-aoBAniQmmwtcKp/7BzsH8Cxzv8OL736p7v1ihGb5e9DJ9kTwGWHrQrVB5+lfVDzfGrdRzXch+ig7LHaY1JTOrg==}
