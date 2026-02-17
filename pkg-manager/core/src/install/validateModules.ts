@@ -165,10 +165,12 @@ async function purgeModulesDirsOfImporters (
         throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
       }
     } else {
-      logger.info({
-        message: 'Non-interactive terminal detected. Automatically proceeding with modules directory purge.',
-        prefix: importers[0].rootDir,
-      })
+      for (const importer of importers) {
+        logger.info({
+          message: `Non-interactive terminal detected. Automatically proceeding with modules directory purge for "${importer.modulesDir}".`,
+          prefix: importer.rootDir,
+        })
+      }
     }
   }
   await Promise.all(importers.map(async (importer) => {
