@@ -244,6 +244,7 @@
     "relinks",
     "renderable",
     "reqheaders",
+    "rimrafed",
     "rmgr",
     "rpmdevtools",
     "rpmlint",
