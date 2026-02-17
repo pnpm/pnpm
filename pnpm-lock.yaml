@@ -8782,9 +8782,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../fs/graceful-fs
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../store/store-controller-types
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs

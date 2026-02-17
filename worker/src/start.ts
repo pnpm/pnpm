@@ -21,8 +21,7 @@ import {
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
-import { type BundledManifest } from '@pnpm/store-controller-types'
-import { type DependencyManifest } from '@pnpm/types'
+import { type BundledManifest, type DependencyManifest } from '@pnpm/types'
 import { parentPort } from 'worker_threads'
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import {

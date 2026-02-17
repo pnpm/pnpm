@@ -3,8 +3,8 @@ import fs from 'fs'
 import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { type PackageFiles, type PackageFileInfo, type SideEffects, type FilesMap } from '@pnpm/cafs-types'
-import { type BundledManifest } from '@pnpm/store-controller-types'
 import gfs from '@pnpm/graceful-fs'
+import { type BundledManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 
@@ -27,8 +27,8 @@ export interface VerifyResult {
 }
 
 export interface PackageFilesIndex {
-  requiresBuild?: boolean
   manifest?: BundledManifest
+  requiresBuild?: boolean
   algo: string
   files: PackageFiles
   sideEffects?: SideEffects

@@ -29,7 +29,7 @@ import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCaf
 
 export const HASH_ALGORITHM = 'sha512'
 
-export { type BundledManifest } from '@pnpm/store-controller-types'
+export { type BundledManifest } from '@pnpm/types'
 export { normalizeBundledManifest }
 
 export {
