@@ -192,16 +192,15 @@ export function createNpmResolver (
       const request = readPkgFromCafs(
         {
           storeDir,
-          verifyStoreIntegrity: true,
+          verifyStoreIntegrity: false,
         },
         filesIndexFile,
         {
-          readManifest: true,
           expectedPkg: { name: peekOpts.name, version: peekOpts.version },
         }
-      ).then(({ manifest, verified }) => {
-        if (!verified) return undefined
-        return manifest
+      ).then(({ bundledManifest }) => {
+        if (!bundledManifest) return undefined
+        return bundledManifest as DependencyManifest
       }).catch(() => undefined)
       peekLockerForPeek.set(filesIndexFile, request)
       return request
