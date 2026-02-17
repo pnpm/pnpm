@@ -1,20 +1,20 @@
 diff --git a/prelude/bootstrap.js b/prelude/bootstrap.js
-index 8627ea5..4be2de0 100644
 --- a/prelude/bootstrap.js
 +++ b/prelude/bootstrap.js
-@@ -58,7 +58,6 @@ const NODE_VERSION_MINOR = process.version.match(/^v\d+.(\d+)/)[1] | 0;
- 
+@@ -58,7 +58,6 @@
+
  // set ENTRYPOINT and ARGV0 here because
  // they can be altered during process run
 -const ARGV0 = process.argv[0];
  const EXECPATH = process.execPath;
  let ENTRYPOINT = process.argv[1];
- 
-@@ -2006,111 +2005,41 @@ function payloadFileSync(pointer) {
+
+@@ -2010,112 +2009,41 @@
      }
      const opts = args[pos];
-     if (!opts.env) opts.env = _extend({}, process.env);
--    if (opts.env.PKG_EXECPATH === 'PKG_INVOKE_NODEJS') return;
+     if (!opts.env) opts.env = { ...process.env };
+-    // see https://github.com/vercel/pkg/issues/897#issuecomment-1049370335
+-    if (opts.env.PKG_EXECPATH !== undefined) return;
 -    opts.env.PKG_EXECPATH = EXECPATH;
 -  }
 -
@@ -79,42 +79,42 @@ index 8627ea5..4be2de0 100644
 -      }
 -    }
    }
- 
+
    childProcess.spawn = function spawn() {
      const args = cloneArgs(arguments);
      setOptsEnv(args);
 -    modifyShort(args);
      return ancestor.spawn.apply(childProcess, args);
    };
- 
+
    childProcess.spawnSync = function spawnSync() {
      const args = cloneArgs(arguments);
      setOptsEnv(args);
 -    modifyShort(args);
      return ancestor.spawnSync.apply(childProcess, args);
    };
- 
+
    childProcess.execFile = function execFile() {
      const args = cloneArgs(arguments);
      setOptsEnv(args);
 -    modifyShort(args);
      return ancestor.execFile.apply(childProcess, args);
    };
- 
+
    childProcess.execFileSync = function execFileSync() {
      const args = cloneArgs(arguments);
      setOptsEnv(args);
 -    modifyShort(args);
      return ancestor.execFileSync.apply(childProcess, args);
    };
- 
+
    childProcess.exec = function exec() {
      const args = cloneArgs(arguments);
      setOptsEnv(args);
 -    modifyLong(args, 0);
      return ancestor.exec.apply(childProcess, args);
    };
- 
+
    childProcess.execSync = function execSync() {
      const args = cloneArgs(arguments);
      setOptsEnv(args);

@@ -805,7 +805,7 @@ patchedDependencies:
     hash: 9ca23edf604c5e8ff290e3c0a5443646b5f9865624042a5c41d9b2beb8f98972
     path: __patches__/@pnpm__npm-lifecycle.patch
   '@yao-pkg/pkg':
-    hash: ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e
+    hash: 9c0c9a91620cd99b28f4cbd500233fc4d7cbc99601eb978aa514938b2e7b876e
     path: __patches__/pkg.patch
   graceful-fs@4.2.11:
     hash: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
@@ -6884,7 +6884,7 @@ importers:
         version: safe-execa@0.2.0
       pkg:
         specifier: 'catalog:'
-        version: '@yao-pkg/pkg@6.6.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
+        version: '@yao-pkg/pkg@6.6.0(patch_hash=9c0c9a91620cd99b28f4cbd500233fc4d7cbc99601eb978aa514938b2e7b876e)(encoding@0.1.13)'
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -19948,7 +19948,7 @@ snapshots:
       - encoding
       - supports-color
 
-  '@yao-pkg/pkg@6.6.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)':
+  '@yao-pkg/pkg@6.6.0(patch_hash=9c0c9a91620cd99b28f4cbd500233fc4d7cbc99601eb978aa514938b2e7b876e)(encoding@0.1.13)':
     dependencies:
       '@babel/generator': 7.29.1
       '@babel/parser': 7.29.0(@babel/types@7.29.0)
