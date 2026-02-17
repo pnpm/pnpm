@@ -47,8 +47,8 @@ else
 fi
 
 BENCH_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pnpm-bench.XXXXXX")"
-WARMUP=1
-RUNS=10
+WARMUP="${WARMUP:-1}"
+RUNS="${RUNS:-10}"
 
 # ── Per-variant configuration ─────────────────────────────────────────────
 
