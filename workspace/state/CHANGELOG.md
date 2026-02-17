@@ -1,5 +1,11 @@
 # @pnpm/workspace.state
 
+## 1002.1.3
+
+### Patch Changes
+
+- @pnpm/config@1004.10.2
+
 ## 1002.1.2
 
 ### Patch Changes

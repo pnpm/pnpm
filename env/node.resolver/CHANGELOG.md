@@ -1,5 +1,12 @@
 # @pnpm/node.resolver
 
+## 1001.0.20
+
+### Patch Changes
+
+- @pnpm/crypto.shasums-file@1001.0.4
+- @pnpm/config@1004.10.2
+
 ## 1001.0.19
 
 ### Patch Changes

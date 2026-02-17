@@ -1,5 +1,14 @@
 # @pnpm/lockfile.verification
 
+## 1001.2.21
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.2.2
+- @pnpm/dependency-path@1001.1.10
+- @pnpm/get-context@1001.2.5
+- @pnpm/lockfile.utils@1004.0.2
+
 ## 1001.2.20
 
 ### Patch Changes

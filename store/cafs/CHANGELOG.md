@@ -1,5 +1,12 @@
 # @pnpm/store.cafs
 
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [279c486]
+  - @pnpm/graceful-fs@1000.1.0
+
 ## 1000.1.3
 
 ### Patch Changes

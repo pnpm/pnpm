@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-outdated
 
+## 1000.0.64
+
+### Patch Changes
+
+- @pnpm/modules-yaml@1002.0.1
+- @pnpm/cli-utils@1001.3.6
+- @pnpm/config@1004.10.2
+- @pnpm/default-resolver@1002.3.4
+- @pnpm/outdated@1001.1.17
+- @pnpm/lockfile.fs@1001.1.30
+
 ## 1000.0.63
 
 ### Patch Changes

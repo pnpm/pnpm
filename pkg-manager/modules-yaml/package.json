@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-yaml",
-  "version": "1002.0.0",
+  "version": "1002.0.1",
   "description": "Reads/writes `node_modules/.modules.yaml`",
   "keywords": [
     "pnpm",

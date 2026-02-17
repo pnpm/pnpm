@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/crypto.hash",
-  "version": "1000.2.1",
+  "version": "1000.2.2",
   "description": "Generate hashes",
   "keywords": [
     "pnpm",

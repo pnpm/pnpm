@@ -1,5 +1,12 @@
 # @pnpm/modules-yaml
 
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [279c486]
+  - @pnpm/graceful-fs@1000.1.0
+
 ## 1002.0.0
 
 ### Major Changes

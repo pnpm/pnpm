@@ -1,5 +1,16 @@
 # @pnpm/deps.graph-builder
 
+## 1002.3.11
+
+### Patch Changes
+
+- @pnpm/modules-yaml@1002.0.1
+- @pnpm/dependency-path@1001.1.10
+- @pnpm/lockfile.fs@1001.1.30
+- @pnpm/lockfile.utils@1004.0.2
+- @pnpm/calc-dep-state@1003.0.2
+- @pnpm/patching.config@1001.0.18
+
 ## 1002.3.10
 
 ### Patch Changes

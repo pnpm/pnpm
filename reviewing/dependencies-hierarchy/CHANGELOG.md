@@ -1,5 +1,16 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1001.3.1
+
+### Patch Changes
+
+- @pnpm/modules-yaml@1002.0.1
+- @pnpm/store.cafs@1000.1.4
+- @pnpm/dependency-path@1001.1.10
+- @pnpm/lockfile.detect-dep-types@1001.0.25
+- @pnpm/lockfile.fs@1001.1.30
+- @pnpm/lockfile.utils@1004.0.2
+
 ## 1001.3.0
 
 ### Minor Changes

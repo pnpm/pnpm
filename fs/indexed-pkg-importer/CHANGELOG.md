@@ -1,5 +1,12 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 1000.1.24
+
+### Patch Changes
+
+- Updated dependencies [279c486]
+  - @pnpm/graceful-fs@1000.1.0
+
 ## 1000.1.23
 
 ### Patch Changes

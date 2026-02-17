@@ -1,5 +1,14 @@
 # @pnpm/get-context
 
+## 1001.2.5
+
+### Patch Changes
+
+- @pnpm/modules-yaml@1002.0.1
+- @pnpm/package-store@1007.1.4
+- @pnpm/read-projects-context@1000.0.34
+- @pnpm/lockfile.fs@1001.1.30
+
 ## 1001.2.4
 
 ### Patch Changes

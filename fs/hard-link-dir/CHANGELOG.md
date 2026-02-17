@@ -1,5 +1,12 @@
 # @pnpm/fs.hard-link-dir
 
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [279c486]
+  - @pnpm/graceful-fs@1000.1.0
+
 ## 1000.0.5
 
 ### Patch Changes

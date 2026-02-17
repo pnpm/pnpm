@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.63
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.1.4
+- @pnpm/dependency-path@1001.1.10
+- @pnpm/get-context@1001.2.5
+- @pnpm/cli-utils@1001.3.6
+- @pnpm/config@1004.10.2
+- @pnpm/lockfile.utils@1004.0.2
+- @pnpm/store-connection-manager@1002.3.15
+
 ## 1000.0.62
 
 ### Patch Changes

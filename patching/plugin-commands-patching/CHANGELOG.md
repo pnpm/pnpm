@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.39
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.2.2
+- @pnpm/modules-yaml@1002.0.1
+- @pnpm/plugin-commands-installation@1004.9.8
+- @pnpm/read-project-manifest@1001.2.5
+- @pnpm/cli-utils@1001.3.6
+- @pnpm/config@1004.10.2
+- @pnpm/config.config-writer@1000.1.1
+- @pnpm/lockfile.fs@1001.1.30
+- @pnpm/lockfile.utils@1004.0.2
+- @pnpm/store-connection-manager@1002.3.15
+- @pnpm/patching.apply-patch@1000.0.7
+
 ## 1000.3.38
 
 ### Patch Changes

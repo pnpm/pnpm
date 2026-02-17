@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1008.0.9
+
+### Patch Changes
+
+- @pnpm/modules-yaml@1002.0.1
+- @pnpm/store.cafs@1000.1.4
+- @pnpm/worker@1000.6.5
+- @pnpm/dependency-path@1001.1.10
+- @pnpm/get-context@1001.2.5
+- @pnpm/cli-utils@1001.3.6
+- @pnpm/config@1004.10.2
+- @pnpm/link-bins@1000.3.6
+- @pnpm/lockfile.utils@1004.0.2
+- @pnpm/lockfile.walker@1001.0.25
+- @pnpm/calc-dep-state@1003.0.2
+- @pnpm/store-connection-manager@1002.3.15
+- @pnpm/workspace.find-packages@1000.0.61
+- @pnpm/lifecycle@1001.0.35
+
 ## 1008.0.8
 
 ### Patch Changes

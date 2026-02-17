@@ -1,5 +1,16 @@
 # @pnpm/cli-utils
 
+## 1001.3.6
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.2.5
+- @pnpm/pnpmfile@1002.1.12
+- @pnpm/config@1004.10.2
+- @pnpm/config.deps-installer@1000.1.3
+- @pnpm/store-connection-manager@1002.3.15
+- @pnpm/default-reporter@1002.1.11
+
 ## 1001.3.5
 
 ### Patch Changes

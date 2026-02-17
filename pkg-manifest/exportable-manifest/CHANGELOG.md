@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 1000.4.1
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.2.5
+
 ## 1000.4.0
 
 ### Minor Changes

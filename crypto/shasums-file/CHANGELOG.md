@@ -1,5 +1,11 @@
 # @pnpm/crypto.shasums-file
 
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.2.2
+
 ## 1001.0.3
 
 ### Patch Changes

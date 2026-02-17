@@ -1,5 +1,12 @@
 # @pnpm/lifecycle
 
+## 1001.0.35
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.1.23
+- @pnpm/link-bins@1000.3.6
+
 ## 1001.0.34
 
 ### Patch Changes

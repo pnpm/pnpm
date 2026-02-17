@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 1000.0.57
+
+### Patch Changes
+
+- Updated dependencies [279c486]
+  - @pnpm/graceful-fs@1000.1.0
+  - @pnpm/store.cafs@1000.1.4
+  - @pnpm/client@1001.1.20
+  - @pnpm/config@1004.10.2
+
 ## 1000.0.56
 
 ### Patch Changes

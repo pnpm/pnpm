@@ -1,5 +1,16 @@
 # @pnpm/worker
 
+## 1000.6.5
+
+### Patch Changes
+
+- Updated dependencies [279c486]
+  - @pnpm/graceful-fs@1000.1.0
+  - @pnpm/fs.hard-link-dir@1000.0.6
+  - @pnpm/store.cafs@1000.1.4
+  - @pnpm/create-cafs-store@1000.0.31
+  - @pnpm/symlink-dependency@1000.0.17
+
 ## 1000.6.4
 
 ### Patch Changes

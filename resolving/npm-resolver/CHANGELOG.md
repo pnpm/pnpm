@@ -1,5 +1,13 @@
 # @pnpm/npm-resolver
 
+## 1005.2.1
+
+### Patch Changes
+
+- Updated dependencies [279c486]
+  - @pnpm/graceful-fs@1000.1.0
+  - @pnpm/crypto.hash@1000.2.2
+
 ## 1005.2.0
 
 ### Minor Changes

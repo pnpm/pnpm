@@ -1,5 +1,12 @@
 # @pnpm/local-resolver
 
+## 1002.1.12
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.2.2
+- @pnpm/read-project-manifest@1001.2.5
+
 ## 1002.1.11
 
 ### Patch Changes

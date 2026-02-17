@@ -1,5 +1,37 @@
 # @pnpm/core
 
+## 1016.1.8
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.2.2
+- @pnpm/modules-yaml@1002.0.1
+- @pnpm/package-requester@1011.2.3
+- @pnpm/read-project-manifest@1001.2.5
+- @pnpm/worker@1000.6.5
+- @pnpm/lockfile.settings-checker@1001.0.28
+- @pnpm/lockfile.verification@1001.2.21
+- @pnpm/dependency-path@1001.1.10
+- @pnpm/build-modules@1007.0.7
+- @pnpm/plugin-commands-rebuild@1008.0.9
+- @pnpm/get-context@1001.2.5
+- @pnpm/headless@1010.1.6
+- @pnpm/link-bins@1000.3.6
+- @pnpm/resolve-dependencies@1008.7.4
+- @pnpm/lockfile.filtering@1001.0.30
+- @pnpm/lockfile.fs@1001.1.30
+- @pnpm/lockfile-to-pnp@1001.0.32
+- @pnpm/lockfile.pruner@1001.0.26
+- @pnpm/lockfile.utils@1004.0.2
+- @pnpm/lockfile.walker@1001.0.25
+- @pnpm/calc-dep-state@1003.0.2
+- @pnpm/patching.config@1001.0.18
+- @pnpm/modules-cleaner@1001.0.34
+- @pnpm/lifecycle@1001.0.35
+- @pnpm/hoist@1002.0.15
+- @pnpm/lockfile.preferred-versions@1000.0.31
+- @pnpm/symlink-dependency@1000.0.17
+
 ## 1016.1.7
 
 ### Patch Changes

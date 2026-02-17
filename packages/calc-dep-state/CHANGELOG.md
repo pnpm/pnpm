@@ -1,5 +1,12 @@
 # @pnpm/calc-dep-state
 
+## 1003.0.2
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.1.10
+- @pnpm/lockfile.utils@1004.0.2
+
 ## 1003.0.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/graceful-fs
 
+## 1000.1.0
+
+### Minor Changes
+
+- 279c486: export mkdir.
+
 ## 1000.0.1
 
 ### Patch Changes

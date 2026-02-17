@@ -1,5 +1,14 @@
 # @pnpm/resolving.bun-resolver
 
+## 1005.0.7
+
+### Patch Changes
+
+- @pnpm/npm-resolver@1005.2.1
+- @pnpm/worker@1000.6.5
+- @pnpm/crypto.shasums-file@1001.0.4
+- @pnpm/node.fetcher@1001.0.23
+
 ## 1005.0.6
 
 ### Patch Changes

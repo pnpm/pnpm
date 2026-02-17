@@ -1,5 +1,11 @@
 # @pnpm/lockfile.preferred-versions
 
+## 1000.0.31
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1004.0.2
+
 ## 1000.0.30
 
 ### Patch Changes

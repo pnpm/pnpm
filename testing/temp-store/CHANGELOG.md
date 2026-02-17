@@ -1,5 +1,12 @@
 # @pnpm/testing.temp-store
 
+## 1000.0.39
+
+### Patch Changes
+
+- @pnpm/package-store@1007.1.4
+- @pnpm/client@1001.1.20
+
 ## 1000.0.38
 
 ### Patch Changes

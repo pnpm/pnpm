@@ -1,5 +1,12 @@
 # @pnpm/read-projects-context
 
+## 1000.0.34
+
+### Patch Changes
+
+- @pnpm/modules-yaml@1002.0.1
+- @pnpm/lockfile.fs@1001.1.30
+
 ## 1000.0.33
 
 ### Patch Changes

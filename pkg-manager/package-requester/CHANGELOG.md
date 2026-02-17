@@ -1,5 +1,15 @@
 # @pnpm/package-requester
 
+## 1011.2.3
+
+### Patch Changes
+
+- Updated dependencies [279c486]
+  - @pnpm/graceful-fs@1000.1.0
+  - @pnpm/store.cafs@1000.1.4
+  - @pnpm/worker@1000.6.5
+  - @pnpm/dependency-path@1001.1.10
+
 ## 1011.2.2
 
 ### Patch Changes

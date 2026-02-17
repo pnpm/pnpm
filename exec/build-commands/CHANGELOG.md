@@ -1,5 +1,15 @@
 # @pnpm/exec.build-commands
 
+## 1002.0.12
+
+### Patch Changes
+
+- @pnpm/modules-yaml@1002.0.1
+- @pnpm/dependency-path@1001.1.10
+- @pnpm/plugin-commands-rebuild@1008.0.9
+- @pnpm/config@1004.10.2
+- @pnpm/config.config-writer@1000.1.1
+
 ## 1002.0.11
 
 ### Patch Changes

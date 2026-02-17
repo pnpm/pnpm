@@ -1,5 +1,12 @@
 # @pnpm/assert-project
 
+## 1000.0.15
+
+### Patch Changes
+
+- @pnpm/modules-yaml@1002.0.1
+- @pnpm/assert-store@1000.0.13
+
 ## 1000.0.14
 
 ### Patch Changes

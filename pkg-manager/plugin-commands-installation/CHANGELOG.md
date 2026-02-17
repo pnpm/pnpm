@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.9.8
+
+### Patch Changes
+
+- Updated dependencies [279c486]
+  - @pnpm/graceful-fs@1000.1.0
+  - @pnpm/read-project-manifest@1001.2.5
+  - @pnpm/pnpmfile@1002.1.12
+  - @pnpm/core@1016.1.8
+  - @pnpm/package-store@1007.1.4
+  - @pnpm/plugin-commands-rebuild@1008.0.9
+  - @pnpm/get-context@1001.2.5
+  - @pnpm/cli-utils@1001.3.6
+  - @pnpm/config@1004.10.2
+  - @pnpm/config.config-writer@1000.1.1
+  - @pnpm/config.deps-installer@1000.1.3
+  - @pnpm/outdated@1001.1.17
+  - @pnpm/workspace.pkgs-graph@1000.0.37
+  - @pnpm/deps.status@1003.0.33
+  - @pnpm/store-connection-manager@1002.3.15
+  - @pnpm/plugin-commands-env@1000.0.62
+  - @pnpm/workspace.find-packages@1000.0.61
+  - @pnpm/workspace.state@1002.1.3
+  - @pnpm/workspace.manifest-writer@1001.2.0
+  - @pnpm/filter-workspace-packages@1000.1.2
+
 ## 1004.9.7
 
 ### Patch Changes

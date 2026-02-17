@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/worker",
-  "version": "1000.6.4",
+  "version": "1000.6.5",
   "description": "A worker for extracting package taralls to the store",
   "keywords": [
     "pnpm",

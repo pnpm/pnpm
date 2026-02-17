@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "1011.2.2",
+  "version": "1011.2.3",
   "description": "Concurrent downloader of npm-compatible packages",
   "keywords": [
     "pnpm",

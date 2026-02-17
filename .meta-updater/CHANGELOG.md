@@ -1,5 +1,12 @@
 # @pnpm-private/updater
 
+## 1000.0.19
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.30
+- @pnpm/workspace.find-packages@1000.0.61
+
 ## 1000.0.18
 
 ### Patch Changes

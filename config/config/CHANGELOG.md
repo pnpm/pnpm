@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 1004.10.2
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.2.5
+- @pnpm/pnpmfile@1002.1.12
+
 ## 1004.10.1
 
 ### Patch Changes

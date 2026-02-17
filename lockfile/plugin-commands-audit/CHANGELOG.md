@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.2.4
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.2.5
+- @pnpm/cli-utils@1001.3.6
+- @pnpm/config@1004.10.2
+- @pnpm/config.config-writer@1000.1.1
+- @pnpm/audit@1002.0.24
+- @pnpm/lockfile.fs@1001.1.30
+
 ## 1002.2.3
 
 ### Patch Changes

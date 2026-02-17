@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/graceful-fs",
-  "version": "1000.0.1",
+  "version": "1000.1.0",
   "description": "Promisified graceful-fs",
   "keywords": [
     "pnpm",

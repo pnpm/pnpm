@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 1000.3.1
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.2.5
+- @pnpm/reviewing.dependencies-hierarchy@1001.3.1
+- @pnpm/lockfile.fs@1001.1.30
+
 ## 1000.3.0
 
 ### Minor Changes
