@@ -52,9 +52,18 @@ RUNS="${RUNS:-10}"
 
 # ── Per-variant configuration ─────────────────────────────────────────────
 
+resolve_pnpm_bin() {
+  local dir="$1"
+  if [ -f "$dir/pnpm/dist/pnpm.mjs" ]; then
+    echo "$dir/pnpm/dist/pnpm.mjs"
+  else
+    echo "$dir/pnpm/dist/pnpm.cjs"
+  fi
+}
+
 VARIANTS=("main" "branch")
 VARIANT_DIRS=("$MAIN_DIR" "$BRANCH_DIR")
-VARIANT_BINS=("$MAIN_DIR/pnpm/dist/pnpm.mjs" "$BRANCH_DIR/pnpm/dist/pnpm.mjs")
+VARIANT_BINS=("$(resolve_pnpm_bin "$MAIN_DIR")" "$(resolve_pnpm_bin "$BRANCH_DIR")")
 VARIANT_PROJECTS=("$BENCH_DIR/project-main" "$BENCH_DIR/project-branch")
 VARIANT_STORES=("$BENCH_DIR/store-main" "$BENCH_DIR/store-branch")
 VARIANT_CACHES=("$BENCH_DIR/cache-main" "$BENCH_DIR/cache-branch")
