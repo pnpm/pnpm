@@ -21,6 +21,7 @@ import {
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
+import { type BundledManifest } from '@pnpm/store-controller-types'
 import { type DependencyManifest } from '@pnpm/types'
 import { parentPort } from 'worker_threads'
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
@@ -194,12 +195,13 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
     addManifestToCafs(cafs, filesIndex, appendManifest)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  const requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: manifest ?? {}, files: filesIntegrity })
+  const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
+  const requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: bundledManifest, files: filesIntegrity })
   return {
     status: 'success',
     value: {
       filesMap,
-      manifest,
+      manifest: bundledManifest,
       requiresBuild,
       integrity: integrity ?? calcIntegrity(buffer),
     },
@@ -215,7 +217,7 @@ interface AddFilesFromDirResult {
   status: string
   value: {
     filesMap: FilesMap
-    manifest?: DependencyManifest
+    manifest?: BundledManifest
     requiresBuild: boolean
   }
 }
@@ -268,6 +270,7 @@ function addFilesFromDir (
     addManifestToCafs(cafs, filesIndex, appendManifest)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
+  const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
   let requiresBuild: boolean
   if (sideEffectsCacheKey) {
     let existingFilesIndex!: PackageFilesIndex
@@ -279,7 +282,7 @@ function addFilesFromDir (
         status: 'success',
         value: {
           filesMap,
-          manifest,
+          manifest: bundledManifest,
           requiresBuild: pkgRequiresBuild(manifest, filesMap),
         },
       }
@@ -302,9 +305,9 @@ function addFilesFromDir (
     }
     writeIndexFile(filesIndexFile, existingFilesIndex)
   } else {
-    requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: manifest ?? {}, files: filesIntegrity })
+    requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: bundledManifest, files: filesIntegrity })
   }
-  return { status: 'success', value: { filesMap, manifest, requiresBuild } }
+  return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild } }
 }
 
 function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
@@ -412,18 +415,15 @@ function writeFilesIndexFile (
   filesIndexFile: string,
   { algo, manifest, files, sideEffects }: {
     algo: string
-    manifest: Partial<DependencyManifest>
+    manifest?: BundledManifest
     files: PackageFiles
     sideEffects?: SideEffects
   }
 ): boolean {
   const requiresBuild = pkgRequiresBuild(manifest, files)
-  const bundledManifest = Object.keys(manifest).length > 0
-    ? normalizeBundledManifest(manifest)
-    : undefined
   const filesIndex: PackageFilesIndex = {
     requiresBuild,
-    manifest: bundledManifest,
+    manifest,
     algo,
     files,
     sideEffects,

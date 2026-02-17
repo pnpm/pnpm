@@ -599,7 +599,7 @@ function fetchToStore (
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
           requiresBuild: fetchedPackage.requiresBuild,
         },
-        bundledManifest: fetchedPackage.manifest == null ? fetchedPackage.manifest : normalizeBundledManifest(fetchedPackage.manifest),
+        bundledManifest: fetchedPackage.manifest,
         integrity,
       })
     } catch (err: any) { // eslint-disable-line
