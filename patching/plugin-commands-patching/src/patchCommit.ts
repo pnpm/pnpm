@@ -1,4 +1,5 @@
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
@@ -158,9 +159,13 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
         // These variables aim to ignore the global git config so we get predictable output
         // https://git-scm.com/docs/git#Documentation/git.txt-codeGITCONFIGNOSYSTEMcode
         GIT_CONFIG_NOSYSTEM: '1',
-        HOME: '',
+        // Redirect the global git config to the null device instead of setting
+        // HOME to an empty string. An empty HOME causes git to resolve '~' as
+        // '/' (root), which triggers a "Permission denied" warning when git
+        // tries to access '/.config/git/attributes', making pnpm throw an
+        // error because any stderr output is treated as a failure.
+        GIT_CONFIG_GLOBAL: os.devNull,
         XDG_CONFIG_HOME: '',
-        USERPROFILE: '',
         // #endregion
       },
       stripFinalNewline: false,
