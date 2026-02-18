@@ -164,8 +164,9 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
         // '/' (root), which triggers a "Permission denied" warning when git
         // tries to access '/.config/git/attributes', making pnpm throw an
         // error because any stderr output is treated as a failure.
+        // We do not set XDG_CONFIG_HOME to avoid the same issue: an empty
+        // value would make git resolve paths like /git/config and /git/attributes.
         GIT_CONFIG_GLOBAL: os.devNull,
-        XDG_CONFIG_HOME: '',
         // #endregion
       },
       stripFinalNewline: false,
