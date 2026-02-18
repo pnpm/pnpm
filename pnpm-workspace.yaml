@@ -57,6 +57,7 @@ auditConfig:
   ignoreCves:
     - CVE-2025-56200
   ignoreGhsas:
+    - GHSA-2g4f-4pwh-qvx6
     - GHSA-76c9-3jph-rj3q
     - GHSA-ffrw-9mx8-89p8
     - GHSA-mh29-5h37-fv8m
