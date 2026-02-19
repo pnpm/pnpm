@@ -37,7 +37,7 @@
     "@types/validate-npm-package-name": "catalog:"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

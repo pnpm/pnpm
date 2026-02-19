@@ -57,6 +57,7 @@ auditConfig:
   ignoreCves:
     - CVE-2025-56200
   ignoreGhsas:
+    - GHSA-2g4f-4pwh-qvx6
     - GHSA-76c9-3jph-rj3q
     - GHSA-ffrw-9mx8-89p8
     - GHSA-mh29-5h37-fv8m
@@ -347,7 +348,7 @@ minimumReleaseAgeExclude:
   - lodash@4.17.23
   - qs@6.14.2
 
-nodeVersion: 22.12.0
+nodeVersion: 22.13.0
 
 optimisticRepeatInstall: true
 
@@ -429,6 +430,7 @@ trustPolicyExclude:
   - '@yarnpkg/libzip@3.2.2'
   - rxjs@7.8.2
   - undici-types@6.21.0
+  - '@pnpm/*'
 
 trustPolicyIgnoreAfter: 10080 # 1 week
 
