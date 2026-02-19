@@ -53,7 +53,6 @@
     "jest": "catalog:",
     "keyv": "catalog:",
     "lcov-result-merger": "catalog:",
-    "publish-packed": "catalog:",
     "rimraf": "catalog:",
     "shx": "catalog:",
     "typescript": "catalog:",
@@ -62,5 +61,5 @@
   "engines": {
     "pnpm": ">=9.6.0"
   },
-  "packageManager": "pnpm@11.0.0-alpha.3"
+  "packageManager": "pnpm@11.0.0-alpha.5"
 }

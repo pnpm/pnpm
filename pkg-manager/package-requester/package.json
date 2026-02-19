@@ -42,12 +42,12 @@
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "detect-libc": "catalog:",
+    "load-json-file": "catalog:",
     "p-defer": "catalog:",
     "p-limit": "catalog:",
     "p-queue": "catalog:",
@@ -75,13 +75,12 @@
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
     "delay": "catalog:",
-    "load-json-file": "catalog:",
     "nock": "catalog:",
     "normalize-path": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

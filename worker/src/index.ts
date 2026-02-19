@@ -6,7 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import { execSync } from 'child_process'
 import isWindows from 'is-windows'
 import { type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
-import { type DependencyManifest } from '@pnpm/types'
+import { type BundledManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { globalWarn } from '@pnpm/logger'
 import {
@@ -69,7 +69,7 @@ function availableParallelism (): number {
 
 interface AddFilesResult {
   filesMap: FilesMap
-  manifest: DependencyManifest
+  manifest?: BundledManifest
   requiresBuild: boolean
   integrity?: string
 }
@@ -81,7 +81,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ filesMap: FilesMap, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
+  return new Promise<AddFilesResult>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
@@ -190,7 +190,7 @@ export interface ReadPkgFromCafsOptions {
 export interface ReadPkgFromCafsResult {
   verified: boolean
   files: PackageFilesResponse
-  manifest?: DependencyManifest
+  bundledManifest?: BundledManifest
 }
 
 export async function readPkgFromCafs (
