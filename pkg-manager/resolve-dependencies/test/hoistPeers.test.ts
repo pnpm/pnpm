@@ -14,6 +14,55 @@ test('hoistPeers picks an already available prerelease version', () => {
   })
 })
 
+test('hoistPeers respects peer dep range when preferred versions exist', () => {
+  // When an override narrows a peer dep range (e.g. chai: "4.3.0"),
+  // we should not pick a preferred version that doesn't satisfy it.
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      chai: {
+        '5.2.1': 'version',
+        '4.3.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['chai', { range: '4.3.0' }]])).toStrictEqual({
+    chai: '4.3.0',
+  })
+})
+
+test('hoistPeers falls back to range when no preferred version satisfies it', () => {
+  // When no preferred version satisfies the overridden range,
+  // fall back to the range itself so pnpm resolves from the registry.
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      chai: {
+        '5.2.1': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['chai', { range: '4.3.0' }]])).toStrictEqual({
+    chai: '4.3.0',
+  })
+})
+
+test('hoistPeers picks highest preferred version satisfying the range', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '2.0.0': 'version',
+        '2.1.0': 'version',
+        '3.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '^2.0.0' }]])).toStrictEqual({
+    foo: '2.1.0',
+  })
+})
+
 test('getHoistableOptionalPeers only picks a version that satisfies all optional ranges', () => {
   expect(getHoistableOptionalPeers({
     foo: ['2', '2.1'],

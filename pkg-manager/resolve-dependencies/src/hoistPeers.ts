@@ -35,7 +35,20 @@ export function hoistPeers (
           nonVersions.push(spec)
         }
       }
-      dependencies[peerName] = [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions].join(' || ')
+      // First try to find a preferred version that satisfies the peer dep range.
+      // Without this check, a stale version from the lockfile (via allPreferredVersions)
+      // could be picked even when it no longer satisfies the peer dep range — e.g.
+      // after adding an override that narrows the range.
+      const satisfyingVersion = semver.maxSatisfying(versions, range, { includePrerelease: true })
+      if (satisfyingVersion) {
+        dependencies[peerName] = [satisfyingVersion, ...nonVersions].join(' || ')
+      } else if (opts.autoInstallPeers) {
+        // No preferred version satisfies the peer dep range.
+        // Use the range directly so pnpm resolves a matching version.
+        dependencies[peerName] = range
+      } else {
+        dependencies[peerName] = [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions].join(' || ')
+      }
     } else if (opts.autoInstallPeers) {
       dependencies[peerName] = range
     }
