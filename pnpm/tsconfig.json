@@ -96,9 +96,6 @@
       "path": "../exec/commands"
     },
     {
-      "path": "../exec/run-npm"
-    },
-    {
       "path": "../fs/msgpack-file"
     },
     {

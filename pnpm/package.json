@@ -119,7 +119,6 @@
     "@pnpm/engine.runtime.commands": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
-    "@pnpm/exec.run-npm": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",

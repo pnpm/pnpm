@@ -29,6 +29,7 @@ import * as bin from './bin.js'
 import * as clean from './clean.js'
 import { createHelp } from './help.js'
 import * as installTest from './installTest.js'
+import { notImplementedCommandDefinitions } from './notImplemented.js'
 import * as recursive from './recursive.js'
 import * as root from './root.js'
 
@@ -159,6 +160,7 @@ const commands: CommandDefinition[] = [
   update,
   why,
   createHelp(helpByCommandName),
+  ...notImplementedCommandDefinitions,
 ]
 
 const handlerByCommandName: Record<string, Command> = {}
