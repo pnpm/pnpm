@@ -1096,6 +1096,9 @@ importers:
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
+      ci-info:
+        specifier: 'catalog:'
+        version: 4.4.0
       get-port:
         specifier: 'catalog:'
         version: 7.1.0

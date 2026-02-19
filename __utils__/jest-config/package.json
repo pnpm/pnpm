@@ -9,6 +9,7 @@
     "@babel/plugin-transform-explicit-resource-management": "catalog:",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/worker": "workspace:*",
+    "ci-info": "catalog:",
     "get-port": "catalog:",
     "tree-kill": "catalog:"
   },
