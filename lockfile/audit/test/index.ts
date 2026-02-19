@@ -149,12 +149,12 @@ describe('audit', () => {
     nock(registry, {
       badheaders: ['authorization'],
     })
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(500, { message: 'Something bad happened' })
     nock(registry, {
       badheaders: ['authorization'],
     })
-      .post('/-/npm/v1/security/audits/quick')
+      .post('/-/npm/v1/security/audits')
       .reply(500, { message: 'Fallback failed too' })
 
     let err!: PnpmError
@@ -178,21 +178,21 @@ describe('audit', () => {
 
     expect(err).toBeDefined()
     expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
-    expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}. Fallback endpoint (at http://registry.registry/-/npm/v1/security/audits/quick) responded with 500: {"message":"Fallback failed too"}')
+    expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits/quick) responded with 500: {"message":"Something bad happened"}. Fallback endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Fallback failed too"}')
   })
 
-  test('falls back to /audits/quick if /audits fails', async () => {
+  test('falls back to /audits if /audits/quick fails', async () => {
     const registry = 'http://registry.registry/'
     const getAuthHeader = () => undefined
     nock(registry, {
       badheaders: ['authorization'],
     })
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(500, { message: 'Something bad happened' })
     nock(registry, {
       badheaders: ['authorization'],
     })
-      .post('/-/npm/v1/security/audits/quick')
+      .post('/-/npm/v1/security/audits')
       .reply(200, {
         actions: [],
         advisories: {},

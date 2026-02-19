@@ -40,22 +40,22 @@ export async function audit (
     timeout: opts.timeout,
   }
 
-  const res = await fetchWithAgent(auditUrl, requestOptions)
-
-  if (res.status === 200) {
-    return (res.json() as Promise<AuditReport>)
-  }
-
   const quickRes = await fetchWithAgent(quickAuditUrl, requestOptions)
+
   if (quickRes.status === 200) {
     return (quickRes.json() as Promise<AuditReport>)
   }
 
-  if (res.status === 404 && quickRes.status === 404) {
-    throw new AuditEndpointNotExistsError(auditUrl)
+  const res = await fetchWithAgent(auditUrl, requestOptions)
+  if (res.status === 200) {
+    return (res.json() as Promise<AuditReport>)
   }
 
-  throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}. Fallback endpoint (at ${quickAuditUrl}) responded with ${quickRes.status}: ${await quickRes.text()}`)
+  if (quickRes.status === 404 && res.status === 404) {
+    throw new AuditEndpointNotExistsError(quickAuditUrl)
+  }
+
+  throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${quickAuditUrl}) responded with ${quickRes.status}: ${await quickRes.text()}. Fallback endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
 }
 
 interface AuthHeaders {
