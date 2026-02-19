@@ -36,15 +36,24 @@ export function hoistPeers (
         }
       }
       // First try to find a preferred version that satisfies the peer dep range.
-      // Without this check, a stale version from the lockfile (via allPreferredVersions)
-      // could be picked even when it no longer satisfies the peer dep range — e.g.
-      // after adding an override that narrows the range.
-      const satisfyingVersion = semver.maxSatisfying(versions, range, { includePrerelease: true })
+      // This ensures that when an override narrows the range (e.g. to "4.3.0"),
+      // we pick a preferred version that satisfies it rather than a stale higher
+      // version from the lockfile.
+      const isWorkspaceRange = range.startsWith('workspace:')
+      let satisfyingVersion: string | null = null
+      if (!isWorkspaceRange) {
+        try {
+          satisfyingVersion = semver.maxSatisfying(versions, range, { includePrerelease: true })
+        } catch {
+          // range might not be valid semver (e.g. a URL or other specifier)
+        }
+      }
       if (satisfyingVersion) {
         dependencies[peerName] = [satisfyingVersion, ...nonVersions].join(' || ')
-      } else if (opts.autoInstallPeers) {
-        // No preferred version satisfies the peer dep range.
-        // Use the range directly so pnpm resolves a matching version.
+      } else if (opts.autoInstallPeers && !isWorkspaceRange && semver.valid(range)) {
+        // The range is an exact version (e.g. pinned by an override like "4.3.0")
+        // and no preferred version satisfies it. Use the range directly so pnpm
+        // resolves the overridden version from the registry.
         dependencies[peerName] = range
       } else {
         dependencies[peerName] = [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions].join(' || ')

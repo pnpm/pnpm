@@ -63,6 +63,37 @@ test('hoistPeers picks highest preferred version satisfying the range', () => {
   })
 })
 
+test('hoistPeers reuses higher preferred version when range is not exact', () => {
+  // When the peer dep range is a semver range (not an exact version),
+  // prefer reusing a higher existing version for deduplication even if
+  // it doesn't satisfy the range.
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '2.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '1' }]])).toStrictEqual({
+    foo: '2.0.0',
+  })
+})
+
+test('hoistPeers handles workspace: protocol range without throwing', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: 'workspace:*' }]])).toStrictEqual({
+    foo: '1.0.0',
+  })
+})
+
 test('getHoistableOptionalPeers only picks a version that satisfies all optional ranges', () => {
   expect(getHoistableOptionalPeers({
     foo: ['2', '2.1'],
