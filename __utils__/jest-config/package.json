@@ -7,6 +7,7 @@
   "dependencies": {
     "@babel/core": "catalog:",
     "@babel/plugin-transform-explicit-resource-management": "catalog:",
+    "@jest/globals": "catalog:",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/worker": "workspace:*",
     "ci-info": "catalog:",
