@@ -243,6 +243,9 @@ describe('plugin-commands-audit', () => {
     nock(registries.default)
       .post('/-/npm/v1/security/audits')
       .reply(500, { message: 'Something bad happened' })
+    nock(registries.default)
+      .post('/-/npm/v1/security/audits/quick')
+      .reply(500, { message: 'Fallback failed too' })
     const { output, exitCode } = await audit.handler({
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
@@ -257,7 +260,7 @@ describe('plugin-commands-audit', () => {
     })
 
     expect(exitCode).toBe(0)
-    expect(stripAnsi(output)).toBe(`The audit endpoint (at ${registries.default}-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}`)
+    expect(stripAnsi(output)).toBe(`The audit endpoint (at ${registries.default}-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}. Fallback endpoint (at ${registries.default}-/npm/v1/security/audits/quick) responded with 500: {"message":"Fallback failed too"}`)
   })
 
   test('audit sends authToken', async () => {
@@ -286,6 +289,9 @@ describe('plugin-commands-audit', () => {
   test('audit endpoint does not exist', async () => {
     nock(registries.default)
       .post('/-/npm/v1/security/audits')
+      .reply(404, {})
+    nock(registries.default)
+      .post('/-/npm/v1/security/audits/quick')
       .reply(404, {})
 
     await expect(audit.handler({

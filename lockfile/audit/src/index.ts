@@ -24,6 +24,7 @@ export async function audit (
   const auditTree = await lockfileToAuditTree(lockfile, { include: opts.include, lockfileDir: opts.lockfileDir })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/audits`
+  const quickAuditUrl = `${registry}-/npm/v1/security/audits/quick`
   const authHeaderValue = getAuthHeader(registry)
 
   const res = await fetchWithAgent(auditUrl, {
@@ -38,14 +39,30 @@ export async function audit (
     timeout: opts.timeout,
   })
 
-  if (res.status === 404) {
+  if (res.status === 200) {
+    return (res.json() as Promise<AuditReport>)
+  }
+
+  const quickRes = await fetchWithAgent(quickAuditUrl, {
+    agentOptions: opts.agentOptions ?? {},
+    body: JSON.stringify(auditTree),
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(authHeaderValue),
+    },
+    method: 'post',
+    retry: opts.retry,
+    timeout: opts.timeout,
+  })
+  if (quickRes.status === 200) {
+    return (quickRes.json() as Promise<AuditReport>)
+  }
+
+  if (res.status === 404 && quickRes.status === 404) {
     throw new AuditEndpointNotExistsError(auditUrl)
   }
 
-  if (res.status !== 200) {
-    throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
-  }
-  return (res.json() as Promise<AuditReport>)
+  throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}. Fallback endpoint (at ${quickAuditUrl}) responded with ${quickRes.status}: ${await quickRes.text()}`)
 }
 
 interface AuthHeaders {
