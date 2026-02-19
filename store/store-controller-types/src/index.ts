@@ -16,8 +16,8 @@ import {
 } from '@pnpm/cafs-types'
 import {
   type AllowBuild,
+  type BundledManifest,
   type SupportedArchitectures,
-  type DependencyManifest,
   type PackageManifest,
   type PinnedVersion,
   type PackageVersionPolicy,
@@ -27,23 +27,7 @@ import {
 export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync, FilesMap }
 
 export * from '@pnpm/resolver-base'
-export type BundledManifest = Pick<
-  DependencyManifest,
-| 'bin'
-| 'bundledDependencies'
-| 'bundleDependencies'
-| 'cpu'
-| 'dependencies'
-| 'directories'
-| 'engines'
-| 'name'
-| 'optionalDependencies'
-| 'os'
-| 'peerDependencies'
-| 'peerDependenciesMeta'
-| 'scripts'
-| 'version'
->
+export type { BundledManifest }
 
 export interface UploadPkgToStoreOpts {
   filesIndexFile: string

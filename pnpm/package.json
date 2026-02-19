@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.0.0-alpha.3",
+  "version": "11.0.0-alpha.5",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -179,7 +179,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

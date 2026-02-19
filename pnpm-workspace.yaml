@@ -57,6 +57,7 @@ auditConfig:
   ignoreCves:
     - CVE-2025-56200
   ignoreGhsas:
+    - GHSA-2g4f-4pwh-qvx6
     - GHSA-76c9-3jph-rj3q
     - GHSA-ffrw-9mx8-89p8
     - GHSA-mh29-5h37-fv8m
@@ -135,7 +136,7 @@ catalog:
   '@types/yazl': ^3.3.0
   '@types/zkochan__table': npm:@types/table@6.0.0
   '@typescript-eslint/utils': ^8.53.0
-  '@typescript/native-preview': 7.0.0-dev.20260112.1
+  '@typescript/native-preview': 7.0.0-dev.20260216.1
   '@yarnpkg/core': 4.2.0
   '@yarnpkg/extensions': 2.0.3
   '@yarnpkg/lockfile': ^1.1.0
@@ -347,7 +348,7 @@ minimumReleaseAgeExclude:
   - lodash@4.17.23
   - qs@6.14.2
 
-nodeVersion: 22.12.0
+nodeVersion: 22.13.0
 
 optimisticRepeatInstall: true
 
@@ -429,6 +430,7 @@ trustPolicyExclude:
   - '@yarnpkg/libzip@3.2.2'
   - rxjs@7.8.2
   - undici-types@6.21.0
+  - '@pnpm/*'
 
 trustPolicyIgnoreAfter: 10080 # 1 week
 

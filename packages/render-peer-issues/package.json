@@ -32,17 +32,16 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
+    "@pnpm/text.tree-renderer": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "archy": "catalog:",
     "chalk": "catalog:",
     "cli-columns": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/render-peer-issues": "workspace:*",
-    "@types/archy": "catalog:"
+    "@pnpm/render-peer-issues": "workspace:*"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

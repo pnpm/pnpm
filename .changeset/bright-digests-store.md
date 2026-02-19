@@ -5,7 +5,7 @@
 "@pnpm/package-store": major
 "@pnpm/plugin-commands-store-inspecting": major
 "@pnpm/license-scanner": major
-"@pnpm/modules-mounter": major
+"@pnpm/mount-modules": major
 "pnpm": major
 ---
 

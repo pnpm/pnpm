@@ -34,7 +34,7 @@
     "@pnpm/fs.is-empty-dir-or-nothing": "workspace:*"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

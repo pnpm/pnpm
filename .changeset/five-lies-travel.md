@@ -35,7 +35,6 @@
 "@pnpm/pkg-manager.direct-dep-linker": major
 "@pnpm/package-requester": major
 "@pnpm/plugin-commands-rebuild": major
-"@pnpm/plugin-commands-server": major
 "@pnpm/store-controller-types": major
 "@pnpm/find-workspace-dir": major
 "@pnpm/common-cli-options-help": major
@@ -168,7 +167,6 @@
 "@pnpm/dedupe.check": major
 "@pnpm/dedupe.types": major
 "@pnpm/run-npm": major
-"@pnpm/server": major
 "@pnpm-private/typings": major
 "@pnpm/command": major
 "@pnpm/crypto.hash": major

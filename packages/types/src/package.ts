@@ -183,6 +183,29 @@ export interface PackageManifest extends DependencyManifest {
   deprecated?: string
 }
 
+/**
+ * Subset of package.json fields cached in the store index.
+ * Used for bin linking, build scripts, runtime selection, and dependency resolution.
+ */
+export type BundledManifest = Pick<
+  BaseManifest,
+| 'bin'
+| 'bundledDependencies'
+| 'bundleDependencies'
+| 'cpu'
+| 'dependencies'
+| 'directories'
+| 'engines'
+| 'libc'
+| 'name'
+| 'optionalDependencies'
+| 'os'
+| 'peerDependencies'
+| 'peerDependenciesMeta'
+| 'scripts'
+| 'version'
+>
+
 export interface SupportedArchitectures {
   os?: string[]
   cpu?: string[]
