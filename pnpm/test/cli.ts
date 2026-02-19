@@ -15,11 +15,11 @@ import {
 const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 
-test('some commands pass through to npm', () => {
+test('commands that were previously passed through to npm now fail', () => {
   const result = execPnpmSync(['dist-tag', 'ls', 'is-positive'])
 
-  expect(result.status).toBe(0)
-  expect(result.stdout.toString()).not.toContain('Usage: pnpm [command] [flags]')
+  expect(result.status).not.toBe(0)
+  expect(result.stderr.toString()).toContain('ERR_PNPM_NOT_IMPLEMENTED')
 })
 
 test('installs in the folder where the package.json file is', async () => {
@@ -50,13 +50,13 @@ test('pnpm import does not move modules created by npm', async () => {
   expect(packageManifestInodeBefore).toBe(packageManifestInodeAfter)
 })
 
-test('pass through to npm with all the args', async () => {
+test('previously passed through commands fail without package.json', async () => {
   prepare()
   rimraf('package.json')
 
   const result = execPnpmSync(['dist-tag', 'ls', 'pnpm'])
 
-  expect(result.status).toBe(0)
+  expect(result.status).not.toBe(0)
 })
 
 test('pnpm fails when an unsupported command is used', async () => {

@@ -1953,9 +1953,6 @@ importers:
       '@pnpm/object.property-path':
         specifier: workspace:*
         version: link:../../object/property-path
-      '@pnpm/run-npm':
-        specifier: workspace:*
-        version: link:../../exec/run-npm
       '@pnpm/workspace.manifest-writer':
         specifier: workspace:*
         version: link:../../workspace/manifest-writer
@@ -6711,9 +6708,6 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
-      '@pnpm/run-npm':
-        specifier: workspace:*
-        version: link:../exec/run-npm
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs

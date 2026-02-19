@@ -39,7 +39,6 @@
     "@pnpm/naming-cases": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/object.property-path": "workspace:*",
-    "@pnpm/run-npm": "workspace:*",
     "@pnpm/workspace.manifest-writer": "workspace:*",
     "camelcase": "catalog:",
     "ini": "catalog:",

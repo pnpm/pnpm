@@ -123,7 +123,6 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
-    "@pnpm/run-npm": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/tabtab": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
