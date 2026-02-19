@@ -26,34 +26,27 @@ export async function audit (
   const auditUrl = `${registry}-/npm/v1/security/audits`
   const quickAuditUrl = `${registry}-/npm/v1/security/audits/quick`
   const authHeaderValue = getAuthHeader(registry)
-
-  const res = await fetchWithAgent(auditUrl, {
+  const requestBody = JSON.stringify(auditTree)
+  const requestHeaders = {
+    'Content-Type': 'application/json',
+    ...getAuthHeaders(authHeaderValue),
+  }
+  const requestOptions = {
     agentOptions: opts.agentOptions ?? {},
-    body: JSON.stringify(auditTree),
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(authHeaderValue),
-    },
-    method: 'post',
+    body: requestBody,
+    headers: requestHeaders,
+    method: 'POST',
     retry: opts.retry,
     timeout: opts.timeout,
-  })
+  }
+
+  const res = await fetchWithAgent(auditUrl, requestOptions)
 
   if (res.status === 200) {
     return (res.json() as Promise<AuditReport>)
   }
 
-  const quickRes = await fetchWithAgent(quickAuditUrl, {
-    agentOptions: opts.agentOptions ?? {},
-    body: JSON.stringify(auditTree),
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(authHeaderValue),
-    },
-    method: 'post',
-    retry: opts.retry,
-    timeout: opts.timeout,
-  })
+  const quickRes = await fetchWithAgent(quickAuditUrl, requestOptions)
   if (quickRes.status === 200) {
     return (quickRes.json() as Promise<AuditReport>)
   }
