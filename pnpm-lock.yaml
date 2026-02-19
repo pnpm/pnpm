@@ -1090,18 +1090,12 @@ importers:
       '@babel/plugin-transform-explicit-resource-management':
         specifier: 'catalog:'
         version: 7.28.6(@babel/core@7.29.0)
-      '@jest/globals':
-        specifier: 'catalog:'
-        version: 30.0.5
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
-      ci-info:
-        specifier: 'catalog:'
-        version: 4.4.0
       get-port:
         specifier: 'catalog:'
         version: 7.1.0
