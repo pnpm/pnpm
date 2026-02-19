@@ -18,7 +18,7 @@ test('overrides with references (via $) are preserved during audit --fix', async
   const tmp = f.prepare('preserve-reference-overrides')
 
   nock(registries.default)
-    .post('/-/npm/v1/security/audits')
+    .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { manifest: initialManifest } = await readProjectManifest(tmp)
