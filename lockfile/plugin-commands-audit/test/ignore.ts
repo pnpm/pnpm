@@ -17,7 +17,7 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
   const tmp = f.prepare('has-vulnerabilities')
 
   nock(registries.default)
-    .post('/-/npm/v1/security/audits')
+    .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -45,7 +45,7 @@ test('the specified vulnerabilities are ignored', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
   nock(registries.default)
-    .post('/-/npm/v1/security/audits')
+    .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -71,7 +71,7 @@ test('no ignores are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
   nock(registries.default)
-    .post('/-/npm/v1/security/audits')
+    .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -100,7 +100,7 @@ test('ignored CVEs are not duplicated', async () => {
   ]
 
   nock(registries.default)
-    .post('/-/npm/v1/security/audits')
+    .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
