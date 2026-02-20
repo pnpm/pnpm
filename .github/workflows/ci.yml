@@ -93,15 +93,29 @@ jobs:
         name: compiled-packages
     - name: Extract compiled artifacts
       run: tar -xzf compiled.tar.gz
-    - name: run tests (main)
+    - name: Fetch origin/main for branch comparison
+      if: github.ref_name != 'main' && github.ref_name != 'chore/update-lockfile'
+      run: git remote set-branches --add origin main && git fetch origin main --depth=1
+      shell: bash
+    - name: Check for workspace config changes
+      id: check-workspace
+      if: github.ref_name != 'main' && github.ref_name != 'chore/update-lockfile'
+      shell: bash
+      run: |
+        if [ -n "$(git diff --name-only origin/main HEAD -- pnpm-workspace.yaml)" ]; then
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        fi
+    - name: test all
       timeout-minutes: 70
-      if: github.ref_name == 'main' || github.ref_name == 'chore/update-lockfile'
-      run: pnpm run ci:test-main
+      if: github.ref_name == 'main' || github.ref_name == 'chore/update-lockfile' || steps.check-workspace.outputs.changed == 'true'
+      run: pnpm run ci:test-all
       env:
         PNPM_WORKERS: 3
     - name: run tests (branch)
       timeout-minutes: 70
-      if: github.ref_name != 'main' && github.ref_name != 'chore/update-lockfile'
+      if: github.ref_name != 'main' && github.ref_name != 'chore/update-lockfile' && steps.check-workspace.outputs.changed != 'true'
       run: pnpm run ci:test-branch
       env:
         PNPM_WORKERS: 3
