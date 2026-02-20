@@ -44,3 +44,32 @@ export type PinnedVersion =
   | 'major'
 
 export type IgnoredBuilds = Set<DepPath>
+
+export interface PackageVulnerabilityAudit {
+  /**
+   * Check if the given package version is vulnerable.
+   */
+  isVulnerable: (packageName: string, version: string) => boolean
+  /**
+   * Get all vulnerabilities for all packages.
+   * @returns A map where the keys are package names and the values are arrays of vulnerabilities for those packages.
+   */
+  getVulnerabilities: () => Map<string, PackageVulnerability[]>
+}
+
+export interface PackageVulnerability {
+  /**
+   * A semver version range that indicates which versions are vulnerable
+   */
+  versionRange: string
+  /**
+   * The severity of the vulnerability
+   */
+  severity: VulnerabilitySeverity
+}
+
+export type VulnerabilitySeverity =
+  | 'low'
+  | 'moderate'
+  | 'high'
+  | 'critical'

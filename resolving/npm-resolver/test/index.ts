@@ -691,6 +691,32 @@ test('prefer the version that has bigger weight in preferred selectors', async (
   expect(resolveResult!.id).toBe('is-positive@3.0.0')
 })
 
+test('versions without selector weights should have higher priority than negatively weighted versions', async () => {
+  nock(registries.default)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': {
+        // Penalize 3.0.0, but don't mention 3.1.0
+        '3.0.0': { selectorType: 'version', weight: -1 },
+      },
+    },
+  })
+
+  // 3.1.0 should be selected because it has default weight 0, higher than 3.0.0's -1
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
 test('offline resolution fails when package meta not found in the store', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({

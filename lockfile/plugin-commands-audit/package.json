@@ -40,20 +40,27 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
     "memoize": "catalog:",
     "ramda": "catalog:",
-    "render-help": "catalog:"
+    "render-help": "catalog:",
+    "semver": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-audit": "workspace:*",
-    "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
     "@types/zkochan__table": "catalog:",
     "load-json-file": "catalog:",
     "nock": "catalog:",
@@ -64,6 +71,6 @@
     "node": ">=22.13"
   },
   "jest": {
-    "preset": "@pnpm/jest-config"
+    "preset": "@pnpm/jest-config/with-registry"
   }
 }

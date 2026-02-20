@@ -188,6 +188,15 @@ function prioritizePreferredVersions (
 ): string[][] {
   const preferredVerSelectorsArr = Object.entries(preferredVerSelectors ?? {})
   const versionsPrioritizer = new PreferredVersionsPrioritizer()
+
+  // First, add all versions that satisfy versionRange with default weight 0
+  for (const version of Object.keys(meta.versions)) {
+    if (semverSatisfiesLoose(version, versionRange)) {
+      versionsPrioritizer.add(version, 0)
+    }
+  }
+
+  // Then apply weights from preferred selectors
   for (const [preferredSelector, preferredSelectorType] of preferredVerSelectorsArr) {
     const { selectorType, weight } = typeof preferredSelectorType === 'string'
       ? { selectorType: preferredSelectorType, weight: 1 }
