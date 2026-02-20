@@ -1,11 +1,10 @@
 import path from 'path'
 import util from 'util'
-import { type ConfigFileKey, types, isConfigFileKey } from '@pnpm/config'
+import { type ConfigFileKey, types, isConfigFileKey, isIniConfigKey } from '@pnpm/config'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
 import { parsePropertyPath } from '@pnpm/object.property-path'
-import { type RunNPMOptions, runNpm } from '@pnpm/run-npm'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import camelCase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
@@ -13,48 +12,34 @@ import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
 import { getConfigFileInfo } from './getConfigFileInfo.js'
-import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, valueParam: string | null): Promise<void> {
-  let shouldFallbackToNpm = settingShouldFallBackToNpm(key)
-  if (!shouldFallbackToNpm) {
+  let isIniKey = isIniConfigKey(key)
+  if (!isIniKey) {
     key = validateSimpleKey(key)
-    shouldFallbackToNpm = settingShouldFallBackToNpm(key)
+    isIniKey = isIniConfigKey(key)
   }
   let value: unknown = valueParam
   if (valueParam != null && opts.json) {
     value = JSON.parse(valueParam)
   }
 
-  if (shouldFallbackToNpm) {
-    if (opts.global) {
-      const configPath = path.join(opts.configDir, 'rc')
-      const runNpmOpts: RunNPMOptions = {
-        location: 'user',
-        userConfigPath: configPath,
-      }
-      const _runNpm = runNpm.bind(null, opts.npmPath)
-      if (value == null) {
-        _runNpm(['config', 'delete', key], runNpmOpts)
-        return
-      }
-      if (typeof value === 'string') {
-        _runNpm(['config', 'set', `${key}=${value}`], runNpmOpts)
-        return
-      }
+  if (isIniKey) {
+    if (value != null && typeof value !== 'string') {
       throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
-    } else {
-      const configPath = path.join(opts.dir, '.npmrc')
-      const settings = await safeReadIniFile(configPath)
-      if (value == null) {
-        if (settings[key] == null) return
-        delete settings[key]
-      } else {
-        settings[key] = value
-      }
-      await writeIniFile(configPath, settings)
-      return
     }
+    const configPath = opts.global
+      ? path.join(opts.configDir, 'rc')
+      : path.join(opts.dir, '.npmrc')
+    const settings = await safeReadIniFile(configPath)
+    if (value == null) {
+      if (settings[key] == null) return
+      delete settings[key]
+    } else {
+      settings[key] = value
+    }
+    await writeIniFile(configPath, settings)
+    return
   }
 
   const { configDir, configFileName } = getConfigFileInfo(key, opts)
