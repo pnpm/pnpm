@@ -93,15 +93,25 @@ jobs:
         name: compiled-packages
     - name: Extract compiled artifacts
       run: tar -xzf compiled.tar.gz
-    - name: run tests (main)
+    - name: Determine test scope
+      id: test-scope
+      shell: bash
+      run: |
+        if [[ "${{ github.ref_name }}" == "main" || "${{ github.ref_name }}" == "chore/update-lockfile" ]]; then
+          echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
+          echo "scope=all" >> "$GITHUB_OUTPUT"
+        else
+          git remote set-branches --add origin main && git fetch origin main --depth=1
+          if [ -n "$(git diff --name-only origin/main HEAD -- pnpm-workspace.yaml)" ]; then
+            echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
+            echo "scope=all — pnpm-workspace.yaml modified" >> "$GITHUB_OUTPUT"
+          else
+            echo "script=ci:test-branch" >> "$GITHUB_OUTPUT"
+            echo "scope=affected packages" >> "$GITHUB_OUTPUT"
+          fi
+        fi
+    - name: Run tests (${{ steps.test-scope.outputs.scope }})
       timeout-minutes: 70
-      if: github.ref_name == 'main' || github.ref_name == 'chore/update-lockfile'
-      run: pnpm run ci:test-main
-      env:
-        PNPM_WORKERS: 3
-    - name: run tests (branch)
-      timeout-minutes: 70
-      if: github.ref_name != 'main' && github.ref_name != 'chore/update-lockfile'
-      run: pnpm run ci:test-branch
+      run: pnpm run ${{ steps.test-scope.outputs.script }}
       env:
         PNPM_WORKERS: 3

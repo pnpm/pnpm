@@ -1,7 +1,7 @@
 // cspell:ignore checkin
 import path from 'path'
 import os from 'os'
-import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool.js'
+import { WorkerPool } from '@rushstack/worker-pool'
 import { PnpmError } from '@pnpm/error'
 import { execSync } from 'child_process'
 import isWindows from 'is-windows'
