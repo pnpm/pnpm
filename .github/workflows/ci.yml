@@ -93,29 +93,25 @@ jobs:
         name: compiled-packages
     - name: Extract compiled artifacts
       run: tar -xzf compiled.tar.gz
-    - name: Fetch origin/main for branch comparison
-      if: github.ref_name != 'main' && github.ref_name != 'chore/update-lockfile'
-      run: git remote set-branches --add origin main && git fetch origin main --depth=1
-      shell: bash
-    - name: Check for workspace config changes
-      id: check-workspace
-      if: github.ref_name != 'main' && github.ref_name != 'chore/update-lockfile'
+    - name: Determine test scope
+      id: test-scope
       shell: bash
       run: |
-        if [ -n "$(git diff --name-only origin/main HEAD -- pnpm-workspace.yaml)" ]; then
-          echo "changed=true" >> "$GITHUB_OUTPUT"
+        if [[ "${{ github.ref_name }}" == "main" || "${{ github.ref_name }}" == "chore/update-lockfile" ]]; then
+          echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
+          echo "scope=all" >> "$GITHUB_OUTPUT"
         else
-          echo "changed=false" >> "$GITHUB_OUTPUT"
+          git remote set-branches --add origin main && git fetch origin main --depth=1
+          if [ -n "$(git diff --name-only origin/main HEAD -- pnpm-workspace.yaml)" ]; then
+            echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
+            echo "scope=all — pnpm-workspace.yaml modified" >> "$GITHUB_OUTPUT"
+          else
+            echo "script=ci:test-branch" >> "$GITHUB_OUTPUT"
+            echo "scope=affected packages" >> "$GITHUB_OUTPUT"
+          fi
         fi
-    - name: test all
+    - name: Run tests (${{ steps.test-scope.outputs.scope }})
       timeout-minutes: 70
-      if: github.ref_name == 'main' || github.ref_name == 'chore/update-lockfile' || steps.check-workspace.outputs.changed == 'true'
-      run: pnpm run ci:test-all
-      env:
-        PNPM_WORKERS: 3
-    - name: run tests (branch)
-      timeout-minutes: 70
-      if: github.ref_name != 'main' && github.ref_name != 'chore/update-lockfile' && steps.check-workspace.outputs.changed != 'true'
-      run: pnpm run ci:test-branch
+      run: pnpm run ${{ steps.test-scope.outputs.script }}
       env:
         PNPM_WORKERS: 3
