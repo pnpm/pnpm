@@ -234,6 +234,7 @@ when running add/update with the --workspace option')
           },
           forceHoistPattern,
           forcePublicHoistPattern,
+          preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
           allProjectsGraph,
           selectedProjectsGraph,
           storeControllerAndDir: store,
