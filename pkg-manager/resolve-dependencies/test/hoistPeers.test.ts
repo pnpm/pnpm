@@ -47,7 +47,9 @@ test('hoistPeers falls back to range when no preferred version satisfies it', ()
   })
 })
 
-test('hoistPeers picks highest preferred version satisfying the range', () => {
+test('hoistPeers picks highest preferred version for deduplication when range is not exact', () => {
+  // For non-exact ranges (like ^2.0.0), hoistPeers picks the highest preferred
+  // version overall (for deduplication), not just the highest satisfying the range.
   expect(hoistPeers({
     autoInstallPeers: true,
     allPreferredVersions: {
@@ -59,7 +61,7 @@ test('hoistPeers picks highest preferred version satisfying the range', () => {
     },
     workspaceRootDeps: [],
   }, [['foo', { range: '^2.0.0' }]])).toStrictEqual({
-    foo: '2.1.0',
+    foo: '3.0.0',
   })
 })
 
