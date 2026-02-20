@@ -12,7 +12,7 @@ test('overrides are added for vulnerable dependencies', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
   nock(AUDIT_REGISTRY)
-    .post('/-/npm/v1/security/audits')
+    .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -35,7 +35,7 @@ test('no overrides are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
   nock(AUDIT_REGISTRY)
-    .post('/-/npm/v1/security/audits')
+    .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -54,7 +54,7 @@ test('CVEs found in the allow list are not added as overrides', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
   nock(AUDIT_REGISTRY)
-    .post('/-/npm/v1/security/audits')
+    .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({

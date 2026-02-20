@@ -36,7 +36,7 @@ describe('audit fix with update', () => {
     expect(mockResponse).toBeTruthy()
 
     nock(MOCK_REGISTRY, { allowUnmocked: true })
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -102,7 +102,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     nock(MOCK_REGISTRY, { allowUnmocked: true })
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -163,7 +163,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     nock(MOCK_REGISTRY, { allowUnmocked: true })
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -214,7 +214,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     nock(MOCK_REGISTRY, { allowUnmocked: true })
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -268,7 +268,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     nock(MOCK_REGISTRY, { allowUnmocked: true })
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -332,7 +332,7 @@ The remaining vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     nock(MOCK_REGISTRY, { allowUnmocked: true })
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -398,7 +398,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     nock(MOCK_REGISTRY, { allowUnmocked: true })
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, mockResponse)
 
     const {
@@ -472,7 +472,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     nock(MOCK_REGISTRY, { allowUnmocked: true })
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, mockResponse)
 
     const {
