@@ -18,12 +18,7 @@ export const packageManager = {
   version: pkgJson.version,
 }
 
-export interface Process {
-  arch: NodeJS.Architecture
-  platform: NodeJS.Platform
-}
-
-export function detectIfCurrentPkgIsExecutable (_proc?: Process): boolean {
+export function detectIfCurrentPkgIsExecutable (_proc?: unknown): boolean {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('node:sea').isSea()
@@ -36,25 +31,6 @@ export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boo
   return env.COREPACK_ROOT != null
 }
 
-export function getCurrentPackageName (proc: Process = process): string {
-  return detectIfCurrentPkgIsExecutable(proc) ? getExePackageName(proc) : 'pnpm'
-}
-
-function getExePackageName (proc: Process): string {
-  return `@pnpm/${normalizePlatformName(proc)}-${normalizeArchName(proc)}`
-}
-
-function normalizePlatformName (proc: Process): string {
-  switch (proc.platform) {
-  case 'win32': return 'win'
-  case 'darwin': return 'macos'
-  default: return proc.platform
-  }
-}
-
-function normalizeArchName (proc: Process): string {
-  if (proc.platform === 'win32' && proc.arch === 'ia32') {
-    return 'x86'
-  }
-  return proc.arch
+export function getCurrentPackageName (): string {
+  return detectIfCurrentPkgIsExecutable() ? '@pnpm/exe' : 'pnpm'
 }

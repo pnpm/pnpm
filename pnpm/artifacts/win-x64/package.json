@@ -14,8 +14,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "files": [
-    "pnpm.exe",
-    "dist/"
+    "pnpm.exe"
   ],
   "scripts": {
     "prepublishOnly": "test -f pnpm.exe || (echo 'Error: pnpm.exe is missing' && exit 1)"

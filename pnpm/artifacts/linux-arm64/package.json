@@ -14,8 +14,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "files": [
-    "pnpm",
-    "dist/"
+    "pnpm"
   ],
   "scripts": {
     "prepublishOnly": "test -f pnpm || (echo 'Error: pnpm is missing' && exit 1)"

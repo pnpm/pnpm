@@ -20,16 +20,6 @@ if (subpkg.bin != null) {
 
   linkSync(bin, path.resolve(process.cwd(), executable))
 
-  // Symlink the dist/ directory from the platform package so the SEA binary
-  // can find its assets (pnpm.mjs, worker.js, templates, etc.)
-  const distSrc = path.join(platformDir, 'dist')
-  const distDest = path.resolve(process.cwd(), 'dist')
-  if (fs.existsSync(distSrc)) {
-    try { fs.rmSync(distDest, { recursive: true }) } catch {}
-    // Use 'junction' type — works on Windows without admin privileges
-    fs.symlinkSync(distSrc, distDest, 'junction')
-  }
-
   if (platform === 'win') {
     const pkg = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8'))
     fs.writeFileSync(path.resolve(process.cwd(), 'pnpm'), 'This file intentionally left blank')

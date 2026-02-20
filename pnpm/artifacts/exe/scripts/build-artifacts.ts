@@ -221,7 +221,7 @@ async function build (target: string, config: TargetConfig): Promise<void> {
     execa.sync('codesign', ['--sign', '-', artifactFile], { stdio: 'inherit' })
   }
 
-  // Copy dist/ assets alongside the binary
+  // Copy dist/ assets alongside the binary (for GitHub release tarballs)
   copyDistAssets(targetDir)
 
   // Verifying that the artifact was created.
@@ -244,4 +244,10 @@ async function build (target: string, config: TargetConfig): Promise<void> {
     await build('linuxstatic-x64', targets['linuxstatic-x64'])
     await build('linuxstatic-arm64', targets['linuxstatic-arm64'])
   }
+
+  // Copy dist/ to the exe directory for npm publishing.
+  // Platform packages only contain the binary; dist/ is shipped in @pnpm/exe.
+  const exeDir = path.join(artifactsDir, 'exe')
+  copyDistAssets(exeDir)
+  console.log('Copied dist/ to exe directory for npm publishing')
 })()
