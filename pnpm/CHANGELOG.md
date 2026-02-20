@@ -1,5 +1,11 @@
 # pnpm
 
+## 10.30.1
+
+### Patch Changes
+
+- Use the `/-/npm/v1/security/audits/quick` endpoint as the primary audit endpoint, falling back to `/-/npm/v1/security/audits` when it fails [#10649](https://github.com/pnpm/pnpm/issues/10649).
+
 ## 10.30.0
 
 ### Minor Changes

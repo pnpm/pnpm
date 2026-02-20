@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.2.5
+
+### Patch Changes
+
+- da865b2: fixed help text for audit --ignore-registry-errors
+- Updated dependencies [6e41f27]
+  - @pnpm/audit@1002.0.25
+
 ## 1002.2.4
 
 ### Patch Changes
