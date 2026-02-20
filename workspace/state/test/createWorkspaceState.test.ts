@@ -27,6 +27,45 @@ test('createWorkspaceState() on empty list', () => {
   }))
 })
 
+test('createWorkspaceState() saves lockfile-affecting settings', () => {
+  prepareEmpty()
+
+  const state = createWorkspaceState({
+    allProjects: [],
+    pnpmfiles: [],
+    filteredInstall: false,
+    settings: {
+      autoInstallPeers: true,
+      dedupeDirectDeps: true,
+      excludeLinksFromLockfile: false,
+      preferWorkspacePackages: false,
+      linkWorkspacePackages: false,
+      injectWorkspacePackages: false,
+      overrides: {
+        foo: '1.0.0',
+      },
+      packageExtensions: {
+        bar: { dependencies: { baz: '2.0.0' } },
+      },
+      ignoredOptionalDependencies: ['qux'],
+      patchedDependencies: {
+        'some-pkg': 'patches/some-pkg.patch',
+      },
+      peersSuffixMaxLength: 100,
+    },
+  })
+
+  expect(state.settings.overrides).toStrictEqual({ foo: '1.0.0' })
+  expect(state.settings.packageExtensions).toStrictEqual({
+    bar: { dependencies: { baz: '2.0.0' } },
+  })
+  expect(state.settings.ignoredOptionalDependencies).toStrictEqual(['qux'])
+  expect(state.settings.patchedDependencies).toStrictEqual({
+    'some-pkg': 'patches/some-pkg.patch',
+  })
+  expect(state.settings.peersSuffixMaxLength).toBe(100)
+})
+
 test('createWorkspaceState() on non-empty list', () => {
   preparePackages(['a', 'b', 'c', 'd'].map(name => ({
     location: `./packages/${name}`,
