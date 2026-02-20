@@ -21,11 +21,15 @@ export const packageManager = {
 export interface Process {
   arch: NodeJS.Architecture
   platform: NodeJS.Platform
-  pkg?: unknown
 }
 
-export function detectIfCurrentPkgIsExecutable (proc: Process = process): boolean {
-  return 'pkg' in proc && proc.pkg != null
+export function detectIfCurrentPkgIsExecutable (_proc?: Process): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('node:sea').isSea()
+  } catch {
+    return false
+  }
 }
 
 export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boolean {

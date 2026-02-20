@@ -31,7 +31,7 @@
   "devDependencies": {
     "@pnpm/exe": "workspace:*",
     "execa": "catalog:",
-    "pkg": "catalog:"
+    "tar": "catalog:"
   },
   "preferGlobal": true,
   "publishConfig": {
