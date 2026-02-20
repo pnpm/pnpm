@@ -280,7 +280,7 @@ The fixed vulnerabilities are:
       lockfileOnly: true,
     })
 
-    expect(exitCode).toBe(0)
+    expect(exitCode).toBe(1)
     expect(output).toBe(`${chalk.green(0)} vulnerabilities were fixed, ${chalk.red(1)} vulnerability remains.
 
 The remaining vulnerabilities are:

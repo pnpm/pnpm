@@ -233,7 +233,7 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
   if (fixMethod === 'update') {
     const result = await fixWithUpdate(auditReport, { ...opts, include })
     return {
-      exitCode: 0,
+      exitCode: result.remaining.length > 0 ? 1 : 0,
       output: formatFixWithUpdateOutput(result, auditReport),
     }
   }
