@@ -40,6 +40,7 @@ export type NvmNodeCommandOptions = Pick<Config,
   arch?: string
   /** C standard library variant (e.g. 'musl'). Only relevant for Linux targets. */
   libc?: string
+  json?: boolean
 }
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {
