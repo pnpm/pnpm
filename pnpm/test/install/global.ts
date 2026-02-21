@@ -3,7 +3,6 @@ import PATH_NAME from 'path-name'
 import fs from 'fs'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
-import { type ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
 import writeYamlFile from 'write-yaml-file'
 import {
@@ -125,16 +124,15 @@ test.skip('dangerously-allow-all-builds=true in global config', async () => {
   // the directory structure below applies only to Linux
   if (process.platform !== 'linux') return
 
-  const manifest: ProjectManifest = {
+  prepare({
     name: 'local',
     version: '0.0.0',
     private: true,
-    pnpm: {
-      allowBuilds: {}, // don't allow any dependencies to be built
-    },
-  }
+  })
 
-  const project = prepare(manifest)
+  writeYamlFile.sync('pnpm-workspace.yaml', {
+    allowBuilds: {}, // don't allow any dependencies to be built
+  })
 
   const home = path.resolve('..', 'home/username')
   const cfgHome = path.resolve(home, '.config')
@@ -166,8 +164,7 @@ test.skip('dangerously-allow-all-builds=true in global config', async () => {
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 
   // global config should be used if local config did not specify
-  delete manifest.pnpm!.allowBuilds
-  project.writePackageJson(manifest)
+  fs.unlinkSync('pnpm-workspace.yaml')
   fs.rmSync('node_modules', { recursive: true })
   fs.rmSync('pnpm-lock.yaml')
   await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
@@ -180,16 +177,15 @@ test.skip('dangerously-allow-all-builds=false in global config', async () => {
   // the directory structure below applies only to Linux
   if (process.platform !== 'linux') return
 
-  const manifest: ProjectManifest = {
+  prepare({
     name: 'local',
     version: '0.0.0',
     private: true,
-    pnpm: {
-      allowBuilds: { '@pnpm.e2e/postinstall-calls-pnpm': true },
-    },
-  }
+  })
 
-  const project = prepare(manifest)
+  writeYamlFile.sync('pnpm-workspace.yaml', {
+    allowBuilds: { '@pnpm.e2e/postinstall-calls-pnpm': true },
+  })
 
   const home = path.resolve('..', 'home/username')
   const cfgHome = path.resolve(home, '.config')
@@ -221,8 +217,7 @@ test.skip('dangerously-allow-all-builds=false in global config', async () => {
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
 
   // global config should be used if local config did not specify
-  delete manifest.pnpm!.allowBuilds
-  project.writePackageJson(manifest)
+  fs.unlinkSync('pnpm-workspace.yaml')
   fs.rmSync('node_modules', { recursive: true })
   fs.rmSync('pnpm-lock.yaml')
   await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })

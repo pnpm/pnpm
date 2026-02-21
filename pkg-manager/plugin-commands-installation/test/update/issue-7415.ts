@@ -3,6 +3,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { jest } from '@jest/globals'
+import { sync as writeYamlFile } from 'write-yaml-file'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 
@@ -48,13 +49,7 @@ test('interactive recursive should not error on git specifier override', async (
   preparePackages([
     {
       location: '.',
-      package: {
-        pnpm: {
-          overrides: {
-            'is-negative': 'github:kevva/is-negative#2.1.0',
-          },
-        },
-      },
+      package: {},
     },
     {
       location: './project-1',
@@ -65,6 +60,13 @@ test('interactive recursive should not error on git specifier override', async (
       },
     },
   ])
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['project-1'],
+    overrides: {
+      'is-negative': 'github:kevva/is-negative#2.1.0',
+    },
+  })
 
   prompt.mockResolvedValue({
     updateDependencies: [],

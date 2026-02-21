@@ -6,6 +6,7 @@ import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
@@ -58,28 +59,32 @@ test('install with no store integrity validation', async () => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/7362
-describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchitectures.libc', () => {
+describeOnLinuxOnly('filters optional dependencies based on supportedArchitectures.libc', () => {
   test.each([
     ['glibc', '@pnpm.e2e+only-linux-x64-glibc@1.0.0', '@pnpm.e2e+only-linux-x64-musl@1.0.0'],
     ['musl', '@pnpm.e2e+only-linux-x64-musl@1.0.0', '@pnpm.e2e+only-linux-x64-glibc@1.0.0'],
   ])('%p → installs %p, does not install %p', async (libc, found, notFound) => {
+    const supportedArchitectures = {
+      os: ['linux'],
+      cpu: ['x64'],
+      libc: [libc],
+    }
+
     const rootProjectManifest = {
       dependencies: {
         '@pnpm.e2e/support-different-architectures': '1.0.0',
-      },
-      pnpm: {
-        supportedArchitectures: {
-          os: ['linux'],
-          cpu: ['x64'],
-          libc: [libc],
-        },
       },
     }
 
     prepare(rootProjectManifest)
 
+    writeYamlFile('pnpm-workspace.yaml', {
+      supportedArchitectures,
+    })
+
     await install.handler({
       ...DEFAULT_OPTS,
+      supportedArchitectures,
       rootProjectManifest,
       dir: process.cwd(),
     })
