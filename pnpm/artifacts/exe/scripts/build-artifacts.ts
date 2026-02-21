@@ -29,29 +29,20 @@ function getTargets (): Record<string, TargetConfig> {
 }
 
 async function downloadNodeBinary (target: string, config: TargetConfig): Promise<string> {
-  // pnpm env add installs to <PNPM_HOME>/nodejs/<platform>-<arch>[-<libc>]/<version>/
-  const targetId = [config.platform, config.arch, config.libc].filter(Boolean).join('-')
-  const versionDir = path.join(nodeBinCacheDir, 'nodejs', targetId, NODE_VERSION)
-  const nodeBin = config.platform === 'win32'
-    ? path.join(versionDir, 'node.exe')
-    : path.join(versionDir, 'bin', 'node')
-
-  if (fs.existsSync(nodeBin)) {
-    console.log(`Using cached Node.js binary for ${target}`)
-    return nodeBin
-  }
-
-  console.log(`Downloading Node.js ${NODE_VERSION} for ${target}...`)
-  const args = ['env', 'add', '--global', '--platform', config.platform, '--arch', config.arch]
+  console.log(`Fetching Node.js ${NODE_VERSION} for ${target}...`)
+  const args = ['env', 'add', '--global', '--json', '--platform', config.platform, '--arch', config.arch]
   if (config.libc) args.push('--libc', config.libc)
   args.push(NODE_VERSION)
 
-  execa.sync('pnpm', args, {
-    stdio: 'inherit',
+  const { stdout } = execa.sync('pnpm', args, {
+    stdio: ['inherit', 'pipe', 'inherit'],
     env: { ...process.env, PNPM_HOME: nodeBinCacheDir },
   })
 
-  return nodeBin
+  const [{ dir }] = JSON.parse(stdout) as Array<{ dir: string }>
+  return config.platform === 'win32'
+    ? path.join(dir, 'node.exe')
+    : path.join(dir, 'bin', 'node')
 }
 
 function copyDistAssets (targetDir: string): void {

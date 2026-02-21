@@ -16,6 +16,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     global: Boolean,
+    json: Boolean,
     remote: Boolean,
     platform: String,
     arch: String,
