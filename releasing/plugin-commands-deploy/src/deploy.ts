@@ -92,13 +92,19 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   }
   const selectedProjects = Object.values(opts.selectedProjectsGraph ?? {})
   if (selectedProjects.length === 0) {
-    throw new PnpmError('NOTHING_TO_DEPLOY', 'No project was selected for deployment')
+    let hint = 'Use --filter to select a project to deploy.'
+    if (opts.dir === opts.workspaceDir && opts.rootProjectManifest?.scripts?.['deploy'] != null) {
+      hint += '\nIn case you want to run the custom "deploy" script in the root manifest, try "pnpm run deploy"'
+    }
+    throw new PnpmError('NOTHING_TO_DEPLOY', 'No project was selected for deployment', { hint })
   }
   if (selectedProjects.length > 1) {
     throw new PnpmError('CANNOT_DEPLOY_MANY', 'Cannot deploy more than 1 project')
   }
   if (params.length !== 1) {
-    throw new PnpmError('INVALID_DEPLOY_TARGET', 'This command requires one parameter')
+    throw new PnpmError('INVALID_DEPLOY_TARGET', 'This command requires one parameter', {
+      hint: 'Provide the parameter with "pnpm deploy <target-directory>"',
+    })
   }
   const selectedProject = selectedProjects[0].package
   const deployDirParam = params[0]
