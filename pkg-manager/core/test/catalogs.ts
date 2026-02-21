@@ -1913,3 +1913,78 @@ test('catalogs work in overrides', async () => {
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
   })
 })
+
+// Regression test for https://github.com/pnpm/pnpm/issues/10456
+//
+// When removing a dependency from one project in a filtered operation,
+// catalog entries used by other (unresolved) projects should be preserved.
+test('removing dependency from one project preserves catalogs used by other projects', async () => {
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+    {
+      name: 'project2',
+      dependencies: {
+        'is-negative': 'catalog:',
+      },
+    },
+  ])
+
+  const catalogs = {
+    default: {
+      'is-positive': '=1.0.0',
+      'is-negative': '=1.0.0',
+    },
+  }
+
+  // Initial install
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+  })
+
+  {
+    const lockfile = readLockfile()
+    expect(lockfile.catalogs?.default).toStrictEqual({
+      'is-positive': { specifier: '=1.0.0', version: '1.0.0' },
+      'is-negative': { specifier: '=1.0.0', version: '1.0.0' },
+    })
+  }
+
+  // Remove is-positive from project1 only (simulating pnpm remove from subdirectory)
+  projects['project1' as ProjectId].dependencies = {}
+  await mutateModules([
+    {
+      mutation: 'install',
+      id: 'project1',
+      manifest: projects['project1' as ProjectId],
+      rootDir: path.resolve('project1') as ProjectRootDir,
+    },
+  ], {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+  })
+
+  {
+    const lockfile = readLockfile()
+    // project1 should have no dependencies
+    expect(lockfile.importers['project1' as ProjectId]?.dependencies).toBeUndefined()
+    // project2 should still have its dependency
+    expect(lockfile.importers['project2' as ProjectId]?.dependencies).toEqual({
+      'is-negative': { specifier: 'catalog:', version: '1.0.0' },
+    })
+    // is-negative catalog entry should be preserved even though project2 wasn't resolved
+    expect(lockfile.catalogs?.default?.['is-negative']).toStrictEqual({
+      specifier: '=1.0.0',
+      version: '1.0.0',
+    })
+    // is-positive can be removed since no project uses it anymore
+    expect(lockfile.catalogs?.default?.['is-positive']).toBeUndefined()
+  }
+})
