@@ -81,6 +81,9 @@
       "path": "../fs/msgpack-file"
     },
     {
+      "path": "../builder/plugin-commands-build-sea"
+    },
+    {
       "path": "../lockfile/plugin-commands-audit"
     },
     {

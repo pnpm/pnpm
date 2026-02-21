@@ -103,6 +103,7 @@
     "@pnpm/nopt": "catalog:",
     "@pnpm/parse-cli-args": "workspace:*",
     "@pnpm/plugin-commands-audit": "workspace:*",
+    "@pnpm/plugin-commands-build-sea": "workspace:*",
     "@pnpm/plugin-commands-completion": "workspace:*",
     "@pnpm/plugin-commands-config": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
