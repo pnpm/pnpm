@@ -250,7 +250,6 @@ catalog:
   path-name: ^1.0.0
   path-temp: ^2.1.1
   pidtree: ^0.6.0
-  pkg: npm:@yao-pkg/pkg@6.6.0
   preferred-pm: ^3.1.4
   pretty-bytes: ^7.0.1
   pretty-ms: ^9.2.0
@@ -411,7 +410,6 @@ packageExtensions:
 
 patchedDependencies:
   '@pnpm/npm-lifecycle': __patches__/@pnpm__npm-lifecycle.patch
-  '@yao-pkg/pkg': __patches__/pkg.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
 
