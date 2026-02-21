@@ -2423,6 +2423,9 @@ importers:
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
 
   env/system-node-version:
     dependencies:

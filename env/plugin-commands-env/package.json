@@ -57,7 +57,8 @@
     "@types/is-windows": "catalog:",
     "execa": "catalog:",
     "nock": "catalog:",
-    "path-name": "catalog:"
+    "path-name": "catalog:",
+    "tempy": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

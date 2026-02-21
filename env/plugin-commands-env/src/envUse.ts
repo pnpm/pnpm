@@ -37,6 +37,7 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Pr
     // Defaults for fields not in NvmNodeCommandOptions
     registries: { default: 'https://registry.npmjs.org/' },
     rawLocalConfig: {},
+    cliOptions: {},
     argv: { original: [] },
     pnpmfile: [],
     // Forward the user's opts (network settings, store path, registry config, etc.)

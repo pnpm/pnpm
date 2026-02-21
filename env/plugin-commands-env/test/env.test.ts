@@ -6,6 +6,7 @@ import fs from 'fs'
 import nock from 'nock'
 import path from 'path'
 import PATH from 'path-name'
+import { temporaryDirectory } from 'tempy'
 
 test('install Node (and npm, npx) by exact version of Node.js', async () => {
   tempDir()
@@ -13,6 +14,7 @@ test('install Node (and npm, npx) by exact version of Node.js', async () => {
 
   await env.handler({
     bin: process.cwd(),
+    cacheDir: temporaryDirectory(),
     configDir,
     global: true,
     pnpmHomeDir: process.cwd(),
@@ -116,9 +118,11 @@ test('fail if there is no global bin directory', async () => {
 test('use overrides the previous Node.js version', async () => {
   tempDir()
   const configDir = path.resolve('config')
+  const cacheDir = temporaryDirectory()
 
   await env.handler({
     bin: process.cwd(),
+    cacheDir,
     configDir,
     global: true,
     pnpmHomeDir: process.cwd(),
@@ -139,6 +143,7 @@ test('use overrides the previous Node.js version', async () => {
 
   await env.handler({
     bin: process.cwd(),
+    cacheDir,
     configDir,
     global: true,
     pnpmHomeDir: process.cwd(),

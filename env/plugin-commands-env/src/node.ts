@@ -21,6 +21,7 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'storeDir'
 | 'pnpmHomeDir'
 > & Partial<Pick<Config,
+| 'cacheDir'
 | 'configDir'
 | 'cliOptions'
 | 'sslConfigs'
