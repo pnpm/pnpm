@@ -25,9 +25,6 @@
       "path": "../../network/fetching-types"
     },
     {
-      "path": "../../packages/error"
-    },
-    {
       "path": "../../store/cafs-types"
     },
     {

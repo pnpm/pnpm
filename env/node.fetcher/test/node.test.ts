@@ -62,15 +62,17 @@ test.skip('install Node using the default node mirror', async () => {
   }
 })
 
-test('install Node using a custom node mirror #2', async () => {
+
+test('auto-detects musl on non-glibc Linux and uses unofficial-builds mirror', async () => {
   jest.mocked(isNonGlibcLinux).mockReturnValue(Promise.resolve(true))
   tempDir()
 
-  const opts: FetchNodeOptions = {
-    storeDir: path.resolve('store'),
-  }
-
   await expect(
-    fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
-  ).rejects.toThrow('The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
+    fetchNode(fetchMock, '22.0.0', path.resolve('node'), {
+      storeDir: path.resolve('store'),
+    })
+  ).rejects.toThrow()
+
+  const shasumsUrl = fetchMock.mock.calls[0][0] as string
+  expect(shasumsUrl).toContain('unofficial-builds.nodejs.org')
 })
