@@ -17,6 +17,9 @@ export function cliOptionsTypes (): Record<string, unknown> {
   return {
     global: Boolean,
     remote: Boolean,
+    platform: String,
+    arch: String,
+    libc: String,
   }
 }
 
@@ -61,6 +64,18 @@ export function help (): string {
             description: 'List the remote versions of Node.js',
             name: '--remote',
           },
+          {
+            description: 'Target platform for cross-platform downloads (e.g. linux, darwin, win32)',
+            name: '--platform',
+          },
+          {
+            description: 'Target CPU architecture for cross-platform downloads (e.g. x64, arm64)',
+            name: '--arch',
+          },
+          {
+            description: 'C standard library variant for cross-platform downloads (e.g. musl)',
+            name: '--libc',
+          },
         ],
       },
     ],
@@ -74,6 +89,7 @@ export function help (): string {
       'pnpm env use --global rc/18',
       'pnpm env add --global 18',
       'pnpm env add --global 18 19 20.6.0',
+      'pnpm env add --global --platform linux --arch x64 --libc musl 22',
       'pnpm env remove --global 18 lts',
       'pnpm env remove --global argon',
       'pnpm env remove --global latest',

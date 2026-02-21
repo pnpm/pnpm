@@ -34,6 +34,12 @@ export type NvmNodeCommandOptions = Pick<Config,
 > & Partial<Pick<Config, 'configDir' | 'cliOptions' | 'sslConfigs'>> & {
   remote?: boolean
   useNodeVersion?: string
+  /** Target platform for cross-platform Node.js downloads (e.g. 'linux', 'darwin', 'win32'). */
+  platform?: string
+  /** Target CPU architecture for cross-platform Node.js downloads (e.g. 'x64', 'arm64'). */
+  arch?: string
+  /** C standard library variant (e.g. 'musl'). Only relevant for Linux targets. */
+  libc?: string
 }
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {
@@ -76,7 +82,14 @@ export function getNodeVersionsBaseDir (pnpmHomeDir: string): string {
 export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommandOptions & { useNodeVersion: string, nodeMirrorBaseUrl: string }): Promise<string> {
   const nodesDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
   await fs.promises.mkdir(nodesDir, { recursive: true })
-  const versionDir = path.join(nodesDir, opts.useNodeVersion)
+  // Cross-platform downloads are stored in a platform/arch-specific subdirectory
+  // to avoid collisions with the native host installation.
+  const targetId = opts.platform && opts.arch
+    ? [opts.platform, opts.arch, opts.libc].filter(Boolean).join('-')
+    : undefined
+  const versionDir = targetId
+    ? path.join(nodesDir, targetId, opts.useNodeVersion)
+    : path.join(nodesDir, opts.useNodeVersion)
   if (!fs.existsSync(versionDir)) {
     const storeDir = await getStorePath({
       pkgRoot: process.cwd(),
