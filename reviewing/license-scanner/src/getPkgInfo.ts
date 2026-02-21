@@ -14,7 +14,7 @@ import {
   type PackageFilesIndex,
 } from '@pnpm/store.cafs'
 import { PnpmError } from '@pnpm/error'
-import { type LicensePackage } from './licenses.js'
+import type { LicensePackage } from './licenses.js'
 import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile.utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 
