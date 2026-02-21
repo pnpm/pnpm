@@ -1,0 +1,11 @@
+{
+  "name": "bar",
+  "version": "0.0.0",
+  "dependencies": {
+    "is-positive": "3.1.0",
+    "is-negative": "1.0.0",
+    "is-odd": "1.0.0",
+    "is-even": "1.0.0",
+    "is-zero": "1.0.0"
+  }
+}

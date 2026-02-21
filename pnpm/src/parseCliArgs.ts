@@ -4,6 +4,7 @@ import {
   getCommandFullName,
   GLOBAL_OPTIONS,
   shorthandsByCommandName,
+  subcommandsByCommandName,
 } from './cmd/index.js'
 import { shorthands as universalShorthands } from './shorthands.js'
 
@@ -20,6 +21,7 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgs>
     escapeArgs: ['create', 'exec', 'test'],
     getCommandLongName: getCommandFullName,
     getTypesByCommandName: getCliOptionsTypes,
+    subcommandsByCommandName,
     renamedOptions: RENAMED_OPTIONS,
     shorthandsByCommandName,
     universalOptionsTypes: GLOBAL_OPTIONS,
