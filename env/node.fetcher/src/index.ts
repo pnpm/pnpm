@@ -1,5 +1,4 @@
 import path from 'path'
-import { PnpmError } from '@pnpm/error'
 import { fetchShasumsFileRaw, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
 import {
   type FetchFromRegistry,
@@ -14,12 +13,20 @@ import { isNonGlibcLinux } from 'detect-libc'
 
 // Constants
 const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
+const UNOFFICIAL_NODE_MIRROR_BASE_URL = 'https://unofficial-builds.nodejs.org/download/release/'
 
 export interface FetchNodeOptionsToDir {
   storeDir: string
   fetchTimeout?: number
   nodeMirrorBaseUrl?: string
   retry?: RetryTimeoutOptions
+  /** Target platform (e.g. 'linux', 'darwin', 'win32'). Defaults to the current host platform. */
+  platform?: string
+  /** Target CPU architecture (e.g. 'x64', 'arm64'). Defaults to the current host arch. */
+  arch?: string
+  /** C standard library variant. Use 'musl' to download musl (static) Linux builds
+   * from unofficial-builds.nodejs.org. Defaults to auto-detected on the host. */
+  libc?: string
 }
 
 export interface FetchNodeOptions {
@@ -28,6 +35,9 @@ export interface FetchNodeOptions {
   fetchTimeout?: number
   nodeMirrorBaseUrl?: string
   retry?: RetryTimeoutOptions
+  platform?: string
+  arch?: string
+  libc?: string
 }
 
 interface NodeArtifactInfo {
@@ -44,7 +54,7 @@ interface NodeArtifactInfo {
  * @param version - Node.js version to install
  * @param targetDir - Directory where Node.js should be installed
  * @param opts - Configuration options for the fetch operation
- * @throws {PnpmError} When system uses MUSL libc, integrity verification fails, or download fails
+ * @throws {PnpmError} When integrity verification fails or download fails
  */
 export async function fetchNode (
   fetch: FetchFromRegistry,
@@ -52,10 +62,23 @@ export async function fetchNode (
   targetDir: string,
   opts: FetchNodeOptionsToDir
 ): Promise<void> {
-  await validateSystemCompatibility()
+  const platform = opts.platform ?? process.platform
+  const arch = opts.arch ?? process.arch
+  // On a native musl system with no explicit libc, automatically use the musl
+  // variant so that pnpm env works out of the box on Alpine Linux and similar.
+  const libc = opts.libc ?? (!opts.platform && await isNonGlibcLinux() ? 'musl' : undefined)
 
-  const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? DEFAULT_NODE_MIRROR_BASE_URL
-  const artifactInfo = await getNodeArtifactInfo(fetch, version, { nodeMirrorBaseUrl })
+  const isMusl = libc === 'musl'
+  const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? (isMusl
+    ? UNOFFICIAL_NODE_MIRROR_BASE_URL
+    : DEFAULT_NODE_MIRROR_BASE_URL)
+
+  const artifactInfo = await getNodeArtifactInfo(fetch, version, {
+    nodeMirrorBaseUrl,
+    platform,
+    arch,
+    libc,
+  })
 
   if (artifactInfo.isZip) {
     await downloadAndUnpackZip(fetch, artifactInfo, targetDir)
@@ -66,25 +89,11 @@ export async function fetchNode (
 }
 
 /**
- * Validates that the current system is compatible with Node.js installation.
- *
- * @throws {PnpmError} When system uses MUSL libc
- */
-async function validateSystemCompatibility (): Promise<void> {
-  if (await isNonGlibcLinux()) {
-    throw new PnpmError(
-      'MUSL',
-      'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc'
-    )
-  }
-}
-
-/**
  * Gets Node.js artifact information including URL, integrity, and file type.
  *
  * @param fetch - Function to fetch resources from registry
  * @param version - Node.js version
- * @param nodeMirrorBaseUrl - Base URL for Node.js mirror
+ * @param opts - Options including nodeMirrorBaseUrl, platform, arch, and libc
  * @returns Promise resolving to artifact information
  * @throws {PnpmError} When integrity file cannot be fetched or parsed
  */
@@ -94,21 +103,29 @@ async function getNodeArtifactInfo (
   opts: {
     nodeMirrorBaseUrl: string
     integrities?: Record<string, string>
+    platform: string
+    arch: string
+    libc?: string
   }
 ): Promise<NodeArtifactInfo> {
+  const isMusl = opts.libc === 'musl'
+  // Musl builds are identified by an '-musl' suffix in the artifact filename arch component.
+  const artifactArch = isMusl ? `${opts.arch}-musl` : opts.arch
+
   const tarball = getNodeArtifactAddress({
     version,
     baseUrl: opts.nodeMirrorBaseUrl,
-    platform: process.platform,
-    arch: process.arch,
+    platform: opts.platform,
+    arch: artifactArch,
   })
 
   const tarballFileName = `${tarball.basename}${tarball.extname}`
   const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
   const url = `${tarball.dirname}/${tarballFileName}`
 
+  const integrityKey = isMusl ? `${opts.platform}-${opts.arch}-musl` : `${opts.platform}-${opts.arch}`
   const integrity = opts.integrities
-    ? opts.integrities[`${process.platform}-${process.arch}`]
+    ? opts.integrities[integrityKey]
     : await loadArtifactIntegrity(fetch, tarballFileName, shasumsFileUrl)
 
   return {
@@ -125,7 +142,6 @@ async function getNodeArtifactInfo (
  * @param fetch - Function to fetch resources from registry
  * @param fileName - Name of the file to find integrity for
  * @param shasumsUrl - URL of the SHASUMS256.txt file
- * @param options - Optional configuration for integrity verification
  * @returns Promise resolving to the integrity hash in base64 format
  * @throws {PnpmError} When integrity file cannot be fetched or parsed
  */
