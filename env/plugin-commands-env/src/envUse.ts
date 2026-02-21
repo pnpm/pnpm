@@ -53,6 +53,10 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Pr
     symlink: true,
     workspaceDir: undefined,
     ignoreWorkspaceRootCheck: true,
+    // Prevent workspace settings from leaking in: the env project is a
+    // standalone install, not part of the calling workspace.
+    global: false,
+    enableGlobalVirtualStore: false,
 
   } as unknown as Parameters<typeof add.handler>[0], [`node@runtime:${nodeVersion}`])
 
