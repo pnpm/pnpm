@@ -253,7 +253,7 @@ async function deployFromSharedLockfile (
       path.join(deployDir, 'package.json'),
       JSON.stringify(deployFiles.manifest, undefined, 2) + '\n'
     ),
-    writeWantedLockfile(deployDir, deployFiles.lockfile),
+    writeWantedLockfile(deployDir, deployFiles.lockfile).then(() => {}),
   ]
   if (deployFiles.workspaceManifest) {
     filesToWrite.push(

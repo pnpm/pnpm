@@ -11,6 +11,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
+  fundingLogger,
   ignoredScriptsLogger,
   stageLogger,
   summaryLogger,
@@ -24,7 +25,7 @@ import {
 } from '@pnpm/lockfile.settings-checker'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
-import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/headless'
+import { extendProjectsWithTargetDirs, getFundingInfo, headlessInstall, type InstallationResultStats } from '@pnpm/headless'
 import {
   makeNodeRequireOption,
   runLifecycleHook,
@@ -1296,6 +1297,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
   let stats: InstallationResultStats | undefined
   let ignoredBuilds: IgnoredBuilds | undefined
+  let lockfileWriteResult: { randomDependency: import('@pnpm/lockfile.fs').RandomDependency | undefined } | undefined
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
@@ -1471,16 +1473,17 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
     const projectsWithTargetDirs = getProjectsWithTargetDirs(projects, newLockfile, dependenciesGraph)
     const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
-    await Promise.all([
-      opts.useLockfile && opts.saveLockfile
-        ? writeLockfiles({
-          currentLockfile: result.currentLockfile,
-          currentLockfileDir,
-          wantedLockfile: newLockfile,
-          wantedLockfileDir: ctx.lockfileDir,
-          ...lockfileOpts,
-        })
-        : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile),
+    const lockfileWritePromise = opts.useLockfile && opts.saveLockfile
+      ? writeLockfiles({
+        currentLockfile: result.currentLockfile,
+        currentLockfileDir,
+        wantedLockfile: newLockfile,
+        wantedLockfileDir: ctx.lockfileDir,
+        ...lockfileOpts,
+      })
+      : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile)
+    ;[lockfileWriteResult] = await Promise.all([
+      lockfileWritePromise,
       (async () => {
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
@@ -1530,7 +1533,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
   } else {
     if (opts.useLockfile && opts.saveLockfile && !isInstallationOnlyForLockfileCheck) {
-      await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
+      lockfileWriteResult = await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
     }
 
     if (opts.nodeLinker !== 'hoisted') {
@@ -1561,6 +1564,14 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   })
 
   summaryLogger.debug({ prefix: opts.lockfileDir })
+
+  // Log funding info for a random dependency
+  if (lockfileWriteResult?.randomDependency) {
+    const fundingInfo = getFundingInfo(ctx.storeDir, lockfileWriteResult.randomDependency)
+    if (fundingInfo) {
+      fundingLogger.debug(fundingInfo)
+    }
+  }
 
   // Similar to the sequencing for when the original wanted lockfile is
   // copied, the new lockfile passed here should be as close as possible to

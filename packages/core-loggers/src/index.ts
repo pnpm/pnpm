@@ -3,6 +3,7 @@ import {
   type DeprecationLog,
   type FetchingProgressLog,
   type ExecutionTimeLog,
+  type FundingLog,
   type HookLog,
   type InstallCheckLog,
   type InstallingConfigDepsLog,
@@ -31,6 +32,7 @@ export type Log =
   | DeprecationLog
   | FetchingProgressLog
   | ExecutionTimeLog
+  | FundingLog
   | HookLog
   | InstallCheckLog
   | InstallingConfigDepsLog
