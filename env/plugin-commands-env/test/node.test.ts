@@ -24,6 +24,7 @@ const fetchMock = jest.fn(async (url: string) => {
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-darwin-arm64.tar.gz
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-linux-arm64.tar.gz
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-linux-x64.tar.gz
+5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-linux-x64-musl.tar.gz
 a08f3386090e6511772b949d41970b75a6b71d28abb551dff9854ceb1929dae1  node-v16.4.0-win-x64.zip
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v18.0.0-rc.3-darwin-arm64.tar.gz
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v18.0.0-rc.3-linux-arm64.tar.gz
