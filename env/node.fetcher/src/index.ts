@@ -7,13 +7,13 @@ import {
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { getNodeArtifactAddress } from '@pnpm/node.resolver'
+import {
+  getNodeArtifactAddress,
+  DEFAULT_NODE_MIRROR_BASE_URL,
+  UNOFFICIAL_NODE_MIRROR_BASE_URL,
+} from '@pnpm/node.resolver'
 import { downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
 import { isNonGlibcLinux } from 'detect-libc'
-
-// Constants
-const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
-const UNOFFICIAL_NODE_MIRROR_BASE_URL = 'https://unofficial-builds.nodejs.org/download/release/'
 
 export interface FetchNodeOptionsToDir {
   storeDir: string

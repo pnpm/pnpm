@@ -157,4 +157,3 @@ test('specified an invalid Node.js via use-node-version should not cause pnpm it
   const calls = jest.mocked(globalWarn).mock.calls
   expect(calls[calls.length - 1][0]).toContain('"22.14" is not a valid Node.js version.')
 })
-

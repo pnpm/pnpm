@@ -20,8 +20,8 @@ import { getNodeArtifactAddress } from './getNodeArtifactAddress.js'
 
 export { getNodeMirror, parseEnvSpecifier, getNodeArtifactAddress }
 
-const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
-const UNOFFICIAL_NODE_MIRROR_BASE_URL = 'https://unofficial-builds.nodejs.org/download/release/'
+export const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
+export const UNOFFICIAL_NODE_MIRROR_BASE_URL = 'https://unofficial-builds.nodejs.org/download/release/'
 
 export interface NodeRuntimeResolveResult extends ResolveResult {
   resolution: VariationsResolution
