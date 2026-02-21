@@ -28,7 +28,10 @@ const pnpmDistDir = path.join(repoRoot, 'pnpm/dist')
   await createArtifactTarball('win-x64', 'pnpm.exe')
   await createArtifactTarball('win-arm64', 'pnpm.exe')
   await createSourceMapsArchive()
-})()
+})().catch((err) => {
+  console.error(err)
+  process.exitCode = 1
+})
 
 async function createArtifactTarball (target: string, binaryName: string): Promise<void> {
   try {
@@ -69,7 +72,8 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
     }
     console.log(`Created ${archiveName}`)
   } catch (err) {
-    console.log(err)
+    console.error(`Failed to create artifact for target "${target}":`, err)
+    throw err
   }
 }
 
