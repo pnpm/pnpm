@@ -9,6 +9,7 @@ import { glob } from 'tinyglobby'
 const repoRoot = path.join(import.meta.dirname, '../../..')
 const dest = path.join(repoRoot, 'dist')
 const artifactsDir = path.join(repoRoot, 'pnpm/artifacts')
+const pnpmDistDir = path.join(repoRoot, 'pnpm/dist')
 
 ;(async () => {
   await makeEmptyDir(dest)
@@ -38,16 +39,18 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
       return
     }
 
+    // Copy dist/ from the pnpm build output and strip non-target reflink packages.
+    // Source maps are excluded from tarballs (archived separately via createSourceMapsArchive).
+    const distDest = path.join(artifactDir, 'dist')
+    fs.rmSync(distDest, { recursive: true, force: true })
+    fs.cpSync(pnpmDistDir, distDest, { recursive: true })
+    stripReflinkPackages(distDest, getReflinkKeepPackages(target))
+
     // Collect files to include in the tarball
     const filesToInclude = [binaryName]
-
-    // Add dist/ directory contents
-    const distDir = path.join(artifactDir, 'dist')
-    if (fs.existsSync(distDir)) {
-      const distFiles = await glob('**/*', { cwd: distDir, dot: true })
-      for (const f of distFiles) {
-        filesToInclude.push(path.join('dist', f))
-      }
+    const distFiles = await glob('**/*', { cwd: distDest, dot: true, ignore: ['**/*.map'] })
+    for (const f of distFiles) {
+      filesToInclude.push(path.join('dist', f))
     }
 
     const isWindows = target.startsWith('win-')
@@ -74,15 +77,41 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
 }
 
 async function createSourceMapsArchive () {
-  const pnpmDistDir = path.join(repoRoot, 'pnpm/dist')
-
-  // The tar.create function can accept a filter callback function, but this
-  // approach ends up adding empty directories to the archive. Using tinyglobby
-  // instead.
   const mapFiles = await glob('**/*.map', { cwd: pnpmDistDir })
 
   await stream.promises.pipeline(
     tar.create({ gzip: true, cwd: pnpmDistDir }, mapFiles),
     fs.createWriteStream(path.join(dest, 'source-maps.tgz'))
   )
+}
+
+// Reflink platform package names needed for a build target.
+// Target format: 'linux-x64', 'linuxstatic-arm64', 'macos-arm64', 'win-x64'.
+function getReflinkKeepPackages (target: string): string[] {
+  if (target.startsWith('macos-')) {
+    return [`@reflink/reflink-darwin-${target.slice('macos-'.length)}`]
+  }
+  if (target.startsWith('win-')) {
+    return [`@reflink/reflink-win32-${target.slice('win-'.length)}-msvc`]
+  }
+  if (target.startsWith('linux')) {
+    const arch = target.includes('arm64') ? 'arm64' : 'x64'
+    return [
+      `@reflink/reflink-linux-${arch}-gnu`,
+      `@reflink/reflink-linux-${arch}-musl`,
+    ]
+  }
+  return []
+}
+
+function stripReflinkPackages (distDir: string, keepPackages: string[]): void {
+  const reflinkDir = path.join(distDir, 'node_modules', '@reflink')
+  if (!fs.existsSync(reflinkDir)) return
+
+  for (const entry of fs.readdirSync(reflinkDir)) {
+    if (entry === 'reflink') continue // keep the main package
+    if (!keepPackages.includes(`@reflink/${entry}`)) {
+      fs.rmSync(path.join(reflinkDir, entry), { recursive: true })
+    }
+  }
 }

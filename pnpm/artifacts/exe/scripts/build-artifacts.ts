@@ -4,6 +4,7 @@ import path from 'path'
 import { pipeline } from 'stream/promises'
 import { createGunzip } from 'zlib'
 import * as tar from 'tar'
+import { stripReflinkPackages } from './reflink-utils.ts'
 
 const NODE_VERSION = '25.6.1'
 const artifactsDir = path.join(import.meta.dirname, '../..')
@@ -153,45 +154,6 @@ async function downloadNodeBinary (target: string, config: TargetConfig): Promis
   return cachedBin
 }
 
-// Reflink platform package names needed for a target, matching the package
-// names used by @reflink/reflink's binding.js require() fallback.
-function getReflinkKeepPackages (config: TargetConfig): string[] {
-  if (config.platform === 'darwin') {
-    return [`@reflink/reflink-darwin-${config.arch}`]
-  }
-  if (config.platform === 'win32') {
-    return [`@reflink/reflink-win32-${config.arch}-msvc`]
-  }
-  if (config.platform === 'linux') {
-    // Keep both glibc and musl variants — the correct one is picked at runtime.
-    return [
-      `@reflink/reflink-linux-${config.arch}-gnu`,
-      `@reflink/reflink-linux-${config.arch}-musl`,
-    ]
-  }
-  return []
-}
-
-/**
- * Remove reflink platform packages from dist/node_modules/@reflink/.
- * If keepPackages is provided, only those packages are kept; everything else
- * under @reflink/ except the main @reflink/reflink package is removed.
- * If keepPackages is empty/undefined, ALL platform packages are removed
- * (the main @reflink/reflink package is kept).
- */
-function stripReflinkPackages (distDir: string, keepPackages?: string[]): void {
-  const reflinkDir = path.join(distDir, 'node_modules', '@reflink')
-  if (!fs.existsSync(reflinkDir)) return
-
-  for (const entry of fs.readdirSync(reflinkDir)) {
-    if (entry === 'reflink') continue // keep the main package
-    const pkgName = `@reflink/${entry}`
-    if (!keepPackages || !keepPackages.includes(pkgName)) {
-      fs.rmSync(path.join(reflinkDir, entry), { recursive: true })
-    }
-  }
-}
-
 function copyDistAssets (targetDir: string): void {
   const distSrc = path.join(pnpmDir, 'dist')
   const distDest = path.join(targetDir, 'dist')
@@ -259,11 +221,6 @@ async function build (target: string, config: TargetConfig): Promise<void> {
     console.log(`Signing macOS binary for ${target} with codesign...`)
     execa.sync('codesign', ['--sign', '-', artifactFile], { stdio: 'inherit' })
   }
-
-  // Copy dist/ assets alongside the binary (for GitHub release tarballs)
-  copyDistAssets(targetDir)
-  // Keep only the reflink platform packages needed for this target
-  stripReflinkPackages(path.join(targetDir, 'dist'), getReflinkKeepPackages(config))
 
   // Verifying that the artifact was created.
   fs.statSync(artifactFile)

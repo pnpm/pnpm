@@ -23,7 +23,8 @@
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",
-    "prepublishOnly": "pnpm --filter=pnpm run compile && node ./scripts/build-artifacts.ts"
+    "prepublishOnly": "pnpm --filter=pnpm run prepublishOnly && node ./scripts/build-artifacts.ts",
+    "test": "node --experimental-strip-types --test scripts/reflink-utils.test.ts"
   },
   "dependencies": {
     "@reflink/reflink": "catalog:"
