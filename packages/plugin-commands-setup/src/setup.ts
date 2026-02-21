@@ -69,6 +69,13 @@ async function copyCli (currentLocation: string, targetDir: string): Promise<voi
   fs.mkdirSync(toolsDir, { recursive: true })
   rimraf.sync(newExecPath)
   fs.copyFileSync(currentLocation, newExecPath)
+  // For SEA binaries, also copy the dist/ directory that lives alongside the binary.
+  const distSrc = path.join(path.dirname(currentLocation), 'dist')
+  if (fs.existsSync(distSrc)) {
+    const distDest = path.join(toolsDir, 'dist')
+    fs.rmSync(distDest, { recursive: true, force: true })
+    fs.cpSync(distSrc, distDest, { recursive: true })
+  }
   await cmdShim(newExecPath, path.join(targetDir, 'pnpm'), {
     createPwshFile: false,
   })
