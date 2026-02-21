@@ -41,7 +41,8 @@ export function getOutdatedLockfileSetting (
     injectWorkspacePackages?: boolean
   }
 ): ChangedField | null {
-  if (!allCatalogsAreUpToDate(catalogs ?? {}, lockfile.catalogs)) {
+  const catalogsConfig = catalogs ?? {}
+  if (Object.keys(catalogsConfig).length > 0 && !allCatalogsAreUpToDate(catalogsConfig, lockfile.catalogs)) {
     return 'catalogs'
   }
   if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
