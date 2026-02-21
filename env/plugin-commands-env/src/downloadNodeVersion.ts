@@ -1,7 +1,6 @@
 import { resolveNodeVersion, parseEnvSpecifier, getNodeMirror } from '@pnpm/node.resolver'
-import { getNodeDir, type NvmNodeCommandOptions } from './node.js'
+import { type NvmNodeCommandOptions } from './node.js'
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import { globalInfo } from '@pnpm/logger'
 
 export interface GetNodeVersionResult {
   nodeVersion: string | null
@@ -16,26 +15,4 @@ export async function getNodeVersion (opts: NvmNodeCommandOptions, envSpecifier:
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
   const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
   return { nodeVersion, nodeMirrorBaseUrl, releaseChannel, versionSpecifier }
-}
-
-export interface DownloadNodeVersionResult {
-  nodeVersion: string
-  nodeDir: string
-  nodeMirrorBaseUrl: string
-}
-
-export async function downloadNodeVersion (opts: NvmNodeCommandOptions, envSpecifier: string): Promise<DownloadNodeVersionResult | null> {
-  const fetch = createFetchFromRegistry(opts)
-  const { nodeVersion, nodeMirrorBaseUrl } = await getNodeVersion(opts, envSpecifier)
-  if (!nodeVersion) {
-    return null
-  }
-  const nodeDir = await getNodeDir(fetch, {
-    ...opts,
-    useNodeVersion: nodeVersion,
-    nodeMirrorBaseUrl,
-  })
-  globalInfo(`Node.js ${nodeVersion as string} was installed
-  ${nodeDir}`)
-  return { nodeVersion, nodeDir, nodeMirrorBaseUrl }
 }

@@ -2386,6 +2386,9 @@ importers:
       '@pnpm/node.resolver':
         specifier: workspace:*
         version: link:../node.resolver
+      '@pnpm/plugin-commands-installation':
+        specifier: workspace:*
+        version: link:../../pkg-manager/plugin-commands-installation
       '@pnpm/remove-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/remove-bins

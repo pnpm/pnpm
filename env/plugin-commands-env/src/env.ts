@@ -1,11 +1,9 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
 import renderHelp from 'render-help'
-import { envRemove } from './envRemove.js'
+import { envList } from './envList.js'
 import { envUse } from './envUse.js'
 import { type NvmNodeCommandOptions } from './node.js'
-import { envList } from './envList.js'
-import { envAdd } from './envAdd.js'
 
 export const skipPackageManagerCheck = true
 
@@ -34,16 +32,7 @@ export function help (): string {
             name: 'use',
           },
           {
-            description: 'Installs the specified version(s) of Node.js without activating them as the current version.',
-            name: 'add',
-          },
-          {
-            description: 'Removes the specified version(s) of Node.js.',
-            name: 'remove',
-            shortAlias: 'rm',
-          },
-          {
-            description: 'List Node.js versions available locally or remotely',
+            description: 'List remote Node.js versions available to install.',
             name: 'list',
             shortAlias: 'ls',
           },
@@ -66,19 +55,11 @@ export function help (): string {
     ],
     url: docsUrl('env'),
     usages: [
-      'pnpm env [command] [options] <version> [<additional-versions>...]',
       'pnpm env use --global 18',
       'pnpm env use --global lts',
       'pnpm env use --global argon',
       'pnpm env use --global latest',
       'pnpm env use --global rc/18',
-      'pnpm env add --global 18',
-      'pnpm env add --global 18 19 20.6.0',
-      'pnpm env remove --global 18 lts',
-      'pnpm env remove --global argon',
-      'pnpm env remove --global latest',
-      'pnpm env remove --global rc/18 18 20.6.0',
-      'pnpm env list',
       'pnpm env list --remote',
       'pnpm env list --remote 18',
       'pnpm env list --remote lts',
@@ -101,17 +82,8 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]): P
     })
   }
   switch (params[0]) {
-  case 'add': {
-    return envAdd(opts, params.slice(1))
-  }
   case 'use': {
     return envUse(opts, params.slice(1))
-  }
-  case 'remove':
-  case 'rm':
-  case 'uninstall':
-  case 'un': {
-    return envRemove(opts, params.slice(1))
   }
   case 'list':
   case 'ls': {

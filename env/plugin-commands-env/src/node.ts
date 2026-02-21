@@ -31,7 +31,23 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'strictSsl'
 | 'storeDir'
 | 'pnpmHomeDir'
-> & Partial<Pick<Config, 'configDir' | 'cliOptions' | 'sslConfigs'>> & {
+> & Partial<Pick<Config,
+| 'configDir'
+| 'cliOptions'
+| 'sslConfigs'
+// Fields needed to forward opts to add.handler for env use
+| 'registries'
+| 'rawLocalConfig'
+| 'lockfileDir'
+| 'nodeLinker'
+| 'modulesDir'
+| 'symlink'
+| 'frozenLockfile'
+| 'preferFrozenLockfile'
+| 'sideEffectsCache'
+| 'sideEffectsCacheReadonly'
+| 'supportedArchitectures'
+>> & {
   remote?: boolean
   useNodeVersion?: string
 }
