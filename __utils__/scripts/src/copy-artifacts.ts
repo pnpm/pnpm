@@ -40,17 +40,14 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
     }
 
     // Copy dist/ from the pnpm build output and strip non-target reflink packages.
-    // Source maps are excluded from tarballs (archived separately via createSourceMapsArchive).
+    // Source maps are removed from this copy — they are archived separately via
+    // createSourceMapsArchive(), which reads from the original pnpmDistDir.
     const distDest = path.join(artifactDir, 'dist')
     fs.rmSync(distDest, { recursive: true, force: true })
     fs.cpSync(pnpmDistDir, distDest, { recursive: true })
     stripReflinkPackages(distDest, getReflinkKeepPackages(target))
-
-    // Collect files to include in the tarball
-    const filesToInclude = [binaryName]
-    const distFiles = await glob('**/*', { cwd: distDest, dot: true, ignore: ['**/*.map'] })
-    for (const f of distFiles) {
-      filesToInclude.push(path.join('dist', f))
+    for (const mapFile of await glob('**/*.map', { cwd: distDest })) {
+      fs.rmSync(path.join(distDest, mapFile))
     }
 
     const isWindows = target.startsWith('win-')
@@ -59,14 +56,14 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
     if (isWindows) {
       // Create zip for Windows
       const zipPath = path.join(dest, archiveName)
-      execa.sync('zip', ['-r', zipPath, ...filesToInclude], {
+      execa.sync('zip', ['-r', zipPath, binaryName, 'dist'], {
         cwd: artifactDir,
         stdio: 'inherit',
       })
     } else {
       // Create tar.gz for Unix
       await stream.promises.pipeline(
-        tar.create({ gzip: true, cwd: artifactDir }, filesToInclude),
+        tar.create({ gzip: true, cwd: artifactDir }, [binaryName, 'dist']),
         fs.createWriteStream(path.join(dest, archiveName))
       )
     }
