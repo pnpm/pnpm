@@ -234,7 +234,7 @@ catalog:
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
   normalize-registry-url: 2.0.1
-  npm-packlist: 5.1.3
+  npm-packlist: 10.0.3
   object-hash: 3.0.0
   p-defer: ^4.0.1
   p-every: ^2.0.0

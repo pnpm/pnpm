@@ -214,6 +214,13 @@ declare module '@pnpm/npm-conf/lib/types' {
 }
 
 declare module 'npm-packlist' {
-  function npmPacklist (opts: { path: string, packageJsonCache?: Map<string, Record<string, unknown>> }): Promise<string[]>
+  interface PacklistTree {
+    path: string
+    package: Record<string, unknown>
+    isProjectRoot?: boolean
+    edgesOut?: Map<string, unknown>
+    workspaces?: Map<string, string>
+  }
+  function npmPacklist (tree: PacklistTree, options?: Record<string, unknown>): Promise<string[]>
   export = npmPacklist
 }
