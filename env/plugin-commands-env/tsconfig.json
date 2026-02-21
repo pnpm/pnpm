@@ -28,25 +28,10 @@
       "path": "../../packages/logger"
     },
     {
-      "path": "../../packages/types"
-    },
-    {
       "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
-      "path": "../../pkg-manager/remove-bins"
-    },
-    {
-      "path": "../../store/store-path"
-    },
-    {
-      "path": "../node.fetcher"
-    },
-    {
       "path": "../node.resolver"
-    },
-    {
-      "path": "../system-node-version"
     }
   ]
 }
