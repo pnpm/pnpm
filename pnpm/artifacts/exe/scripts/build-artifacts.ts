@@ -4,7 +4,6 @@ import path from 'path'
 import { pipeline } from 'stream/promises'
 import { createGunzip } from 'zlib'
 import * as tar from 'tar'
-import { stripReflinkPackages } from './reflink-utils.ts'
 
 const NODE_VERSION = '25.6.1'
 const artifactsDir = path.join(import.meta.dirname, '../..')
@@ -247,8 +246,8 @@ async function build (target: string, config: TargetConfig): Promise<void> {
   // Platform packages only contain the binary; dist/ is shipped in @pnpm/exe.
   const exeDir = path.join(artifactsDir, 'exe')
   copyDistAssets(exeDir)
-  // Strip all reflink platform packages — @pnpm/exe declares @reflink/reflink
+  // Remove all bundled reflink packages — @pnpm/exe declares @reflink/reflink
   // as a dependency, so npm installs the right platform package automatically.
-  stripReflinkPackages(path.join(exeDir, 'dist'))
+  fs.rmSync(path.join(exeDir, 'dist', 'node_modules', '@reflink'), { recursive: true, force: true })
   console.log('Copied dist/ to exe directory for npm publishing')
 })()
