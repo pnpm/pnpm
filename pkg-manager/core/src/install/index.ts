@@ -590,7 +590,9 @@ export async function mutateModules (
     >
 
     async function installSome (project: InstallSomeProject) {
-      const currentBareSpecifiers = opts.ignoreCurrentSpecifiers ? {} : getAllDependenciesFromManifest(project.manifest)
+      const currentBareSpecifiers = opts.ignoreCurrentSpecifiers
+        ? {}
+        : getAllDependenciesFromManifest(project.manifest, { autoInstallPeers: opts.autoInstallPeers })
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
       if (preferredSpecs == null) {
