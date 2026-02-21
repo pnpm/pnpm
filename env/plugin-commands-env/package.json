@@ -34,12 +34,12 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
-    "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/env.system-node-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
