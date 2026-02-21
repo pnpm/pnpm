@@ -62,15 +62,58 @@ test.skip('install Node using the default node mirror', async () => {
   }
 })
 
-test('install Node using a custom node mirror #2', async () => {
+test('uses unofficial-builds mirror and musl artifact when libc is musl', async () => {
+  tempDir()
+
+  // Provide a valid SHASUMS entry so we can also verify the tarball URL
+  fetchMock.mockImplementationOnce(async () => new Response(
+    `${'a'.repeat(64)}  node-v22.0.0-linux-x64-musl.tar.gz\n`
+  ))
+
+  await expect(
+    fetchNode(fetchMock, '22.0.0', path.resolve('node'), {
+      platform: 'linux',
+      arch: 'x64',
+      libc: 'musl',
+      storeDir: path.resolve('store'),
+    })
+  ).rejects.toThrow()
+
+  const shasumsUrl = fetchMock.mock.calls[0][0] as string
+  expect(shasumsUrl).toContain('unofficial-builds.nodejs.org')
+
+  // The tarball URL (second fetch) must name the musl artifact
+  expect(fetchMock.mock.calls.length).toBeGreaterThan(1)
+  const tarballUrl = fetchMock.mock.calls[1][0] as string
+  expect(tarballUrl).toContain('linux-x64-musl.tar.gz')
+})
+
+test('auto-detects musl on non-glibc Linux and uses unofficial-builds mirror', async () => {
   jest.mocked(isNonGlibcLinux).mockReturnValue(Promise.resolve(true))
   tempDir()
 
-  const opts: FetchNodeOptions = {
-    storeDir: path.resolve('store'),
-  }
+  await expect(
+    fetchNode(fetchMock, '22.0.0', path.resolve('node'), {
+      storeDir: path.resolve('store'),
+    })
+  ).rejects.toThrow()
+
+  const shasumsUrl = fetchMock.mock.calls[0][0] as string
+  expect(shasumsUrl).toContain('unofficial-builds.nodejs.org')
+})
+
+test('uses default mirror for cross-platform download without musl', async () => {
+  tempDir()
 
   await expect(
-    fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
-  ).rejects.toThrow('The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
+    fetchNode(fetchMock, '22.0.0', path.resolve('node'), {
+      platform: 'linux',
+      arch: 'x64',
+      storeDir: path.resolve('store'),
+    })
+  ).rejects.toThrow()
+
+  const shasumsUrl = fetchMock.mock.calls[0][0] as string
+  expect(shasumsUrl).toContain('nodejs.org/download/release')
+  expect(shasumsUrl).not.toContain('unofficial-builds')
 })
