@@ -20,6 +20,9 @@ export const packageManager = {
 
 export function detectIfCurrentPkgIsExecutable (_proc?: unknown): boolean {
   try {
+    // require() is available here because esbuild injects a createRequire shim
+    // via the banner in pnpm/bundle.ts. node:sea is not available as an ESM
+    // import, so require() is the correct approach.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('node:sea').isSea()
   } catch {

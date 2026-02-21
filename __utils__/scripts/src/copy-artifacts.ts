@@ -78,6 +78,9 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
 }
 
 async function createSourceMapsArchive () {
+  // The tar.create function can accept a filter callback function, but this
+  // approach ends up adding empty directories to the archive. Using tinyglobby
+  // instead.
   const mapFiles = await glob('**/*.map', { cwd: pnpmDistDir })
 
   await stream.promises.pipeline(
