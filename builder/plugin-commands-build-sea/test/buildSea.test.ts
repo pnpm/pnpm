@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { jest } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'
+import type { BuildSeaOptions } from '../lib/buildSea.js'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockDownloadNodeVersion = jest.fn<(opts: any, version: string) => Promise<any>>()
@@ -42,14 +43,14 @@ describe('validation', () => {
   test('throws MISSING_ENTRY when --entry is not provided', async () => {
     tempDir()
     await expect(
-      handler(baseOpts() as any, [])
+      handler(baseOpts() as unknown as BuildSeaOptions, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_MISSING_ENTRY' })
   })
 
   test('throws ENTRY_NOT_FOUND when the entry file does not exist', async () => {
     tempDir()
     await expect(
-      handler({ ...baseOpts(), entry: 'nonexistent.cjs' } as any, [])
+      handler({ ...baseOpts(), entry: 'nonexistent.cjs' } as unknown as BuildSeaOptions, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_ENTRY_NOT_FOUND' })
   })
 
@@ -57,7 +58,7 @@ describe('validation', () => {
     tempDir()
     fs.writeFileSync('entry.cjs', 'module.exports = {}')
     await expect(
-      handler({ ...baseOpts(), entry: 'entry.cjs' } as any, [])
+      handler({ ...baseOpts(), entry: 'entry.cjs' } as unknown as BuildSeaOptions, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_MISSING_TARGET' })
   })
 
@@ -65,7 +66,7 @@ describe('validation', () => {
     tempDir()
     fs.writeFileSync('entry.cjs', 'module.exports = {}')
     await expect(
-      handler({ ...baseOpts(), entry: 'entry.cjs', target: 'freebsd-x64' } as any, [])
+      handler({ ...baseOpts(), entry: 'entry.cjs', target: 'freebsd-x64' } as unknown as BuildSeaOptions, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_TARGET' })
   })
 
@@ -73,7 +74,7 @@ describe('validation', () => {
     tempDir()
     fs.writeFileSync('entry.cjs', 'module.exports = {}')
     await expect(
-      handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-mips' } as any, [])
+      handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-mips' } as unknown as BuildSeaOptions, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_TARGET' })
   })
 
@@ -81,7 +82,7 @@ describe('validation', () => {
     tempDir()
     fs.writeFileSync('entry.cjs', 'module.exports = {}')
     await expect(
-      handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux' } as any, [])
+      handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux' } as unknown as BuildSeaOptions, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_TARGET' })
   })
 })
@@ -91,10 +92,10 @@ describe('target parsing', () => {
     tempDir()
     fs.writeFileSync('entry.cjs', 'module.exports = {}')
 
-    await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'macos-arm64' } as any, [])
+    await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'macos-arm64' } as unknown as BuildSeaOptions, [])
 
     const targetCall = mockDownloadNodeVersion.mock.calls.find(
-      ([opts]) => (opts as any).platform === 'darwin'
+      ([opts]) => opts.platform === 'darwin'
     )
     expect(targetCall).toBeDefined()
     expect(targetCall![0]).toMatchObject({ platform: 'darwin', arch: 'arm64' })
@@ -108,25 +109,25 @@ describe('target parsing', () => {
       ...baseOpts(),
       entry: 'entry.cjs',
       target: 'win-x64',
-      outputName: 'mytool',
-    } as any, [])
+      outputName: 'my-tool',
+    } as unknown as BuildSeaOptions, [])
 
     const targetCall = mockDownloadNodeVersion.mock.calls.find(
-      ([opts]) => (opts as any).platform === 'win32'
+      ([opts]) => opts.platform === 'win32'
     )
     expect(targetCall).toBeDefined()
     expect(targetCall![0]).toMatchObject({ platform: 'win32', arch: 'x64', libc: undefined })
-    expect(result).toContain('mytool.exe')
+    expect(result).toContain('my-tool.exe')
   })
 
   test('passes libc: musl for linux-x64-musl target', async () => {
     tempDir()
     fs.writeFileSync('entry.cjs', 'module.exports = {}')
 
-    await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64-musl' } as any, [])
+    await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64-musl' } as unknown as BuildSeaOptions, [])
 
     const targetCall = mockDownloadNodeVersion.mock.calls.find(
-      ([opts]) => (opts as any).platform === 'linux'
+      ([opts]) => opts.platform === 'linux'
     )
     expect(targetCall).toBeDefined()
     expect(targetCall![0]).toMatchObject({ platform: 'linux', arch: 'x64', libc: 'musl' })
@@ -136,10 +137,10 @@ describe('target parsing', () => {
     tempDir()
     fs.writeFileSync('entry.cjs', 'module.exports = {}')
 
-    await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', nodeVersion: '20' } as any, [])
+    await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', nodeVersion: '20' } as unknown as BuildSeaOptions, [])
 
     const targetCall = mockDownloadNodeVersion.mock.calls.find(
-      ([opts]) => (opts as any).platform === 'linux'
+      ([opts]) => opts.platform === 'linux'
     )
     expect(targetCall![1]).toBe('20')
   })
@@ -150,7 +151,7 @@ describe('SEA invocation', () => {
     tempDir()
     fs.writeFileSync('entry.cjs', 'module.exports = {}')
 
-    await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64' } as any, [])
+    await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64' } as unknown as BuildSeaOptions, [])
 
     const seaCall = mockExecaSync.mock.calls.find(
       ([, args]) => (args as string[]).includes('--build-sea')
@@ -163,7 +164,7 @@ describe('SEA invocation', () => {
     tempDir()
     fs.writeFileSync('entry.cjs', 'module.exports = {}')
 
-    const result = await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64' } as any, [])
+    const result = await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64' } as unknown as BuildSeaOptions, [])
 
     expect(result).toContain(path.join('dist-sea', 'linux-x64'))
   })
@@ -178,7 +179,7 @@ describe('SEA invocation', () => {
       target: 'linux-x64',
       outputDir: 'release',
       outputName: 'myapp',
-    } as any, [])
+    } as unknown as BuildSeaOptions, [])
 
     expect(result).toContain(path.join('release', 'linux-x64', 'myapp'))
   })
@@ -191,7 +192,7 @@ describe('SEA invocation', () => {
       ...baseOpts(),
       entry: 'entry.cjs',
       target: ['linux-x64', 'win-x64', 'macos-arm64'],
-    } as any, [])
+    } as unknown as BuildSeaOptions, [])
 
     expect(result).toContain('3 executables')
     // execa.sync must have been called once per target (for --build-sea)

@@ -24,6 +24,9 @@
       "path": "../__utils__/test-ipc-server"
     },
     {
+      "path": "../builder/plugin-commands-build-sea"
+    },
+    {
       "path": "../cache/commands"
     },
     {
@@ -79,9 +82,6 @@
     },
     {
       "path": "../fs/msgpack-file"
-    },
-    {
-      "path": "../builder/plugin-commands-build-sea"
     },
     {
       "path": "../lockfile/plugin-commands-audit"

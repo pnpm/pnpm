@@ -1251,6 +1251,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@pnpm/plugin-commands-build-sea':
+        specifier: workspace:*
+        version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare

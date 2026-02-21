@@ -13,7 +13,7 @@ import path from 'path'
 import { sync as execaSync } from 'execa'
 import { expect, jest, test } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'
-import { handler } from '../lib/buildSea.js'
+import { handler, type BuildSeaOptions } from '../lib/buildSea.js'
 
 // Map Node.js platform names to pnpm build-sea target OS names
 const TARGET_OS: Record<string, string> = {
@@ -50,7 +50,7 @@ process.exit(0)
     target: hostTarget,
     outputDir: 'out',
     outputName: 'test-sea',
-  } as any, [])
+  } as unknown as BuildSeaOptions, [])
 
   const ext = process.platform === 'win32' ? '.exe' : ''
   const binaryPath = path.join(tmpDir, 'out', hostTarget, `test-sea${ext}`)

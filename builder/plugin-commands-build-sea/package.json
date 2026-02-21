@@ -25,7 +25,7 @@
   ],
   "scripts": {
     "start": "tsgo --watch",
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
@@ -46,6 +46,7 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/plugin-commands-build-sea": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:"
   },
