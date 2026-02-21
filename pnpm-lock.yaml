@@ -6551,6 +6551,9 @@ importers:
 
   pnpm:
     dependencies:
+      '@reflink/reflink':
+        specifier: 'catalog:'
+        version: 0.1.19
       node-gyp:
         specifier: ^11.5.0
         version: 11.5.0
@@ -6869,6 +6872,10 @@ importers:
         version: 5.0.0
 
   pnpm/artifacts/exe:
+    dependencies:
+      '@reflink/reflink':
+        specifier: 'catalog:'
+        version: 0.1.19
     devDependencies:
       '@pnpm/exe':
         specifier: workspace:*

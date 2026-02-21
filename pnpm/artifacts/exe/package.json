@@ -25,6 +25,9 @@
     "prepare": "node prepare.js",
     "prepublishOnly": "pnpm --filter=pnpm run compile && node ./scripts/build-artifacts.ts"
   },
+  "dependencies": {
+    "@reflink/reflink": "catalog:"
+  },
   "optionalDependencies": {
     "@pnpm/linux-arm64": "workspace:*",
     "@pnpm/linux-x64": "workspace:*",
