@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { type VariationsResolution } from '@pnpm/resolver-base'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { getIntegrity } from '@pnpm/registry-mock'
@@ -8,7 +9,8 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils/index.js'
 
-const RESOLUTIONS = [
+// The standard glibc variants from nodejs.org/download/release/
+const GLIBC_RESOLUTIONS = [
   {
     targets: [
       {
@@ -185,7 +187,9 @@ test('installing Node.js runtime', async () => {
 
   project.isExecutable('.bin/node')
   expect(fs.readlinkSync('node_modules/node')).toContain(path.join('links', '@', 'node', '22.0.0'))
-  expect(project.readLockfile()).toStrictEqual({
+
+  const lockfile = project.readLockfile()
+  expect(lockfile).toStrictEqual({
     settings: {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,
@@ -206,7 +210,9 @@ test('installing Node.js runtime', async () => {
         hasBin: true,
         resolution: {
           type: 'variations',
-          variants: RESOLUTIONS,
+          // Musl variants from unofficial-builds.nodejs.org are appended alongside
+          // the standard glibc variants, so use arrayContaining to allow them.
+          variants: expect.arrayContaining(GLIBC_RESOLUTIONS),
         },
         version: '22.0.0',
       },
@@ -215,6 +221,14 @@ test('installing Node.js runtime', async () => {
       'node@runtime:22.0.0': {},
     },
   })
+  // Verify that musl variants are present for linux x64 and arm64.
+  const variants = (lockfile.packages['node@runtime:22.0.0'].resolution as VariationsResolution).variants
+  expect(variants).toContainEqual(expect.objectContaining({
+    targets: [{ os: 'linux', cpu: 'x64', libc: 'musl' }],
+    resolution: expect.objectContaining({
+      url: expect.stringContaining('unofficial-builds.nodejs.org'),
+    }),
+  }))
 
   // Verify that package.json is created
   expect(fs.existsSync(path.resolve('node_modules/node/package.json'))).toBeTruthy()
@@ -254,7 +268,7 @@ test('installing Node.js runtime', async () => {
         hasBin: true,
         resolution: {
           type: 'variations',
-          variants: RESOLUTIONS,
+          variants: expect.arrayContaining(GLIBC_RESOLUTIONS),
         },
         version: '22.0.0',
       },
@@ -309,7 +323,7 @@ test('installing Node.js runtime fails if integrity check fails', async () => {
         hasBin: true,
         resolution: {
           type: 'variations',
-          variants: RESOLUTIONS.map((resolutionVariant) => ({
+          variants: GLIBC_RESOLUTIONS.map((resolutionVariant) => ({
             ...resolutionVariant,
             resolution: {
               ...resolutionVariant.resolution,

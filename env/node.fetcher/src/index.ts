@@ -20,6 +20,9 @@ export interface FetchNodeOptionsToDir {
   fetchTimeout?: number
   nodeMirrorBaseUrl?: string
   retry?: RetryTimeoutOptions
+  // Overrides for testing
+  platform?: string
+  arch?: string
 }
 
 export interface FetchNodeOptions {
@@ -52,8 +55,8 @@ export async function fetchNode (
   targetDir: string,
   opts: FetchNodeOptionsToDir
 ): Promise<void> {
-  const platform = process.platform
-  const arch = process.arch
+  const platform = opts.platform ?? process.platform
+  const arch = opts.arch ?? process.arch
   // On a native musl Linux system, automatically use the musl variant so that
   // pnpm env works out of the box on Alpine Linux and similar distributions.
   let libc: string | undefined
@@ -102,14 +105,13 @@ async function getNodeArtifactInfo (
   }
 ): Promise<NodeArtifactInfo> {
   const isMusl = opts.libc === 'musl'
-  // Musl builds are identified by an '-musl' suffix in the artifact filename arch component.
-  const artifactArch = isMusl ? `${opts.arch}-musl` : opts.arch
 
   const tarball = getNodeArtifactAddress({
     version,
     baseUrl: opts.nodeMirrorBaseUrl,
     platform: opts.platform,
-    arch: artifactArch,
+    arch: opts.arch,
+    libc: opts.libc,
   })
 
   const tarballFileName = `${tarball.basename}${tarball.extname}`

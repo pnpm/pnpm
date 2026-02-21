@@ -5,6 +5,7 @@ import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import {
   type BinaryResolution,
   type PlatformAssetResolution,
+  type PlatformAssetTarget,
   type ResolveOptions,
   type ResolveResult,
   type VariationsResolution,
@@ -18,6 +19,9 @@ import { getNodeMirror } from './getNodeMirror.js'
 import { getNodeArtifactAddress } from './getNodeArtifactAddress.js'
 
 export { getNodeMirror, parseEnvSpecifier, getNodeArtifactAddress }
+
+const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
+const UNOFFICIAL_NODE_MIRROR_BASE_URL = 'https://unofficial-builds.nodejs.org/download/release/'
 
 export interface NodeRuntimeResolveResult extends ResolveResult {
   resolution: VariationsResolution
@@ -70,24 +74,56 @@ export async function resolveNodeRuntime (
 }
 
 async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<PlatformAssetResolution[]> {
+  const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false })
+
+  // When using the default mirror, also fetch musl variants from unofficial-builds.nodejs.org,
+  // since musl builds are not available on the official mirror.
+  if (nodeMirrorBaseUrl === DEFAULT_NODE_MIRROR_BASE_URL) {
+    try {
+      const muslAssets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl: UNOFFICIAL_NODE_MIRROR_BASE_URL, version, muslOnly: true })
+      assets.push(...muslAssets)
+    } catch {
+      // Musl variants may not be available for all Node.js versions (e.g. very old ones)
+    }
+  }
+
+  return assets
+}
+
+async function readNodeAssetsFromMirror (
+  fetch: FetchFromRegistry,
+  opts: {
+    nodeMirrorBaseUrl: string
+    version: string
+    muslOnly: boolean
+  }
+): Promise<PlatformAssetResolution[]> {
+  const { nodeMirrorBaseUrl, version, muslOnly } = opts
   const integritiesFileUrl = `${nodeMirrorBaseUrl}v${version}/SHASUMS256.txt`
   const shasumsFileItems = await fetchShasumsFile(fetch, integritiesFileUrl)
   const escaped = version.replace(/\\/g, '\\\\').replace(/\./g, '\\.')
-  const pattern = new RegExp(`^node-v${escaped}-([^-.]+)-([^.]+)\\.(?:tar\\.gz|zip)$`)
+  // The second capture group uses [^.-]+ to stop at a dash, so that the optional
+  // third group can capture the '-musl' suffix separately (e.g. 'x64' + '-musl').
+  const pattern = new RegExp(`^node-v${escaped}-([^-.]+)-([^.-]+)(-musl)?\\.(?:tar\\.gz|zip)$`)
   const assets: PlatformAssetResolution[] = []
   for (const { integrity, fileName } of shasumsFileItems) {
     const match = pattern.exec(fileName)
     if (!match) continue
 
-    let [, platform, arch] = match
+    let [, platform, arch, muslSuffix] = match
     if (platform === 'win') {
       platform = 'win32'
     }
+    const isMusl = muslSuffix != null
+    if (muslOnly && !isMusl) continue
+
+    const libc = isMusl ? 'musl' : undefined
     const address = getNodeArtifactAddress({
       version,
       baseUrl: nodeMirrorBaseUrl,
       platform,
       arch,
+      libc,
     })
     const url = `${address.dirname}/${address.basename}${address.extname}`
     const resolution: BinaryResolution = {
@@ -100,11 +136,13 @@ async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: stri
     if (resolution.archive === 'zip') {
       resolution.prefix = address.basename
     }
+    const target: PlatformAssetTarget = {
+      os: platform,
+      cpu: arch,
+      ...(libc != null && { libc }),
+    }
     assets.push({
-      targets: [{
-        os: platform,
-        cpu: arch,
-      }],
+      targets: [target],
       resolution,
     })
   }
