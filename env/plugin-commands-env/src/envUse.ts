@@ -6,11 +6,10 @@ import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import cmdShim from '@zkochan/cmd-shim'
 import isWindows from 'is-windows'
-import symlinkDir from 'symlink-dir'
 import { writeJsonFile } from 'write-json-file'
 import { getNodeVersion } from './downloadNodeVersion.js'
 import { type NvmNodeCommandOptions } from './node.js'
-import { CURRENT_NODE_DIRNAME, getNodeExecPathInBinDir, getNodeExecPathInNodeDir } from './utils.js'
+import { getNodeExecPathInBinDir, getNodeExecPathInNodeDir } from './utils.js'
 
 export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   if (!opts.global) {
@@ -24,7 +23,7 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Pr
   }
 
   // 2. Prepare the synthetic env project directory
-  const envDir = path.join(opts.pnpmHomeDir, 'env')
+  const envDir = path.join(opts.pnpmHomeDir, '.env')
   await fs.mkdir(envDir, { recursive: true })
   const manifestPath = path.join(envDir, 'package.json')
   if (!existsSync(manifestPath)) {
@@ -58,7 +57,6 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Pr
     // standalone install, not part of the calling workspace.
     global: false,
     enableGlobalVirtualStore: false,
-
   } as unknown as Parameters<typeof add.handler>[0], [`node@runtime:${nodeVersion}`])
 
   // 4. Find node executable inside the installed node_modules
@@ -66,10 +64,7 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Pr
   const src = getNodeExecPathInNodeDir(nodeModulesNodeDir)
   const dest = getNodeExecPathInBinDir(opts.bin)
 
-  // 5. Update the nodejs_current symlink to point to the new node directory
-  await symlinkDir(nodeModulesNodeDir, path.join(opts.pnpmHomeDir, CURRENT_NODE_DIRNAME))
-
-  // 6. Link the node executable into the user's bin dir
+  // 5. Link the node executable into the user's bin dir
   try {
     gfs.unlinkSync(dest)
   } catch (err: unknown) {

@@ -44,7 +44,7 @@ test('install Node (and npm, npx) by exact version of Node.js', async () => {
   }
 
   // Node.js is now installed in the synthetic env project's node_modules
-  expect(fs.existsSync(path.resolve('env', 'node_modules', 'node'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('.env', 'node_modules', 'node'))).toBeTruthy()
 
   {
     const { stdout } = execa.sync('npm', ['config', 'get', 'globalconfig'], opts)
