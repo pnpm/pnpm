@@ -5,7 +5,11 @@ process.setMaxListeners(0)
 
 const argv = process.argv.slice(2)
 
-; (async () => {
+
+  ; (async () => {
+  const { switchNodeBasedOnDevEngine } = await import('./switchNodeBasedOnDevEngine.js');
+  if (await switchNodeBasedOnDevEngine()) return;
+
   switch (argv[0]) {
   // commands that are passed through to npm:
   case 'access':
