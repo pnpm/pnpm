@@ -27,8 +27,10 @@ export function createCompletionServer (
     if (!env.complete) return
 
     // Parse only words that are before the pointer and finished.
-    // Finished means that there's at least one space between the word and pointer
-    const finishedArgv = env.partial.slice(0, -env.lastPartial.length)
+    // Finished means that there's at least one space between the word and pointer.
+    // If env.lastPartial is an empty string, there is no partial arg at the end,
+    // so we take the full string to avoid losing all context.
+    const finishedArgv = env.partial.slice(0, -env.lastPartial.length || undefined);
     const inputArgv = splitCmd(finishedArgv).slice(1)
     // We cannot autocomplete what a user types after "pnpm test --"
     if (inputArgv.includes('--')) return
