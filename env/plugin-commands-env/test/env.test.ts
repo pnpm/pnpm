@@ -211,6 +211,26 @@ describe('env add/remove', () => {
     expect(() => execa.sync('node', ['-v'], opts)).toThrow()
   })
 
+  test('env add --json returns installed version and dir', async () => {
+    tempDir()
+
+    const configDir = path.resolve('config')
+
+    const result = await env.handler({
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      json: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['add', '16.4.0'])
+
+    const entries = JSON.parse(result as string) as Array<{ version: string, dir: string }>
+    expect(entries).toHaveLength(1)
+    expect(entries[0].version).toBe('16.4.0')
+    expect(entries[0].dir).toContain('16.4.0')
+  })
+
   test('install and remove multiple Node.js versions in one command', async () => {
     tempDir()
 

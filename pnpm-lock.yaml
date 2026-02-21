@@ -2275,9 +2275,6 @@ importers:
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: link:../../crypto/shasums-file
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
