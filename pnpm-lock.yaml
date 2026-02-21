@@ -6880,9 +6880,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
-      tar:
-        specifier: 'catalog:'
-        version: 7.5.9
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
