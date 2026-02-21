@@ -57,7 +57,7 @@ export interface CreateCafsOpts {
 }
 
 export interface CafsFunctions {
-  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean }) => AddToStoreResult
+  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean }) => AddToStoreResult
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
