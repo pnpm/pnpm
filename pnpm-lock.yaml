@@ -2368,36 +2368,18 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/exec.pnpm-cli-runner':
+        specifier: workspace:*
+        version: link:../../exec/pnpm-cli-runner
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
       '@pnpm/node.resolver':
         specifier: workspace:*
         version: link:../node.resolver
-      '@pnpm/plugin-commands-installation':
-        specifier: workspace:*
-        version: link:../../pkg-manager/plugin-commands-installation
-      '@zkochan/cmd-shim':
-        specifier: 'catalog:'
-        version: 7.0.0
-      '@zkochan/rimraf':
-        specifier: 'catalog:'
-        version: 3.0.2
-      graceful-fs:
-        specifier: 'catalog:'
-        version: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      is-windows:
-        specifier: 'catalog:'
-        version: 1.0.2
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
-      symlink-dir:
-        specifier: 'catalog:'
-        version: 7.1.0
-      write-json-file:
-        specifier: 'catalog:'
-        version: 7.0.0
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -2408,18 +2390,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
-      '@types/graceful-fs':
-        specifier: 'catalog:'
-        version: 4.1.9
-      '@types/is-windows':
-        specifier: 'catalog:'
-        version: 1.0.2
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       path-name:
         specifier: 'catalog:'
         version: 1.0.0

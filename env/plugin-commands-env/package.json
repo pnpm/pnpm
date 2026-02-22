@@ -35,16 +35,10 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
-    "@pnpm/plugin-commands-installation": "workspace:*",
-    "@zkochan/cmd-shim": "catalog:",
-    "@zkochan/rimraf": "catalog:",
-    "graceful-fs": "catalog:",
-    "is-windows": "catalog:",
-    "render-help": "catalog:",
-    "symlink-dir": "catalog:",
-    "write-json-file": "catalog:"
+    "render-help": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -53,10 +47,7 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/graceful-fs": "catalog:",
-    "@types/is-windows": "catalog:",
     "execa": "catalog:",
-    "nock": "catalog:",
     "path-name": "catalog:",
     "tempy": "catalog:"
   },
