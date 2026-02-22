@@ -9,7 +9,7 @@ import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { fetchNode } from '@pnpm/node.fetcher'
-import { resolveNodeVersion, parseEnvSpecifier, getNodeMirror } from '@pnpm/node.resolver'
+import { resolveNodeVersion, parseNodeSpecifier, getNodeMirror } from '@pnpm/node.resolver'
 import { getStorePath } from '@pnpm/store-path'
 import renderHelp from 'render-help'
 
@@ -255,7 +255,7 @@ async function resolveAndInstall (
   libc?: string
 ): Promise<{ nodeVersion: string, nodeDir: string } | null> {
   const fetch = createFetchFromRegistry(opts)
-  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(envSpecifier)
+  const { releaseChannel, versionSpecifier } = parseNodeSpecifier(envSpecifier)
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
   const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
   if (!nodeVersion) return null

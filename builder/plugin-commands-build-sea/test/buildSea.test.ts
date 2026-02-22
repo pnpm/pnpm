@@ -13,7 +13,7 @@ jest.unstable_mockModule('@pnpm/node.fetcher', () => ({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockResolveNodeVersion = jest.fn<(...args: any[]) => Promise<string>>().mockResolvedValue('22.0.0')
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockParseEnvSpecifier = jest.fn<(...args: any[]) => unknown>().mockImplementation((specifier: string) => ({
+const mockParseNodeSpecifier = jest.fn<(...args: any[]) => unknown>().mockImplementation((specifier: string) => ({
   releaseChannel: 'release',
   versionSpecifier: specifier,
 }))
@@ -22,7 +22,7 @@ jest.unstable_mockModule('@pnpm/node.resolver', () => ({
   resolveNodeVersion: mockResolveNodeVersion,
   resolveNodeVersions: jest.fn(),
   resolveNodeRuntime: jest.fn(),
-  parseEnvSpecifier: mockParseEnvSpecifier,
+  parseNodeSpecifier: mockParseNodeSpecifier,
   getNodeMirror: mockGetNodeMirror,
   getNodeArtifactAddress: jest.fn(),
   DEFAULT_NODE_MIRROR_BASE_URL: 'https://nodejs.org/download/release/',
@@ -41,10 +41,10 @@ beforeEach(() => {
   mockFetchNode.mockClear()
   mockExecaSync.mockClear()
   mockResolveNodeVersion.mockClear()
-  mockParseEnvSpecifier.mockClear()
+  mockParseNodeSpecifier.mockClear()
   mockFetchNode.mockResolvedValue(undefined)
   mockResolveNodeVersion.mockResolvedValue('22.0.0')
-  mockParseEnvSpecifier.mockImplementation((specifier: unknown) => ({
+  mockParseNodeSpecifier.mockImplementation((specifier: unknown) => ({
     releaseChannel: 'release',
     versionSpecifier: specifier,
   }))
