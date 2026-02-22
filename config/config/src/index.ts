@@ -326,11 +326,6 @@ export async function getConfig (opts: {
   pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
   Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.rawConfig))
-  pnpmConfig.useLockfile = (() => {
-    if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
-    if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
-    return false
-  })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)
   let globalDirRoot
   if (pnpmConfig.globalDir) {
@@ -433,6 +428,12 @@ export async function getConfig (opts: {
       }
     }
   }
+
+  pnpmConfig.useLockfile = (() => {
+    if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
+    if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
+    return false
+  })()
 
   pnpmConfig.useGitBranchLockfile = (() => {
     if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile

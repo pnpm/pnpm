@@ -1462,3 +1462,22 @@ describe('global config.yaml', () => {
     expect(config.rawConfig).toHaveProperty(['dangerously-allow-all-builds'])
   })
 })
+
+test('lockfile: false in pnpm-workspace.yaml sets useLockfile to false', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    lockfile: false,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.useLockfile).toBe(false)
+})
