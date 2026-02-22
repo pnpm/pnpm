@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { type NvmNodeCommandOptions } from './node.js'
 
-export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
+export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Promise<void> {
   if (!opts.global) {
     throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
   }
