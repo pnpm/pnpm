@@ -19,13 +19,22 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../env/plugin-commands-env"
+      "path": "../../env/node.fetcher"
+    },
+    {
+      "path": "../../env/node.resolver"
+    },
+    {
+      "path": "../../network/fetch"
     },
     {
       "path": "../../packages/error"
     },
     {
       "path": "../../packages/logger"
+    },
+    {
+      "path": "../../store/store-path"
     }
   ]
 }

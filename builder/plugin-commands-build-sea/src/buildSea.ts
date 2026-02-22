@@ -7,7 +7,10 @@ import { pick } from 'ramda'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { downloadNodeVersion, type NvmNodeCommandOptions } from '@pnpm/plugin-commands-env'
+import { createFetchFromRegistry } from '@pnpm/fetch'
+import { fetchNode } from '@pnpm/node.fetcher'
+import { resolveNodeVersion, parseEnvSpecifier, getNodeMirror } from '@pnpm/node.resolver'
+import { getStorePath } from '@pnpm/store-path'
 import renderHelp from 'render-help'
 
 // Supported target format: <os>-<arch>[-<libc>]
@@ -162,14 +165,7 @@ export async function handler (opts: BuildSeaOptions, params: string[]): Promise
   for (const target of targets) {
     const parsed = parseTarget(target)
 
-    const download = await downloadNodeVersion({
-      ...opts,
-      bin: '',
-      global: true,
-      platform: parsed.platform,
-      arch: parsed.arch,
-      libc: parsed.libc,
-    } as NvmNodeCommandOptions, nodeVersion)
+    const download = await resolveAndInstall(opts, nodeVersion, parsed.platform, parsed.arch, parsed.libc)
 
     if (!download) {
       throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${nodeVersion}`)
@@ -235,12 +231,7 @@ async function getBuilderPath (opts: BuildSeaOptions): Promise<string> {
     return process.execPath
   }
 
-  const download = await downloadNodeVersion({
-    ...opts,
-    bin: '',
-    global: true,
-    // No platform/arch = host defaults inside fetchNode
-  } as NvmNodeCommandOptions, '25')
+  const download = await resolveAndInstall(opts, '25')
 
   if (!download) {
     throw new PnpmError('COULD_NOT_RESOLVE_NODEJS',
@@ -254,6 +245,52 @@ async function getBuilderPath (opts: BuildSeaOptions): Promise<string> {
   return process.platform === 'win32'
     ? path.join(nodeDir, 'node.exe')
     : path.join(nodeDir, 'bin', 'node')
+}
+
+async function resolveAndInstall (
+  opts: BuildSeaOptions,
+  envSpecifier: string,
+  platform?: string,
+  arch?: string,
+  libc?: string
+): Promise<{ nodeVersion: string, nodeDir: string } | null> {
+  const fetch = createFetchFromRegistry(opts)
+  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(envSpecifier)
+  const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
+  const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
+  if (!nodeVersion) return null
+
+  const nodesDir = path.join(opts.pnpmHomeDir, 'nodejs')
+  const targetId = platform && arch
+    ? [platform, arch, libc].filter(Boolean).join('-')
+    : undefined
+  const nodeDir = targetId
+    ? path.join(nodesDir, targetId, nodeVersion)
+    : path.join(nodesDir, nodeVersion)
+
+  if (!fs.existsSync(nodeDir)) {
+    const storeDir = await getStorePath({
+      pkgRoot: process.cwd(),
+      storePath: opts.storeDir,
+      pnpmHomeDir: opts.pnpmHomeDir,
+    })
+    await fs.promises.mkdir(nodeDir, { recursive: true })
+    await fetchNode(fetch, nodeVersion, nodeDir, {
+      storeDir,
+      platform,
+      arch,
+      libc,
+      fetchTimeout: opts.fetchTimeout,
+      retry: {
+        maxTimeout: opts.fetchRetryMaxtimeout,
+        minTimeout: opts.fetchRetryMintimeout,
+        retries: opts.fetchRetries,
+        factor: opts.fetchRetryFactor,
+      },
+    })
+  }
+
+  return { nodeVersion, nodeDir }
 }
 
 function parseTarget (target: string): { platform: string, arch: string, libc?: string } {

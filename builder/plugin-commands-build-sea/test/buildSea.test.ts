@@ -5,9 +5,28 @@ import { tempDir } from '@pnpm/prepare'
 import type { BuildSeaOptions } from '../lib/buildSea.js'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockDownloadNodeVersion = jest.fn<(opts: any, version: string) => Promise<any>>()
-jest.unstable_mockModule('@pnpm/plugin-commands-env', () => ({
-  downloadNodeVersion: mockDownloadNodeVersion,
+const mockFetchNode = jest.fn<(...args: any[]) => Promise<void>>().mockResolvedValue(undefined)
+jest.unstable_mockModule('@pnpm/node.fetcher', () => ({
+  fetchNode: mockFetchNode,
+}))
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockResolveNodeVersion = jest.fn<(...args: any[]) => Promise<string>>().mockResolvedValue('22.0.0')
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockParseEnvSpecifier = jest.fn<(...args: any[]) => unknown>().mockImplementation((specifier: string) => ({
+  releaseChannel: 'release',
+  versionSpecifier: specifier,
+}))
+const mockGetNodeMirror = jest.fn().mockReturnValue('https://nodejs.org/download/release/')
+jest.unstable_mockModule('@pnpm/node.resolver', () => ({
+  resolveNodeVersion: mockResolveNodeVersion,
+  resolveNodeVersions: jest.fn(),
+  resolveNodeRuntime: jest.fn(),
+  parseEnvSpecifier: mockParseEnvSpecifier,
+  getNodeMirror: mockGetNodeMirror,
+  getNodeArtifactAddress: jest.fn(),
+  DEFAULT_NODE_MIRROR_BASE_URL: 'https://nodejs.org/download/release/',
+  UNOFFICIAL_NODE_MIRROR_BASE_URL: 'https://unofficial-builds.nodejs.org/download/release/',
 }))
 
 const mockExecaSync = jest.fn()
@@ -18,17 +37,17 @@ jest.unstable_mockModule('execa', () => ({
 
 const { handler } = await import('../lib/buildSea.js')
 
-// A stable fake nodeDir — no binary needs to actually exist since execa is mocked.
-const FAKE_NODE_DIR = path.join(path.sep, 'tmp', 'pnpm-test-node')
-
 beforeEach(() => {
-  mockDownloadNodeVersion.mockClear()
+  mockFetchNode.mockClear()
   mockExecaSync.mockClear()
-  mockDownloadNodeVersion.mockResolvedValue({
-    nodeVersion: '22.0.0',
-    nodeDir: FAKE_NODE_DIR,
-    nodeMirrorBaseUrl: 'https://nodejs.org',
-  })
+  mockResolveNodeVersion.mockClear()
+  mockParseEnvSpecifier.mockClear()
+  mockFetchNode.mockResolvedValue(undefined)
+  mockResolveNodeVersion.mockResolvedValue('22.0.0')
+  mockParseEnvSpecifier.mockImplementation((specifier: unknown) => ({
+    releaseChannel: 'release',
+    versionSpecifier: specifier,
+  }))
 })
 
 function baseOpts () {
@@ -94,11 +113,11 @@ describe('target parsing', () => {
 
     await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'macos-arm64' } as unknown as BuildSeaOptions, [])
 
-    const targetCall = mockDownloadNodeVersion.mock.calls.find(
-      ([opts]) => opts.platform === 'darwin'
+    const targetCall = mockFetchNode.mock.calls.find(
+      ([, , , opts]) => (opts as { platform?: string }).platform === 'darwin'
     )
     expect(targetCall).toBeDefined()
-    expect(targetCall![0]).toMatchObject({ platform: 'darwin', arch: 'arm64' })
+    expect(targetCall![3]).toMatchObject({ platform: 'darwin', arch: 'arm64' })
   })
 
   test('maps win to win32 platform and uses .exe extension', async () => {
@@ -112,11 +131,11 @@ describe('target parsing', () => {
       outputName: 'my-tool',
     } as unknown as BuildSeaOptions, [])
 
-    const targetCall = mockDownloadNodeVersion.mock.calls.find(
-      ([opts]) => opts.platform === 'win32'
+    const targetCall = mockFetchNode.mock.calls.find(
+      ([, , , opts]) => (opts as { platform?: string }).platform === 'win32'
     )
     expect(targetCall).toBeDefined()
-    expect(targetCall![0]).toMatchObject({ platform: 'win32', arch: 'x64', libc: undefined })
+    expect(targetCall![3]).toMatchObject({ platform: 'win32', arch: 'x64', libc: undefined })
     expect(result).toContain('my-tool.exe')
   })
 
@@ -126,23 +145,23 @@ describe('target parsing', () => {
 
     await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64-musl' } as unknown as BuildSeaOptions, [])
 
-    const targetCall = mockDownloadNodeVersion.mock.calls.find(
-      ([opts]) => opts.platform === 'linux'
+    const targetCall = mockFetchNode.mock.calls.find(
+      ([, , , opts]) => (opts as { platform?: string }).platform === 'linux'
     )
     expect(targetCall).toBeDefined()
-    expect(targetCall![0]).toMatchObject({ platform: 'linux', arch: 'x64', libc: 'musl' })
+    expect(targetCall![3]).toMatchObject({ platform: 'linux', arch: 'x64', libc: 'musl' })
   })
 
-  test('passes the specified node version to downloadNodeVersion', async () => {
+  test('passes the specified node version to resolveNodeVersion', async () => {
     tempDir()
     fs.writeFileSync('entry.cjs', 'module.exports = {}')
 
     await handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', nodeVersion: '20' } as unknown as BuildSeaOptions, [])
 
-    const targetCall = mockDownloadNodeVersion.mock.calls.find(
-      ([opts]) => opts.platform === 'linux'
+    const targetCall = mockResolveNodeVersion.mock.calls.find(
+      ([, versionSpecifier]) => versionSpecifier === '20'
     )
-    expect(targetCall![1]).toBe('20')
+    expect(targetCall).toBeDefined()
   })
 })
 

@@ -35,7 +35,10 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/plugin-commands-env": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
+    "@pnpm/node.fetcher": "workspace:*",
+    "@pnpm/node.resolver": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
     "execa": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"

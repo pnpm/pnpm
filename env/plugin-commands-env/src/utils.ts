@@ -1,22 +1,4 @@
-import { promises as fs } from 'fs'
 import path from 'path'
-
-export const CURRENT_NODE_DIRNAME = 'nodejs_current'
-
-export async function getNodeExecPathAndTargetDir (pnpmHomeDir: string): Promise<{ nodePath: string, nodeLink?: string }> {
-  const nodePath = getNodeExecPathInBinDir(pnpmHomeDir)
-  const nodeCurrentDirLink = path.join(pnpmHomeDir, CURRENT_NODE_DIRNAME)
-  let nodeCurrentDir: string | undefined
-  try {
-    nodeCurrentDir = await fs.readlink(nodeCurrentDirLink)
-    if (!path.isAbsolute(nodeCurrentDir)) {
-      nodeCurrentDir = path.resolve(path.dirname(nodeCurrentDirLink), nodeCurrentDir)
-    }
-  } catch {
-    nodeCurrentDir = undefined
-  }
-  return { nodePath, nodeLink: nodeCurrentDir ? getNodeExecPathInNodeDir(nodeCurrentDir) : undefined }
-}
 
 export function getNodeExecPathInBinDir (pnpmHomeDir: string): string {
   return path.resolve(pnpmHomeDir, process.platform === 'win32' ? 'node.exe' : 'node')
