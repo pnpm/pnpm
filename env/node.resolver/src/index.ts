@@ -1,4 +1,4 @@
-import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
+import { getNodeBinsForCurrentOS } from '@pnpm/constants'
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
@@ -64,7 +64,7 @@ export async function resolveNodeRuntime (
     manifest: {
       name: 'node',
       version,
-      bin: getNodeBinLocationForCurrentOS(),
+      bin: getNodeBinsForCurrentOS(),
     },
     resolution: {
       type: 'variations',
@@ -129,7 +129,7 @@ async function readNodeAssetsFromMirror (
     const resolution: BinaryResolution = {
       type: 'binary',
       archive: address.extname === '.zip' ? 'zip' : 'tarball',
-      bin: getNodeBinLocationForCurrentOS(platform),
+      bin: getNodeBinsForCurrentOS(platform),
       integrity,
       url,
     }
