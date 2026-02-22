@@ -19,6 +19,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../exec/pnpm-cli-runner"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
@@ -26,9 +29,6 @@
     },
     {
       "path": "../../packages/logger"
-    },
-    {
-      "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
       "path": "../node.resolver"
