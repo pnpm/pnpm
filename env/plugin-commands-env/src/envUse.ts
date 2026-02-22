@@ -7,11 +7,16 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Pr
     throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
   }
 
-  const args = ['add', '--global', `node@runtime:${params[0]}`]
+  const version = params[0]?.trim()
+  if (!version) {
+    throw new PnpmError('MISSING_NODE_VERSION', '"pnpm env use --global <version>" requires a Node.js version to be specified')
+  }
+
+  const args = ['add', '--global', `node@runtime:${version}`]
   if (opts.bin) args.push('--global-bin-dir', opts.bin)
   if (opts.storeDir) args.push('--store-dir', opts.storeDir)
   if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir)
   runPnpmCli(args, { cwd: opts.pnpmHomeDir })
 
-  return `Node.js ${params[0]} was activated`
+  return `Node.js ${version} was activated`
 }
