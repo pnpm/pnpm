@@ -8094,12 +8094,18 @@ importers:
         specifier: 'catalog:'
         version: 1.0.3
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
       '@pnpm/runtime.commands':
         specifier: workspace:*
         version: 'link:'
+      cross-env:
+        specifier: 'catalog:'
+        version: 10.1.0
 
   semver/peer-range:
     dependencies:

@@ -280,6 +280,10 @@ function getHelpText ({ all }: { all: boolean }): string {
           shortAlias: 'rt',
         },
         {
+          description: 'Manage Node.js versions (deprecated, use runtime)',
+          name: 'env',
+        },
+        {
           description: 'Updates pnpm to the latest version',
           name: 'self-update',
         },
