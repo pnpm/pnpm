@@ -66,7 +66,7 @@ export function help (): string {
   })
 }
 
-export async function handler (opts: NvmNodeCommandOptions, params: string[]): Promise<string | { exitCode: number }> {
+export async function handler (opts: NvmNodeCommandOptions, params: string[]): Promise<string | { exitCode: number } | void> {
   if (params.length === 0) {
     throw new PnpmError('ENV_NO_SUBCOMMAND', 'Please specify the subcommand', {
       hint: help(),
@@ -79,7 +79,8 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]): P
   }
   switch (params[0]) {
   case 'use': {
-    return envUse(opts, params.slice(1))
+    envUse(opts, params.slice(1))
+    return
   }
   case 'list':
   case 'ls': {
