@@ -79,7 +79,7 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]): P
   }
   switch (params[0]) {
   case 'use': {
-    envUse(opts, params.slice(1))
+    await envUse(opts, params.slice(1))
     return
   }
   case 'list':
