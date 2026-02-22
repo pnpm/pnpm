@@ -933,7 +933,7 @@ importers:
         version: link:../packages/logger
       '@pnpm/meta-updater':
         specifier: 'catalog:'
-        version: 2.0.6(@types/node@18.19.110)(typanion@3.14.0)
+        version: 2.0.6(@types/node@22.19.7)(typanion@3.14.0)
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../object/key-sorting
@@ -1168,7 +1168,7 @@ importers:
     dependencies:
       '@pnpm/workspace.find-packages':
         specifier: 'catalog:'
-        version: 1000.0.25(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.4(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)
+        version: 1000.0.25(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)
       '@pnpm/workspace.read-manifest':
         specifier: 'catalog:'
         version: 1000.1.5
@@ -8645,9 +8645,6 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.3
       symlink-dir:
         specifier: 'catalog:'
         version: 6.0.5
@@ -8670,9 +8667,6 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.5.3
       cross-spawn:
         specifier: 'catalog:'
         version: 7.0.6
@@ -10076,6 +10070,12 @@ packages:
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
 
+  '@pnpm/create-cafs-store@1000.0.31':
+    resolution: {integrity: sha512-UOrXGszVzR8bXmSmsZHq6WheamGpOOd0t8tOPtHVnW3G2BQPwHd0DczbJd2Gr2E4NyGdGtdg+cZHrHZT3ky9Nw==}
+    engines: {node: '>=18.12'}
+    peerDependencies:
+      '@pnpm/logger': '>=1001.0.0 <1002.0.0'
+
   '@pnpm/crypto.hash@1000.1.1':
     resolution: {integrity: sha512-lb5kwXaOXdIW/4bkLLmtM9HEVRvp2eIvp+TrdawcPoaptgA/5f0/sRG0P52BF8dFqeNDj+1tGdqH89WQEqJnxA==}
     engines: {node: '>=18.12'}
@@ -10168,8 +10168,20 @@ packages:
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
 
+  '@pnpm/fs.hard-link-dir@1000.0.6':
+    resolution: {integrity: sha512-8Z26HRL7YuC7jvkGMT3s5+0sJSBJ8PtldWGQ9gCPtXtjfORr7ep5V/rcTDQk6L1KzFIBuSg5NBOpxLdzJeCUCA==}
+    engines: {node: '>=18.12'}
+    peerDependencies:
+      '@pnpm/logger': '>=1001.0.0 <1002.0.0'
+
   '@pnpm/fs.indexed-pkg-importer@1000.1.23':
     resolution: {integrity: sha512-h3gTClrMMQjcwaImZhULe/Qoxj/cA/tr0AKIMp5q0ixYOqyvmy8jLNsnHeULM2pRZ623kf8LiOjjdctPHxpzJQ==}
+    engines: {node: '>=18.12'}
+    peerDependencies:
+      '@pnpm/logger': '>=1001.0.0 <1002.0.0'
+
+  '@pnpm/fs.indexed-pkg-importer@1000.1.24':
+    resolution: {integrity: sha512-U7qHF9uOAPM2HNAnvlkHVxN6qFScX0ElsCQvxa+z2nmv5qbdK2a6Z6Q98gwMo7QnXnCnHY0Urs+5oxv5TykYVw==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
@@ -10209,6 +10221,10 @@ packages:
 
   '@pnpm/graceful-fs@1000.0.1':
     resolution: {integrity: sha512-JnzaAVFJIEgwTcB55eww8N3h5B6qJdZqDA2wYkSK+OcTvvMSQb9c2STMhBP6GfkWygG1fs3w8D7JRx9SPZnxJg==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/graceful-fs@1000.1.0':
+    resolution: {integrity: sha512-EsMX4slK0qJN2AR0/AYohY5m0HQNYGMNe+jhN74O994zp22/WbX+PbkIKyw3UQn39yQm2+z6SgwklDxbeapsmQ==}
     engines: {node: '>=18.12'}
 
   '@pnpm/hooks.types@1001.0.8':
@@ -10474,6 +10490,10 @@ packages:
     resolution: {integrity: sha512-QFrfR+JP7WgaMheTEiqoYB5vOnO1SAseyapylyWxSHC1bnQUpyaLIGuSbKoeTkNxWgYH/mWsnxhaUu7AWG8sTA==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/store.cafs@1000.1.4':
+    resolution: {integrity: sha512-6lV5EzJieiBe6Px+p1JezbKdQ1umj4gxIYexYKSMBHPH6SVKFYnKewwU8iQ2bWhvnTNbUMUxTIJeIErWBGh2eQ==}
+    engines: {node: '>=18.12'}
+
   '@pnpm/symlink-dependency@1000.0.17':
     resolution: {integrity: sha512-z8vyHVtBud5Mfdeh/vebb2o+ZRqIDE1b2uyoBQPZCUEa6WhZWwiwTDLXxTeJFaC7bknw1RP6HgMOtp9kkU0hxA==}
     engines: {node: '>=18.12'}
@@ -10521,6 +10541,12 @@ packages:
 
   '@pnpm/worker@1000.6.4':
     resolution: {integrity: sha512-rCW7p0zXnz/JdNAZR2aBq3Ez4nVHRstD3Yc+fCZsc7QCVE5D93/k7k3sIMwaeclJ/5qQ1m66/fc6nVd/VS2HhA==}
+    engines: {node: '>=18.12'}
+    peerDependencies:
+      '@pnpm/logger': '>=1001.0.0 <1002.0.0'
+
+  '@pnpm/worker@1000.6.5':
+    resolution: {integrity: sha512-xood4PKhLQUtRCpaVxMfuap1DpmVOP5PDN2arx1CKR9JnBuE0bQvBOGZDUf6lp7qccq+8iYryLoigibr5YMVVw==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
@@ -17178,6 +17204,28 @@ snapshots:
       - supports-color
       - typanion
 
+  '@pnpm/cli-utils@1000.1.5(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)':
+    dependencies:
+      '@pnpm/cli-meta': 1000.0.8
+      '@pnpm/config': 1003.1.1(@pnpm/logger@1001.0.0)
+      '@pnpm/config.deps-installer': 1000.0.5(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))
+      '@pnpm/default-reporter': 1002.0.1(@pnpm/logger@1001.0.0)
+      '@pnpm/error': 1000.0.2
+      '@pnpm/logger': 1001.0.0
+      '@pnpm/manifest-utils': 1001.0.1(@pnpm/logger@1001.0.0)
+      '@pnpm/package-is-installable': 1000.0.10(@pnpm/logger@1001.0.0)
+      '@pnpm/pnpmfile': 1001.2.2(@pnpm/logger@1001.0.0)
+      '@pnpm/read-project-manifest': 1000.0.11
+      '@pnpm/store-connection-manager': 1002.0.3(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)
+      '@pnpm/types': 1000.6.0
+      chalk: 4.1.2
+      load-json-file: 6.2.0
+    transitivePeerDependencies:
+      - '@pnpm/worker'
+      - domexception
+      - supports-color
+      - typanion
+
   '@pnpm/client@1000.0.19(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.4(@pnpm/logger@1001.0.0)(@types/node@18.19.110))(typanion@3.14.0)':
     dependencies:
       '@pnpm/default-resolver': 1002.0.2(@pnpm/logger@1001.0.0)
@@ -17207,6 +17255,25 @@ snapshots:
       '@pnpm/network.auth-header': 1000.0.3
       '@pnpm/resolver-base': 1003.0.1
       '@pnpm/tarball-fetcher': 1001.0.8(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.4(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)
+      '@pnpm/types': 1000.6.0
+      ramda: '@pnpm/ramda@0.28.1'
+    transitivePeerDependencies:
+      - '@pnpm/logger'
+      - '@pnpm/worker'
+      - domexception
+      - supports-color
+      - typanion
+
+  '@pnpm/client@1000.0.19(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)':
+    dependencies:
+      '@pnpm/default-resolver': 1002.0.2(@pnpm/logger@1001.0.0)
+      '@pnpm/directory-fetcher': 1000.1.7(@pnpm/logger@1001.0.0)
+      '@pnpm/fetch': 1000.2.2(@pnpm/logger@1001.0.0)
+      '@pnpm/fetching-types': 1000.1.0
+      '@pnpm/git-fetcher': 1001.0.8(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)
+      '@pnpm/network.auth-header': 1000.0.3
+      '@pnpm/resolver-base': 1003.0.1
+      '@pnpm/tarball-fetcher': 1001.0.8(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)
       '@pnpm/types': 1000.6.0
       ramda: '@pnpm/ramda@0.28.1'
     transitivePeerDependencies:
@@ -17259,6 +17326,28 @@ snapshots:
       '@pnpm/network.auth-header': 1000.0.3
       '@pnpm/npm-resolver': 1004.0.1(@pnpm/logger@1001.0.0)
       '@pnpm/package-store': 1002.0.4(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.4(@pnpm/logger@1001.0.0)(@types/node@22.19.7))
+      '@pnpm/parse-wanted-dependency': 1001.0.0
+      '@pnpm/pick-registry-for-package': 1000.0.8
+      '@pnpm/read-modules-dir': 1000.0.0
+      '@pnpm/read-package-json': 1000.0.9
+      '@pnpm/types': 1000.6.0
+      '@zkochan/rimraf': 3.0.2
+      get-npm-tarball-url: 2.1.0
+    transitivePeerDependencies:
+      - '@pnpm/worker'
+      - domexception
+      - supports-color
+
+  '@pnpm/config.deps-installer@1000.0.5(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))':
+    dependencies:
+      '@pnpm/config.config-writer': 1000.0.5
+      '@pnpm/core-loggers': 1001.0.1(@pnpm/logger@1001.0.0)
+      '@pnpm/error': 1000.0.2
+      '@pnpm/fetch': 1000.2.2(@pnpm/logger@1001.0.0)
+      '@pnpm/logger': 1001.0.0
+      '@pnpm/network.auth-header': 1000.0.3
+      '@pnpm/npm-resolver': 1004.0.1(@pnpm/logger@1001.0.0)
+      '@pnpm/package-store': 1002.0.4(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))
       '@pnpm/parse-wanted-dependency': 1001.0.0
       '@pnpm/pick-registry-for-package': 1000.0.8
       '@pnpm/read-modules-dir': 1000.0.0
@@ -17341,6 +17430,18 @@ snapshots:
       '@pnpm/logger': 1001.0.0
       '@pnpm/store-controller-types': 1004.5.1
       '@pnpm/store.cafs': 1000.1.3
+      mem: 8.1.1
+      path-temp: 2.1.0
+      ramda: '@pnpm/ramda@0.28.1'
+
+  '@pnpm/create-cafs-store@1000.0.31(@pnpm/logger@1001.0.0)':
+    dependencies:
+      '@pnpm/exec.pkg-requires-build': 1000.0.16
+      '@pnpm/fetcher-base': 1001.2.2
+      '@pnpm/fs.indexed-pkg-importer': 1000.1.24(@pnpm/logger@1001.0.0)
+      '@pnpm/logger': 1001.0.0
+      '@pnpm/store-controller-types': 1004.5.1
+      '@pnpm/store.cafs': 1000.1.4
       mem: 8.1.1
       path-temp: 2.1.0
       ramda: '@pnpm/ramda@0.28.1'
@@ -17496,10 +17597,32 @@ snapshots:
       path-temp: 2.1.0
       rename-overwrite: 6.0.3
 
+  '@pnpm/fs.hard-link-dir@1000.0.6(@pnpm/logger@1001.0.0)':
+    dependencies:
+      '@pnpm/graceful-fs': 1000.1.0
+      '@pnpm/logger': 1001.0.0
+      path-temp: 2.1.0
+      rename-overwrite: 6.0.3
+
   '@pnpm/fs.indexed-pkg-importer@1000.1.23(@pnpm/logger@1001.0.0)':
     dependencies:
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.0)
       '@pnpm/graceful-fs': 1000.0.1
+      '@pnpm/logger': 1001.0.0
+      '@pnpm/store-controller-types': 1004.5.1
+      '@reflink/reflink': 0.1.19
+      '@zkochan/rimraf': 3.0.2
+      fs-extra: 11.3.3
+      make-empty-dir: 3.0.2
+      p-limit: 3.1.0
+      path-temp: 2.1.0
+      rename-overwrite: 6.0.3
+      sanitize-filename: 1.6.3
+
+  '@pnpm/fs.indexed-pkg-importer@1000.1.24(@pnpm/logger@1001.0.0)':
+    dependencies:
+      '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.0)
+      '@pnpm/graceful-fs': 1000.1.0
       '@pnpm/logger': 1001.0.0
       '@pnpm/store-controller-types': 1004.5.1
       '@reflink/reflink': 0.1.19
@@ -17560,6 +17683,19 @@ snapshots:
       - supports-color
       - typanion
 
+  '@pnpm/git-fetcher@1001.0.8(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)':
+    dependencies:
+      '@pnpm/fetcher-base': 1000.0.11
+      '@pnpm/fs.packlist': 2.0.0
+      '@pnpm/logger': 1001.0.0
+      '@pnpm/prepare-package': 1000.0.16(@pnpm/logger@1001.0.0)(typanion@3.14.0)
+      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7)
+      '@zkochan/rimraf': 3.0.2
+      execa: safe-execa@0.1.2
+    transitivePeerDependencies:
+      - supports-color
+      - typanion
+
   '@pnpm/git-resolver@1001.0.2(@pnpm/logger@1001.0.0)':
     dependencies:
       '@pnpm/fetch': 1000.2.2(@pnpm/logger@1001.0.0)
@@ -17581,6 +17717,10 @@ snapshots:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
 
   '@pnpm/graceful-fs@1000.0.1':
+    dependencies:
+      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
+
+  '@pnpm/graceful-fs@1000.1.0':
     dependencies:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
 
@@ -17676,6 +17816,24 @@ snapshots:
       '@pnpm/types': 1000.6.0
       '@pnpm/worker': 1000.6.4(@pnpm/logger@1001.0.0)(@types/node@18.19.110)
       '@pnpm/workspace.find-packages': 1000.0.25(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.4(@pnpm/logger@1001.0.0)(@types/node@18.19.110))(typanion@3.14.0)
+      '@pnpm/workspace.read-manifest': 1000.1.5
+      load-json-file: 7.0.1
+      meow: 11.0.0
+      print-diff: 2.0.0
+      write-json-file: 5.0.0
+    transitivePeerDependencies:
+      - '@types/node'
+      - domexception
+      - supports-color
+      - typanion
+
+  '@pnpm/meta-updater@2.0.6(@types/node@22.19.7)(typanion@3.14.0)':
+    dependencies:
+      '@pnpm/find-workspace-dir': 1000.1.0
+      '@pnpm/logger': 1001.0.0
+      '@pnpm/types': 1000.6.0
+      '@pnpm/worker': 1000.6.4(@pnpm/logger@1001.0.0)(@types/node@22.19.7)
+      '@pnpm/workspace.find-packages': 1000.0.25(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.4(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)
       '@pnpm/workspace.read-manifest': 1000.1.5
       load-json-file: 7.0.1
       meow: 11.0.0
@@ -17900,6 +18058,30 @@ snapshots:
       semver: 7.7.3
       ssri: 10.0.5
 
+  '@pnpm/package-requester@1004.0.2(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))':
+    dependencies:
+      '@pnpm/core-loggers': 1001.0.1(@pnpm/logger@1001.0.0)
+      '@pnpm/dependency-path': 1000.0.9
+      '@pnpm/error': 1000.0.2
+      '@pnpm/fetcher-base': 1000.0.11
+      '@pnpm/graceful-fs': 1000.0.0
+      '@pnpm/logger': 1001.0.0
+      '@pnpm/package-is-installable': 1000.0.10(@pnpm/logger@1001.0.0)
+      '@pnpm/pick-fetcher': 1000.0.0
+      '@pnpm/read-package-json': 1000.0.9
+      '@pnpm/resolver-base': 1003.0.1
+      '@pnpm/store-controller-types': 1003.0.2
+      '@pnpm/store.cafs': 1000.0.13
+      '@pnpm/types': 1000.6.0
+      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7)
+      p-defer: 3.0.0
+      p-limit: 3.1.0
+      p-queue: 6.6.2
+      promise-share: 1.0.0
+      ramda: '@pnpm/ramda@0.28.1'
+      semver: 7.7.3
+      ssri: 10.0.5
+
   '@pnpm/package-store@1002.0.4(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.4(@pnpm/logger@1001.0.0)(@types/node@18.19.110))':
     dependencies:
       '@pnpm/create-cafs-store': 1000.0.14(@pnpm/logger@1001.0.0)
@@ -17927,6 +18109,22 @@ snapshots:
       '@pnpm/store.cafs': 1000.0.13
       '@pnpm/types': 1000.6.0
       '@pnpm/worker': 1000.6.4(@pnpm/logger@1001.0.0)(@types/node@22.19.7)
+      '@zkochan/rimraf': 3.0.2
+      load-json-file: 6.2.0
+      ramda: '@pnpm/ramda@0.28.1'
+      ssri: 10.0.5
+
+  '@pnpm/package-store@1002.0.4(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))':
+    dependencies:
+      '@pnpm/create-cafs-store': 1000.0.14(@pnpm/logger@1001.0.0)
+      '@pnpm/fetcher-base': 1000.0.11
+      '@pnpm/logger': 1001.0.0
+      '@pnpm/package-requester': 1004.0.2(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))
+      '@pnpm/resolver-base': 1003.0.1
+      '@pnpm/store-controller-types': 1003.0.2
+      '@pnpm/store.cafs': 1000.0.13
+      '@pnpm/types': 1000.6.0
+      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7)
       '@zkochan/rimraf': 3.0.2
       load-json-file: 6.2.0
       ramda: '@pnpm/ramda@0.28.1'
@@ -18111,6 +18309,25 @@ snapshots:
       - supports-color
       - typanion
 
+  '@pnpm/store-connection-manager@1002.0.3(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)':
+    dependencies:
+      '@pnpm/cli-meta': 1000.0.8
+      '@pnpm/client': 1000.0.19(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)
+      '@pnpm/config': 1003.1.1(@pnpm/logger@1001.0.0)
+      '@pnpm/error': 1000.0.2
+      '@pnpm/logger': 1001.0.0
+      '@pnpm/package-store': 1002.0.4(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))
+      '@pnpm/server': 1001.0.4(@pnpm/logger@1001.0.0)
+      '@pnpm/store-path': 1000.0.2
+      '@zkochan/diable': 1.0.2
+      delay: 5.0.0
+      dir-is-case-sensitive: 2.0.0
+    transitivePeerDependencies:
+      - '@pnpm/worker'
+      - domexception
+      - supports-color
+      - typanion
+
   '@pnpm/store-controller-types@1003.0.2':
     dependencies:
       '@pnpm/fetcher-base': 1000.0.11
@@ -18150,6 +18367,19 @@ snapshots:
     dependencies:
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/graceful-fs': 1000.0.1
+      '@pnpm/store-controller-types': 1004.5.1
+      '@zkochan/rimraf': 3.0.2
+      is-gzip: 2.0.0
+      is-subdir: 1.2.0
+      p-limit: 3.1.0
+      rename-overwrite: 6.0.3
+      ssri: 10.0.5
+      strip-bom: 4.0.0
+
+  '@pnpm/store.cafs@1000.1.4':
+    dependencies:
+      '@pnpm/fetcher-base': 1001.2.2
+      '@pnpm/graceful-fs': 1000.1.0
       '@pnpm/store-controller-types': 1004.5.1
       '@zkochan/rimraf': 3.0.2
       is-gzip: 2.0.0
@@ -18208,6 +18438,28 @@ snapshots:
       '@pnpm/logger': 1001.0.0
       '@pnpm/prepare-package': 1000.0.16(@pnpm/logger@1001.0.0)(typanion@3.14.0)
       '@pnpm/worker': 1000.6.4(@pnpm/logger@1001.0.0)(@types/node@22.19.7)
+      '@zkochan/retry': 0.2.0
+      lodash.throttle: 4.1.1
+      p-map-values: 1.0.0
+      path-temp: 2.1.0
+      ramda: '@pnpm/ramda@0.28.1'
+      rename-overwrite: 6.0.3
+    transitivePeerDependencies:
+      - domexception
+      - supports-color
+      - typanion
+
+  '@pnpm/tarball-fetcher@1001.0.8(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)':
+    dependencies:
+      '@pnpm/core-loggers': 1001.0.1(@pnpm/logger@1001.0.0)
+      '@pnpm/error': 1000.0.2
+      '@pnpm/fetcher-base': 1000.0.11
+      '@pnpm/fetching-types': 1000.1.0
+      '@pnpm/fs.packlist': 2.0.0
+      '@pnpm/graceful-fs': 1000.0.0
+      '@pnpm/logger': 1001.0.0
+      '@pnpm/prepare-package': 1000.0.16(@pnpm/logger@1001.0.0)(typanion@3.14.0)
+      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7)
       '@zkochan/retry': 0.2.0
       lodash.throttle: 4.1.1
       p-map-values: 1.0.0
@@ -18280,6 +18532,25 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
+  '@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7)':
+    dependencies:
+      '@pnpm/cafs-types': 1000.1.0
+      '@pnpm/create-cafs-store': 1000.0.31(@pnpm/logger@1001.0.0)
+      '@pnpm/crypto.polyfill': 1000.1.0
+      '@pnpm/error': 1000.0.5
+      '@pnpm/exec.pkg-requires-build': 1000.0.16
+      '@pnpm/fs.hard-link-dir': 1000.0.6(@pnpm/logger@1001.0.0)
+      '@pnpm/graceful-fs': 1000.1.0
+      '@pnpm/logger': 1001.0.0
+      '@pnpm/store.cafs': 1000.1.4
+      '@pnpm/symlink-dependency': 1000.0.17(@pnpm/logger@1001.0.0)
+      '@rushstack/worker-pool': 0.4.9(@types/node@22.19.7)
+      is-windows: 1.0.2
+      load-json-file: 6.2.0
+      p-limit: 3.1.0
+    transitivePeerDependencies:
+      - '@types/node'
+
   '@pnpm/workspace.find-packages@1000.0.25(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.4(@pnpm/logger@1001.0.0)(@types/node@18.19.110))(typanion@3.14.0)':
     dependencies:
       '@pnpm/cli-utils': 1000.1.5(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.4(@pnpm/logger@1001.0.0)(@types/node@18.19.110))(typanion@3.14.0)
@@ -18297,6 +18568,20 @@ snapshots:
   '@pnpm/workspace.find-packages@1000.0.25(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.4(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)':
     dependencies:
       '@pnpm/cli-utils': 1000.1.5(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.4(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)
+      '@pnpm/constants': 1001.1.0
+      '@pnpm/fs.find-packages': 1000.0.11
+      '@pnpm/logger': 1001.0.0
+      '@pnpm/types': 1000.6.0
+      '@pnpm/util.lex-comparator': 3.0.2
+    transitivePeerDependencies:
+      - '@pnpm/worker'
+      - domexception
+      - supports-color
+      - typanion
+
+  '@pnpm/workspace.find-packages@1000.0.25(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)':
+    dependencies:
+      '@pnpm/cli-utils': 1000.1.5(@pnpm/logger@1001.0.0)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.0)(@types/node@22.19.7))(typanion@3.14.0)
       '@pnpm/constants': 1001.1.0
       '@pnpm/fs.find-packages': 1000.0.11
       '@pnpm/logger': 1001.0.0

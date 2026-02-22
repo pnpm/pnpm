@@ -9,15 +9,15 @@ test('getCurrentPackageName()', () => {
     pkg: '.',
     platform: 'win32',
     arch: 'ia32',
-  })).toBe('@pnpm/win-x86')
+  })).toBe('@pnpm/exe')
   expect(getCurrentPackageName({
     pkg: '.',
     platform: 'darwin',
     arch: 'arm64',
-  })).toBe('@pnpm/macos-arm64')
+  })).toBe('@pnpm/exe')
   expect(getCurrentPackageName({
     pkg: '.',
     platform: 'linux',
     arch: 'x64',
-  })).toBe('@pnpm/linux-x64')
+  })).toBe('@pnpm/exe')
 })
