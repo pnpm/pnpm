@@ -17,6 +17,4 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Pr
   if (opts.storeDir) args.push('--store-dir', opts.storeDir)
   if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir)
   runPnpmCli(args, { cwd: opts.pnpmHomeDir })
-
-  return `Node.js ${version} was activated`
 }
