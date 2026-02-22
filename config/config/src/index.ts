@@ -429,28 +429,6 @@ export async function getConfig (opts: {
     }
   }
 
-  pnpmConfig.useLockfile = (() => {
-    if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
-    if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
-    return false
-  })()
-
-  pnpmConfig.useGitBranchLockfile = (() => {
-    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
-    return false
-  })()
-  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
-    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') return pnpmConfig.mergeGitBranchLockfiles
-    if (pnpmConfig.mergeGitBranchLockfilesBranchPattern != null && pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0) {
-      const branch = await getCurrentBranch()
-      if (branch) {
-        const branchMatcher = createMatcher(pnpmConfig.mergeGitBranchLockfilesBranchPattern)
-        return branchMatcher(branch)
-      }
-    }
-    return undefined
-  })()
-
   // omit some schema that the custom parser can't yet handle
   const envPnpmTypes = omit([
     'init-version', // the type is a private function named 'semver'
@@ -478,6 +456,28 @@ export async function getConfig (opts: {
   }
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
+
+  pnpmConfig.useLockfile = (() => {
+    if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
+    if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
+    return false
+  })()
+
+  pnpmConfig.useGitBranchLockfile = (() => {
+    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
+    return false
+  })()
+  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
+    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') return pnpmConfig.mergeGitBranchLockfiles
+    if (pnpmConfig.mergeGitBranchLockfilesBranchPattern != null && pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0) {
+      const branch = await getCurrentBranch()
+      if (branch) {
+        const branchMatcher = createMatcher(pnpmConfig.mergeGitBranchLockfilesBranchPattern)
+        return branchMatcher(branch)
+      }
+    }
+    return undefined
+  })()
 
   if (!hasDependencyBuildOptions(pnpmConfig)) {
     Object.assign(pnpmConfig, globalDepsBuildConfig)
