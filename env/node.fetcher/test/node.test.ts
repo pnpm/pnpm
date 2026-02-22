@@ -13,7 +13,18 @@ jest.unstable_mockModule('detect-libc', () => ({
 const { fetchNode } = await import('@pnpm/node.fetcher')
 const { isNonGlibcLinux } = await import('detect-libc')
 
+// A stable fake hex digest used as placeholder sha256 in mock SHASUMS256.txt files.
+// Any non-zero value works; the tarball content won't match, so integrity will
+// fail — but all URL assertions run before that happens.
+const FAKE_SHA256 = '5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef'
+
 const fetchMock = jest.fn(async (url: string) => {
+  if (url.endsWith('SHASUMS256.txt')) {
+    // Return a minimal SHASUMS file covering the artifacts used in tests.
+    return new Response(
+      `${FAKE_SHA256}  node-v22.0.0-linux-x64-musl.tar.gz\n`
+    )
+  }
   if (url.endsWith('.zip')) {
     // The Windows code path for pnpm's node bootstrapping expects a subdir
     // within the .zip file.
@@ -92,6 +103,9 @@ test('auto-detects musl on non-glibc Linux and uses unofficial-builds mirror', a
   jest.mocked(isNonGlibcLinux).mockReturnValue(Promise.resolve(true))
   tempDir()
 
+  // The function will throw because the downloaded tarball content won't match
+  // the fake sha256 we put in the SHASUMS256.txt mock, but all fetch calls are
+  // recorded before the integrity check, so we can assert the correct URLs.
   await expect(
     fetchNode(fetchMock, '22.0.0', path.resolve('node'), {
       storeDir: path.resolve('store'),

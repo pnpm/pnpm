@@ -451,8 +451,8 @@ catalogs:
       specifier: ^30.1.1
       version: 30.2.0
     js-yaml:
-      specifier: npm:@zkochan/js-yaml@0.0.10
-      version: 0.0.10
+      specifier: npm:@zkochan/js-yaml@0.0.11
+      version: 0.0.11
     json5:
       specifier: ^2.2.3
       version: 2.2.3
@@ -765,7 +765,7 @@ overrides:
   http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
   js-yaml@<3.14.2: ^3.14.2
-  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.10
+  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.11
   json5@<2.2.2: ^2.2.3
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   jws@<3.2.3: ^3.2.3
@@ -3809,7 +3809,7 @@ importers:
         version: 1.0.0
       js-yaml:
         specifier: 'catalog:'
-        version: '@zkochan/js-yaml@0.0.10'
+        version: '@zkochan/js-yaml@0.0.11'
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -11417,8 +11417,8 @@ packages:
     resolution: {integrity: sha512-GeZZ9YNlvveT1CrMqe64s9+5hNF5p9Gj6J+PRQU3OnBS/9c2y5kSFavUZ9YAuoAgxFW8tKGKWIxJK4I6HBSigg==}
     engines: {node: '>=8'}
 
-  '@zkochan/js-yaml@0.0.10':
-    resolution: {integrity: sha512-pSVOuIjRa7PjIaCmL54Qaz68C3zvwdSxp0qMI5twIt1aw2c/PUVb2M46xnnLWsd2AEgsTbGNcOgHXsM9cENhjA==}
+  '@zkochan/js-yaml@0.0.11':
+    resolution: {integrity: sha512-SO+h5Jg079r2JvGle0jbdtk1EY7ppu6TGzmfWTp3Gy61IEb1OVKBocJ6ydTn4++nYFNfRKYenI2MniZQwsM9KQ==}
     hasBin: true
 
   '@zkochan/retry@0.2.0':
@@ -16719,7 +16719,7 @@ snapshots:
   '@changesets/parse@0.4.2':
     dependencies:
       '@changesets/types': 6.1.0
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: '@zkochan/js-yaml@0.0.11'
 
   '@changesets/pre@2.0.2':
     dependencies:
@@ -17242,7 +17242,7 @@ snapshots:
       globals: 14.0.0
       ignore: 5.3.2
       import-fresh: 3.3.1
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: '@zkochan/js-yaml@0.0.11'
       minimatch: 3.1.2
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -19633,7 +19633,7 @@ snapshots:
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.29
       debug: 4.4.3
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: '@zkochan/js-yaml@0.0.11'
       lodash: 4.17.23
     transitivePeerDependencies:
       - supports-color
@@ -19922,7 +19922,7 @@ snapshots:
       html-escaper: 2.0.2
       istanbul-lib-report: 3.0.1
 
-  '@zkochan/js-yaml@0.0.10':
+  '@zkochan/js-yaml@0.0.11':
     dependencies:
       argparse: 2.0.1
 
@@ -20696,7 +20696,7 @@ snapshots:
     dependencies:
       env-paths: 2.2.1
       import-fresh: 3.3.1
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: '@zkochan/js-yaml@0.0.11'
       parse-json: 5.2.0
     optionalDependencies:
       typescript: 5.9.2
@@ -24157,7 +24157,7 @@ snapshots:
 
   read-yaml-file@2.1.0:
     dependencies:
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: '@zkochan/js-yaml@0.0.11'
       strip-bom: 4.0.0
 
   readable-stream@2.3.8:
@@ -25620,12 +25620,12 @@ snapshots:
 
   write-yaml-file@4.2.0:
     dependencies:
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: '@zkochan/js-yaml@0.0.11'
       write-file-atomic: 3.0.3
 
   write-yaml-file@5.0.0:
     dependencies:
-      js-yaml: '@zkochan/js-yaml@0.0.10'
+      js-yaml: '@zkochan/js-yaml@0.0.11'
       write-file-atomic: 5.0.1
 
   xdg-basedir@5.1.0: {}

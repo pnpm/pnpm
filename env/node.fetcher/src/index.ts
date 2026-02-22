@@ -7,13 +7,13 @@ import {
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { getNodeArtifactAddress } from '@pnpm/node.resolver'
+import {
+  getNodeArtifactAddress,
+  DEFAULT_NODE_MIRROR_BASE_URL,
+  UNOFFICIAL_NODE_MIRROR_BASE_URL,
+} from '@pnpm/node.resolver'
 import { downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
 import { isNonGlibcLinux } from 'detect-libc'
-
-// Constants
-const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
-const UNOFFICIAL_NODE_MIRROR_BASE_URL = 'https://unofficial-builds.nodejs.org/download/release/'
 
 export interface FetchNodeOptionsToDir {
   storeDir: string
@@ -66,6 +66,8 @@ export async function fetchNode (
   const arch = opts.arch ?? process.arch
   // On a native musl system with no explicit libc, automatically use the musl
   // variant so that pnpm env works out of the box on Alpine Linux and similar.
+  // When an explicit platform override is set (cross-platform build), trust the
+  // caller to pass the correct libc; do not auto-detect from the host.
   const libc = opts.libc ?? (!opts.platform && await isNonGlibcLinux() ? 'musl' : undefined)
 
   const isMusl = libc === 'musl'
@@ -108,21 +110,19 @@ async function getNodeArtifactInfo (
     libc?: string
   }
 ): Promise<NodeArtifactInfo> {
-  const isMusl = opts.libc === 'musl'
-  // Musl builds are identified by an '-musl' suffix in the artifact filename arch component.
-  const artifactArch = isMusl ? `${opts.arch}-musl` : opts.arch
-
   const tarball = getNodeArtifactAddress({
     version,
     baseUrl: opts.nodeMirrorBaseUrl,
     platform: opts.platform,
-    arch: artifactArch,
+    arch: opts.arch,
+    libc: opts.libc,
   })
 
   const tarballFileName = `${tarball.basename}${tarball.extname}`
   const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
   const url = `${tarball.dirname}/${tarballFileName}`
 
+  const isMusl = opts.libc === 'musl'
   const integrityKey = isMusl ? `${opts.platform}-${opts.arch}-musl` : `${opts.platform}-${opts.arch}`
   const integrity = opts.integrities
     ? opts.integrities[integrityKey]
