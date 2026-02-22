@@ -1,118 +1,86 @@
-import { env } from '@pnpm/plugin-commands-env'
-import { tempDir } from '@pnpm/prepare'
-import * as execa from 'execa'
-import path from 'path'
-import PATH from 'path-name'
-import { temporaryDirectory } from 'tempy'
+import { jest } from '@jest/globals'
+import { PnpmError } from '@pnpm/error'
 
-test('install Node (and npm, npx) by exact version of Node.js', async () => {
-  tempDir()
+const mockRunPnpmCli = jest.fn()
+jest.unstable_mockModule('@pnpm/exec.pnpm-cli-runner', () => ({
+  runPnpmCli: mockRunPnpmCli,
+}))
 
+const { env } = await import('@pnpm/plugin-commands-env')
+
+beforeEach(() => {
+  mockRunPnpmCli.mockClear()
+})
+
+test('env use calls pnpm add with the correct arguments', async () => {
   await env.handler({
-    bin: process.cwd(),
-    cacheDir: temporaryDirectory(),
+    bin: '/usr/local/bin',
+    cacheDir: '/tmp/cache',
     global: true,
-    pnpmHomeDir: process.cwd(),
+    pnpmHomeDir: '/tmp/pnpm-home',
     rawConfig: {},
-  }, ['use', '16.4.0'])
+    storeDir: '/tmp/store',
+  }, ['use', '18'])
 
-  const opts = {
-    env: {
-      [PATH]: `${process.cwd()}${path.delimiter}${process.env[PATH] as string}`,
-    },
-    extendEnv: false,
-  }
-
-  {
-    const { stdout } = execa.sync('node', ['-v'], opts)
-    expect(stdout.toString()).toBe('v16.4.0')
-  }
-
-  {
-    const { stdout } = execa.sync('npm', ['-v'], opts)
-    expect(stdout.toString()).toBe('7.18.1')
-  }
-
-  {
-    const { stdout } = execa.sync('npx', ['-v'], opts)
-    expect(stdout.toString()).toBe('7.18.1')
-  }
+  expect(mockRunPnpmCli).toHaveBeenCalledWith(
+    ['add', '--global', 'node@runtime:18', '--global-bin-dir', '/usr/local/bin', '--store-dir', '/tmp/store', '--cache-dir', '/tmp/cache'],
+    { cwd: '/tmp/pnpm-home' }
+  )
 })
 
-test('fail if a non-existed Node.js version is tried to be installed', async () => {
-  tempDir()
+test('env use passes lts specifier through unchanged', async () => {
+  await env.handler({
+    bin: '/usr/local/bin',
+    global: true,
+    pnpmHomeDir: '/tmp/pnpm-home',
+    rawConfig: {},
+    storeDir: '/tmp/store',
+  }, ['use', 'lts'])
 
-  await expect(
-    env.handler({
-      bin: process.cwd(),
-      global: true,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-    }, ['use', '6.999'])
-  ).rejects.toThrow()
+  expect(mockRunPnpmCli).toHaveBeenCalledWith(
+    ['add', '--global', 'node@runtime:lts', '--global-bin-dir', '/usr/local/bin', '--store-dir', '/tmp/store'],
+    { cwd: '/tmp/pnpm-home' }
+  )
 })
 
-test('fail if a non-existed Node.js LTS is tried to be installed', async () => {
-  tempDir()
+test('env use passes codename specifier through unchanged', async () => {
+  await env.handler({
+    bin: '/usr/local/bin',
+    global: true,
+    pnpmHomeDir: '/tmp/pnpm-home',
+    rawConfig: {},
+    storeDir: '/tmp/store',
+  }, ['use', 'argon'])
 
+  expect(mockRunPnpmCli).toHaveBeenCalledWith(
+    ['add', '--global', 'node@runtime:argon', '--global-bin-dir', '/usr/local/bin', '--store-dir', '/tmp/store'],
+    { cwd: '/tmp/pnpm-home' }
+  )
+})
+
+test('fail if not run with --global', async () => {
   await expect(
     env.handler({
-      bin: process.cwd(),
-      global: true,
-      pnpmHomeDir: process.cwd(),
+      bin: '/usr/local/bin',
+      global: false,
+      pnpmHomeDir: '/tmp/pnpm-home',
       rawConfig: {},
-    }, ['use', 'boo'])
-  ).rejects.toThrow()
+    }, ['use', '18'])
+  ).rejects.toEqual(new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently'))
+
+  expect(mockRunPnpmCli).not.toHaveBeenCalled()
 })
 
 test('fail if there is no global bin directory', async () => {
-  tempDir()
-
   await expect(
     env.handler({
       // @ts-expect-error
       bin: undefined,
       global: true,
-      pnpmHomeDir: process.cwd(),
+      pnpmHomeDir: '/tmp/pnpm-home',
       rawConfig: {},
     }, ['use', 'lts'])
-  ).rejects.toThrow('Unable to manage Node.js because pnpm was not installed using the standalone installation script')
-})
+  ).rejects.toEqual(new PnpmError('CANNOT_MANAGE_NODE', 'Unable to manage Node.js because pnpm was not installed using the standalone installation script'))
 
-test('use overrides the previous Node.js version', async () => {
-  tempDir()
-  const cacheDir = temporaryDirectory()
-
-  await env.handler({
-    bin: process.cwd(),
-    cacheDir,
-    global: true,
-    pnpmHomeDir: process.cwd(),
-    rawConfig: {},
-  }, ['use', '16.4.0'])
-
-  const opts = {
-    env: {
-      [PATH]: `${process.cwd()}${path.delimiter}${process.env[PATH] as string}`,
-    },
-    extendEnv: false,
-  }
-
-  {
-    const { stdout } = execa.sync('node', ['-v'], opts)
-    expect(stdout.toString()).toBe('v16.4.0')
-  }
-
-  await env.handler({
-    bin: process.cwd(),
-    cacheDir,
-    global: true,
-    pnpmHomeDir: process.cwd(),
-    rawConfig: {},
-  }, ['use', '16.5.0'])
-
-  {
-    const { stdout } = execa.sync('node', ['-v'], opts)
-    expect(stdout.toString()).toBe('v16.5.0')
-  }
+  expect(mockRunPnpmCli).not.toHaveBeenCalled()
 })

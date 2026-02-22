@@ -44,12 +44,9 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/plugin-commands-env": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "execa": "catalog:",
-    "path-name": "catalog:",
-    "tempy": "catalog:"
+    "@pnpm/plugin-commands-env": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"
