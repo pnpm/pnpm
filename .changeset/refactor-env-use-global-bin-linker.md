@@ -4,9 +4,6 @@
 "@pnpm/lockfile.types": patch
 "@pnpm/node.resolver": patch
 "@pnpm/plugin-commands-env": patch
-"pnpm": patch
 ---
-
-refactor: `pnpm env use` now delegates to `pnpm add --global node@runtime:<version>` via the pnpm CLI runner, eliminating all manual symlink/shim logic from the command itself.
 
 Added `getNodeBinsForCurrentOS` to `@pnpm/constants` which returns a `Record<string, string>` with paths for `node`, `npm`, and `npx` within the Node.js package. This record is now used as `BinaryResolution.bin` (type widened from `string` to `string | Record<string, string>`) and as `manifest.bin` in the node resolver, so pnpm's bin-linker creates all three shims automatically when installing a Node.js runtime.
