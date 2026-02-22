@@ -14,11 +14,11 @@ import {
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
 import { type PkgResolutionId } from '@pnpm/types'
-import { parseEnvSpecifier } from './parseEnvSpecifier.js'
+import { parseNodeSpecifier } from './parseNodeSpecifier.js'
 import { getNodeMirror } from './getNodeMirror.js'
 import { getNodeArtifactAddress } from './getNodeArtifactAddress.js'
 
-export { getNodeMirror, parseEnvSpecifier, getNodeArtifactAddress }
+export { getNodeMirror, parseNodeSpecifier, getNodeArtifactAddress }
 
 export const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
 export const UNOFFICIAL_NODE_MIRROR_BASE_URL = 'https://unofficial-builds.nodejs.org/download/release/'
@@ -49,7 +49,7 @@ export async function resolveNodeRuntime (
 
   if (ctx.offline) throw new PnpmError('NO_OFFLINE_NODEJS_RESOLUTION', 'Offline Node.js resolution is not supported')
   const versionSpec = wantedDependency.bareSpecifier.substring('runtime:'.length)
-  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(versionSpec)
+  const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.rawConfig, releaseChannel)
   const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
   if (!version) {

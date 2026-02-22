@@ -1,5 +1,5 @@
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import { resolveNodeVersions, parseEnvSpecifier, getNodeMirror } from '@pnpm/node.resolver'
+import { resolveNodeVersions, parseNodeSpecifier, getNodeMirror } from '@pnpm/node.resolver'
 import { type NvmNodeCommandOptions } from './node.js'
 
 export async function envList (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
@@ -10,7 +10,7 @@ export async function envList (opts: NvmNodeCommandOptions, params: string[]): P
 
 async function listRemoteVersions (opts: NvmNodeCommandOptions, versionSpec?: string): Promise<string[]> {
   const fetch = createFetchFromRegistry(opts)
-  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(versionSpec ?? '')
+  const { releaseChannel, versionSpecifier } = versionSpec ? parseNodeSpecifier(versionSpec) : { releaseChannel: 'release', versionSpecifier: '' }
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
   return resolveNodeVersions(fetch, versionSpecifier, nodeMirrorBaseUrl)
 }
