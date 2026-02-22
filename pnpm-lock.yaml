@@ -216,9 +216,6 @@ catalogs:
     '@types/yarnpkg__lockfile':
       specifier: ^1.1.9
       version: 1.1.9
-    '@types/yazl':
-      specifier: ^3.3.0
-      version: 3.3.0
     '@types/zkochan__table':
       specifier: npm:@types/table@6.0.0
       version: 6.0.0
@@ -750,9 +747,6 @@ catalogs:
     yaml-tag:
       specifier: 1.1.0
       version: 1.1.0
-    yazl:
-      specifier: ^3.3.1
-      version: 3.3.1
 
 overrides:
   '@cypress/request@3.0.9>qs': ^6.14.1
@@ -2269,9 +2263,6 @@ importers:
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: link:../../crypto/shasums-file
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
@@ -2368,57 +2359,21 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
-      '@pnpm/env.system-node-version':
-        specifier: workspace:*
-        version: link:../system-node-version
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/exec.pnpm-cli-runner':
+        specifier: workspace:*
+        version: link:../../exec/pnpm-cli-runner
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
-      '@pnpm/node.fetcher':
-        specifier: workspace:*
-        version: link:../node.fetcher
       '@pnpm/node.resolver':
         specifier: workspace:*
         version: link:../node.resolver
-      '@pnpm/remove-bins':
-        specifier: workspace:*
-        version: link:../../pkg-manager/remove-bins
-      '@pnpm/store-path':
-        specifier: workspace:*
-        version: link:../../store/store-path
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@zkochan/cmd-shim':
-        specifier: 'catalog:'
-        version: 7.0.0
-      '@zkochan/rimraf':
-        specifier: 'catalog:'
-        version: 3.0.2
-      graceful-fs:
-        specifier: 'catalog:'
-        version: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      is-windows:
-        specifier: 'catalog:'
-        version: 1.0.2
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.4
-      symlink-dir:
-        specifier: 'catalog:'
-        version: 7.1.0
-      write-json-file:
-        specifier: 'catalog:'
-        version: 7.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -2429,42 +2384,6 @@ importers:
       '@pnpm/plugin-commands-env':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare
-      '@types/graceful-fs':
-        specifier: 'catalog:'
-        version: 4.1.9
-      '@types/is-windows':
-        specifier: 'catalog:'
-        version: 1.0.2
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.7.1
-      '@types/tar-stream':
-        specifier: 'catalog:'
-        version: 2.2.3
-      '@types/yazl':
-        specifier: 'catalog:'
-        version: 3.3.0
-      execa:
-        specifier: 'catalog:'
-        version: safe-execa@0.2.0
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
-      node-fetch:
-        specifier: 'catalog:'
-        version: 3.3.2
-      path-name:
-        specifier: 'catalog:'
-        version: 1.0.0
-      tar-stream:
-        specifier: 'catalog:'
-        version: 3.1.7
-      yazl:
-        specifier: 'catalog:'
-        version: 3.3.1
 
   env/system-node-version:
     dependencies:
@@ -11100,9 +11019,6 @@ packages:
   '@types/yarnpkg__lockfile@1.1.9':
     resolution: {integrity: sha512-GD4Fk15UoP5NLCNor51YdfL9MSdldKCqOC9EssrRw3HVfar9wUZ5y8Lfnp+qVD6hIinLr8ygklDYnmlnlQo12Q==}
 
-  '@types/yazl@3.3.0':
-    resolution: {integrity: sha512-mFL6lGkk2N5u5nIxpNV/K5LW3qVSbxhJrMxYGOOxZndWxMgCamr/iCsq/1t9kd8pEwhuNP91LC5qZm/qS9pOEw==}
-
   '@typescript-eslint/eslint-plugin@8.56.0':
     resolution: {integrity: sha512-lRyPDLzNCuae71A3t9NEINBiTn7swyOhvUj3MyUOxb8x6g6vPEFoOU+ZRmGMusNC3X3YMhqMIX7i8ShqhT74Pw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -11797,10 +11713,6 @@ packages:
 
   bser@2.1.1:
     resolution: {integrity: sha512-gQxTNE/GAfIIrmHLUE3oJyp5FO6HRBfhjnw4/wMmA63ZGDJnWBmgY/lyQBpnDUkGmAhbSe39tx2d/iTOAfglwQ==}
-
-  buffer-crc32@1.0.0:
-    resolution: {integrity: sha512-Db1SbgBS/fg/392AblrMJk97KggmvYhr4pB5ZIMTWtaivCPMWLkmb7m21cJvpvgK+J3nsU2CmmixNBZx4vFj/w==}
-    engines: {node: '>=8.0.0'}
 
   buffer-equal-constant-time@1.0.1:
     resolution: {integrity: sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==}
@@ -16421,9 +16333,6 @@ packages:
     resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
     engines: {node: '>=12'}
 
-  yazl@3.3.1:
-    resolution: {integrity: sha512-BbETDVWG+VcMUle37k5Fqp//7SDOK2/1+T7X8TD96M3D9G8jK5VLUdQVdVjGi8im7FGkazX7kk5hkU8X4L5Bng==}
-
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
@@ -19475,10 +19384,6 @@ snapshots:
 
   '@types/yarnpkg__lockfile@1.1.9': {}
 
-  '@types/yazl@3.3.0':
-    dependencies:
-      '@types/node': 25.2.3
-
   '@typescript-eslint/eslint-plugin@8.56.0(@typescript-eslint/parser@8.56.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)':
     dependencies:
       '@eslint-community/regexpp': 4.12.2
@@ -20352,8 +20257,6 @@ snapshots:
   bser@2.1.1:
     dependencies:
       node-int64: 0.4.0
-
-  buffer-crc32@1.0.0: {}
 
   buffer-equal-constant-time@1.0.1: {}
 
@@ -25717,10 +25620,6 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
-
-  yazl@3.3.1:
-    dependencies:
-      buffer-crc32: 1.0.0
 
   yocto-queue@0.1.0: {}
 
