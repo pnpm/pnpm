@@ -13,9 +13,9 @@ export function parseNodeSpecifier (specifier: string): NodeSpecifier {
   // Handle "channel/version" format: "rc/18", "rc/18.0.0-rc.4", "release/22.0.0", "nightly/latest"
   if (specifier.includes('/')) {
     const [releaseChannel, versionSpecifier] = specifier.split('/', 2)
-    if (releaseChannel === 'release' && !isStableVersion(versionSpecifier)) {
-      throw new PnpmError('INVALID_NODE_VERSION', `"${specifier}" is not a valid Node.js version`, {
-        hint: 'The correct syntax for stable release is strictly X.Y.Z or release/X.Y.Z',
+    if (!RELEASE_CHANNELS.includes(releaseChannel)) {
+      throw new PnpmError('INVALID_NODE_RELEASE_CHANNEL', `"${releaseChannel}" is not a valid Node.js release channel`, {
+        hint: `Valid release channels are: ${RELEASE_CHANNELS.join(', ')}`,
       })
     }
     return { releaseChannel, versionSpecifier }

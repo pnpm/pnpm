@@ -22,8 +22,11 @@ test.each([
   ['iron', 'iron', 'release'],
   // Exact stable version
   ['22.0.0', '22.0.0', 'release'],
-  // Stable release with explicit channel prefix
+  // Stable release with explicit channel prefix, aliases, and semver ranges
   ['release/22.0.0', '22.0.0', 'release'],
+  ['release/latest', 'latest', 'release'],
+  ['release/lts', 'lts', 'release'],
+  ['release/18', '18', 'release'],
   // Channel/version combos
   ['rc/18', '18', 'rc'],
   ['rc/18.0.0-rc.4', '18.0.0-rc.4', 'rc'],
@@ -38,8 +41,6 @@ test.each([
   expect(result.releaseChannel).toBe(expectedReleaseChannel)
 })
 
-test('throws for release channel with invalid version format', () => {
-  expect(() => parseNodeSpecifier('release/16.0.0.release.0')).toThrow(
-    '"release/16.0.0.release.0" is not a valid Node.js version'
-  )
+test('throws for unknown release channel', () => {
+  expect(() => parseNodeSpecifier('foo/18')).toThrow('"foo" is not a valid Node.js release channel')
 })
