@@ -18,13 +18,16 @@ if (subpkg.bin != null) {
   const platformDir = path.dirname(pkgJson)
   const bin = path.resolve(platformDir, executable)
 
-  linkSync(bin, path.resolve(process.cwd(), executable))
+  const ownDir = import.meta.dirname
+
+  linkSync(bin, path.resolve(ownDir, executable))
 
   if (platform === 'win') {
-    const pkg = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8'))
-    fs.writeFileSync(path.resolve(process.cwd(), 'pnpm'), 'This file intentionally left blank')
+    const pkgJsonPath = path.resolve(ownDir, 'package.json')
+    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+    fs.writeFileSync(path.resolve(ownDir, 'pnpm'), 'This file intentionally left blank')
     pkg.bin.pnpm = 'pnpm.exe'
-    fs.writeFileSync(path.resolve(process.cwd(), 'package.json'), JSON.stringify(pkg, null, 2))
+    fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2))
   }
 }
 
