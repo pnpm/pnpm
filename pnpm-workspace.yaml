@@ -37,6 +37,7 @@ packages:
   - releasing/*
   - resolving/*
   - reviewing/*
+  - runtime/*
   - semver/*
   - store/*
   - text/*

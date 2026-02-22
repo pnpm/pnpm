@@ -123,6 +123,7 @@
     "@pnpm/plugin-commands-store-inspecting": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/runtime.commands": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/run-npm": "workspace:*",

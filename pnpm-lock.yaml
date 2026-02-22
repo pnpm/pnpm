@@ -6720,6 +6720,9 @@ importers:
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
+      '@pnpm/runtime.commands':
+        specifier: workspace:*
+        version: link:../runtime/commands
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs
@@ -8278,6 +8281,31 @@ importers:
       '@types/ssri':
         specifier: 'catalog:'
         version: 7.1.5
+
+  runtime/commands:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/exec.pnpm-cli-runner':
+        specifier: workspace:*
+        version: link:../../exec/pnpm-cli-runner
+      render-help:
+        specifier: 'catalog:'
+        version: 1.0.3
+    devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/runtime.commands':
+        specifier: workspace:*
+        version: 'link:'
 
   semver/peer-range:
     dependencies:

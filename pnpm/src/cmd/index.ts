@@ -7,6 +7,7 @@ import { generateCompletion, createCompletionServer } from '@pnpm/plugin-command
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
 import { doctor } from '@pnpm/plugin-commands-doctor'
 import { env } from '@pnpm/plugin-commands-env'
+import { runtime } from '@pnpm/runtime.commands'
 import { deploy } from '@pnpm/plugin-commands-deploy'
 import { add, ci, dedupe, fetch, install, link, prune, remove, unlink, update, importCommand } from '@pnpm/plugin-commands-installation'
 import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
@@ -130,6 +131,7 @@ const commands: CommandDefinition[] = [
   doctor,
   env,
   exec,
+  runtime,
   fetch,
   generateCompletion,
   ignoredBuilds,
