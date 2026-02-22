@@ -32,13 +32,12 @@ jobs:
         with:
           standalone: false
       - name: Setup Node
-        run: pnpm env use -g 24.11.1
+        run: pnpm env use -g 25.6.1
         timeout-minutes: 1
       - name: npm install
         run: pnpm install --global npm@11.6.2
       - name: pnpm install
-        # We use --force because we want all artifacts of @reflink/reflink to be installed.
-        run: pnpm install --force
+        run: pnpm install
       - name: Publish Packages
         continue-on-error: true
         env:

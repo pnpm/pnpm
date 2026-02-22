@@ -15,7 +15,8 @@ const subpkg = JSON.parse(fs.readFileSync(pkgJson, 'utf8'))
 
 if (subpkg.bin != null) {
   const executable = subpkg.bin.pnpm
-  const bin = path.resolve(path.dirname(pkgJson), executable)
+  const platformDir = path.dirname(pkgJson)
+  const bin = path.resolve(platformDir, executable)
 
   linkSync(bin, path.resolve(process.cwd(), executable))
 
