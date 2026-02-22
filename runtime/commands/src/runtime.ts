@@ -6,6 +6,7 @@ import renderHelp from 'render-help'
 
 export type RuntimeCommandOptions = Pick<Config,
 | 'bin'
+| 'dir'
 | 'global'
 | 'pnpmHomeDir'
 > & Partial<Pick<Config,
@@ -90,9 +91,11 @@ function runtimeSet (opts: RuntimeCommandOptions, params: string[]): void {
   const versionSpec = params[1]?.trim()
 
   const args = ['add', `${runtimeName}@runtime:${versionSpec ?? ''}`]
-  if (opts.global) args.push('--global')
-  if (opts.bin) args.push('--global-bin-dir', opts.bin)
+  if (opts.global) {
+    args.push('--global')
+    if (opts.bin) args.push('--global-bin-dir', opts.bin)
+  }
   if (opts.storeDir) args.push('--store-dir', opts.storeDir)
   if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir)
-  runPnpmCli(args, { cwd: opts.pnpmHomeDir })
+  runPnpmCli(args, { cwd: opts.global ? opts.pnpmHomeDir : opts.dir })
 }
