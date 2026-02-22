@@ -390,6 +390,105 @@ function getOneIfNonCurrent (requirements: string[] | undefined): string | undef
   return undefined
 }
 
+export interface ExtraVariantDescriptor {
+  variantName: string
+  variantDir: string
+  variantModules: string
+  variantDepPath: string
+  resolution: AtomicResolution
+  os: string
+  cpu: string
+  libc: string | undefined
+}
+
+export function getExtraVariantDescriptors (
+  allVariants: PlatformAssetResolution[],
+  supportedArchitectures: SupportedArchitectures,
+  opts: {
+    primaryDir: string
+    packageName: string
+    parentDepPath: string
+  }
+): ExtraVariantDescriptor[] {
+  const osList = supportedArchitectures.os?.filter((os) => os !== 'current') ?? []
+  const cpuList = supportedArchitectures.cpu?.filter((cpu) => cpu !== 'current') ?? []
+
+  if (osList.length === 0 || cpuList.length === 0) return []
+
+  // Determine the primary variant's resolution (to skip it)
+  let primaryResolution: AtomicResolution | undefined
+  try {
+    primaryResolution = findResolution(allVariants, supportedArchitectures)
+  } catch {
+    return []
+  }
+  const primaryIntegrity = (primaryResolution as TarballResolution).integrity
+
+  // Compute virtual store base dirs from primaryDir
+  // primaryDir is e.g. '/root/.pnpm/node@runtime+22.0.0/node_modules/node'
+  const virtualStoreEntry = path.dirname(path.dirname(opts.primaryDir))
+  const virtualStoreEntryName = path.basename(virtualStoreEntry)
+  const virtualStoreBase = path.dirname(virtualStoreEntry)
+
+  // libc values to enumerate: if explicitly specified use those, otherwise just undefined (glibc/non-musl)
+  const libcValues: Array<string | undefined> =
+    (supportedArchitectures.libc?.filter((l) => l !== 'current').length ?? 0) > 0
+      ? supportedArchitectures.libc!.filter((l) => l !== 'current')
+      : [undefined]
+
+  const descriptors: ExtraVariantDescriptor[] = []
+  const seenIntegrities = new Set<string | undefined>([primaryIntegrity])
+
+  for (const os of osList) {
+    for (const cpu of cpuList) {
+      for (const libc of libcValues) {
+        let resolution: AtomicResolution
+        try {
+          resolution = findResolution(allVariants, { os: [os], cpu: [cpu], libc: libc ? [libc] : undefined })
+        } catch {
+          continue
+        }
+
+        const integrityKey = (resolution as TarballResolution).integrity ?? `${os}-${cpu}-${libc ?? 'glibc'}`
+        if (seenIntegrities.has(integrityKey)) continue
+        seenIntegrities.add(integrityKey)
+
+        const libcSuffix = libc === 'musl' ? '-musl' : ''
+        const variantName = `${opts.packageName}-${os}-${cpu}${libcSuffix}`
+
+        // Replace the package name prefix in the virtual store entry name
+        // e.g. 'node@runtime+22.0.0' -> 'node-win32-x64@runtime+22.0.0'
+        const escapedName = opts.packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const variantVStoreEntryName = virtualStoreEntryName.replace(
+          new RegExp(`^${escapedName}(?=@|$)`),
+          variantName
+        )
+        const variantModules = path.join(virtualStoreBase, variantVStoreEntryName, 'node_modules')
+        const variantDir = path.join(variantModules, variantName)
+
+        // Compute synthetic dep path
+        const variantDepPath = opts.parentDepPath.replace(
+          new RegExp(`^${escapedName}(?=@|$)`),
+          variantName
+        )
+
+        descriptors.push({
+          variantName,
+          variantDir,
+          variantModules,
+          variantDepPath,
+          resolution,
+          os,
+          cpu,
+          libc,
+        })
+      }
+    }
+  }
+
+  return descriptors
+}
+
 function fetchToStore (
   ctx: {
     readPkgFromCafs: (

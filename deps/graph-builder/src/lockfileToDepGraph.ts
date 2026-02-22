@@ -11,6 +11,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
+import { getExtraVariantDescriptors } from '@pnpm/package-requester'
 import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
 import { type PatchInfo } from '@pnpm/patching.types'
 import {
@@ -98,6 +99,12 @@ export interface DepHierarchy {
   [depPath: string]: Record<string, DepHierarchy>
 }
 
+export interface ExtraVariantLink {
+  alias: string
+  dir: string
+  importerIds: string[]
+}
+
 export interface LockfileToDepGraphResult {
   directDependenciesByImporterId: DirectDependenciesByImporterId
   graph: DependenciesGraph
@@ -106,6 +113,7 @@ export interface LockfileToDepGraphResult {
   symlinkedDirectDependenciesByImporterId?: DirectDependenciesByImporterId
   prevGraph?: DependenciesGraph
   injectionTargetsByDepPath: Map<string, string[]>
+  extraVariantLinks: ExtraVariantLink[]
 }
 
 /**
@@ -163,7 +171,102 @@ export async function lockfileToDepGraph (
     directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
   }
 
-  return { graph, directDependenciesByImporterId, injectionTargetsByDepPath }
+  const extraVariantLinks: ExtraVariantLink[] = []
+
+  if (opts.supportedArchitectures) {
+    const extraPromises: Array<Promise<void>> = []
+    for (const node of Object.values(graph)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((node.resolution as any).type !== 'variations') continue
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const variants = (node.resolution as any).variants
+      const descriptors = getExtraVariantDescriptors(
+        variants,
+        opts.supportedArchitectures,
+        {
+          primaryDir: node.dir,
+          packageName: node.name,
+          parentDepPath: node.depPath,
+        }
+      )
+
+      if (descriptors.length === 0) continue
+
+      // Find which importers have this package as a direct dep
+      const nodeImporterIds = opts.importerIds.filter((importerId) => {
+        const projectSnapshot = lockfile.importers[importerId]
+        const allDeps = {
+          ...projectSnapshot.devDependencies,
+          ...projectSnapshot.dependencies,
+          ...projectSnapshot.optionalDependencies,
+        }
+        return Object.entries(allDeps).some(([alias, ref]) => {
+          const childDepPath = dp.refToRelative(ref, alias)
+          return childDepPath === node.depPath
+        })
+      })
+
+      const originalResolution = pkgSnapshotToResolution(node.depPath, lockfile.packages![node.depPath], opts.registries)
+
+      for (const descriptor of descriptors) {
+        extraPromises.push((async () => {
+          let fetchResponse!: Partial<FetchResponse>
+          try {
+            fetchResponse = await opts.storeController.fetchPackage({
+              allowBuild: opts.allowBuild,
+              force: false,
+              lockfileDir: opts.lockfileDir,
+              ignoreScripts: opts.ignoreScripts,
+              pkg: {
+                name: descriptor.variantName,
+                version: node.version,
+                id: descriptor.variantDepPath,
+                resolution: originalResolution,
+              },
+              supportedArchitectures: {
+                os: [descriptor.os],
+                cpu: [descriptor.cpu],
+                libc: descriptor.libc ? [descriptor.libc] : undefined,
+              },
+            })
+          } catch {
+            return
+          }
+
+          graph[descriptor.variantDir] = {
+            children: {},
+            pkgIdWithPatchHash: descriptor.variantDepPath as PkgIdWithPatchHash,
+            resolution: node.resolution,
+            depPath: descriptor.variantDepPath as DepPath,
+            dir: descriptor.variantDir,
+            fetching: fetchResponse.fetching,
+            filesIndexFile: fetchResponse.filesIndexFile,
+            forceImportPackage: false,
+            hasBin: false,
+            hasBundledDependencies: false,
+            modules: descriptor.variantModules,
+            name: descriptor.variantName,
+            version: node.version,
+            optional: false,
+            optionalDependencies: new Set(),
+            patch: undefined,
+          }
+
+          if (nodeImporterIds.length > 0) {
+            extraVariantLinks.push({
+              alias: descriptor.variantName,
+              dir: descriptor.variantDir,
+              importerIds: nodeImporterIds,
+            })
+          }
+        })())
+      }
+    }
+    await Promise.all(extraPromises)
+  }
+
+  return { graph, directDependenciesByImporterId, injectionTargetsByDepPath, extraVariantLinks }
 }
 
 async function buildGraphFromPackages (

@@ -21,14 +21,17 @@ import {
   type DependenciesGraphNode,
   type LinkedDependency,
 } from '@pnpm/resolve-dependencies'
-import { type StoreController, type TarballResolution } from '@pnpm/store-controller-types'
+import { getExtraVariantDescriptors } from '@pnpm/package-requester'
+import { type FetchResponse, type StoreController, type TarballResolution } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
   type AllowBuild,
   type DepPath,
   type HoistedDependencies,
+  type PkgIdWithPatchHash,
   type Registries,
   type ProjectId,
+  type SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
@@ -65,6 +68,7 @@ export interface LinkPackagesOptions {
   symlink: boolean
   skipped: Set<DepPath>
   storeController: StoreController
+  supportedArchitectures?: SupportedArchitectures
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   wantedLockfile: LockfileObject
@@ -103,6 +107,81 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     depNodes = depNodes.filter(({ optional }) => !optional)
   }
   depGraph = Object.fromEntries(depNodes.map((depNode) => [depNode.depPath, depNode]))
+
+  // Inject extra variant nodes for multi-architecture support
+  const extraVariantNodes: DependenciesGraphNode[] = []
+  const extraVariantSymlinks: Array<{ alias: string, dir: string, modulesDir: string }> = []
+  if (opts.supportedArchitectures) {
+    const extraPromises: Array<Promise<void>> = []
+    for (const node of Object.values(depGraph)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((node.resolution as any).type !== 'variations') continue
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const variants = (node.resolution as any).variants
+      const descriptors = getExtraVariantDescriptors(variants, opts.supportedArchitectures, {
+        primaryDir: node.dir,
+        packageName: node.name,
+        parentDepPath: node.depPath,
+      })
+      if (descriptors.length === 0) continue
+      const projectModulesDirs: string[] = []
+      for (const project of projects) {
+        const deps = opts.dependenciesByProjectId[project.id]
+        if (deps && Array.from(deps.values()).includes(node.depPath)) {
+          projectModulesDirs.push(project.modulesDir)
+        }
+      }
+      for (const descriptor of descriptors) {
+        extraPromises.push((async () => {
+          let fetchResponse: FetchResponse
+          try {
+            fetchResponse = await opts.storeController.fetchPackage({
+              allowBuild: opts.allowBuild,
+              force: false,
+              lockfileDir: opts.lockfileDir,
+              ignoreScripts: opts.ignoreScripts,
+              pkg: {
+                name: descriptor.variantName,
+                version: node.version,
+                id: descriptor.variantDepPath,
+                resolution: node.resolution,
+              },
+              supportedArchitectures: {
+                os: [descriptor.os],
+                cpu: [descriptor.cpu],
+                libc: descriptor.libc ? [descriptor.libc] : undefined,
+              },
+            })
+          } catch {
+            return
+          }
+          const syntheticNode: DependenciesGraphNode = {
+            ...node,
+            id: descriptor.variantDepPath as unknown as typeof node.id,
+            name: descriptor.variantName,
+            dir: descriptor.variantDir,
+            modules: descriptor.variantModules,
+            depPath: descriptor.variantDepPath as DepPath,
+            pkgIdWithPatchHash: descriptor.variantDepPath as unknown as PkgIdWithPatchHash,
+            fetching: fetchResponse.fetching,
+            filesIndexFile: fetchResponse.filesIndexFile,
+            hasBin: false,
+            children: {},
+            optional: false,
+            optionalDependencies: new Set(),
+            patch: undefined,
+          }
+          depGraph[descriptor.variantDepPath as DepPath] = syntheticNode
+          extraVariantNodes.push(syntheticNode)
+          for (const modulesDir of projectModulesDirs) {
+            extraVariantSymlinks.push({ alias: descriptor.variantName, dir: descriptor.variantDir, modulesDir })
+          }
+        })())
+      }
+    }
+    await Promise.all(extraPromises)
+  }
+
   const removedDepPaths = await prune(projects, {
     currentLockfile: opts.currentLockfile,
     dedupeDirectDeps: opts.dedupeDirectDeps,
@@ -158,6 +237,30 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       virtualStoreDir: opts.virtualStoreDir,
     }
   )
+
+  // Import extra variant packages (not in lockfile, handled separately)
+  if (extraVariantNodes.length > 0) {
+    await Promise.all(extraVariantNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+    await linkAllPkgs(opts.storeController, extraVariantNodes, {
+      allowBuild: opts.allowBuild,
+      depGraph,
+      depsStateCache: opts.depsStateCache,
+      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+      force: opts.force,
+      ignoreScripts: opts.ignoreScripts,
+      lockfileDir: opts.lockfileDir,
+      sideEffectsCacheRead: opts.sideEffectsCacheRead,
+    })
+  }
+
+  // Create top-level symlinks for extra variants
+  if (opts.symlink && extraVariantSymlinks.length > 0) {
+    await Promise.all(
+      extraVariantSymlinks.map(({ alias, dir, modulesDir }) =>
+        symlinkDependency(dir, modulesDir, alias)
+      )
+    )
+  }
 
   stageLogger.debug({
     prefix: opts.lockfileDir,
