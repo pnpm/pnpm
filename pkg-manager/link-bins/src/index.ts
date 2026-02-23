@@ -304,9 +304,17 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   }
 
   try {
+    let nodePath: string[] | undefined
+    if (opts?.extraNodePaths?.length) {
+      const binNodePaths = await getBinNodePaths(cmd.path)
+      const extra = binNodePaths.filter((p: string) => !opts.extraNodePaths!.includes(p))
+      nodePath = extra.length > 0
+        ? [...extra, ...opts.extraNodePaths]
+        : opts.extraNodePaths
+    }
     await cmdShim(cmd.path, externalBinPath, {
       createPwshFile: cmd.makePowerShellShim,
-      nodePath: opts?.extraNodePaths,
+      nodePath,
       nodeExecPath: cmd.nodeExecPath,
     })
   } catch (err: any) { // eslint-disable-line
@@ -335,6 +343,45 @@ function getExeExtension (): string {
   return cmdExtension ?? '.exe'
 }
 
+/**
+ * Returns the node_modules paths relevant to a binary in the virtual store layout.
+ * For a binary at `.pnpm/pkg@version/node_modules/pkg/bin/cli.js`, this returns:
+ *   1. `.pnpm/pkg@version/node_modules/pkg/node_modules` (bundled dependencies)
+ *   2. `.pnpm/pkg@version/node_modules` (sibling/regular dependencies)
+ *
+ * These directories must be in NODE_PATH so that tools like `import-local`
+ * (used by jest, eslint, etc.) which resolve from CWD can find the correct
+ * dependency versions.
+ */
+async function getBinNodePaths (target: string): Promise<string[]> {
+  const targetDir = path.dirname(target)
+  let dir: string
+  try {
+    dir = await fs.realpath(targetDir)
+  } catch (err: any) { // eslint-disable-line
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err
+    }
+    dir = targetDir
+  }
+  let prevDir: string | undefined
+  while (dir !== path.dirname(dir)) {
+    if (path.basename(dir) === 'node_modules') {
+      const parent = path.dirname(dir)
+      if (path.basename(parent) !== 'node_modules') {
+        const result: string[] = []
+        if (prevDir != null) {
+          result.push(path.join(prevDir, 'node_modules'))
+        }
+        result.push(dir)
+        return result
+      }
+    }
+    prevDir = dir
+    dir = path.dirname(dir)
+  }
+  return []
+}
 
 async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | null> {
   try {
