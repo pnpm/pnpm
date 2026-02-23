@@ -3,8 +3,15 @@ import path from 'path'
 import { getBinNodePaths } from '../src/getBinNodePaths.js'
 import { temporaryDirectory } from 'tempy'
 
+// On Windows, temporaryDirectory() may return 8.3 short paths (e.g., RUNNER~1)
+// but getBinNodePaths resolves symlinks via fs.realpath, returning long paths.
+// Normalize with realpathSync so expected and received paths match.
+function tmpdir (): string {
+  return fs.realpathSync(temporaryDirectory())
+}
+
 test('returns package node_modules and sibling node_modules for virtual store layout', async () => {
-  const tmp = temporaryDirectory()
+  const tmp = tmpdir()
   // Simulate: .pnpm/pkg@1.0.0/node_modules/pkg/bin/cli.js
   const binPath = path.join(tmp, '.pnpm', 'pkg@1.0.0', 'node_modules', 'pkg', 'bin', 'cli.js')
   fs.mkdirSync(path.dirname(binPath), { recursive: true })
@@ -19,7 +26,7 @@ test('returns package node_modules and sibling node_modules for virtual store la
 })
 
 test('returns only the node_modules dir when binary is directly inside node_modules/pkg', async () => {
-  const tmp = temporaryDirectory()
+  const tmp = tmpdir()
   // Simulate: node_modules/pkg/bin/cli.js
   const binPath = path.join(tmp, 'node_modules', 'pkg', 'bin', 'cli.js')
   fs.mkdirSync(path.dirname(binPath), { recursive: true })
@@ -34,7 +41,7 @@ test('returns only the node_modules dir when binary is directly inside node_modu
 })
 
 test('returns empty array when there is no node_modules ancestor', async () => {
-  const tmp = temporaryDirectory()
+  const tmp = tmpdir()
   // Simulate: some/path/bin/cli.js (no node_modules)
   const binPath = path.join(tmp, 'some', 'path', 'bin', 'cli.js')
   fs.mkdirSync(path.dirname(binPath), { recursive: true })
@@ -46,7 +53,7 @@ test('returns empty array when there is no node_modules ancestor', async () => {
 })
 
 test('resolves symlinks to find the real path', async () => {
-  const tmp = temporaryDirectory()
+  const tmp = tmpdir()
   // Real location: .pnpm/pkg@1.0.0/node_modules/pkg/bin/cli.js
   const realBinDir = path.join(tmp, '.pnpm', 'pkg@1.0.0', 'node_modules', 'pkg', 'bin')
   fs.mkdirSync(realBinDir, { recursive: true })
@@ -73,7 +80,7 @@ test('resolves symlinks to find the real path', async () => {
 })
 
 test('falls back to original path when target directory does not exist', async () => {
-  const tmp = temporaryDirectory()
+  const tmp = tmpdir()
   // Path that does not exist on disk
   const binPath = path.join(tmp, 'node_modules', 'pkg', 'bin', 'cli.js')
 
@@ -86,7 +93,7 @@ test('falls back to original path when target directory does not exist', async (
 })
 
 test('handles scoped packages in virtual store layout', async () => {
-  const tmp = temporaryDirectory()
+  const tmp = tmpdir()
   // Simulate: .pnpm/@scope+pkg@1.0.0/node_modules/@scope/pkg/bin/cli.js
   const binPath = path.join(tmp, '.pnpm', '@scope+pkg@1.0.0', 'node_modules', '@scope', 'pkg', 'bin', 'cli.js')
   fs.mkdirSync(path.dirname(binPath), { recursive: true })
@@ -101,7 +108,7 @@ test('handles scoped packages in virtual store layout', async () => {
 })
 
 test('binary at root of package (no subdirectory)', async () => {
-  const tmp = temporaryDirectory()
+  const tmp = tmpdir()
   // Simulate: .pnpm/pkg@1.0.0/node_modules/pkg/cli.js (binary at package root)
   const binPath = path.join(tmp, '.pnpm', 'pkg@1.0.0', 'node_modules', 'pkg', 'cli.js')
   fs.mkdirSync(path.dirname(binPath), { recursive: true })
