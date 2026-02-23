@@ -142,7 +142,7 @@ catalog:
   '@yarnpkg/nm': 4.0.5
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
-  '@zkochan/cmd-shim': ^7.0.0
+  '@zkochan/cmd-shim': ^8.0.0
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^3.0.2
   '@zkochan/table': ^2.0.1
@@ -333,6 +333,7 @@ minimumReleaseAge: 1440 # At least a day
 minimumReleaseAgeExclude:
   - '@pnpm/*'
   - '@rushstack/worker-pool@0.7.1'
+  - '@zkochan/cmd-shim@8.0.0'
   - body-parser@2.2.1
   - express@4.22.1
   - glob@11.1.0
