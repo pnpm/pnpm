@@ -294,12 +294,21 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     // within IF/ELSE blocks in batch files, and a node.cmd wrapper would
     // break batch file chaining with "The system cannot find the path specified."
     if (cmd.name === 'node' && cmd.path.toLowerCase().endsWith('.exe')) {
-      await fs.link(cmd.path, exePath)
+      try {
+        await fs.link(cmd.path, exePath)
+      } catch {
+        await fs.copyFile(cmd.path, exePath)
+      }
       return
     }
   } else if (cmd.name === 'node') {
     // On non-Windows, node should be symlinked directly to the binary
     // instead of wrapped in a shell shim.
+    try {
+      if (existsSync(externalBinPath)) {
+        await rimraf(externalBinPath)
+      }
+    } catch {} // eslint-disable-line no-empty
     await fs.symlink(cmd.path, externalBinPath, 'file')
     return
   }
