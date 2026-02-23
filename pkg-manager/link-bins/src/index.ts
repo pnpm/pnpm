@@ -1,5 +1,5 @@
 import { promises as fs, existsSync } from 'fs'
-import Module, { createRequire } from 'module'
+import { createRequire } from 'module'
 import path from 'path'
 import { getNodeBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getBunBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -19,6 +19,7 @@ import { isEmpty, unnest, groupBy, partition } from 'ramda'
 import semver from 'semver'
 import symlinkDir from 'symlink-dir'
 import fixBin from 'bin-links/lib/fix-bin.js'
+import { getBinNodePaths } from './getBinNodePaths.js'
 
 const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()
@@ -306,12 +307,17 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   try {
     let nodePath: string[] | undefined
     if (opts?.extraNodePaths?.length) {
-      nodePath = []
-      for (const modulesPath of await getBinNodePaths(cmd.path)) {
-        if (opts.extraNodePaths.includes(modulesPath)) break
-        nodePath.push(modulesPath)
+      const binNodePaths = await getBinNodePaths(cmd.path)
+      if (binNodePaths.length === 0) {
+        nodePath = opts.extraNodePaths
+      } else {
+        nodePath = [...binNodePaths]
+        for (const p of opts.extraNodePaths) {
+          if (!binNodePaths.includes(p)) {
+            nodePath.push(p)
+          }
+        }
       }
-      nodePath.push(...opts.extraNodePaths)
     }
     await cmdShim(cmd.path, externalBinPath, {
       createPwshFile: cmd.makePowerShellShim,
@@ -342,21 +348,6 @@ function getExeExtension (): string {
   }
 
   return cmdExtension ?? '.exe'
-}
-
-async function getBinNodePaths (target: string): Promise<string[]> {
-  const targetDir = path.dirname(target)
-  try {
-    const targetRealPath = await fs.realpath(targetDir)
-    // @ts-expect-error
-    return Module['_nodeModulePaths'](targetRealPath)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') {
-      throw err
-    }
-    // @ts-expect-error
-    return Module['_nodeModulePaths'](targetDir)
-  }
 }
 
 async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | null> {
