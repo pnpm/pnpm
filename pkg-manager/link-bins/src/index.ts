@@ -289,6 +289,19 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       globalWarn(`The target bin directory already contains an exe called ${cmd.name}, so removing ${exePath}`)
       await rimraf(exePath)
     }
+    // node.exe must be hardlinked directly instead of wrapped in a cmd-shim.
+    // Third-party cmd shims (e.g., npm's rimraf.cmd) call node.exe from
+    // within IF/ELSE blocks in batch files, and a node.cmd wrapper would
+    // break batch file chaining with "The system cannot find the path specified."
+    if (cmd.name === 'node' && cmd.path.toLowerCase().endsWith('.exe')) {
+      await fs.link(cmd.path, exePath)
+      return
+    }
+  } else if (cmd.name === 'node') {
+    // On non-Windows, node should be symlinked directly to the binary
+    // instead of wrapped in a shell shim.
+    await fs.symlink(cmd.path, externalBinPath, 'file')
+    return
   }
 
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
