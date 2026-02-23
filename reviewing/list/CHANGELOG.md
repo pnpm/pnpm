@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 1000.3.2
+
+### Patch Changes
+
+- Updated dependencies [942a73a]
+  - @pnpm/lockfile.fs@1001.1.31
+  - @pnpm/reviewing.dependencies-hierarchy@1001.3.2
+
 ## 1000.3.1
 
 ### Patch Changes

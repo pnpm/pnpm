@@ -1,5 +1,13 @@
 # @pnpm/build-modules
 
+## 1007.0.8
+
+### Patch Changes
+
+- Updated dependencies [dac1177]
+  - @pnpm/link-bins@1000.3.7
+  - @pnpm/lifecycle@1001.0.36
+
 ## 1007.0.7
 
 ### Patch Changes

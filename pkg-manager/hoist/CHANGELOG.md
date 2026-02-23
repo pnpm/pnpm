@@ -1,5 +1,12 @@
 # @pnpm/hoist
 
+## 1002.0.16
+
+### Patch Changes
+
+- Updated dependencies [dac1177]
+  - @pnpm/link-bins@1000.3.7
+
 ## 1002.0.15
 
 ### Patch Changes

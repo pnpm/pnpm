@@ -1,5 +1,13 @@
 # pnpm
 
+## 10.30.2
+
+### Patch Changes
+
+- Fix auto-installed peer dependencies ignoring overrides when a stale version exists in the lockfile.
+- Fixed "input line too long" error on Windows when running lifecycle scripts with the global virtual store enabled [#10673](https://github.com/pnpm/pnpm/pull/10673).
+- Update @zkochan/js-yaml to fix moderate vulnerability.
+
 ## 10.30.1
 
 ### Patch Changes

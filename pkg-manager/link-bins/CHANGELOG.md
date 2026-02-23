@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 1000.3.7
+
+### Patch Changes
+
+- dac1177: Fixed "input line too long" error on Windows when running lifecycle scripts with the global virtual store enabled [#10673](https://github.com/pnpm/pnpm/pull/10673).
+
 ## 1000.3.6
 
 ### Patch Changes

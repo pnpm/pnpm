@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.64
+
+### Patch Changes
+
+- @pnpm/get-context@1001.2.6
+- @pnpm/store-connection-manager@1002.3.16
+- @pnpm/cli-utils@1001.3.7
+
 ## 1000.0.63
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 1001.1.18
+
+### Patch Changes
+
+- Updated dependencies [942a73a]
+  - @pnpm/lockfile.fs@1001.1.31
+  - @pnpm/client@1001.1.21
+
 ## 1001.1.17
 
 ### Patch Changes

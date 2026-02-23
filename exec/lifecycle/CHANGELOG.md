@@ -1,5 +1,12 @@
 # @pnpm/lifecycle
 
+## 1001.0.36
+
+### Patch Changes
+
+- Updated dependencies [dac1177]
+  - @pnpm/link-bins@1000.3.7
+
 ## 1001.0.35
 
 ### Patch Changes

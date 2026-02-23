@@ -1,5 +1,26 @@
 # @pnpm/core
 
+## 1016.1.9
+
+### Patch Changes
+
+- Updated dependencies [2624472]
+- Updated dependencies [dac1177]
+- Updated dependencies [942a73a]
+  - @pnpm/resolve-dependencies@1008.7.5
+  - @pnpm/link-bins@1000.3.7
+  - @pnpm/lockfile.fs@1001.1.31
+  - @pnpm/build-modules@1007.0.8
+  - @pnpm/lifecycle@1001.0.36
+  - @pnpm/plugin-commands-rebuild@1008.0.10
+  - @pnpm/headless@1010.1.7
+  - @pnpm/hoist@1002.0.16
+  - @pnpm/lockfile-to-pnp@1001.0.33
+  - @pnpm/get-context@1001.2.6
+  - @pnpm/lockfile.verification@1001.2.22
+  - @pnpm/lockfile.settings-checker@1001.0.29
+  - @pnpm/package-requester@1011.2.3
+
 ## 1016.1.8
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/mount-modules",
-  "version": "1001.0.49",
+  "version": "1001.0.50",
   "description": "Mounts a node_modules directory with FUSE",
   "keywords": [
     "pnpm",

@@ -1,5 +1,12 @@
 # @pnpm/cli-utils
 
+## 1001.3.7
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@1002.3.16
+- @pnpm/config.deps-installer@1000.1.3
+
 ## 1001.3.6
 
 ### Patch Changes

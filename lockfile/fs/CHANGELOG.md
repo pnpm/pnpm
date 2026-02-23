@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 1001.1.31
+
+### Patch Changes
+
+- 942a73a: Update @zkochan/js-yaml to fix moderate vulnerability.
+
 ## 1001.1.30
 
 ### Patch Changes

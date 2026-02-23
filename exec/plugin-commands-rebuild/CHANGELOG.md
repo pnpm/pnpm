@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1008.0.10
+
+### Patch Changes
+
+- Updated dependencies [dac1177]
+  - @pnpm/link-bins@1000.3.7
+  - @pnpm/lifecycle@1001.0.36
+  - @pnpm/get-context@1001.2.6
+  - @pnpm/store-connection-manager@1002.3.16
+  - @pnpm/cli-utils@1001.3.7
+  - @pnpm/workspace.find-packages@1000.0.62
+
 ## 1008.0.9
 
 ### Patch Changes

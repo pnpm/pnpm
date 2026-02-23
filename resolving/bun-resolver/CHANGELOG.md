@@ -1,5 +1,11 @@
 # @pnpm/resolving.bun-resolver
 
+## 1005.0.8
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1001.0.24
+
 ## 1005.0.7
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/license-scanner
 
+## 1001.0.39
+
+### Patch Changes
+
+- Updated dependencies [942a73a]
+  - @pnpm/lockfile.fs@1001.1.31
+
 ## 1001.0.38
 
 ### Patch Changes

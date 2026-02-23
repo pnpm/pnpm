@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 1008.7.5
+
+### Patch Changes
+
+- 2624472: Fix auto-installed peer dependencies ignoring overrides when a stale version exists in the lockfile.
+
 ## 1008.7.4
 
 ### Patch Changes

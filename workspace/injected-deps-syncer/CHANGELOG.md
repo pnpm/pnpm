@@ -1,5 +1,13 @@
 # @pnpm/workspace.injected-deps-syncer
 
+## 1000.0.36
+
+### Patch Changes
+
+- Updated dependencies [dac1177]
+  - @pnpm/link-bins@1000.3.7
+  - @pnpm/workspace.find-packages@1000.0.62
+
 ## 1000.0.35
 
 ### Patch Changes

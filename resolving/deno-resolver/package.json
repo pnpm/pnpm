@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.deno-resolver",
-  "version": "1005.0.7",
+  "version": "1005.0.8",
   "description": "Resolves the Deno runtime",
   "keywords": [
     "pnpm",

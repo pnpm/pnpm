@@ -1,5 +1,12 @@
 # @pnpm/make-dedicated-lockfile
 
+## 1000.0.40
+
+### Patch Changes
+
+- Updated dependencies [942a73a]
+  - @pnpm/lockfile.fs@1001.1.31
+
 ## 1000.0.39
 
 ### Patch Changes

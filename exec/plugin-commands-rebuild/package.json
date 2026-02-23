@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-rebuild",
-  "version": "1008.0.9",
+  "version": "1008.0.10",
   "description": "Commands for rebuilding dependencies",
   "keywords": [
     "pnpm",
