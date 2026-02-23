@@ -289,6 +289,30 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       globalWarn(`The target bin directory already contains an exe called ${cmd.name}, so removing ${exePath}`)
       await rimraf(exePath)
     }
+    // node.exe must exist as a real executable, not a cmd-shim wrapper.
+    // We could update our own cmd shims to support node.cmd, but we can't
+    // control npm's cmd shims, which break when node resolves to node.cmd.
+    // npm's cmd shims use `IF EXIST "%~dp0\node.exe"` to find the node binary.
+    if (cmd.name === 'node' && cmd.path.toLowerCase().endsWith('.exe')) {
+      try {
+        await fs.link(cmd.path, exePath)
+      } catch {
+        await fs.copyFile(cmd.path, exePath)
+      }
+      return
+    }
+  } else if (cmd.name === 'node') {
+    // On non-Windows, node should be symlinked directly to the binary
+    // instead of wrapped in a shell shim.
+    try {
+      if (existsSync(externalBinPath)) {
+        await rimraf(externalBinPath)
+      }
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+    }
+    await fs.symlink(cmd.path, externalBinPath, 'file')
+    return
   }
 
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
