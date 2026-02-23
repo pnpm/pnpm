@@ -1461,4 +1461,43 @@ describe('global config.yaml', () => {
     // TODO: switch to camelCase entirely later.
     expect(config.rawConfig).toHaveProperty(['dangerously-allow-all-builds'])
   })
+
+  test('overrides from package.json resolutions and pnpm-workspace.yaml should be merged', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('package.json', JSON.stringify({
+      name: 'test-project',
+      resolutions: {
+        'foo': '1.0.0',
+        'bar': '2.0.0',
+      },
+    }, null, 2))
+
+    writeYamlFile('pnpm-workspace.yaml', {
+      packages: [],
+      overrides: {
+        'baz': '3.0.0',
+        'bar': '2.5.0', // This should override package.json's bar
+      },
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    // All overrides should be merged:
+    // - 'foo' from package.json resolutions
+    // - 'bar' from workspace (overriding package.json's version)
+    // - 'baz' from workspace overrides
+    expect(config.overrides).toStrictEqual({
+      'foo': '1.0.0',
+      'bar': '2.5.0',
+      'baz': '3.0.0',
+    })
+  })
 })
