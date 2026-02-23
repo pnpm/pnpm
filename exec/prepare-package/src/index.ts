@@ -52,6 +52,7 @@ allowBuilds:
     // An alternative solution could be to throw an exception.
     rawConfig: omit(['ignore-scripts'], opts.rawConfig),
     rootModulesDir: pkgDir, // We don't need this property but there is currently no way to not set it.
+    stdio: 'inherit',
     unsafePerm: Boolean(opts.unsafePerm),
   }
   try {
