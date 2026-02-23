@@ -22,23 +22,34 @@ export async function getBinNodePaths (target: string): Promise<string[]> {
     }
     dir = targetDir
   }
-  const segments = dir.split(path.sep)
-  // Walk from the innermost directory outward to find the first non-nested node_modules
-  for (let i = segments.length - 1; i >= 0; i--) {
-    if (segments[i] !== 'node_modules') continue
-    // Skip nested node_modules (e.g., node_modules/node_modules)
-    if (i > 0 && segments[i - 1] === 'node_modules') continue
+  // Walk up from the resolved directory to find the first non-nested node_modules
+  let currentDir = dir
+  while (true) {
+    if (path.basename(currentDir) === 'node_modules') {
+      // Skip nested node_modules (e.g., node_modules/node_modules)
+      if (path.basename(path.dirname(currentDir)) !== 'node_modules') {
+        const nodeModulesDir = currentDir
+        const result: string[] = []
 
-    const nodeModulesDir = segments.slice(0, i + 1).join(path.sep)
-    const result: string[] = []
-    if (i + 1 < segments.length) {
-      // For scoped packages, the package dir is two levels deep: @scope/pkg
-      const pkgDepth = segments[i + 1].startsWith('@') ? 3 : 2
-      const pkgDir = segments.slice(0, i + pkgDepth).join(path.sep)
-      result.push(path.join(pkgDir, 'node_modules'))
+        // Determine the package directory from the relative path between
+        // node_modules and the resolved binary directory
+        const rel = path.relative(nodeModulesDir, dir)
+        if (rel) {
+          const relSegments = rel.split(path.sep)
+          // For scoped packages, the package dir is two levels deep: @scope/pkg
+          const pkgDir = relSegments[0].startsWith('@')
+            ? path.join(nodeModulesDir, relSegments[0], relSegments[1])
+            : path.join(nodeModulesDir, relSegments[0])
+          result.push(path.join(pkgDir, 'node_modules'))
+        }
+
+        result.push(nodeModulesDir)
+        return result
+      }
     }
-    result.push(nodeModulesDir)
-    return result
+    const parent = path.dirname(currentDir)
+    if (parent === currentDir) break
+    currentDir = parent
   }
   return []
 }

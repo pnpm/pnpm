@@ -57,7 +57,8 @@ test('resolves symlinks to find the real path', async () => {
   fs.mkdirSync(path.join(tmp, 'node_modules'), { recursive: true })
   fs.symlinkSync(
     path.join(tmp, '.pnpm', 'pkg@1.0.0', 'node_modules', 'pkg'),
-    symlinkTarget
+    symlinkTarget,
+    'junction'
   )
 
   // Pass the symlinked path
