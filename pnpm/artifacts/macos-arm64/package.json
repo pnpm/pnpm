@@ -23,9 +23,6 @@
     "@pnpm/macos-arm64": "workspace:*"
   },
   "publishConfig": {
-    "bin": {
-      "pnpm": "pnpm"
-    },
     "os": [
       "darwin"
     ],
