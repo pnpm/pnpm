@@ -17,6 +17,8 @@ const bin = path.resolve(platformDir, executable)
 
 const ownDir = import.meta.dirname
 
+if (!fs.existsSync(bin)) process.exit(0)
+
 linkSync(bin, path.resolve(ownDir, executable))
 
 if (platform === 'win') {
