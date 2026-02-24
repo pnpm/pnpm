@@ -14,13 +14,14 @@ import {
   buildFileMapsFromIndex,
   createCafs,
   HASH_ALGORITHM,
+  normalizeBundledManifest,
   type PackageFilesIndex,
   type FilesIndex,
   optimisticRenameOverwrite,
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
-import { type DependencyManifest } from '@pnpm/types'
+import { type BundledManifest, type DependencyManifest } from '@pnpm/types'
 import { parentPort } from 'worker_threads'
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import {
@@ -78,7 +79,7 @@ async function handleMessage (
       break
     }
     case 'readPkgFromCafs': {
-      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
+      const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
         pkgFilesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
@@ -99,18 +100,18 @@ async function handleMessage (
       if (expectedPkg) {
         if (
           (
-            pkgFilesIndex.name != null &&
+            pkgFilesIndex.manifest?.name != null &&
             expectedPkg.name != null &&
-            pkgFilesIndex.name.toLowerCase() !== expectedPkg.name.toLowerCase()
+            pkgFilesIndex.manifest.name.toLowerCase() !== expectedPkg.name.toLowerCase()
           ) ||
           (
-            pkgFilesIndex.version != null &&
+            pkgFilesIndex.manifest?.version != null &&
             expectedPkg.version != null &&
-            !equalOrSemverEqual(pkgFilesIndex.version, expectedPkg.version)
+            !equalOrSemverEqual(pkgFilesIndex.manifest.version, expectedPkg.version)
           )
         ) {
           const msg = 'Package name or version mismatch found while reading from the store.'
-          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
+          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.manifest?.name}@${pkgFilesIndex.manifest?.version}.`
           if (strictStorePkgContentCheck ?? true) {
             throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
               hint: `${hint}\n\nIf you want to ignore this issue, set strictStorePkgContentCheck to false in your configuration`,
@@ -120,24 +121,21 @@ async function handleMessage (
           }
         }
       }
-      let verifyResult: VerifyResult | undefined
-      if (pkgFilesIndex.requiresBuild == null) {
-        readManifest = true
-      }
-      // Get file maps and optionally verify
+      let verifyResult: VerifyResult
       if (verifyStoreIntegrity) {
-        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex, readManifest)
+        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
       } else {
-        verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex, readManifest)
+        verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
       }
-      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, verifyResult.filesMap)
+      const bundledManifest = pkgFilesIndex.manifest
+      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(bundledManifest, verifyResult.filesMap)
 
       parentPort!.postMessage({
         status: 'success',
         warnings,
         value: {
           verified: verifyResult.passed,
-          manifest: verifyResult.manifest,
+          bundledManifest,
           files: {
             filesMap: verifyResult.filesMap,
             sideEffectsMaps: verifyResult.sideEffectsMaps,
@@ -196,12 +194,13 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
     addManifestToCafs(cafs, filesIndex, appendManifest)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  const requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: manifest ?? {}, files: filesIntegrity })
+  const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
+  const requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: bundledManifest, files: filesIntegrity })
   return {
     status: 'success',
     value: {
       filesMap,
-      manifest,
+      manifest: bundledManifest,
       requiresBuild,
       integrity: integrity ?? calcIntegrity(buffer),
     },
@@ -217,7 +216,7 @@ interface AddFilesFromDirResult {
   status: string
   value: {
     filesMap: FilesMap
-    manifest?: DependencyManifest
+    manifest?: BundledManifest
     requiresBuild: boolean
   }
 }
@@ -253,6 +252,7 @@ function addFilesFromDir (
     dir,
     files,
     filesIndexFile,
+    includeNodeModules,
     sideEffectsCacheKey,
     storeDir,
   }: AddDirToStoreMessage
@@ -263,6 +263,7 @@ function addFilesFromDir (
   const cafs = cafsCache.get(storeDir)!
   let { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
     files,
+    includeNodeModules,
     readManifest: true,
   })
   if (appendManifest && manifest == null) {
@@ -270,6 +271,7 @@ function addFilesFromDir (
     addManifestToCafs(cafs, filesIndex, appendManifest)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
+  const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
   let requiresBuild: boolean
   if (sideEffectsCacheKey) {
     let existingFilesIndex!: PackageFilesIndex
@@ -281,7 +283,7 @@ function addFilesFromDir (
         status: 'success',
         value: {
           filesMap,
-          manifest,
+          manifest: bundledManifest,
           requiresBuild: pkgRequiresBuild(manifest, filesMap),
         },
       }
@@ -304,9 +306,9 @@ function addFilesFromDir (
     }
     writeIndexFile(filesIndexFile, existingFilesIndex)
   } else {
-    requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: manifest ?? {}, files: filesIntegrity })
+    requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: bundledManifest, files: filesIntegrity })
   }
-  return { status: 'success', value: { filesMap, manifest, requiresBuild } }
+  return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild } }
 }
 
 function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
@@ -414,16 +416,15 @@ function writeFilesIndexFile (
   filesIndexFile: string,
   { algo, manifest, files, sideEffects }: {
     algo: string
-    manifest: Partial<DependencyManifest>
+    manifest?: BundledManifest
     files: PackageFiles
     sideEffects?: SideEffects
   }
 ): boolean {
   const requiresBuild = pkgRequiresBuild(manifest, files)
   const filesIndex: PackageFilesIndex = {
-    name: manifest.name,
-    version: manifest.version,
     requiresBuild,
+    manifest,
     algo,
     files,
     sideEffects,

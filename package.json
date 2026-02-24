@@ -11,13 +11,13 @@
     "lint": "pnpm run spellcheck && pnpm lint:meta && pnpm run lint:ts",
     "spellcheck": "cspell \"**/*.ts\" \"**/README.md\" \".changeset/*.md\" --no-progress",
     "lint:ts": "eslint \"**/src/**/*.ts\" \"**/test/**/*.ts\" --cache",
-    "test-main": "pnpm pretest && pnpm lint && pnpm run test-pkgs-main",
-    "ci:test-main": "pnpm run prepare-fixtures && pnpm run test-pkgs-main",
+    "test-all": "pnpm pretest && pnpm lint && pnpm run test-pkgs-all",
+    "ci:test-all": "pnpm run prepare-fixtures && pnpm run test-pkgs-all",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
-    "test-pkgs-main": "pnpm remove-temp-dir && pnpm run --no-sort --workspace-concurrency=1 -r _test",
+    "test-pkgs-all": "pnpm remove-temp-dir && pnpm run --no-sort --workspace-concurrency=1 -r _test",
     "test-branch": "pnpm pretest && pnpm lint && git remote set-branches --add origin main && git fetch origin main && pnpm run test-pkgs-branch",
-    "ci:test-branch": "pnpm run prepare-fixtures && git remote set-branches --add origin main && git fetch origin main && pnpm run test-pkgs-branch",
-    "test-pkgs-branch": "pnpm remove-temp-dir && pnpm --workspace-concurrency=1 --filter=...[origin/main] run --no-sort _test",
+    "ci:test-branch": "pnpm run prepare-fixtures && pnpm run test-pkgs-branch",
+    "test-pkgs-branch": "pnpm remove-temp-dir && pnpm --workspace-concurrency=1 --filter=...[origin/main] run --no-sort --if-present _test",
     "compile-only": "pnpm dlx node@runtime:24.6.0 __utils__/scripts/src/typecheck-only.ts && pnpm -F pnpm compile",
     "compile": "pnpm compile-only && pnpm run update-manifests",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
@@ -53,7 +53,6 @@
     "jest": "catalog:",
     "keyv": "catalog:",
     "lcov-result-merger": "catalog:",
-    "publish-packed": "catalog:",
     "rimraf": "catalog:",
     "shx": "catalog:",
     "typescript": "catalog:",
@@ -62,5 +61,5 @@
   "engines": {
     "pnpm": ">=9.6.0"
   },
-  "packageManager": "pnpm@11.0.0-alpha.3"
+  "packageManager": "pnpm@11.0.0-alpha.10"
 }

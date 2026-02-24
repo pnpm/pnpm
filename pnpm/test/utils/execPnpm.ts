@@ -93,16 +93,18 @@ export interface ChildProcess {
   stderr: { toString: () => string }
 }
 
+export interface ExecPnpmSyncOpts {
+  cwd?: string
+  env?: Record<string, string>
+  expectSuccess?: boolean // similar to expect(status).toBe(0), but also prints error messages, which makes it easier to debug failed tests
+  stdio?: StdioOptions
+  storeDir?: string
+  timeout?: number
+}
+
 export function execPnpmSync (
   args: string[],
-  opts?: {
-    cwd?: string
-    env?: Record<string, string>
-    expectSuccess?: boolean // similar to expect(status).toBe(0), but also prints error messages, which makes it easier to debug failed tests
-    stdio?: StdioOptions
-    storeDir?: string
-    timeout?: number
-  }
+  opts?: ExecPnpmSyncOpts
 ): ChildProcess {
   const execResult = crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
     cwd: opts?.cwd,

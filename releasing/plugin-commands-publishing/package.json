@@ -41,21 +41,23 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exportable-manifest": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
-    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/package-bins": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/run-npm": "workspace:*",
     "@pnpm/sort-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "chalk": "catalog:",
+    "ci-info": "catalog:",
     "enquirer": "catalog:",
     "execa": "catalog:",
+    "libnpmpublish": "catalog:",
+    "normalize-registry-url": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",
@@ -82,6 +84,7 @@
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/is-windows": "catalog:",
+    "@types/libnpmpublish": "catalog:",
     "@types/proxyquire": "catalog:",
     "@types/ramda": "catalog:",
     "@types/sinon": "catalog:",
@@ -96,7 +99,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

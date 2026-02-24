@@ -46,9 +46,6 @@ const DEPRECATED_OPTIONS = new Set([
   'resolution-strategy',
 ])
 
-// A workaround for the https://github.com/vercel/pkg/issues/897 issue.
-delete process.env.PKG_EXECPATH
-
 export async function main (inputArgv: string[]): Promise<void> {
   let parsedCliArgs!: ParsedCliArgs
   try {
@@ -300,8 +297,6 @@ export async function main (inputArgv: string[]): Promise<void> {
         result = await result
       }
     } finally {
-      // When use-node-version is set and "pnpm run" is executed,
-      // this will be the only place where the tarball worker pool is finished.
       await finishWorkers()
     }
     executionTimeLogger.debug({

@@ -4,11 +4,9 @@ import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { type PackageFiles, type PackageFileInfo, type SideEffects, type FilesMap } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
-import { type DependencyManifest } from '@pnpm/types'
+import { type BundledManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
-import { parseJsonBufferSync } from './parseJson.js'
-import { readManifestFromStore } from './readManifestFromStore.js'
 
 export interface Integrity {
   digest: string
@@ -24,36 +22,28 @@ global['verifiedFileIntegrity'] = 0
 
 export interface VerifyResult {
   passed: boolean
-  manifest?: DependencyManifest
   filesMap: FilesMap
   sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
 }
 
 export interface PackageFilesIndex {
-  // name and version are nullable for backward compatibility
-  // the initial specs of pnpm store v3 did not require these fields.
-  // However, it might be possible that some types of dependencies don't
-  // have the name/version fields, like the local tarball dependencies.
-  name?: string
-  version?: string
+  manifest?: BundledManifest
   requiresBuild?: boolean
   algo: string
-
   files: PackageFiles
   sideEffects?: SideEffects
 }
 
 export function checkPkgFilesIntegrity (
   storeDir: string,
-  pkgIndex: PackageFilesIndex,
-  readManifest?: boolean
+  pkgIndex: PackageFilesIndex
 ): VerifyResult {
   // It might make sense to use this cache for all files in the store
   // but there's a smaller chance that the same file will be checked twice
   // so it's probably not worth the memory (this assumption should be verified)
   const verifiedFilesCache = new Set<string>()
   const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir, pkgIndex.algo)
-  const verified = _checkFilesIntegrity(pkgIndex.files, readManifest)
+  const verified = _checkFilesIntegrity(pkgIndex.files)
   if (!verified.passed) return verified
 
   const sideEffectsMaps = new Map<string, { added?: FilesMap, deleted?: string[] }>()
@@ -88,8 +78,7 @@ export function checkPkgFilesIntegrity (
  */
 export function buildFileMapsFromIndex (
   storeDir: string,
-  pkgIndex: PackageFilesIndex,
-  readManifest?: boolean
+  pkgIndex: PackageFilesIndex
 ): VerifyResult {
   const filesMap: FilesMap = new Map()
 
@@ -122,7 +111,6 @@ export function buildFileMapsFromIndex (
 
   return {
     passed: true,
-    manifest: readManifest ? readManifestFromStore(storeDir, pkgIndex) : undefined,
     filesMap,
     sideEffectsMaps: sideEffectsMaps.size > 0 ? sideEffectsMaps : undefined,
   }
@@ -132,11 +120,9 @@ function checkFilesIntegrity (
   verifiedFilesCache: Set<string>,
   storeDir: string,
   algo: string,
-  files: PackageFiles,
-  readManifest?: boolean
+  files: PackageFiles
 ): VerifyResult {
   let allVerified = true
-  let manifest: DependencyManifest | undefined
   const filesMap: FilesMap = new Map()
 
   for (const [f, fstat] of files) {
@@ -146,13 +132,9 @@ function checkFilesIntegrity (
     const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
     filesMap.set(f, filename)
 
-    const readFile = readManifest && f === 'package.json'
-    if (!readFile && verifiedFilesCache.has(filename)) continue
-    const verifyResult = verifyFile(filename, fstat, algo, readFile)
-    if (readFile) {
-      manifest = verifyResult.manifest
-    }
-    if (verifyResult.passed) {
+    if (verifiedFilesCache.has(filename)) continue
+    const passed = verifyFile(filename, fstat, algo)
+    if (passed) {
       verifiedFilesCache.add(filename)
     } else {
       allVerified = false
@@ -160,7 +142,6 @@ function checkFilesIntegrity (
   }
   return {
     passed: allVerified,
-    manifest,
     filesMap,
   }
 }
@@ -170,34 +151,26 @@ type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt' | 'digest'>
 function verifyFile (
   filename: string,
   fstat: FileInfo,
-  algorithm: string,
-  readManifest?: boolean
-): Pick<VerifyResult, 'passed' | 'manifest'> {
+  algorithm: string
+): boolean {
   const currentFile = checkFile(filename, fstat.checkedAt)
-  if (currentFile == null) return { passed: false }
+  if (currentFile == null) return false
   if (currentFile.isModified) {
     if (currentFile.size !== fstat.size) {
       rimraf.sync(filename)
-      return { passed: false }
+      return false
     }
-    return verifyFileIntegrity(filename, { digest: fstat.digest, algorithm }, readManifest)
-  }
-  if (readManifest) {
-    return {
-      passed: true,
-      manifest: parseJsonBufferSync(gfs.readFileSync(filename)) as DependencyManifest,
-    }
+    return verifyFileIntegrity(filename, { digest: fstat.digest, algorithm })
   }
   // If a file was not edited, we are skipping integrity check.
   // We assume that nobody will manually remove a file in the store and create a new one.
-  return { passed: true }
+  return true
 }
 
 export function verifyFileIntegrity (
   filename: string,
-  integrity: Integrity,
-  readManifest?: boolean
-): Pick<VerifyResult, 'passed' | 'manifest'> {
+  integrity: Integrity
+): boolean {
   // @ts-expect-error
   global['verifiedFileIntegrity']++
   let data: Buffer
@@ -205,7 +178,7 @@ export function verifyFileIntegrity (
     data = gfs.readFileSync(filename)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return { passed: false }
+      return false
     }
     throw err
   }
@@ -214,20 +187,13 @@ export function verifyFileIntegrity (
     computedDigest = crypto.hash(integrity.algorithm, data, 'hex')
   } catch {
     // Invalid algorithm (e.g., corrupted index file) - treat as verification failure
-    return { passed: false }
+    return false
   }
   const passed = computedDigest === integrity.digest
   if (!passed) {
     gfs.unlinkSync(filename)
-    return { passed }
   }
-  if (readManifest) {
-    return {
-      passed,
-      manifest: parseJsonBufferSync(data) as DependencyManifest,
-    }
-  }
-  return { passed }
+  return passed
 }
 
 function checkFile (filename: string, checkedAt?: number): { isModified: boolean, size: number } | null {

@@ -44,7 +44,6 @@
     "path-temp": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
-    "semver": "catalog:",
     "symlink-dir": "catalog:"
   },
   "peerDependencies": {
@@ -57,12 +56,11 @@
     "@pnpm/tools.plugin-commands-self-updater": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/semver": "catalog:",
     "cross-spawn": "catalog:",
     "nock": "catalog:"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

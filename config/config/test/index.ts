@@ -1404,6 +1404,24 @@ test('no warning when directory does not contain PATH delimiter character', asyn
   }
 })
 
+test.each([
+  [undefined, undefined],
+  [false, undefined],
+  [true, true],
+])('sets autoConfirmAllPrompts when CLI is passed --yes=%s', async (cliValue?: boolean, expectedValue?: boolean) => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'yes': cliValue,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.autoConfirmAllPrompts).toBe(expectedValue)
+})
+
 describe('global config.yaml', () => {
   let XDG_CONFIG_HOME: string | undefined
 
@@ -1443,4 +1461,67 @@ describe('global config.yaml', () => {
     // TODO: switch to camelCase entirely later.
     expect(config.rawConfig).toHaveProperty(['dangerously-allow-all-builds'])
   })
+})
+
+test('lockfile: false in pnpm-workspace.yaml sets useLockfile to false', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    lockfile: false,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.useLockfile).toBe(false)
+})
+
+test('pnpm_config_lockfile env var overrides lockfile from pnpm-workspace.yaml in useLockfile', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    lockfile: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_lockfile: 'false',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.useLockfile).toBe(false)
+})
+
+test('pnpm_config_git_branch_lockfile env var overrides git-branch-lockfile from pnpm-workspace.yaml in useGitBranchLockfile', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    gitBranchLockfile: false,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_git_branch_lockfile: 'true',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.useGitBranchLockfile).toBe(true)
 })

@@ -5,7 +5,7 @@ import {
   type BinaryResolution,
 } from '@pnpm/resolver-base'
 import { type Cafs, type FilesMap } from '@pnpm/cafs-types'
-import { type AllowBuild, type DependencyManifest } from '@pnpm/types'
+import { type AllowBuild, type BundledManifest, type DependencyManifest } from '@pnpm/types'
 
 export interface PkgNameVersion {
   name?: string
@@ -31,7 +31,7 @@ export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions
 
 export interface FetchResult {
   local?: boolean
-  manifest?: DependencyManifest
+  manifest?: BundledManifest
   filesMap: FilesMap
   requiresBuild: boolean
   integrity?: string
@@ -46,7 +46,7 @@ export interface GitFetcherOptions {
 
 export interface GitFetcherResult {
   filesMap: FilesMap
-  manifest?: DependencyManifest
+  manifest?: BundledManifest
   requiresBuild: boolean
 }
 

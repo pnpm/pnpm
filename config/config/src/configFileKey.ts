@@ -132,7 +132,6 @@ export const excludedPnpmKeys = [
   'trust-policy',
   'trust-policy-exclude',
   'trust-policy-ignore-after',
-  'use-node-version',
   'use-stderr',
   'verify-deps-before-run',
   'verify-store-integrity',
@@ -154,6 +153,7 @@ export const excludedPnpmKeys = [
   'libc',
   'os',
   'audit-level',
+  'yes',
 ] as const satisfies ReadonlyArray<Exclude<PnpmKey, PnpmConfigFileKey>>
 export type ExcludedPnpmKey = typeof excludedPnpmKeys[number]
 

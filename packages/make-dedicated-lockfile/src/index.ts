@@ -9,7 +9,7 @@ import {
 } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
-import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { pickBy } from 'ramda'
 import renameOverwrite from 'rename-overwrite'
 
@@ -42,7 +42,7 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
     // intentionally.
     catalogs: {},
   })
-  await writeProjectManifest(publishManifest)
+  await writeProjectManifest(publishManifest as ProjectManifest)
 
   const modulesDir = path.join(projectDir, 'node_modules')
   const tmp = path.join(projectDir, 'tmp_node_modules')

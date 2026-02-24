@@ -1,23 +1,29 @@
-import { getCurrentPackageName } from '@pnpm/cli-meta'
+import { detectIfCurrentPkgIsExecutable, getCurrentPackageName, isExecutedByCorepack } from '@pnpm/cli-meta'
 
-test('getCurrentPackageName()', () => {
-  expect(getCurrentPackageName({
-    platform: 'darwin',
-    arch: 'arm64',
-  })).toBe('pnpm')
-  expect(getCurrentPackageName({
-    pkg: '.',
-    platform: 'win32',
-    arch: 'ia32',
-  })).toBe('@pnpm/win-x86')
-  expect(getCurrentPackageName({
-    pkg: '.',
-    platform: 'darwin',
-    arch: 'arm64',
-  })).toBe('@pnpm/macos-arm64')
-  expect(getCurrentPackageName({
-    pkg: '.',
-    platform: 'linux',
-    arch: 'x64',
-  })).toBe('@pnpm/linux-x64')
+describe('detectIfCurrentPkgIsExecutable()', () => {
+  test('returns false when not running as a SEA binary', () => {
+    // In a test environment node:sea is unavailable, so the require() inside
+    // detectIfCurrentPkgIsExecutable() throws and the catch block returns false.
+    expect(detectIfCurrentPkgIsExecutable()).toBe(false)
+  })
+})
+
+describe('getCurrentPackageName()', () => {
+  test('returns "pnpm" when not running as a SEA binary', () => {
+    expect(getCurrentPackageName()).toBe('pnpm')
+  })
+})
+
+describe('isExecutedByCorepack()', () => {
+  test('returns true when COREPACK_ROOT is set', () => {
+    expect(isExecutedByCorepack({ COREPACK_ROOT: '/usr/local/lib/corepack' })).toBe(true)
+  })
+
+  test('returns false when COREPACK_ROOT is not set', () => {
+    expect(isExecutedByCorepack({})).toBe(false)
+  })
+
+  test('returns false when COREPACK_ROOT is undefined', () => {
+    expect(isExecutedByCorepack({ COREPACK_ROOT: undefined })).toBe(false)
+  })
 })

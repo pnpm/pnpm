@@ -31,8 +31,10 @@
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "dependencies": {
+    "@npm/types": "catalog:",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/package-bins": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -51,7 +53,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

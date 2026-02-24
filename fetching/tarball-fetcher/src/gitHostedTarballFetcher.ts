@@ -6,7 +6,7 @@ import { type Cafs, type FilesMap } from '@pnpm/cafs-types'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
-import { type DependencyManifest } from '@pnpm/types'
+import { type BundledManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
 import renameOverwrite from 'rename-overwrite'
 import { fastPathTemp as pathTemp } from 'path-temp'
@@ -53,7 +53,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
 
 interface PrepareGitHostedPkgResult {
   filesMap: FilesMap
-  manifest?: DependencyManifest
+  manifest?: BundledManifest
   ignoredBuild: boolean
 }
 

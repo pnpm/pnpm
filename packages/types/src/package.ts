@@ -102,7 +102,7 @@ export interface BaseManifest {
     email?: string
   }
   scripts?: PackageScripts
-  config?: object
+  config?: Record<string, unknown>
   engines?: {
     node?: string
     npm?: string
@@ -173,7 +173,7 @@ export interface PnpmSettings {
 
 export interface ProjectManifest extends BaseManifest {
   packageManager?: string
-  workspaces?: string[]
+  workspaces?: string[] // TODO: add Record<string, string> to represent npm (to be compatible with @npm/types)
   pnpm?: PnpmSettings
   private?: boolean
   resolutions?: Record<string, string>
@@ -182,6 +182,29 @@ export interface ProjectManifest extends BaseManifest {
 export interface PackageManifest extends DependencyManifest {
   deprecated?: string
 }
+
+/**
+ * Subset of package.json fields cached in the store index.
+ * Used for bin linking, build scripts, runtime selection, and dependency resolution.
+ */
+export type BundledManifest = Pick<
+  BaseManifest,
+| 'bin'
+| 'bundledDependencies'
+| 'bundleDependencies'
+| 'cpu'
+| 'dependencies'
+| 'directories'
+| 'engines'
+| 'libc'
+| 'name'
+| 'optionalDependencies'
+| 'os'
+| 'peerDependencies'
+| 'peerDependenciesMeta'
+| 'scripts'
+| 'version'
+>
 
 export interface SupportedArchitectures {
   os?: string[]

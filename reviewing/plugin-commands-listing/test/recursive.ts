@@ -55,16 +55,20 @@ test('recursive list', async () => {
   expect(stripAnsi(output as unknown as string)).toBe(`Legend: production dependency, optional only, dev only
 
 project-1@1.0.0 ${path.resolve('project-1')}
+│
+│   dependencies:
+└── is-positive@1.0.0
 
-dependencies:
-is-positive 1.0.0
+1 package
 
 Legend: production dependency, optional only, dev only
 
 project-2@1.0.0 ${path.resolve('project-2')}
+│
+│   dependencies:
+└── is-negative@1.0.0
 
-dependencies:
-is-negative 1.0.0`)
+1 package`)
 })
 
 test('recursive list with sharedWorkspaceLockfile', async () => {
@@ -120,17 +124,21 @@ test('recursive list with sharedWorkspaceLockfile', async () => {
   expect(stripAnsi(output as unknown as string)).toBe(`Legend: production dependency, optional only, dev only
 
 project-1@1.0.0 ${path.resolve('project-1')}
+│
+│   dependencies:
+└─┬ @pnpm.e2e/pkg-with-1-dep@100.0.0
+  └── @pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0
 
-dependencies:
-@pnpm.e2e/pkg-with-1-dep 100.0.0
-└── @pnpm.e2e/dep-of-pkg-with-1-dep 100.1.0
+2 packages
 
 Legend: production dependency, optional only, dev only
 
 project-2@1.0.0 ${path.resolve('project-2')}
+│
+│   dependencies:
+└── is-negative@1.0.0
 
-dependencies:
-is-negative 1.0.0`)
+1 package`)
 })
 
 test('recursive list --filter', async () => {
@@ -184,17 +192,21 @@ test('recursive list --filter', async () => {
   expect(stripAnsi(output as unknown as string)).toBe(`Legend: production dependency, optional only, dev only
 
 project-1@1.0.0 ${path.resolve('project-1')}
+│
+│   dependencies:
+├── is-positive@1.0.0
+└── project-2@link:../project-2
 
-dependencies:
-is-positive 1.0.0
-project-2 link:../project-2
+2 packages
 
 Legend: production dependency, optional only, dev only
 
 project-2@1.0.0 ${path.resolve('project-2')}
+│
+│   dependencies:
+└── is-negative@1.0.0
 
-dependencies:
-is-negative 1.0.0`)
+1 package`)
 })
 
 test('recursive list --filter link-workspace-packages=false', async () => {
@@ -239,10 +251,12 @@ test('recursive list --filter link-workspace-packages=false', async () => {
   expect(stripAnsi(output as unknown as string)).toBe(`Legend: production dependency, optional only, dev only
 
 project-1@1.0.0 ${path.resolve('project-1')}
+│
+│   dependencies:
+├── is-positive@1.0.0
+└── project-2@link:../project-2
 
-dependencies:
-is-positive 1.0.0
-project-2 link:../project-2`)
+2 packages`)
 })
 
 test('`pnpm recursive why` should fail if no package name was provided', async () => {

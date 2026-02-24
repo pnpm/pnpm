@@ -34,23 +34,11 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
-    "@pnpm/env.system-node-version": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/fetch": "workspace:*",
-    "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
-    "@pnpm/remove-bins": "workspace:*",
-    "@pnpm/store-path": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "@zkochan/cmd-shim": "catalog:",
-    "@zkochan/rimraf": "catalog:",
-    "graceful-fs": "catalog:",
-    "is-windows": "catalog:",
-    "load-json-file": "catalog:",
-    "render-help": "catalog:",
-    "semver": "catalog:",
-    "symlink-dir": "catalog:",
-    "write-json-file": "catalog:"
+    "render-help": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -58,22 +46,10 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/plugin-commands-env": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "@types/graceful-fs": "catalog:",
-    "@types/is-windows": "catalog:",
-    "@types/semver": "catalog:",
-    "@types/tar-stream": "catalog:",
-    "@types/yazl": "catalog:",
-    "execa": "catalog:",
-    "nock": "catalog:",
-    "node-fetch": "catalog:",
-    "path-name": "catalog:",
-    "tar-stream": "catalog:",
-    "yazl": "catalog:"
+    "@pnpm/plugin-commands-env": "workspace:*"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

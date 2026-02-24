@@ -18,7 +18,13 @@ export async function getChangedPackages (
   commit: string,
   opts: { workspaceDir: string, testPattern?: string[], changedFilesIgnorePattern?: string[] }
 ): Promise<[ProjectRootDir[], ProjectRootDir[]]> {
-  const repoRoot = path.resolve(await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ?? opts.workspaceDir, '..')
+
+  // .git is a directory in regular repos, but a file in worktrees
+  const gitPath = await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ??
+                  await findUp('.git', { cwd: opts.workspaceDir, type: 'file' })
+
+  const repoRoot = path.resolve(gitPath ?? opts.workspaceDir, '..')
+
   const changedDirs = (await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPattern ?? [], opts.changedFilesIgnorePattern ?? []))
     .map(changedDir => ({ ...changedDir, dir: path.join(repoRoot, changedDir.dir) }))
   const pkgChangeTypes = new Map<ProjectRootDir, ChangeType | undefined>()

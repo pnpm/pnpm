@@ -2,23 +2,14 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { whyForPackages } from '@pnpm/list'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
-import { handler as list, type ListCommandOptions, EXCLUDE_PEERS_HELP } from './list.js'
+import { computeInclude, resolveFinders, determineReportAs, SHARED_CLI_HELP_OPTIONS, BASE_RC_OPTION_KEYS } from './common.js'
+import { type ListCommandOptions, EXCLUDE_PEERS_HELP } from './list.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
-  return pick([
-    'depth',
-    'dev',
-    'global-dir',
-    'global',
-    'json',
-    'long',
-    'only',
-    'optional',
-    'parseable',
-    'production',
-  ], allTypes)
+  return pick([...BASE_RC_OPTION_KEYS, 'depth'], allTypes)
 }
 
 export const cliOptionsTypes = (): Record<string, unknown> => ({
@@ -28,10 +19,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   'find-by': [String, Array],
 })
 
-export const shorthands: Record<string, string> = {
-  D: '--dev',
-  P: '--production',
-}
+export { shorthands } from './common.js'
 
 export const commandNames = ['why']
 
@@ -44,47 +32,10 @@ For example: pnpm why babel-* eslint-*`,
         title: 'Options',
 
         list: [
+          ...SHARED_CLI_HELP_OPTIONS,
           {
-            description: 'Perform command on every package in subdirectories \
-or on every workspace package, when executed inside a workspace. \
-For options that may be used with `-r`, see "pnpm help recursive"',
-            name: '--recursive',
-            shortAlias: '-r',
-          },
-          {
-            description: 'Show extended information',
-            name: '--long',
-          },
-          {
-            description: 'Show parseable output instead of tree view',
-            name: '--parseable',
-          },
-          {
-            description: 'Show information in JSON format',
-            name: '--json',
-          },
-          {
-            description: 'List packages in the global install prefix instead of in the current project',
-            name: '--global',
-            shortAlias: '-g',
-          },
-          {
-            description: 'Display only the dependency graph for packages in `dependencies` and `optionalDependencies`',
-            name: '--prod',
-            shortAlias: '-P',
-          },
-          {
-            description: 'Display only the dependency graph for packages in `devDependencies`',
-            name: '--dev',
-            shortAlias: '-D',
-          },
-          {
-            description: "Don't display packages from `optionalDependencies`",
-            name: '--no-optional',
-          },
-          {
+            description: 'Max display depth of the reverse dependency tree',
             name: '--depth <number>',
-            description: 'Max display depth of the dependency graph',
           },
           EXCLUDE_PEERS_HELP,
           OPTIONS.globalDir,
@@ -107,11 +58,25 @@ export async function handler (
   if (params.length === 0 && opts.findBy == null) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name or --find-by=<finder-name>')
   }
-  return list({
-    ...opts,
-    cliOptions: {
-      ...(opts.cliOptions ?? {}),
-      depth: opts.depth ?? Infinity,
-    },
-  }, params)
+
+  const include = computeInclude(opts)
+  const finders = resolveFinders(opts)
+  const lockfileDir = opts.lockfileDir ?? opts.dir
+  const reportAs = determineReportAs(opts)
+  const depth = opts.cliOptions?.['depth'] as number | undefined
+
+  const projectPaths = opts.recursive && opts.selectedProjectsGraph
+    ? Object.keys(opts.selectedProjectsGraph)
+    : [opts.dir]
+
+  return whyForPackages(params, projectPaths, {
+    depth,
+    include,
+    long: opts.long,
+    lockfileDir,
+    reportAs,
+    modulesDir: opts.modulesDir,
+    checkWantedLockfileOnly: opts.lockfileOnly,
+    finders,
+  })
 }
