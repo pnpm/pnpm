@@ -16,9 +16,6 @@
       "path": "../../cli/cli-utils"
     },
     {
-      "path": "../../exec/run-npm"
-    },
-    {
       "path": "../../object/key-sorting"
     },
     {
