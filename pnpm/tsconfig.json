@@ -150,6 +150,9 @@
       "path": "../reviewing/plugin-commands-outdated"
     },
     {
+      "path": "../runtime/commands"
+    },
+    {
       "path": "../store/cafs"
     },
     {
