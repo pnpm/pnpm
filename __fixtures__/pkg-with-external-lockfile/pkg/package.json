@@ -2,6 +2,6 @@
   "name": "pkg",
   "version": "1.0.0",
   "dependencies": {
-    "express": "4.17.1"
+    "express": "4.20.0"
   }
 }
