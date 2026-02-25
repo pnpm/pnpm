@@ -607,12 +607,6 @@ export async function getConfig (opts: {
     pnpmConfig.dev = true
   }
 
-  if (pnpmConfig.ci) {
-    // Using a global virtual store in CI makes little sense,
-    // as there is never a warm cache in that environment.
-    pnpmConfig.enableGlobalVirtualStore = false
-  }
-
   // The yes option is only meant to be a CLI option. Remove it from the
   // returned pnpm config.
   delete (pnpmConfig as { yes?: boolean }).yes

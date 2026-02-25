@@ -440,7 +440,6 @@ describe('global virtual store prune', () => {
       `--cache-dir=${cacheDir}`,
       `--registry=${REGISTRY}`,
       '--config.enableGlobalVirtualStore=true',
-      '--config.ci=false', // This is needed because enableGlobalVirtualStore is set to fails in CI
     ])
 
     // Verify the links directory was created
@@ -456,7 +455,6 @@ describe('global virtual store prune', () => {
       `--cache-dir=${cacheDir}`,
       `--registry=${REGISTRY}`,
       '--config.enableGlobalVirtualStore=true',
-      '--config.ci=false',
     ])
 
     // Run prune - should remove the now-unreferenced package
@@ -498,7 +496,6 @@ describe('global virtual store prune', () => {
       `--cache-dir=${cacheDir}`,
       `--registry=${REGISTRY}`,
       '--config.enableGlobalVirtualStore=true',
-      '--config.ci=false',
     ], { cwd: project1Dir })
 
     // Create second project with the same dependency
@@ -515,7 +512,6 @@ describe('global virtual store prune', () => {
       `--cache-dir=${cacheDir}`,
       `--registry=${REGISTRY}`,
       '--config.enableGlobalVirtualStore=true',
-      '--config.ci=false',
     ], { cwd: project2Dir })
 
     // Delete project1
@@ -567,7 +563,6 @@ describe('global virtual store prune', () => {
       `--cache-dir=${cacheDir}`,
       `--registry=${REGISTRY}`,
       '--config.enableGlobalVirtualStore=true',
-      '--config.ci=false',
     ], { cwd: project1Dir })
 
     // Create second project with a different package (so it stays)
@@ -584,7 +579,6 @@ describe('global virtual store prune', () => {
       `--cache-dir=${cacheDir}`,
       `--registry=${REGISTRY}`,
       '--config.enableGlobalVirtualStore=true',
-      '--config.ci=false',
     ], { cwd: project2Dir })
 
     // Verify both packages exist in links/@/ directory
@@ -647,7 +641,6 @@ describe('global virtual store prune', () => {
       `--cache-dir=${cacheDir}`,
       `--registry=${REGISTRY}`,
       '--config.enableGlobalVirtualStore=true',
-      '--config.ci=false',
     ])
 
     // Verify all packages exist in links directory
@@ -679,7 +672,6 @@ describe('global virtual store prune', () => {
       `--cache-dir=${cacheDir}`,
       `--registry=${REGISTRY}`,
       '--config.enableGlobalVirtualStore=true',
-      '--config.ci=false',
     ])
 
     // Run prune
