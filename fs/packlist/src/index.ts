@@ -1,11 +1,12 @@
 import fs from 'fs/promises'
 import path from 'path'
+import util from 'util'
 import npmPacklist from 'npm-packlist'
 
 export async function packlist (pkgDir: string, opts?: {
   manifest?: Record<string, unknown>
 }): Promise<string[]> {
-  const pkg = opts?.manifest ?? JSON.parse(await fs.readFile(path.join(pkgDir, 'package.json'), 'utf8'))
+  const pkg = opts?.manifest ?? await readPackageJson(pkgDir)
   const tree = {
     path: pkgDir,
     package: normalizePackage(pkg),
@@ -14,6 +15,17 @@ export async function packlist (pkgDir: string, opts?: {
   }
   const files = await npmPacklist(tree)
   return files.map((file) => file.replace(/^\.[/\\]/, ''))
+}
+
+async function readPackageJson (dir: string): Promise<Record<string, unknown>> {
+  try {
+    return JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf8'))
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return {}
+    }
+    throw err
+  }
 }
 
 function stripDotSlash (p: string): string {
