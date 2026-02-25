@@ -300,7 +300,7 @@ catalog:
   typescript-eslint: ^8.53.0
   unified: ^9.2.2
   validate-npm-package-name: 7.0.2
-  verdaccio: 6.2.5
+  verdaccio: 6.2.7
   version-selector-type: ^3.0.0
   which: npm:@pnpm/which@^3.0.1
   write-file-atomic: ^7.0.0
@@ -374,6 +374,7 @@ overrides:
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   jws@<3.2.3: '^3.2.3'
   lodash@>=4.0.0 <=4.17.22: '^4.17.23'
+  minimatch@>=7.0.0 <7.4.7: '^7.4.7'
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
   path-to-regexp@<0.1.12: ^0.1.12

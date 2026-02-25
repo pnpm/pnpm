@@ -718,8 +718,8 @@ catalogs:
       specifier: 7.0.2
       version: 7.0.2
     verdaccio:
-      specifier: 6.2.5
-      version: 6.2.5
+      specifier: 6.2.7
+      version: 6.2.7
     version-selector-type:
       specifier: ^3.0.0
       version: 3.0.0
@@ -773,6 +773,7 @@ overrides:
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   jws@<3.2.3: ^3.2.3
   lodash@>=4.0.0 <=4.17.22: ^4.17.23
+  minimatch@>=7.0.0 <7.4.7: ^7.4.7
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
   path-to-regexp@<0.1.12: ^0.1.12
@@ -889,7 +890,7 @@ importers:
         version: 5.9.2
       verdaccio:
         specifier: 'catalog:'
-        version: 6.2.5(encoding@0.1.13)(typanion@3.14.0)
+        version: 6.2.7(encoding@0.1.13)(typanion@3.14.0)
 
   .meta-updater:
     dependencies:
@@ -971,7 +972,7 @@ importers:
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1005,7 +1006,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1083,7 +1084,7 @@ importers:
         version: 7.28.6(@babel/core@7.29.0)
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -1300,7 +1301,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -1809,7 +1810,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/testing.temp-store':
         specifier: workspace:*
         version: link:../../testing/temp-store
@@ -2457,7 +2458,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2749,7 +2750,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2912,7 +2913,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -4798,7 +4799,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5106,7 +5107,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -5388,7 +5389,7 @@ importers:
         version: link:../read-projects-context
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -5754,7 +5755,7 @@ importers:
         version: 'link:'
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5974,7 +5975,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -6632,7 +6633,7 @@ importers:
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -6992,7 +6993,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -7128,7 +7129,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -7907,7 +7908,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -7974,7 +7975,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
@@ -8059,7 +8060,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -8126,7 +8127,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -8505,7 +8506,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.36
@@ -8695,7 +8696,7 @@ importers:
         version: link:../../store/package-store
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
+        version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -9769,8 +9770,8 @@ packages:
       xmlbuilder2:
         optional: true
 
-  '@cypress/request@3.0.9':
-    resolution: {integrity: sha512-I3l7FdGRXluAS44/0NguwWlO83J18p0vlr2FYHrJkWdNYhgVoiYo61IXPqaOsL+vNxU1ZqMACzItGK3/KKDsdw==}
+  '@cypress/request@3.0.10':
+    resolution: {integrity: sha512-hauBrOdvu08vOsagkZ/Aju5XuiZx6ldsLfByg1htFeldhex+PeMrYauANzFsMJeAA0+dyPLbDoX2OYuvVoLDkQ==}
     engines: {node: '>= 6'}
 
   '@emnapi/core@1.8.1':
@@ -12272,8 +12273,8 @@ packages:
   core-util-is@1.0.3:
     resolution: {integrity: sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ==}
 
-  cors@2.8.5:
-    resolution: {integrity: sha512-KIHbLJqu73RGr/hnbrO9uBeixNGuvSQjul/jdFvS/KFSIH1hWVd1ng7zOHx+YrEfInLG7q4n6GHQ9cDtxv/P6g==}
+  cors@2.8.6:
+    resolution: {integrity: sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==}
     engines: {node: '>= 0.10'}
 
   cosmiconfig-typescript-loader@6.2.0:
@@ -14410,8 +14411,8 @@ packages:
     resolution: {integrity: sha512-FjiwU9HaHW6YB3H4a1sFudnv93lvydNjz2lmyUXR6IwKhGI+bgL3SOZrBGn6kvvX2pJvhEkGSGjyTHN47O4rqA==}
     engines: {node: '>=10'}
 
-  minimatch@7.4.6:
-    resolution: {integrity: sha512-sBz8G/YjVniEz6lKPNpKxXwazJe4c19fEfV2GDMX6AjFz+MX9uDWIZW8XreVhkFW3fkIdTv/gxWr/Kks5FFAVw==}
+  minimatch@7.4.7:
+    resolution: {integrity: sha512-t3SrsBRdssa8F/nFEadAxveFpnbhlbq7FiizzOMqx69w9EbmNEzcKiPkc60udvrOkWsTMm6jmnQP1c5rbdVfSA==}
     engines: {node: '>=10'}
 
   minimatch@9.0.6:
@@ -16325,8 +16326,8 @@ packages:
     resolution: {integrity: sha512-JBYCaSTQSUws/EXOqNrh7iOyWPrGLTYSeufCS3Y6BOCJbfDiy2Nh8PbstoZn/L9ZbzUesjPPiIZ4Ou3eUaK0Mw==}
     engines: {node: '>=18'}
 
-  verdaccio@6.2.5:
-    resolution: {integrity: sha512-sIek+ZF0a1aaRwHo9I5vbONGXzcAgbf5psEmbGVMG9M/MslblIae2wdehG6a2lSxsk4B9c8Ar0j/ZmliTjiStA==}
+  verdaccio@6.2.7:
+    resolution: {integrity: sha512-rOqa2Bl713kQtaWRMcKzAIh9gTcn2fTtWITzm0aGtIz1gmutp4F2TUIYek+BbajoAKfoc+xnI8dVNmmaCSUUZA==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -17258,7 +17259,7 @@ snapshots:
     optionalDependencies:
       ajv: 8.18.0
 
-  '@cypress/request@3.0.9':
+  '@cypress/request@3.0.10':
     dependencies:
       aws-sign2: 0.7.0
       aws4: 1.13.2
@@ -17273,7 +17274,7 @@ snapshots:
       json-stringify-safe: 5.0.1
       mime-types: 2.1.35
       performance-now: 2.1.0
-      qs: 6.15.0
+      qs: 6.14.2
       safe-buffer: 5.2.1
       tough-cookie: 5.1.2
       tunnel-agent: 0.6.0
@@ -18824,7 +18825,7 @@ snapshots:
       read-yaml-file: 2.1.0
       strip-bom: 4.0.0
 
-  '@pnpm/registry-mock@5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))':
+  '@pnpm/registry-mock@5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))':
     dependencies:
       anonymous-npm-registry-client: 0.3.2
       execa: 5.1.1
@@ -18832,7 +18833,7 @@ snapshots:
       read-yaml-file: 2.1.0
       rimraf: 3.0.2
       tempy: 1.0.1
-      verdaccio: 6.2.5(encoding@0.1.13)(typanion@3.14.0)
+      verdaccio: 6.2.7(encoding@0.1.13)(typanion@3.14.0)
       write-yaml-file: 4.2.0
 
   '@pnpm/registry.pkg-metadata-filter@1000.1.6(@pnpm/logger@1001.0.1)':
@@ -19858,7 +19859,7 @@ snapshots:
       ajv: 8.17.1
       http-errors: 2.0.0
       http-status-codes: 2.3.0
-      minimatch: 7.4.6
+      minimatch: 7.4.7
       process-warning: 1.0.0
       semver: 7.7.2
 
@@ -19867,7 +19868,7 @@ snapshots:
       ajv: 8.17.1
       http-errors: 2.0.0
       http-status-codes: 2.3.0
-      minimatch: 7.4.6
+      minimatch: 7.4.7
       process-warning: 1.0.0
       semver: 7.7.3
 
@@ -19987,7 +19988,7 @@ snapshots:
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.29
       lodash: 4.17.23
-      minimatch: 7.4.6
+      minimatch: 7.4.7
 
   '@yarnpkg/core@4.2.0(typanion@3.14.0)':
     dependencies:
@@ -20899,7 +20900,7 @@ snapshots:
 
   core-util-is@1.0.3: {}
 
-  cors@2.8.5:
+  cors@2.8.6:
     dependencies:
       object-assign: 4.1.1
       vary: 1.1.2
@@ -23138,7 +23139,7 @@ snapshots:
       lodash.isstring: 4.0.1
       lodash.once: 4.1.1
       ms: 2.1.3
-      semver: 7.7.3
+      semver: 7.7.4
 
   jsprim@2.0.2:
     dependencies:
@@ -23520,7 +23521,7 @@ snapshots:
     dependencies:
       brace-expansion: 2.0.2
 
-  minimatch@7.4.6:
+  minimatch@7.4.7:
     dependencies:
       brace-expansion: 2.0.2
 
@@ -25572,9 +25573,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0):
+  verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0):
     dependencies:
-      '@cypress/request': 3.0.9
+      '@cypress/request': 3.0.10
       '@verdaccio/auth': 8.0.0-next-8.29(express@4.22.1)
       '@verdaccio/config': 8.0.0-next-8.29
       '@verdaccio/core': 8.0.0-next-8.29
@@ -25594,14 +25595,14 @@ snapshots:
       async: 3.2.6
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
       compression: 1.8.1
-      cors: 2.8.5
+      cors: 2.8.6
       debug: 4.4.3
       envinfo: 7.15.0
       express: 4.22.1
       lodash: 4.17.23
       lru-cache: 7.18.3
       mime: 3.0.0
-      semver: 7.7.3
+      semver: 7.7.4
       verdaccio-audit: 13.0.0-next-8.29(encoding@0.1.13)
       verdaccio-htpasswd: 13.0.0-next-8.29
     transitivePeerDependencies:
