@@ -17,7 +17,7 @@ export async function packlist (pkgDir: string, opts?: {
 }
 
 function stripDotSlash (p: string): string {
-  return p.startsWith('./') ? p.slice(2) : p
+  return p.replace(/^\.[/\\]/, '')
 }
 
 function normalizePackage (pkg: Record<string, unknown>): Record<string, unknown> {
