@@ -10,12 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../fetching/directory-fetcher"
-    },
-    {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../lockfile/detect-dep-types"
     },
     {
@@ -28,12 +22,6 @@
       "path": "../../lockfile/walker"
     },
     {
-      "path": "../../packages/dependency-path"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
       "path": "../../packages/logger"
     },
     {
@@ -43,7 +31,7 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../store/cafs"
+      "path": "../../store/pkg-finder"
     }
   ]
 }

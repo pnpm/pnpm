@@ -35,16 +35,12 @@
   },
   "dependencies": {
     "@cyclonedx/cyclonedx-library": "catalog:",
-    "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/directory-fetcher": "workspace:*",
-    "@pnpm/error": "workspace:*",
-    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.pkg-finder": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-limit": "catalog:",
     "ssri": "catalog:"

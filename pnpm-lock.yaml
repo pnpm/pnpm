@@ -7667,15 +7667,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/directory-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/directory-fetcher
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../lockfile/detect-dep-types
@@ -7697,9 +7691,9 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/store.cafs':
+      '@pnpm/store.pkg-finder':
         specifier: workspace:*
-        version: link:../../store/cafs
+        version: link:../../store/pkg-finder
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -8145,18 +8139,6 @@ importers:
       '@cyclonedx/cyclonedx-library':
         specifier: 'catalog:'
         version: 9.4.1(ajv@8.18.0)
-      '@pnpm/dependency-path':
-        specifier: workspace:*
-        version: link:../../packages/dependency-path
-      '@pnpm/directory-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/directory-fetcher
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../lockfile/detect-dep-types
@@ -8172,9 +8154,9 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/store.cafs':
+      '@pnpm/store.pkg-finder':
         specifier: workspace:*
-        version: link:../../store/cafs
+        version: link:../../store/pkg-finder
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -8408,6 +8390,28 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+
+  store/pkg-finder:
+    dependencies:
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/directory-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/directory-fetcher
+      '@pnpm/fs.msgpack-file':
+        specifier: workspace:*
+        version: link:../../fs/msgpack-file
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../cafs
+    devDependencies:
+      '@pnpm/store.pkg-finder':
+        specifier: workspace:*
+        version: 'link:'
 
   store/plugin-commands-store:
     dependencies:

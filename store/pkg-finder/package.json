@@ -1,0 +1,48 @@
+{
+  "name": "@pnpm/store.pkg-finder",
+  "version": "1000.0.0-0",
+  "description": "Read a package's file map from the content-addressable store",
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/store/pkg-finder",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/store/pkg-finder#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    "prepublishOnly": "pnpm run compile",
+    "test": "pnpm run compile"
+  },
+  "dependencies": {
+    "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/directory-fetcher": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*"
+  },
+  "devDependencies": {
+    "@pnpm/store.pkg-finder": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

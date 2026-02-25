@@ -1,18 +1,8 @@
-import { readPackageJson } from '@pnpm/read-package-json'
-import { parse } from '@pnpm/dependency-path'
-import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { type PackageManifest, type Registries } from '@pnpm/types'
-import {
-  getFilePathByModeInCafs,
-  getIndexFilePathInCafs,
-  type PackageFileInfo,
-  type PackageFilesIndex,
-} from '@pnpm/store.cafs'
-import { type PackageSnapshot, pkgSnapshotToResolution, type Resolution, type DirectoryResolution } from '@pnpm/lockfile.utils'
-import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { depPathToFilename } from '@pnpm/dependency-path'
+import { readPackageFileMap } from '@pnpm/store.pkg-finder'
+import { readPackageJson } from '@pnpm/read-package-json'
+import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import pLimit from 'p-limit'
-import path from 'path'
 
 const limitMetadataReads = pLimit(4)
 
@@ -46,59 +36,20 @@ async function getPkgMetadataUnclamped (
   opts: GetPkgMetadataOptions
 ): Promise<PkgMetadata> {
   const id = snapshot.id ?? depPath
-  const resolution = pkgSnapshotToResolution(depPath, snapshot, registries) as Resolution
+  const resolution = pkgSnapshotToResolution(depPath, snapshot, registries)
 
-  let manifestPath: string
-
-  if (resolution.type === 'directory') {
-    const localInfo = await fetchFromDir(
-      path.join(opts.lockfileDir, (resolution as DirectoryResolution).directory),
-      {}
-    )
-    manifestPath = localInfo.filesMap.get('package.json') ?? ''
-  } else {
-    const isPackageWithIntegrity = 'integrity' in resolution
-
-    let pkgIndexFilePath: string
-    if (isPackageWithIntegrity) {
-      const parsedId = parse(id)
-      pkgIndexFilePath = getIndexFilePathInCafs(
-        opts.storeDir,
-        resolution.integrity as string,
-        parsedId.nonSemverVersion ?? `${parsedId.name}@${parsedId.version}`
-      )
-    } else if (!resolution.type && 'tarball' in resolution && resolution.tarball) {
-      const packageDirInStore = depPathToFilename(parse(id).nonSemverVersion ?? id, opts.virtualStoreDirMaxLength)
-      pkgIndexFilePath = path.join(
-        opts.storeDir,
-        packageDirInStore,
-        'integrity.mpk'
-      )
-    } else {
-      return {}
-    }
-
-    try {
-      const { files } = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
-      const pkgJsonInfo = files.get('package.json') as PackageFileInfo | undefined
-      if (!pkgJsonInfo) return {}
-      manifestPath = getFilePathByModeInCafs(opts.storeDir, pkgJsonInfo.digest, pkgJsonInfo.mode)
-    } catch {
-      return {}
-    }
-  }
-
-  if (!manifestPath) return {}
-
-  let manifest: PackageManifest | undefined
+  let files: Map<string, string>
   try {
-    manifest = await readPackageJson(manifestPath)
+    const result = await readPackageFileMap(resolution, id, opts)
+    if (!result) return {}
+    files = result
   } catch {
     return {}
   }
 
-  if (!manifest) return {}
-
+  const manifestPath = files.get('package.json')
+  if (!manifestPath) return {}
+  const manifest = await readPackageJson(manifestPath)
   return extractMetadata(manifest)
 }
 

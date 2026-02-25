@@ -1,0 +1,28 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../fetching/directory-fetcher"
+    },
+    {
+      "path": "../../fs/msgpack-file"
+    },
+    {
+      "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../cafs"
+    }
+  ]
+}
