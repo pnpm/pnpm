@@ -88,6 +88,10 @@ export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
 ): Promise<{ exitCode: number }> {
+  if (!command && (!opts.package || opts.package.length === 0)) {
+    console.log(help())
+    return { exitCode: 1 }
+  }
   const pkgs = opts.package ?? [command]
   const fullMetadata = (
     (
