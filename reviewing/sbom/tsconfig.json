@@ -10,13 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../config/package-is-installable"
-    },
-    {
       "path": "../../lockfile/detect-dep-types"
-    },
-    {
-      "path": "../../lockfile/fs"
     },
     {
       "path": "../../lockfile/types"
@@ -26,15 +20,6 @@
     },
     {
       "path": "../../lockfile/walker"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/dependency-path"
-    },
-    {
-      "path": "../../packages/error"
     },
     {
       "path": "../../packages/logger"
