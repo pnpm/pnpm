@@ -158,6 +158,7 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
         // These variables aim to ignore the global git config so we get predictable output
         // https://git-scm.com/docs/git#Documentation/git.txt-codeGITCONFIGNOSYSTEMcode
         GIT_CONFIG_NOSYSTEM: '1',
+        GIT_CONFIG_GLOBAL: '',
         HOME: '',
         XDG_CONFIG_HOME: '',
         USERPROFILE: '',

@@ -621,6 +621,42 @@ describe('patch and commit', () => {
     expect(patchContent).not.toContain('diff --git a/subdir/.DS_Store b/subdir/.DS_Store')
     expect(patchContent).not.toContain('// dummy content')
   })
+
+  test('patch-commit succeeds even if GIT_CONFIG_GLOBAL points to a config with unresolved paths', async () => {
+    const originalGitConfigGlobal = process.env.GIT_CONFIG_GLOBAL
+
+    try {
+      process.env.GIT_CONFIG_GLOBAL = path.join(os.tmpdir(), 'fake-git-config-that-would-break-without-fix')
+
+      const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+      const patchDir = getPatchDirFromPatchOutput(output)
+
+      fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patch with broken git config', 'utf8')
+      fs.unlinkSync(path.join(patchDir, 'license'))
+      await patchCommit.handler({
+        ...DEFAULT_OPTS,
+        cacheDir,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        frozenLockfile: false,
+        fixLockfile: true,
+        storeDir,
+      }, [patchDir])
+      const workspaceManifest = await readWorkspaceManifest(process.cwd())
+      expect(workspaceManifest!.patchedDependencies).toStrictEqual({
+        'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+      })
+      const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+      expect(patchContent).toContain('diff --git')
+      expect(patchContent).toContain('// test patch with broken git config')
+    } finally {
+      if (originalGitConfigGlobal === undefined) {
+        delete process.env.GIT_CONFIG_GLOBAL
+      } else {
+        process.env.GIT_CONFIG_GLOBAL = originalGitConfigGlobal
+      }
+    }
+  })
 })
 
 describe('multiple versions', () => {
