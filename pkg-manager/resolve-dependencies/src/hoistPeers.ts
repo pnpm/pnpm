@@ -35,7 +35,24 @@ export function hoistPeers (
           nonVersions.push(spec)
         }
       }
-      dependencies[peerName] = [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions].join(' || ')
+      // When the range is an exact version (e.g. pinned by an override like "4.3.0"),
+      // try to find a preferred version that satisfies it. This prevents a stale
+      // higher version from the lockfile being picked over the overridden version.
+      // For regular semver ranges (e.g. "^1.0.0"), use the highest preferred
+      // version for deduplication.
+      const isExactVersion = semver.valid(range) != null
+      const satisfyingVersion = isExactVersion
+        ? semver.maxSatisfying(versions, range, { includePrerelease: true })
+        : null
+      if (satisfyingVersion) {
+        dependencies[peerName] = [satisfyingVersion, ...nonVersions].join(' || ')
+      } else if (isExactVersion && opts.autoInstallPeers) {
+        // No preferred version satisfies the exact override version.
+        // Use the range directly so pnpm resolves it from the registry.
+        dependencies[peerName] = range
+      } else {
+        dependencies[peerName] = [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions].join(' || ')
+      }
     } else if (opts.autoInstallPeers) {
       dependencies[peerName] = range
     }

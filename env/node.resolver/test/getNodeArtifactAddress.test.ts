@@ -64,3 +64,17 @@ test.each([
     arch,
   })).toStrictEqual(tarball)
 })
+
+test('getNodeArtifactAddress with libc=musl appends -musl suffix to arch', () => {
+  expect(getNodeArtifactAddress({
+    version: '22.0.0',
+    baseUrl: 'https://unofficial-builds.nodejs.org/download/release/',
+    platform: 'linux',
+    arch: 'x64',
+    libc: 'musl',
+  })).toStrictEqual({
+    basename: 'node-v22.0.0-linux-x64-musl',
+    dirname: 'https://unofficial-builds.nodejs.org/download/release/v22.0.0',
+    extname: '.tar.gz',
+  })
+})

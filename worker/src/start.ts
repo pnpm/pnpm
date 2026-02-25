@@ -252,6 +252,7 @@ function addFilesFromDir (
     dir,
     files,
     filesIndexFile,
+    includeNodeModules,
     sideEffectsCacheKey,
     storeDir,
   }: AddDirToStoreMessage
@@ -262,6 +263,7 @@ function addFilesFromDir (
   const cafs = cafsCache.get(storeDir)!
   let { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
     files,
+    includeNodeModules,
     readManifest: true,
   })
   if (appendManifest && manifest == null) {

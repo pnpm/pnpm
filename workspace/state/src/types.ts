@@ -15,22 +15,29 @@ export interface WorkspaceState {
   settings: WorkspaceStateSettings
 }
 
-export type WorkspaceStateSettings = Pick<Config,
-| 'autoInstallPeers'
-| 'catalogs'
-| 'dedupeDirectDeps'
-| 'dedupeInjectedDeps'
-| 'dedupePeerDependents'
-| 'dev'
-| 'excludeLinksFromLockfile'
-| 'hoistPattern'
-| 'hoistWorkspacePackages'
-| 'injectWorkspacePackages'
-| 'linkWorkspacePackages'
-| 'nodeLinker'
-| 'optional'
-| 'preferWorkspacePackages'
-| 'production'
-| 'publicHoistPattern'
-| 'workspacePackagePatterns'
->
+export const WORKSPACE_STATE_SETTING_KEYS = [
+  'autoInstallPeers',
+  'catalogs',
+  'dedupeDirectDeps',
+  'dedupeInjectedDeps',
+  'dedupePeerDependents',
+  'dev',
+  'excludeLinksFromLockfile',
+  'hoistPattern',
+  'hoistWorkspacePackages',
+  'ignoredOptionalDependencies',
+  'injectWorkspacePackages',
+  'linkWorkspacePackages',
+  'nodeLinker',
+  'optional',
+  'overrides',
+  'packageExtensions',
+  'patchedDependencies',
+  'peersSuffixMaxLength',
+  'preferWorkspacePackages',
+  'production',
+  'publicHoistPattern',
+  'workspacePackagePatterns',
+] as const satisfies ReadonlyArray<keyof Config>
+
+export type WorkspaceStateSettings = Pick<Config, typeof WORKSPACE_STATE_SETTING_KEYS[number]>

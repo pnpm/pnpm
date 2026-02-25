@@ -1,6 +1,6 @@
 # pnpm
 
-## 11.0.0-alpha.5
+## 11.0.0-alpha.11
 
 ### Major Changes
 

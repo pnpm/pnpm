@@ -1,10 +1,11 @@
-import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
+import { getNodeBinsForCurrentOS } from '@pnpm/constants'
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import {
   type BinaryResolution,
   type PlatformAssetResolution,
+  type PlatformAssetTarget,
   type ResolveOptions,
   type ResolveResult,
   type VariationsResolution,
@@ -13,11 +14,14 @@ import {
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
 import { type PkgResolutionId } from '@pnpm/types'
-import { parseEnvSpecifier } from './parseEnvSpecifier.js'
+import { parseNodeSpecifier } from './parseNodeSpecifier.js'
 import { getNodeMirror } from './getNodeMirror.js'
 import { getNodeArtifactAddress } from './getNodeArtifactAddress.js'
 
-export { getNodeMirror, parseEnvSpecifier, getNodeArtifactAddress }
+export { getNodeMirror, parseNodeSpecifier, getNodeArtifactAddress }
+
+export const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
+export const UNOFFICIAL_NODE_MIRROR_BASE_URL = 'https://unofficial-builds.nodejs.org/download/release/'
 
 export interface NodeRuntimeResolveResult extends ResolveResult {
   resolution: VariationsResolution
@@ -45,7 +49,7 @@ export async function resolveNodeRuntime (
 
   if (ctx.offline) throw new PnpmError('NO_OFFLINE_NODEJS_RESOLUTION', 'Offline Node.js resolution is not supported')
   const versionSpec = wantedDependency.bareSpecifier.substring('runtime:'.length)
-  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(versionSpec)
+  const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.rawConfig, releaseChannel)
   const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
   if (!version) {
@@ -60,7 +64,7 @@ export async function resolveNodeRuntime (
     manifest: {
       name: 'node',
       version,
-      bin: getNodeBinLocationForCurrentOS(),
+      bin: getNodeBinsForCurrentOS(),
     },
     resolution: {
       type: 'variations',
@@ -70,41 +74,75 @@ export async function resolveNodeRuntime (
 }
 
 async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<PlatformAssetResolution[]> {
+  const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false })
+
+  // When using the default mirror, also fetch musl variants from unofficial-builds.nodejs.org,
+  // since musl builds are not available on the official mirror.
+  if (nodeMirrorBaseUrl === DEFAULT_NODE_MIRROR_BASE_URL) {
+    try {
+      const muslAssets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl: UNOFFICIAL_NODE_MIRROR_BASE_URL, version, muslOnly: true })
+      assets.push(...muslAssets)
+    } catch {
+      // Musl variants may not be available for all Node.js versions (e.g. very old ones)
+    }
+  }
+
+  return assets
+}
+
+async function readNodeAssetsFromMirror (
+  fetch: FetchFromRegistry,
+  opts: {
+    nodeMirrorBaseUrl: string
+    version: string
+    muslOnly: boolean
+  }
+): Promise<PlatformAssetResolution[]> {
+  const { nodeMirrorBaseUrl, version, muslOnly } = opts
   const integritiesFileUrl = `${nodeMirrorBaseUrl}v${version}/SHASUMS256.txt`
   const shasumsFileItems = await fetchShasumsFile(fetch, integritiesFileUrl)
   const escaped = version.replace(/\\/g, '\\\\').replace(/\./g, '\\.')
-  const pattern = new RegExp(`^node-v${escaped}-([^-.]+)-([^.]+)\\.(?:tar\\.gz|zip)$`)
+  // The second capture group uses [^.-]+ to stop at a dash, so that the optional
+  // third group can capture the '-musl' suffix separately (e.g. 'x64' + '-musl').
+  const pattern = new RegExp(`^node-v${escaped}-([^-.]+)-([^.-]+)(-musl)?\\.(?:tar\\.gz|zip)$`)
   const assets: PlatformAssetResolution[] = []
   for (const { integrity, fileName } of shasumsFileItems) {
     const match = pattern.exec(fileName)
     if (!match) continue
 
-    let [, platform, arch] = match
+    let [, platform, arch, muslSuffix] = match
     if (platform === 'win') {
       platform = 'win32'
     }
+    const isMusl = muslSuffix != null
+    if (muslOnly && !isMusl) continue
+
+    const libc = isMusl ? 'musl' : undefined
     const address = getNodeArtifactAddress({
       version,
       baseUrl: nodeMirrorBaseUrl,
       platform,
       arch,
+      libc,
     })
     const url = `${address.dirname}/${address.basename}${address.extname}`
     const resolution: BinaryResolution = {
       type: 'binary',
       archive: address.extname === '.zip' ? 'zip' : 'tarball',
-      bin: getNodeBinLocationForCurrentOS(platform),
+      bin: getNodeBinsForCurrentOS(platform),
       integrity,
       url,
     }
     if (resolution.archive === 'zip') {
       resolution.prefix = address.basename
     }
+    const target: PlatformAssetTarget = {
+      os: platform,
+      cpu: arch,
+      ...(libc != null && { libc }),
+    }
     assets.push({
-      targets: [{
-        os: platform,
-        cpu: arch,
-      }],
+      targets: [target],
       resolution,
     })
   }

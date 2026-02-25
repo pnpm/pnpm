@@ -72,11 +72,11 @@ test('write to stderr when --use-stderr is used', async () => {
   expect(result.stderr.toString()).not.toBe('')
 })
 
-test('install with useLockfile being false in pnpm-workspace.yaml', async () => {
+test('install with lockfile being false in pnpm-workspace.yaml', async () => {
   const project = prepare()
 
   writeYamlFile('pnpm-workspace.yaml', {
-    useLockfile: false,
+    lockfile: false,
   })
 
   await execPnpm(['add', 'is-positive'])

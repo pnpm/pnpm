@@ -41,6 +41,163 @@ const lockfileFs = await import('@pnpm/lockfile.fs')
 const fsUtils = await import('../lib/safeStat.js')
 const statManifestFileUtils = await import('../lib/statManifestFile.js')
 
+describe('checkDepsStatus - settings change detection', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  it('returns upToDate: false when overrides have changed', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        overrides: { foo: '1.0.0' },
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      overrides: { foo: '2.0.0' },
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The value of the overrides setting has changed')
+  })
+
+  it('returns upToDate: false when packageExtensions have changed', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        packageExtensions: { foo: { dependencies: { bar: '1.0.0' } } },
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      packageExtensions: { foo: { dependencies: { bar: '2.0.0' } } },
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The value of the packageExtensions setting has changed')
+  })
+
+  it('returns upToDate: false when ignoredOptionalDependencies have changed', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        ignoredOptionalDependencies: ['foo'],
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      ignoredOptionalDependencies: ['foo', 'bar'],
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The value of the ignoredOptionalDependencies setting has changed')
+  })
+
+  it('returns upToDate: false when patchedDependencies have changed', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        patchedDependencies: { foo: 'patches/foo.patch' },
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      patchedDependencies: { foo: 'patches/foo-v2.patch' },
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The value of the patchedDependencies setting has changed')
+  })
+
+  it('returns upToDate: false when peersSuffixMaxLength has changed', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        peersSuffixMaxLength: 1000,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      peersSuffixMaxLength: 100,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The value of the peersSuffixMaxLength setting has changed')
+  })
+})
+
 describe('checkDepsStatus - pnpmfile modification', () => {
   beforeEach(() => {
     jest.resetModules()
