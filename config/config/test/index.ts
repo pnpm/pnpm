@@ -1462,3 +1462,66 @@ describe('global config.yaml', () => {
     expect(config.rawConfig).toHaveProperty(['dangerously-allow-all-builds'])
   })
 })
+
+test('lockfile: false in pnpm-workspace.yaml sets useLockfile to false', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    lockfile: false,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.useLockfile).toBe(false)
+})
+
+test('pnpm_config_lockfile env var overrides lockfile from pnpm-workspace.yaml in useLockfile', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    lockfile: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_lockfile: 'false',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.useLockfile).toBe(false)
+})
+
+test('pnpm_config_git_branch_lockfile env var overrides git-branch-lockfile from pnpm-workspace.yaml in useGitBranchLockfile', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    gitBranchLockfile: false,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_git_branch_lockfile: 'true',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.useGitBranchLockfile).toBe(true)
+})

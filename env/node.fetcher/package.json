@@ -35,7 +35,6 @@
   "dependencies": {
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/crypto.shasums-file": "workspace:*",
-    "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
@@ -52,7 +51,7 @@
     "node-fetch": "catalog:"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

@@ -1,15 +1,4 @@
-import fs from 'fs'
-import path from 'path'
-import util from 'util'
 import { type Config } from '@pnpm/config'
-import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
-import { globalInfo, globalWarn } from '@pnpm/logger'
-import { fetchNode } from '@pnpm/node.fetcher'
-import { getNodeMirror } from '@pnpm/node.resolver'
-import { getStorePath } from '@pnpm/store-path'
-import { loadJsonFile } from 'load-json-file'
-import { writeJsonFile } from 'write-json-file'
-import { isValidVersion, parseNodeSpecifier } from './parseNodeSpecifier.js'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -31,80 +20,23 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'strictSsl'
 | 'storeDir'
 | 'pnpmHomeDir'
-> & Partial<Pick<Config, 'configDir' | 'cliOptions' | 'sslConfigs'>> & {
+> & Partial<Pick<Config,
+| 'cacheDir'
+| 'configDir'
+| 'cliOptions'
+| 'sslConfigs'
+// Fields needed to forward opts to add.handler for env use
+| 'registries'
+| 'rawLocalConfig'
+| 'lockfileDir'
+| 'nodeLinker'
+| 'modulesDir'
+| 'symlink'
+| 'frozenLockfile'
+| 'preferFrozenLockfile'
+| 'sideEffectsCache'
+| 'sideEffectsCacheReadonly'
+| 'supportedArchitectures'
+>> & {
   remote?: boolean
-  useNodeVersion?: string
-}
-
-export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {
-  const fetch = createFetchFromRegistry(opts)
-  const nodesDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
-  const manifestNodeVersion = (await readNodeVersionsManifest(nodesDir))?.default
-  let wantedNodeVersion = opts.useNodeVersion ?? manifestNodeVersion
-  if (opts.useNodeVersion != null) {
-    // If the user has specified an invalid version via use-node-version, we should not throw an error. Or else, it will break all the commands.
-    // Instead, we should fallback to the manifest node version
-    if (!isValidVersion(opts.useNodeVersion)) {
-      globalWarn(`"${opts.useNodeVersion}" is not a valid Node.js version.`)
-      wantedNodeVersion = manifestNodeVersion
-    }
-  }
-  if (wantedNodeVersion == null) {
-    const response = await fetch('https://registry.npmjs.org/node')
-    wantedNodeVersion = (await response.json() as any)['dist-tags'].lts // eslint-disable-line
-    if (wantedNodeVersion == null) {
-      throw new Error('Could not resolve LTS version of Node.js')
-    }
-    await writeJsonFile(path.join(nodesDir, 'versions.json'), {
-      default: wantedNodeVersion,
-    })
-  }
-  const { useNodeVersion, releaseChannel } = parseNodeSpecifier(wantedNodeVersion)
-  const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
-  const nodeDir = await getNodeDir(fetch, {
-    ...opts,
-    useNodeVersion,
-    nodeMirrorBaseUrl,
-  })
-  return process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin')
-}
-
-export function getNodeVersionsBaseDir (pnpmHomeDir: string): string {
-  return path.join(pnpmHomeDir, 'nodejs')
-}
-
-export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommandOptions & { useNodeVersion: string, nodeMirrorBaseUrl: string }): Promise<string> {
-  const nodesDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
-  await fs.promises.mkdir(nodesDir, { recursive: true })
-  const versionDir = path.join(nodesDir, opts.useNodeVersion)
-  if (!fs.existsSync(versionDir)) {
-    const storeDir = await getStorePath({
-      pkgRoot: process.cwd(),
-      storePath: opts.storeDir,
-      pnpmHomeDir: opts.pnpmHomeDir,
-    })
-    globalInfo(`Fetching Node.js ${opts.useNodeVersion} ...`)
-    await fetchNode(fetch, opts.useNodeVersion, versionDir, {
-      ...opts,
-      storeDir,
-      retry: {
-        maxTimeout: opts.fetchRetryMaxtimeout,
-        minTimeout: opts.fetchRetryMintimeout,
-        retries: opts.fetchRetries,
-        factor: opts.fetchRetryFactor,
-      },
-    })
-  }
-  return versionDir
-}
-
-async function readNodeVersionsManifest (nodesDir: string): Promise<{ default?: string }> {
-  try {
-    return await loadJsonFile<{ default?: string }>(path.join(nodesDir, 'versions.json'))
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return {}
-    }
-    throw err
-  }
 }

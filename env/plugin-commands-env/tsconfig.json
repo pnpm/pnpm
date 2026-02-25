@@ -10,13 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../__utils__/prepare"
-    },
-    {
       "path": "../../cli/cli-utils"
     },
     {
       "path": "../../config/config"
+    },
+    {
+      "path": "../../exec/pnpm-cli-runner"
     },
     {
       "path": "../../network/fetch"
@@ -28,22 +28,7 @@
       "path": "../../packages/logger"
     },
     {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/remove-bins"
-    },
-    {
-      "path": "../../store/store-path"
-    },
-    {
-      "path": "../node.fetcher"
-    },
-    {
       "path": "../node.resolver"
-    },
-    {
-      "path": "../system-node-version"
     }
   ]
 }

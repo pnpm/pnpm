@@ -114,7 +114,7 @@ export interface BinaryResolution {
   type: 'binary'
   url: string
   integrity: string
-  bin: string
+  bin: string | Record<string, string>
   archive: 'zip' | 'tarball'
 }
 

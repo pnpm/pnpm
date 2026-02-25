@@ -17,7 +17,6 @@ import {
   type PackageFilesIndex,
   type VerifyResult,
 } from './checkPkgFilesIntegrity.js'
-import { readManifestFromStore } from './readManifestFromStore.js'
 import {
   getIndexFilePathInCafs,
   contentPathFromHex,
@@ -25,14 +24,17 @@ import {
   getFilePathByModeInCafs,
   modeIsExecutable,
 } from './getFilePathInCafs.js'
+import { normalizeBundledManifest } from './normalizeBundledManifest.js'
 import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCafs.js'
 
 export const HASH_ALGORITHM = 'sha512'
 
+export { type BundledManifest } from '@pnpm/types'
+export { normalizeBundledManifest }
+
 export {
   checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
-  readManifestFromStore,
   type FileType,
   getFilePathByModeInCafs,
   getIndexFilePathInCafs,
@@ -55,7 +57,7 @@ export interface CreateCafsOpts {
 }
 
 export interface CafsFunctions {
-  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean }) => AddToStoreResult
+  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean }) => AddToStoreResult
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getIndexFilePathInCafs: (integrity: string, pkgId: string) => string

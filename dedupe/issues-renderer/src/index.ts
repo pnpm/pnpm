@@ -4,7 +4,7 @@ import {
   type ResolutionChangesByAlias,
   type SnapshotsChanges,
 } from '@pnpm/dedupe.types'
-import archy from 'archy'
+import { renderTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
 
 export function renderDedupeCheckIssues (dedupeCheckIssues: DedupeCheckIssues): string {
@@ -31,20 +31,20 @@ export function renderDedupeCheckIssues (dedupeCheckIssues: DedupeCheckIssues): 
  */
 function report (snapshotChanges: SnapshotsChanges): string {
   return [
-    ...Object.entries(snapshotChanges.updated).map(([alias, updates]) => archy(toArchy(alias, updates))),
+    ...Object.entries(snapshotChanges.updated).map(([alias, updates]) => renderTree(toArchy(alias, updates))),
     ...snapshotChanges.added.map((id) => `${chalk.green('+')} ${id}`),
     ...snapshotChanges.removed.map((id) => `${chalk.red('-')} ${id}`),
   ].join('\n')
 }
 
-function toArchy (name: string, issue: ResolutionChangesByAlias): archy.Data {
+function toArchy (name: string, issue: ResolutionChangesByAlias): TreeNode {
   return {
     label: name,
     nodes: Object.entries(issue).map(([alias, change]) => toArchyResolution(alias, change)),
   }
 }
 
-function toArchyResolution (alias: string, change: ResolutionChange): archy.Data {
+function toArchyResolution (alias: string, change: ResolutionChange): TreeNode {
   switch (change.type) {
   case 'added':
     return { label: `${chalk.green('+')} ${alias} ${chalk.gray(change.next)}` }

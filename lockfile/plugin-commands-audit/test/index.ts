@@ -77,7 +77,7 @@ describe('plugin-commands-audit', () => {
   })
   test('audit', async () => {
     nock(registries.default)
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
@@ -94,7 +94,7 @@ describe('plugin-commands-audit', () => {
 
   test('audit --dev', async () => {
     nock(registries.default)
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { output, exitCode } = await audit.handler({
@@ -114,7 +114,7 @@ describe('plugin-commands-audit', () => {
 
   test('audit --audit-level', async () => {
     nock(registries.default)
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
@@ -133,7 +133,7 @@ describe('plugin-commands-audit', () => {
 
   test('audit: no vulnerabilities', async () => {
     nock(registries.default)
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, responses.NO_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
@@ -151,7 +151,7 @@ describe('plugin-commands-audit', () => {
 
   test('audit --json', async () => {
     nock(registries.default)
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
@@ -171,7 +171,7 @@ describe('plugin-commands-audit', () => {
 
   test.skip('audit does not exit with code 1 if the found vulnerabilities are having lower severity then what we asked for', async () => {
     nock(registries.default)
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { output, exitCode } = await audit.handler({
@@ -192,7 +192,7 @@ describe('plugin-commands-audit', () => {
 
   test('audit --json respects audit-level', async () => {
     nock(registries.default)
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { exitCode, output } = await audit.handler({
@@ -214,7 +214,7 @@ describe('plugin-commands-audit', () => {
 
   test('audit --json filters advisories by audit-level', async () => {
     nock(registries.default)
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { exitCode, output } = await audit.handler({
@@ -241,8 +241,11 @@ describe('plugin-commands-audit', () => {
 
   test('audit does not exit with code 1 if the registry responds with a non-200 response and ignoreRegistryErrors is used', async () => {
     nock(registries.default)
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(500, { message: 'Something bad happened' })
+    nock(registries.default)
+      .post('/-/npm/v1/security/audits')
+      .reply(500, { message: 'Fallback failed too' })
     const { output, exitCode } = await audit.handler({
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
@@ -257,14 +260,14 @@ describe('plugin-commands-audit', () => {
     })
 
     expect(exitCode).toBe(0)
-    expect(stripAnsi(output)).toBe(`The audit endpoint (at ${registries.default}-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}`)
+    expect(stripAnsi(output)).toBe(`The audit endpoint (at ${registries.default}-/npm/v1/security/audits/quick) responded with 500: {"message":"Something bad happened"}. Fallback endpoint (at ${registries.default}-/npm/v1/security/audits) responded with 500: {"message":"Fallback failed too"}`)
   })
 
   test('audit sends authToken', async () => {
     nock(registries.default, {
       reqheaders: { authorization: 'Bearer 123' },
     })
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, responses.NO_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
@@ -284,6 +287,9 @@ describe('plugin-commands-audit', () => {
   })
 
   test('audit endpoint does not exist', async () => {
+    nock(registries.default)
+      .post('/-/npm/v1/security/audits/quick')
+      .reply(404, {})
     nock(registries.default)
       .post('/-/npm/v1/security/audits')
       .reply(404, {})
@@ -306,7 +312,7 @@ describe('plugin-commands-audit', () => {
     const tmp = f.prepare('has-vulnerabilities')
 
     nock(registries.default)
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, responses.ALL_VULN_RESP)
 
     const { exitCode, output } = await audit.handler({
@@ -336,7 +342,7 @@ describe('plugin-commands-audit', () => {
     const tmp = f.prepare('has-vulnerabilities')
 
     nock(registries.default)
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, responses.ALL_VULN_RESP)
 
     const { exitCode, output } = await audit.handler({
@@ -366,7 +372,7 @@ describe('plugin-commands-audit', () => {
     const tmp = f.prepare('has-vulnerabilities')
 
     nock(registries.default)
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(200, responses.ALL_VULN_RESP)
 
     const { exitCode, output } = await audit.handler({

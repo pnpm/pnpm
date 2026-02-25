@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/win-x64",
-  "version": "11.0.0-alpha.3",
+  "version": "11.0.0-alpha.11",
   "keywords": [
     "pnpm",
     "pnpm11",
@@ -13,6 +13,9 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "files": [
+    "pnpm.exe"
+  ],
   "scripts": {
     "prepublishOnly": "test -f pnpm.exe || (echo 'Error: pnpm.exe is missing' && exit 1)"
   },
@@ -20,9 +23,6 @@
     "@pnpm/win-x64": "workspace:*"
   },
   "publishConfig": {
-    "bin": {
-      "pnpm": "pnpm.exe"
-    },
     "os": [
       "win32"
     ],

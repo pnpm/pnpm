@@ -67,7 +67,12 @@ export interface CustomResolver {
 
   /**
    * Called on subsequent installs (when lockfile exists) to determine if this dependency
-   * needs re-resolution. This is called before checking if the lockfile is up-to-date.
+   * needs re-resolution. This is called before resolution, so the original specifier
+   * from package.json is not available — use depPath and pkgSnapshot to decide.
+   *
+   * This hook is called independently of canResolve. It is invoked for every package
+   * in the lockfile, regardless of whether canResolve would match. Resolvers should
+   * handle their own filtering (e.g., by inspecting depPath or pkgSnapshot.resolution).
    *
    * If this returns true for ANY dependency, full resolution will be triggered for ALL packages,
    * bypassing the "Lockfile is up to date" optimization.
@@ -78,7 +83,7 @@ export interface CustomResolver {
    * @param pkgSnapshot - The lockfile entry for this dependency
    * @returns true to force re-resolution of all dependencies
    */
-  shouldForceResolve?: (depPath: string, pkgSnapshot: PackageSnapshot) => boolean | Promise<boolean>
+  shouldRefreshResolution?: (depPath: string, pkgSnapshot: PackageSnapshot) => boolean | Promise<boolean>
 }
 
 export interface CustomFetcher {

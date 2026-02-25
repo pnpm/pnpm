@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { type VariationsResolution } from '@pnpm/resolver-base'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { getIntegrity } from '@pnpm/registry-mock'
@@ -8,7 +9,8 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils/index.js'
 
-const RESOLUTIONS = [
+// The standard glibc variants from nodejs.org/download/release/
+const GLIBC_RESOLUTIONS = [
   {
     targets: [
       {
@@ -21,7 +23,11 @@ const RESOLUTIONS = [
       archive: 'tarball',
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-aix-ppc64.tar.gz',
       integrity: 'sha256-13Q/3fXoZxJPVVqR9scpEE/Vx12TgvEChsP7s/0S7wc=',
-      bin: 'bin/node',
+      bin: {
+        node: 'bin/node',
+        npm: 'lib/node_modules/npm/bin/npm-cli.js',
+        npx: 'lib/node_modules/npm/bin/npx-cli.js',
+      },
     },
   },
   {
@@ -36,7 +42,11 @@ const RESOLUTIONS = [
       archive: 'tarball',
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-darwin-arm64.tar.gz',
       integrity: 'sha256-6pbTSc+qZ6qHzuqj5bUskWf3rDAv2NH/Fi0HhencB4U=',
-      bin: 'bin/node',
+      bin: {
+        node: 'bin/node',
+        npm: 'lib/node_modules/npm/bin/npm-cli.js',
+        npx: 'lib/node_modules/npm/bin/npx-cli.js',
+      },
     },
   },
   {
@@ -51,7 +61,11 @@ const RESOLUTIONS = [
       archive: 'tarball',
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-darwin-x64.tar.gz',
       integrity: 'sha256-Qio4h/9UGPCkVS2Jz5k0arirUbtdOEZguqiLhETSwRE=',
-      bin: 'bin/node',
+      bin: {
+        node: 'bin/node',
+        npm: 'lib/node_modules/npm/bin/npm-cli.js',
+        npx: 'lib/node_modules/npm/bin/npx-cli.js',
+      },
     },
   },
   {
@@ -66,7 +80,11 @@ const RESOLUTIONS = [
       archive: 'tarball',
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-linux-arm64.tar.gz',
       integrity: 'sha256-HTVHImvn5ZrO7lx9Aan4/BjeZ+AVxaFdjPOFtuAtBis=',
-      bin: 'bin/node',
+      bin: {
+        node: 'bin/node',
+        npm: 'lib/node_modules/npm/bin/npm-cli.js',
+        npx: 'lib/node_modules/npm/bin/npx-cli.js',
+      },
     },
   },
   {
@@ -81,7 +99,11 @@ const RESOLUTIONS = [
       archive: 'tarball',
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-linux-armv7l.tar.gz',
       integrity: 'sha256-0h239Xxc4YKuwrmoPjKVq8N+FzGrtzmV09Vz4EQJl3w=',
-      bin: 'bin/node',
+      bin: {
+        node: 'bin/node',
+        npm: 'lib/node_modules/npm/bin/npm-cli.js',
+        npx: 'lib/node_modules/npm/bin/npx-cli.js',
+      },
     },
   },
   {
@@ -96,7 +118,11 @@ const RESOLUTIONS = [
       archive: 'tarball',
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-linux-ppc64le.tar.gz',
       integrity: 'sha256-OwmNzPVtRGu7gIRdNbvsvbdGEoYNFpDzohY4fJnJ1iA=',
-      bin: 'bin/node',
+      bin: {
+        node: 'bin/node',
+        npm: 'lib/node_modules/npm/bin/npm-cli.js',
+        npx: 'lib/node_modules/npm/bin/npx-cli.js',
+      },
     },
   },
   {
@@ -111,7 +137,11 @@ const RESOLUTIONS = [
       archive: 'tarball',
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-linux-s390x.tar.gz',
       integrity: 'sha256-fsX9rQyBnuoXkA60PB3pSNYgp4OxrJQGLKpDh3ipKzA=',
-      bin: 'bin/node',
+      bin: {
+        node: 'bin/node',
+        npm: 'lib/node_modules/npm/bin/npm-cli.js',
+        npx: 'lib/node_modules/npm/bin/npx-cli.js',
+      },
     },
   },
   {
@@ -126,7 +156,11 @@ const RESOLUTIONS = [
       archive: 'tarball',
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-linux-x64.tar.gz',
       integrity: 'sha256-dLsPOoAwfFKUIcPthFF7j1Q4Z3CfQeU81z35nmRCr00=',
-      bin: 'bin/node',
+      bin: {
+        node: 'bin/node',
+        npm: 'lib/node_modules/npm/bin/npm-cli.js',
+        npx: 'lib/node_modules/npm/bin/npx-cli.js',
+      },
     },
   },
   {
@@ -141,7 +175,11 @@ const RESOLUTIONS = [
       archive: 'zip',
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-win-arm64.zip',
       integrity: 'sha256-N2Ehz0a9PAJcXmetrhkK/14l0zoLWPvA2GUtczULOPA=',
-      bin: 'node.exe',
+      bin: {
+        node: 'node.exe',
+        npm: 'node_modules/npm/bin/npm-cli.js',
+        npx: 'node_modules/npm/bin/npx-cli.js',
+      },
       prefix: 'node-v22.0.0-win-arm64',
     },
   },
@@ -157,7 +195,11 @@ const RESOLUTIONS = [
       archive: 'zip',
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-win-x64.zip',
       integrity: 'sha256-MtY5tH1MCmUf+PjX1BpFQWij1ARb43mF+agQz4zvYXQ=',
-      bin: 'node.exe',
+      bin: {
+        node: 'node.exe',
+        npm: 'node_modules/npm/bin/npm-cli.js',
+        npx: 'node_modules/npm/bin/npx-cli.js',
+      },
       prefix: 'node-v22.0.0-win-x64',
     },
   },
@@ -173,7 +215,11 @@ const RESOLUTIONS = [
       archive: 'zip',
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-win-x86.zip',
       integrity: 'sha256-4BNPUBcVSjN2csf7zRVOKyx3S0MQkRhWAZINY9DEt9A=',
-      bin: 'node.exe',
+      bin: {
+        node: 'node.exe',
+        npm: 'node_modules/npm/bin/npm-cli.js',
+        npx: 'node_modules/npm/bin/npx-cli.js',
+      },
       prefix: 'node-v22.0.0-win-x86',
     },
   },
@@ -185,7 +231,9 @@ test('installing Node.js runtime', async () => {
 
   project.isExecutable('.bin/node')
   expect(fs.readlinkSync('node_modules/node')).toContain(path.join('links', '@', 'node', '22.0.0'))
-  expect(project.readLockfile()).toStrictEqual({
+
+  const lockfile = project.readLockfile()
+  expect(lockfile).toStrictEqual({
     settings: {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,
@@ -206,7 +254,9 @@ test('installing Node.js runtime', async () => {
         hasBin: true,
         resolution: {
           type: 'variations',
-          variants: RESOLUTIONS,
+          // Musl variants from unofficial-builds.nodejs.org are appended alongside
+          // the standard glibc variants, so use arrayContaining to allow them.
+          variants: expect.arrayContaining(GLIBC_RESOLUTIONS),
         },
         version: '22.0.0',
       },
@@ -215,6 +265,14 @@ test('installing Node.js runtime', async () => {
       'node@runtime:22.0.0': {},
     },
   })
+  // Verify that musl variants are present for linux x64 and arm64.
+  const variants = (lockfile.packages['node@runtime:22.0.0'].resolution as VariationsResolution).variants
+  expect(variants).toContainEqual(expect.objectContaining({
+    targets: [{ os: 'linux', cpu: 'x64', libc: 'musl' }],
+    resolution: expect.objectContaining({
+      url: expect.stringContaining('unofficial-builds.nodejs.org'),
+    }),
+  }))
 
   // Verify that package.json is created
   expect(fs.existsSync(path.resolve('node_modules/node/package.json'))).toBeTruthy()
@@ -254,7 +312,7 @@ test('installing Node.js runtime', async () => {
         hasBin: true,
         resolution: {
           type: 'variations',
-          variants: RESOLUTIONS,
+          variants: expect.arrayContaining(GLIBC_RESOLUTIONS),
         },
         version: '22.0.0',
       },
@@ -309,7 +367,7 @@ test('installing Node.js runtime fails if integrity check fails', async () => {
         hasBin: true,
         resolution: {
           type: 'variations',
-          variants: RESOLUTIONS.map((resolutionVariant) => ({
+          variants: GLIBC_RESOLUTIONS.map((resolutionVariant) => ({
             ...resolutionVariant,
             resolution: {
               ...resolutionVariant.resolution,

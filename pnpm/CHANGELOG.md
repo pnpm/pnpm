@@ -1,13 +1,35 @@
 # pnpm
 
-## 11.0.0-alpha.3
+## 11.0.0-alpha.11
 
 ### Major Changes
+
+#### Store
+
+- Runtime dependencies are always linked from the global virtual store [#10233](https://github.com/pnpm/pnpm/pull/10233).
+- Optimized index file format to store the hash algorithm once per file instead of repeating it for every file entry. Each file entry now stores only the hex digest instead of the full integrity string (`<algo>-<digest>`). Using hex format improves performance since file paths in the content-addressable store use hex representation, eliminating base64-to-hex conversion during path lookups.
+- Store version bumped to v11.
+- Switched internal store and cache files from JSON to MessagePack format for improved performance.
+
+  This change migrates all internal index files and metadata cache files to use MessagePack serialization instead of JSON. MessagePack provides faster serialization/deserialization and more compact file sizes, resulting in improved installation performance.
+
+  Related PR: [#10500](https://github.com/pnpm/pnpm/pull/10500)
+
+- Store the bundled manifest (name, version, bin, engines, scripts, etc.) directly in the package index file, eliminating the need to read `package.json` from the content-addressable store during resolution and installation. This reduces I/O and speeds up repeat installs [#10473](https://github.com/pnpm/pnpm/pull/10473).
+
+#### Configuration
 
 - `pnpm config get` (without `--json`) no longer print INI formatted text.
   Instead, it would print JSON for both objects and arrays and raw string for
   strings, numbers, booleans, and nulls.
   `pnpm config get --json` would still print all types of values as JSON like before.
+- `pnpm config get <array>` now prints a JSON array.
+- `pnpm config list` now prints a JSON object instead of INI formatted text.
+- `pnpm config list` and `pnpm config get` (without argument) now hide auth-related settings.
+- `pnpm config list` and `pnpm config get` (without argument) now show top-level keys as camelCase.
+  Exception: Keys that start with `@` or `//` would be preserved (their cases don't change).
+- `pnpm config get` and `pnpm config list` no longer load non camelCase options from the workspace manifest (`pnpm-workspace.yaml`).
+- pnpm no longer loads non-auth and non-registry settings from rc files. Other settings must be defined in `pnpm-workspace.yaml`.
 - Replace workspace project specific `.npmrc` with `packageConfigs` in `pnpm-workspace.yaml`.
 
   A workspace manifest with `packageConfigs` would look something like this:
@@ -37,28 +59,13 @@
       saveExact: true
   ```
 
-- `strictDepBuilds` is `true` by default.
-- `pnpm config list` and `pnpm config get` (without argument) now hide auth-related settings.
-- `blockExoticSubdeps` is `true` by default.
+#### Other
+
 - This package is now pure ESM.
-- pnpm no longer loads non-auth and non-registry settings from rc files. Other settings must be defined in `pnpm-workspace.yaml`.
-- The pnpm CLI now gets installed with a specific version of Node.js, which it uses for its runtime. This makes pnpm more stable and it doesn't rely on your globally install Node.js anymore.
-- Node.js v18 and 19 support discontinued.
-- `pnpm config get <array>` now prints a JSON array.
-- The default value of the `type` field in the `package.json` file of the project initialized by `pnpm init` command has been changed to `module`.
-- `pnpm config list` and `pnpm config get` (without argument) now show top-level keys as camelCase.
-  Exception: Keys that start with `@` or `//` would be preserved (their cases don't change).
-- `pnpm config list` now prints a JSON object instead of INI formatted text.
-- `pnpm config get` and `pnpm config list` no longer load non camelCase options from the workspace manifest (`pnpm-workspace.yaml`).
-- Runtime dependencies are always linked from the global virtual store [#10233](https://github.com/pnpm/pnpm/pull/10233).
-- Removed support for the `useNodeVersion` and `executionEnv.nodeVersion` fields. `devEngines.runtime` and `engines.runtime` should be used instead [#10373](https://github.com/pnpm/pnpm/pull/10373).
-- Support lowercase options in `pnpm add`: `-d`, `-p`, `-o`, `-e` [#9197](https://github.com/pnpm/pnpm/issues/9197).
-
-  When using `pnpm add` command only:
-
-  - `-p` is now an alias for `--save-prod` instead of `--parseable`
-  - `-d` is now an alias for `--save-dev` instead of `--loglevel=info`
-
+- Node.js v18, 19, 20, and 21 support discontinued.
+- The standalone exe version of pnpm requires at least glibc 2.27.
+- `strictDepBuilds` is `true` by default.
+- `blockExoticSubdeps` is `true` by default.
 - Remove deprecated build dependency settings: `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, and `ignoredBuiltDependencies`.
 
   Use the `allowBuilds` setting instead. It is a map where keys are package name patterns and values are booleans:
@@ -89,19 +96,57 @@
     esbuild: false
   ```
 
+- Removed the deprecated `allowNonAppliedPatches` completely in favor of `allowUnusedPatches`.
+  Remove `ignorePatchFailures` so all patch application failures should throw an error.
+- Removed the `pnpm server` command [#10463](https://github.com/pnpm/pnpm/pull/10463).
+- Removed support for the `useNodeVersion` and `executionEnv.nodeVersion` fields. `devEngines.runtime` and `engines.runtime` should be used instead [#10373](https://github.com/pnpm/pnpm/pull/10373).
+- Removed support for `hooks.fetchers`. We now have a new API for custom fetchers and resolvers via the `fetchers` field of `pnpmfile`.
+- The default value of the `type` field in the `package.json` file of the project initialized by `pnpm init` command has been changed to `module`.
+- Support lowercase options in `pnpm add`: `-d`, `-p`, `-o`, `-e` [#9197](https://github.com/pnpm/pnpm/issues/9197).
+
+  When using `pnpm add` command only:
+
+  - `-p` is now an alias for `--save-prod` instead of `--parseable`
+  - `-d` is now an alias for `--save-dev` instead of `--loglevel=info`
+
+- `pnpm publish` now works without the `npm` CLI.
+
+  The One-time Password feature now reads from `PNPM_CONFIG_OTP` instead of `NPM_CONFIG_OTP`:
+
+  ```sh
+  export PNPM_CONFIG_OTP='<your OTP here>'
+  pnpm publish --no-git-checks
+  ```
+
+  Since the new `pnpm publish` no longer calls `npm publish`, some undocumented features may have been unknowingly dropped. If you rely on a feature that is now gone, please open an issue at <https://github.com/pnpm/pnpm/issues>. In the meantime, you can use `pnpm pack && npm publish *.tgz` as a workaround.
+
 ### Minor Changes
 
-- Load environment variables whose names start with `pnpm_config_` into config. These environment variables override settings from `pnpm-workspace.yaml` but not the CLI arguments.
-- Add support for a global YAML config file named `config.yaml`.
+- 7fab2a2: Load environment variables whose names start with `pnpm_config_` into config. These environment variables override settings from `pnpm-workspace.yaml` but not the CLI arguments.
+- cb367b9: Support reading `allowBuilds` from `pnpm-workspace.yaml` in the global package directory for global installs.
+- 075aa99: Add support for a global YAML config file named `config.yaml`.
 
   Now configurations are divided into 2 categories:
 
   - Registry and auth settings which can be stored in INI files such as global `rc` and local `.npmrc`.
   - pnpm-specific settings which can only be loaded from YAML files such as global `config.yaml` and local `pnpm-workspace.yaml`.
 
-- Added support for pnpmfiles written in ESM. They should have the `.mjs` extension: `.pnpmfile.mjs` [#9730](https://github.com/pnpm/pnpm/pull/9730).
+- e146e98: Added support for pnpmfiles written in ESM. They should have the `.mjs` extension: `.pnpmfile.mjs` [#9730](https://github.com/pnpm/pnpm/pull/9730).
+- 7d5ada0: `pnpm why` now shows a reverse dependency tree. The searched package appears at the root with its dependents as branches, walking back to workspace roots. This replaces the previous forward-tree output which was noisy and hard to read for deeply nested dependencies.
+- 5bf7768: A new `--yes` flag can be passed to pnpm to automatically confirm prompts. This is useful when running pnpm in non-interactive script.
+- 2b14c74: When pnpm updates the `pnpm-workspace.yaml`, comments, string formatting, and whitespace will be preserved.
 
-- When pnpm updates the `pnpm-workspace.yaml`, comments, string formatting, and whitespace will be preserved.
+### Patch Changes
+
+- Check if a package is installable for non npm-hosted packages (e.g., git or tarball dependencies) after the manifest has been fetched.
+- Explicitly tell `npm` the path to the global `rc` config file.
+- Fix YAML formatting preservation in `pnpm-workspace.yaml` when running commands like `pnpm update`. Previously, quotes and other formatting were lost even when catalog values didn't change.
+
+  Closes #10425
+
+- The parameter set by the `--allow-build` flag is written to `allowBuilds`.
+- Fix a bug in which specifying `filter` on `pnpm-workspace.yaml` would cause pnpm to not detect any projects.
+- Defer patch errors until all patches in a group are applied, so that one failed patch does not prevent other patches from being attempted.
 
 ## 10.20.0
 

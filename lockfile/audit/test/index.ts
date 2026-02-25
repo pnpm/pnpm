@@ -149,8 +149,13 @@ describe('audit', () => {
     nock(registry, {
       badheaders: ['authorization'],
     })
-      .post('/-/npm/v1/security/audits')
+      .post('/-/npm/v1/security/audits/quick')
       .reply(500, { message: 'Something bad happened' })
+    nock(registry, {
+      badheaders: ['authorization'],
+    })
+      .post('/-/npm/v1/security/audits')
+      .reply(500, { message: 'Fallback failed too' })
 
     let err!: PnpmError
     try {
@@ -173,6 +178,69 @@ describe('audit', () => {
 
     expect(err).toBeDefined()
     expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
-    expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}')
+    expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits/quick) responded with 500: {"message":"Something bad happened"}. Fallback endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Fallback failed too"}')
+  })
+
+  test('falls back to /audits if /audits/quick fails', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    nock(registry, {
+      badheaders: ['authorization'],
+    })
+      .post('/-/npm/v1/security/audits/quick')
+      .reply(500, { message: 'Something bad happened' })
+    nock(registry, {
+      badheaders: ['authorization'],
+    })
+      .post('/-/npm/v1/security/audits')
+      .reply(200, {
+        actions: [],
+        advisories: {},
+        metadata: {
+          dependencies: 0,
+          devDependencies: 0,
+          optionalDependencies: 0,
+          totalDependencies: 0,
+          vulnerabilities: {
+            critical: 0,
+            high: 0,
+            info: 0,
+            low: 0,
+            moderate: 0,
+          },
+        },
+        muted: [],
+      })
+
+    expect(await audit({
+      importers: {},
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    getAuthHeader,
+    {
+      lockfileDir: f.find('one-project'),
+      registry,
+      retry: {
+        retries: 0,
+      },
+      virtualStoreDirMaxLength: 120,
+    })).toEqual({
+      actions: [],
+      advisories: {},
+      metadata: {
+        dependencies: 0,
+        devDependencies: 0,
+        optionalDependencies: 0,
+        totalDependencies: 0,
+        vulnerabilities: {
+          critical: 0,
+          high: 0,
+          info: 0,
+          low: 0,
+          moderate: 0,
+        },
+      },
+      muted: [],
+    })
   })
 })

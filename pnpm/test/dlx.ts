@@ -291,7 +291,12 @@ test('dlx uses the node version specified by --package=node@runtime:<version>', 
   }
 
   expect(nodeInfo.versions.node).toBe('20.0.0')
-  expect(nodeInfo.execPath).toContain(path.normalize('links/@/node/20.0.0'))
+  // On Windows, node.exe is hardlinked into .bin/ so process.execPath
+  // reports the hardlink path rather than the original store location.
+  // On non-Windows, the symlink is resolved by the kernel.
+  if (process.platform !== 'win32') {
+    expect(nodeInfo.execPath).toContain(path.normalize('links/@/node/20.0.0'))
+  }
 })
 
 describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {

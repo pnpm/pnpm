@@ -22,7 +22,7 @@ export interface DependencyGraph {
 }
 
 export function buildDependencyGraph (
-  rootId: TreeNodeId,
+  rootIds: TreeNodeId[],
   opts: {
     currentPackages: PackageSnapshots
     importers: Record<string, ProjectSnapshot>
@@ -35,7 +35,7 @@ export function buildDependencyGraph (
   }
 ): DependencyGraph {
   const graph: DependencyGraph = { nodes: new Map() }
-  const queue: TreeNodeId[] = [rootId]
+  const queue: TreeNodeId[] = [...rootIds]
   let queueIdx = 0
   const visited = new Set<string>()
 

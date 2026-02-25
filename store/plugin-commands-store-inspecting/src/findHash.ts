@@ -86,7 +86,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
     if (pkgFilesIndex.files) {
       for (const file of pkgFilesIndex.files.values()) {
         if (file?.digest === hash) {
-          result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
+          result.push({ name: pkgFilesIndex.manifest?.name ?? 'unknown', version: pkgFilesIndex.manifest?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 
           // a package is only found once.
           continue
@@ -99,7 +99,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
         if (!added) continue
         for (const file of added.values()) {
           if (file?.digest === hash) {
-            result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
+            result.push({ name: pkgFilesIndex.manifest?.name ?? 'unknown', version: pkgFilesIndex.manifest?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 
             // a package is only found once.
             continue

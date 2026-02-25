@@ -57,6 +57,7 @@ auditConfig:
   ignoreCves:
     - CVE-2025-56200
   ignoreGhsas:
+    - GHSA-2g4f-4pwh-qvx6
     - GHSA-76c9-3jph-rj3q
     - GHSA-ffrw-9mx8-89p8
     - GHSA-mh29-5h37-fv8m
@@ -65,9 +66,9 @@ catalog:
   '@babel/core': ^7.28.3
   '@babel/plugin-transform-explicit-resource-management': ^7.27.1
   '@changesets/cli': ^2.29.8
-  '@commitlint/cli': ^19.8.1
-  '@commitlint/config-conventional': ^19.8.1
-  '@commitlint/prompt-cli': ^19.8.1
+  '@commitlint/cli': ^20.4.1
+  '@commitlint/config-conventional': ^20.4.1
+  '@commitlint/prompt-cli': ^20.4.1
   '@eslint/js': ^9.18.0
   '@jest/globals': 30.0.5
   '@npm/types': ^2.1.0
@@ -94,7 +95,7 @@ catalog:
   '@pnpm/workspace.find-packages': ^1000.0.15
   '@pnpm/workspace.read-manifest': ^1000.1.1
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.5.26
+  '@rushstack/worker-pool': 0.7.1
   '@stylistic/eslint-plugin': ^4.4.1
   '@types/adm-zip': ^0.5.7
   '@types/archy': 0.0.36
@@ -132,17 +133,16 @@ catalog:
   '@types/which': ^2.0.2
   '@types/write-file-atomic': ^4.0.3
   '@types/yarnpkg__lockfile': ^1.1.9
-  '@types/yazl': ^3.3.0
   '@types/zkochan__table': npm:@types/table@6.0.0
   '@typescript-eslint/utils': ^8.53.0
-  '@typescript/native-preview': 7.0.0-dev.20260112.1
+  '@typescript/native-preview': 7.0.0-dev.20260216.1
   '@yarnpkg/core': 4.2.0
   '@yarnpkg/extensions': 2.0.3
   '@yarnpkg/lockfile': ^1.1.0
   '@yarnpkg/nm': 4.0.5
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
-  '@zkochan/cmd-shim': ^7.0.0
+  '@zkochan/cmd-shim': ^8.0.1
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^3.0.2
   '@zkochan/table': ^2.0.1
@@ -211,7 +211,7 @@ catalog:
   isexe: 2.0.0
   jest: ^30.2.0
   jest-diff: ^30.1.1
-  js-yaml: npm:@zkochan/js-yaml@0.0.10
+  js-yaml: npm:@zkochan/js-yaml@0.0.11
   json5: ^2.2.3
   keyv: 4.5.4
   lcov-result-merger: ^3.3.0
@@ -226,6 +226,7 @@ catalog:
   memoize: ^10.2.0
   micromatch: ^4.0.8
   msgpackr: ^1.11.2
+  nm-prune: ^5.0.0
   nock: 13.3.4
   node-fetch: ^3.3.2
   normalize-newline: 4.1.0
@@ -248,14 +249,12 @@ catalog:
   path-name: ^1.0.0
   path-temp: ^2.1.1
   pidtree: ^0.6.0
-  pkg: npm:@yao-pkg/pkg@6.6.0
   preferred-pm: ^3.1.4
   pretty-bytes: ^7.0.1
   pretty-ms: ^9.2.0
   promise-share: ^1.0.0
   proxyquire: ^2.1.3
   ps-list: ^8.1.1
-  publish-packed: ^5.0.0
   ramda: npm:@pnpm/ramda@0.28.1
   read-ini-file: 4.0.0
   read-yaml-file: ^2.1.0
@@ -311,7 +310,6 @@ catalog:
   write-yaml-file: ^5.0.0
   yaml: ^2.8.1
   yaml-tag: 1.1.0
-  yazl: ^3.3.1
 
 catalogMode: strict
 
@@ -334,6 +332,8 @@ minimumReleaseAge: 1440 # At least a day
 
 minimumReleaseAgeExclude:
   - '@pnpm/*'
+  - '@rushstack/worker-pool@0.7.1'
+  - '@zkochan/cmd-shim@8.0.0 || 8.0.1'
   - body-parser@2.2.1
   - express@4.22.1
   - glob@11.1.0
@@ -342,13 +342,12 @@ minimumReleaseAgeExclude:
   - path-temp@2.1.1
   - parse-npm-tarball-url@4.0.0
   - pnpm
-  - publish-packed@5.0.0
   - run-groups@4.0.0
   - tar@7.5.7
   - lodash@4.17.23
   - qs@6.14.2
 
-nodeVersion: 22.12.0
+nodeVersion: 22.13.0
 
 optimisticRepeatInstall: true
 
@@ -410,7 +409,6 @@ packageExtensions:
 
 patchedDependencies:
   '@pnpm/npm-lifecycle': __patches__/@pnpm__npm-lifecycle.patch
-  '@yao-pkg/pkg': __patches__/pkg.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
 
@@ -430,6 +428,7 @@ trustPolicyExclude:
   - '@yarnpkg/libzip@3.2.2'
   - rxjs@7.8.2
   - undici-types@6.21.0
+  - '@pnpm/*'
 
 trustPolicyIgnoreAfter: 10080 # 1 week
 

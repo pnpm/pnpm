@@ -5,7 +5,6 @@ import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { getToolDirPath } from '@pnpm/tools.path'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import semver from 'semver'
 import symlinkDir from 'symlink-dir'
 import { type SelfUpdateCommandOptions } from './selfUpdate.js'
 
@@ -16,9 +15,7 @@ export interface InstallPnpmToToolsResult {
 }
 
 export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateCommandOptions): Promise<InstallPnpmToToolsResult> {
-  // We have moved pnpm to esm and that prevents us from using pkg to bundle pnpm to an executable.
-  // Related issue: https://github.com/yao-pkg/pkg/issues/16
-  const currentPkgName = semver.gt(pnpmVersion, '11.0.0-alpha') ? 'pnpm' : getCurrentPackageName()
+  const currentPkgName = getCurrentPackageName()
   const dir = getToolDirPath({
     pnpmHomeDir: opts.pnpmHomeDir,
     tool: {
