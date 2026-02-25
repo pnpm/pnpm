@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-sbom",
-  "version": "0.0.0",
+  "version": "1000.0.0-0",
   "description": "The sbom command of pnpm",
   "keywords": [
     "pnpm",
