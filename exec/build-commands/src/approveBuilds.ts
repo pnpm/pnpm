@@ -10,7 +10,7 @@ import { rebuild, type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { writeSettings } from '@pnpm/config.config-writer'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'onlyBuiltDependencies' | 'ignoredBuiltDependencies'>
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'onlyBuiltDependencies' | 'ignoredBuiltDependencies'> & { all?: boolean }
 
 export const commandNames = ['approve-builds']
 
@@ -24,6 +24,10 @@ export function help (): string {
 
         list: [
           {
+            description: 'Approve all pending dependencies without interactive prompts',
+            name: '--all',
+          },
+          {
             description: 'Approve dependencies of global packages',
             name: '--global',
             shortAlias: '-g',
@@ -36,6 +40,7 @@ export function help (): string {
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
+    all: Boolean,
     global: Boolean,
   }
 }
@@ -54,43 +59,48 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     globalInfo('There are no packages awaiting approval')
     return
   }
-  const { result } = await prompt({
-    choices: sortUniqueStrings([...automaticallyIgnoredBuilds]),
-    indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-      return ` ${choice.enabled ? '●' : '○'}`
-    },
-    message: 'Choose which packages to build ' +
-      `(Press ${chalk.cyan('<space>')} to select, ` +
-      `${chalk.cyan('<a>')} to toggle all, ` +
-      `${chalk.cyan('<i>')} to invert selection)`,
-    name: 'result',
-    pointer: '❯',
-    result () {
-      return this.selected
-    },
-    styles: {
-      dark: chalk.reset,
-      em: chalk.bgBlack.whiteBright,
-      success: chalk.reset,
-    },
-    type: 'multiselect',
+  let buildPackages: string[] = []
+  if (opts.all) {
+    buildPackages = sortUniqueStrings([...automaticallyIgnoredBuilds])
+  } else {
+    const { result } = await prompt({
+      choices: sortUniqueStrings([...automaticallyIgnoredBuilds]),
+      indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        return ` ${choice.enabled ? '●' : '○'}`
+      },
+      message: 'Choose which packages to build ' +
+        `(Press ${chalk.cyan('<space>')} to select, ` +
+        `${chalk.cyan('<a>')} to toggle all, ` +
+        `${chalk.cyan('<i>')} to invert selection)`,
+      name: 'result',
+      pointer: '❯',
+      result () {
+        return this.selected
+      },
+      styles: {
+        dark: chalk.reset,
+        em: chalk.bgBlack.whiteBright,
+        success: chalk.reset,
+      },
+      type: 'multiselect',
 
-    // For Vim users (related: https://github.com/enquirer/enquirer/pull/163)
-    j () {
-      return this.down()
-    },
-    k () {
-      return this.up()
-    },
-    cancel () {
-      // By default, canceling the prompt via Ctrl+c throws an empty string.
-      // The custom cancel function prevents that behavior.
-      // Otherwise, pnpm CLI would print an error and confuse users.
-      // See related issue: https://github.com/enquirer/enquirer/issues/225
-      process.exit(0)
-    },
-  } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
-  const buildPackages = result.map(({ value }: { value: string }) => value)
+      // For Vim users (related: https://github.com/enquirer/enquirer/pull/163)
+      j () {
+        return this.down()
+      },
+      k () {
+        return this.up()
+      },
+      cancel () {
+        // By default, canceling the prompt via Ctrl+c throws an empty string.
+        // The custom cancel function prevents that behavior.
+        // Otherwise, pnpm CLI would print an error and confuse users.
+        // See related issue: https://github.com/enquirer/enquirer/issues/225
+        process.exit(0)
+      },
+    } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    buildPackages = result.map(({ value }: { value: string }) => value)
+  }
   const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
   const updatedSettings: PnpmSettings = {}
   if (ignoredPackages.length) {
@@ -113,19 +123,21 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
       ])
     }
   }
-  if (buildPackages.length) {
-    const confirmed = await prompt<{ build: boolean }>({
-      type: 'confirm',
-      name: 'build',
-      message: `The next packages will now be built: ${buildPackages.join(', ')}.
+  if (!opts.all) {
+    if (buildPackages.length) {
+      const confirmed = await prompt<{ build: boolean }>({
+        type: 'confirm',
+        name: 'build',
+        message: `The next packages will now be built: ${buildPackages.join(', ')}.
 Do you approve?`,
-      initial: false,
-    })
-    if (!confirmed.build) {
-      return
+        initial: false,
+      })
+      if (!confirmed.build) {
+        return
+      }
+    } else {
+      globalInfo('All packages were added to ignoredBuiltDependencies.')
     }
-  } else {
-    globalInfo('All packages were added to ignoredBuiltDependencies.')
   }
   await writeSettings({
     ...opts,
