@@ -1,0 +1,12 @@
+{
+  "name": "sbom-with-dev-dep",
+  "version": "2.0.0",
+  "description": "Test fixture with dev dependency",
+  "license": "MIT",
+  "dependencies": {
+    "is-positive": "^3.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^4.8.4"
+  }
+}

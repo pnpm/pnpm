@@ -1,11 +1,9 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
 import renderHelp from 'render-help'
-import { envRemove } from './envRemove.js'
+import { envList } from './envList.js'
 import { envUse } from './envUse.js'
 import { type NvmNodeCommandOptions } from './node.js'
-import { envList } from './envList.js'
-import { envAdd } from './envAdd.js'
 
 export const skipPackageManagerCheck = true
 
@@ -34,16 +32,7 @@ export function help (): string {
             name: 'use',
           },
           {
-            description: 'Installs the specified version(s) of Node.js without activating them as the current version.',
-            name: 'add',
-          },
-          {
-            description: 'Removes the specified version(s) of Node.js.',
-            name: 'remove',
-            shortAlias: 'rm',
-          },
-          {
-            description: 'List Node.js versions available locally or remotely',
+            description: 'List remote Node.js versions available to install.',
             name: 'list',
             shortAlias: 'ls',
           },
@@ -57,39 +46,27 @@ export function help (): string {
             name: '--global',
             shortAlias: '-g',
           },
-          {
-            description: 'List the remote versions of Node.js',
-            name: '--remote',
-          },
         ],
       },
     ],
     url: docsUrl('env'),
     usages: [
-      'pnpm env [command] [options] <version> [<additional-versions>...]',
       'pnpm env use --global 18',
       'pnpm env use --global lts',
       'pnpm env use --global argon',
       'pnpm env use --global latest',
       'pnpm env use --global rc/18',
-      'pnpm env add --global 18',
-      'pnpm env add --global 18 19 20.6.0',
-      'pnpm env remove --global 18 lts',
-      'pnpm env remove --global argon',
-      'pnpm env remove --global latest',
-      'pnpm env remove --global rc/18 18 20.6.0',
       'pnpm env list',
-      'pnpm env list --remote',
-      'pnpm env list --remote 18',
-      'pnpm env list --remote lts',
-      'pnpm env list --remote argon',
-      'pnpm env list --remote latest',
-      'pnpm env list --remote rc/18',
+      'pnpm env list 18',
+      'pnpm env list lts',
+      'pnpm env list argon',
+      'pnpm env list latest',
+      'pnpm env list rc/18',
     ],
   })
 }
 
-export async function handler (opts: NvmNodeCommandOptions, params: string[]): Promise<string | { exitCode: number }> {
+export async function handler (opts: NvmNodeCommandOptions, params: string[]): Promise<string | { exitCode: number } | void> {
   if (params.length === 0) {
     throw new PnpmError('ENV_NO_SUBCOMMAND', 'Please specify the subcommand', {
       hint: help(),
@@ -101,17 +78,9 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]): P
     })
   }
   switch (params[0]) {
-  case 'add': {
-    return envAdd(opts, params.slice(1))
-  }
   case 'use': {
-    return envUse(opts, params.slice(1))
-  }
-  case 'remove':
-  case 'rm':
-  case 'uninstall':
-  case 'un': {
-    return envRemove(opts, params.slice(1))
+    await envUse(opts, params.slice(1))
+    return
   }
   case 'list':
   case 'ls': {

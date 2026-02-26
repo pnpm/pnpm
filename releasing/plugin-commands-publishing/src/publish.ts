@@ -1,21 +1,21 @@
-import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
-import { runNpm } from '@pnpm/run-npm'
 import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
-import { loadToken } from '@pnpm/network.auth-header'
 import enquirer from 'enquirer'
 import rimraf from '@zkochan/rimraf'
 import { pick } from 'ramda'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import { temporaryDirectory } from 'tempy'
+import { extractManifestFromPacked, isTarballPath } from './extractManifestFromPacked.js'
+import { optionsWithOtpEnv } from './otpEnv.js'
 import * as pack from './pack.js'
+import { publishPackedPkg } from './publishPackedPkg.js'
 import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -40,6 +40,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     'dry-run': Boolean,
     force: Boolean,
     json: Boolean,
+    otp: String,
     recursive: Boolean,
     'report-summary': Boolean,
   }
@@ -110,46 +111,6 @@ export function help (): string {
 }
 
 const GIT_CHECKS_HINT = 'If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks".'
-
-/**
- * Remove pnpm-specific CLI options that npm doesn't recognize.
- */
-export function removePnpmSpecificOptions (args: string[]): string[] {
-  const booleanOptions = new Set([
-    '--no-git-checks',
-    '--embed-readme',
-    '--no-embed-readme',
-  ])
-
-  const optionsWithValue = new Set([
-    '--publish-branch',
-    '--npm-path',
-  ])
-
-  const result: string[] = []
-  let i = 0
-
-  while (i < args.length) {
-    const arg = args[i]
-
-    if (booleanOptions.has(arg)) {
-      // Skip only the boolean option itself
-      i++
-    } else if (optionsWithValue.has(arg)) {
-      // Skip the option and its value
-      i++
-      // Skip the value if it exists and doesn't look like another option
-      if (i < args.length && args[i][0] !== '-') {
-        i++
-      }
-    } else {
-      result.push(arg)
-      i++
-    }
-  }
-
-  return result
-}
 
 export async function handler (
   opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
@@ -229,17 +190,20 @@ Do you want to continue?`,
     return { exitCode }
   }
 
-  let args = opts.argv.original.slice(1)
-  const dirInParams = (params.length > 0) ? params[0] : undefined
-  if (dirInParams) {
-    args = args.filter(arg => arg !== params[0])
-  }
-  args = removePnpmSpecificOptions(args)
+  opts = optionsWithOtpEnv(opts, process.env)
 
-  if (dirInParams != null && (dirInParams.endsWith('.tgz') || dirInParams?.endsWith('.tar.gz'))) {
-    const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args])
-    return { exitCode: status ?? 0 }
+  const dirInParams = (params.length > 0) ? params[0] : undefined
+
+  if (dirInParams != null && isTarballPath(dirInParams)) {
+    const tarballPath = dirInParams
+    const publishedManifest = await extractManifestFromPacked(tarballPath)
+    await publishPackedPkg({
+      tarballPath,
+      publishedManifest,
+    }, opts)
+    return { exitCode: 0 }
   }
+
   const dir = dirInParams ?? opts.dir ?? process.cwd()
 
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
@@ -266,22 +230,18 @@ Do you want to continue?`,
   // from the current working directory, ignoring the package.json file
   // that was generated and packed to the tarball.
   const packDestination = temporaryDirectory()
-  const { tarballPath } = await pack.api({
-    ...opts,
-    dir,
-    packDestination,
-    dryRun: false,
-  })
-  await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
-  const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballPath), ...args], {
-    cwd: packDestination,
-    env: getEnvWithTokens(opts),
-  })
-  await rimraf(packDestination)
-
-  if (status != null && status !== 0) {
-    return { exitCode: status }
+  try {
+    const packResult = await pack.api({
+      ...opts,
+      dir,
+      packDestination,
+      dryRun: false,
+    })
+    await publishPackedPkg(packResult, opts)
+  } finally {
+    await rimraf(packDestination)
   }
+
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent([
       'publish',
@@ -289,50 +249,6 @@ Do you want to continue?`,
     ], manifest)
   }
   return { manifest }
-}
-
-/**
- * The npm CLI doesn't support token helpers, so we transform the token helper settings
- * to regular auth token settings that the npm CLI can understand.
- */
-function getEnvWithTokens (opts: Pick<PublishRecursiveOpts, 'rawConfig' | 'argv'>): Record<string, string> {
-  const tokenHelpers = Object.entries(opts.rawConfig).filter(([key]) => key.endsWith(':tokenHelper'))
-  const tokenHelpersFromArgs = opts.argv.original
-    .filter(arg => arg.includes(':tokenHelper='))
-    .map(arg => arg.split('=', 2) as [string, string])
-
-  const env: Record<string, string> = {}
-  for (const [key, helperPath] of tokenHelpers.concat(tokenHelpersFromArgs)) {
-    const authHeader = loadToken(helperPath, key)
-    const authType = authHeader.startsWith('Bearer')
-      ? '_authToken'
-      : '_auth'
-
-    const registry = key.replace(/:tokenHelper$/, '')
-    env[`NPM_CONFIG_${registry}:${authType}`] = authType === '_authToken'
-      ? authHeader.slice('Bearer '.length)
-      : authHeader.replace(/Basic /i, '')
-  }
-  return env
-}
-
-async function copyNpmrc (
-  { dir, workspaceDir, packDestination }: {
-    dir: string
-    workspaceDir?: string
-    packDestination: string
-  }
-): Promise<void> {
-  const localNpmrc = path.join(dir, '.npmrc')
-  if (existsSync(localNpmrc)) {
-    await fs.copyFile(localNpmrc, path.join(packDestination, '.npmrc'))
-    return
-  }
-  if (!workspaceDir) return
-  const workspaceNpmrc = path.join(workspaceDir, '.npmrc')
-  if (existsSync(workspaceNpmrc)) {
-    await fs.copyFile(workspaceNpmrc, path.join(packDestination, '.npmrc'))
-  }
 }
 
 export async function runScriptsIfPresent (

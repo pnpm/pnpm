@@ -13,6 +13,9 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
       "path": "../../packages/types"
     },
     {
@@ -20,6 +23,9 @@
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../text/tree-renderer"
     },
     {
       "path": "../dependencies-hierarchy"

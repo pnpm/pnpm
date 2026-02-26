@@ -1,0 +1,9 @@
+{
+  "name": "simple-sbom-test",
+  "version": "1.0.0",
+  "description": "Test fixture for SBOM generation",
+  "license": "ISC",
+  "dependencies": {
+    "is-positive": "^3.1.0"
+  }
+}

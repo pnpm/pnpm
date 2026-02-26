@@ -280,7 +280,7 @@ test('recursive publish writes publish summary', async () => {
   }
 })
 
-test('when publish some package throws an error, exit code should be non-zero', async () => {
+test('errors on fake registry', async () => {
   preparePackages([
     {
       name: '@pnpmtest/test-recursive-publish-project-5',
@@ -292,16 +292,26 @@ test('when publish some package throws an error, exit code should be non-zero', 
     },
   ])
 
-  // Throw ENEEDAUTH error when publish.
-  fs.writeFileSync('.npmrc', 'registry=https://__fake_npm_registry__.com', 'utf8')
+  const fakeRegistry = 'https://__fake_npm_registry__.com'
 
-  const result = await publish.handler({
+  const promise = publish.handler({
     ...DEFAULT_OPTS,
     ...await filterPackagesFromDir(process.cwd(), []),
+    rawConfig: {
+      ...DEFAULT_OPTS.rawConfig,
+      registry: fakeRegistry,
+    },
+    registries: {
+      ...DEFAULT_OPTS.registries,
+      default: fakeRegistry,
+    },
     dir: process.cwd(),
     recursive: true,
     force: true,
   }, [])
 
-  expect(result?.exitCode).toBe(1)
+  // NOTE: normally this should be a PnpmError, but we'd like to keep the code
+  //       simple so we just let the internal functions throw error for now.
+  await expect(promise).rejects.toHaveProperty(['code'], 'ENOTFOUND')
+  await expect(promise).rejects.toHaveProperty(['hostname'], '__fake_npm_registry__.com')
 })

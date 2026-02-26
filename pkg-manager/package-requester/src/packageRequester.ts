@@ -2,6 +2,7 @@ import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
 import {
   getIndexFilePathInCafs as _getIndexFilePathInCafs,
+  normalizeBundledManifest,
 } from '@pnpm/store.cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
@@ -16,7 +17,7 @@ import { type Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { readPackageJson } from '@pnpm/read-package-json'
+import { loadJsonFile } from 'load-json-file'
 import {
   type PlatformAssetResolution,
   type DirectoryResolution,
@@ -53,7 +54,6 @@ import PQueue from 'p-queue'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import pShare from 'promise-share'
 import { pick } from 'ramda'
-import semver from 'semver'
 import ssri from 'ssri'
 
 let currentLibc: 'glibc' | 'musl' | undefined | null
@@ -66,29 +66,6 @@ function getLibcFamilySync () {
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
 
-const pickBundledManifest = pick([
-  'bin',
-  'bundledDependencies',
-  'bundleDependencies',
-  'cpu',
-  'dependencies',
-  'directories',
-  'engines',
-  'name',
-  'optionalDependencies',
-  'os',
-  'peerDependencies',
-  'peerDependenciesMeta',
-  'scripts',
-  'version',
-])
-
-function normalizeBundledManifest (manifest: DependencyManifest): BundledManifest {
-  return {
-    ...pickBundledManifest(manifest),
-    version: semver.clean(manifest.version ?? '0.0.0', { loose: true }) ?? manifest.version,
-  }
-}
 
 export function createPackageRequester (
   opts: {
@@ -248,7 +225,7 @@ async function resolveAndFetch (
     }
   }
 
-  const isInstallable = (
+  let isInstallable: boolean | null | undefined = (
     ctx.force === true ||
     (
       manifest == null
@@ -303,11 +280,25 @@ async function resolveAndFetch (
 
   if (!manifest) {
     const fetchedResult = await fetchResult.fetching()
-    manifest = fetchedResult.bundledManifest
+    if (fetchedResult.bundledManifest) {
+      manifest = fetchedResult.bundledManifest as DependencyManifest
+    } else if (fetchedResult.files.filesMap.has('package.json')) {
+      manifest = await loadJsonFile<DependencyManifest>(fetchedResult.files.filesMap.get('package.json')!)
+    }
     // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
     if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
+  }
+  // Check installability now that we have the manifest (for git/tarball packages without registry metadata)
+  if (isInstallable === undefined && manifest != null) {
+    isInstallable = ctx.force === true || packageIsInstallable(id, manifest, {
+      engineStrict: ctx.engineStrict,
+      lockfileDir: options.lockfileDir,
+      nodeVersion: ctx.nodeVersion,
+      optional: wantedDependency.optional === true,
+      supportedArchitectures: options.supportedArchitectures,
+    })
   }
   return {
     body: {
@@ -537,14 +528,14 @@ function fetchToStore (
         ) &&
         !isLocalPkg
       ) {
-        const { verified, files, manifest } = await ctx.readPkgFromCafs(filesIndexFile, {
+        const { verified, files, bundledManifest } = await ctx.readPkgFromCafs(filesIndexFile, {
           readManifest: opts.fetchRawManifest,
           expectedPkg: opts.pkg,
         })
         if (verified) {
           fetching.resolve({
             files,
-            bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
+            bundledManifest,
           })
           return
         }
@@ -608,7 +599,7 @@ function fetchToStore (
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
           requiresBuild: fetchedPackage.requiresBuild,
         },
-        bundledManifest: fetchedPackage.manifest == null ? fetchedPackage.manifest : normalizeBundledManifest(fetchedPackage.manifest),
+        bundledManifest: fetchedPackage.manifest,
         integrity,
       })
     } catch (err: any) { // eslint-disable-line
@@ -617,8 +608,8 @@ function fetchToStore (
   }
 }
 
-async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {
-  return pickBundledManifest(await readPackageJson(pkgJsonPath) as DependencyManifest)
+async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest | undefined> {
+  return normalizeBundledManifest(await loadJsonFile<DependencyManifest>(pkgJsonPath))
 }
 
 async function tarballIsUpToDate (

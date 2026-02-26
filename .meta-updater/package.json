@@ -12,7 +12,6 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/meta-updater": "catalog:",
     "@pnpm/object.key-sorting": "workspace:*",
-    "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*",

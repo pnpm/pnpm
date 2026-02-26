@@ -1,0 +1,63 @@
+{
+  "name": "@pnpm/plugin-commands-sbom",
+  "version": "1000.0.0-0",
+  "description": "The sbom command of pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "sbom"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/reviewing/plugin-commands-sbom",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/reviewing/plugin-commands-sbom#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/cli-meta": "workspace:*",
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/command": "workspace:*",
+    "@pnpm/common-cli-options-help": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/sbom": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
+    "ramda": "catalog:",
+    "render-help": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/plugin-commands-sbom": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@types/ramda": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

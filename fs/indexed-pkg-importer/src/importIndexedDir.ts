@@ -73,9 +73,20 @@ They were renamed.`)
     } catch {} // eslint-disable-line:no-empty
     if (util.types.isNativeError(renameErr) && 'code' in renameErr && (renameErr.code === 'ENOTEMPTY' || renameErr.code === 'EEXIST')) {
       const firstFile = filenames.keys().next().value
-      if (firstFile && fs.existsSync(path.join(newDir, firstFile))) {
-        logger('_virtual-store-race').debug({ target: newDir })
-        return
+      if (firstFile) {
+        const targetFile = path.join(newDir, firstFile)
+        // Retry with short delays. With 3+ concurrent workers, a third thread
+        // may have rimrafed the target (inside its own renameOverwrite) but not
+        // yet completed its own rename. A short wait lets it finish.
+        for (let attempt = 0; attempt < 4; attempt++) {
+          if (attempt > 0) {
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50)
+          }
+          if (fs.existsSync(targetFile)) {
+            logger('_virtual-store-race').debug({ target: newDir })
+            return
+          }
+        }
       }
     }
     throw renameErr

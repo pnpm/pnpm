@@ -1,3 +1,4 @@
+import { stripVTControlCharacters } from 'util'
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { type OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
@@ -147,12 +148,19 @@ function alignColumns (rows: string[][]): string[] {
       columns:
           {
             0: { width: 50, truncate: 100 },
-            1: { width: 15, alignment: 'right' },
-            3: { width: 15 },
+            1: { width: getColumnWidth(rows, 1, 15), alignment: 'right' },
+            3: { width: getColumnWidth(rows, 3, 15) },
             4: { paddingLeft: 2 },
             5: { paddingLeft: 2 },
           },
       drawHorizontalLine: () => false,
     }
   ).split('\n')
+}
+
+function getColumnWidth (rows: string[][], columnIndex: number, minWidth: number): number {
+  return rows.reduce((max, row) => {
+    if (row[columnIndex] == null) return max
+    return Math.max(max, stripVTControlCharacters(row[columnIndex]).length)
+  }, minWidth)
 }

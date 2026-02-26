@@ -4,6 +4,7 @@ import execa from 'execa'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 export const DEFAULT_OPTS = {
+  authInfos: {},
   argv: {
     original: [],
   },
@@ -41,6 +42,7 @@ export const DEFAULT_OPTS = {
   sort: true,
   cacheDir: '../cache',
   strictSsl: false,
+  sslConfigs: {},
   userAgent: 'pnpm',
   userConfig: {},
   useRunningStoreServer: false,

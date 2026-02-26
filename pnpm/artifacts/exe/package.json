@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "11.0.0-alpha.3",
+  "version": "11.0.0-alpha.11",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -15,10 +15,18 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "type": "module",
+  "files": [
+    "setup.js",
+    "prepare.js",
+    "dist/"
+  ],
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",
-    "prepublishOnly": "pnpm --filter=pnpm run compile && node ./scripts/build-artifacts.ts"
+    "prepublishOnly": "pnpm --filter=pnpm run prepublishOnly && node ./scripts/build-artifacts.ts"
+  },
+  "dependencies": {
+    "@reflink/reflink": "catalog:"
   },
   "optionalDependencies": {
     "@pnpm/linux-arm64": "workspace:*",
@@ -31,7 +39,7 @@
   "devDependencies": {
     "@pnpm/exe": "workspace:*",
     "execa": "catalog:",
-    "pkg": "catalog:"
+    "tar": "catalog:"
   },
   "preferGlobal": true,
   "publishConfig": {

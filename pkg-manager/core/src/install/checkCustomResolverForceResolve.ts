@@ -1,41 +1,46 @@
-import { parse as parseDepPath } from '@pnpm/dependency-path'
 import { type LockfileObject } from '@pnpm/lockfile.types'
-import { type CustomResolver, type WantedDependency, checkCustomResolverCanResolve } from '@pnpm/hooks.types'
+import { type CustomResolver } from '@pnpm/hooks.types'
 
-// Sentinel for Promise.any rejections (not an error condition)
-const SKIP = new Error('skip')
-
+/**
+ * Check if any custom resolver's shouldRefreshResolution returns true for any
+ * package in the lockfile. shouldRefreshResolution is called independently of
+ * canResolve — it runs before resolution, so the original specifier is not
+ * available. Each resolver's shouldRefreshResolution is responsible for its own
+ * filtering logic.
+ */
 export async function checkCustomResolverForceResolve (
   customResolvers: CustomResolver[],
   wantedLockfile: LockfileObject
 ): Promise<boolean> {
   if (!wantedLockfile.packages) return false
 
-  const resolversWithHook = customResolvers.filter(resolver => resolver.shouldForceResolve)
-  if (resolversWithHook.length === 0) return false
-
-  // Run shouldForceResolve checks in parallel
-  const pendingForceResolveChecks = Object.entries(wantedLockfile.packages).flatMap(([depPath, pkgSnapshot]) => {
-    const { name: alias, version, nonSemverVersion } = parseDepPath(depPath)
-    if (!alias) return []
-
-    const wantedDependency: WantedDependency = {
-      alias,
-      bareSpecifier: version ?? nonSemverVersion,
-    }
-
-    return resolversWithHook.map(async resolver => {
-      const canResolve = await checkCustomResolverCanResolve(resolver, wantedDependency)
-      if (!canResolve) return Promise.reject(SKIP)
-      const result = await resolver.shouldForceResolve!(depPath, pkgSnapshot)
-      return result ? true : Promise.reject(SKIP)
-    })
-  })
-
-  // Return true immediately if any check resolves as true; otherwise, return false
-  try {
-    return await Promise.any(pendingForceResolveChecks)
-  } catch {
-    return false
+  const hooks: NonNullable<CustomResolver['shouldRefreshResolution']>[] = []
+  for (const resolver of customResolvers) {
+    if (resolver.shouldRefreshResolution) hooks.push(resolver.shouldRefreshResolution)
   }
+  if (hooks.length === 0) return false
+
+  const asyncChecks: Promise<boolean>[] = []
+  for (const [depPath, pkgSnapshot] of Object.entries(wantedLockfile.packages)) {
+    for (const hook of hooks) {
+      const result = hook(depPath, pkgSnapshot)
+      if (result === true) return true
+      if (result !== false) asyncChecks.push(result)
+    }
+  }
+  if (asyncChecks.length === 0) return false
+  return anyTrue(asyncChecks)
+}
+
+async function anyTrue (promises: Promise<boolean>[]): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    let remaining = promises.length
+    if (remaining === 0) return resolve(false)
+    for (const p of promises) {
+      p.then(value => {
+        if (value) resolve(true)
+        else if (--remaining === 0) resolve(false)
+      }, reject)
+    }
+  })
 }

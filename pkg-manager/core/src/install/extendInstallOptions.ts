@@ -60,7 +60,7 @@ export interface StrictInstallOptions {
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean | 'rolling'
   lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
-  lockfileIncludeTarballUrl: boolean
+  lockfileIncludeTarballUrl?: boolean
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean
   saveCatalogName?: string
@@ -240,7 +240,6 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     registries: DEFAULT_REGISTRIES,
     resolutionMode: 'lowest-direct',
     saveWorkspaceProtocol: 'rolling',
-    lockfileIncludeTarballUrl: false,
     scriptsPrependNodePath: false,
     shamefullyHoist: false,
     shellEmulator: false,

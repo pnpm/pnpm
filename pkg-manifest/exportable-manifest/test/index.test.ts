@@ -276,3 +276,37 @@ test('jsr deps are replaced', async () => {
     },
   } as Partial<typeof manifest>)
 })
+
+test('checks for name', async () => {
+  const location = 'package-to-export'
+  const manifest = { version: '0.0.0' } satisfies ProjectManifest
+
+  preparePackages([{
+    location,
+    package: manifest,
+  }])
+
+  process.chdir(location)
+
+  await expect(createExportableManifest(process.cwd(), manifest, { catalogs: {} })).rejects.toMatchObject({
+    code: 'ERR_PNPM_MISSING_REQUIRED_FIELD',
+    field: 'name',
+  })
+})
+
+test('checks for version', async () => {
+  const location = 'package-to-export'
+  const manifest = { name: 'example' } satisfies ProjectManifest
+
+  preparePackages([{
+    location,
+    package: manifest,
+  }])
+
+  process.chdir(location)
+
+  await expect(createExportableManifest(process.cwd(), manifest, { catalogs: {} })).rejects.toMatchObject({
+    code: 'ERR_PNPM_MISSING_REQUIRED_FIELD',
+    field: 'version',
+  })
+})

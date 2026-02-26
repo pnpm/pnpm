@@ -82,7 +82,7 @@ function getAuthUserPass ({
   }
 
   if (authUsername && authPassword) {
-    return { username: authUsername, password: authPassword }
+    return { username: authUsername, password: atob(authPassword) }
   }
 
   return undefined

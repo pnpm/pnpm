@@ -45,9 +45,8 @@ export function help (): string {
 
 function getExecPath (): string {
   if (detectIfCurrentPkgIsExecutable()) {
-    // If the pnpm CLI was bundled by vercel/pkg then we cannot use the js path for npm_execpath
-    // because in that case the js is in a virtual filesystem inside the executor.
-    // Instead, we use the path to the exe file.
+    // If the pnpm CLI is a single executable application (SEA), we use the path
+    // to the exe file instead of the js path.
     return process.execPath
   }
   return process.argv[1] ?? process.cwd()
@@ -70,6 +69,13 @@ async function copyCli (currentLocation: string, targetDir: string): Promise<voi
   fs.mkdirSync(toolsDir, { recursive: true })
   rimraf.sync(newExecPath)
   fs.copyFileSync(currentLocation, newExecPath)
+  // For SEA binaries, also copy the dist/ directory that lives alongside the binary.
+  const distSrc = path.join(path.dirname(currentLocation), 'dist')
+  if (fs.existsSync(distSrc)) {
+    const distDest = path.join(toolsDir, 'dist')
+    fs.rmSync(distDest, { recursive: true, force: true })
+    fs.cpSync(distSrc, distDest, { recursive: true })
+  }
   await cmdShim(newExecPath, path.join(targetDir, 'pnpm'), {
     createPwshFile: false,
   })

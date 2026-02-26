@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
@@ -44,7 +45,10 @@
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
+    "load-json-file": "catalog:",
     "normalize-path": "catalog:",
     "realpath-missing": "catalog:",
     "resolve-link-target": "catalog:",
@@ -58,7 +62,7 @@
     "@types/semver": "catalog:"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

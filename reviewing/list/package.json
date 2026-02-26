@@ -36,24 +36,24 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
+    "@pnpm/text.tree-renderer": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "archy": "catalog:",
+    "@pnpm/util.lex-comparator": "catalog:",
     "chalk": "catalog:",
-    "cli-columns": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:"
   },
   "devDependencies": {
     "@pnpm/list": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/archy": "catalog:",
     "@types/ramda": "catalog:"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

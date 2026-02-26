@@ -10,6 +10,7 @@ import pFilter from 'p-filter'
 import { pick } from 'ramda'
 import { writeJsonFile } from 'write-json-file'
 import { publish } from './publish.js'
+import { type PublishPackedPkgOptions } from './publishPackedPkg.js'
 
 export type PublishRecursiveOpts = Required<Pick<Config,
 | 'bin'
@@ -45,7 +46,6 @@ Partial<Pick<Config,
 | 'offline'
 | 'selectedProjectsGraph'
 | 'strictSsl'
-| 'sslConfigs'
 | 'unsafePerm'
 | 'userAgent'
 | 'userConfig'
@@ -56,7 +56,7 @@ Partial<Pick<Config,
     original: string[]
   }
   reportSummary?: boolean
-}
+} & PublishPackedPkgOptions
 
 export async function recursivePublish (
   opts: PublishRecursiveOpts & Required<Pick<Config, 'selectedProjectsGraph'>>

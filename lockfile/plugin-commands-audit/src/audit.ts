@@ -103,7 +103,7 @@ export function help (): string {
             name: '--no-optional',
           },
           {
-            description: 'Use exit code 0 if the registry responds with an error. Useful when audit checks are used in CI. A build should fail because the registry has issues.',
+            description: 'Use exit code 0 if the registry responds with an error. Useful when audit checks are used in CI. A build should not fail because the registry has issues.',
             name: '--ignore-registry-errors',
           },
           {

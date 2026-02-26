@@ -36,25 +36,27 @@
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "is-gzip": "catalog:",
     "is-subdir": "catalog:",
     "p-limit": "catalog:",
     "rename-overwrite": "catalog:",
+    "semver": "catalog:",
     "strip-bom": "catalog:"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "@types/is-gzip": "catalog:",
     "@types/node": "catalog:",
+    "@types/semver": "catalog:",
     "symlink-dir": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

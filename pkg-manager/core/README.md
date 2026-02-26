@@ -146,7 +146,7 @@ interface CustomResolver {
   resolve?: (wantedDependency: WantedDependency, opts: ResolveOptions) => ResolveResult | Promise<ResolveResult>
 
   // Force resolution check
-  shouldForceResolve?: (depPath: string, pkgSnapshot: PackageSnapshot) => boolean | Promise<boolean>
+  shouldRefreshResolution?: (depPath: string, pkgSnapshot: PackageSnapshot) => boolean | Promise<boolean>
 }
 ```
 
@@ -164,7 +164,7 @@ interface CustomFetcher {
 
 * `canResolve(wantedDependency)` - Returns `true` if this resolver can resolve the given package descriptor
 * `resolve(wantedDependency, opts)` - Resolves a package descriptor to a resolution. Should return an object with `id` and `resolution`
-* `shouldForceResolve(depPath, pkgSnapshot)` - Return `true` to trigger full resolution of all packages (skipping the "Lockfile is up to date" optimization). The `depPath` is the package identifier (e.g., `lodash@4.17.21`) and `pkgSnapshot` provides direct access to the lockfile entry (resolution, dependencies, etc.).
+* `shouldRefreshResolution(depPath, pkgSnapshot)` - Return `true` to trigger full resolution of all packages (skipping the "Lockfile is up to date" optimization). The `depPath` is the package identifier (e.g., `lodash@4.17.21`) and `pkgSnapshot` provides direct access to the lockfile entry (resolution, dependencies, etc.).
 
 **Custom Fetcher Methods:**
 
@@ -189,12 +189,12 @@ const customResolver = {
       resolution: {
         type: 'custom:cdn',
         cdnUrl: `https://cdn.company.com/packages/${actualName}/${version}.tgz`,
-        cachedAt: Date.now(), // Custom metadata for shouldForceResolve
+        cachedAt: Date.now(), // Custom metadata for shouldRefreshResolution
       },
     }
   },
 
-  shouldForceResolve: (depPath, pkgSnapshot) => {
+  shouldRefreshResolution: (depPath, pkgSnapshot) => {
     // Check custom metadata stored in the resolution
     const cachedAt = pkgSnapshot.resolution?.cachedAt
     if (cachedAt && Date.now() - cachedAt > 24 * 60 * 60 * 1000) {
@@ -246,7 +246,7 @@ See the test cases in `resolving/default-resolver/test/customResolver.ts` and `f
 * All methods support both synchronous and asynchronous implementations
 * Custom resolvers are tried before pnpm's built-in resolvers (npm, git, tarball, etc.)
 * Custom fetchers can delegate to pnpm's standard fetchers via the `fetchers` parameter to avoid reimplementing common fetch logic
-* The `shouldForceResolve` hook allows fine-grained control over when packages should be re-resolved
+* The `shouldRefreshResolution` hook allows fine-grained control over when packages should be re-resolved
 
 **Performance Considerations:**
 

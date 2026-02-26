@@ -2,7 +2,7 @@ import {
   type BadPeerDependencyIssue,
   type PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
-import archy from 'archy'
+import { renderTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
 
@@ -57,7 +57,7 @@ export function renderPeerIssues (
       }
       const title = chalk.reset(projectKey)
       const summariesConcatenated = summaries.join('\n')
-      return `${archy(toArchyData(title, project))}${summariesConcatenated}`.trimEnd()
+      return `${renderTree(toArchyData(title, project))}${summariesConcatenated}`.trimEnd()
     }).join('\n\n')
 }
 
@@ -103,8 +103,8 @@ function createTree (pkgNode: PkgNode, pkgs: Array<{ name: string, version: stri
   createTree(pkgNode.dependencies[label], rest, issueText)
 }
 
-function toArchyData (depName: string, pkgNode: PkgNode): archy.Data {
-  const result: Required<archy.Data> = {
+function toArchyData (depName: string, pkgNode: PkgNode): TreeNode {
+  const result: Required<TreeNode> = {
     label: depName,
     nodes: [],
   }

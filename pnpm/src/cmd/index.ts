@@ -12,6 +12,7 @@ import { add, ci, dedupe, fetch, install, link, prune, remove, unlink, update, i
 import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
 import { licenses } from '@pnpm/plugin-commands-licenses'
+import { sbom } from '@pnpm/plugin-commands-sbom'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
@@ -152,6 +153,7 @@ const commands: CommandDefinition[] = [
   restart,
   root,
   run,
+  sbom,
   setup,
   store,
   catFile,

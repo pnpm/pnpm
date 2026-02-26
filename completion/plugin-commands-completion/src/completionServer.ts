@@ -26,10 +26,7 @@ export function createCompletionServer (
     const env = tabtab.parseEnv(process.env)
     if (!env.complete) return
 
-    // Parse only words that are before the pointer and finished.
-    // Finished means that there's at least one space between the word and pointer
-    const finishedArgv = env.partial.slice(0, -env.lastPartial.length)
-    const inputArgv = splitCmd(finishedArgv).slice(1)
+    const inputArgv = splitCmd(stripPartialWord(env)).slice(1)
     // We cannot autocomplete what a user types after "pnpm test --"
     if (inputArgv.includes('--')) return
     const { params, options, cmd } = await opts.parseCliArgs(inputArgv)
@@ -47,4 +44,15 @@ export function createCompletionServer (
       shell
     )
   }
+}
+
+/**
+ * Returns the portion of the command line that consists of fully typed words,
+ */
+function stripPartialWord (env: { partial: string, lastPartial: string }): string {
+  if (env.lastPartial.length > 0) {
+    // stripping any word the user is currently typing.
+    return env.partial.slice(0, -env.lastPartial.length)
+  }
+  return env.partial
 }

@@ -4,7 +4,6 @@ import { readWantedLockfile, type LockfileObject } from '@pnpm/lockfile.fs'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
 import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
-import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
 import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
@@ -69,14 +68,6 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           }
         }
       } else {
-        manifest.pnpm = manifest.pnpm ?? {}
-        manifest.pnpm.overrides = { ...workspaceManifest!.overrides }
-        for (const selector in manifest.pnpm.overrides) {
-          if (manifest.pnpm.overrides[selector] === 'catalog:') {
-            const { targetPkg } = parsePkgAndParentSelector(selector)
-            manifest.pnpm.overrides[selector] = workspaceManifest!.catalog![targetPkg.name]
-          }
-        }
         for (const depType of ['devDependencies'] as const) {
           if (!manifest[depType]) continue
           for (const depName of Object.keys(manifest[depType] ?? {})) {
@@ -85,14 +76,14 @@ export default async (workspaceDir: string) => { // eslint-disable-line
             }
           }
         }
-        for (const depType of ['dependencies', 'optionalDependencies'] as const) {
-          if (!manifest[depType]) continue
-          for (const depName of Object.keys(manifest[depType] ?? {})) {
-            if (manifest[depType]?.[depName] === 'catalog:') {
-              throw new Error('The pnpm CLI package cannot have "catalog:" in prod deps as publish-packed does not support them currently')
-            }
-          }
-        }
+
+        // The main 'pnpm' package should not declare 'peerDependencies' or
+        // 'optionalDependencies'. Consider moving to 'devDependencies' if the
+        // dependency can be included in the esbuild bundle, or to
+        // 'dependencies' if the dependency needs to be externalized and
+        // resolved at runtime.
+        delete manifest.peerDependencies
+        delete manifest.optionalDependencies
       }
       if (manifest.peerDependencies?.['@pnpm/logger'] != null) {
         manifest.peerDependencies['@pnpm/logger'] = 'catalog:'
@@ -391,7 +382,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',
     },
-    engines: { node: '>=22.12' },
+    engines: { node: '>=22.13' },
     files,
     funding: 'https://opencollective.com/pnpm',
     homepage,

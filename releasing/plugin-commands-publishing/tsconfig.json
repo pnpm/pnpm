@@ -40,16 +40,13 @@
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../exec/run-npm"
-    },
-    {
       "path": "../../fs/packlist"
     },
     {
       "path": "../../hooks/pnpmfile"
     },
     {
-      "path": "../../network/auth-header"
+      "path": "../../network/fetch"
     },
     {
       "path": "../../packages/error"

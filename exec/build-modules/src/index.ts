@@ -103,7 +103,24 @@ export async function buildModules<T extends string> (
       }
     )
   })
-  await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)
+  const patchErrors: Error[] = []
+  const groupsWithPatchErrors = groups.map((group) =>
+    group.map((task) => async () => {
+      try {
+        await task()
+      } catch (err: unknown) {
+        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_PATCH_FAILED') {
+          patchErrors.push(err)
+        } else {
+          throw err
+        }
+      }
+    })
+  )
+  await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groupsWithPatchErrors)
+  if (patchErrors.length > 0) {
+    throw patchErrors[0]
+  }
   return { ignoredBuilds }
 }
 
@@ -247,7 +264,7 @@ export async function linkBinsOfDependencies<T extends string> (
   const pkgs = await Promise.all(pkgNodes
     .map(async (dep) => ({
       location: dep.dir,
-      manifest: (await dep.fetching?.())?.bundledManifest ?? (await safeReadPackageJsonFromDir(dep.dir) as DependencyManifest) ?? {},
+      manifest: ((await dep.fetching?.())?.bundledManifest ?? (await safeReadPackageJsonFromDir(dep.dir))) as DependencyManifest ?? {},
     }))
   )
 
