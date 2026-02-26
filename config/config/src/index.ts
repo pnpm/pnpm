@@ -379,7 +379,12 @@ export async function getConfig (opts: {
       throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
         'Configuration conflict. "virtual-store-dir" may not be used with "global"')
     }
-    pnpmConfig.virtualStoreDir = '.pnpm'
+    if (pnpmConfig.enableGlobalVirtualStore == null) {
+      pnpmConfig.enableGlobalVirtualStore = true
+    }
+    if (!pnpmConfig.enableGlobalVirtualStore) {
+      pnpmConfig.virtualStoreDir = '.pnpm'
+    }
   } else {
     pnpmConfig.dir = cwd
     if (!pnpmConfig.bin) {
@@ -611,6 +616,9 @@ export async function getConfig (opts: {
     // Using a global virtual store in CI makes little sense,
     // as there is never a warm cache in that environment.
     pnpmConfig.enableGlobalVirtualStore = false
+    if (cliOptions['global']) {
+      pnpmConfig.virtualStoreDir = '.pnpm'
+    }
   }
 
   // The yes option is only meant to be a CLI option. Remove it from the
