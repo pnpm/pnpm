@@ -146,6 +146,7 @@ export async function handler (
     await writeProjectManifest(newManifest)
     await install.handler({
       ...linkOpts,
+      _calledFromLink: true,
       frozenLockfileIfExists: false,
       rootProjectManifest: newManifest,
     })
@@ -178,6 +179,7 @@ export async function handler (
   await writeProjectManifest(newManifest)
   await install.handler({
     ...linkOpts,
+    _calledFromLink: true,
     frozenLockfileIfExists: false,
     rootProjectManifest: newManifest,
   })

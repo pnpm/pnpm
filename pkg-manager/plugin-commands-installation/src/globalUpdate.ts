@@ -63,9 +63,10 @@ async function updateGlobalPackageGroup (
   const installDir = getPrepareDir(hashDir)
   fs.mkdirSync(installDir, { recursive: true })
 
-  // Re-install with latest versions
+  // When --latest, just pass alias names to get the latest version.
+  // Otherwise, pass alias@spec to update within the existing range.
   const depSpecs = Object.entries(pkg.dependencies).map(
-    ([alias, spec]) => `${alias}@${spec}`
+    ([alias, spec]) => opts.latest ? alias : `${alias}@${spec}`
   )
 
   const include = {

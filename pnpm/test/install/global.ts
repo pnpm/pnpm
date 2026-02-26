@@ -5,12 +5,49 @@ import { LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
-import writeYamlFile from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
   execPnpmSync,
 } from '../utils/index.js'
+
+/**
+ * Find an installed global package in the new isolated directory structure.
+ * Scans {pnpmHomeDir}/global/ for hash dirs, resolves pkg symlinks,
+ * and returns the path to the package's node_modules entry.
+ */
+function findGlobalPkg (pnpmHome: string, pkgName: string): string | null {
+  const globalDir = path.join(pnpmHome, 'global')
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(globalDir, { withFileTypes: true })
+  } catch {
+    return null
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const pkgLink = path.join(globalDir, entry.name, 'pkg')
+    let installDir: string
+    try {
+      const stats = fs.lstatSync(pkgLink)
+      if (!stats.isSymbolicLink()) continue
+      installDir = fs.realpathSync(pkgLink)
+    } catch {
+      continue
+    }
+    const pkgJsonPath = path.join(installDir, 'package.json')
+    let pkgJson: { dependencies?: Record<string, string> }
+    try {
+      pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'))
+    } catch {
+      continue
+    }
+    if (pkgJson.dependencies?.[pkgName]) {
+      return path.join(installDir, 'node_modules', pkgName)
+    }
+  }
+  return null
+}
 
 test('global installation', async () => {
   prepare()
@@ -20,18 +57,20 @@ test('global installation', async () => {
 
   const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
-  await execPnpm(['install', '--global', 'is-positive'], { env })
+  await execPnpm(['add', '--global', 'is-positive'], { env })
 
   // there was an issue when subsequent installations were removing everything installed prior
   // https://github.com/pnpm/pnpm/issues/808
-  await execPnpm(['install', '--global', 'is-negative'], { env })
+  await execPnpm(['add', '--global', 'is-negative'], { env })
 
-  const globalPrefix = path.join(global, `pnpm/global/${LAYOUT_VERSION}`)
-
-  const { default: isPositive } = await import(path.join(globalPrefix, 'node_modules', 'is-positive'))
+  const isPositivePath = findGlobalPkg(pnpmHome, 'is-positive')
+  expect(isPositivePath).toBeTruthy()
+  const { default: isPositive } = await import(isPositivePath!)
   expect(typeof isPositive).toBe('function')
 
-  const { default: isNegative } = await import(path.join(globalPrefix, 'node_modules', 'is-negative'))
+  const isNegativePath = findGlobalPkg(pnpmHome, 'is-negative')
+  expect(isNegativePath).toBeTruthy()
+  const { default: isNegative } = await import(isNegativePath!)
   expect(typeof isNegative).toBe('function')
 })
 
@@ -49,7 +88,7 @@ test('global install warns when project has packageManager configured', async ()
   const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   const { status } = execPnpmSync([
-    'install',
+    'add',
     '--global',
     'is-positive',
     '--config.package-manager-strict=true',
@@ -66,7 +105,9 @@ test('global installation to custom directory with --global-dir', async () => {
 
   await execPnpm(['add', '--global', '--global-dir=../global', 'is-positive'], { env })
 
-  const { default: isPositive } = await import(path.resolve(`../global/${LAYOUT_VERSION}/node_modules/is-positive`))
+  const isPositivePath = findGlobalPkg(pnpmHome, 'is-positive')
+  expect(isPositivePath).toBeTruthy()
+  const { default: isPositive } = await import(isPositivePath!)
   expect(typeof isPositive).toBe('function')
 })
 
@@ -80,14 +121,12 @@ test('always install latest when doing global installation without spec', async 
 
   const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
-  await execPnpm(['install', '-g', '@pnpm.e2e/peer-c@1'], { env })
-  await execPnpm(['install', '-g', '@pnpm.e2e/peer-c'], { env })
+  await execPnpm(['add', '-g', '@pnpm.e2e/peer-c@1'], { env })
+  await execPnpm(['add', '-g', '@pnpm.e2e/peer-c'], { env })
 
-  const globalPrefix = path.join(global, `pnpm/global/${LAYOUT_VERSION}`)
-
-  process.chdir(globalPrefix)
-
-  expect((await import(path.resolve('node_modules', '@pnpm.e2e/peer-c', 'package.json'))).default.version).toBe('2.0.0')
+  const peerCPath = findGlobalPkg(pnpmHome, '@pnpm.e2e/peer-c')
+  expect(peerCPath).toBeTruthy()
+  expect((await import(path.join(peerCPath!, 'package.json'))).default.version).toBe('2.0.0')
 })
 
 test('run lifecycle events of global packages in correct working directory', async () => {
@@ -99,14 +138,7 @@ test('run lifecycle events of global packages in correct working directory', asy
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
-  const globalPkgDir = path.join(pnpmHome, 'global', String(LAYOUT_VERSION))
-  fs.mkdirSync(globalPkgDir, { recursive: true })
-  fs.writeFileSync(path.join(globalPkgDir, 'package.json'), JSON.stringify({}))
-  writeYamlFile.sync(path.join(globalPkgDir, 'pnpm-workspace.yaml'), {
-    allowBuilds: {
-      '@pnpm.e2e/postinstall-calls-pnpm': true,
-    },
-  })
+  fs.mkdirSync(pnpmHome, { recursive: true })
 
   const env = {
     [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
@@ -114,9 +146,11 @@ test('run lifecycle events of global packages in correct working directory', asy
     XDG_DATA_HOME: global,
   }
 
-  await execPnpm(['install', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
+  await execPnpm(['add', '-g', '--allow-build=@pnpm.e2e/postinstall-calls-pnpm', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
 
-  expect(fs.existsSync(path.join(globalPkgDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm/created-by-postinstall'))).toBeTruthy()
+  const pkgPath = findGlobalPkg(pnpmHome, '@pnpm.e2e/postinstall-calls-pnpm')
+  expect(pkgPath).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgPath!, 'created-by-postinstall'))).toBeTruthy()
 })
 
 // CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies
@@ -158,7 +192,7 @@ test.skip('dangerously-allow-all-builds=true in global config', async () => {
   }
 
   // global install should run scripts
-  await execPnpm(['install', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
+  await execPnpm(['add', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
   expect(fs.readdirSync(path.join(globalPkgDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
 
   // local config should override global config
@@ -213,7 +247,7 @@ test.skip('dangerously-allow-all-builds=false in global config', async () => {
   }
 
   // global install should run scripts
-  await execPnpm(['install', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
+  await execPnpm(['add', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
   expect(fs.readdirSync(path.join(globalPkgDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 
   // local config should override global config
@@ -237,13 +271,13 @@ test('global update to latest', async () => {
 
   const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
-  await execPnpm(['install', '--global', 'is-positive@1'], { env })
+  await execPnpm(['add', '--global', 'is-positive@1'], { env })
   await execPnpm(['update', '--global', '--latest'], { env })
 
-  const globalPrefix = path.join(global, `pnpm/global/${LAYOUT_VERSION}`)
-
-  const { default: isPositive } = await import(path.join(globalPrefix, 'node_modules/is-positive/package.json'))
-  expect(isPositive.version).toBe('3.1.0')
+  const isPositivePath = findGlobalPkg(pnpmHome, 'is-positive')
+  expect(isPositivePath).toBeTruthy()
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(isPositivePath!, 'package.json'), 'utf-8'))
+  expect(pkgJson.version).toBe('3.1.0')
 })
 
 test('global update should not crash if there are no global packages', async () => {
