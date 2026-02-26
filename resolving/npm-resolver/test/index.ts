@@ -2015,3 +2015,96 @@ test('pick lowest version by * when there are only prerelease versions', async (
   expect(resolveResult!.manifest!.name).toBe('is-positive')
   expect(resolveResult!.manifest!.version).toBe('1.0.0-alpha.1')
 })
+
+test('do not resolve from local directory when version does not match and package is not found in the registry', async () => {
+  nock(registries.default)
+    .get('/is-positive')
+    .reply(404, {})
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+
+  await expect(
+    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2.0.0' }, {
+      projectDir: '/home/istvan/src',
+      update: 'compatible',
+      workspacePackages: new Map([
+        ['is-positive', new Map([
+          ['1.0.0', {
+            rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+            manifest: {
+              name: 'is-positive',
+              version: '1.0.0',
+            },
+          }],
+        ])],
+      ]),
+    })
+  ).rejects.toThrow()
+})
+
+test('do not resolve from local directory when version does not match and no matching version in the registry', async () => {
+  nock(registries.default)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+
+  await expect(
+    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '99.0.0' }, {
+      projectDir: '/home/istvan/src',
+      update: 'compatible',
+      workspacePackages: new Map([
+        ['is-positive', new Map([
+          ['1.0.0', {
+            rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+            manifest: {
+              name: 'is-positive',
+              version: '1.0.0',
+            },
+          }],
+        ])],
+      ]),
+    })
+  ).rejects.toThrow(NoMatchingVersionError)
+})
+
+test('do not resolve from local directory when version does not match even if the registry has the package', async () => {
+  nock(registries.default)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.1.0' }, {
+    projectDir: '/home/istvan/src',
+    update: 'compatible',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
+          manifest: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        }],
+      ])],
+    ]),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
