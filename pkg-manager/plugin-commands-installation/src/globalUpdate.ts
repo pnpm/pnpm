@@ -92,9 +92,6 @@ async function updateGlobalPackageGroup (
     fetchFullMetadata: getFetchFullMetadata(opts),
     include,
     includeDirect: include,
-    allowNew: true,
-    update: true,
-    updateToLatest: opts.latest,
   }, depSpecs)
 
   // Swap pkg symlink to new install

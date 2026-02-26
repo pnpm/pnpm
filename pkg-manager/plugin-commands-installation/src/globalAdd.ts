@@ -57,6 +57,15 @@ export async function handleGlobalAdd (
   const installDir = getPrepareDir(hashDir)
   fs.mkdirSync(installDir, { recursive: true })
 
+  // Convert allowBuild array to allowBuilds Record (same conversion as add.handler)
+  let allowBuilds = opts.allowBuilds ?? {}
+  if (opts.allowBuild?.length) {
+    allowBuilds = { ...allowBuilds }
+    for (const pkg of opts.allowBuild) {
+      allowBuilds[pkg] = true
+    }
+  }
+
   // Install packages into isolated directory (same pattern as dlx)
   const include = {
     dependencies: true,
@@ -81,6 +90,7 @@ export async function handleGlobalAdd (
     fetchFullMetadata: getFetchFullMetadata(opts),
     include,
     includeDirect: include,
+    allowBuilds,
   }, params)
 
   // Create/update pkg symlink
