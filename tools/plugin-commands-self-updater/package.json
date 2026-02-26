@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tools.plugin-commands-self-updater",
-  "version": "1000.1.50",
+  "version": "1000.1.51",
   "description": "A command for updating pnpm itself",
   "keywords": [
     "pnpm",

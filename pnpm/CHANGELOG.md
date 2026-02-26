@@ -1,5 +1,11 @@
 # pnpm
 
+## 10.30.3
+
+### Patch Changes
+
+- Fixed version switching via `packageManager` field failing when pnpm is installed as a standalone executable in environments without a system Node.js [#10687](https://github.com/pnpm/pnpm/issues/10687).
+
 ## 10.30.2
 
 ### Patch Changes

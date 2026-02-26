@@ -1,5 +1,11 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.51
+
+### Patch Changes
+
+- 1f7425b: Fixed version switching via `packageManager` field failing when pnpm is installed as a standalone executable in environments without a system Node.js [#10687](https://github.com/pnpm/pnpm/issues/10687).
+
 ## 1000.1.50
 
 ### Patch Changes
