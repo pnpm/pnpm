@@ -16,6 +16,7 @@ import { type DependenciesField, type ProjectRootDir, type Project } from '@pnpm
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import { pick, without } from 'ramda'
 import renderHelp from 'render-help'
+import { handleGlobalRemove } from './globalRemove.js'
 import { getSaveType } from './getSaveType.js'
 import { recursive } from './recursive.js'
 
@@ -154,10 +155,13 @@ export async function handler (
   > & {
     recursive?: boolean
     pnpmfile: string[]
-  },
+  } & Partial<Pick<Config, 'global' | 'pnpmHomeDir'>>,
   params: string[]
 ): Promise<void> {
   if (params.length === 0) throw new PnpmError('MUST_REMOVE_SOMETHING', 'At least one dependency name should be specified for removal')
+  if (opts.global) {
+    return handleGlobalRemove(opts, params)
+  }
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,

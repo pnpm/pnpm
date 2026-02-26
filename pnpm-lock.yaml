@@ -2820,6 +2820,9 @@ importers:
       '@pnpm/exec.pnpm-cli-runner':
         specifier: workspace:*
         version: link:../pnpm-cli-runner
+      '@pnpm/global-packages':
+        specifier: workspace:*
+        version: link:../../packages/global-packages
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
@@ -4416,6 +4419,28 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
 
+  packages/global-packages:
+    dependencies:
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
+      '@pnpm/package-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/package-bins
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
+    devDependencies:
+      '@pnpm/global-packages':
+        specifier: workspace:*
+        version: 'link:'
+
   packages/logger:
     dependencies:
       bole:
@@ -5834,9 +5859,15 @@ importers:
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../get-context
+      '@pnpm/global-packages':
+        specifier: workspace:*
+        version: link:../../packages/global-packages
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/link-bins':
+        specifier: workspace:*
+        version: link:../link-bins
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -5873,6 +5904,9 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/remove-bins':
+        specifier: workspace:*
+        version: link:../remove-bins
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -5948,6 +5982,9 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
+      symlink-dir:
+        specifier: 'catalog:'
+        version: 7.1.0
       version-selector-type:
         specifier: 'catalog:'
         version: 3.0.0
@@ -6027,9 +6064,6 @@ importers:
       sinon:
         specifier: 'catalog:'
         version: 16.1.3
-      symlink-dir:
-        specifier: 'catalog:'
-        version: 7.1.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -7939,6 +7973,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/global-packages':
+        specifier: workspace:*
+        version: link:../../packages/global-packages
       '@pnpm/list':
         specifier: workspace:*
         version: link:../list

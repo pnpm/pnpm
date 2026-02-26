@@ -7,13 +7,13 @@ import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
+import { createCacheKey } from '@pnpm/global-packages'
+export { createCacheKey }
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { type PackageManifest, type PnpmSettings, type SupportedArchitectures } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
 import execa from 'execa'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
@@ -264,34 +264,6 @@ function createDlxCommandCacheDir (
   const cachePath = path.join(dlxCacheDir, cacheKey)
   fs.mkdirSync(cachePath, { recursive: true })
   return cachePath
-}
-
-export function createCacheKey (opts: {
-  packages: string[]
-  registries: Record<string, string>
-  allowBuild?: string[]
-  supportedArchitectures?: SupportedArchitectures
-}): string {
-  const sortedPkgs = [...opts.packages].sort((a, b) => a.localeCompare(b))
-  const sortedRegistries = Object.entries(opts.registries).sort(([k1], [k2]) => k1.localeCompare(k2))
-  const args: unknown[] = [sortedPkgs, sortedRegistries]
-  if (opts.allowBuild?.length) {
-    args.push({ allowBuild: opts.allowBuild.sort(lexCompare) })
-  }
-  if (opts.supportedArchitectures) {
-    const supportedArchitecturesKeys = ['cpu', 'libc', 'os'] as const satisfies Array<keyof SupportedArchitectures>
-    for (const key of supportedArchitecturesKeys) {
-      const value = opts.supportedArchitectures[key]
-      if (!value?.length) continue
-      args.push({
-        supportedArchitectures: {
-          [key]: [...new Set(value)].sort(lexCompare),
-        },
-      })
-    }
-  }
-  const hashStr = JSON.stringify(args)
-  return createHexHash(hashStr)
 }
 
 function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | undefined {

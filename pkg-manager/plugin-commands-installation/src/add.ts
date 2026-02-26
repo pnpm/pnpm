@@ -7,6 +7,7 @@ import { createStoreController } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
+import { handleGlobalAdd } from './globalAdd.js'
 import { type InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { writeSettings } from '@pnpm/config.config-writer'
@@ -250,6 +251,7 @@ export async function handler (
     if (params.includes('pnpm') || params.includes('@pnpm/exe')) {
       throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
     }
+    return handleGlobalAdd(opts, params)
   }
 
   const include = {

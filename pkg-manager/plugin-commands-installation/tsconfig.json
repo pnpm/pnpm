@@ -76,6 +76,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/global-packages"
+    },
+    {
       "path": "../../packages/logger"
     },
     {
@@ -139,7 +142,13 @@
       "path": "../get-context"
     },
     {
+      "path": "../link-bins"
+    },
+    {
       "path": "../modules-yaml"
+    },
+    {
+      "path": "../remove-bins"
     }
   ]
 }

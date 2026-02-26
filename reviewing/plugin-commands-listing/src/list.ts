@@ -1,6 +1,11 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
+import {
+  getGlobalDir,
+  scanGlobalPackages,
+  getGlobalPackageDetails,
+} from '@pnpm/global-packages'
 import { list, listForPackages } from '@pnpm/list'
 import { type Finder, type IncludedDependencies } from '@pnpm/types'
 import { pick } from 'ramda'
@@ -101,12 +106,15 @@ export type ListCommandOptions = Pick<Config,
   onlyProjects?: boolean
   recursive?: boolean
   findBy?: string[]
-}
+} & Partial<Pick<Config, 'global' | 'pnpmHomeDir'>>
 
 export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ): Promise<string> {
+  if (opts.global && opts.pnpmHomeDir) {
+    return listGlobalPackages(opts.pnpmHomeDir, params)
+  }
   const include = computeInclude(opts)
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
@@ -120,6 +128,25 @@ export async function handler (
     lockfileDir: opts.lockfileDir ?? opts.dir,
     checkWantedLockfileOnly: opts.lockfileOnly,
   })
+}
+
+async function listGlobalPackages (pnpmHomeDir: string, params: string[]): Promise<string> {
+  const globalDir = getGlobalDir(pnpmHomeDir)
+  const packages = scanGlobalPackages(globalDir)
+  const allDetails = await Promise.all(packages.map((pkg) => getGlobalPackageDetails(pkg)))
+  const lines: string[] = []
+  for (const details of allDetails) {
+    for (const installed of details.installedPackages) {
+      if (params.length > 0 && !params.some((p) => installed.alias.includes(p))) continue
+      lines.push(`${installed.alias}@${installed.version}`)
+    }
+  }
+  if (lines.length === 0) {
+    return params.length > 0
+      ? 'No matching global packages found'
+      : 'No global packages found'
+  }
+  return lines.join('\n')
 }
 
 export async function render (

@@ -8,6 +8,7 @@ import { writeSettings } from '@pnpm/config.config-writer'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { DEPENDENCIES_FIELDS, type ProjectManifest, type Project } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
+import { findGlobalPackage, getGlobalDir } from '@pnpm/global-packages'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import {
@@ -39,7 +40,7 @@ type LinkOpts = Pick<Config,
 | 'workspacePackagePatterns'
 | 'sharedWorkspaceLockfile'
 | 'globalPkgDir'
-> & Partial<Pick<Config, 'linkWorkspacePackages'>> & install.InstallCommandOptions
+> & Partial<Pick<Config, 'linkWorkspacePackages' | 'pnpmHomeDir'>> & install.InstallCommandOptions
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -153,7 +154,18 @@ export async function handler (
 
   const [pkgPaths, pkgNames] = partition((inp) => isFilespec.test(inp), params)
 
-  pkgNames.forEach((pkgName) => pkgPaths.push(path.join(opts.globalPkgDir, 'node_modules', pkgName)))
+  for (const pkgName of pkgNames) {
+    if (opts.pnpmHomeDir) {
+      const globalDir = getGlobalDir(opts.pnpmHomeDir)
+      const found = findGlobalPackage(globalDir, pkgName)
+      if (found) {
+        pkgPaths.push(path.join(found.installDir, 'node_modules', pkgName))
+        continue
+      }
+    }
+    // Fallback to old globalPkgDir path
+    pkgPaths.push(path.join(opts.globalPkgDir, 'node_modules', pkgName))
+  }
 
   const newManifest = opts.rootProjectManifest ?? {}
   await Promise.all(

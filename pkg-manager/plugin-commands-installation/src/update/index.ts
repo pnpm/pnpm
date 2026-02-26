@@ -5,7 +5,7 @@ import {
 } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
+import { type Config, types as allTypes } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
@@ -17,6 +17,7 @@ import { pick, pluck, unnest } from 'ramda'
 import renderHelp from 'render-help'
 import { type InstallCommandOptions } from '../install.js'
 import { installDeps } from '../installDeps.js'
+import { handleGlobalUpdate } from '../globalUpdate.js'
 import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
 import { parseUpdateParam } from '../recursive.js'
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -162,14 +163,14 @@ dependencies is not found inside the workspace',
 export type UpdateCommandOptions = InstallCommandOptions & {
   interactive?: boolean
   latest?: boolean
-}
+} & Partial<Pick<Config, 'pnpmHomeDir'>>
 
 export async function handler (
   opts: UpdateCommandOptions,
   params: string[] = []
 ): Promise<string | undefined> {
-  if (opts.global && opts.rootProjectManifest == null) {
-    return 'No global packages found'
+  if (opts.global) {
+    return handleGlobalUpdate(opts, params)
   }
   if (opts.interactive) {
     return interactiveUpdate(params, opts)
