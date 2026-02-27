@@ -9,6 +9,7 @@ const benchmarks = [
   ['nolockfile', 'Full resolution (warm, no lockfile)'],
   ['headless-cold', 'Headless (cold store+cache)'],
   ['cold', 'Cold install (nothing warm)'],
+  ['gvs-warm', 'GVS warm reinstall (warm global store)'],
 ]
 
 function readResult (benchDir, name, variant) {

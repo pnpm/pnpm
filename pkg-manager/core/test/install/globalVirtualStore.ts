@@ -57,23 +57,33 @@ test('reinstall from warm global virtual store after deleting node_modules', asy
       '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
     },
   }
-  await install(manifest, testDefaults({
+  const opts = testDefaults({
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
     hoistPattern: ['*'],
-  }))
+  })
+  await install(manifest, opts)
 
   // Delete only node_modules, keep the global virtual store warm
   rimraf('node_modules')
   expect(fs.existsSync(globalVirtualStoreDir)).toBeTruthy()
 
+  // Spy on fetchPackage to verify the fast-path skips fetching
+  const originalFetchPackage = opts.storeController.fetchPackage
+  let fetchPackageCalls = 0
+  opts.storeController.fetchPackage = ((...args: Parameters<typeof originalFetchPackage>) => {
+    fetchPackageCalls++
+    return originalFetchPackage(...args)
+  }) as typeof originalFetchPackage
+
   // Reinstall with frozenLockfile — should reattach from the warm global store
-  await install(manifest, testDefaults({
-    enableGlobalVirtualStore: true,
-    virtualStoreDir: globalVirtualStoreDir,
+  await install(manifest, {
+    ...opts,
     frozenLockfile: true,
-    hoistPattern: ['*'],
-  }))
+  })
+
+  // fetchPackage should NOT be called — all packages reattached from warm GVS
+  expect(fetchPackageCalls).toBe(0)
 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
