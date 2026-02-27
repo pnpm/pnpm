@@ -257,7 +257,7 @@ async function buildGraphFromPackages (
       }
 
       if (!fetchResponse && opts.enableGlobalVirtualStore && !isDirectoryDep
-        && !opts.force && !opts.includeUnchangedDeps) {
+        && !opts.force) {
         if (dirExists ?? await pathExists(dir)) {
           fetchResponse = {}
         }
