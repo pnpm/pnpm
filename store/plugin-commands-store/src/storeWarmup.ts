@@ -79,31 +79,43 @@ export async function storeWarmup (opts: StoreWarmupOptions): Promise<void> {
 
   const depNodes = Object.values(graph)
 
-  // Import packages into GVS directories
-  await Promise.all(depNodes.map(async (depNode: DependenciesGraphNode) => {
-    if (!depNode.fetching) return
-    let filesResponse
-    try {
-      filesResponse = (await depNode.fetching()).files
-    } catch (err: unknown) {
-      if (depNode.optional) return
-      throw err
-    }
-    await opts.storeController.importPackage(depNode.dir, {
-      filesResponse,
-      force: opts.force ?? false,
-      requiresBuild: false,
+  try {
+    // Import packages into GVS directories.
+    // This is intentionally simpler than headless linkAllPkgs() — no side-effects
+    // cache, build tracking, or progress logging since warmup only populates the
+    // store without creating a usable node_modules.
+    await Promise.all(depNodes.map(async (depNode: DependenciesGraphNode) => {
+      if (!depNode.fetching) return
+      let filesResponse
+      try {
+        filesResponse = (await depNode.fetching()).files
+      } catch (err: unknown) {
+        if (depNode.optional) return
+        throw err
+      }
+      await opts.storeController.importPackage(depNode.dir, {
+        filesResponse,
+        force: opts.force ?? false,
+        requiresBuild: false,
+      })
+    }))
+
+    // Create internal node_modules symlinks within GVS dirs
+    await symlinkAllModules({
+      deps: depNodes.map((depNode) => ({
+        children: depNode.children,
+        modules: depNode.modules,
+        name: depNode.name,
+      })),
     })
-  }))
-
-  // Create internal node_modules symlinks within GVS dirs
-  await symlinkAllModules({
-    deps: depNodes.map((depNode) => ({
-      children: depNode.children,
-      modules: depNode.modules,
-      name: depNode.name,
-    })),
-  })
-
-  await opts.storeController.close()
+  } finally {
+    // Drain any in-flight fetches before closing, to avoid closing the
+    // store controller while imports are still running.
+    await Promise.all(depNodes.map(async ({ fetching }) => {
+      try {
+        await fetching?.()
+      } catch {}
+    }))
+    await opts.storeController.close()
+  }
 }

@@ -105,7 +105,7 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
     })
     return storePrune(storePruneOptions) as Promise<undefined>
   }
-  case 'add':
+  case 'add': {
     store = await createStoreController(opts)
     return storeAdd(params.slice(1), {
       prefix: opts.dir,
@@ -113,6 +113,7 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
       storeController: store.ctrl,
       tag: opts.tag,
     }) as Promise<undefined>
+  }
   case 'warmup': {
     store = await createStoreController(opts)
     return storeWarmup({
