@@ -194,6 +194,7 @@ export type BundledManifest = Pick<
 | 'bundleDependencies'
 | 'cpu'
 | 'dependencies'
+| 'devDependencies'
 | 'directories'
 | 'engines'
 | 'libc'
