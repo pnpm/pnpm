@@ -28,4 +28,6 @@ test('getPkgInfo handles missing pkgSnapshot without crashing', () => {
     isSkipped: false,
     path: path.join('.pnpm/missing-pkg@1.0.0/node_modules/missing-pkg'),
   })
+  expect(result.pkgInfo.resolved).toBeUndefined()
+  expect(result.pkgInfo.optional).toBeUndefined()
 })
