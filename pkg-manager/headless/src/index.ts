@@ -334,8 +334,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     nodeVersion: opts.currentEngine.nodeVersion,
     pnpmVersion: opts.currentEngine.pnpmVersion,
     supportedArchitectures: opts.supportedArchitectures,
-    includeUnchangedDeps: (!equals(opts.currentHoistPattern, opts.hoistPattern ?? undefined)) ||
-      (!equals(opts.currentPublicHoistPattern, opts.publicHoistPattern ?? undefined)),
+    includeUnchangedDeps: (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) ||
+      (!equals(opts.currentPublicHoistPattern ?? [], opts.publicHoistPattern ?? [])),
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,
