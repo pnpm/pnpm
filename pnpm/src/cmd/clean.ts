@@ -3,6 +3,7 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
 import isSubdir from 'is-subdir'
+import { pathExists } from 'path-exists'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 
@@ -65,13 +66,11 @@ export async function handler (
       ? opts.virtualStoreDir
       : path.resolve(rootDir, opts.virtualStoreDir)
     const rootModulesDir = path.join(rootDir, modulesDir)
-    if (!isSubdir(rootModulesDir, resolvedVirtualStoreDir) && isSubdir(rootDir, resolvedVirtualStoreDir)) {
-      try {
-        await fs.access(resolvedVirtualStoreDir)
-      } catch (err: unknown) {
-        if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
-        throw err
-      }
+    if (
+      !isSubdir(rootModulesDir, resolvedVirtualStoreDir) &&
+      isSubdir(rootDir, resolvedVirtualStoreDir) &&
+      await pathExists(resolvedVirtualStoreDir)
+    ) {
       printRemoving(resolvedVirtualStoreDir)
       await rimraf(resolvedVirtualStoreDir)
     }
@@ -90,14 +89,10 @@ async function cleanProjectDir (dir: string, modulesDir: string, lockfile?: bool
   }
   if (lockfile) {
     const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
-    try {
-      await fs.access(lockfilePath)
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
-      throw err
+    if (await pathExists(lockfilePath)) {
+      printRemoving(lockfilePath)
+      await rimraf(lockfilePath)
     }
-    printRemoving(lockfilePath)
-    await rimraf(lockfilePath)
   }
 }
 
@@ -115,7 +110,13 @@ async function hasContentsToRemove (modulesDir: string): Promise<boolean> {
 }
 
 async function removeModulesDirContents (modulesDir: string): Promise<void> {
-  const items = await fs.readdir(modulesDir)
+  let items: string[]
+  try {
+    items = await fs.readdir(modulesDir)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw err
+  }
   await Promise.all(items.map(async (item) => {
     if (item[0] === '.' && !PNPM_HIDDEN_ENTRIES.has(item)) return
     await rimraf(path.join(modulesDir, item))

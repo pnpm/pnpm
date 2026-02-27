@@ -166,6 +166,7 @@
     "nm-prune": "catalog:",
     "normalize-newline": "catalog:",
     "p-defer": "catalog:",
+    "path-exists": "catalog:",
     "path-name": "catalog:",
     "pidtree": "catalog:",
     "ps-list": "catalog:",
