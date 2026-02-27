@@ -867,6 +867,52 @@ test('allProjectsAreUpToDate(): returns true if one of the importers is not pres
   })).toBeTruthy()
 })
 
+test('allProjectsAreUpToDate(): returns true for injected self-referencing file: dependency resolved as link:', async () => {
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'can-link' as ProjectId,
+      manifest: {
+        name: 'can-link',
+        version: '2.0.0',
+        dependenciesMeta: {
+          'can-link': {
+            injected: true,
+          },
+        },
+        devDependencies: {
+          'can-link': 'file:',
+        },
+      },
+      rootDir: 'can-link' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    wantedLockfile: {
+      importers: {
+        ['can-link' as ProjectId]: {
+          dependenciesMeta: {
+            'can-link': {
+              injected: true,
+            },
+          },
+          devDependencies: {
+            'can-link': 'link:',
+          },
+          specifiers: {
+            'can-link': 'file:',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages: new Map(),
+    lockfileDir: '',
+  })).toBeTruthy()
+})
+
 test('allProjectsAreUpToDate(): returns false if the lockfile is broken, the resolved versions do not satisfy the ranges', async () => {
   expect(await allProjectsAreUpToDate([
     {
