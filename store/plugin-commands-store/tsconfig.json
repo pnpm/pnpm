@@ -28,10 +28,16 @@
       "path": "../../crypto/integrity"
     },
     {
+      "path": "../../deps/graph-builder"
+    },
+    {
       "path": "../../exec/plugin-commands-script-runners"
     },
     {
       "path": "../../fs/msgpack-file"
+    },
+    {
+      "path": "../../lockfile/filtering"
     },
     {
       "path": "../../lockfile/fs"
@@ -59,6 +65,9 @@
     },
     {
       "path": "../../pkg-manager/get-context"
+    },
+    {
+      "path": "../../worker"
     },
     {
       "path": "../cafs"

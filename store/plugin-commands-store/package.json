@@ -34,11 +34,15 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.integrity": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/deps.graph-builder": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/get-context": "workspace:*",
+    "@pnpm/lockfile.filtering": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
@@ -54,13 +58,12 @@
     "render-help": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/constants": "workspace:*",
-    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/plugin-commands-script-runners": "workspace:*",

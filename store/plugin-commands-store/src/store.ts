@@ -9,6 +9,7 @@ import renderHelp from 'render-help'
 import { storeAdd } from './storeAdd.js'
 import { storePrune } from './storePrune.js'
 import { storeStatus } from './storeStatus/index.js'
+import { storeWarmup } from './storeWarmup.js'
 
 export const skipPackageManagerCheck = true
 
@@ -57,6 +58,10 @@ Alien directories are directories/files that were not created by the package man
           {
             description: 'Returns the path to the active store directory.',
             name: 'path',
+          },
+          {
+            description: 'Pre-populates the global virtual store from a lockfile without creating node_modules.',
+            name: 'warmup',
           },
         ],
       },
@@ -108,6 +113,14 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
       storeController: store.ctrl,
       tag: opts.tag,
     }) as Promise<undefined>
+  case 'warmup': {
+    store = await createStoreController(opts)
+    return storeWarmup({
+      ...opts,
+      storeController: store.ctrl,
+      storeDir: store.dir,
+    }) as Promise<undefined>
+  }
   default:
     return help()
   }

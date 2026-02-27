@@ -8422,12 +8422,18 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/crypto.integrity':
         specifier: workspace:*
         version: link:../../crypto/integrity
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/deps.graph-builder':
+        specifier: workspace:*
+        version: link:../../deps/graph-builder
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -8437,6 +8443,12 @@ importers:
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
+      '@pnpm/lockfile.filtering':
+        specifier: workspace:*
+        version: link:../../lockfile/filtering
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
@@ -8461,6 +8473,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
       archy:
         specifier: 'catalog:'
         version: 1.0.0
@@ -8483,12 +8498,6 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
-      '@pnpm/lockfile.fs':
-        specifier: workspace:*
-        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
