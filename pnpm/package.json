@@ -159,6 +159,7 @@
     "exists-link": "catalog:",
     "get-port": "catalog:",
     "ini": "catalog:",
+    "is-subdir": "catalog:",
     "is-windows": "catalog:",
     "load-json-file": "catalog:",
     "loud-rejection": "catalog:",

@@ -2,6 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
+import isSubdir from 'is-subdir'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 
@@ -65,6 +66,12 @@ export async function handler (
       : path.resolve(rootDir, opts.virtualStoreDir)
     const rootModulesDir = path.join(rootDir, modulesDir)
     if (!isSubdir(rootModulesDir, resolvedVirtualStoreDir) && isSubdir(rootDir, resolvedVirtualStoreDir)) {
+      try {
+        await fs.access(resolvedVirtualStoreDir)
+      } catch (err: unknown) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
+        throw err
+      }
       printRemoving(resolvedVirtualStoreDir)
       await rimraf(resolvedVirtualStoreDir)
     }
@@ -83,6 +90,12 @@ async function cleanProjectDir (dir: string, modulesDir: string, lockfile?: bool
   }
   if (lockfile) {
     const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
+    try {
+      await fs.access(lockfilePath)
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw err
+    }
     printRemoving(lockfilePath)
     await rimraf(lockfilePath)
   }
@@ -107,11 +120,6 @@ async function removeModulesDirContents (modulesDir: string): Promise<void> {
     if (item[0] === '.' && !PNPM_HIDDEN_ENTRIES.has(item)) return
     await rimraf(path.join(modulesDir, item))
   }))
-}
-
-function isSubdir (parent: string, child: string): boolean {
-  const rel = path.relative(parent, child)
-  return !rel.startsWith('..') && !path.isAbsolute(rel)
 }
 
 async function getProjectDirs (

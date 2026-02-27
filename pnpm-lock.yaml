@@ -6736,6 +6736,9 @@ importers:
       ini:
         specifier: 'catalog:'
         version: 6.0.0
+      is-subdir:
+        specifier: 'catalog:'
+        version: 1.2.0
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
