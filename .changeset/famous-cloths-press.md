@@ -1,5 +1,6 @@
 ---
 "@pnpm/reviewing.dependencies-hierarchy": patch
+"pnpm": patch
 ---
 
-fix: handle undefined pkgSnapshot in pnpm why -r
+Handle undefined pkgSnapshot in `pnpm why -r` [#10700](https://github.com/pnpm/pnpm/issues/10700).

@@ -4,9 +4,9 @@ import path from 'path'
 test('getPkgInfo handles missing pkgSnapshot without crashing', () => {
   const opts: GetPkgInfoOpts = {
     alias: 'missing-pkg',
-    ref: '/missing-pkg@1.0.0',
-    currentPackages: {}, // empty node_modules
-    wantedPackages: {}, // missing from lockfile
+    ref: 'missing-pkg@1.0.0',
+    currentPackages: {},
+    wantedPackages: {},
     depTypes: {},
     skipped: new Set<string>(),
     registries: {
@@ -22,7 +22,7 @@ test('getPkgInfo handles missing pkgSnapshot without crashing', () => {
   expect(result.pkgInfo).toEqual({
     alias: 'missing-pkg',
     name: 'missing-pkg',
-    version: '/missing-pkg@1.0.0',
+    version: 'missing-pkg@1.0.0',
     isMissing: true,
     isPeer: false,
     isSkipped: false,
