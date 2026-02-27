@@ -71,9 +71,9 @@ test('reinstall from warm global virtual store after deleting node_modules', asy
   // Spy on fetchPackage to verify the fast-path skips fetching
   const originalFetchPackage = opts.storeController.fetchPackage
   let fetchPackageCalls = 0
-  opts.storeController.fetchPackage = ((...args: Parameters<typeof originalFetchPackage>) => {
+  opts.storeController.fetchPackage = ((fetchOpts) => {
     fetchPackageCalls++
-    return originalFetchPackage(...args)
+    return originalFetchPackage(fetchOpts)
   }) as typeof originalFetchPackage
 
   // Reinstall with frozenLockfile — should reattach from the warm global store
