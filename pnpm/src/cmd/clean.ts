@@ -55,8 +55,9 @@ export async function handler (
 ): Promise<void> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const rootDir = opts.workspaceDir ?? opts.dir
+  const cleanOpts = { modulesDir, removeLockfile: opts.lockfile }
   const dirs = await getProjectDirs(opts)
-  await Promise.all(dirs.map((dir) => cleanProjectDir(dir, modulesDir, opts.lockfile)))
+  await Promise.all(dirs.map(cleanProjectDir.bind(null, cleanOpts)))
   if (opts.virtualStoreDir) {
     // virtualStoreDir is resolved relative to the project/workspace root,
     // matching how pnpm resolves it in get-context (via pathAbsolute).
@@ -81,13 +82,13 @@ function printRemoving (p: string): void {
   process.stdout.write(`Removing ${path.relative(process.cwd(), p) || '.'}\n`)
 }
 
-async function cleanProjectDir (dir: string, modulesDir: string, lockfile?: boolean): Promise<void> {
-  const fullModulesDir = path.join(dir, modulesDir)
+async function cleanProjectDir (opts: { modulesDir: string, removeLockfile?: boolean }, dir: string): Promise<void> {
+  const fullModulesDir = path.join(dir, opts.modulesDir)
   if (await hasContentsToRemove(fullModulesDir)) {
     printRemoving(fullModulesDir)
     await removeModulesDirContents(fullModulesDir)
   }
-  if (lockfile) {
+  if (opts.removeLockfile) {
     const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
     if (await pathExists(lockfilePath)) {
       printRemoving(lockfilePath)
