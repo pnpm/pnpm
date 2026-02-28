@@ -52,6 +52,10 @@ export async function linkedPackagesAreUpToDate (
           if (!currentSpec) return true
           const lockfileRef = lockfileDeps[depName]
           if (refIsLocalDirectory(project.snapshot.specifiers[depName])) {
+            // When a file: specifier resolves to link: in the lockfile
+            // (e.g. injected self-references), it's a local link with no
+            // entry in the packages section. Treat it as up-to-date.
+            if (lockfileRef.startsWith('link:')) return true
             const depPath = refToRelative(lockfileRef, depName)
             return depPath != null && isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[depPath])
           }
