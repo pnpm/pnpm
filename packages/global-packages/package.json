@@ -35,7 +35,8 @@
     "@pnpm/package-bins": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:"
+    "@pnpm/util.lex-comparator": "catalog:",
+    "load-json-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm/global-packages": "workspace:*"

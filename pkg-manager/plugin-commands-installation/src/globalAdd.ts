@@ -1,7 +1,6 @@
 import fs from 'fs'
 import path from 'path'
 import util from 'util'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import {
   createGlobalCacheKey,
   findGlobalPackage,
@@ -14,6 +13,7 @@ import { linkBinsOfPackages } from '@pnpm/link-bins'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { removeBin } from '@pnpm/remove-bins'
 import { type DependencyManifest } from '@pnpm/types'
+import { loadJsonFileSync } from 'load-json-file'
 import symlinkDir from 'symlink-dir'
 import { type AddCommandOptions } from './add.js'
 import { installDeps } from './installDeps.js'
@@ -30,32 +30,11 @@ export async function handleGlobalAdd (
   const globalDir = getGlobalDir(pnpmHomeDir)
   const globalBinDir = opts.bin!
 
-  // Parse aliases from params
-  const aliases: string[] = []
-  for (const param of params) {
-    const parsed = parseWantedDependency(param)
-    if (parsed.alias) {
-      aliases.push(parsed.alias)
-    } else {
-      // For non-npm packages (tarballs, git repos etc.), use the raw param
-      aliases.push(param)
-    }
-  }
-
-  // Check if any of these aliases are already installed in a different group
-  // and collect groups to remove
-  await removeExistingGlobalInstalls(globalDir, globalBinDir, aliases)
-
-  // Compute cache key from aliases + registries
-  const cacheHash = createGlobalCacheKey({
-    aliases,
-    registries: opts.registries,
-  })
-
-  const hashDir = getHashDir(globalDir, cacheHash)
-  fs.mkdirSync(hashDir, { recursive: true })
-  const installDir = getPrepareDir(hashDir)
-  fs.mkdirSync(installDir, { recursive: true })
+  // Install into a temporary directory first, then read the resolved aliases
+  // from the resulting package.json. This is more reliable than parsing
+  // aliases from CLI params (which may be tarballs, git URLs, etc.).
+  const tmpDir = path.join(globalDir, `.tmp-${process.pid.toString(16)}-${Date.now().toString(16)}`)
+  fs.mkdirSync(tmpDir, { recursive: true })
 
   // Convert allowBuild array to allowBuilds Record (same conversion as add.handler)
   let allowBuilds = opts.allowBuilds ?? {}
@@ -66,7 +45,6 @@ export async function handleGlobalAdd (
     }
   }
 
-  // Install packages into isolated directory (same pattern as dlx)
   const include = {
     dependencies: true,
     devDependencies: false,
@@ -75,10 +53,10 @@ export async function handleGlobalAdd (
   await installDeps({
     ...opts,
     global: false,
-    bin: path.join(installDir, 'node_modules/.bin'),
-    dir: installDir,
-    lockfileDir: installDir,
-    rootProjectManifestDir: installDir,
+    bin: path.join(tmpDir, 'node_modules/.bin'),
+    dir: tmpDir,
+    lockfileDir: tmpDir,
+    rootProjectManifestDir: tmpDir,
     rootProjectManifest: undefined,
     saveProd: true,
     saveDev: false,
@@ -92,6 +70,25 @@ export async function handleGlobalAdd (
     includeDirect: include,
     allowBuilds,
   }, params)
+
+  // Read resolved aliases from the installed package.json
+  const pkgJson = loadJsonFileSync<{ dependencies?: Record<string, string> }>(path.join(tmpDir, 'package.json'))
+  const aliases = Object.keys(pkgJson.dependencies ?? {})
+
+  // Remove any existing global installations of these aliases
+  await removeExistingGlobalInstalls(globalDir, globalBinDir, aliases)
+
+  // Compute cache key from resolved aliases + registries
+  const cacheHash = createGlobalCacheKey({
+    aliases,
+    registries: opts.registries,
+  })
+
+  // Move the temp install into the proper hash directory
+  const hashDir = getHashDir(globalDir, cacheHash)
+  fs.mkdirSync(hashDir, { recursive: true })
+  const installDir = getPrepareDir(hashDir)
+  fs.renameSync(tmpDir, installDir)
 
   // Create/update pkg symlink
   const pkgLink = path.join(hashDir, 'pkg')
@@ -133,7 +130,7 @@ async function removeExistingGlobalInstalls (
 }
 
 async function readInstalledPackages (installDir: string): Promise<Array<{ manifest: DependencyManifest, location: string }>> {
-  const pkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'package.json'), 'utf-8'))
+  const pkgJson = loadJsonFileSync<{ dependencies?: Record<string, string> }>(path.join(installDir, 'package.json'))
   const depNames = Object.keys(pkgJson.dependencies ?? {})
   const manifests = await Promise.all(
     depNames.map((depName) => readPackageJsonFromDir(path.join(installDir, 'node_modules', depName)))

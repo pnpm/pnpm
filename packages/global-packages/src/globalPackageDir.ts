@@ -3,7 +3,7 @@ import path from 'path'
 import util from 'util'
 
 export function getGlobalDir (pnpmHomeDir: string): string {
-  return path.join(pnpmHomeDir, 'global')
+  return path.join(pnpmHomeDir, '.global')
 }
 
 export function getHashDir (globalDir: string, hash: string): string {

@@ -17,7 +17,7 @@ import {
  * and returns the path to the package's node_modules entry.
  */
 function findGlobalPkg (pnpmHome: string, pkgName: string): string | null {
-  const globalDir = path.join(pnpmHome, 'global')
+  const globalDir = path.join(pnpmHome, '.global')
   let entries: fs.Dirent[]
   try {
     entries = fs.readdirSync(globalDir, { withFileTypes: true })

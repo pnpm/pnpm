@@ -11,6 +11,7 @@ import {
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type DependencyManifest } from '@pnpm/types'
+import { loadJsonFileSync } from 'load-json-file'
 import symlinkDir from 'symlink-dir'
 import { type UpdateCommandOptions } from './update/index.js'
 import { installDeps } from './installDeps.js'
@@ -110,7 +111,7 @@ async function updateGlobalPackageGroup (
 }
 
 async function readInstalledPackages (installDir: string): Promise<Array<{ manifest: DependencyManifest, location: string }>> {
-  const pkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'package.json'), 'utf-8'))
+  const pkgJson = loadJsonFileSync<{ dependencies?: Record<string, string> }>(path.join(installDir, 'package.json'))
   const depNames = Object.keys(pkgJson.dependencies ?? {})
   const manifests = await Promise.all(
     depNames.map((depName) => readPackageJsonFromDir(path.join(installDir, 'node_modules', depName)))

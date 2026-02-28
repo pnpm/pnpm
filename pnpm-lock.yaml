@@ -4436,6 +4436,9 @@ importers:
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
         version: 3.0.2
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
     devDependencies:
       '@pnpm/global-packages':
         specifier: workspace:*
