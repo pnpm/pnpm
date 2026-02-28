@@ -87,7 +87,10 @@ export type DlxCommandOptions = {
 export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
-): Promise<{ exitCode: number }> {
+): Promise<{ exitCode: number, output?: string }> {
+  if (!command && (!opts.package || opts.package.length === 0)) {
+    return { exitCode: 1, output: help() }
+  }
   const pkgs = opts.package ?? [command]
   const fullMetadata = (
     (

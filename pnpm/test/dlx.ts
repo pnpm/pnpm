@@ -299,6 +299,17 @@ test('dlx uses the node version specified by --package=node@runtime:<version>', 
   }
 })
 
+test('dlx without arguments prints help text and exits with 1', () => {
+  prepareEmpty()
+
+  const result = execPnpmSync(['dlx'])
+
+  expect(result.status).toBe(1)
+
+  const output = result.stdout.toString()
+  expect(output).toMatch(/Run a package in a temporary environment\./)
+})
+
 describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {
   type CPU = 'arm64' | 'x64'
   type LibC = 'glibc' | 'musl'
