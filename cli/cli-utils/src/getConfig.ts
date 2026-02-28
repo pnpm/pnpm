@@ -17,6 +17,7 @@ export async function getConfig (
     workspaceDir: string | undefined
     checkUnknownSetting?: boolean
     ignoreNonAuthSettingsFromLocal?: boolean
+    catchConfigDependenciesErrors?: boolean
   }
 ): Promise<Config> {
   let { config, warnings } = await _getConfig({
@@ -30,12 +31,40 @@ export async function getConfig (
   })
   config.cliOptions = cliOptions
   if (config.configDependencies) {
-    const store = await createStoreController(config)
-    await installConfigDeps(config.configDependencies, {
-      registries: config.registries,
-      rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
-      store: store.ctrl,
-    })
+    try {
+      const store = await createStoreController(config)
+      try {
+        await installConfigDeps(config.configDependencies, {
+          registries: config.registries,
+          rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
+          store: store.ctrl,
+        })
+      } finally {
+        if (typeof store?.ctrl?.close === 'function') {
+          try {
+            await store.ctrl.close()
+          } catch (cleanupErr) {
+            console.debug('Failed to close store controller:', cleanupErr)
+          }
+        }
+      }
+    } catch (err: unknown) {
+      if (opts.catchConfigDependenciesErrors) {
+        try {
+          const { logger } = await import('@pnpm/logger')
+          const errorMessage = err instanceof Error ? err.message : String(err)
+
+          logger.debug({
+            message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
+            err,
+          })
+        } catch {
+          //ignore error
+        }
+      } else {
+        throw err
+      }
+    }
   }
   if (!config.ignorePnpmfile) {
     config.tryLoadDefaultPnpmfile = config.pnpmfile == null
