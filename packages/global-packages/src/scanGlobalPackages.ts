@@ -11,12 +11,10 @@ export interface GlobalPackageInfo {
   dependencies: Record<string, string>
 }
 
-export interface GlobalPackageDetail extends GlobalPackageInfo {
-  installedPackages: Array<{
-    alias: string
-    version: string
-    manifest: PackageManifest
-  }>
+export interface InstalledGlobalPackage {
+  alias: string
+  version: string
+  manifest: PackageManifest
 }
 
 export function scanGlobalPackages (globalDir: string): GlobalPackageInfo[] {
@@ -61,26 +59,16 @@ export function findGlobalPackage (globalDir: string, alias: string): GlobalPack
   return packages.find((pkg) => alias in pkg.dependencies) ?? null
 }
 
-export async function getGlobalPackageDetails (info: GlobalPackageInfo): Promise<GlobalPackageDetail> {
-  const aliases = Object.keys(info.dependencies)
-  const manifests = await Promise.all(
-    aliases.map((alias) => safeReadPackageJsonFromDir(path.join(info.installDir, 'node_modules', alias)))
+export async function getGlobalPackageDetails (info: GlobalPackageInfo): Promise<InstalledGlobalPackage[]> {
+  const installedPackages: InstalledGlobalPackage[] = []
+  await Promise.all(
+    Object.keys(info.dependencies).map(async (alias) => {
+      const manifest = await safeReadPackageJsonFromDir(path.join(info.installDir, 'node_modules', alias))
+      if (!manifest) return
+      installedPackages.push({ alias, version: manifest.version, manifest })
+    })
   )
-  const installedPackages: GlobalPackageDetail['installedPackages'] = []
-  for (let i = 0; i < aliases.length; i++) {
-    const manifest = manifests[i]
-    if (manifest) {
-      installedPackages.push({
-        alias: aliases[i],
-        version: manifest.version,
-        manifest,
-      })
-    }
-  }
-  return {
-    ...info,
-    installedPackages,
-  }
+  return installedPackages
 }
 
 export function cleanOrphanedInstallDirs (globalDir: string): void {

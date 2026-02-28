@@ -133,11 +133,9 @@ async function listGlobalPackages (globalPkgDir: string, params: string[]): Prom
   const packages = scanGlobalPackages(globalPkgDir)
   const allDetails = await Promise.all(packages.map((pkg) => getGlobalPackageDetails(pkg)))
   const lines: string[] = []
-  for (const details of allDetails) {
-    for (const installed of details.installedPackages) {
-      if (params.length > 0 && !params.some((p) => installed.alias.includes(p))) continue
-      lines.push(`${installed.alias}@${installed.version}`)
-    }
+  for (const installed of allDetails.flat()) {
+    if (params.length > 0 && !params.some((p) => installed.alias.includes(p))) continue
+    lines.push(`${installed.alias}@${installed.version}`)
   }
   if (lines.length === 0) {
     return params.length > 0
