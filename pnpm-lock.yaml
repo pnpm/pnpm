@@ -8046,6 +8046,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/global-packages':
+        specifier: workspace:*
+        version: link:../../packages/global-packages
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
