@@ -1681,7 +1681,7 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-pw2r-vq6v-hr8c      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 46 vulnerabilities found
-Severity: 4 low | 17 moderate (1 ignored) | 21 high (3 ignored) | 4 critical"
+Severity: 4 low | 17 moderate (2 ignored) | 21 high (3 ignored) | 4 critical"
 `;
 
 exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up when JSON output is used 1`] = `
@@ -3865,5 +3865,5 @@ exports[`plugin-commands-audit audit: CVEs in ignoreGhsas do not show up 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-pw2r-vq6v-hr8c      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 46 vulnerabilities found
-Severity: 4 low | 17 moderate (1 ignored) | 21 high (3 ignored) | 4 critical"
+Severity: 4 low | 17 moderate (2 ignored) | 21 high (3 ignored) | 4 critical"
 `;

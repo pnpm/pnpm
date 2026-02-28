@@ -258,21 +258,27 @@ ${newIgnores.join('\n')}`,
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   const ignoreGhsas = opts.auditConfig?.ignoreGhsas
   if (ignoreGhsas) {
-    auditReport.advisories = pickBy(({ github_advisory_id: githubAdvisoryId, severity }) => {
+    auditReport.advisories = pickBy(({ github_advisory_id: githubAdvisoryId, severity, findings }) => {
       if (!ignoreGhsas.includes(githubAdvisoryId)) {
         return true
       }
-      ignoredVulnerabilities[severity as AuditLevelString] += 1
+
+      const occurrences = (findings || []).reduce((acc: number, finding: { paths?: string[] }) => acc + (finding.paths?.length || 0), 0)
+      ignoredVulnerabilities[severity as AuditLevelString] += occurrences
+
       return false
     }, auditReport.advisories)
   }
   const ignoreCves = opts.auditConfig?.ignoreCves
   if (ignoreCves) {
-    auditReport.advisories = pickBy(({ cves, severity }) => {
+    auditReport.advisories = pickBy(({ cves, severity, findings }) => {
       if (cves.length === 0 || difference(cves, ignoreCves).length > 0) {
         return true
       }
-      ignoredVulnerabilities[severity as AuditLevelString] += 1
+
+      const occurrences = (findings || []).reduce((acc: number, finding: { paths?: string[] }) => acc + (finding.paths?.length || 0), 0)
+      ignoredVulnerabilities[severity as AuditLevelString] += occurrences
+
       return false
     }, auditReport.advisories)
   }
