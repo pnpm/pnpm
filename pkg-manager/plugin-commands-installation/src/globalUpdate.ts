@@ -20,7 +20,7 @@ export async function handleGlobalUpdate (
   opts: UpdateCommandOptions,
   params: string[]
 ): Promise<string | undefined> {
-  const globalDir = opts.globalPkgDir
+  const globalDir = opts.globalPkgDir!
   const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
   const allPackages = scanGlobalPackages(globalDir)

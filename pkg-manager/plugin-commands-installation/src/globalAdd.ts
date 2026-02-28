@@ -22,7 +22,7 @@ export async function handleGlobalAdd (
   opts: AddCommandOptions,
   params: string[]
 ): Promise<void> {
-  const globalDir = opts.globalPkgDir
+  const globalDir = opts.globalPkgDir!
   const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
 

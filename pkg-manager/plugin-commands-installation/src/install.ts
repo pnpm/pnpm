@@ -280,7 +280,6 @@ export type InstallCommandOptions = Pick<Config,
 | 'excludeLinksFromLockfile'
 | 'frozenLockfile'
 | 'global'
-| 'globalPkgDir'
 | 'globalPnpmfile'
 | 'hooks'
 | 'ignorePnpmfile'
@@ -330,7 +329,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'overrides'
 | 'supportedArchitectures'
 | 'packageConfigs'
-> & CreateStoreControllerOptions & {
+> & CreateStoreControllerOptions & Partial<Pick<Config, 'globalPkgDir'>> & {
   argv: {
     original: string[]
   }
