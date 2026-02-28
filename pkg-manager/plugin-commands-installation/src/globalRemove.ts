@@ -4,7 +4,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   findGlobalPackage,
   getGlobalDir,
-  getHashDir,
+  getHashLink,
   getInstalledBinNames,
   type GlobalPackageInfo,
 } from '@pnpm/global-packages'
@@ -34,12 +34,13 @@ export async function handleGlobalRemove (
     groupsToRemove.set(pkg.hash, pkg)
   }
 
-  // Remove bins and directories for all affected groups in parallel
+  // Remove bins, hash symlinks, and install dirs for all affected groups in parallel
   await Promise.all(
     [...groupsToRemove.entries()].map(async ([hash, pkg]) => {
       const binNames = await getInstalledBinNames(pkg)
       await Promise.all(binNames.map((binName) => removeBin(path.join(globalBinDir, binName))))
-      await fs.promises.rm(getHashDir(globalDir, hash), { recursive: true, force: true })
+      await fs.promises.rm(getHashLink(globalDir, hash), { force: true })
+      await fs.promises.rm(pkg.installDir, { recursive: true, force: true })
     })
   )
 }

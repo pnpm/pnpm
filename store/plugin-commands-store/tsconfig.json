@@ -49,6 +49,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/global-packages"
+    },
+    {
       "path": "../../packages/logger"
     },
     {

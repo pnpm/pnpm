@@ -8477,6 +8477,9 @@ importers:
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
+      '@pnpm/global-packages':
+        specifier: workspace:*
+        version: link:../../packages/global-packages
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils

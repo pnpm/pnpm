@@ -1,11 +1,12 @@
 export { createCacheKey, createGlobalCacheKey } from './cacheKey.js'
 export {
+  createTmpInstallDir,
   getGlobalDir,
-  getHashDir,
-  getPrepareDir,
-  resolveActiveInstall,
+  getHashLink,
+  resolveInstallDir,
 } from './globalPackageDir.js'
 export {
+  cleanOrphanedInstallDirs,
   findGlobalPackage,
   getGlobalPackageDetails,
   getInstalledBinNames,

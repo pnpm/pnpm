@@ -12,8 +12,8 @@ import {
 } from '../utils/index.js'
 
 /**
- * Find an installed global package in the new isolated directory structure.
- * Scans {pnpmHomeDir}/global/ for hash dirs, resolves pkg symlinks,
+ * Find an installed global package in the flat isolated directory structure.
+ * Scans {pnpmHomeDir}/.global/ for hash symlinks, resolves them,
  * and returns the path to the package's node_modules entry.
  */
 function findGlobalPkg (pnpmHome: string, pkgName: string): string | null {
@@ -25,20 +25,16 @@ function findGlobalPkg (pnpmHome: string, pkgName: string): string | null {
     return null
   }
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue
-    const pkgLink = path.join(globalDir, entry.name, 'pkg')
+    if (!entry.isSymbolicLink()) continue
     let installDir: string
     try {
-      const stats = fs.lstatSync(pkgLink)
-      if (!stats.isSymbolicLink()) continue
-      installDir = fs.realpathSync(pkgLink)
+      installDir = fs.realpathSync(path.join(globalDir, entry.name))
     } catch {
       continue
     }
-    const pkgJsonPath = path.join(installDir, 'package.json')
     let pkgJson: { dependencies?: Record<string, string> }
     try {
-      pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'))
+      pkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'package.json'), 'utf-8'))
     } catch {
       continue
     }

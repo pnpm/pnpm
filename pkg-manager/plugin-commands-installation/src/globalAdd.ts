@@ -1,13 +1,13 @@
 import fs from 'fs'
 import path from 'path'
-import util from 'util'
 import {
+  cleanOrphanedInstallDirs,
   createGlobalCacheKey,
+  createTmpInstallDir,
   findGlobalPackage,
   getGlobalDir,
-  getHashDir,
+  getHashLink,
   getInstalledBinNames,
-  getPrepareDir,
 } from '@pnpm/global-packages'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -29,12 +29,12 @@ export async function handleGlobalAdd (
   }
   const globalDir = getGlobalDir(pnpmHomeDir)
   const globalBinDir = opts.bin!
+  cleanOrphanedInstallDirs(globalDir)
 
   // Install into a temporary directory first, then read the resolved aliases
   // from the resulting package.json. This is more reliable than parsing
   // aliases from CLI params (which may be tarballs, git URLs, etc.).
-  const tmpDir = path.join(globalDir, `.tmp-${process.pid.toString(16)}-${Date.now().toString(16)}`)
-  fs.mkdirSync(tmpDir, { recursive: true })
+  const installDir = createTmpInstallDir(globalDir)
 
   // Convert allowBuild array to allowBuilds Record (same conversion as add.handler)
   let allowBuilds = opts.allowBuilds ?? {}
@@ -53,10 +53,10 @@ export async function handleGlobalAdd (
   await installDeps({
     ...opts,
     global: false,
-    bin: path.join(tmpDir, 'node_modules/.bin'),
-    dir: tmpDir,
-    lockfileDir: tmpDir,
-    rootProjectManifestDir: tmpDir,
+    bin: path.join(installDir, 'node_modules/.bin'),
+    dir: installDir,
+    lockfileDir: installDir,
+    rootProjectManifestDir: installDir,
     rootProjectManifest: undefined,
     saveProd: true,
     saveDev: false,
@@ -72,33 +72,19 @@ export async function handleGlobalAdd (
   }, params)
 
   // Read resolved aliases from the installed package.json
-  const pkgJson = loadJsonFileSync<{ dependencies?: Record<string, string> }>(path.join(tmpDir, 'package.json'))
+  const pkgJson = loadJsonFileSync<{ dependencies?: Record<string, string> }>(path.join(installDir, 'package.json'))
   const aliases = Object.keys(pkgJson.dependencies ?? {})
 
   // Remove any existing global installations of these aliases
   await removeExistingGlobalInstalls(globalDir, globalBinDir, aliases)
 
-  // Compute cache key from resolved aliases + registries
+  // Compute cache key and create hash symlink pointing to install dir
   const cacheHash = createGlobalCacheKey({
     aliases,
     registries: opts.registries,
   })
-
-  // Move the temp install into the proper hash directory
-  const hashDir = getHashDir(globalDir, cacheHash)
-  fs.mkdirSync(hashDir, { recursive: true })
-  const installDir = getPrepareDir(hashDir)
-  fs.renameSync(tmpDir, installDir)
-
-  // Create/update pkg symlink
-  const pkgLink = path.join(hashDir, 'pkg')
-  try {
-    await symlinkDir(installDir, pkgLink, { overwrite: true })
-  } catch (error) {
-    if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
-      throw error
-    }
-  }
+  const hashLink = getHashLink(globalDir, cacheHash)
+  await symlinkDir(installDir, hashLink, { overwrite: true })
 
   // Link bins from installed packages into global bin dir
   const pkgs = await readInstalledPackages(installDir)
@@ -124,7 +110,16 @@ async function removeExistingGlobalInstalls (
     [...groupsToRemove.entries()].map(async ([hash, binNamesPromise]) => {
       const binNames = await binNamesPromise
       await Promise.all(binNames.map((binName) => removeBin(path.join(globalBinDir, binName))))
-      await fs.promises.rm(getHashDir(globalDir, hash), { recursive: true, force: true })
+      // Remove both the hash symlink and the install dir it points to
+      const hashLink = getHashLink(globalDir, hash)
+      let installDir: string | null = null
+      try {
+        installDir = fs.realpathSync(hashLink)
+      } catch {}
+      await fs.promises.rm(hashLink, { force: true })
+      if (installDir) {
+        await fs.promises.rm(installDir, { recursive: true, force: true })
+      }
     })
   )
 }

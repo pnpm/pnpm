@@ -1,10 +1,10 @@
 import fs from 'fs'
 import path from 'path'
-import util from 'util'
 import {
+  cleanOrphanedInstallDirs,
+  createTmpInstallDir,
   getGlobalDir,
-  getHashDir,
-  getPrepareDir,
+  getHashLink,
   scanGlobalPackages,
   type GlobalPackageInfo,
 } from '@pnpm/global-packages'
@@ -27,6 +27,7 @@ export async function handleGlobalUpdate (
   }
   const globalDir = getGlobalDir(pnpmHomeDir)
   const globalBinDir = opts.bin!
+  cleanOrphanedInstallDirs(globalDir)
   const allPackages = scanGlobalPackages(globalDir)
 
   if (allPackages.length === 0) {
@@ -60,9 +61,7 @@ async function updateGlobalPackageGroup (
   globalBinDir: string,
   pkg: GlobalPackageInfo
 ): Promise<void> {
-  const hashDir = getHashDir(globalDir, pkg.hash)
-  const installDir = getPrepareDir(hashDir)
-  fs.mkdirSync(installDir, { recursive: true })
+  const installDir = createTmpInstallDir(globalDir)
 
   // When --latest, just pass alias names to get the latest version.
   // Otherwise, pass alias@spec to update within the existing range.
@@ -95,15 +94,11 @@ async function updateGlobalPackageGroup (
     includeDirect: include,
   }, depSpecs)
 
-  // Swap pkg symlink to new install
-  const pkgLink = path.join(hashDir, 'pkg')
-  try {
-    await symlinkDir(installDir, pkgLink, { overwrite: true })
-  } catch (error) {
-    if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
-      throw error
-    }
-  }
+  // Swap hash symlink to new install dir, then clean up old one
+  const hashLink = getHashLink(globalDir, pkg.hash)
+  const oldInstallDir = pkg.installDir
+  await symlinkDir(installDir, hashLink, { overwrite: true })
+  await fs.promises.rm(oldInstallDir, { recursive: true, force: true })
 
   // Re-link bins
   const pkgs = await readInstalledPackages(installDir)

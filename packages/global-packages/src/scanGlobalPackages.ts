@@ -5,7 +5,6 @@ import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
-import { resolveActiveInstall } from './globalPackageDir.js'
 
 export interface GlobalPackageInfo {
   hash: string
@@ -33,10 +32,15 @@ export function scanGlobalPackages (globalDir: string): GlobalPackageInfo[] {
   }
   const result: GlobalPackageInfo[] = []
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue
-    const hashDir = path.join(globalDir, entry.name)
-    const installDir = resolveActiveInstall(hashDir)
-    if (!installDir) continue
+    // Hash entries are symlinks pointing to install dirs
+    if (!entry.isSymbolicLink()) continue
+    const linkPath = path.join(globalDir, entry.name)
+    let installDir: string
+    try {
+      installDir = fs.realpathSync(linkPath)
+    } catch {
+      continue
+    }
     const pkgJsonPath = path.join(installDir, 'package.json')
     let pkgJson: { dependencies?: Record<string, string> }
     try {
@@ -78,6 +82,37 @@ export async function getGlobalPackageDetails (info: GlobalPackageInfo): Promise
   return {
     ...info,
     installedPackages,
+  }
+}
+
+export function cleanOrphanedInstallDirs (globalDir: string): void {
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(globalDir, { withFileTypes: true })
+  } catch {
+    return
+  }
+
+  // Collect real paths of all symlink targets
+  const referenced = new Set<string>()
+  for (const entry of entries) {
+    if (!entry.isSymbolicLink()) continue
+    try {
+      referenced.add(fs.realpathSync(path.join(globalDir, entry.name)))
+    } catch {}
+  }
+
+  // Remove .tmp-* directories that no symlink points to
+  for (const entry of entries) {
+    if (!entry.name.startsWith('.tmp-')) continue
+    if (!entry.isDirectory()) continue
+    const dirPath = path.join(globalDir, entry.name)
+    try {
+      const realPath = fs.realpathSync(dirPath)
+      if (!referenced.has(realPath)) {
+        fs.rmSync(dirPath, { recursive: true, force: true })
+      }
+    } catch {}
   }
 }
 
