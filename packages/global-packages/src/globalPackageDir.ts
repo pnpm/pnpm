@@ -24,8 +24,8 @@ export function resolveInstallDir (globalDir: string, hash: string): string | nu
   }
 }
 
-export function createTmpInstallDir (globalDir: string): string {
-  const name = `.tmp-${process.pid.toString(16)}-${Date.now().toString(16)}`
+export function createInstallDir (globalDir: string): string {
+  const name = `${process.pid.toString(16)}-${Date.now().toString(16)}`
   const dir = path.join(globalDir, name)
   fs.mkdirSync(dir, { recursive: true })
   return dir

@@ -102,9 +102,8 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
     } catch {}
   }
 
-  // Remove .tmp-* directories that no symlink points to
+  // Remove directories that no symlink points to
   for (const entry of entries) {
-    if (!entry.name.startsWith('.tmp-')) continue
     if (!entry.isDirectory()) continue
     const dirPath = path.join(globalDir, entry.name)
     try {

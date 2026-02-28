@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import {
   cleanOrphanedInstallDirs,
-  createTmpInstallDir,
+  createInstallDir,
   getGlobalDir,
   getHashLink,
   scanGlobalPackages,
@@ -61,7 +61,7 @@ async function updateGlobalPackageGroup (
   globalBinDir: string,
   pkg: GlobalPackageInfo
 ): Promise<void> {
-  const installDir = createTmpInstallDir(globalDir)
+  const installDir = createInstallDir(globalDir)
 
   // When --latest, just pass alias names to get the latest version.
   // Otherwise, pass alias@spec to update within the existing range.

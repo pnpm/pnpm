@@ -3,7 +3,7 @@ import path from 'path'
 import {
   cleanOrphanedInstallDirs,
   createGlobalCacheKey,
-  createTmpInstallDir,
+  createInstallDir,
   findGlobalPackage,
   getGlobalDir,
   getHashLink,
@@ -31,10 +31,10 @@ export async function handleGlobalAdd (
   const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
 
-  // Install into a temporary directory first, then read the resolved aliases
+  // Install into a new directory first, then read the resolved aliases
   // from the resulting package.json. This is more reliable than parsing
   // aliases from CLI params (which may be tarballs, git URLs, etc.).
-  const installDir = createTmpInstallDir(globalDir)
+  const installDir = createInstallDir(globalDir)
 
   // Convert allowBuild array to allowBuilds Record (same conversion as add.handler)
   let allowBuilds = opts.allowBuilds ?? {}

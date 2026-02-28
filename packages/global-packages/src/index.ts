@@ -1,6 +1,6 @@
 export { createCacheKey, createGlobalCacheKey } from './cacheKey.js'
 export {
-  createTmpInstallDir,
+  createInstallDir,
   getGlobalDir,
   getHashLink,
   resolveInstallDir,
