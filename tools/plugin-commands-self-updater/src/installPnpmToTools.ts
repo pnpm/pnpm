@@ -49,6 +49,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
       // which breaks the junctions on Windows.
       '--config.node-linker=hoisted',
       '--config.bin=bin',
+      '--config.minimum-release-age=0',
     ], { cwd: stage })
     // We need the operation of installing pnpm to be atomic.
     // However, we cannot use a rename as that breaks the command shim created for pnpm.
