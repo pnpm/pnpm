@@ -92,24 +92,23 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
     const dirPath = path.join(globalDir, entry.name)
-    try {
-      const realPath = fs.realpathSync(dirPath)
-      if (!referenced.has(realPath)) {
-        fs.rmSync(dirPath, { recursive: true, force: true })
-      }
-    } catch {}
+    if (!referenced.has(dirPath)) {
+      fs.rmSync(dirPath, { recursive: true, force: true })
+    }
   }
 }
 
 export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<string[]> {
+  const bins: string[] = []
   const aliases = Object.keys(info.dependencies)
-  const manifests = await Promise.all(
-    aliases.map((alias) => readPackageJsonFromDir(path.join(info.installDir, 'node_modules', alias)))
+  const modulesDir = path.join(info.installDir, 'node_modules')
+  await Promise.all(
+    aliases.map(async (alias) => {
+      const depDir = path.join(modulesDir, alias)
+      const manifest = await readPackageJsonFromDir(depDir)
+      const binsOfPkg = await getBinsFromPackageManifest(manifest, depDir)
+      bins.push(...binsOfPkg.map((bin) => bin.name))
+    })
   )
-  const binsPerPkg = await Promise.all(
-    manifests.map((manifest, i) =>
-      getBinsFromPackageManifest(manifest as PackageManifest, path.join(info.installDir, 'node_modules', aliases[i]))
-    )
-  )
-  return binsPerPkg.flat().map((bin) => bin.name)
+  return bins
 }

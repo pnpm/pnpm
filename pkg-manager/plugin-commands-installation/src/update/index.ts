@@ -5,7 +5,7 @@ import {
 } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
+import { types as allTypes } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
@@ -163,7 +163,7 @@ dependencies is not found inside the workspace',
 export type UpdateCommandOptions = InstallCommandOptions & {
   interactive?: boolean
   latest?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir'>>
+}
 
 export async function handler (
   opts: UpdateCommandOptions,

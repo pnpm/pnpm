@@ -7,13 +7,13 @@ import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import { PnpmError } from '@pnpm/error'
 import { createHexHash } from '@pnpm/crypto.hash'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { type PackageManifest, type PnpmSettings, type SupportedArchitectures } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import execa from 'execa'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
@@ -87,7 +87,10 @@ export type DlxCommandOptions = {
 export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
-): Promise<{ exitCode: number }> {
+): Promise<{ exitCode: number, output?: string }> {
+  if (!command && (!opts.package || opts.package.length === 0)) {
+    return { exitCode: 1, output: help() }
+  }
   const pkgs = opts.package ?? [command]
   const fullMetadata = (
     (
@@ -250,6 +253,22 @@ function findCache (opts: {
   }
 }
 
+function createDlxCommandCacheDir (
+  opts: {
+    packages: string[]
+    registries: Record<string, string>
+    cacheDir: string
+    allowBuild?: string[]
+    supportedArchitectures?: SupportedArchitectures
+  }
+): string {
+  const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
+  const cacheKey = createCacheKey(opts)
+  const cachePath = path.join(dlxCacheDir, cacheKey)
+  fs.mkdirSync(cachePath, { recursive: true })
+  return cachePath
+}
+
 export function createCacheKey (opts: {
   packages: string[]
   registries: Record<string, string>
@@ -276,22 +295,6 @@ export function createCacheKey (opts: {
   }
   const hashStr = JSON.stringify(args)
   return createHexHash(hashStr)
-}
-
-function createDlxCommandCacheDir (
-  opts: {
-    packages: string[]
-    registries: Record<string, string>
-    cacheDir: string
-    allowBuild?: string[]
-    supportedArchitectures?: SupportedArchitectures
-  }
-): string {
-  const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
-  const cacheKey = createCacheKey(opts)
-  const cachePath = path.join(dlxCacheDir, cacheKey)
-  fs.mkdirSync(cachePath, { recursive: true })
-  return cachePath
 }
 
 function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | undefined {
