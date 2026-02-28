@@ -100,6 +100,32 @@ test('do not fail on non-compatible store when forced during named installation'
   })
 })
 
+test('do not fail on non-compatible node_modules in non-TTY environment', async () => {
+  prepareEmpty()
+  const opts = testDefaults()
+
+  await saveModulesYaml('0.50.0', opts.storeDir)
+
+  let err!: PnpmError
+  try {
+    await addDependenciesToPackage({}, ['is-negative'], opts)
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
+
+  const originalIsTTY = process.stdin.isTTY
+  process.stdin.isTTY = false
+  try {
+    await install({}, {
+      ...opts,
+      confirmModulesPurge: true,
+    })
+  } finally {
+    process.stdin.isTTY = originalIsTTY
+  }
+})
+
 async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
   fs.mkdirSync('node_modules')
   fs.writeFileSync('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}`)
