@@ -4,12 +4,15 @@ import {
   cleanOrphanedInstallDirs,
   createInstallDir,
   getHashLink,
+  getInstalledBinNames,
   scanGlobalPackages,
   type GlobalPackageInfo,
 } from '@pnpm/global-packages'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import { readPackageJsonFromDir, readPackageJsonFromDirRawSync } from '@pnpm/read-package-json'
+import { removeBin } from '@pnpm/remove-bins'
 import { type DependencyManifest } from '@pnpm/types'
+import isSubdir from 'is-subdir'
 import symlinkDir from 'symlink-dir'
 import { type UpdateCommandOptions } from './update/index.js'
 import { installDeps } from './installDeps.js'
@@ -88,13 +91,19 @@ async function updateGlobalPackageGroup (
     includeDirect: include,
   }, depSpecs)
 
+  // Remove stale bins from old installation before swapping
+  const oldBinNames = await getInstalledBinNames(pkg)
+  await Promise.all(oldBinNames.map((binName) => removeBin(path.join(globalBinDir, binName))))
+
   // Swap hash symlink to new install dir, then clean up old one
   const hashLink = getHashLink(globalDir, pkg.hash)
   const oldInstallDir = pkg.installDir
   await symlinkDir(installDir, hashLink, { overwrite: true })
-  await fs.promises.rm(oldInstallDir, { recursive: true, force: true })
+  if (isSubdir(globalDir, oldInstallDir)) {
+    await fs.promises.rm(oldInstallDir, { recursive: true, force: true })
+  }
 
-  // Re-link bins
+  // Link bins from new installation
   const pkgs = await readInstalledPackages(installDir)
   await linkBinsOfPackages(pkgs, globalBinDir)
 }

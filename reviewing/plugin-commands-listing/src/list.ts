@@ -5,6 +5,7 @@ import {
   scanGlobalPackages,
   getGlobalPackageDetails,
 } from '@pnpm/global-packages'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { list, listForPackages } from '@pnpm/list'
 import { type Finder, type IncludedDependencies } from '@pnpm/types'
 import { pick } from 'ramda'
@@ -142,6 +143,7 @@ async function listGlobalPackages (globalPkgDir: string, params: string[]): Prom
       ? 'No matching global packages found'
       : 'No global packages found'
   }
+  lines.sort(lexCompare)
   return lines.join('\n')
 }
 

@@ -38,6 +38,7 @@
     "@pnpm/global-packages": "workspace:*",
     "@pnpm/list": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"
   },

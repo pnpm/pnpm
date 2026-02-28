@@ -14,4 +14,3 @@ Key changes:
 - `pnpm update -g [pkg]` re-installs packages in new isolated directories
 - `pnpm list -g` scans isolated directories to show all installed global packages
 - `pnpm install -g` (no args) is no longer supported; use `pnpm add -g <pkg>` instead
-- `pnpm link <pkg>` resolves packages from isolated global directories

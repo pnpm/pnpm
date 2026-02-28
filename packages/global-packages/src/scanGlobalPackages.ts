@@ -60,15 +60,15 @@ export function findGlobalPackage (globalDir: string, alias: string): GlobalPack
 }
 
 export async function getGlobalPackageDetails (info: GlobalPackageInfo): Promise<InstalledGlobalPackage[]> {
-  const installedPackages: InstalledGlobalPackage[] = []
-  await Promise.all(
-    Object.keys(info.dependencies).map(async (alias) => {
+  const aliases = Object.keys(info.dependencies)
+  const installedPackages = await Promise.all(
+    aliases.map(async (alias): Promise<InstalledGlobalPackage | null> => {
       const manifest = await safeReadPackageJsonFromDir(path.join(info.installDir, 'node_modules', alias))
-      if (!manifest) return
-      installedPackages.push({ alias, version: manifest.version, manifest })
+      if (!manifest) return null
+      return { alias, version: manifest.version, manifest }
     })
   )
-  return installedPackages
+  return installedPackages.filter((pkg): pkg is InstalledGlobalPackage => pkg !== null)
 }
 
 export function cleanOrphanedInstallDirs (globalDir: string): void {
@@ -99,7 +99,7 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
 }
 
 export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<string[]> {
-  const bins: string[] = []
+  const bins = new Set<string>()
   const aliases = Object.keys(info.dependencies)
   const modulesDir = path.join(info.installDir, 'node_modules')
   await Promise.all(
@@ -107,8 +107,10 @@ export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<st
       const depDir = path.join(modulesDir, alias)
       const manifest = await readPackageJsonFromDir(depDir)
       const binsOfPkg = await getBinsFromPackageManifest(manifest, depDir)
-      bins.push(...binsOfPkg.map((bin) => bin.name))
+      for (const bin of binsOfPkg) {
+        bins.add(bin.name)
+      }
     })
   )
-  return bins
+  return [...bins]
 }

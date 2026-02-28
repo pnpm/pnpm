@@ -12,6 +12,7 @@ import { linkBinsOfPackages } from '@pnpm/link-bins'
 import { readPackageJsonFromDir, readPackageJsonFromDirRawSync } from '@pnpm/read-package-json'
 import { removeBin } from '@pnpm/remove-bins'
 import { type DependencyManifest } from '@pnpm/types'
+import isSubdir from 'is-subdir'
 import symlinkDir from 'symlink-dir'
 import { type AddCommandOptions } from './add.js'
 import { installDeps } from './installDeps.js'
@@ -111,7 +112,7 @@ async function removeExistingGlobalInstalls (
         installDir = fs.realpathSync(hashLink)
       } catch {}
       await fs.promises.rm(hashLink, { force: true })
-      if (installDir) {
+      if (installDir && isSubdir(globalDir, installDir)) {
         await fs.promises.rm(installDir, { recursive: true, force: true })
       }
     })

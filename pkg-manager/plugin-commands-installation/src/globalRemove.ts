@@ -8,6 +8,7 @@ import {
   type GlobalPackageInfo,
 } from '@pnpm/global-packages'
 import { removeBin } from '@pnpm/remove-bins'
+import isSubdir from 'is-subdir'
 
 export async function handleGlobalRemove (
   opts: {
@@ -35,7 +36,9 @@ export async function handleGlobalRemove (
       const binNames = await getInstalledBinNames(pkg)
       await Promise.all(binNames.map((binName) => removeBin(path.join(globalBinDir, binName))))
       await fs.promises.rm(getHashLink(globalDir, hash), { force: true })
-      await fs.promises.rm(pkg.installDir, { recursive: true, force: true })
+      if (isSubdir(globalDir, pkg.installDir)) {
+        await fs.promises.rm(pkg.installDir, { recursive: true, force: true })
+      }
     })
   )
 }
