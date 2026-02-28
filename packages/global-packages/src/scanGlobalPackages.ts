@@ -2,9 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { readPackageJsonFromDir, readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type PackageManifest } from '@pnpm/types'
-import { loadJsonFileSync } from 'load-json-file'
 
 export interface GlobalPackageInfo {
   hash: string
@@ -41,10 +40,9 @@ export function scanGlobalPackages (globalDir: string): GlobalPackageInfo[] {
     } catch {
       continue
     }
-    const pkgJsonPath = path.join(installDir, 'package.json')
-    let pkgJson: { dependencies?: Record<string, string> }
+    let pkgJson: PackageManifest
     try {
-      pkgJson = loadJsonFileSync<{ dependencies?: Record<string, string> }>(pkgJsonPath)
+      pkgJson = readPackageJsonFromDirRawSync(installDir)
     } catch {
       continue
     }

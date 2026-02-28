@@ -9,10 +9,9 @@ import {
   getInstalledBinNames,
 } from '@pnpm/global-packages'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { readPackageJsonFromDir, readPackageJsonFromDirRawSync } from '@pnpm/read-package-json'
 import { removeBin } from '@pnpm/remove-bins'
 import { type DependencyManifest } from '@pnpm/types'
-import { loadJsonFileSync } from 'load-json-file'
 import symlinkDir from 'symlink-dir'
 import { type AddCommandOptions } from './add.js'
 import { installDeps } from './installDeps.js'
@@ -67,7 +66,7 @@ export async function handleGlobalAdd (
   }, params)
 
   // Read resolved aliases from the installed package.json
-  const pkgJson = loadJsonFileSync<{ dependencies?: Record<string, string> }>(path.join(installDir, 'package.json'))
+  const pkgJson = readPackageJsonFromDirRawSync(installDir)
   const aliases = Object.keys(pkgJson.dependencies ?? {})
 
   // Remove any existing global installations of these aliases
@@ -120,7 +119,7 @@ async function removeExistingGlobalInstalls (
 }
 
 async function readInstalledPackages (installDir: string): Promise<Array<{ manifest: DependencyManifest, location: string }>> {
-  const pkgJson = loadJsonFileSync<{ dependencies?: Record<string, string> }>(path.join(installDir, 'package.json'))
+  const pkgJson = readPackageJsonFromDirRawSync(installDir)
   const depNames = Object.keys(pkgJson.dependencies ?? {})
   const manifests = await Promise.all(
     depNames.map((depName) => readPackageJsonFromDir(path.join(installDir, 'node_modules', depName)))
