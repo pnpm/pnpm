@@ -8110,6 +8110,9 @@ importers:
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
+      symlink-dir:
+        specifier: 'catalog:'
+        version: 7.1.0
 
   reviewing/plugin-commands-sbom:
     dependencies:

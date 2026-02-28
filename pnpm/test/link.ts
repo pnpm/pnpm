@@ -2,6 +2,7 @@ import path from 'path'
 import PATH_NAME from 'path-name'
 import fs from 'fs'
 import { isExecutable } from '@pnpm/assert-project'
+import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from './utils/index.js'
@@ -22,7 +23,7 @@ console.log("hello world");`, 'utf8')
   const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
   await execPnpm(args, { env })
 
-  const globalPrefix = path.join(global, 'pnpm/global/v11')
+  const globalPrefix = path.join(global, `pnpm/global/${GLOBAL_LAYOUT_VERSION}`)
   expect(fs.existsSync(path.join(globalPrefix, 'node_modules/cmd'))).toBeTruthy()
   const ok = (value: any) => { // eslint-disable-line
     expect(value).toBeTruthy()
@@ -52,6 +53,6 @@ test('link a package from a workspace to the global package', async () => {
 
   await execPnpm(['link'], { env })
 
-  const globalPrefix = path.join(global, 'pnpm/global/v11')
+  const globalPrefix = path.join(global, `pnpm/global/${GLOBAL_LAYOUT_VERSION}`)
   expect(fs.existsSync(path.join(globalPrefix, 'node_modules/project-1'))).toBeTruthy()
 })

@@ -4,6 +4,7 @@ import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
+import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import {
   addDistTag,
   execPnpm,
@@ -11,7 +12,7 @@ import {
 } from '../utils/index.js'
 
 function globalPkgDir (pnpmHome: string): string {
-  return path.join(pnpmHome, 'global', 'v11')
+  return path.join(pnpmHome, 'global', GLOBAL_LAYOUT_VERSION)
 }
 
 /**

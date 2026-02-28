@@ -160,6 +160,11 @@ export async function handler (
 ): Promise<void> {
   if (params.length === 0) throw new PnpmError('MUST_REMOVE_SOMETHING', 'At least one dependency name should be specified for removal')
   if (opts.global) {
+    if (!opts.bin) {
+      throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
+        hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
+      })
+    }
     return handleGlobalRemove(opts, params)
   }
   const include = {

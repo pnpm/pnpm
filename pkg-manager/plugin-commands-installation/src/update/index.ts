@@ -170,6 +170,11 @@ export async function handler (
   params: string[] = []
 ): Promise<string | undefined> {
   if (opts.global) {
+    if (!opts.bin) {
+      throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
+        hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
+      })
+    }
     return handleGlobalUpdate(opts, params)
   }
   if (opts.interactive) {

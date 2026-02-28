@@ -8,6 +8,7 @@ import { prepare, tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { stripVTControlCharacters as stripAnsi } from 'util'
+import symlinkDir from 'symlink-dir'
 
 const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
@@ -472,7 +473,7 @@ test('pnpm outdated -g: shows outdated global packages', async () => {
   fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.join(installDir, 'package.json'))
 
   // Create symlink from a hash entry to the install dir (this is how scanGlobalPackages discovers packages)
-  fs.symlinkSync(installDir, path.join(globalPkgDir, 'abc123'))
+  symlinkDir.sync(installDir, path.join(globalPkgDir, 'abc123'))
 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,

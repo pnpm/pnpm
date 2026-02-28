@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
+import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
 import { execPnpmSync } from './utils/index.js'
 
@@ -27,5 +28,5 @@ test('pnpm root -g', async () => {
   const result = execPnpmSync(['root', '-g'], { env })
 
   expect(result.status).toBe(0)
-  expect(result.stdout.toString()).toBe(path.join(global, 'pnpm/global/v11/node_modules') + '\n')
+  expect(result.stdout.toString()).toBe(path.join(global, `pnpm/global/${GLOBAL_LAYOUT_VERSION}/node_modules`) + '\n')
 })
