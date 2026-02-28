@@ -8,7 +8,6 @@ import { writeSettings } from '@pnpm/config.config-writer'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { DEPENDENCIES_FIELDS, type ProjectManifest, type Project } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
-import { findGlobalPackage } from '@pnpm/global-packages'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import {
@@ -39,8 +38,7 @@ type LinkOpts = Pick<Config,
 | 'workspaceDir'
 | 'workspacePackagePatterns'
 | 'sharedWorkspaceLockfile'
-| 'globalPkgDir'
-> & Partial<Pick<Config, 'linkWorkspacePackages' | 'pnpmHomeDir'>> & install.InstallCommandOptions
+> & Partial<Pick<Config, 'linkWorkspacePackages'>> & install.InstallCommandOptions
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -75,8 +73,7 @@ export function help (): string {
     ],
     url: docsUrl('link'),
     usages: [
-      'pnpm link <dir|pkg name>',
-      'pnpm link',
+      'pnpm link <dir>',
     ],
   })
 }
@@ -124,15 +121,9 @@ export async function handler (
     binsDir: opts.bin,
   })
 
-  if (opts.cliOptions?.global && !opts.bin) {
-    throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
-      hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
-    })
-  }
-
   const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
 
-  // pnpm link
+  // pnpm link (no params, no --global)
   if ((params == null) || (params.length === 0)) {
     const cwd = process.cwd()
     if (path.relative(linkOpts.dir, cwd) === '') {
@@ -155,13 +146,9 @@ export async function handler (
 
   const [pkgPaths, pkgNames] = partition((inp) => isFilespec.test(inp), params)
 
-  for (const pkgName of pkgNames) {
-    const found = findGlobalPackage(opts.globalPkgDir, pkgName)
-    if (found) {
-      pkgPaths.push(path.join(found.installDir, 'node_modules', pkgName))
-    } else {
-      pkgPaths.push(path.join(opts.globalPkgDir, 'node_modules', pkgName))
-    }
+  if (pkgNames.length > 0) {
+    throw new PnpmError('LINK_BAD_PARAMS',
+      `Cannot link by package name. Use a relative or absolute path instead, e.g. "pnpm link ./${pkgNames[0]}"`)
   }
 
   const newManifest = opts.rootProjectManifest ?? {}
