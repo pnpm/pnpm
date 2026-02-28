@@ -158,9 +158,18 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
         // These variables aim to ignore the global git config so we get predictable output
         // https://git-scm.com/docs/git#Documentation/git.txt-codeGITCONFIGNOSYSTEMcode
         GIT_CONFIG_NOSYSTEM: '1',
-        HOME: '',
-        XDG_CONFIG_HOME: '',
-        USERPROFILE: '',
+        // Redirect the global git config to /dev/null instead of setting
+        // HOME to an empty string. An empty HOME causes git to resolve '~' as
+        // '/' (root), which triggers a "Permission denied" warning when git
+        // tries to access '/.config/git/attributes', making pnpm throw an
+        // error because any stderr output is treated as a failure.
+        // We do not set XDG_CONFIG_HOME to avoid the same issue: an empty
+        // value would make git resolve paths like /git/config and /git/attributes.
+        // We use '/dev/null' literally instead of os.devNull because on Windows
+        // os.devNull is '\\.\nul', which git cannot open as a config file path
+        // (fatal: unable to access '\\.\nul': Invalid argument). Git for Windows
+        // translates '/dev/null' correctly via its MSYS2 layer.
+        GIT_CONFIG_GLOBAL: '/dev/null',
         // #endregion
       },
       stripFinalNewline: false,

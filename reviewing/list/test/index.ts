@@ -971,3 +971,154 @@ test('renderParseable displays file: protocol correctly for aliased packages', a
 
   expect(output).toContain('my-alias my-local-pkg@file:local-pkg')
 })
+
+test('renderParseable search: shared dep across packages is not duplicated', async () => {
+  const output = await renderParseable(
+    [
+      {
+        name: 'pkg-a',
+        path: '/workspace/packages/pkg-a',
+        version: '1.0.0',
+        dependencies: [
+          {
+            alias: '@org/shared',
+            name: '@org/shared',
+            version: '1.0.0',
+            path: '/workspace/packages/shared',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+        ],
+      },
+      {
+        name: 'pkg-b',
+        path: '/workspace/packages/pkg-b',
+        version: '1.0.0',
+        dependencies: [
+          {
+            alias: '@org/shared',
+            name: '@org/shared',
+            version: '1.0.0',
+            path: '/workspace/packages/shared',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+        ],
+      },
+      {
+        name: '@org/shared',
+        path: '/workspace/packages/shared',
+        version: '1.0.0',
+      },
+    ],
+    {
+      alwaysPrintRootPackage: false,
+      depth: 0,
+      long: false,
+      search: true,
+    }
+  )
+
+  const lines = output.split('\n')
+  expect(lines).toContain('/workspace/packages/pkg-a')
+  expect(lines).toContain('/workspace/packages/pkg-b')
+  expect(lines).toContain('/workspace/packages/shared')
+  expect(lines.filter((l) => l === '/workspace/packages/shared')).toHaveLength(1)
+})
+
+test('renderParseable search: packages unrelated to search are excluded', async () => {
+  const output = await renderParseable(
+    [
+      {
+        name: 'root',
+        path: '/workspace',
+        version: '1.0.0',
+      },
+      {
+        name: 'pkg-a',
+        path: '/workspace/packages/pkg-a',
+        version: '1.0.0',
+        dependencies: [
+          {
+            alias: '@org/shared',
+            name: '@org/shared',
+            version: '1.0.0',
+            path: '/workspace/packages/shared',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+        ],
+      },
+      {
+        name: 'unrelated',
+        path: '/workspace/packages/unrelated',
+        version: '1.0.0',
+      },
+    ],
+    {
+      alwaysPrintRootPackage: false,
+      depth: 0,
+      long: false,
+      search: true,
+    }
+  )
+
+  const lines = output.split('\n')
+  expect(lines).toContain('/workspace/packages/pkg-a')
+  expect(lines).toContain('/workspace/packages/shared')
+  expect(lines).not.toContain('/workspace')
+  expect(lines).not.toContain('/workspace/packages/unrelated')
+})
+
+test('renderParseable search long: shared dep across packages is not duplicated', async () => {
+  const output = await renderParseable(
+    [
+      {
+        name: 'pkg-a',
+        path: '/workspace/packages/pkg-a',
+        version: '1.0.0',
+        dependencies: [
+          {
+            alias: '@org/shared',
+            name: '@org/shared',
+            version: 'link:../shared',
+            path: '/workspace/packages/shared',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+        ],
+      },
+      {
+        name: 'pkg-b',
+        path: '/workspace/packages/pkg-b',
+        version: '1.0.0',
+        dependencies: [
+          {
+            alias: '@org/shared',
+            name: '@org/shared',
+            version: 'link:../shared',
+            path: '/workspace/packages/shared',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+        ],
+      },
+    ],
+    {
+      alwaysPrintRootPackage: false,
+      depth: 0,
+      long: true,
+      search: true,
+    }
+  )
+
+  const lines = output.split('\n')
+  expect(lines).toContain('/workspace/packages/pkg-a:pkg-a@1.0.0')
+  expect(lines).toContain('/workspace/packages/pkg-b:pkg-b@1.0.0')
+  expect(lines.filter((l) => l.startsWith('/workspace/packages/shared'))).toHaveLength(1)
+})
