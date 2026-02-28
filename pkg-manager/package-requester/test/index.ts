@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
-import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
+import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
 import { createCafsStore } from '@pnpm/create-cafs-store'
@@ -449,6 +449,10 @@ test('fetchPackageToStore()', async () => {
   const indexFile = readMsgpackFileSync<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
   expect(typeof indexFile.files.get('package.json')!.checkedAt).toBeTruthy()
+  if (indexFile.manifest) {
+    delete indexFile.manifest.devDependencies
+  }
+  writeMsgpackFileSync(fetchResult.filesIndexFile, indexFile)
 
   const fetchResult2 = packageRequester.fetchPackageToStore({
     fetchRawManifest: true,
@@ -471,6 +475,7 @@ test('fetchPackageToStore()', async () => {
     (await fetchResult2.fetching()).bundledManifest
   ).toStrictEqual(
     {
+      devDependencies: { ava: '^0.0.4' },
       engines: { node: '>=0.10.0' },
       name: 'is-positive',
       version: '1.0.0',
@@ -665,6 +670,7 @@ test('always return a package manifest in the response', async () => {
       (await pkgResponse.fetching()).bundledManifest
     ).toEqual(
       {
+        devDependencies: { ava: '^0.0.4' },
         engines: { node: '>=0.10.0' },
         name: 'is-positive',
         version: '1.0.0',
@@ -1127,6 +1133,9 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
     expect((await fetchResult.fetching!()).bundledManifest).toMatchObject({
       name: 'is-positive',
       version: '1.0.0',
+      devDependencies: {
+        ava: '^0.0.4',
+      },
     })
   }
 })
