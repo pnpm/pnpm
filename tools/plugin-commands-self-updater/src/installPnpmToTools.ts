@@ -52,6 +52,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
       // which breaks the junctions on Windows.
       '--config.node-linker=hoisted',
       '--config.bin=bin',
+      '--config.minimum-release-age=0',
     ], { cwd: stage })
     if (currentPkgName === '@pnpm/exe') {
       linkExePlatformBinary(stage)
