@@ -46,7 +46,6 @@
     "@pnpm/env.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
-    "@pnpm/global-packages": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/log.group": "catalog:",
     "@pnpm/package-bins": "workspace:*",

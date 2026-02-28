@@ -2820,9 +2820,6 @@ importers:
       '@pnpm/exec.pnpm-cli-runner':
         specifier: workspace:*
         version: link:../pnpm-cli-runner
-      '@pnpm/global-packages':
-        specifier: workspace:*
-        version: link:../../packages/global-packages
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle

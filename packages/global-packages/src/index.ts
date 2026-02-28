@@ -1,4 +1,4 @@
-export { createCacheKey, createGlobalCacheKey } from './cacheKey.js'
+export { createGlobalCacheKey } from './cacheKey.js'
 export {
   createInstallDir,
   getHashLink,

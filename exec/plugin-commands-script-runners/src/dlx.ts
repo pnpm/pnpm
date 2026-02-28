@@ -8,8 +8,8 @@ import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
-import { createCacheKey } from '@pnpm/global-packages'
-export { createCacheKey }
+import { createHexHash } from '@pnpm/crypto.hash'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
@@ -248,6 +248,34 @@ function findCache (opts: {
     cachedDir: cachedDir ?? getPrepareDir(dlxCommandCacheDir),
     cacheExists: cachedDir != null,
   }
+}
+
+export function createCacheKey (opts: {
+  packages: string[]
+  registries: Record<string, string>
+  allowBuild?: string[]
+  supportedArchitectures?: SupportedArchitectures
+}): string {
+  const sortedPkgs = [...opts.packages].sort(lexCompare)
+  const sortedRegistries = Object.entries(opts.registries).sort(([k1], [k2]) => lexCompare(k1, k2))
+  const args: unknown[] = [sortedPkgs, sortedRegistries]
+  if (opts.allowBuild?.length) {
+    args.push({ allowBuild: opts.allowBuild.sort(lexCompare) })
+  }
+  if (opts.supportedArchitectures) {
+    const supportedArchitecturesKeys = ['cpu', 'libc', 'os'] as const satisfies Array<keyof SupportedArchitectures>
+    for (const key of supportedArchitecturesKeys) {
+      const value = opts.supportedArchitectures[key]
+      if (!value?.length) continue
+      args.push({
+        supportedArchitectures: {
+          [key]: [...new Set(value)].sort(lexCompare),
+        },
+      })
+    }
+  }
+  const hashStr = JSON.stringify(args)
+  return createHexHash(hashStr)
 }
 
 function createDlxCommandCacheDir (
