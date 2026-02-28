@@ -6736,6 +6736,9 @@ importers:
       ini:
         specifier: 'catalog:'
         version: 6.0.0
+      is-subdir:
+        specifier: 'catalog:'
+        version: 1.2.0
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -6754,6 +6757,9 @@ importers:
       p-defer:
         specifier: 'catalog:'
         version: 4.0.1
+      path-exists:
+        specifier: 'catalog:'
+        version: 5.0.0
       path-name:
         specifier: 'catalog:'
         version: 1.0.0

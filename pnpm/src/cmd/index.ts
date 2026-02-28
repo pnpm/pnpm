@@ -33,6 +33,7 @@ import { type PnpmOptions } from '../types.js'
 import { shorthands as universalShorthands } from '../shorthands.js'
 import { parseCliArgs } from '../parseCliArgs.js'
 import * as bin from './bin.js'
+import * as clean from './clean.js'
 import { createHelp } from './help.js'
 import * as installTest from './installTest.js'
 import * as recursive from './recursive.js'
@@ -118,6 +119,7 @@ const commands: CommandDefinition[] = [
   bin,
   cache,
   ci,
+  clean,
   config,
   dedupe,
   getCommand,
