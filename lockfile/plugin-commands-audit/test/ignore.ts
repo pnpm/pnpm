@@ -4,31 +4,23 @@ import { audit } from '@pnpm/plugin-commands-audit'
 import nock from 'nock'
 import { sync as readYamlFile } from 'read-yaml-file'
 import * as responses from './utils/responses/index.js'
+import { AUDIT_REGISTRY_OPTS, AUDIT_REGISTRY } from './utils/options.js'
 
 const f = fixtures(import.meta.dirname)
-const registries = {
-  default: 'https://registry.npmjs.org/',
-}
-const rawConfig = {
-  registry: registries.default,
-}
 
 test('ignores are added for vulnerable dependencies with no resolutions', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  nock(registries.default)
+  nock(AUDIT_REGISTRY)
     .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: false,
-    userConfig: {},
-    rawConfig,
-    registries,
-    virtualStoreDirMaxLength: 120,
     ignoreUnfixable: true,
   })
 
@@ -44,19 +36,16 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
 test('the specified vulnerabilities are ignored', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  nock(registries.default)
+  nock(AUDIT_REGISTRY)
     .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: false,
-    userConfig: {},
-    rawConfig,
-    registries,
-    virtualStoreDirMaxLength: 120,
     ignore: ['CVE-2017-16115'],
   })
 
@@ -70,19 +59,16 @@ test('the specified vulnerabilities are ignored', async () => {
 test('no ignores are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
-  nock(registries.default)
+  nock(AUDIT_REGISTRY)
     .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: false,
-    userConfig: {},
-    rawConfig,
-    registries,
-    virtualStoreDirMaxLength: 120,
     ignoreUnfixable: true,
   })
 
@@ -99,11 +85,12 @@ test('ignored CVEs are not duplicated', async () => {
     'CVE-2017-16024',
   ]
 
-  nock(registries.default)
+  nock(AUDIT_REGISTRY)
     .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
     auditConfig: {
       ignoreCves: existingCves,
@@ -111,10 +98,6 @@ test('ignored CVEs are not duplicated', async () => {
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: false,
-    userConfig: {},
-    rawConfig,
-    registries,
-    virtualStoreDirMaxLength: 120,
     ignoreUnfixable: true,
   })
   expect(exitCode).toBe(0)

@@ -3903,9 +3903,21 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../fs
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../utils
+      '@pnpm/lockfile.walker':
+        specifier: workspace:*
+        version: link:../walker
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
+      '@pnpm/plugin-commands-installation':
+        specifier: workspace:*
+        version: link:../../pkg-manager/plugin-commands-installation
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -3927,19 +3939,28 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.2
     devDependencies:
+      '@pnpm/filter-workspace-packages':
+        specifier: workspace:*
+        version: link:../../workspace/filter-workspace-packages
       '@pnpm/plugin-commands-audit':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/plugin-commands-installation':
-        specifier: workspace:*
-        version: link:../../pkg-manager/plugin-commands-installation
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 5.2.1(verdaccio@6.2.5(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'

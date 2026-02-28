@@ -94,7 +94,7 @@ export interface Importer<WantedDepExtraProps> {
 
 export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<WantedDepExtraProps> {
   updatePackageManifest: boolean
-  updateMatching?: (pkgName: string) => boolean
+  updateMatching?: (pkgName: string, version?: string) => boolean
   updateToLatest?: boolean
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
