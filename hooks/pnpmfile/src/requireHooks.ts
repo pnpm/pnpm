@@ -67,6 +67,11 @@ export async function requireHooks (
   }
   if (opts.tryLoadDefaultPnpmfile) {
     pnpmfiles.push({
+      path: '.pnpmfile.mjs',
+      includeInChecksum: true,
+      optional: true,
+    })
+    pnpmfiles.push({
       path: '.pnpmfile.cjs',
       includeInChecksum: true,
       optional: true,
