@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/global-packages",
-  "version": "1000.0.0",
+  "version": "1000.0.0-0",
   "description": "Utilities for managing isolated global packages",
   "keywords": [
     "pnpm",
