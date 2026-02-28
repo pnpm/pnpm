@@ -1,0 +1,62 @@
+{
+  "name": "@pnpm/plugin-commands-build-sea",
+  "version": "1000.0.0",
+  "description": "Command for building Node.js Single Executable Applications",
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/builder/plugin-commands-build-sea",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/builder/plugin-commands-build-sea#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "start": "tsgo --watch",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
+    "@pnpm/node.fetcher": "workspace:*",
+    "@pnpm/node.resolver": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
+    "execa": "catalog:",
+    "ramda": "catalog:",
+    "render-help": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/plugin-commands-build-sea": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@types/ramda": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

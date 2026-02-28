@@ -1219,6 +1219,55 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  builder/plugin-commands-build-sea:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
+      '@pnpm/node.fetcher':
+        specifier: workspace:*
+        version: link:../../env/node.fetcher
+      '@pnpm/node.resolver':
+        specifier: workspace:*
+        version: link:../../env/node.resolver
+      '@pnpm/store-path':
+        specifier: workspace:*
+        version: link:../../store/store-path
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.2.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      render-help:
+        specifier: 'catalog:'
+        version: 1.0.3
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/plugin-commands-build-sea':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+
   builder/policy:
     dependencies:
       '@pnpm/config.version-policy':
@@ -6568,6 +6617,9 @@ importers:
       '@pnpm/plugin-commands-audit':
         specifier: workspace:*
         version: link:../lockfile/plugin-commands-audit
+      '@pnpm/plugin-commands-build-sea':
+        specifier: workspace:*
+        version: link:../builder/plugin-commands-build-sea
       '@pnpm/plugin-commands-completion':
         specifier: workspace:*
         version: link:../completion/plugin-commands-completion
@@ -6809,9 +6861,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
-      tar:
-        specifier: 'catalog:'
-        version: 7.5.9
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -17594,7 +17643,7 @@ snapshots:
 
   '@jest/pattern@30.0.1':
     dependencies:
-      '@types/node': 22.19.11
+      '@types/node': 25.2.3
       jest-regex-util: 30.0.1
 
   '@jest/reporters@30.2.0(@babel/types@7.29.0)':

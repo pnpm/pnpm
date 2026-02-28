@@ -38,8 +38,7 @@
   },
   "devDependencies": {
     "@pnpm/exe": "workspace:*",
-    "execa": "catalog:",
-    "tar": "catalog:"
+    "execa": "catalog:"
   },
   "preferGlobal": true,
   "publishConfig": {

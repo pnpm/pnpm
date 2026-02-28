@@ -20,9 +20,13 @@ export interface FetchNodeOptionsToDir {
   fetchTimeout?: number
   nodeMirrorBaseUrl?: string
   retry?: RetryTimeoutOptions
-  // Overrides for testing
+  /** Target platform (e.g. 'linux', 'darwin', 'win32'). Defaults to the current host platform. */
   platform?: string
+  /** Target CPU architecture (e.g. 'x64', 'arm64'). Defaults to the current host arch. */
   arch?: string
+  /** C standard library variant. Use 'musl' to download musl (static) Linux builds
+   * from unofficial-builds.nodejs.org. Defaults to auto-detected on the host. */
+  libc?: string
 }
 
 export interface FetchNodeOptions {
@@ -31,6 +35,9 @@ export interface FetchNodeOptions {
   fetchTimeout?: number
   nodeMirrorBaseUrl?: string
   retry?: RetryTimeoutOptions
+  platform?: string
+  arch?: string
+  libc?: string
 }
 
 interface NodeArtifactInfo {
@@ -57,12 +64,11 @@ export async function fetchNode (
 ): Promise<void> {
   const platform = opts.platform ?? process.platform
   const arch = opts.arch ?? process.arch
-  // On a native musl Linux system, automatically use the musl variant so that
-  // pnpm env works out of the box on Alpine Linux and similar distributions.
-  let libc: string | undefined
-  if (platform === 'linux' && await isNonGlibcLinux()) {
-    libc = 'musl'
-  }
+  // On a native musl system with no explicit libc, automatically use the musl
+  // variant so that pnpm env works out of the box on Alpine Linux and similar.
+  // When an explicit platform override is set (cross-platform build), trust the
+  // caller to pass the correct libc; do not auto-detect from the host.
+  const libc = opts.libc ?? (!opts.platform && await isNonGlibcLinux() ? 'musl' : undefined)
 
   const isMusl = libc === 'musl'
   const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? (isMusl
@@ -104,8 +110,6 @@ async function getNodeArtifactInfo (
     libc?: string
   }
 ): Promise<NodeArtifactInfo> {
-  const isMusl = opts.libc === 'musl'
-
   const tarball = getNodeArtifactAddress({
     version,
     baseUrl: opts.nodeMirrorBaseUrl,
@@ -118,6 +122,7 @@ async function getNodeArtifactInfo (
   const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
   const url = `${tarball.dirname}/${tarballFileName}`
 
+  const isMusl = opts.libc === 'musl'
   const integrityKey = isMusl ? `${opts.platform}-${opts.arch}-musl` : `${opts.platform}-${opts.arch}`
   const integrity = opts.integrities
     ? opts.integrities[integrityKey]

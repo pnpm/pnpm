@@ -3,6 +3,7 @@ import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { approveBuilds, ignoredBuilds } from '@pnpm/exec.build-commands'
 import { audit } from '@pnpm/plugin-commands-audit'
+import { buildSea } from '@pnpm/plugin-commands-build-sea'
 import { generateCompletion, createCompletionServer } from '@pnpm/plugin-commands-completion'
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
 import { doctor } from '@pnpm/plugin-commands-doctor'
@@ -116,6 +117,7 @@ const commands: CommandDefinition[] = [
   approveBuilds,
   audit,
   bin,
+  buildSea,
   cache,
   ci,
   config,
