@@ -1,7 +1,6 @@
 import path from 'path'
 import PATH_NAME from 'path-name'
 import fs from 'fs'
-import { LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
@@ -11,13 +10,16 @@ import {
   execPnpmSync,
 } from '../utils/index.js'
 
+function globalPkgDir (pnpmHome: string): string {
+  return path.join(pnpmHome, 'global', 'v11')
+}
+
 /**
  * Find an installed global package in the flat isolated directory structure.
- * Scans {pnpmHomeDir}/.global/ for hash symlinks, resolves them,
+ * Scans globalDir for hash symlinks, resolves them,
  * and returns the path to the package's node_modules entry.
  */
-function findGlobalPkg (pnpmHome: string, pkgName: string): string | null {
-  const globalDir = path.join(pnpmHome, '.global')
+function findGlobalPkg (globalDir: string, pkgName: string): string | null {
   let entries: fs.Dirent[]
   try {
     entries = fs.readdirSync(globalDir, { withFileTypes: true })
@@ -59,12 +61,12 @@ test('global installation', async () => {
   // https://github.com/pnpm/pnpm/issues/808
   await execPnpm(['add', '--global', 'is-negative'], { env })
 
-  const isPositivePath = findGlobalPkg(pnpmHome, 'is-positive')
+  const isPositivePath = findGlobalPkg(globalPkgDir(pnpmHome), 'is-positive')
   expect(isPositivePath).toBeTruthy()
   const { default: isPositive } = await import(isPositivePath!)
   expect(typeof isPositive).toBe('function')
 
-  const isNegativePath = findGlobalPkg(pnpmHome, 'is-negative')
+  const isNegativePath = findGlobalPkg(globalPkgDir(pnpmHome), 'is-negative')
   expect(isNegativePath).toBeTruthy()
   const { default: isNegative } = await import(isNegativePath!)
   expect(typeof isNegative).toBe('function')
@@ -101,7 +103,7 @@ test('global installation to custom directory with --global-dir', async () => {
 
   await execPnpm(['add', '--global', '--global-dir=../global', 'is-positive'], { env })
 
-  const isPositivePath = findGlobalPkg(pnpmHome, 'is-positive')
+  const isPositivePath = findGlobalPkg(path.join(global, 'v11'), 'is-positive')
   expect(isPositivePath).toBeTruthy()
   const { default: isPositive } = await import(isPositivePath!)
   expect(typeof isPositive).toBe('function')
@@ -120,7 +122,7 @@ test('always install latest when doing global installation without spec', async 
   await execPnpm(['add', '-g', '@pnpm.e2e/peer-c@1'], { env })
   await execPnpm(['add', '-g', '@pnpm.e2e/peer-c'], { env })
 
-  const peerCPath = findGlobalPkg(pnpmHome, '@pnpm.e2e/peer-c')
+  const peerCPath = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/peer-c')
   expect(peerCPath).toBeTruthy()
   expect((await import(path.join(peerCPath!, 'package.json'))).default.version).toBe('2.0.0')
 })
@@ -144,7 +146,7 @@ test('run lifecycle events of global packages in correct working directory', asy
 
   await execPnpm(['add', '-g', '--allow-build=@pnpm.e2e/postinstall-calls-pnpm', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
 
-  const pkgPath = findGlobalPkg(pnpmHome, '@pnpm.e2e/postinstall-calls-pnpm')
+  const pkgPath = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/postinstall-calls-pnpm')
   expect(pkgPath).toBeTruthy()
   expect(fs.existsSync(path.join(pkgPath!, 'created-by-postinstall'))).toBeTruthy()
 })
@@ -172,7 +174,7 @@ test.skip('dangerously-allow-all-builds=true in global config', async () => {
   const pnpmRcFile = path.join(pnpmCfgDir, 'rc')
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
-  const globalPkgDir = path.join(pnpmHome, 'global', String(LAYOUT_VERSION))
+  const globalDir = globalPkgDir(pnpmHome)
   fs.mkdirSync(pnpmCfgDir, { recursive: true })
   fs.writeFileSync(pnpmRcFile, [
     'reporter=append-only',
@@ -189,7 +191,7 @@ test.skip('dangerously-allow-all-builds=true in global config', async () => {
 
   // global install should run scripts
   await execPnpm(['add', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
-  expect(fs.readdirSync(path.join(globalPkgDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
+  expect(fs.readdirSync(path.join(globalDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
 
   // local config should override global config
   await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
@@ -227,7 +229,7 @@ test.skip('dangerously-allow-all-builds=false in global config', async () => {
   const pnpmRcFile = path.join(pnpmCfgDir, 'rc')
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
-  const globalPkgDir = path.join(pnpmHome, 'global', String(LAYOUT_VERSION))
+  const globalDir = globalPkgDir(pnpmHome)
   fs.mkdirSync(pnpmCfgDir, { recursive: true })
   fs.writeFileSync(pnpmRcFile, [
     'reporter=append-only',
@@ -244,7 +246,7 @@ test.skip('dangerously-allow-all-builds=false in global config', async () => {
 
   // global install should run scripts
   await execPnpm(['add', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
-  expect(fs.readdirSync(path.join(globalPkgDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
+  expect(fs.readdirSync(path.join(globalDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 
   // local config should override global config
   await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
@@ -270,7 +272,7 @@ test('global update to latest', async () => {
   await execPnpm(['add', '--global', 'is-positive@1'], { env })
   await execPnpm(['update', '--global', '--latest'], { env })
 
-  const isPositivePath = findGlobalPkg(pnpmHome, 'is-positive')
+  const isPositivePath = findGlobalPkg(globalPkgDir(pnpmHome), 'is-positive')
   expect(isPositivePath).toBeTruthy()
   const pkgJson = JSON.parse(fs.readFileSync(path.join(isPositivePath!, 'package.json'), 'utf-8'))
   expect(pkgJson.version).toBe('3.1.0')

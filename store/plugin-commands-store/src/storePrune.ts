@@ -1,4 +1,4 @@
-import { cleanOrphanedInstallDirs, getGlobalDir } from '@pnpm/global-packages'
+import { cleanOrphanedInstallDirs } from '@pnpm/global-packages'
 import { streamParser } from '@pnpm/logger'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { type ReporterFunction } from './types.js'
@@ -11,7 +11,7 @@ export async function storePrune (
     removeAlienFiles?: boolean
     cacheDir: string
     dlxCacheMaxAge: number
-    pnpmHomeDir?: string
+    globalPkgDir?: string
   }
 ): Promise<void> {
   const reporter = opts?.reporter
@@ -27,8 +27,8 @@ export async function storePrune (
     now: new Date(),
   })
 
-  if (opts.pnpmHomeDir) {
-    cleanOrphanedInstallDirs(getGlobalDir(opts.pnpmHomeDir))
+  if (opts.globalPkgDir) {
+    cleanOrphanedInstallDirs(opts.globalPkgDir)
   }
 
   if ((reporter != null) && typeof reporter === 'function') {

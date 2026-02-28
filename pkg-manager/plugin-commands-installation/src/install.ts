@@ -280,6 +280,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'excludeLinksFromLockfile'
 | 'frozenLockfile'
 | 'global'
+| 'globalPkgDir'
 | 'globalPnpmfile'
 | 'hooks'
 | 'ignorePnpmfile'

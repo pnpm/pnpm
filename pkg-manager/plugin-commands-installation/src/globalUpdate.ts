@@ -3,7 +3,6 @@ import path from 'path'
 import {
   cleanOrphanedInstallDirs,
   createInstallDir,
-  getGlobalDir,
   getHashLink,
   scanGlobalPackages,
   type GlobalPackageInfo,
@@ -21,11 +20,7 @@ export async function handleGlobalUpdate (
   opts: UpdateCommandOptions,
   params: string[]
 ): Promise<string | undefined> {
-  const pnpmHomeDir = opts.pnpmHomeDir
-  if (!pnpmHomeDir) {
-    throw new Error('pnpmHomeDir is required for global updates')
-  }
-  const globalDir = getGlobalDir(pnpmHomeDir)
+  const globalDir = opts.globalPkgDir
   const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
   const allPackages = scanGlobalPackages(globalDir)

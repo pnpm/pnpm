@@ -2,10 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 
-export function getGlobalDir (pnpmHomeDir: string): string {
-  return path.join(pnpmHomeDir, '.global')
-}
-
 export function getHashLink (globalDir: string, hash: string): string {
   return path.join(globalDir, hash)
 }

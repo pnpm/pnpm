@@ -8,7 +8,7 @@ import { writeSettings } from '@pnpm/config.config-writer'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { DEPENDENCIES_FIELDS, type ProjectManifest, type Project } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
-import { findGlobalPackage, getGlobalDir } from '@pnpm/global-packages'
+import { findGlobalPackage } from '@pnpm/global-packages'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import {
@@ -156,16 +156,12 @@ export async function handler (
   const [pkgPaths, pkgNames] = partition((inp) => isFilespec.test(inp), params)
 
   for (const pkgName of pkgNames) {
-    if (opts.pnpmHomeDir) {
-      const globalDir = getGlobalDir(opts.pnpmHomeDir)
-      const found = findGlobalPackage(globalDir, pkgName)
-      if (found) {
-        pkgPaths.push(path.join(found.installDir, 'node_modules', pkgName))
-        continue
-      }
+    const found = findGlobalPackage(opts.globalPkgDir, pkgName)
+    if (found) {
+      pkgPaths.push(path.join(found.installDir, 'node_modules', pkgName))
+    } else {
+      pkgPaths.push(path.join(opts.globalPkgDir, 'node_modules', pkgName))
     }
-    // Fallback to old globalPkgDir path
-    pkgPaths.push(path.join(opts.globalPkgDir, 'node_modules', pkgName))
   }
 
   const newManifest = opts.rootProjectManifest ?? {}

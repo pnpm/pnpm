@@ -155,7 +155,7 @@ export async function handler (
   > & {
     recursive?: boolean
     pnpmfile: string[]
-  } & Partial<Pick<Config, 'global' | 'pnpmHomeDir'>>,
+  } & Partial<Pick<Config, 'global' | 'globalPkgDir'>>,
   params: string[]
 ): Promise<void> {
   if (params.length === 0) throw new PnpmError('MUST_REMOVE_SOMETHING', 'At least one dependency name should be specified for removal')

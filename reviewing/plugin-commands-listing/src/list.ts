@@ -2,7 +2,6 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import {
-  getGlobalDir,
   scanGlobalPackages,
   getGlobalPackageDetails,
 } from '@pnpm/global-packages'
@@ -106,14 +105,14 @@ export type ListCommandOptions = Pick<Config,
   onlyProjects?: boolean
   recursive?: boolean
   findBy?: string[]
-} & Partial<Pick<Config, 'global' | 'pnpmHomeDir'>>
+} & Partial<Pick<Config, 'global' | 'globalPkgDir'>>
 
 export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ): Promise<string> {
-  if (opts.global && opts.pnpmHomeDir) {
-    return listGlobalPackages(opts.pnpmHomeDir, params)
+  if (opts.global && opts.globalPkgDir) {
+    return listGlobalPackages(opts.globalPkgDir, params)
   }
   const include = computeInclude(opts)
   const depth = opts.cliOptions?.['depth'] ?? 0
@@ -130,9 +129,8 @@ export async function handler (
   })
 }
 
-async function listGlobalPackages (pnpmHomeDir: string, params: string[]): Promise<string> {
-  const globalDir = getGlobalDir(pnpmHomeDir)
-  const packages = scanGlobalPackages(globalDir)
+async function listGlobalPackages (globalPkgDir: string, params: string[]): Promise<string> {
+  const packages = scanGlobalPackages(globalPkgDir)
   const allDetails = await Promise.all(packages.map((pkg) => getGlobalPackageDetails(pkg)))
   const lines: string[] = []
   for (const details of allDetails) {

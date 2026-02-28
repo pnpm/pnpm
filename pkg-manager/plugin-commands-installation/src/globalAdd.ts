@@ -5,7 +5,6 @@ import {
   createGlobalCacheKey,
   createInstallDir,
   findGlobalPackage,
-  getGlobalDir,
   getHashLink,
   getInstalledBinNames,
 } from '@pnpm/global-packages'
@@ -23,11 +22,7 @@ export async function handleGlobalAdd (
   opts: AddCommandOptions,
   params: string[]
 ): Promise<void> {
-  const pnpmHomeDir = opts.pnpmHomeDir
-  if (!pnpmHomeDir) {
-    throw new Error('pnpmHomeDir is required for global installations')
-  }
-  const globalDir = getGlobalDir(pnpmHomeDir)
+  const globalDir = opts.globalPkgDir
   const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
 

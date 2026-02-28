@@ -3,7 +3,6 @@ import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import {
   findGlobalPackage,
-  getGlobalDir,
   getHashLink,
   getInstalledBinNames,
   type GlobalPackageInfo,
@@ -12,16 +11,12 @@ import { removeBin } from '@pnpm/remove-bins'
 
 export async function handleGlobalRemove (
   opts: {
-    pnpmHomeDir?: string
+    globalPkgDir?: string
     bin?: string
   },
   params: string[]
 ): Promise<void> {
-  const pnpmHomeDir = opts.pnpmHomeDir
-  if (!pnpmHomeDir) {
-    throw new Error('pnpmHomeDir is required for global removal')
-  }
-  const globalDir = getGlobalDir(pnpmHomeDir)
+  const globalDir = opts.globalPkgDir!
   const globalBinDir = opts.bin!
 
   // Find all groups that contain the packages to remove (dedup by hash)
