@@ -2016,7 +2016,7 @@ test('pick lowest version by * when there are only prerelease versions', async (
   expect(resolveResult!.manifest!.version).toBe('1.0.0-alpha.1')
 })
 
-test('do not resolve from local directory when version does not match and package is not found in the registry', async () => {
+test('throws when workspace package version does not match and package is not found in the registry', async () => {
   nock(registries.default)
     .get('/is-positive')
     .reply(404, {})
@@ -2047,7 +2047,7 @@ test('do not resolve from local directory when version does not match and packag
   ).rejects.toThrow()
 })
 
-test('do not resolve from local directory when version does not match and no matching version in the registry', async () => {
+test('throws NoMatchingVersionError when workspace package version does not match and registry has no matching version', async () => {
   nock(registries.default)
     .get('/is-positive')
     .reply(200, isPositiveMeta)
@@ -2078,7 +2078,7 @@ test('do not resolve from local directory when version does not match and no mat
   ).rejects.toThrow(NoMatchingVersionError)
 })
 
-test('do not resolve from local directory when version does not match even if the registry has the package', async () => {
+test('resolve from registry when workspace package version does not match the requested version', async () => {
   nock(registries.default)
     .get('/is-positive')
     .reply(200, isPositiveMeta)
