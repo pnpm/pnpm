@@ -95,7 +95,7 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
     }
     assert(util.types.isNativeError(err))
     if (
-      !('code' in err && err.code === 'MODULE_NOT_FOUND') ||
+      !('code' in err && (err.code === 'MODULE_NOT_FOUND' || err.code === 'ERR_MODULE_NOT_FOUND')) ||
       pnpmFileExistsSync(pnpmFilePath)
     ) {
       throw new PnpmFileFailError(pnpmFilePath, err)
