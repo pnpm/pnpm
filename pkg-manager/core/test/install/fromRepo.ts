@@ -19,8 +19,8 @@ const f = fixtures(import.meta.dirname)
 const withGitProtocolDepFixture = f.find('with-git-protocol-dep')
 
 afterEach(() => {
-  nock.cleanAll()
   nock.abortPendingRequests()
+  nock.cleanAll()
 })
 
 test('from a github repo', async () => {

@@ -35,8 +35,8 @@ const { resolve, fetchers } = createClient({
 })
 
 afterEach(() => {
-  nock.cleanAll()
   nock.abortPendingRequests()
+  nock.cleanAll()
 })
 
 test('request package', async () => {

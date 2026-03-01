@@ -19,8 +19,8 @@ const createOptions = (saveCatalogName = 'default'): add.AddCommandOptions => ({
 })
 
 afterEach(() => {
-  nock.cleanAll()
   nock.abortPendingRequests()
+  nock.cleanAll()
 })
 
 test('saveCatalogName creates new workspace manifest with the new catalogs', async () => {
