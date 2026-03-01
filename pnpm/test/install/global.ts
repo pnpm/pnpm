@@ -369,3 +369,43 @@ test('global add refuses to install when bin name conflicts with another global 
   // pkg-a should still be installed
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'pkg-a')).toBeTruthy()
 })
+
+test('global remove deletes install group and bin shims', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  // Create two packages with bins and install them together as a group
+  const pkgA = path.resolve('..', 'tool-a')
+  fs.mkdirSync(pkgA, { recursive: true })
+  fs.writeFileSync(path.join(pkgA, 'package.json'), JSON.stringify({
+    name: 'tool-a',
+    version: '1.0.0',
+    bin: { 'tool-a-bin': './index.js' },
+  }))
+  fs.writeFileSync(path.join(pkgA, 'index.js'), '#!/usr/bin/env node\nconsole.log("a")\n')
+
+  const pkgB = path.resolve('..', 'tool-b')
+  fs.mkdirSync(pkgB, { recursive: true })
+  fs.writeFileSync(path.join(pkgB, 'package.json'), JSON.stringify({
+    name: 'tool-b',
+    version: '1.0.0',
+    bin: { 'tool-b-bin': './index.js' },
+  }))
+  fs.writeFileSync(path.join(pkgB, 'index.js'), '#!/usr/bin/env node\nconsole.log("b")\n')
+
+  // Install as a group
+  await execPnpm(['add', '-g', pkgA, pkgB], { env })
+  expect(fs.existsSync(path.join(pnpmHome, 'tool-a-bin'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'tool-b-bin'))).toBeTruthy()
+
+  // Remove one package — entire group (both bins) should be removed
+  await execPnpm(['remove', '-g', 'tool-a'], { env })
+  expect(fs.existsSync(path.join(pnpmHome, 'tool-a-bin'))).toBeFalsy()
+  expect(fs.existsSync(path.join(pnpmHome, 'tool-b-bin'))).toBeFalsy()
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-a')).toBeNull()
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-b')).toBeNull()
+})
