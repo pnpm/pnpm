@@ -22,6 +22,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/matcher"
+    },
+    {
       "path": "../../packages/constants"
     },
     {

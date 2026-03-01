@@ -7979,6 +7979,9 @@ importers:
       '@pnpm/list':
         specifier: workspace:*
         version: link:../list
+      '@pnpm/matcher':
+        specifier: workspace:*
+        version: link:../../config/matcher
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types

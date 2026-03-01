@@ -5,6 +5,7 @@ import {
   scanGlobalPackages,
   getGlobalPackageDetails,
 } from '@pnpm/global-packages'
+import { createMatcher } from '@pnpm/matcher'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { list, listForPackages } from '@pnpm/list'
 import { type Finder, type IncludedDependencies } from '@pnpm/types'
@@ -133,9 +134,10 @@ export async function handler (
 async function listGlobalPackages (globalPkgDir: string, params: string[]): Promise<string> {
   const packages = scanGlobalPackages(globalPkgDir)
   const allDetails = await Promise.all(packages.map((pkg) => getGlobalPackageDetails(pkg)))
+  const matches = params.length > 0 ? createMatcher(params) : () => true
   const lines: string[] = []
   for (const installed of allDetails.flat()) {
-    if (params.length > 0 && !params.some((p) => installed.alias.includes(p))) continue
+    if (!matches(installed.alias)) continue
     lines.push(`${installed.alias}@${installed.version}`)
   }
   if (lines.length === 0) {

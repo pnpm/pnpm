@@ -37,6 +37,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/global-packages": "workspace:*",
     "@pnpm/list": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "ramda": "catalog:",
