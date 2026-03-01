@@ -4912,6 +4912,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/crypto.integrity':
+        specifier: workspace:*
+        version: link:../../crypto/integrity
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
@@ -4924,9 +4927,15 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fs.msgpack-file':
+        specifier: workspace:*
+        version: link:../../fs/msgpack-file
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../get-context
+      '@pnpm/graceful-fs':
+        specifier: workspace:*
+        version: link:../../fs/graceful-fs
       '@pnpm/headless':
         specifier: workspace:*
         version: link:../headless
@@ -5026,6 +5035,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/symlink-dependency':
         specifier: workspace:*
         version: link:../../fs/symlink-dependency
@@ -5087,9 +5099,6 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
@@ -5111,9 +5120,6 @@ importers:
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
-      '@pnpm/store.cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5275,6 +5281,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/crypto.integrity':
+        specifier: workspace:*
+        version: link:../../crypto/integrity
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -5284,6 +5293,12 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fs.msgpack-file':
+        specifier: workspace:*
+        version: link:../../fs/msgpack-file
+      '@pnpm/graceful-fs':
+        specifier: workspace:*
+        version: link:../../fs/graceful-fs
       '@pnpm/hoist':
         specifier: workspace:*
         version: link:../hoist
@@ -5335,6 +5350,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/symlink-dependency':
         specifier: workspace:*
         version: link:../../fs/symlink-dependency
@@ -5372,9 +5390,6 @@ importers:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/headless':
         specifier: workspace:*
         version: 'link:'
@@ -5393,9 +5408,6 @@ importers:
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
-      '@pnpm/store.cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures

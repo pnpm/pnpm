@@ -8,6 +8,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
+  fundingLogger,
   packageManifestLogger,
   progressLogger,
   stageLogger,
@@ -37,6 +38,7 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
 import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
+import { getFundingInfo } from './getFundingInfo.js'
 import {
   type LogBase,
   logger,
@@ -87,6 +89,7 @@ import {
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
 export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
+export { getFundingInfo, type FundingInfo, type FundingType } from './getFundingInfo.js'
 
 export type { HoistingLimits }
 
@@ -572,6 +575,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath)
 
+  let randomDependency: Awaited<ReturnType<typeof writeLockfiles>>['randomDependency']
   if (opts.enableModulesDir !== false) {
     const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
     /** Skip linking and due to no project manifest */
@@ -644,14 +648,14 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     if (opts.useLockfile) {
       // We need to write the wanted lockfile as well.
       // Even though it will only be changed if the workspace will have new projects with no dependencies.
-      await writeLockfiles({
+      ;({ randomDependency } = await writeLockfiles({
         wantedLockfileDir: opts.lockfileDir,
         currentLockfileDir,
         wantedLockfile,
         currentLockfile: filteredLockfile,
-      })
+      }))
     } else {
-      await writeCurrentLockfile(currentLockfileDir, filteredLockfile)
+      ;({ randomDependency } = await writeCurrentLockfile(currentLockfileDir, filteredLockfile))
     }
   }
 
@@ -663,6 +667,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }))
 
   summaryLogger.debug({ prefix: lockfileDir })
+
+  if (randomDependency) {
+    const fundingInfo = getFundingInfo(opts.storeDir, randomDependency)
+    if (fundingInfo) {
+      fundingLogger.debug(fundingInfo)
+    }
+  }
 
   await opts.storeController.close()
 

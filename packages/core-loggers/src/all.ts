@@ -1,6 +1,7 @@
 export * from './contextLogger.js'
 export * from './deprecationLogger.js'
 export * from './fetchingProgressLogger.js'
+export * from './fundingLogger.js'
 export * from './hookLogger.js'
 export * from './installCheckLogger.js'
 export * from './installingConfigDeps.js'

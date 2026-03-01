@@ -8,15 +8,28 @@ import {
   type LockfileFileProjectSnapshot,
   type LockfileFileProjectResolvedDependencies,
   type LockfilePackageInfo,
+  type LockfileResolution,
   type PackageSnapshots,
 } from '@pnpm/lockfile.types'
 import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { isEmpty, map as _mapValues, omit, pickBy, pick } from 'ramda'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 
-export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
+export interface RandomDependency {
+  name: string
+  pkgId: string
+  resolution: LockfileResolution
+}
+
+export interface ConvertLockfileResult {
+  lockfile: LockfileFile
+  randomDependency: RandomDependency | undefined
+}
+
+export function convertToLockfileFile (lockfile: LockfileObject): ConvertLockfileResult {
   const packages: Record<string, LockfilePackageInfo> = {}
   const snapshots: Record<string, LockfilePackageSnapshot> = {}
+  const uniquePackageNames = new Map<string, { pkgId: string, resolution: LockfileResolution }>()
   for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
     snapshots[depPath] = pick([
       'dependencies',
@@ -41,6 +54,15 @@ export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
         'resolution',
         'version',
       ], pkg)
+      // Collect unique package names for random dependency selection
+      // For npm-hosted packages, name is not in the snapshot - extract from pkgId
+      // pkgId format: "lodash@4.17.21" or "@types/node@18.0.0"
+      // Find first @ after position 0 (to skip scope prefix)
+      const atIndex = pkgId.indexOf('@', 1)
+      const pkgName = pkg.name ?? (atIndex > 0 ? pkgId.slice(0, atIndex) : pkgId)
+      if (pkgName && !uniquePackageNames.has(pkgName)) {
+        uniquePackageNames.set(pkgName, { pkgId, resolution: pkg.resolution })
+      }
     }
   }
   const newLockfile = {
@@ -56,7 +78,59 @@ export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
   if (newLockfile.settings?.injectWorkspacePackages === false) {
     delete newLockfile.settings.injectWorkspacePackages
   }
-  return normalizeLockfile(newLockfile)
+
+  // Pick a random dependency from the unique package names
+  let randomDependency: RandomDependency | undefined
+  if (uniquePackageNames.size > 0) {
+    const names = Array.from(uniquePackageNames.keys())
+    const randomName = names[Math.floor(Math.random() * names.length)]
+    const pkgInfo = uniquePackageNames.get(randomName)!
+    randomDependency = {
+      name: randomName,
+      pkgId: pkgInfo.pkgId,
+      resolution: pkgInfo.resolution,
+    }
+  }
+
+  return {
+    lockfile: normalizeLockfile(newLockfile),
+    randomDependency,
+  }
+}
+
+/**
+ * Pick a random dependency from the lockfile without performing full conversion.
+ * Used by headless install to get a random dependency for funding messages.
+ */
+export function pickRandomDependency (lockfile: LockfileObject): RandomDependency | undefined {
+  const packages = lockfile.packages
+  if (!packages || Object.keys(packages).length === 0) {
+    return undefined
+  }
+
+  // Collect unique package names
+  const uniquePackageNames = new Map<string, { pkgId: string, resolution: LockfileResolution }>()
+  for (const [depPath, pkg] of Object.entries(packages)) {
+    const atIndex = depPath.indexOf('@', 1)
+    const pkgId = atIndex > 0 ? depPath.slice(0, atIndex) : depPath
+    const pkgName = pkg.name ?? (atIndex > 0 ? depPath.slice(0, atIndex) : depPath)
+    if (pkgName && !uniquePackageNames.has(pkgName)) {
+      uniquePackageNames.set(pkgName, { pkgId, resolution: pkg.resolution })
+    }
+  }
+
+  if (uniquePackageNames.size === 0) {
+    return undefined
+  }
+
+  const names = Array.from(uniquePackageNames.keys())
+  const randomName = names[Math.floor(Math.random() * names.length)]
+  const pkgInfo = uniquePackageNames.get(randomName)!
+  return {
+    name: randomName,
+    pkgId: pkgInfo.pkgId,
+    resolution: pkgInfo.resolution,
+  }
 }
 
 function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
