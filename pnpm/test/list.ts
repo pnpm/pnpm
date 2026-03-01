@@ -50,7 +50,6 @@ test('pnpm list returns correct paths with global virtual store', async () => {
     },
   })
   writeYamlFile('pnpm-workspace.yaml', {
-    ci: false, // enableGlobalVirtualStore is always disabled in CI
     enableGlobalVirtualStore: true,
     storeDir: path.resolve('store'),
     privateHoistPattern: '*',
