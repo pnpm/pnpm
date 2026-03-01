@@ -8,6 +8,7 @@ import { prepare, tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { stripVTControlCharacters as stripAnsi } from 'util'
+import symlinkDir from 'symlink-dir'
 
 const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
@@ -459,6 +460,50 @@ test('pnpm outdated: support --sortField option', async () => {
 │ is-positive (dev)    │ 1.0.0 (wanted 3.1.0) │ 3.1.0      │
 └──────────────────────┴──────────────────────┴────────────┘
 `)
+})
+
+test('pnpm outdated -g: shows outdated global packages', async () => {
+  tempDir()
+
+  // Set up a simulated global dir with one isolated package group
+  const globalPkgDir = path.resolve('global')
+  const installDir = path.join(globalPkgDir, 'install-1')
+  fs.mkdirSync(path.join(installDir, 'node_modules/.pnpm'), { recursive: true })
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.join(installDir, 'node_modules/.pnpm/lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.join(installDir, 'package.json'))
+
+  // Create symlink from a hash entry to the install dir (this is how scanGlobalPackages discovers packages)
+  symlinkDir.sync(installDir, path.join(globalPkgDir, 'abc123'))
+
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: globalPkgDir,
+    global: true,
+    globalPkgDir,
+    format: 'json',
+  })
+
+  expect(exitCode).toBe(1)
+  const result = JSON.parse(stripAnsi(output))
+  expect(result['is-negative']).toBeDefined()
+  expect(result['@pnpm.e2e/deprecated']).toBeDefined()
+})
+
+test('pnpm outdated -g: no outdated packages when global dir is empty', async () => {
+  tempDir()
+
+  const globalPkgDir = path.resolve('global')
+  fs.mkdirSync(globalPkgDir, { recursive: true })
+
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: globalPkgDir,
+    global: true,
+    globalPkgDir,
+  })
+
+  expect(output).toBe('')
+  expect(exitCode).toBe(0)
 })
 
 test('pnpm outdated --long with only deprecated packages', async () => {

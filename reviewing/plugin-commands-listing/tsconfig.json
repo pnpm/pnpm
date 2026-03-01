@@ -22,6 +22,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../global/commands"
+    },
+    {
       "path": "../../packages/constants"
     },
     {

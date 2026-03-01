@@ -8,6 +8,7 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import { handleGlobalRemove } from '@pnpm/global.commands'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
@@ -154,10 +155,18 @@ export async function handler (
   > & {
     recursive?: boolean
     pnpmfile: string[]
-  },
+  } & Partial<Pick<Config, 'global' | 'globalPkgDir'>>,
   params: string[]
 ): Promise<void> {
   if (params.length === 0) throw new PnpmError('MUST_REMOVE_SOMETHING', 'At least one dependency name should be specified for removal')
+  if (opts.global) {
+    if (!opts.bin) {
+      throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
+        hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
+      })
+    }
+    return handleGlobalRemove(opts, params)
+  }
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,

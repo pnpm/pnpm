@@ -4,7 +4,7 @@ import os from 'os'
 import { isCI } from 'ci-info'
 import { omit } from 'ramda'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
-import { GLOBAL_CONFIG_YAML_FILENAME, LAYOUT_VERSION } from '@pnpm/constants'
+import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { isCamelCase } from '@pnpm/naming-cases'
 import loadNpmConf from '@pnpm/npm-conf'
@@ -333,7 +333,7 @@ export async function getConfig (opts: {
   } else {
     globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
   }
-  pnpmConfig.globalPkgDir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
+  pnpmConfig.globalPkgDir = path.join(globalDirRoot, GLOBAL_LAYOUT_VERSION)
   if (cliOptions['global']) {
     delete pnpmConfig.workspaceDir
     pnpmConfig.dir = pnpmConfig.globalPkgDir

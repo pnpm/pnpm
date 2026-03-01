@@ -2419,6 +2419,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
@@ -2450,9 +2453,6 @@ importers:
       '@pnpm/exec.build-commands':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/plugin-commands-installation':
-        specifier: workspace:*
-        version: link:../../pkg-manager/plugin-commands-installation
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -2465,6 +2465,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.2.0
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -3475,6 +3478,83 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/symlink-dependency':
+        specifier: workspace:*
+        version: 'link:'
+
+  global/commands:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/core':
+        specifier: workspace:*
+        version: link:../../pkg-manager/core
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/exec.build-commands':
+        specifier: workspace:*
+        version: link:../../exec/build-commands
+      '@pnpm/global.packages':
+        specifier: workspace:*
+        version: link:../packages
+      '@pnpm/link-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/link-bins
+      '@pnpm/matcher':
+        specifier: workspace:*
+        version: link:../../config/matcher
+      '@pnpm/package-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/package-bins
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/remove-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/remove-bins
+      '@pnpm/store-connection-manager':
+        specifier: workspace:*
+        version: link:../../store/store-connection-manager
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
+      is-subdir:
+        specifier: 'catalog:'
+        version: 1.2.0
+      symlink-dir:
+        specifier: 'catalog:'
+        version: 7.1.0
+    devDependencies:
+      '@pnpm/global.commands':
+        specifier: workspace:*
+        version: 'link:'
+
+  global/packages:
+    dependencies:
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
+      '@pnpm/package-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/package-bins
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
+    devDependencies:
+      '@pnpm/global.packages':
         specifier: workspace:*
         version: 'link:'
 
@@ -5834,6 +5914,9 @@ importers:
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../get-context
+      '@pnpm/global.commands':
+        specifier: workspace:*
+        version: link:../../global/commands
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -7945,6 +8028,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/global.commands':
+        specifier: workspace:*
+        version: link:../../global/commands
       '@pnpm/list':
         specifier: workspace:*
         version: link:../list
@@ -8018,6 +8104,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/global.packages':
+        specifier: workspace:*
+        version: link:../../global/packages
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -8079,6 +8168,9 @@ importers:
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
+      symlink-dir:
+        specifier: 'catalog:'
+        version: 7.1.0
 
   reviewing/plugin-commands-sbom:
     dependencies:
@@ -8443,6 +8535,9 @@ importers:
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
+      '@pnpm/global.packages':
+        specifier: workspace:*
+        version: link:../../global/packages
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils

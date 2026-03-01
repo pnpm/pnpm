@@ -25,13 +25,13 @@
       "path": "../../packages/dependency-path"
     },
     {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../../packages/types"
     },
     {
       "path": "../../pkg-manager/modules-yaml"
-    },
-    {
-      "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
       "path": "../plugin-commands-rebuild"

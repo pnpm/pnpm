@@ -1,6 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { listGlobalPackages } from '@pnpm/global.commands'
 import { list, listForPackages } from '@pnpm/list'
 import { type Finder, type IncludedDependencies } from '@pnpm/types'
 import { pick } from 'ramda'
@@ -101,12 +102,15 @@ export type ListCommandOptions = Pick<Config,
   onlyProjects?: boolean
   recursive?: boolean
   findBy?: string[]
-}
+} & Partial<Pick<Config, 'global' | 'globalPkgDir'>>
 
 export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ): Promise<string> {
+  if (opts.global && opts.globalPkgDir) {
+    return listGlobalPackages(opts.globalPkgDir, params)
+  }
   const include = computeInclude(opts)
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {

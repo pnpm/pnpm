@@ -35,6 +35,7 @@
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/global.commands": "workspace:*",
     "@pnpm/list": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:",
