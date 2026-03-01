@@ -1724,6 +1724,7 @@ test('run --stream should prefix with dir name', async () => {
 
   const result = execPnpmSync([
     '--stream',
+    '--config.verify-deps-before-run=false',
     '--filter',
     'alfa',
     '--filter',
@@ -1749,6 +1750,7 @@ packages/beta test: OK`
   )
   const singleResult = execPnpmSync([
     '--stream',
+    '--config.verify-deps-before-run=false',
     '--filter',
     'alfa',
     'run',
@@ -1805,6 +1807,7 @@ test('run --reporter-hide-prefix should hide prefix', async () => {
   const result = execPnpmSync([
     '--stream',
     '--reporter-hide-prefix',
+    '--config.verify-deps-before-run=false',
     '--filter',
     'alfa',
     '--filter',
@@ -1831,6 +1834,7 @@ packages/beta test: Done`
   const singleResult = execPnpmSync([
     '--stream',
     '--reporter-hide-prefix',
+    '--config.verify-deps-before-run=false',
     '--filter',
     'alfa',
     'run',

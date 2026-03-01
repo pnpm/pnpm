@@ -20,7 +20,7 @@ test('run -r: pass the args to the command that is specified in the build script
   fs.writeFileSync('project/args.json', '[]', 'utf8')
   fs.writeFileSync('project/recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await execPnpm(['run', '-r', '--config.enable-pre-post-scripts', 'foo', 'arg', '--flag=true'])
+  await execPnpm(['run', '-r', '--config.enable-pre-post-scripts', '--config.verify-deps-before-run=false', 'foo', 'arg', '--flag=true'])
 
   const { default: args } = await import(path.resolve('project/args.json'))
   expect(args).toStrictEqual([
@@ -95,7 +95,7 @@ test('recursive test: pass the args to the command that is specified in the buil
     },
   }])
 
-  const result = execPnpmSync(['-r', 'test', 'arg', '--flag=true'])
+  const result = execPnpmSync(['--config.verify-deps-before-run=false', '-r', 'test', 'arg', '--flag=true'])
 
   expect((result.stdout as Buffer).toString('utf8')).toMatch(
     process.platform === 'win32' ? /ts-node test "arg" "--flag=true"/ : /ts-node test arg --flag=true/
@@ -132,7 +132,7 @@ test('silent run only prints the output of the child process', async () => {
     },
   })
 
-  const result = execPnpmSync(['run', '--silent', 'hi'])
+  const result = execPnpmSync(['run', '--silent', '--config.verify-deps-before-run=false', 'hi'])
 
   expect(result.stdout.toString().trim()).toBe('hi')
 })
