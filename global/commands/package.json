@@ -35,6 +35,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/core": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.build-commands": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/matcher": "workspace:*",

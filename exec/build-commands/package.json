@@ -35,6 +35,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/config.config-writer": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",

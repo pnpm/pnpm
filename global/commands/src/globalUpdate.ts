@@ -13,7 +13,10 @@ import { removeBin } from '@pnpm/remove-bins'
 import isSubdir from 'is-subdir'
 import symlinkDir from 'symlink-dir'
 import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { approveBuilds } from '@pnpm/exec.build-commands'
 import { installGlobalPackages } from './installGlobalPackages.js'
+
+type ApproveBuildsHandlerOpts = Parameters<typeof approveBuilds.handler>[0]
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
 
@@ -21,6 +24,7 @@ export type GlobalUpdateOptions = CreateStoreControllerOptions & {
   bin?: string
   globalPkgDir?: string
   latest?: boolean
+  allowBuilds?: Record<string, string | boolean>
   saveExact?: boolean
   savePrefix?: string
   supportedArchitectures?: { libc?: string[] }
@@ -81,7 +85,9 @@ async function updateGlobalPackageGroup (
     optionalDependencies: true,
   }
   const fetchFullMetadata = (opts.supportedArchitectures?.libc ?? opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc) && true
-  await installGlobalPackages({
+  const allowBuilds = opts.allowBuilds ?? {}
+
+  const ignoredBuilds = await installGlobalPackages({
     ...opts,
     global: false,
     bin: path.join(installDir, 'node_modules/.bin'),
@@ -99,7 +105,25 @@ async function updateGlobalPackageGroup (
     fetchFullMetadata,
     include,
     includeDirect: include,
+    allowBuilds,
   }, depSpecs)
+
+  // If any packages had their builds skipped, prompt the user to approve them
+  // (reuses the same interactive flow as `pnpm approve-builds`)
+  if (ignoredBuilds?.size && process.stdin.isTTY) {
+    await approveBuilds.handler({
+      ...opts,
+      modulesDir: path.join(installDir, 'node_modules'),
+      dir: installDir,
+      lockfileDir: installDir,
+      rootProjectManifest: undefined,
+      rootProjectManifestDir: installDir,
+      workspaceDir: opts.globalPkgDir!,
+      global: false,
+      pending: false,
+      allowBuilds,
+    } as ApproveBuildsHandlerOpts)
+  }
 
   // Check for bin name conflicts with other global packages
   const pkgs = await readInstalledPackages(installDir)

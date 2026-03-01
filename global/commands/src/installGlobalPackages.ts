@@ -2,7 +2,7 @@ import { tryReadProjectManifest } from '@pnpm/cli-utils'
 import { getOptionsFromRootManifest } from '@pnpm/config'
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
+import { type IgnoredBuilds, type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
 
 export interface InstallGlobalPackagesOptions extends CreateStoreControllerOptions {
   bin: string
@@ -29,7 +29,7 @@ export interface InstallGlobalPackagesOptions extends CreateStoreControllerOptio
 export async function installGlobalPackages (
   opts: InstallGlobalPackagesOptions,
   params: string[]
-): Promise<void> {
+): Promise<IgnoredBuilds | undefined> {
   const store = await createStoreController(opts)
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
   if (manifest == null) {
@@ -44,7 +44,7 @@ export async function installGlobalPackages (
     storeDir: store.dir,
   }
   const pinnedVersion = opts.saveExact ? 'patch' : (opts.savePrefix === '~' ? 'minor' : 'major')
-  const { updatedProject } = await mutateModulesInSingleProject(
+  const { updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(
     {
       allowNew: true,
       binsDir: opts.bin,
@@ -59,4 +59,5 @@ export async function installGlobalPackages (
     installOpts
   )
   await writeProjectManifest(updatedProject.manifest)
+  return ignoredBuilds
 }

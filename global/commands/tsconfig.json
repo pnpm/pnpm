@@ -19,6 +19,9 @@
       "path": "../../config/matcher"
     },
     {
+      "path": "../../exec/build-commands"
+    },
+    {
       "path": "../../packages/error"
     },
     {

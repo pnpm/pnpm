@@ -2419,6 +2419,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
@@ -3492,6 +3495,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/exec.build-commands':
+        specifier: workspace:*
+        version: link:../../exec/build-commands
       '@pnpm/global.packages':
         specifier: workspace:*
         version: link:../packages

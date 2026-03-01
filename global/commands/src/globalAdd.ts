@@ -14,7 +14,10 @@ import { readPackageJsonFromDirRawSync } from '@pnpm/read-package-json'
 import isSubdir from 'is-subdir'
 import symlinkDir from 'symlink-dir'
 import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { approveBuilds } from '@pnpm/exec.build-commands'
 import { installGlobalPackages } from './installGlobalPackages.js'
+
+type ApproveBuildsHandlerOpts = Parameters<typeof approveBuilds.handler>[0]
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
 
@@ -58,13 +61,14 @@ export async function handleGlobalAdd (
     optionalDependencies: true,
   }
   const fetchFullMetadata = (opts.supportedArchitectures?.libc ?? opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc) && true
-  await installGlobalPackages({
+
+  const makeInstallOpts = (dir: string, builds: Record<string, string | boolean>) => ({
     ...opts,
     global: false,
-    bin: path.join(installDir, 'node_modules/.bin'),
-    dir: installDir,
-    lockfileDir: installDir,
-    rootProjectManifestDir: installDir,
+    bin: path.join(dir, 'node_modules/.bin'),
+    dir,
+    lockfileDir: dir,
+    rootProjectManifestDir: dir,
     rootProjectManifest: undefined,
     saveProd: true,
     saveDev: false,
@@ -76,8 +80,27 @@ export async function handleGlobalAdd (
     fetchFullMetadata,
     include,
     includeDirect: include,
-    allowBuilds,
-  }, params)
+    allowBuilds: builds,
+  })
+
+  const ignoredBuilds = await installGlobalPackages(makeInstallOpts(installDir, allowBuilds), params)
+
+  // If any packages had their builds skipped, prompt the user to approve them
+  // (reuses the same interactive flow as `pnpm approve-builds`)
+  if (ignoredBuilds?.size && process.stdin.isTTY) {
+    await approveBuilds.handler({
+      ...opts,
+      modulesDir: path.join(installDir, 'node_modules'),
+      dir: installDir,
+      lockfileDir: installDir,
+      rootProjectManifest: undefined,
+      rootProjectManifestDir: installDir,
+      workspaceDir: opts.globalPkgDir!,
+      global: false,
+      pending: false,
+      allowBuilds,
+    } as ApproveBuildsHandlerOpts)
+  }
 
   // Read resolved aliases from the installed package.json
   const pkgJson = readPackageJsonFromDirRawSync(installDir)
