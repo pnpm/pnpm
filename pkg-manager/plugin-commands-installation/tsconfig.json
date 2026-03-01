@@ -145,10 +145,10 @@
       "path": "../link-bins"
     },
     {
-      "path": "../package-bins"
+      "path": "../modules-yaml"
     },
     {
-      "path": "../modules-yaml"
+      "path": "../package-bins"
     },
     {
       "path": "../remove-bins"

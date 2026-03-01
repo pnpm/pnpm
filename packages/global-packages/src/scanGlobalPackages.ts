@@ -88,13 +88,22 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
     } catch {}
   }
 
-  // Remove directories that no symlink points to
+  // Remove directories that no symlink points to.
+  // Skip recently-created dirs to avoid racing with a concurrent install
+  // that hasn't created its hash symlink yet.
+  const now = Date.now()
+  const SAFETY_WINDOW_MS = 5 * 60 * 1000
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
     const dirPath = path.join(globalDir, entry.name)
-    if (!referenced.has(dirPath)) {
-      fs.rmSync(dirPath, { recursive: true, force: true })
+    if (referenced.has(dirPath)) continue
+    try {
+      const stat = fs.statSync(dirPath)
+      if (now - stat.birthtimeMs < SAFETY_WINDOW_MS) continue
+    } catch {
+      continue
     }
+    fs.rmSync(dirPath, { recursive: true, force: true })
   }
 }
 

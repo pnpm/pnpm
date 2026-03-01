@@ -290,6 +290,46 @@ test('global update should not crash if there are no global packages', async () 
   expect(execPnpmSync(['update', '--global'], { env }).status).toBe(0)
 })
 
+test('global add cleans up stale bins when re-adding a package with different bins', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  // Create v1 tarball with bin "old-bin"
+  const pkgDir = path.resolve('..', 'my-tool')
+  fs.mkdirSync(path.join(pkgDir, 'package'), { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package', 'package.json'), JSON.stringify({
+    name: 'my-tool',
+    version: '1.0.0',
+    bin: { 'old-bin': './index.js' },
+  }))
+  fs.writeFileSync(path.join(pkgDir, 'package', 'index.js'), '#!/usr/bin/env node\nconsole.log("v1")\n')
+  const tarballV1 = path.join(pkgDir, 'my-tool-1.0.0.tgz')
+  execPnpmSync(['pack', '--pack-destination', pkgDir], { cwd: path.join(pkgDir, 'package') })
+
+  await execPnpm(['add', '-g', tarballV1], { env })
+  expect(fs.existsSync(path.join(pnpmHome, 'old-bin'))).toBeTruthy()
+
+  // Create v2 tarball with bin "new-bin"
+  fs.writeFileSync(path.join(pkgDir, 'package', 'package.json'), JSON.stringify({
+    name: 'my-tool',
+    version: '2.0.0',
+    bin: { 'new-bin': './index.js' },
+  }))
+  const tarballV2 = path.join(pkgDir, 'my-tool-2.0.0.tgz')
+  execPnpmSync(['pack', '--pack-destination', pkgDir], { cwd: path.join(pkgDir, 'package') })
+
+  // Re-add the same package from new tarball — old bins should be cleaned up
+  await execPnpm(['add', '-g', tarballV2], { env })
+
+  // old-bin should be gone, new-bin should exist
+  expect(fs.existsSync(path.join(pnpmHome, 'old-bin'))).toBeFalsy()
+  expect(fs.existsSync(path.join(pnpmHome, 'new-bin'))).toBeTruthy()
+})
+
 test('global add refuses to install when bin name conflicts with another global package', async () => {
   prepare()
   const global = path.resolve('..', 'global')

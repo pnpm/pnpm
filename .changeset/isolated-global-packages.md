@@ -9,7 +9,7 @@
 Isolated global packages. Each globally installed package (or group of packages installed together) now gets its own isolated installation directory with its own `package.json`, `node_modules/`, and lockfile. This prevents global packages from interfering with each other through peer dependency conflicts, hoisting changes, or version resolution shifts.
 
 Key changes:
-- `pnpm add -g <pkg>` creates an isolated installation in `{pnpmHomeDir}/global/{hash}/`
+- `pnpm add -g <pkg>` creates an isolated installation in `{pnpmHomeDir}/global/v11/{hash}/`
 - `pnpm remove -g <pkg>` removes the entire installation group containing the package
 - `pnpm update -g [pkg]` re-installs packages in new isolated directories
 - `pnpm list -g` scans isolated directories to show all installed global packages
