@@ -79,6 +79,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/byline": "catalog:",
     "@pnpm/cache.commands": "workspace:*",
+    "@pnpm/catalogs.commands": "workspace:*",
     "@pnpm/cli-meta": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/client": "workspace:*",

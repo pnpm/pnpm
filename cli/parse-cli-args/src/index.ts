@@ -28,6 +28,7 @@ export async function parseCliArgs (
     getCommandLongName: (commandName: string) => string | null
     getTypesByCommandName: (commandName: string) => object
     renamedOptions?: Record<string, string>
+    subcommandsByCommandName: Record<string, string[]>
     shorthandsByCommandName: Record<string, Record<string, string | string[]>>
     universalOptionsTypes: Record<string, unknown>
     universalShorthands: Record<string, string | string[]>
@@ -55,6 +56,16 @@ export async function parseCliArgs (
   const recursiveCommandUsed = RECURSIVE_CMDS.has(noptExploratoryResults.argv.remain[0])
   let commandName = getCommandName(noptExploratoryResults.argv.remain)
   let cmd = commandName ? opts.getCommandLongName(commandName) : null
+
+  if (cmd && opts.subcommandsByCommandName[cmd]) {
+    const subCmd = noptExploratoryResults.argv.remain[1]
+    if (subCmd && opts.subcommandsByCommandName[cmd].includes(subCmd)) {
+      cmd = `${cmd} ${subCmd}`
+      commandName = cmd
+      inputArgv.splice(inputArgv.indexOf(subCmd), 1)
+    }
+  }
+
   const fallbackCommandUsed = Boolean(commandName && !cmd && opts.fallbackCommand)
   if (fallbackCommandUsed) {
     cmd = opts.fallbackCommand!

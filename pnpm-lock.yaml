@@ -1312,6 +1312,55 @@ importers:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
 
+  catalogs/commands:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/find-workspace-dir':
+        specifier: workspace:*
+        version: link:../../workspace/find-workspace-dir
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../../workspace/find-packages
+      '@pnpm/workspace.manifest-writer':
+        specifier: workspace:*
+        version: link:../../workspace/manifest-writer
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-manifest
+      chalk:
+        specifier: 'catalog:'
+        version: 5.6.2
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
+      render-help:
+        specifier: 'catalog:'
+        version: 1.0.3
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
+      '@pnpm/catalogs.commands':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
+      read-yaml-file:
+        specifier: 'catalog:'
+        version: 2.1.0
+
   catalogs/config:
     dependencies:
       '@pnpm/error':
@@ -6496,6 +6545,9 @@ importers:
       '@pnpm/cache.commands':
         specifier: workspace:*
         version: link:../cache/commands
+      '@pnpm/catalogs.commands':
+        specifier: workspace:*
+        version: link:../catalogs/commands
       '@pnpm/cli-meta':
         specifier: workspace:*
         version: link:../cli/cli-meta

@@ -27,6 +27,9 @@
       "path": "../cache/commands"
     },
     {
+      "path": "../catalogs/commands"
+    },
+    {
       "path": "../cli/cli-meta"
     },
     {
