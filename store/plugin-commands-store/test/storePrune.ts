@@ -40,6 +40,9 @@ test('remove unreferenced packages', async () => {
   ], { env: { npm_config_registry: REGISTRY } })
 
   project.storeHas('is-negative', '2.1.0')
+  project.storeHasNot('is-negative', '2.1.0')
+  project.storeHas('totally-not-is-negative', '999.2.1.0')
+  project.storeHasNot('totally-not-is-negative', '999.2.1.0')
 
   const reporter = jest.fn()
   await store.handler({
