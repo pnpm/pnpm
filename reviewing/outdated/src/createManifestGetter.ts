@@ -63,8 +63,16 @@ export async function getManifest (
     })
     return resolution?.manifest ?? null
   } catch (err) {
-    if ((err as { code?: string }).code === 'ERR_PNPM_NO_MATURE_MATCHING_VERSION' && opts.publishedBy) {
-      // No versions found that meet the minimumReleaseAge requirement
+    const code = (err as { code?: string }).code
+    if (opts.publishedBy && (
+      code === 'ERR_PNPM_NO_MATURE_MATCHING_VERSION' ||
+      code === 'ERR_PNPM_NO_MATCHING_VERSION'
+    )) {
+      // No versions found that meet the minimumReleaseAge requirement.
+      // This can happen when all published versions (including the one the
+      // "latest" dist-tag points to) are newer than the minimumReleaseAge
+      // threshold, causing the resolver to throw NO_MATCHING_VERSION instead
+      // of NO_MATURE_MATCHING_VERSION.
       return null
     }
     throw err
