@@ -260,3 +260,36 @@ test('peer dependency is not added to prod deps on update', async () => {
     },
   })
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/9900
+test('peer dependencies are updated with pnpm upgrade --latest when autoInstallPeers is true', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+
+  const project = prepareEmpty()
+
+  const manifest = {
+    name: 'test-pkg',
+    version: '1.0.0',
+    peerDependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  }
+
+  await install(manifest, testDefaults({ autoInstallPeers: true }))
+
+  let lockfile = project.readLockfile()
+  expect(lockfile.importers?.['.']?.dependencies?.['@pnpm.e2e/foo'].version).toBe('1.0.0')
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.3.0', distTag: 'latest' })
+
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/foo'], testDefaults({
+    allowNew: false,
+    autoInstallPeers: true,
+    update: true,
+    updateToLatest: true,
+  }))
+
+  lockfile = project.readLockfile()
+
+  expect(lockfile.importers?.['.']?.dependencies?.['@pnpm.e2e/foo'].version).toBe('1.3.0')
+})
