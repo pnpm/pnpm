@@ -2802,6 +2802,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/config.config-writer':
+        specifier: workspace:*
+        version: link:../../config/config-writer
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy
@@ -2820,9 +2823,15 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/exec.build-commands':
+        specifier: workspace:*
+        version: link:../build-commands
       '@pnpm/exec.pnpm-cli-runner':
         specifier: workspace:*
         version: link:../pnpm-cli-runner
+      '@pnpm/global.commands':
+        specifier: workspace:*
+        version: link:../../global/commands
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
@@ -2838,9 +2847,9 @@ importers:
       '@pnpm/plugin-commands-env':
         specifier: workspace:*
         version: link:../../env/plugin-commands-env
-      '@pnpm/plugin-commands-installation':
+      '@pnpm/plugin-commands-rebuild':
         specifier: workspace:*
-        version: link:../../pkg-manager/plugin-commands-installation
+        version: link:../plugin-commands-rebuild
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -2862,6 +2871,9 @@ importers:
       '@pnpm/workspace.injected-deps-syncer':
         specifier: workspace:*
         version: link:../../workspace/injected-deps-syncer
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-manifest
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2

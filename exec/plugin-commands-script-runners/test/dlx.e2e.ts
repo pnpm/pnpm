@@ -8,15 +8,29 @@ const { getSystemNodeVersion: originalGetSystemNodeVersion } = await import('@pn
 jest.unstable_mockModule('@pnpm/env.system-node-version', () => ({
   getSystemNodeVersion: jest.fn(originalGetSystemNodeVersion),
 }))
-const { add: originalAdd } = await import('@pnpm/plugin-commands-installation')
-jest.unstable_mockModule('@pnpm/plugin-commands-installation', () => ({
-  add: {
-    handler: jest.fn(originalAdd.handler),
+const { installGlobalPackages: originalInstallGlobalPackages } = await import('@pnpm/global.commands')
+jest.unstable_mockModule('@pnpm/global.commands', () => ({
+  installGlobalPackages: jest.fn(originalInstallGlobalPackages),
+}))
+const { rebuild: originalRebuild } = await import('@pnpm/plugin-commands-rebuild')
+jest.unstable_mockModule('@pnpm/plugin-commands-rebuild', () => ({
+  rebuild: {
+    ...originalRebuild,
+    handler: jest.fn(originalRebuild.handler),
+  },
+}))
+const { approveBuilds: originalApproveBuilds } = await import('@pnpm/exec.build-commands')
+jest.unstable_mockModule('@pnpm/exec.build-commands', () => ({
+  approveBuilds: {
+    ...originalApproveBuilds,
+    handler: jest.fn(originalApproveBuilds.handler),
   },
 }))
 
 const systemNodeVersion = await import('@pnpm/env.system-node-version')
-const { add } = await import('@pnpm/plugin-commands-installation')
+const { installGlobalPackages } = await import('@pnpm/global.commands')
+const { rebuild } = await import('@pnpm/plugin-commands-rebuild')
+const { approveBuilds } = await import('@pnpm/exec.build-commands')
 const { dlx } = await import('@pnpm/plugin-commands-script-runners')
 
 const testOnWindowsOnly = process.platform === 'win32' ? test : test.skip
@@ -53,14 +67,11 @@ function verifyDlxCache (cacheName: string): void {
 }
 
 function verifyDlxCacheLink (cacheName: string): void {
-  expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', cacheName, 'pkg'))
-      .sort()
-  ).toStrictEqual([
-    'node_modules',
-    'package.json',
-    'pnpm-lock.yaml',
-  ].sort())
+  const files = fs.readdirSync(path.resolve('cache', 'dlx', cacheName, 'pkg')).sort()
+  // pnpm-workspace.yaml is created when allowBuilds state is persisted
+  expect(files).toContain('node_modules')
+  expect(files).toContain('package.json')
+  expect(files).toContain('pnpm-lock.yaml')
   expect(
     path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', cacheName, 'pkg')))
   ).toBe(path.resolve('cache', 'dlx', cacheName))
@@ -221,7 +232,7 @@ testOnWindowsOnly('dlx should work when running in the root of a Windows Drive',
 test('dlx with cache', async () => {
   prepareEmpty()
 
-  const spy = jest.mocked(add.handler)
+  const spy = jest.mocked(installGlobalPackages)
 
   await dlx.handler({
     ...DEFAULT_OPTS,
@@ -285,7 +296,7 @@ test('dlx does not reuse expired cache', async () => {
   const newDate = new Date(now.getTime() - 30 * 60_000)
   fs.lutimesSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'), 'pkg'), newDate, newDate)
 
-  const spy = jest.mocked(add.handler)
+  const spy = jest.mocked(installGlobalPackages)
 
   // main dlx execution
   await dlx.handler({
@@ -370,7 +381,6 @@ test('dlx builds the packages passed via --allow-build', async () => {
 
   const dlxCacheDir = path.resolve('cache', 'dlx', dlx.createCacheKey({
     packages: ['@pnpm.e2e/has-bin-and-needs-build@1.0.0'],
-    allowBuild,
     registries: DEFAULT_OPTS.registries,
     supportedArchitectures: DEFAULT_OPTS.supportedArchitectures,
   }), 'pkg')
@@ -438,4 +448,197 @@ test('dlx with catalog', async () => {
   }, ['shx@catalog:'])
 
   verifyDlxCache(createCacheKey('shx@0.3.4'))
+})
+
+test('dlx calls approveBuilds.handler when builds are ignored in TTY mode', async () => {
+  prepareEmpty()
+
+  const installSpy = jest.mocked(installGlobalPackages)
+  const approveSpy = jest.mocked(approveBuilds.handler)
+
+  // Wrap installGlobalPackages to call original but return ignoredBuilds
+  installSpy.mockImplementationOnce(async (...args) => {
+    await originalInstallGlobalPackages(...args)
+    return new Set(['@pnpm.e2e/some-package'])
+  })
+
+  // Mock TTY
+  const originalIsTTY = process.stdin.isTTY
+  Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
+
+  // Mock approveBuilds.handler to be a no-op (avoid actual interactive prompts)
+  approveSpy.mockResolvedValueOnce(undefined)
+
+  try {
+    await dlx.handler({
+      ...DEFAULT_OPTS,
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, ['shx@0.3.4', 'touch', 'foo'])
+
+    expect(approveSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        global: false,
+        pending: false,
+      })
+    )
+  } finally {
+    Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
+  }
+})
+
+test('dlx does not call approveBuilds.handler in non-TTY mode', async () => {
+  prepareEmpty()
+
+  const approveSpy = jest.mocked(approveBuilds.handler)
+  approveSpy.mockClear()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }, ['@pnpm.e2e/has-bin-and-needs-build'])
+
+  expect(approveSpy).not.toHaveBeenCalled()
+})
+
+test('dlx persists allowBuilds to pnpm-workspace.yaml on cache miss', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    allowBuild: ['@pnpm.e2e/install-script-example'],
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }, ['@pnpm.e2e/has-bin-and-needs-build'])
+
+  const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
+  const workspaceYaml = fs.readFileSync(path.join(dlxCacheDir, 'pnpm-workspace.yaml'), 'utf8')
+  expect(workspaceYaml).toContain('@pnpm.e2e/has-bin-and-needs-build')
+  expect(workspaceYaml).toContain('@pnpm.e2e/install-script-example')
+})
+
+test('dlx cache hit with same --allow-build reuses cache without rebuild', async () => {
+  prepareEmpty()
+
+  const installSpy = jest.mocked(installGlobalPackages)
+  const rebuildSpy = jest.mocked(rebuild.handler)
+
+  const commonOpts = {
+    ...DEFAULT_OPTS,
+    allowBuild: ['@pnpm.e2e/install-script-example'],
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }
+
+  // First run: cache miss
+  await dlx.handler(commonOpts, ['@pnpm.e2e/has-bin-and-needs-build'])
+  expect(installSpy).toHaveBeenCalled()
+
+  installSpy.mockClear()
+  rebuildSpy.mockClear()
+
+  // Second run: cache hit with same allowBuild
+  await dlx.handler(commonOpts, ['@pnpm.e2e/has-bin-and-needs-build'])
+  expect(installSpy).not.toHaveBeenCalled()
+  expect(rebuildSpy).not.toHaveBeenCalled()
+})
+
+test('dlx cache hit with new --allow-build triggers rebuild', async () => {
+  prepareEmpty()
+
+  const installSpy = jest.mocked(installGlobalPackages)
+  const rebuildSpy = jest.mocked(rebuild.handler)
+
+  // First run: no --allow-build
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }, ['@pnpm.e2e/has-bin-and-needs-build'])
+  expect(installSpy).toHaveBeenCalled()
+
+  // Verify the package is NOT built yet
+  const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
+  const builtPkgPath = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example')
+  expect(fs.existsSync(path.join(builtPkgPath, 'generated-by-install.js'))).toBeFalsy()
+
+  installSpy.mockClear()
+  rebuildSpy.mockClear()
+
+  // Second run: add --allow-build for a dependency
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    allowBuild: ['@pnpm.e2e/install-script-example'],
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }, ['@pnpm.e2e/has-bin-and-needs-build'])
+
+  // Should NOT reinstall (cache hit)
+  expect(installSpy).not.toHaveBeenCalled()
+  // Should call rebuild for the newly allowed package
+  expect(rebuildSpy).toHaveBeenCalledWith(
+    expect.anything(),
+    ['@pnpm.e2e/install-script-example']
+  )
+
+  // Verify the package IS now built
+  expect(fs.existsSync(path.join(builtPkgPath, 'generated-by-install.js'))).toBeTruthy()
+})
+
+test('dlx cache hit with removed --allow-build triggers cache invalidation', async () => {
+  prepareEmpty()
+
+  const installSpy = jest.mocked(installGlobalPackages)
+
+  // First run: with --allow-build
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    allowBuild: ['@pnpm.e2e/install-script-example'],
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }, ['@pnpm.e2e/has-bin-and-needs-build'])
+  expect(installSpy).toHaveBeenCalled()
+
+  // Verify the package was built
+  const cacheKeyHash = createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0')
+  const dlxCacheDir = path.resolve('cache', 'dlx', cacheKeyHash, 'pkg')
+  const builtPkgPath = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example')
+  expect(fs.existsSync(path.join(builtPkgPath, 'generated-by-install.js'))).toBeTruthy()
+
+  installSpy.mockClear()
+
+  // Second run: without --allow-build (removed permission)
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }, ['@pnpm.e2e/has-bin-and-needs-build'])
+
+  // Should reinstall (cache invalidated due to removed permission)
+  expect(installSpy).toHaveBeenCalledWith(expect.anything(), ['@pnpm.e2e/has-bin-and-needs-build@1.0.0'])
+
+  // Verify cache now points to a new directory
+  const newDlxCacheDir = fs.realpathSync(path.resolve('cache', 'dlx', cacheKeyHash, 'pkg'))
+  expect(newDlxCacheDir).not.toBe(path.resolve(dlxCacheDir))
+
+  // The new cache should NOT have the previously built package
+  const newBuiltPkgPath = path.join(newDlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example')
+  expect(fs.existsSync(path.join(newBuiltPkgPath, 'generated-by-install.js'))).toBeFalsy()
 })

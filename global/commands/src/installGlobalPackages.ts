@@ -1,5 +1,4 @@
 import { tryReadProjectManifest } from '@pnpm/cli-utils'
-import { getOptionsFromRootManifest } from '@pnpm/config'
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type IgnoredBuilds, type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
@@ -23,6 +22,7 @@ export interface InstallGlobalPackagesOptions extends CreateStoreControllerOptio
   savePrefix?: string
   saveProd?: boolean
   sharedWorkspaceLockfile?: boolean
+  symlink?: boolean
   workspaceDir?: string
 }
 
@@ -35,11 +35,8 @@ export async function installGlobalPackages (
   if (manifest == null) {
     manifest = {}
   }
-  const rootManifestOpts = getOptionsFromRootManifest(opts.dir, manifest)
   const installOpts = {
     ...opts,
-    ...rootManifestOpts,
-    allowBuilds: { ...rootManifestOpts.allowBuilds, ...opts.allowBuilds },
     storeController: store.ctrl,
     storeDir: store.dir,
   }
