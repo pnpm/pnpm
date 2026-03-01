@@ -655,7 +655,14 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
-  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, projectManifest), configFromCliOpts)
+  const workspaceSettings = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, projectManifest)
+  // Merge workspace overrides with existing package.json overrides
+  // Package.json overrides (from resolutions/pnpm.overrides) should be merged with workspace overrides
+  // Workspace overrides take precedence when there's a conflict
+  if (workspaceSettings.overrides != null && pnpmConfig.overrides != null) {
+    workspaceSettings.overrides = { ...pnpmConfig.overrides, ...workspaceSettings.overrides }
+  }
+  const newSettings = Object.assign(workspaceSettings, configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
 
