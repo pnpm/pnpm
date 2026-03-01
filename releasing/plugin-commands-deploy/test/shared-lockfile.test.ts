@@ -271,18 +271,19 @@ test('deploy with a shared lockfile after full install', async () => {
   }
 })
 
-test('the deploy manifest should inherit some fields from the pnpm object from the root manifest and the manifest of the selected project', async () => {
+test('the deploy manifest should inherit some fields from the workspace manifest', async () => {
+  const workspaceSettings = {
+    allowBuilds: { 'from-root': true },
+    overrides: {
+      'is-positive': '2.0.0',
+    },
+  }
+
   const preparedManifests: Record<'root' | 'project-0', ProjectManifest> = {
     root: {
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {
-        allowBuilds: { 'from-root': true },
-        overrides: {
-          'is-positive': '2.0.0',
-        },
-      },
     },
     'project-0': {
       name: 'project-0',
@@ -290,12 +291,6 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
       private: true,
       dependencies: {
         'is-positive': '3.1.0',
-      },
-      pnpm: {
-        allowBuilds: { 'from-project-0': true },
-        overrides: {
-          'is-positive': '=1.0.0',
-        },
       },
     },
   }
@@ -307,6 +302,11 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
     },
     preparedManifests['project-0'],
   ])
+
+  writeYamlFile.sync('pnpm-workspace.yaml', {
+    packages: ['project-0'],
+    ...workspaceSettings,
+  })
 
   const {
     allProjects,
@@ -320,6 +320,8 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
     allProjectsGraph,
     selectedProjectsGraph: allProjectsGraph,
     dir: process.cwd(),
+    overrides: workspaceSettings.overrides,
+    allowBuilds: workspaceSettings.allowBuilds,
     recursive: true,
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
@@ -330,8 +332,12 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
-    rootProjectManifest: preparedManifests.root,
+    rootProjectManifest: {
+      ...preparedManifests.root,
+      pnpm: { allowBuilds: workspaceSettings.allowBuilds },
+    },
     rootProjectManifestDir: process.cwd(),
+    allowBuilds: workspaceSettings.allowBuilds,
     recursive: true,
     selectedProjectsGraph,
     sharedWorkspaceLockfile: true,
@@ -344,16 +350,16 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
 
   const manifest = readPackageJson('deploy') as ProjectManifest
   expect(manifest.pnpm).toStrictEqual({
-    allowBuilds: preparedManifests.root.pnpm!.allowBuilds,
+    allowBuilds: workspaceSettings.allowBuilds,
   } as ProjectManifest['pnpm'])
 
-  expect(readPackageJson('deploy/node_modules/is-positive/')).toHaveProperty(['version'], preparedManifests.root.pnpm!.overrides!['is-positive'])
+  expect(readPackageJson('deploy/node_modules/is-positive/')).toHaveProperty(['version'], workspaceSettings.overrides['is-positive'])
   expect(project.readLockfile().importers).toStrictEqual({
     '.': {
       dependencies: {
         'is-positive': {
-          specifier: preparedManifests.root.pnpm!.overrides!['is-positive'],
-          version: preparedManifests.root.pnpm!.overrides!['is-positive'],
+          specifier: workspaceSettings.overrides['is-positive'],
+          version: workspaceSettings.overrides['is-positive'],
         },
       },
     },
@@ -657,24 +663,23 @@ test('deploy with a shared lockfile should correctly handle package that depends
 })
 
 test('deploy with a shared lockfile should correctly handle packageExtensions', async () => {
+  const packageExtensions = {
+    'is-positive': {
+      dependencies: {
+        'is-odd': '1.0.0',
+        'link-to-project-0': 'link:project-0',
+        'link-to-project-1': 'link:project-1',
+        'project-0': 'workspace:*',
+        'project-1': 'workspace:*',
+      },
+    },
+  }
+
   const preparedManifests: Record<string, ProjectManifest> = {
     root: {
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {
-        packageExtensions: {
-          'is-positive': {
-            dependencies: {
-              'is-odd': '1.0.0',
-              'link-to-project-0': 'link:project-0',
-              'link-to-project-1': 'link:project-1',
-              'project-0': 'workspace:*',
-              'project-1': 'workspace:*',
-            },
-          },
-        },
-      },
     },
     'project-0': {
       name: 'project-0',
@@ -701,6 +706,11 @@ test('deploy with a shared lockfile should correctly handle packageExtensions', 
     preparedManifests['project-1'],
   ])
 
+  writeYamlFile.sync('pnpm-workspace.yaml', {
+    packages: ['project-0', 'project-1'],
+    packageExtensions,
+  })
+
   const {
     allProjects,
     allProjectsGraph,
@@ -713,6 +723,11 @@ test('deploy with a shared lockfile should correctly handle packageExtensions', 
     allProjectsGraph,
     selectedProjectsGraph: allProjectsGraph,
     dir: process.cwd(),
+    rootProjectManifest: {
+      ...preparedManifests.root,
+      pnpm: { packageExtensions },
+    },
+    rootProjectManifestDir: process.cwd(),
     recursive: true,
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
@@ -783,9 +798,6 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
       name: 'root',
       version: '0.0.0',
       private: true,
-      pnpm: {
-        patchedDependencies,
-      },
     },
     'project-0': {
       name: 'project-0',
@@ -811,6 +823,11 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     preparedManifests['project-0'],
     preparedManifests['project-1'],
   ])
+
+  writeYamlFile.sync('pnpm-workspace.yaml', {
+    packages: ['project-0', 'project-1'],
+    patchedDependencies,
+  })
 
   f.copy('is-positive.patch', '__patches__/is-positive.patch')
 
