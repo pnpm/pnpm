@@ -23,7 +23,7 @@ export function help (): string {
 
         list: [
           {
-            description: 'Print the global `node_modules` directory',
+            description: 'Print the global packages directory',
             name: '--global',
             shortAlias: '-g',
           },
@@ -38,7 +38,11 @@ export function help (): string {
 export async function handler (
   opts: {
     dir: string
+    global?: boolean
   }
 ): Promise<string> {
+  if (opts.global) {
+    return `${opts.dir}\n`
+  }
   return `${path.join(opts.dir, 'node_modules')}\n`
 }
