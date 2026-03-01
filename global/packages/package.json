@@ -1,0 +1,49 @@
+{
+  "name": "@pnpm/global.packages",
+  "version": "1000.0.0-0",
+  "description": "Utilities for managing isolated global packages",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "global"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/global/packages",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/global/packages#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    "test": "pnpm run compile"
+  },
+  "dependencies": {
+    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/package-bins": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/global.packages": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

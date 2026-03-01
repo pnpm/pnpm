@@ -1,4 +1,5 @@
 import { type Config } from '@pnpm/config'
+import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -9,7 +10,7 @@ import { rebuild, type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { writeSettings } from '@pnpm/config.config-writer'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds'> & { all?: boolean }
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds'> & { all?: boolean, global?: boolean }
 
 export const commandNames = ['approve-builds']
 
@@ -25,11 +26,6 @@ export function help (): string {
           {
             description: 'Approve all pending dependencies without interactive prompts',
             name: '--all',
-          },
-          {
-            description: 'Approve dependencies of global packages',
-            name: '--global',
-            shortAlias: '-g',
           },
         ],
       },
@@ -49,6 +45,16 @@ export function rcOptionsTypes (): Record<string, unknown> {
 }
 
 export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts): Promise<void> {
+  if (opts.global) {
+    throw new PnpmError(
+      'APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL',
+      '"approve-builds" is not supported with global packages',
+      {
+        hint: 'Use --allow-build when installing globally, e.g. "pnpm add -g --allow-build=<pkg> <pkg>". ' +
+          'pnpm will also prompt to allow builds interactively during global install.',
+      }
+    )
+  }
   const {
     automaticallyIgnoredBuilds,
     modulesDir,

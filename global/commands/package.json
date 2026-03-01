@@ -1,0 +1,60 @@
+{
+  "name": "@pnpm/global.commands",
+  "version": "1000.0.0-0",
+  "description": "Global package command handlers for pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "global"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/global/commands",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/global/commands#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    "test": "pnpm run compile"
+  },
+  "dependencies": {
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/core": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/exec.build-commands": "workspace:*",
+    "@pnpm/global.packages": "workspace:*",
+    "@pnpm/link-bins": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/package-bins": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/remove-bins": "workspace:*",
+    "@pnpm/store-connection-manager": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
+    "is-subdir": "catalog:",
+    "symlink-dir": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/global.commands": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

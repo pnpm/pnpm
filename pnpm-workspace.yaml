@@ -17,6 +17,7 @@ packages:
   - exec/*
   - fetching/*
   - fs/*
+  - global/*
   - hooks/*
   - lockfile/*
   - network/*

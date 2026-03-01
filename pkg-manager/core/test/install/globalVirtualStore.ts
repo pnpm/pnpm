@@ -49,6 +49,50 @@ test('using a global virtual store', async () => {
   }
 })
 
+test('reinstall from warm global virtual store after deleting node_modules', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    hoistPattern: ['*'],
+  })
+  await install(manifest, opts)
+
+  // Delete only node_modules, keep the global virtual store warm
+  rimraf('node_modules')
+  expect(fs.existsSync(globalVirtualStoreDir)).toBeTruthy()
+
+  // Spy on fetchPackage to verify the fast-path skips fetching
+  const originalFetchPackage = opts.storeController.fetchPackage
+  let fetchPackageCalls = 0
+  opts.storeController.fetchPackage = ((fetchOpts) => {
+    fetchPackageCalls++
+    return originalFetchPackage(fetchOpts)
+  }) as typeof originalFetchPackage
+
+  // Reinstall with frozenLockfile — should reattach from the warm global store
+  await install(manifest, {
+    ...opts,
+    frozenLockfile: true,
+  })
+
+  // fetchPackage should NOT be called — all packages reattached from warm GVS
+  expect(fetchPackageCalls).toBe(0)
+
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
+  const files = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
+  expect(files).toHaveLength(1)
+  expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+})
+
 test('modules are correctly updated when using a global virtual store', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')
