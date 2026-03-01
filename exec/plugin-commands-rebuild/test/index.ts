@@ -409,3 +409,45 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, '@pnpm.e2e/not-compatible-with-any-os': true },
   }, [])
 })
+
+test('rebuild with NODE_ENV=production should rebuild dev dependencies', async () => {
+  const project = prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '--save-dev',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    '--ignore-scripts',
+    `--cache-dir=${cacheDir}`,
+    '--config.enableGlobalVirtualStore=false',
+  ])
+
+  process.env.NODE_ENV = 'production'
+
+  try {
+    await rebuild.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      pending: true,
+      registries: {
+        default: REGISTRY,
+      },
+      storeDir,
+      allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+    }, [])
+  } finally {
+    delete process.env.NODE_ENV
+  }
+
+  const modules = project.readModulesManifest()
+  expect(modules).toBeTruthy()
+  expect(modules!.pendingBuilds).toHaveLength(0)
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+})

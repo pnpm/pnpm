@@ -72,25 +72,25 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 }
 
 export type RebuildCommandOpts = Pick<Config,
-| 'allProjects'
-| 'dir'
-| 'engineStrict'
-| 'hooks'
-| 'lockfileDir'
-| 'nodeLinker'
-| 'rawLocalConfig'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
-| 'registries'
-| 'scriptShell'
-| 'selectedProjectsGraph'
-| 'sideEffectsCache'
-| 'sideEffectsCacheReadonly'
-| 'scriptsPrependNodePath'
-| 'shellEmulator'
-| 'workspaceDir'
+  | 'allProjects'
+  | 'dir'
+  | 'engineStrict'
+  | 'hooks'
+  | 'lockfileDir'
+  | 'nodeLinker'
+  | 'rawLocalConfig'
+  | 'rootProjectManifest'
+  | 'rootProjectManifestDir'
+  | 'registries'
+  | 'scriptShell'
+  | 'selectedProjectsGraph'
+  | 'sideEffectsCache'
+  | 'sideEffectsCacheReadonly'
+  | 'scriptsPrependNodePath'
+  | 'shellEmulator'
+  | 'workspaceDir'
 > &
-CreateStoreControllerOptions &
+  CreateStoreControllerOptions &
 {
   recursive?: boolean
   reporter?: (logObj: LogBase) => void
@@ -98,12 +98,20 @@ CreateStoreControllerOptions &
   skipIfHasSideEffectsCache?: boolean
   neverBuiltDependencies?: string[]
   allowBuilds?: Record<string, boolean | string>
+  production?: boolean
+  development?: boolean
+  optional?: boolean
 }
 
 export async function handler (
   opts: RebuildCommandOpts,
   params: string[]
 ): Promise<void> {
+  // We want to ignore the NODE_ENV environment variable and
+  // rebuild all packages that are present in node_modules.
+  opts.production = true
+  opts.development = true
+  opts.optional = true
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
     await recursiveRebuild(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir })
     return
