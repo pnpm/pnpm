@@ -1,7 +1,7 @@
 import { type Dirent, promises as fs } from 'fs'
 import util from 'util'
 import path from 'path'
-import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
+import { StoreIndex } from '@pnpm/store-index'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
@@ -37,17 +37,6 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
 
   // 3. Prune the content-addressable store (CAS)
   const cafsDir = path.join(storeDir, 'files')
-  const pkgIndexFiles = [] as string[]
-  const indexDir = path.join(storeDir, 'index')
-  await Promise.all((await getSubdirsSafely(indexDir)).map(async (dir) => {
-    const subdir = path.join(indexDir, dir)
-    await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
-      const filePath = path.join(subdir, fileName)
-      if (fileName.endsWith('.mpk')) {
-        pkgIndexFiles.push(filePath)
-      }
-    }))
-  }))
   const removedHashes = new Set<string>()
   const dirs = await getSubdirsSafely(cafsDir)
   let fileCounter = 0
@@ -55,10 +44,6 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
     const subdir = path.join(cafsDir, dir)
     await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
       const filePath = path.join(subdir, fileName)
-      if (fileName.endsWith('.mpk')) {
-        pkgIndexFiles.push(filePath)
-        return
-      }
       const stat = await fs.stat(filePath)
       if (stat.isDirectory()) {
         if (removeAlienFiles) {
@@ -82,17 +67,26 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
   }))
   globalInfo(`Removed ${fileCounter} file${fileCounter === 1 ? '' : 's'}`)
 
-  // 4. Clean up orphaned package index files
+  // 4. Clean up orphaned package index entries
   let pkgCounter = 0
-  await Promise.all(pkgIndexFiles.map(async (pkgIndexFilePath) => {
-    const pkgFilesIndex = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
-    const pkgJson = pkgFilesIndex.files.get('package.json')
-    // TODO: implement prune of Node.js packages, they don't have a package.json file
-    if (pkgJson && removedHashes.has(pkgJson.digest)) {
-      await fs.unlink(pkgIndexFilePath)
-      pkgCounter++
+  const storeIndex = new StoreIndex(storeDir)
+  try {
+    const toDelete: string[] = []
+    for (const [filesIndexFile, data] of storeIndex.entries()) {
+      const pkgFilesIndex = data as PackageFilesIndex
+      const pkgJson = pkgFilesIndex.files.get('package.json')
+      // TODO: implement prune of Node.js packages, they don't have a package.json file
+      if (pkgJson && removedHashes.has(pkgJson.digest)) {
+        toDelete.push(filesIndexFile)
+        pkgCounter++
+      }
     }
-  }))
+    for (const filesIndexFile of toDelete) {
+      storeIndex.delete(filesIndexFile)
+    }
+  } finally {
+    storeIndex.close()
+  }
   globalInfo(`Removed ${pkgCounter} package${pkgCounter === 1 ? '' : 's'}`)
 }
 

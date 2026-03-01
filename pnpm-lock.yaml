@@ -1007,6 +1007,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -2660,9 +2663,6 @@ importers:
       '@pnpm/exec.pkg-requires-build':
         specifier: workspace:*
         version: link:../pkg-requires-build
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
@@ -2702,6 +2702,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -4276,9 +4279,6 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -4288,6 +4288,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../../store/store-index
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -7684,9 +7687,6 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../lockfile/detect-dep-types
@@ -7714,6 +7714,9 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -8462,9 +8465,6 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
@@ -8477,6 +8477,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
@@ -8532,12 +8535,12 @@ importers:
       '@pnpm/directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
@@ -8563,9 +8566,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
@@ -8587,6 +8587,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../store-index
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
@@ -8675,9 +8678,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -8690,6 +8690,9 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../store-index
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
@@ -8771,6 +8774,22 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: 'link:'
+
+  store/store-index:
+    dependencies:
+      msgpackr:
+        specifier: 'catalog:'
+        version: 1.11.8
+    devDependencies:
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.13
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
 
   store/store-path:
     dependencies:
@@ -8955,12 +8974,12 @@ importers:
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../fs/hard-link-dir
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../fs/msgpack-file
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../fs/graceful-fs
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs
@@ -17565,7 +17584,7 @@ snapshots:
   '@jest/console@30.2.0':
     dependencies:
       '@jest/types': 30.2.0
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       chalk: 4.1.2
       jest-message-util: 30.2.0
       jest-util: 30.2.0
@@ -17579,14 +17598,14 @@ snapshots:
       '@jest/test-result': 30.2.0
       '@jest/transform': 30.2.0(@babel/types@7.29.0)
       '@jest/types': 30.2.0
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       ci-info: 4.4.0
       exit-x: 0.2.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       jest-changed-files: 30.2.0
-      jest-config: 30.2.0(@babel/types@7.29.0)(@types/node@22.19.13)
+      jest-config: 30.2.0(@babel/types@7.29.0)(@types/node@25.3.2)
       jest-haste-map: 30.2.0
       jest-message-util: 30.2.0
       jest-regex-util: 30.0.1
@@ -17621,7 +17640,7 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 30.2.0
       '@jest/types': 30.2.0
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       jest-mock: 30.2.0
 
   '@jest/expect-utils@30.0.5':
@@ -17659,7 +17678,7 @@ snapshots:
     dependencies:
       '@jest/types': 30.2.0
       '@sinonjs/fake-timers': 13.0.5
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       jest-message-util: 30.2.0
       jest-mock: 30.2.0
       jest-util: 30.2.0
@@ -17688,7 +17707,7 @@ snapshots:
 
   '@jest/pattern@30.0.1':
     dependencies:
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       jest-regex-util: 30.0.1
 
   '@jest/reporters@30.2.0(@babel/types@7.29.0)':
@@ -17699,7 +17718,7 @@ snapshots:
       '@jest/transform': 30.2.0(@babel/types@7.29.0)
       '@jest/types': 30.2.0
       '@jridgewell/trace-mapping': 0.3.31
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       chalk: 4.1.2
       collect-v8-coverage: 1.0.3
       exit-x: 0.2.2
@@ -17829,7 +17848,7 @@ snapshots:
       '@jest/schemas': 30.0.5
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -19641,7 +19660,7 @@ snapshots:
 
   '@types/responselike@1.0.0':
     dependencies:
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
 
   '@types/responselike@1.0.3':
     dependencies:
@@ -19678,7 +19697,7 @@ snapshots:
 
   '@types/touch@3.1.5':
     dependencies:
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
 
   '@types/treeify@1.0.3': {}
 
@@ -22678,7 +22697,7 @@ snapshots:
       '@jest/expect': 30.2.0
       '@jest/test-result': 30.2.0
       '@jest/types': 30.2.0
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       chalk: 4.1.2
       co: 4.6.0
       dedent: 1.7.1
@@ -22752,6 +22771,39 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
+  jest-config@30.2.0(@babel/types@7.29.0)(@types/node@25.3.2):
+    dependencies:
+      '@babel/core': 7.29.0
+      '@jest/get-type': 30.1.0
+      '@jest/pattern': 30.0.1
+      '@jest/test-sequencer': 30.2.0
+      '@jest/types': 30.2.0
+      babel-jest: 30.2.0(@babel/core@7.29.0)(@babel/types@7.29.0)
+      chalk: 4.1.2
+      ci-info: 4.4.0
+      deepmerge: 4.3.1
+      glob: 11.1.0
+      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
+      jest-circus: 30.2.0(@babel/types@7.29.0)
+      jest-docblock: 30.2.0
+      jest-environment-node: 30.2.0
+      jest-regex-util: 30.0.1
+      jest-resolve: 30.2.0
+      jest-runner: 30.2.0(@babel/types@7.29.0)
+      jest-util: 30.2.0
+      jest-validate: 30.2.0
+      micromatch: 4.0.8
+      parse-json: 5.2.0
+      pretty-format: 30.2.0
+      slash: 3.0.0
+      strip-json-comments: 3.1.1
+    optionalDependencies:
+      '@types/node': 25.3.2
+    transitivePeerDependencies:
+      - '@babel/types'
+      - babel-plugin-macros
+      - supports-color
+
   jest-diff@30.0.5:
     dependencies:
       '@jest/diff-sequences': 30.0.1
@@ -22783,7 +22835,7 @@ snapshots:
       '@jest/environment': 30.2.0
       '@jest/fake-timers': 30.2.0
       '@jest/types': 30.2.0
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       jest-mock: 30.2.0
       jest-util: 30.2.0
       jest-validate: 30.2.0
@@ -22824,7 +22876,7 @@ snapshots:
   jest-haste-map@30.2.0:
     dependencies:
       '@jest/types': 30.2.0
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22888,7 +22940,7 @@ snapshots:
   jest-mock@30.2.0:
     dependencies:
       '@jest/types': 30.2.0
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       jest-util: 30.2.0
 
   jest-pnp-resolver@1.2.3(jest-resolve@29.7.0):
@@ -22940,7 +22992,7 @@ snapshots:
       '@jest/test-result': 30.2.0
       '@jest/transform': 30.2.0(@babel/types@7.29.0)
       '@jest/types': 30.2.0
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       chalk: 4.1.2
       emittery: 0.13.1
       exit-x: 0.2.2
@@ -22970,7 +23022,7 @@ snapshots:
       '@jest/test-result': 30.2.0
       '@jest/transform': 30.2.0(@babel/types@7.29.0)
       '@jest/types': 30.2.0
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       chalk: 4.1.2
       cjs-module-lexer: 2.2.0
       collect-v8-coverage: 1.0.3
@@ -23062,7 +23114,7 @@ snapshots:
   jest-util@30.2.0:
     dependencies:
       '@jest/types': 30.2.0
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -23090,7 +23142,7 @@ snapshots:
     dependencies:
       '@jest/test-result': 30.2.0
       '@jest/types': 30.2.0
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.13.1
@@ -23114,7 +23166,7 @@ snapshots:
 
   jest-worker@30.2.0:
     dependencies:
-      '@types/node': 22.19.13
+      '@types/node': 25.3.2
       '@ungap/structured-clone': 1.3.0
       jest-util: 30.2.0
       merge-stream: 2.0.0

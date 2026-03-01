@@ -8,15 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../store/cafs"
-    },
-    {
-      "path": "../../store/store-index"
-    }
-  ]
+  "references": []
 }

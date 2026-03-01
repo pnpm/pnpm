@@ -43,9 +43,6 @@
       "path": "../../deps/graph-sequencer"
     },
     {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../lockfile/types"
     },
     {
@@ -95,6 +92,9 @@
     },
     {
       "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../store/store-index"
     },
     {
       "path": "../../worker"

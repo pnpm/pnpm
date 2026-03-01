@@ -1,6 +1,6 @@
 // cspell:ignore ents
 import fs from 'fs'
-import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
+import { StoreIndex } from '@pnpm/store-index'
 import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
@@ -174,7 +174,9 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       if (pkgSnapshot == null) return undefined
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const pkgIndexFilePath = getIndexFilePathInCafs(storeDir, (pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
-      const pkgIndex = readMsgpackFileSync<PackageFilesIndex>(pkgIndexFilePath) // TODO: maybe make it async?
+      const storeIndex = new StoreIndex(storeDir)
+      const pkgIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex
+      storeIndex.close()
       pkgSnapshotCache.set(depPath, {
         ...nameVer,
         pkgSnapshot,

@@ -1,7 +1,7 @@
 import path from 'path'
 import { depPathToFilename, parse } from '@pnpm/dependency-path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
+import { StoreIndex } from '@pnpm/store-index'
 import { type Resolution } from '@pnpm/resolver-base'
 import { getFilePathByModeInCafs, getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 
@@ -63,10 +63,17 @@ export async function readPackageFileMap (
     return undefined
   }
 
-  const { files: indexFiles } = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
-  const files = new Map<string, string>()
-  for (const [name, info] of indexFiles) {
-    files.set(name, getFilePathByModeInCafs(opts.storeDir, info.digest, info.mode))
+  const storeIndex = new StoreIndex(opts.storeDir)
+  try {
+    const pkgFilesIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
+    if (!pkgFilesIndex) return undefined
+    const { files: indexFiles } = pkgFilesIndex
+    const files = new Map<string, string>()
+    for (const [name, info] of indexFiles) {
+      files.set(name, getFilePathByModeInCafs(opts.storeDir, info.digest, info.mode))
+    }
+    return files
+  } finally {
+    storeIndex.close()
   }
-  return files
 }

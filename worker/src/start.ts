@@ -6,7 +6,7 @@ import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff, t
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
-import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
+import { StoreIndex } from '@pnpm/store-index'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import {
   type CafsFunctions,
@@ -17,7 +17,6 @@ import {
   normalizeBundledManifest,
   type PackageFilesIndex,
   type FilesIndex,
-  optimisticRenameOverwrite,
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
@@ -44,6 +43,14 @@ export function startWorker (): void {
 const cafsCache = new Map<string, CafsFunctions>()
 const cafsStoreCache = new Map<string, Cafs>()
 const cafsLocker = new Map<string, number>()
+const storeIndexCache = new Map<string, StoreIndex>()
+
+function getStoreIndex (storeDir: string): StoreIndex {
+  if (!storeIndexCache.has(storeDir)) {
+    storeIndexCache.set(storeDir, new StoreIndex(storeDir))
+  }
+  return storeIndexCache.get(storeDir)!
+}
 
 async function handleMessage (
   message:
@@ -80,12 +87,7 @@ async function handleMessage (
     }
     case 'readPkgFromCafs': {
       const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
-      let pkgFilesIndex: PackageFilesIndex | undefined
-      try {
-        pkgFilesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
-      } catch {
-        // ignoring. It is fine if the integrity file is not present. Just refetch the package
-      }
+      const pkgFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
       if (!pkgFilesIndex) {
         parentPort!.postMessage({
           status: 'success',
@@ -195,7 +197,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
-  const requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: bundledManifest, files: filesIntegrity })
+  const requiresBuild = writeFilesIndexFile(storeDir, filesIndexFile, { algo: HASH_ALGORITHM, manifest: bundledManifest, files: filesIntegrity })
   return {
     status: 'success',
     value: {
@@ -224,25 +226,26 @@ interface AddFilesFromDirResult {
 function initStore ({ storeDir }: InitStoreMessage): { status: string } {
   fs.mkdirSync(storeDir, { recursive: true })
   const hexChars = '0123456789abcdef'.split('')
-  for (const subDir of ['files', 'index']) {
-    const subDirPath = path.join(storeDir, subDir)
-    try {
-      fs.mkdirSync(subDirPath)
-    } catch {
-      // If a parallel process has already started creating the directories in the store,
-      // ignore if it already exists.
-    }
-    for (const hex1 of hexChars) {
-      for (const hex2 of hexChars) {
-        try {
-          fs.mkdirSync(path.join(subDirPath, `${hex1}${hex2}`))
-        } catch {
-          // If a parallel process has already started creating the directories in the store,
-          // ignore if it already exists.
-        }
+  // Only create subdirectories for files/ — index/ is now managed by SQLite
+  const filesDirPath = path.join(storeDir, 'files')
+  try {
+    fs.mkdirSync(filesDirPath)
+  } catch {
+    // If a parallel process has already started creating the directories in the store,
+    // ignore if it already exists.
+  }
+  for (const hex1 of hexChars) {
+    for (const hex2 of hexChars) {
+      try {
+        fs.mkdirSync(path.join(filesDirPath, `${hex1}${hex2}`))
+      } catch {
+        // If a parallel process has already started creating the directories in the store,
+        // ignore if it already exists.
       }
     }
   }
+  // Initialize the SQLite index database
+  getStoreIndex(storeDir)
   return { status: 'success' }
 }
 
@@ -274,10 +277,8 @@ function addFilesFromDir (
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
   let requiresBuild: boolean
   if (sideEffectsCacheKey) {
-    let existingFilesIndex!: PackageFilesIndex
-    try {
-      existingFilesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
-    } catch {
+    const existingFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
+    if (!existingFilesIndex) {
       // If there is no existing index file, then we cannot store the side effects.
       return {
         status: 'success',
@@ -304,9 +305,9 @@ function addFilesFromDir (
     } else {
       requiresBuild = existingFilesIndex.requiresBuild
     }
-    writeIndexFile(filesIndexFile, existingFilesIndex)
+    writeIndexFile(storeDir, filesIndexFile, existingFilesIndex)
   } else {
-    requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: bundledManifest, files: filesIntegrity })
+    requiresBuild = writeFilesIndexFile(storeDir, filesIndexFile, { algo: HASH_ALGORITHM, manifest: bundledManifest, files: filesIntegrity })
   }
   return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild } }
 }
@@ -413,6 +414,7 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success'
 }
 
 function writeFilesIndexFile (
+  storeDir: string,
   filesIndexFile: string,
   { algo, manifest, files, sideEffects }: {
     algo: string
@@ -429,19 +431,10 @@ function writeFilesIndexFile (
     files,
     sideEffects,
   }
-  writeIndexFile(filesIndexFile, filesIndex)
+  writeIndexFile(storeDir, filesIndexFile, filesIndex)
   return requiresBuild
 }
 
-function writeIndexFile (filePath: string, data: PackageFilesIndex): void {
-  const targetDir = path.dirname(filePath)
-  // TODO: use the API of @pnpm/cafs to write this file
-  // There is actually no need to create the directory in 99% of cases.
-  // So by using cafs API, we'll improve performance.
-  fs.mkdirSync(targetDir, { recursive: true })
-  // Drop the last 10 characters and append the PID to create a shorter unique temp filename.
-  // This avoids ENAMETOOLONG errors on systems with path length limits.
-  const temp = `${filePath.slice(0, -10)}${process.pid}`
-  writeMsgpackFileSync(temp, data)
-  optimisticRenameOverwrite(temp, filePath)
+function writeIndexFile (storeDir: string, filePath: string, data: PackageFilesIndex): void {
+  getStoreIndex(storeDir).set(filePath, data)
 }

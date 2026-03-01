@@ -19,9 +19,6 @@
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../hooks/types"
     },
     {
@@ -53,6 +50,9 @@
     },
     {
       "path": "../store-controller-types"
+    },
+    {
+      "path": "../store-index"
     }
   ]
 }

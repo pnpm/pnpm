@@ -36,7 +36,7 @@ import {
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
-import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
+import { StoreIndex } from '@pnpm/store-index'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { hardLinkDir } from '@pnpm/worker'
 import { runGroups } from 'run-groups'
@@ -357,10 +357,9 @@ async function _rebuild (
         const pkgId = `${pkgInfo.name}@${pkgInfo.version}`
         if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
           const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
-          let pkgFilesIndex: PackageFilesIndex | undefined
-          try {
-            pkgFilesIndex = await readMsgpackFile<PackageFilesIndex>(filesIndexFile)
-          } catch {}
+          const storeIndex = new StoreIndex(opts.storeDir)
+          const pkgFilesIndex = storeIndex.get(filesIndexFile) as PackageFilesIndex | undefined
+          storeIndex.close()
           if (pkgFilesIndex) {
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
               includeDepGraphHash: true,

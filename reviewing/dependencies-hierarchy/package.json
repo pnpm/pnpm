@@ -35,7 +35,6 @@
   },
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
@@ -45,6 +44,7 @@
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/store-index": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",

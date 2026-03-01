@@ -9,7 +9,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
-import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
+import { StoreIndex } from '@pnpm/store-index'
 import { type DepPath } from '@pnpm/types'
 import dint from 'dint'
 import pFilter from 'p-filter'
@@ -49,25 +49,34 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
       }
     })
 
-  const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
-    const pkgIndexFilePath = integrity
-      ? getIndexFilePathInCafs(storeDir, integrity, id)
-      : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.mpk')
-    const { algo, files } = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
-    // Transform files to dint format: { integrity: '<algo>-<base64>', size: number }
-    const dintFiles: Record<string, { integrity: string, size: number }> = {}
-    for (const [filePath, { digest, size }] of files) {
-      dintFiles[filePath] = {
-        integrity: formatIntegrity(algo, digest),
-        size,
+  const storeIndex = new StoreIndex(storeDir)
+  try {
+    const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
+      const pkgIndexFilePath = integrity
+        ? getIndexFilePathInCafs(storeDir, integrity, id)
+        : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.mpk')
+      const pkgFilesIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
+      if (!pkgFilesIndex) {
+        return false
       }
+      const { algo, files } = pkgFilesIndex
+      // Transform files to dint format: { integrity: '<algo>-<base64>', size: number }
+      const dintFiles: Record<string, { integrity: string, size: number }> = {}
+      for (const [filePath, { digest, size }] of files) {
+        dintFiles[filePath] = {
+          integrity: formatIntegrity(algo, digest),
+          size,
+        }
+      }
+      return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), dintFiles)) === false
+    }, { concurrency: 8 })
+
+    if ((reporter != null) && typeof reporter === 'function') {
+      streamParser.removeListener('data', reporter)
     }
-    return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), dintFiles)) === false
-  }, { concurrency: 8 })
 
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.removeListener('data', reporter)
+    return modified.map(({ pkgPath }) => pkgPath)
+  } finally {
+    storeIndex.close()
   }
-
-  return modified.map(({ pkgPath }) => pkgPath)
 }

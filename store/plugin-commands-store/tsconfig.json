@@ -31,9 +31,6 @@
       "path": "../../exec/plugin-commands-script-runners"
     },
     {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../global/packages"
     },
     {
@@ -74,6 +71,9 @@
     },
     {
       "path": "../store-controller-types"
+    },
+    {
+      "path": "../store-index"
     },
     {
       "path": "../store-path"

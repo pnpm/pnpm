@@ -32,8 +32,8 @@
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
-    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/store-index": "workspace:*",
     "@pnpm/store.cafs": "workspace:*"
   },
   "devDependencies": {

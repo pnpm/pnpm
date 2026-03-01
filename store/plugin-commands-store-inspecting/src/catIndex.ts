@@ -4,8 +4,8 @@ import { createResolver } from '@pnpm/client'
 import { type TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
-import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { sortDeepKeys } from '@pnpm/object.key-sorting'
+import { StoreIndex } from '@pnpm/store-index'
 import { getStorePath } from '@pnpm/store-path'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
@@ -87,14 +87,18 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     (pkgSnapshot.resolution as TarballResolution).integrity!.toString(),
     `${alias}@${bareSpecifier}`
   )
+  const storeIndex = new StoreIndex(storeDir)
   try {
-    const pkgFilesIndex = await readMsgpackFile<PackageFilesIndex>(filesIndexFile)
+    const pkgFilesIndex = storeIndex.get(filesIndexFile) as PackageFilesIndex | undefined
+    if (!pkgFilesIndex) {
+      throw new PnpmError(
+        'INVALID_PACKAGE',
+        'No corresponding index file found. You can use pnpm list to see if the package is installed.'
+      )
+    }
     return JSON.stringify(sortDeepKeys(pkgFilesIndex), replacer, 2)
-  } catch {
-    throw new PnpmError(
-      'INVALID_PACKAGE',
-      'No corresponding index file found. You can use pnpm list to see if the package is installed.'
-    )
+  } finally {
+    storeIndex.close()
   }
 }
 

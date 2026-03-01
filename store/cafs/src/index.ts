@@ -19,6 +19,7 @@ import {
 } from './checkPkgFilesIntegrity.js'
 import {
   getIndexFilePathInCafs,
+  getIndexKeyInCafs,
   contentPathFromHex,
   type FileType,
   getFilePathByModeInCafs,
@@ -38,6 +39,7 @@ export {
   type FileType,
   getFilePathByModeInCafs,
   getIndexFilePathInCafs,
+  getIndexKeyInCafs,
   type Integrity,
   type PackageFileInfo,
   type PackageFiles,

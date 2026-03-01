@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
+import { StoreIndex } from '@pnpm/store-index'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
 export interface StoreAssertions {
@@ -28,11 +29,21 @@ export function assertStore (
     },
     cafsHas (pkgName: string, version: string): void {
       const pathToCheck = store.getPkgIndexFilePath(pkgName, version)
-      ok(fs.existsSync(pathToCheck))
+      const storeIndex = new StoreIndex(storePath)
+      try {
+        ok(storeIndex.get(pathToCheck) != null)
+      } finally {
+        storeIndex.close()
+      }
     },
     cafsHasNot (pkgName: string, version: string): void {
       const pathToCheck = store.getPkgIndexFilePath(pkgName, version)
-      notOk(fs.existsSync(pathToCheck))
+      const storeIndex = new StoreIndex(storePath)
+      try {
+        notOk(storeIndex.get(pathToCheck) != null)
+      } finally {
+        storeIndex.close()
+      }
     },
     storeHas (pkgName: string, version?: string): void {
       const pathToCheck = store.resolve(pkgName, version)

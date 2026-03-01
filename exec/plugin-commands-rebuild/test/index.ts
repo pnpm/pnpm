@@ -1,8 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex } from '@pnpm/store-index'
 import { ENGINE_NAME, STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
@@ -77,7 +77,9 @@ test('rebuilds dependencies', async () => {
   }
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)!
+  const storeIndex1 = new StoreIndex(path.join(storeDir, STORE_VERSION))
+  const cacheIntegrity = storeIndex1.get(cacheIntegrityPath) as PackageFilesIndex
+  storeIndex1.close()
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -110,7 +112,8 @@ test('skipIfHasSideEffectsCache', async () => {
   ])
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  let cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)!
+  const storeIndex2 = new StoreIndex(path.join(storeDir, STORE_VERSION))
+  let cacheIntegrity = storeIndex2.get(cacheIntegrityPath) as PackageFilesIndex
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   cacheIntegrity.sideEffects = new Map([
     [sideEffectsKey, {
@@ -123,7 +126,8 @@ test('skipIfHasSideEffectsCache', async () => {
       ]),
     }],
   ])
-  writeMsgpackFileSync(cacheIntegrityPath, cacheIntegrity)
+  storeIndex2.set(cacheIntegrityPath, cacheIntegrity)
+  storeIndex2.close()
 
   let modules = project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
@@ -146,7 +150,9 @@ test('skipIfHasSideEffectsCache', async () => {
   expect(modules).toBeTruthy()
   expect(modules!.pendingBuilds).toHaveLength(0)
 
-  cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)!
+  const storeIndex3 = new StoreIndex(path.join(storeDir, STORE_VERSION))
+  cacheIntegrity = storeIndex3.get(cacheIntegrityPath) as PackageFilesIndex
+  storeIndex3.close()
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)?.added?.has('foo')).toBeTruthy()
 })
