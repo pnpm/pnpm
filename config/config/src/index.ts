@@ -4,7 +4,7 @@ import os from 'os'
 import { isCI } from 'ci-info'
 import { omit } from 'ramda'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
-import { GLOBAL_CONFIG_YAML_FILENAME, LAYOUT_VERSION } from '@pnpm/constants'
+import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { isCamelCase } from '@pnpm/naming-cases'
 import loadNpmConf from '@pnpm/npm-conf'
@@ -326,11 +326,6 @@ export async function getConfig (opts: {
   pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
   Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.rawConfig))
-  pnpmConfig.useLockfile = (() => {
-    if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
-    if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
-    return false
-  })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)
   let globalDirRoot
   if (pnpmConfig.globalDir) {
@@ -338,7 +333,7 @@ export async function getConfig (opts: {
   } else {
     globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
   }
-  pnpmConfig.globalPkgDir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
+  pnpmConfig.globalPkgDir = path.join(globalDirRoot, GLOBAL_LAYOUT_VERSION)
   if (cliOptions['global']) {
     delete pnpmConfig.workspaceDir
     pnpmConfig.dir = pnpmConfig.globalPkgDir
@@ -434,22 +429,6 @@ export async function getConfig (opts: {
     }
   }
 
-  pnpmConfig.useGitBranchLockfile = (() => {
-    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
-    return false
-  })()
-  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
-    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') return pnpmConfig.mergeGitBranchLockfiles
-    if (pnpmConfig.mergeGitBranchLockfilesBranchPattern != null && pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0) {
-      const branch = await getCurrentBranch()
-      if (branch) {
-        const branchMatcher = createMatcher(pnpmConfig.mergeGitBranchLockfilesBranchPattern)
-        return branchMatcher(branch)
-      }
-    }
-    return undefined
-  })()
-
   // omit some schema that the custom parser can't yet handle
   const envPnpmTypes = omit([
     'init-version', // the type is a private function named 'semver'
@@ -477,6 +456,28 @@ export async function getConfig (opts: {
   }
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
+
+  pnpmConfig.useLockfile = (() => {
+    if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
+    if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
+    return false
+  })()
+
+  pnpmConfig.useGitBranchLockfile = (() => {
+    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
+    return false
+  })()
+  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
+    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') return pnpmConfig.mergeGitBranchLockfiles
+    if (pnpmConfig.mergeGitBranchLockfilesBranchPattern != null && pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0) {
+      const branch = await getCurrentBranch()
+      if (branch) {
+        const branchMatcher = createMatcher(pnpmConfig.mergeGitBranchLockfilesBranchPattern)
+        return branchMatcher(branch)
+      }
+    }
+    return undefined
+  })()
 
   if (!hasDependencyBuildOptions(pnpmConfig)) {
     Object.assign(pnpmConfig, globalDepsBuildConfig)

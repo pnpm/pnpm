@@ -150,6 +150,9 @@
       "path": "../reviewing/plugin-commands-outdated"
     },
     {
+      "path": "../reviewing/plugin-commands-sbom"
+    },
+    {
       "path": "../store/cafs"
     },
     {

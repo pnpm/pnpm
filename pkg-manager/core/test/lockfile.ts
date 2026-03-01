@@ -1446,6 +1446,28 @@ test('include tarball URL', async () => {
     .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
 })
 
+test('exclude tarball URL when lockfileIncludeTarballUrl is false', async () => {
+  const project = prepareEmpty()
+
+  const opts = testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: false })
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
+
+  const lockfile = project.readLockfile()
+  expect((lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).tarball)
+    .toBeUndefined()
+})
+
+test('exclude non-standard tarball URL when lockfileIncludeTarballUrl is false', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: false }))
+
+  const lockfile = project.readLockfile()
+
+  expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball)
+    .toBeUndefined()
+})
+
 test('lockfile v6', async () => {
   prepareEmpty()
 

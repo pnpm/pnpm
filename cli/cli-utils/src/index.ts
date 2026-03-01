@@ -1,6 +1,6 @@
 import { packageManager } from '@pnpm/cli-meta'
 
-export { getConfig } from './getConfig.js'
+export { calcPnpmfilePathsOfPluginDeps, getConfig } from './getConfig.js'
 export * from './packageIsInstallable.js'
 export * from './readDepNameCompletions.js'
 export * from './readProjectManifest.js'

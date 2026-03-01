@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   update-lockfile:
+    if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Commit

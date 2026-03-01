@@ -124,6 +124,11 @@ function getHelpText ({ all }: { all: boolean }): string {
           advanced: true,
         },
         {
+          description: 'Safely remove node_modules directories from all workspace projects',
+          name: 'clean',
+          advanced: true,
+        },
+        {
           description: 'Fetch packages from a lockfile into virtual store, package manifest is ignored',
           name: 'fetch',
           advanced: true,

@@ -65,12 +65,29 @@ export async function requireHooks (
       includeInChecksum: false,
     })
   }
+  const entries: PnpmfileEntryLoaded[] = []
+  const loadedFiles: string[] = []
   if (opts.tryLoadDefaultPnpmfile) {
-    pnpmfiles.push({
-      path: '.pnpmfile.cjs',
-      includeInChecksum: true,
-      optional: true,
-    })
+    // Prefer .pnpmfile.mjs over .pnpmfile.cjs. Only load one.
+    const mjsPath = pathAbsolute('.pnpmfile.mjs', prefix)
+    const mjsResult = await requirePnpmfile(mjsPath, prefix)
+    if (mjsResult != null) {
+      loadedFiles.push(mjsPath)
+      entries.push({
+        file: mjsPath,
+        includeInChecksum: true,
+        hooks: mjsResult.pnpmfileModule?.hooks,
+        finders: mjsResult.pnpmfileModule?.finders,
+        resolvers: mjsResult.pnpmfileModule?.resolvers,
+        fetchers: mjsResult.pnpmfileModule?.fetchers,
+      })
+    } else {
+      pnpmfiles.push({
+        path: '.pnpmfile.cjs',
+        includeInChecksum: true,
+        optional: true,
+      })
+    }
   }
   if (opts.pnpmfiles) {
     for (const pnpmfile of opts.pnpmfiles) {
@@ -80,8 +97,6 @@ export async function requireHooks (
       })
     }
   }
-  const entries: PnpmfileEntryLoaded[] = []
-  const loadedFiles: string[] = []
   await Promise.all(pnpmfiles.map(async ({ path, includeInChecksum, optional }) => {
     const file = pathAbsolute(path, prefix)
     if (!loadedFiles.includes(file)) {

@@ -6,7 +6,7 @@ import { PnpmError } from '@pnpm/error'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
 
-// symbols and and numbers are used instead of discriminated union because
+// symbols and numbers are used instead of discriminated union because
 // it's faster and simpler to compare primitives than to deep compare objects
 export type File = number // representing the file's inode, which is sufficient for hardlinks
 export type Dir = typeof DIR

@@ -68,7 +68,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
   let integrity: string | undefined
   const depPath = refToRelative(opts.ref, opts.alias)
   if (depPath) {
-    let pkgSnapshot!: PackageSnapshot
+    let pkgSnapshot: PackageSnapshot | undefined
     if (opts.currentPackages[depPath]) {
       pkgSnapshot = opts.currentPackages[depPath]
       const parsed = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
@@ -87,12 +87,14 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
       isMissing = true
       isSkipped = opts.skipped.has(depPath)
     }
-    resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
-    depType = opts.depTypes[depPath]
-    optional = pkgSnapshot.optional
-    if ('integrity' in pkgSnapshot.resolution) {
-      integrity = pkgSnapshot.resolution.integrity as string
+    if (pkgSnapshot) {
+      resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
+      optional = pkgSnapshot.optional
+      if ('integrity' in pkgSnapshot.resolution) {
+        integrity = pkgSnapshot.resolution.integrity as string
+      }
     }
+    depType = opts.depTypes[depPath]
   } else {
     name = opts.alias
     version = opts.ref

@@ -1,4 +1,5 @@
 import path from 'path'
+import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { type PackageManifest } from '@pnpm/types'
 import { loadJsonFile, loadJsonFileSync } from 'load-json-file'
@@ -45,4 +46,13 @@ export async function safeReadPackageJson (pkgPath: string): Promise<PackageMani
 
 export async function safeReadPackageJsonFromDir (pkgPath: string): Promise<PackageManifest | null> {
   return safeReadPackageJson(path.join(pkgPath, 'package.json'))
+}
+
+export function readPackageJsonFromDirRawSync (pkgPath: string): PackageManifest {
+  try {
+    return loadJsonFileSync<PackageManifest>(path.join(pkgPath, 'package.json'))
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err) throw err
+    throw new PnpmError('BAD_PACKAGE_JSON', `${pkgPath}: ${err instanceof Error ? err.message : String(err)}`)
+  }
 }

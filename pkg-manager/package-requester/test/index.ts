@@ -471,6 +471,7 @@ test('fetchPackageToStore()', async () => {
     (await fetchResult2.fetching()).bundledManifest
   ).toStrictEqual(
     {
+      devDependencies: { ava: '^0.0.4' },
       engines: { node: '>=0.10.0' },
       name: 'is-positive',
       version: '1.0.0',
@@ -665,6 +666,7 @@ test('always return a package manifest in the response', async () => {
       (await pkgResponse.fetching()).bundledManifest
     ).toEqual(
       {
+        devDependencies: { ava: '^0.0.4' },
         engines: { node: '>=0.10.0' },
         name: 'is-positive',
         version: '1.0.0',
@@ -1127,6 +1129,9 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
     expect((await fetchResult.fetching!()).bundledManifest).toMatchObject({
       name: 'is-positive',
       version: '1.0.0',
+      devDependencies: {
+        ava: '^0.0.4',
+      },
     })
   }
 })

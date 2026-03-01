@@ -13,12 +13,6 @@
       "path": "../../config/package-is-installable"
     },
     {
-      "path": "../../fetching/directory-fetcher"
-    },
-    {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../lockfile/detect-dep-types"
     },
     {
@@ -52,7 +46,7 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../store/cafs"
+      "path": "../../store/pkg-finder"
     }
   ]
 }

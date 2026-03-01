@@ -63,7 +63,7 @@ export async function validateModules (
   }
   if (
     opts.forcePublicHoistPattern &&
-    !equals(modules.publicHoistPattern, opts.publicHoistPattern || undefined)
+    !equals(modules.publicHoistPattern ?? [], opts.publicHoistPattern ?? [])
   ) {
     if (opts.forceNewModules && (rootProject != null)) {
       await purgeModulesDirsOfImporter(opts, rootProject)
@@ -80,7 +80,7 @@ export async function validateModules (
 
   if (opts.forceHoistPattern && (rootProject != null)) {
     try {
-      if (!equals(opts.currentHoistPattern, opts.hoistPattern || undefined)) {
+      if (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) {
         throw new PnpmError(
           'HOIST_PATTERN_DIFF',
           'This modules directory was created using a different hoist-pattern value.' +

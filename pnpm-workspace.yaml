@@ -17,6 +17,7 @@ packages:
   - exec/*
   - fetching/*
   - fs/*
+  - global/*
   - hooks/*
   - lockfile/*
   - network/*
@@ -69,6 +70,7 @@ catalog:
   '@commitlint/cli': ^20.4.1
   '@commitlint/config-conventional': ^20.4.1
   '@commitlint/prompt-cli': ^20.4.1
+  '@cyclonedx/cyclonedx-library': 9.4.1
   '@eslint/js': ^9.18.0
   '@jest/globals': 30.0.5
   '@npm/types': ^2.1.0
@@ -142,7 +144,7 @@ catalog:
   '@yarnpkg/nm': 4.0.5
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
-  '@zkochan/cmd-shim': ^7.0.0
+  '@zkochan/cmd-shim': ^8.0.1
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^3.0.2
   '@zkochan/table': ^2.0.1
@@ -233,7 +235,7 @@ catalog:
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
   normalize-registry-url: 2.0.1
-  npm-packlist: 5.1.3
+  npm-packlist: 10.0.3
   object-hash: 3.0.0
   p-defer: ^4.0.1
   p-every: ^2.0.0
@@ -299,7 +301,7 @@ catalog:
   typescript-eslint: ^8.53.0
   unified: ^9.2.2
   validate-npm-package-name: 7.0.2
-  verdaccio: 6.2.5
+  verdaccio: 6.2.7
   version-selector-type: ^3.0.0
   which: npm:@pnpm/which@^3.0.1
   write-file-atomic: ^7.0.0
@@ -333,6 +335,7 @@ minimumReleaseAge: 1440 # At least a day
 minimumReleaseAgeExclude:
   - '@pnpm/*'
   - '@rushstack/worker-pool@0.7.1'
+  - '@zkochan/cmd-shim@8.0.0 || 8.0.1'
   - body-parser@2.2.1
   - express@4.22.1
   - glob@11.1.0
@@ -372,6 +375,7 @@ overrides:
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   jws@<3.2.3: '^3.2.3'
   lodash@>=4.0.0 <=4.17.22: '^4.17.23'
+  minimatch@>=7.0.0 <7.4.7: '^7.4.7'
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
   path-to-regexp@<0.1.12: ^0.1.12

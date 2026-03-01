@@ -34,6 +34,9 @@
       "path": "../../fs/msgpack-file"
     },
     {
+      "path": "../../global/packages"
+    },
+    {
       "path": "../../lockfile/fs"
     },
     {

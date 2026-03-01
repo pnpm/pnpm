@@ -87,7 +87,10 @@ export type DlxCommandOptions = {
 export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
-): Promise<{ exitCode: number }> {
+): Promise<{ exitCode: number, output?: string }> {
+  if (!command && (!opts.package || opts.package.length === 0)) {
+    return { exitCode: 1, output: help() }
+  }
   const pkgs = opts.package ?? [command]
   const fullMetadata = (
     (
@@ -272,8 +275,8 @@ export function createCacheKey (opts: {
   allowBuild?: string[]
   supportedArchitectures?: SupportedArchitectures
 }): string {
-  const sortedPkgs = [...opts.packages].sort((a, b) => a.localeCompare(b))
-  const sortedRegistries = Object.entries(opts.registries).sort(([k1], [k2]) => k1.localeCompare(k2))
+  const sortedPkgs = [...opts.packages].sort(lexCompare)
+  const sortedRegistries = Object.entries(opts.registries).sort(([k1], [k2]) => lexCompare(k1, k2))
   const args: unknown[] = [sortedPkgs, sortedRegistries]
   if (opts.allowBuild?.length) {
     args.push({ allowBuild: opts.allowBuild.sort(lexCompare) })

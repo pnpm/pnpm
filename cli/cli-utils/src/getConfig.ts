@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
 import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
@@ -72,10 +73,15 @@ export async function getConfig (
   return config
 }
 
-function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, configDependencies: ConfigDependencies): Generator<string> {
+export function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, configDependencies: ConfigDependencies): Generator<string> {
   for (const configDepName of Object.keys(configDependencies).sort(lexCompare)) {
     if (isPluginName(configDepName)) {
-      yield path.join(configModulesDir, configDepName, 'pnpmfile.cjs')
+      const mjsPath = path.join(configModulesDir, configDepName, 'pnpmfile.mjs')
+      if (fs.existsSync(mjsPath)) {
+        yield mjsPath
+      } else {
+        yield path.join(configModulesDir, configDepName, 'pnpmfile.cjs')
+      }
     }
   }
 }
