@@ -72,6 +72,7 @@ export async function getGlobalPackageDetails (info: GlobalPackageInfo): Promise
 }
 
 export function cleanOrphanedInstallDirs (globalDir: string): void {
+  globalDir = path.resolve(globalDir)
   let entries: fs.Dirent[]
   try {
     entries = fs.readdirSync(globalDir, { withFileTypes: true })

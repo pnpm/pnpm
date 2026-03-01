@@ -123,25 +123,8 @@ export async function handler (
 
   const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
 
-  // pnpm link (no params, no --global)
   if ((params == null) || (params.length === 0)) {
-    const cwd = process.cwd()
-    if (path.relative(linkOpts.dir, cwd) === '') {
-      throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter')
-    }
-
-    await checkPeerDeps(cwd, opts)
-
-    const newManifest = opts.rootProjectManifest ?? {}
-    await addLinkToManifest(opts, newManifest, cwd, opts.rootProjectManifestDir)
-    await writeProjectManifest(newManifest)
-    await install.handler({
-      ...linkOpts,
-      _calledFromLink: true,
-      frozenLockfileIfExists: false,
-      rootProjectManifest: newManifest,
-    })
-    return
+    throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter. Usage: pnpm link <dir>')
   }
 
   const [pkgPaths, pkgNames] = partition((inp) => isFilespec.test(inp), params)

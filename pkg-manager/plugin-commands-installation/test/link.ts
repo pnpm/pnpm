@@ -61,7 +61,7 @@ test('link global bin', async function () {
   writePackageSync('package-with-bin', { name: 'package-with-bin', version: '1.0.0', bin: 'bin.js' })
   fs.writeFileSync('package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
 
-  process.chdir('package-with-bin')
+  const pkgWithBinDir = path.resolve('package-with-bin')
 
   await link.handler({
     ...DEFAULT_OPTS,
@@ -69,7 +69,7 @@ test('link global bin', async function () {
     dir: globalDir,
     globalPkgDir: globalDir,
     rootProjectManifestDir: globalDir,
-  })
+  }, [pkgWithBinDir])
   process.env[PATH] = oldPath
 
   isExecutable((value) => {
