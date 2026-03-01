@@ -18,6 +18,7 @@ export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {
   pathsByNodeId: Map<NodeId, DepPath>
   projects: ProjectToResolve[]
   resolvedImporters: ResolvedImporters
+  workspacePackages: string[]
 }
 
 export function dedupeInjectedDeps<T extends PartialResolvedPackage> (
@@ -31,7 +32,7 @@ export function dedupeInjectedDeps<T extends PartialResolvedPackage> (
 type InjectedDepsByProjects = Map<string, Map<string, { depPath: DepPath, id: string }>>
 
 function getInjectedDepsByProjects<T extends PartialResolvedPackage> (
-  opts: Pick<DedupeInjectedDepsOptions<T>, 'projects' | 'pathsByNodeId' | 'depGraph'>
+  opts: Pick<DedupeInjectedDepsOptions<T>, 'projects' | 'pathsByNodeId' | 'depGraph' | 'workspacePackages'>
 ): InjectedDepsByProjects {
   const injectedDepsByProjects = new Map<string, Map<string, { depPath: DepPath, id: string }>>()
   for (const project of opts.projects) {
@@ -39,7 +40,7 @@ function getInjectedDepsByProjects<T extends PartialResolvedPackage> (
       const depPath = opts.pathsByNodeId.get(nodeId)!
       if (!opts.depGraph[depPath].id.startsWith('file:')) continue
       const id = opts.depGraph[depPath].id.substring(5)
-      if (opts.projects.some((project) => project.id === id)) {
+      if (opts.workspacePackages.includes(id)) {
         if (!injectedDepsByProjects.has(project.id)) injectedDepsByProjects.set(project.id, new Map())
         injectedDepsByProjects.get(project.id)!.set(alias, { depPath, id })
       }
