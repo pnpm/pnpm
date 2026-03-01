@@ -9,7 +9,7 @@ import { type CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { scanGlobalPackages } from '@pnpm/global-packages'
+import { scanGlobalPackages } from '@pnpm/global.packages'
 import {
   outdatedDepsOfProjects,
   type OutdatedPackage,

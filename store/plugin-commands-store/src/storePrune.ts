@@ -1,4 +1,4 @@
-import { cleanOrphanedInstallDirs } from '@pnpm/global-packages'
+import { cleanOrphanedInstallDirs } from '@pnpm/global.packages'
 import { streamParser } from '@pnpm/logger'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { type ReporterFunction } from './types.js'

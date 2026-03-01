@@ -35,11 +35,9 @@
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/global-packages": "workspace:*",
+    "@pnpm/global.commands": "workspace:*",
     "@pnpm/list": "workspace:*",
-    "@pnpm/matcher": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"
   },

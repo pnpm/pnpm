@@ -13,13 +13,13 @@
       "path": "../../crypto/hash"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../pkg-manager/package-bins"
     },
     {
       "path": "../../pkg-manifest/read-package-json"
-    },
-    {
-      "path": "../types"
     }
   ]
 }

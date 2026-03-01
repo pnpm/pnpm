@@ -22,16 +22,13 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../config/matcher"
+      "path": "../../global/commands"
     },
     {
       "path": "../../packages/constants"
     },
     {
       "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/global-packages"
     },
     {
       "path": "../../packages/logger"

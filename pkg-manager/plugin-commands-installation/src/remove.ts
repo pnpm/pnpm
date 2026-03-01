@@ -8,6 +8,7 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import { handleGlobalRemove } from '@pnpm/global.commands'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
@@ -16,7 +17,6 @@ import { type DependenciesField, type ProjectRootDir, type Project } from '@pnpm
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import { pick, without } from 'ramda'
 import renderHelp from 'render-help'
-import { handleGlobalRemove } from './globalRemove.js'
 import { getSaveType } from './getSaveType.js'
 import { recursive } from './recursive.js'
 

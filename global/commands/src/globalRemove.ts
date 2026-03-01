@@ -6,7 +6,7 @@ import {
   getHashLink,
   getInstalledBinNames,
   type GlobalPackageInfo,
-} from '@pnpm/global-packages'
+} from '@pnpm/global.packages'
 import { removeBin } from '@pnpm/remove-bins'
 import isSubdir from 'is-subdir'
 

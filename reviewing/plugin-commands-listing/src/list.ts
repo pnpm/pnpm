@@ -1,12 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
-import {
-  scanGlobalPackages,
-  getGlobalPackageDetails,
-} from '@pnpm/global-packages'
-import { createMatcher } from '@pnpm/matcher'
-import { lexCompare } from '@pnpm/util.lex-comparator'
+import { listGlobalPackages } from '@pnpm/global.commands'
 import { list, listForPackages } from '@pnpm/list'
 import { type Finder, type IncludedDependencies } from '@pnpm/types'
 import { pick } from 'ramda'
@@ -129,24 +124,6 @@ export async function handler (
     lockfileDir: opts.lockfileDir ?? opts.dir,
     checkWantedLockfileOnly: opts.lockfileOnly,
   })
-}
-
-async function listGlobalPackages (globalPkgDir: string, params: string[]): Promise<string> {
-  const packages = scanGlobalPackages(globalPkgDir)
-  const allDetails = await Promise.all(packages.map((pkg) => getGlobalPackageDetails(pkg)))
-  const matches = params.length > 0 ? createMatcher(params) : () => true
-  const lines: string[] = []
-  for (const installed of allDetails.flat()) {
-    if (!matches(installed.alias)) continue
-    lines.push(`${installed.alias}@${installed.version}`)
-  }
-  if (lines.length === 0) {
-    return params.length > 0
-      ? 'No matching global packages found'
-      : 'No global packages found'
-  }
-  lines.sort(lexCompare)
-  return lines.join('\n')
 }
 
 export async function render (

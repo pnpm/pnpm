@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/global-packages",
+  "name": "@pnpm/global.packages",
   "version": "1000.0.0-0",
   "description": "Utilities for managing isolated global packages",
   "keywords": [
@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/packages/global-packages",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/packages/global-packages#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/global/packages",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/global/packages#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -38,7 +38,7 @@
     "@pnpm/util.lex-comparator": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/global-packages": "workspace:*"
+    "@pnpm/global.packages": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

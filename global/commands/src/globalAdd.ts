@@ -7,20 +7,31 @@ import {
   findGlobalPackage,
   getHashLink,
   getInstalledBinNames,
-} from '@pnpm/global-packages'
+} from '@pnpm/global.packages'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
-import { readPackageJsonFromDir, readPackageJsonFromDirRawSync } from '@pnpm/read-package-json'
 import { removeBin } from '@pnpm/remove-bins'
-import { type DependencyManifest } from '@pnpm/types'
+import { readPackageJsonFromDirRawSync } from '@pnpm/read-package-json'
 import isSubdir from 'is-subdir'
 import symlinkDir from 'symlink-dir'
-import { type AddCommandOptions } from './add.js'
+import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { installGlobalPackages } from './installGlobalPackages.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
-import { installDeps } from './installDeps.js'
-import { getFetchFullMetadata } from './getFetchFullMetadata.js'
+import { readInstalledPackages } from './readInstalledPackages.js'
+
+export type GlobalAddOptions = CreateStoreControllerOptions & {
+  bin?: string
+  globalPkgDir?: string
+  registries: Record<string, string>
+  allowBuild?: string[]
+  allowBuilds?: Record<string, string | boolean>
+  saveExact?: boolean
+  savePrefix?: string
+  supportedArchitectures?: { libc?: string[] }
+  rootProjectManifest?: { pnpm?: { supportedArchitectures?: { libc?: string[] } } }
+}
 
 export async function handleGlobalAdd (
-  opts: AddCommandOptions,
+  opts: GlobalAddOptions,
   params: string[]
 ): Promise<void> {
   const globalDir = opts.globalPkgDir!
@@ -46,7 +57,8 @@ export async function handleGlobalAdd (
     devDependencies: false,
     optionalDependencies: true,
   }
-  await installDeps({
+  const fetchFullMetadata = (opts.supportedArchitectures?.libc ?? opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc) && true
+  await installGlobalPackages({
     ...opts,
     global: false,
     bin: path.join(installDir, 'node_modules/.bin'),
@@ -61,7 +73,7 @@ export async function handleGlobalAdd (
     workspaceDir: undefined,
     sharedWorkspaceLockfile: false,
     lockfileOnly: false,
-    fetchFullMetadata: getFetchFullMetadata(opts),
+    fetchFullMetadata,
     include,
     includeDirect: include,
     allowBuilds,
@@ -132,16 +144,4 @@ async function removeExistingGlobalInstalls (
       }
     })
   )
-}
-
-async function readInstalledPackages (installDir: string): Promise<Array<{ manifest: DependencyManifest, location: string }>> {
-  const pkgJson = readPackageJsonFromDirRawSync(installDir)
-  const depNames = Object.keys(pkgJson.dependencies ?? {})
-  const manifests = await Promise.all(
-    depNames.map((depName) => readPackageJsonFromDir(path.join(installDir, 'node_modules', depName)))
-  )
-  return depNames.map((depName, i) => ({
-    manifest: manifests[i] as DependencyManifest,
-    location: path.join(installDir, 'node_modules', depName),
-  }))
 }

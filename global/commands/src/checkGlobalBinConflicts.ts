@@ -3,7 +3,7 @@ import path from 'path'
 import {
   scanGlobalPackages,
   type GlobalPackageInfo,
-} from '@pnpm/global-packages'
+} from '@pnpm/global.packages'
 import { PnpmError } from '@pnpm/error'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'

@@ -7,20 +7,28 @@ import {
   getInstalledBinNames,
   scanGlobalPackages,
   type GlobalPackageInfo,
-} from '@pnpm/global-packages'
+} from '@pnpm/global.packages'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
-import { readPackageJsonFromDir, readPackageJsonFromDirRawSync } from '@pnpm/read-package-json'
 import { removeBin } from '@pnpm/remove-bins'
-import { type DependencyManifest } from '@pnpm/types'
 import isSubdir from 'is-subdir'
 import symlinkDir from 'symlink-dir'
-import { type UpdateCommandOptions } from './update/index.js'
+import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { installGlobalPackages } from './installGlobalPackages.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
-import { installDeps } from './installDeps.js'
-import { getFetchFullMetadata } from './getFetchFullMetadata.js'
+import { readInstalledPackages } from './readInstalledPackages.js'
+
+export type GlobalUpdateOptions = CreateStoreControllerOptions & {
+  bin?: string
+  globalPkgDir?: string
+  latest?: boolean
+  saveExact?: boolean
+  savePrefix?: string
+  supportedArchitectures?: { libc?: string[] }
+  rootProjectManifest?: { pnpm?: { supportedArchitectures?: { libc?: string[] } } }
+}
 
 export async function handleGlobalUpdate (
-  opts: UpdateCommandOptions,
+  opts: GlobalUpdateOptions,
   params: string[]
 ): Promise<string | undefined> {
   const globalDir = opts.globalPkgDir!
@@ -54,7 +62,7 @@ export async function handleGlobalUpdate (
 }
 
 async function updateGlobalPackageGroup (
-  opts: UpdateCommandOptions,
+  opts: GlobalUpdateOptions,
   globalDir: string,
   globalBinDir: string,
   pkg: GlobalPackageInfo
@@ -72,7 +80,8 @@ async function updateGlobalPackageGroup (
     devDependencies: false,
     optionalDependencies: true,
   }
-  await installDeps({
+  const fetchFullMetadata = (opts.supportedArchitectures?.libc ?? opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc) && true
+  await installGlobalPackages({
     ...opts,
     global: false,
     bin: path.join(installDir, 'node_modules/.bin'),
@@ -87,7 +96,7 @@ async function updateGlobalPackageGroup (
     workspaceDir: undefined,
     sharedWorkspaceLockfile: false,
     lockfileOnly: false,
-    fetchFullMetadata: getFetchFullMetadata(opts),
+    fetchFullMetadata,
     include,
     includeDirect: include,
   }, depSpecs)
@@ -120,16 +129,4 @@ async function updateGlobalPackageGroup (
 
   // Link bins from new installation
   await linkBinsOfPackages(pkgs, globalBinDir)
-}
-
-async function readInstalledPackages (installDir: string): Promise<Array<{ manifest: DependencyManifest, location: string }>> {
-  const pkgJson = readPackageJsonFromDirRawSync(installDir)
-  const depNames = Object.keys(pkgJson.dependencies ?? {})
-  const manifests = await Promise.all(
-    depNames.map((depName) => readPackageJsonFromDir(path.join(installDir, 'node_modules', depName)))
-  )
-  return depNames.map((depName, i) => ({
-    manifest: manifests[i] as DependencyManifest,
-    location: path.join(installDir, 'node_modules', depName),
-  }))
 }
