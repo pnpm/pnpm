@@ -9,6 +9,7 @@ pax brings cross-ecosystem interoperability to JavaScript package management. Us
 - **Cross-ecosystem dependencies.** Declare dependencies from Cargo, pip, Homebrew, and other package managers alongside your npm packages. pax resolves them, translates their metadata, and wires them into your project.
 - **TypeScript-first package configuration.** Replace `package.json` with `package.config.ts` — a fully typed configuration file that gives you autocompletion, type-checking, and the full power of TypeScript at the config level.
 - **Transparent npm compatibility.** Everything pax produces is consumable by standard npm tooling. When full npm compatibility isn't feasible, pax targets full pnpm compatibility as a baseline.
+- **Agentic workflows.** AI agents integrated at the package manager and build level — helping with everything from resolving cross-ecosystem conflicts to diagnosing build failures to managing dependency upgrades.
 - **All of pnpm's strengths.** Content-addressable storage, fast installs, strict dependency isolation, workspace support, and deterministic lockfiles carry over from the upstream project.
 
 ## Roadmap
@@ -26,6 +27,16 @@ pax brings cross-ecosystem interoperability to JavaScript package management. Us
 ### Phase 3 — Bidirectional translation
 - [ ] Emit `Cargo.toml`, `requirements.txt`, and other ecosystem manifests from a pax project
 - [ ] Allow non-JS projects to consume pax-managed packages through generated native manifests
+
+### Phase 4 — Agentic workflows (exploring)
+
+Areas where AI agents could add value at the package manager and build level. These are possibilities to flesh out further:
+
+- **Dependency conflict resolution.** Cross-ecosystem deps produce novel conflicts no existing solver handles (e.g., a Cargo crate needing OpenSSL 3.x while a pip dep pins 1.1). An agent could analyze the conflict graph, explain trade-offs, and propose or apply a resolution.
+- **Migration and onboarding.** Analyze an existing project's manifests (package.json, Cargo.toml, requirements.txt) and generate the `package.config.ts`. Detect cross-ecosystem opportunities ("you're shelling out to a Python script — want to declare that as a managed pip dep?").
+- **Build failure diagnosis and recovery.** Cross-ecosystem builds have more failure modes (missing toolchains, wrong runtime versions, native compilation errors). An agent could diagnose root causes, install missing toolchains, or suggest config changes.
+- **Dependency maintenance.** Understand changelogs and breaking changes across npm, Cargo, and PyPI simultaneously — propose upgrades, run tests, and summarize what changed across all ecosystems in one pass.
+- **Cross-ecosystem security audit.** Correlate CVEs across npm advisories, RustSec, and PyPI safety databases for a unified vulnerability view of the full dependency tree.
 
 ## How it works (planned)
 
