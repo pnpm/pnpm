@@ -279,10 +279,26 @@ function runtimeHasNodeDownloaded (runtime: EngineDependency | EngineDependency[
 export interface LinkBinOptions {
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
+  /**
+   * When true, forces regeneration of bin scripts even if they already exist.
+   * This is needed for global installations to ensure bin scripts point to the
+   * correct version after updating. See: https://github.com/pnpm/pnpm/issues/10517
+   */
+  global?: boolean
 }
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
+
+  // For global installations, remove existing bin scripts to force regeneration.
+  // This fixes https://github.com/pnpm/pnpm/issues/10517 where bin scripts
+  // contain hardcoded version paths that become stale after updating.
+  if (opts?.global && !IS_WINDOWS) {
+    if (existsSync(externalBinPath)) {
+      await rimraf(externalBinPath)
+    }
+  }
+
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)
     if (existsSync(exePath)) {
