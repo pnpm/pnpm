@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { readPackageJsonFromDir, readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type PackageManifest } from '@pnpm/types'
 
 export interface GlobalPackageInfo {
@@ -99,7 +99,7 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
     if (referenced.has(dirPath)) continue
     try {
       const stat = fs.statSync(dirPath)
-      if (now - stat.birthtimeMs < SAFETY_WINDOW_MS) continue
+      if (now - Math.max(stat.birthtimeMs, stat.ctimeMs) < SAFETY_WINDOW_MS) continue
     } catch {
       continue
     }
@@ -114,7 +114,8 @@ export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<st
   await Promise.all(
     aliases.map(async (alias) => {
       const depDir = path.join(modulesDir, alias)
-      const manifest = await readPackageJsonFromDir(depDir)
+      const manifest = await safeReadPackageJsonFromDir(depDir)
+      if (!manifest) return
       const binsOfPkg = await getBinsFromPackageManifest(manifest, depDir)
       for (const bin of binsOfPkg) {
         bins.add(bin.name)

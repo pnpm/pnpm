@@ -6,7 +6,7 @@ import {
 } from '@pnpm/global-packages'
 import { PnpmError } from '@pnpm/error'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type DependencyManifest } from '@pnpm/types'
 
 export async function checkGlobalBinConflicts (opts: {
@@ -40,7 +40,8 @@ export async function checkGlobalBinConflicts (opts: {
     const modulesDir = path.join(existingPkg.installDir, 'node_modules')
     for (const alias of Object.keys(existingPkg.dependencies)) {
       const depDir = path.join(modulesDir, alias)
-      const manifest = await readPackageJsonFromDir(depDir) // eslint-disable-line no-await-in-loop
+      const manifest = await safeReadPackageJsonFromDir(depDir) // eslint-disable-line no-await-in-loop
+      if (!manifest) continue
       const bins = await getBinsFromPackageManifest(manifest as DependencyManifest, depDir) // eslint-disable-line no-await-in-loop
       for (const bin of bins) {
         if (conflicting.includes(bin.name)) {
