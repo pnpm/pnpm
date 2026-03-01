@@ -173,7 +173,7 @@ const aliasToFullName = new Map<string, string>()
 const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
 const rcOptionsTypes: Record<string, unknown> = {}
-const skipPackageManagerCheckForCommandArray = ['completion-server']
+const skipPackageManagerCheckForCommandArray = ['completion-server', 'help', 'version']
 
 for (let i = 0; i < commands.length; i++) {
   const {
