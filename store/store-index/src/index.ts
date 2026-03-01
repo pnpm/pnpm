@@ -18,6 +18,29 @@ const packr = new Packr({
   moreTypes: true,
 })
 
+const SQLITE_BUSY = 5
+const RETRY_DELAY_MS = 50
+const MAX_RETRIES = 100 // ~5 seconds total
+
+function sqliteRetry (fn: () => void): void {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      fn()
+      return
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (err?.errcode === SQLITE_BUSY && attempt < MAX_RETRIES) {
+        sleepSync(RETRY_DELAY_MS)
+        continue
+      }
+      throw err
+    }
+  }
+}
+
+function sleepSync (ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
 export class StoreIndex {
   private db: DatabaseSyncType
   private stmtGet: StatementSync
@@ -31,17 +54,20 @@ export class StoreIndex {
     const dbPath = path.join(storeDir, 'index.db')
     fs.mkdirSync(storeDir, { recursive: true })
     this.db = new DatabaseSync(dbPath)
-    // Set busy_timeout first so that concurrent connections will wait
-    // instead of immediately failing with SQLITE_BUSY.
-    this.db.exec('PRAGMA busy_timeout=5000')
-    this.db.exec('PRAGMA journal_mode=WAL')
+    // DatabaseSync does not honor busy_timeout, so we use manual retries
+    // for statements that require write locks (WAL setup, CREATE TABLE).
+    sqliteRetry(() => {
+      this.db.exec('PRAGMA journal_mode=WAL')
+    })
     this.db.exec('PRAGMA synchronous=NORMAL')
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS package_index (
-        key TEXT PRIMARY KEY,
-        data BLOB NOT NULL
-      ) WITHOUT ROWID
-    `)
+    sqliteRetry(() => {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS package_index (
+          key TEXT PRIMARY KEY,
+          data BLOB NOT NULL
+        ) WITHOUT ROWID
+      `)
+    })
     this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
     this.stmtSet = this.db.prepare('INSERT OR REPLACE INTO package_index (key, data) VALUES (?, ?)')
     this.stmtDel = this.db.prepare('DELETE FROM package_index WHERE key = ?')
@@ -82,7 +108,9 @@ export class StoreIndex {
     const data = readMpkFileSync(filesIndexFile)
     if (data != null) {
       // Migrate to SQLite on read
-      this.stmtSet.run(key, packr.pack(data))
+      sqliteRetry(() => {
+        this.stmtSet.run(key, packr.pack(data))
+      })
     }
     return data
   }
@@ -99,7 +127,9 @@ export class StoreIndex {
       return
     }
     const buffer = packr.pack(data)
-    this.stmtSet.run(key, buffer)
+    sqliteRetry(() => {
+      this.stmtSet.run(key, buffer)
+    })
   }
 
   /**
@@ -115,7 +145,10 @@ export class StoreIndex {
         return false
       }
     }
-    const result = this.stmtDel.run(key)
+    let result!: { changes: number | bigint }
+    sqliteRetry(() => {
+      result = this.stmtDel.run(key)
+    })
     // Also try to delete legacy .mpk file
     try {
       fs.unlinkSync(filesIndexFile)
@@ -174,7 +207,9 @@ export class StoreIndex {
         const data = readMpkFileSync(filePath)
         if (data != null) {
           // Migrate to SQLite on scan
-          this.stmtSet.run(key, packr.pack(data))
+          sqliteRetry(() => {
+            this.stmtSet.run(key, packr.pack(data))
+          })
           yield [filePath, data]
         }
       }
