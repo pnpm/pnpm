@@ -4,7 +4,7 @@ import { difference } from 'ramda'
 import { type AuditOptions } from './audit.js'
 
 export async function fix (auditReport: AuditReport, opts: AuditOptions): Promise<Record<string, string>> {
-  const vulnOverrides = createOverrides(Object.values(auditReport.advisories), opts.auditConfig?.ignoreCves)
+  const vulnOverrides = createOverrides(Object.values(auditReport.advisories), opts.auditConfig?.ignoreCves, opts.auditConfig?.ignoreGhsas)
   if (Object.values(vulnOverrides).length === 0) return vulnOverrides
   await writeSettings({
     updatedOverrides: vulnOverrides,
@@ -15,9 +15,12 @@ export async function fix (auditReport: AuditReport, opts: AuditOptions): Promis
   return vulnOverrides
 }
 
-function createOverrides (advisories: AuditAdvisory[], ignoreCves?: string[]): Record<string, string> {
+function createOverrides (advisories: AuditAdvisory[], ignoreCves?: string[], ignoreGhsas?: string[]): Record<string, string> {
   if (ignoreCves) {
     advisories = advisories.filter(({ cves }) => difference(cves, ignoreCves).length > 0)
+  }
+  if (ignoreGhsas) {
+    advisories = advisories.filter(({ github_advisory_id: ghsaId }) => difference([ghsaId], ignoreGhsas).length > 0)
   }
   return Object.fromEntries(
     advisories
