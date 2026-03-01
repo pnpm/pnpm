@@ -14,6 +14,11 @@ pax brings cross-ecosystem interoperability to JavaScript package management. Us
 
 ## Roadmap
 
+### Phase 0 — Project bootstrap
+- [ ] Update CLAUDE.md, skill files, and agentic configurations to align with the pax vision
+- [ ] Create `docs/` site to capture architecture, decisions, and pnpm-compatibility notes
+- [ ] Establish process: agents suggest docs updates on large changes, breaking changes, test behavior changes, or pnpm departures
+
 ### Phase 1 — Foundation
 - [ ] `package.config.ts` support: TypeScript package configuration with strong typing, autocompletion, and validation
 - [ ] Transparent compilation of `package.config.ts` down to a standard `package.json`

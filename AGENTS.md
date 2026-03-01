@@ -1,10 +1,26 @@
-# Agent Guide to pnpm Repository
+# Agent Guide to the pax Repository
 
-This document provides context and instructions for AI agents working on the pnpm codebase.
+This document provides context and instructions for AI agents working on the pax codebase.
+
+**pax is a fork of [pnpm](https://github.com/pnpm/pnpm).** Read the [README](./README.md) for the full project vision. The short version: pax extends pnpm with cross-ecosystem interoperability (Cargo, pip, Homebrew, etc.), TypeScript-first package configuration (`package.config.ts`), and agentic workflows at the package manager and build level — while transparently producing npm-compatible (or at minimum pnpm-compatible) output.
+
+## Keeping documentation and agentic configs up to date
+
+Documentation and agent configuration files must evolve alongside the code. When making changes, **you must suggest updates** to relevant docs and configs in the following situations:
+
+-   **Large or cross-cutting changes.** Any change that touches multiple packages or introduces a new concept.
+-   **Breaking changes.** Anything that changes public APIs, CLI behavior, config format, or lockfile structure.
+-   **Significant test behavior changes.** New testing patterns, changed test infrastructure, or updated gotchas.
+-   **Departures from pnpm compatibility.** Any place where pax behavior diverges from upstream pnpm. These are **especially important** — document them in `docs/pnpm-compatibility.md` so the team has a clear, centralized record of what differs and why.
+
+When suggesting docs changes, identify which files need updating:
+-   `CLAUDE.md` — for agent-facing workflow and codebase guidance
+-   `README.md` — for user-facing project overview and roadmap
+-   `docs/` — for detailed architecture, decisions, and reference material
 
 ## Repository Structure
 
-The pnpm codebase is a monorepo managed by pnpm itself. The root contains functional directories organized by domain:
+The pax codebase is a monorepo managed by pnpm itself. The root contains functional directories organized by domain:
 
 ### Core Directories
 
@@ -32,6 +48,10 @@ The pnpm codebase is a monorepo managed by pnpm itself. The root contains functi
 -   `patching/`: Package patching functionality.
 -   `reviewing/`: License and dependency review tools.
 -   `releasing/`: Release and publishing utilities.
+
+### Documentation
+
+-   `docs/`: Project documentation site — architecture, decisions, pnpm compatibility notes, and reference material.
 
 ### Shared Utilities
 
@@ -164,7 +184,7 @@ try {
   if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
     return null
   }
-  
+
   // ✅ Correct - works across realms
   if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
     return null
@@ -178,3 +198,4 @@ try {
 -   `pnpm-workspace.yaml`: Defines the workspace structure.
 -   `package.json` (root): Root scripts and devDependencies.
 -   `CONTRIBUTING.md`: Detailed contribution guidelines.
+-   `docs/pnpm-compatibility.md`: Tracks all departures from upstream pnpm behavior.
