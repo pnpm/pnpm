@@ -144,6 +144,17 @@ export async function publish (
   } & Pick<Config, 'allProjects' | 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>,
   params: string[]
 ): Promise<PublishResult> {
+  if (params.length > 1) {
+    // publish should run sequentially so that there's no mixing of side-effects
+    for (const param of params) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await publish(opts, [param])
+      if (result.exitCode) return result
+    }
+
+    return { exitCode: 0 }
+  }
+
   if (opts.gitChecks !== false && await isGitRepo()) {
     if (!(await isWorkingTreeClean())) {
       throw new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {
