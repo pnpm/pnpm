@@ -2,21 +2,13 @@ import path from 'path'
 import pathAbsolute from 'path-absolute'
 import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
-import { depPathToFilename, parse } from '@pnpm/dependency-path'
-import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
+import { depPathToFilename } from '@pnpm/dependency-path'
 import pLimit from 'p-limit'
 import { type PackageManifest, type Registries } from '@pnpm/types'
-import {
-  getFilePathByModeInCafs,
-  getIndexFilePathInCafs,
-  type PackageFiles,
-  type PackageFileInfo,
-  type PackageFilesIndex,
-} from '@pnpm/store.cafs'
+import { readPackageFileMap } from '@pnpm/store.pkg-finder'
 import { PnpmError } from '@pnpm/error'
 import { type LicensePackage } from './licenses.js'
-import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile.utils'
-import { fetchFromDir } from '@pnpm/directory-fetcher'
+import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 
 const limitPkgReads = pLimit(4)
 
@@ -148,17 +140,13 @@ function parseLicenseManifestField (field: unknown): string {
  * contents will be returned.
  *
  * @param {*} pkg the package to check
- * @param {*} opts the options for parsing licenses
  * @returns Promise<LicenseInfo>
  */
 async function parseLicense (
   pkg: {
     manifest: PackageManifest
-    files:
-    | { local: true, files: Record<string, string> }
-    | { local: false, files: PackageFiles }
-  },
-  opts: { storeDir: string }
+    files: Map<string, string>
+  }
 ): Promise<LicenseInfo> {
   let licenseField: unknown = pkg.manifest.license
   if ('licenses' in pkg.manifest) {
@@ -172,30 +160,11 @@ async function parseLicense (
 
   // check if we discovered a license, if not attempt to parse the LICENSE file
   if (!license || /see license/i.test(license)) {
-    let licensePackageFileInfo: string | PackageFileInfo | undefined
-
-    let licenseFile: string | undefined
-    if (pkg.files.local) {
-      const filesRecord = pkg.files.files
-      licenseFile = LICENSE_FILES.find((f) => filesRecord[f])
-      if (licenseFile) {
-        licensePackageFileInfo = filesRecord[licenseFile]
-      }
-    } else {
-      const filesMap = pkg.files.files
-      licenseFile = LICENSE_FILES.find((f) => filesMap.has(f))
-      if (licenseFile) {
-        licensePackageFileInfo = filesMap.get(licenseFile)
-      }
-    }
-    if (licenseFile && licensePackageFileInfo) {
-      let licenseContents: Buffer | undefined
-      if (typeof licensePackageFileInfo === 'string') {
-        licenseContents = await readFile(licensePackageFileInfo)
-      } else {
-        licenseContents = await readLicenseFileFromCafs(opts.storeDir, licensePackageFileInfo)
-      }
-      const licenseContent = licenseContents?.toString('utf-8')
+    const licenseFileName = LICENSE_FILES.find((f) => pkg.files.has(f))
+    if (licenseFileName) {
+      const licenseFilePath = pkg.files.get(licenseFileName)!
+      const licenseContents = await readFile(licenseFilePath)
+      const licenseContent = licenseContents.toString('utf-8')
       let name = 'Unknown'
       if (licenseContent) {
         // eslint-disable-next-line regexp/no-unused-capturing-group
@@ -213,97 +182,6 @@ async function parseLicense (
   }
 
   return { name: license ?? 'Unknown' }
-}
-
-/**
- * Fetch a file by integrity id from the content-addressable store
- * @param storeDir the cafs directory
- * @param opts the options for reading file
- * @returns Promise<Buffer>
- */
-async function readLicenseFileFromCafs (storeDir: string, { digest, mode }: PackageFileInfo): Promise<Buffer> {
-  const fileName = getFilePathByModeInCafs(storeDir, digest, mode)
-  const fileContents = await readFile(fileName)
-  return fileContents
-}
-
-export type ReadPackageIndexFileResult =
-  | { local: false, files: PackageFiles }
-  | { local: true, files: Record<string, string> }
-
-export interface ReadPackageIndexFileOptions {
-  storeDir: string
-  lockfileDir: string
-  virtualStoreDirMaxLength: number
-}
-
-/**
- * Returns the index of files included in
- * the package identified by the integrity id
- * @param packageResolution the resolution package information
- * @param depPath the package reference
- * @param opts options for fetching package file index
- */
-export async function readPackageIndexFile (
-  packageResolution: Resolution,
-  id: string,
-  opts: ReadPackageIndexFileOptions
-): Promise<ReadPackageIndexFileResult> {
-  // If the package resolution is of type directory we need to do things
-  // differently and generate our own package index file
-  const isLocalPkg = packageResolution.type === 'directory'
-  if (isLocalPkg) {
-    const localInfo = await fetchFromDir(
-      path.join(opts.lockfileDir, (packageResolution as DirectoryResolution).directory),
-      {}
-    )
-    return {
-      local: true,
-      files: Object.fromEntries(localInfo.filesMap),
-    }
-  }
-
-  const isPackageWithIntegrity = 'integrity' in packageResolution
-
-  let pkgIndexFilePath
-  if (isPackageWithIntegrity) {
-    const parsedId = parse(id)
-    // Retrieve all the index file of all files included in the package
-    pkgIndexFilePath = getIndexFilePathInCafs(
-      opts.storeDir,
-      packageResolution.integrity as string,
-      parsedId.nonSemverVersion ?? `${parsedId.name}@${parsedId.version}`
-    )
-  } else if (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) {
-    const packageDirInStore = depPathToFilename(parse(id).nonSemverVersion ?? id, opts.virtualStoreDirMaxLength)
-    pkgIndexFilePath = path.join(
-      opts.storeDir,
-      packageDirInStore,
-      'integrity.mpk'
-    )
-  } else {
-    throw new PnpmError(
-      'UNSUPPORTED_PACKAGE_TYPE',
-      `Unsupported package resolution type for ${id}`
-    )
-  }
-
-  try {
-    const { files } = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
-    return {
-      local: false,
-      files,
-    }
-  } catch (err: any) {  // eslint-disable-line
-    if (err.code === 'ENOENT') {
-      throw new PnpmError(
-        'MISSING_PACKAGE_INDEX_FILE',
-        `Failed to find package index file for ${id} (at ${pkgIndexFilePath}), please consider running 'pnpm install'`
-      )
-    }
-
-    throw err
-  }
 }
 
 export interface PackageInfo {
@@ -344,42 +222,42 @@ export async function getPkgInfo (
     pkg.registries
   )
 
-  const packageFileIndexInfo = await readPackageIndexFile(
-    packageResolution as Resolution,
-    pkg.id,
-    {
-      storeDir: opts.storeDir,
-      lockfileDir: opts.dir,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    }
-  )
-
-  // Fetch the package manifest
-  let packageManifestDir!: string
-  if (packageFileIndexInfo.local) {
-    packageManifestDir = packageFileIndexInfo.files['package.json'] as string
-  } else {
-    const packageFileIndex = packageFileIndexInfo.files
-    const packageManifestFile = packageFileIndex.get('package.json') as PackageFileInfo
-    packageManifestDir = getFilePathByModeInCafs(
-      opts.storeDir,
-      packageManifestFile.digest,
-      packageManifestFile.mode
-    )
-  }
-
-  let manifest
+  let files: Map<string, string>
   try {
-    manifest = await readPkg(packageManifestDir)
-  } catch (err: any) {  // eslint-disable-line
+    const result = await readPackageFileMap(
+      packageResolution,
+      pkg.id,
+      {
+        storeDir: opts.storeDir,
+        lockfileDir: opts.dir,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      }
+    )
+    if (!result) {
+      throw new PnpmError(
+        'UNSUPPORTED_PACKAGE_TYPE',
+        `Unsupported package resolution type for ${pkg.id}`
+      )
+    }
+    files = result
+  } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT') {
       throw new PnpmError(
-        'MISSING_PACKAGE_MANIFEST',
-        `Failed to find package manifest file at ${packageManifestDir}`
+        'MISSING_PACKAGE_INDEX_FILE',
+        `Failed to find package index file for ${pkg.id} (at ${err.path}), please consider running 'pnpm install'`
       )
     }
     throw err
   }
+
+  const manifestPath = files.get('package.json')
+  if (!manifestPath) {
+    throw new PnpmError(
+      'MISSING_PACKAGE_INDEX_FILE',
+      `Failed to find package.json in index for ${pkg.id}, please consider running 'pnpm install'`
+    )
+  }
+  const manifest = await readPackageJson(manifestPath)
 
   // Determine the path to the package as known by the user
   const modulesDir = opts.modulesDir ?? 'node_modules'
@@ -397,8 +275,7 @@ export async function getPkgInfo (
   )
 
   const licenseInfo = await parseLicense(
-    { manifest, files: packageFileIndexInfo },
-    { storeDir: opts.storeDir }
+    { manifest, files }
   )
 
   const packageInfo = {

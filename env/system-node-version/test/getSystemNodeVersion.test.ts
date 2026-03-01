@@ -1,5 +1,11 @@
 import { jest } from '@jest/globals'
 
+let isSea = false
+
+jest.unstable_mockModule('@pnpm/cli-meta', () => ({
+  detectIfCurrentPkgIsExecutable: jest.fn(() => isSea),
+}))
+
 jest.unstable_mockModule('execa', () => ({
   sync: jest.fn(() => ({
     stdout: 'v10.0.0',
@@ -10,15 +16,13 @@ const { getSystemNodeVersionNonCached } = await import('../lib/index.js')
 const execa = await import('execa')
 
 test('getSystemNodeVersion() executed from an executable pnpm CLI', () => {
-  // @ts-expect-error
-  process['pkg'] = {}
+  isSea = true
   expect(getSystemNodeVersionNonCached()).toBe('v10.0.0')
   expect(execa.sync).toHaveBeenCalledWith('node', ['--version'])
 })
 
 test('getSystemNodeVersion() from a non-executable pnpm CLI', () => {
-  // @ts-expect-error
-  delete process['pkg']
+  isSea = false
   expect(getSystemNodeVersionNonCached()).toBe(process.version)
 })
 
@@ -28,8 +32,7 @@ test('getSystemNodeVersion() returns undefined if execa.sync throws an error', (
     throw new Error('not found: node')
   })
 
-  // @ts-expect-error
-  process['pkg'] = {}
+  isSea = true
   expect(getSystemNodeVersionNonCached()).toBeUndefined()
   expect(execa.sync).toHaveBeenCalledWith('node', ['--version'])
 })

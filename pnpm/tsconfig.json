@@ -150,6 +150,12 @@
       "path": "../reviewing/plugin-commands-outdated"
     },
     {
+      "path": "../reviewing/plugin-commands-sbom"
+    },
+    {
+      "path": "../runtime/commands"
+    },
+    {
       "path": "../store/cafs"
     },
     {

@@ -39,6 +39,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/default-resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/global.packages": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
@@ -60,7 +61,8 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@types/ramda": "catalog:",
-    "@types/zkochan__table": "catalog:"
+    "@types/zkochan__table": "catalog:",
+    "symlink-dir": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

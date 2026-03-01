@@ -30,18 +30,17 @@ function renderParseableForPackage (
   },
   pkg: PackageDependencyHierarchy
 ): string {
-  const pkgs = sortPackages(
-    flatten(
-      depPaths,
-      [
-        ...(pkg.optionalDependencies ?? []),
-        ...(pkg.dependencies ?? []),
-        ...(pkg.devDependencies ?? []),
-        ...(pkg.unsavedDependencies ?? []),
-      ]
-    )
-  )
-  if (!opts.alwaysPrintRootPackage && (pkgs.length === 0)) return ''
+  const rootAlreadySeen = depPaths.has(pkg.path)
+  depPaths.add(pkg.path)
+  const allDeps = [
+    ...(pkg.optionalDependencies ?? []),
+    ...(pkg.dependencies ?? []),
+    ...(pkg.devDependencies ?? []),
+    ...(pkg.unsavedDependencies ?? []),
+  ]
+  const pkgs = sortPackages(flatten(depPaths, allDeps))
+  if (rootAlreadySeen && pkgs.length === 0) return ''
+  if (!opts.alwaysPrintRootPackage && pkgs.length === 0 && allDeps.length === 0) return ''
   if (opts.long) {
     let firstLine = pkg.path
     if (pkg.name) {
@@ -54,7 +53,7 @@ function renderParseableForPackage (
       }
     }
     return [
-      firstLine,
+      ...(rootAlreadySeen ? [] : [firstLine]),
       ...pkgs.map((pkgNode) => {
         const node = pkgNode as DependencyNode
         if (node.alias !== node.name) {
@@ -73,7 +72,7 @@ function renderParseableForPackage (
     ].join('\n')
   }
   return [
-    pkg.path,
+    ...(rootAlreadySeen ? [] : [pkg.path]),
     ...pkgs.map((pkg) => pkg.path),
   ].join('\n')
 }

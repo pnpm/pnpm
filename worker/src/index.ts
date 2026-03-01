@@ -74,7 +74,7 @@ interface AddFilesResult {
   integrity?: string
 }
 
-type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest'>
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest' | 'includeNodeModules'>
 
 export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
   if (!workerPool) {
@@ -100,6 +100,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
       pkg: opts.pkg,
       appendManifest: opts.appendManifest,
       files: opts.files,
+      includeNodeModules: opts.includeNodeModules,
     })
   })
 }

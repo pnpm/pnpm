@@ -39,6 +39,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/get-context": "workspace:*",
+    "@pnpm/global.packages": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",

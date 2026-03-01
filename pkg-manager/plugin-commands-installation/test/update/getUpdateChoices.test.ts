@@ -1,3 +1,4 @@
+import { stripVTControlCharacters } from 'util'
 import chalk from 'chalk'
 import { getUpdateChoices } from '../../lib/update/getUpdateChoices.js'
 
@@ -164,6 +165,9 @@ test('getUpdateChoices() handles long version strings without wrapping', () => {
   })
   // The rendered message must be a single line (no wrapping)
   expect(dataRow.message).not.toContain('\n')
-  // Both current and target versions must appear in the output
-  expect(dataRow.message).toContain('7.0.0-dev.20251214.1')
+  // Both current and target versions must appear in the output.
+  // Strip ANSI codes first because colorizeSemverDiff embeds color escapes
+  // within the version string, which would break a plain substring match
+  // when chalk has colors enabled.
+  expect(stripVTControlCharacters(dataRow.message)).toContain('7.0.0-dev.20251214.1')
 })

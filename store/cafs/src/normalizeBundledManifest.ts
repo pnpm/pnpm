@@ -7,6 +7,7 @@ const BUNDLED_MANIFEST_FIELDS: Array<keyof BaseManifest> = [
   'bundleDependencies',
   'cpu',
   'dependencies',
+  'devDependencies',
   'directories',
   'engines',
   'libc',

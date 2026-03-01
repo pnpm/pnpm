@@ -5,7 +5,7 @@ import { execPnpmSync } from './utils/index.js'
 
 test('read settings from pnpm-workspace.yaml', async () => {
   prepare()
-  fs.writeFileSync('pnpm-workspace.yaml', 'useLockfile: false', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', 'lockfile: false', 'utf8')
   expect(execPnpmSync(['install']).status).toBe(0)
   expect(fs.existsSync(WANTED_LOCKFILE)).toBeFalsy()
 })

@@ -9,12 +9,13 @@ import { type CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { scanGlobalPackages } from '@pnpm/global.packages'
 import {
   outdatedDepsOfProjects,
   type OutdatedPackage,
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { type DependenciesField, type PackageManifest, type ProjectRootDir } from '@pnpm/types'
+import { type DependenciesField, type PackageManifest, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { pick, sortWith } from 'ramda'
@@ -169,7 +170,7 @@ export type OutdatedCommandOptions = {
 | 'tag'
 | 'userAgent'
 | 'updateConfig'
-> & Partial<Pick<Config, 'userConfig'>>
+> & Partial<Pick<Config, 'globalPkgDir' | 'userConfig'>>
 
 export async function handler (
   opts: OutdatedCommandOptions,
@@ -184,14 +185,25 @@ export async function handler (
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     return outdatedRecursive(pkgs, params, { ...opts, include })
   }
-  const manifest = await readProjectManifestOnly(opts.dir, opts)
-  const packages = [
-    {
-      rootDir: opts.dir as ProjectRootDir,
-      manifest,
-    },
-  ]
-  const [outdatedPackages] = await outdatedDepsOfProjects(packages, params, {
+  let packages: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>
+  if (opts.global && opts.globalPkgDir) {
+    const globalPackages = scanGlobalPackages(opts.globalPkgDir)
+    packages = await Promise.all(
+      globalPackages.map(async (pkg) => ({
+        rootDir: pkg.installDir as ProjectRootDir,
+        manifest: await readProjectManifestOnly(pkg.installDir, opts),
+      }))
+    )
+  } else {
+    const manifest = await readProjectManifestOnly(opts.dir, opts)
+    packages = [
+      {
+        rootDir: opts.dir as ProjectRootDir,
+        manifest,
+      },
+    ]
+  }
+  const outdatedPerProject = await outdatedDepsOfProjects(packages, params, {
     ...opts,
     fullMetadata: opts.long,
     ignoreDependencies: opts.updateConfig?.ignoreDependencies,
@@ -206,6 +218,7 @@ export async function handler (
     },
     timeout: opts.fetchTimeout,
   })
+  const outdatedPackages = outdatedPerProject.flat()
 
   let output!: string
   switch (opts.format ?? 'table') {

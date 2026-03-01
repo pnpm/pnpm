@@ -27,6 +27,11 @@ import sinon from 'sinon'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from './utils/index.js'
 
+afterEach(() => {
+  nock.abortPendingRequests()
+  nock.cleanAll()
+})
+
 const f = fixtures(import.meta.dirname)
 
 const LOCKFILE_WARN_LOG = {
@@ -37,6 +42,12 @@ const LOCKFILE_WARN_LOG = {
 
 test('lockfile has correct format', async () => {
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes to check if the repo is public.
+  // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
+  // resolving via the codeload tarball URL.
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/kevva/is-negative')
+    .reply(200)
   const project = prepareEmpty()
 
   await addDependenciesToPackage({},
@@ -69,6 +80,7 @@ test('lockfile has correct format', async () => {
   expect((lockfile.packages[id].resolution as TarballResolution).tarball).toBeFalsy()
 
   expect(lockfile.packages).toHaveProperty(['is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'])
+  githubNock.done()
 })
 
 test('lockfile has dev deps even when installing for prod only', async () => {
@@ -808,6 +820,12 @@ test('packages installed via tarball URL from the default registry are normalize
 
 test('lockfile file has correct format when lockfile directory does not equal the prefix directory', async () => {
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes to check if the repo is public.
+  // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
+  // resolving via the codeload tarball URL.
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/kevva/is-negative')
+    .reply(200)
   prepareEmpty()
 
   const storeDir = path.resolve('..', '.store')
@@ -882,6 +900,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
     expect(lockfile.packages).toHaveProperty(['is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'])
   }
+  githubNock.done()
 })
 
 test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, async () => {
@@ -1425,6 +1444,28 @@ test('include tarball URL', async () => {
   const lockfile = project.readLockfile()
   expect((lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).tarball)
     .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
+})
+
+test('exclude tarball URL when lockfileIncludeTarballUrl is false', async () => {
+  const project = prepareEmpty()
+
+  const opts = testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: false })
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
+
+  const lockfile = project.readLockfile()
+  expect((lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).tarball)
+    .toBeUndefined()
+})
+
+test('exclude non-standard tarball URL when lockfileIncludeTarballUrl is false', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: false }))
+
+  const lockfile = project.readLockfile()
+
+  expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball)
+    .toBeUndefined()
 })
 
 test('lockfile v6', async () => {

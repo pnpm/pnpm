@@ -1,4 +1,3 @@
-import path from 'path'
 import { getPkgInfo } from '../lib/getPkgInfo.js'
 
 export const DEFAULT_REGISTRIES = {
@@ -30,6 +29,6 @@ describe('licences', () => {
           virtualStoreDirMaxLength: 120,
         }
       )
-    ).rejects.toThrow(`Failed to find package index file for bogus-package@1.0.0 (at ${path.join('store-dir', 'index', 'b2', '16-bogus-package@1.0.0.mpk')}), please consider running 'pnpm install'`)
+    ).rejects.toThrow(/Failed to find package index file for bogus-package@1\.0\.0 \(at .*16-bogus-package@1\.0\.0\.mpk\), please consider running 'pnpm install'/)
   })
 })

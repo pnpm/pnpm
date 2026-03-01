@@ -52,6 +52,7 @@ export function createBinaryFetcher (ctx: {
         filesIndexFile: opts.filesIndexFile,
         readManifest: false,
         appendManifest: manifest,
+        includeNodeModules: true,
       })
       break
     }

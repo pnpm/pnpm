@@ -256,6 +256,13 @@ async function buildGraphFromPackages (
         }
       }
 
+      if (!fetchResponse && opts.enableGlobalVirtualStore && !isDirectoryDep
+        && !opts.force) {
+        if (dirExists ?? await pathExists(dir)) {
+          fetchResponse = {}
+        }
+      }
+
       if (!fetchResponse) {
         const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
         progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })

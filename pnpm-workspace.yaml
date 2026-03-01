@@ -17,6 +17,7 @@ packages:
   - exec/*
   - fetching/*
   - fs/*
+  - global/*
   - hooks/*
   - lockfile/*
   - network/*
@@ -36,6 +37,7 @@ packages:
   - releasing/*
   - resolving/*
   - reviewing/*
+  - runtime/*
   - semver/*
   - store/*
   - text/*
@@ -69,6 +71,7 @@ catalog:
   '@commitlint/cli': ^20.4.1
   '@commitlint/config-conventional': ^20.4.1
   '@commitlint/prompt-cli': ^20.4.1
+  '@cyclonedx/cyclonedx-library': 9.4.1
   '@eslint/js': ^9.18.0
   '@jest/globals': 30.0.5
   '@npm/types': ^2.1.0
@@ -133,7 +136,6 @@ catalog:
   '@types/which': ^2.0.2
   '@types/write-file-atomic': ^4.0.3
   '@types/yarnpkg__lockfile': ^1.1.9
-  '@types/yazl': ^3.3.0
   '@types/zkochan__table': npm:@types/table@6.0.0
   '@typescript-eslint/utils': ^8.53.0
   '@typescript/native-preview': 7.0.0-dev.20260216.1
@@ -143,7 +145,7 @@ catalog:
   '@yarnpkg/nm': 4.0.5
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
-  '@zkochan/cmd-shim': ^7.0.0
+  '@zkochan/cmd-shim': ^8.0.1
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^3.0.2
   '@zkochan/table': ^2.0.1
@@ -212,7 +214,7 @@ catalog:
   isexe: 2.0.0
   jest: ^30.2.0
   jest-diff: ^30.1.1
-  js-yaml: npm:@zkochan/js-yaml@0.0.10
+  js-yaml: npm:@zkochan/js-yaml@0.0.11
   json5: ^2.2.3
   keyv: 4.5.4
   lcov-result-merger: ^3.3.0
@@ -234,7 +236,7 @@ catalog:
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
   normalize-registry-url: 2.0.1
-  npm-packlist: 5.1.3
+  npm-packlist: 10.0.3
   object-hash: 3.0.0
   p-defer: ^4.0.1
   p-every: ^2.0.0
@@ -250,7 +252,6 @@ catalog:
   path-name: ^1.0.0
   path-temp: ^2.1.1
   pidtree: ^0.6.0
-  pkg: npm:@yao-pkg/pkg@6.6.0
   preferred-pm: ^3.1.4
   pretty-bytes: ^7.0.1
   pretty-ms: ^9.2.0
@@ -301,7 +302,7 @@ catalog:
   typescript-eslint: ^8.53.0
   unified: ^9.2.2
   validate-npm-package-name: 7.0.2
-  verdaccio: 6.2.5
+  verdaccio: 6.2.7
   version-selector-type: ^3.0.0
   which: npm:@pnpm/which@^3.0.1
   write-file-atomic: ^7.0.0
@@ -312,7 +313,6 @@ catalog:
   write-yaml-file: ^5.0.0
   yaml: ^2.8.1
   yaml-tag: 1.1.0
-  yazl: ^3.3.1
 
 catalogMode: strict
 
@@ -336,6 +336,7 @@ minimumReleaseAge: 1440 # At least a day
 minimumReleaseAgeExclude:
   - '@pnpm/*'
   - '@rushstack/worker-pool@0.7.1'
+  - '@zkochan/cmd-shim@8.0.0 || 8.0.1'
   - body-parser@2.2.1
   - express@4.22.1
   - glob@11.1.0
@@ -375,6 +376,7 @@ overrides:
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   jws@<3.2.3: '^3.2.3'
   lodash@>=4.0.0 <=4.17.22: '^4.17.23'
+  minimatch@>=7.0.0 <7.4.7: '^7.4.7'
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
   path-to-regexp@<0.1.12: ^0.1.12
@@ -411,7 +413,6 @@ packageExtensions:
 
 patchedDependencies:
   '@pnpm/npm-lifecycle': __patches__/@pnpm__npm-lifecycle.patch
-  '@yao-pkg/pkg': __patches__/pkg.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
 

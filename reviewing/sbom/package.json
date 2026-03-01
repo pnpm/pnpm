@@ -1,0 +1,63 @@
+{
+  "name": "@pnpm/sbom",
+  "version": "1000.0.0-0",
+  "description": "Generate SBOM from pnpm lockfile",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "cyclonedx",
+    "sbom",
+    "spdx"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/reviewing/sbom",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/reviewing/sbom#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "test": "pnpm run compile && pnpm run _test",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "pnpm run compile",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "compile": "tsgo --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@cyclonedx/cyclonedx-library": "catalog:",
+    "@pnpm/lockfile.detect-dep-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/lockfile.walker": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/store.pkg-finder": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "p-limit": "catalog:",
+    "ssri": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/sbom": "workspace:*",
+    "@types/ssri": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

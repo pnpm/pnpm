@@ -64,6 +64,9 @@
       "path": "../../fs/read-modules-dir"
     },
     {
+      "path": "../../global/commands"
+    },
+    {
       "path": "../../hooks/pnpmfile"
     },
     {

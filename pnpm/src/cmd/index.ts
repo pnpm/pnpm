@@ -7,11 +7,13 @@ import { generateCompletion, createCompletionServer } from '@pnpm/plugin-command
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
 import { doctor } from '@pnpm/plugin-commands-doctor'
 import { env } from '@pnpm/plugin-commands-env'
+import { runtime } from '@pnpm/runtime.commands'
 import { deploy } from '@pnpm/plugin-commands-deploy'
 import { add, ci, dedupe, fetch, install, link, prune, remove, unlink, update, importCommand } from '@pnpm/plugin-commands-installation'
 import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
 import { licenses } from '@pnpm/plugin-commands-licenses'
+import { sbom } from '@pnpm/plugin-commands-sbom'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
@@ -32,6 +34,7 @@ import { type PnpmOptions } from '../types.js'
 import { shorthands as universalShorthands } from '../shorthands.js'
 import { parseCliArgs } from '../parseCliArgs.js'
 import * as bin from './bin.js'
+import * as clean from './clean.js'
 import { createHelp } from './help.js'
 import * as installTest from './installTest.js'
 import * as recursive from './recursive.js'
@@ -117,6 +120,7 @@ const commands: CommandDefinition[] = [
   bin,
   cache,
   ci,
+  clean,
   config,
   dedupe,
   getCommand,
@@ -127,6 +131,7 @@ const commands: CommandDefinition[] = [
   doctor,
   env,
   exec,
+  runtime,
   fetch,
   generateCompletion,
   ignoredBuilds,
@@ -152,6 +157,7 @@ const commands: CommandDefinition[] = [
   restart,
   root,
   run,
+  sbom,
   setup,
   store,
   catFile,
