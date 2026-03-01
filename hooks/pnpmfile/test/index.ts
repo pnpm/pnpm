@@ -64,9 +64,12 @@ test('loading the default .pnpmfile.mjs if tryLoadDefaultPnpmfile is set to true
   expect(hooks.readPackage?.length).toBe(1)
 })
 
-test('both .pnpmfile.mjs and .pnpmfile.cjs are loaded when both exist', async () => {
+test('.pnpmfile.mjs takes priority over .pnpmfile.cjs when both exist', async () => {
   const { hooks } = await requireHooks(path.join(import.meta.dirname, '__fixtures__/default-both'), { tryLoadDefaultPnpmfile: true })
-  expect(hooks.readPackage?.length).toBe(2)
+  expect(hooks.readPackage?.length).toBe(1)
+  const pkg: any = await hooks.readPackage![0]({ name: 'test', version: '1.0.0' }) // eslint-disable-line
+  expect(pkg._fromMjs).toBe(true)
+  expect(pkg._fromCjs).toBeUndefined()
 })
 
 test('calculatePnpmfileChecksum is undefined when pnpmfile does not exist', async () => {
