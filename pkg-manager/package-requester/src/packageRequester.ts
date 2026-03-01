@@ -535,12 +535,7 @@ function fetchToStore (
         if (verified) {
           fetching.resolve({
             files,
-            bundledManifest: (
-              opts.fetchRawManifest &&
-              files.filesMap.has('package.json')
-            )
-              ? await readBundledManifest(files.filesMap.get('package.json')!)
-              : bundledManifest,
+            bundledManifest,
           })
           return
         }
