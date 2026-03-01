@@ -147,13 +147,48 @@ export async function pickPackage (
 
   return runLimited(pkgMirror, async (limit) => {
     let metaCachedInStore: PackageMeta | null | undefined
+
     if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
       metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
 
       if (ctx.offline) {
-        if (metaCachedInStore != null) return {
-          meta: metaCachedInStore,
-          pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+        if (metaCachedInStore != null) {
+          let offlineMeta = metaCachedInStore
+
+          const metaWithCache = metaCachedInStore as typeof metaCachedInStore & { cachedVersions?: string[] }
+          const cachedVersions = metaWithCache.cachedVersions
+
+          if (Array.isArray(cachedVersions)) {
+            const cachedVersionsSet = new Set(cachedVersions)
+
+            offlineMeta = {
+              ...metaCachedInStore,
+              versions: {},
+              'dist-tags': { ...(metaCachedInStore['dist-tags'] || {}) },
+            }
+
+            for (const [v, pkgData] of Object.entries(metaCachedInStore.versions || {})) {
+              if (cachedVersionsSet.has(v)) {
+                offlineMeta.versions[v] = pkgData
+              }
+            }
+
+            for (const [tag, version] of Object.entries(offlineMeta['dist-tags'])) {
+              if (!offlineMeta.versions[version]) {
+                delete offlineMeta['dist-tags'][tag]
+              }
+            }
+          }
+
+          const pickedPackage = _pickPackageFromMeta(offlineMeta)
+          if (pickedPackage) {
+            return {
+              meta: metaCachedInStore,
+              pickedPackage,
+            }
+          }
+
+          throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find a satisfying version in the offline cache for ${toRaw(spec)}`)
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)

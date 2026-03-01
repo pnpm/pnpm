@@ -2108,3 +2108,99 @@ test('resolve from registry when workspace package version does not match the re
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
+
+test('offline mode should only resolve to versions present in cachedVersions, ignoring nonCachedVersions', async () => {
+  const cacheDir = temporaryDirectory()
+  const storeDir = temporaryDirectory()
+  const pkgName = 'xyz-offline-test'
+
+  nock(registries.default)
+    .get(`/${pkgName}`)
+    .reply(200, {
+      name: pkgName,
+      'dist-tags': { latest: '2.1.1' },
+      versions: {
+        '2.0.0': {
+          name: pkgName,
+          version: '2.0.0',
+          dist: { tarball: 'http://fake.url/2.0.0.tgz', shasum: 'fake' },
+        },
+        '2.1.1': {
+          name: pkgName,
+          version: '2.1.1',
+          dist: { tarball: 'http://fake.url/2.1.1.tgz', shasum: 'fake' },
+        },
+      },
+      time: {
+        '2.0.0': '2024-01-01T00:00:00.000Z',
+        '2.1.1': '2024-02-01T00:00:00.000Z',
+      },
+      cachedVersions: ['2.0.0'],
+    })
+
+  const onlineResolver = createResolveFromNpm({
+    storeDir,
+    cacheDir,
+    registries,
+  })
+
+  await onlineResolver.resolveFromNpm(
+    { alias: pkgName, bareSpecifier: '^2.0.0' },
+    { calcSpecifier: true }
+  )
+
+  const offlineResolver = createResolveFromNpm({
+    storeDir,
+    cacheDir,
+    registries,
+    offline: true,
+  })
+
+  const resultA = await offlineResolver.resolveFromNpm(
+    { alias: pkgName, bareSpecifier: '^2.0.0' },
+    { calcSpecifier: true }
+  )
+
+  expect(resultA).toBeDefined()
+  expect(resultA!.manifest!.version).toBe('2.0.0')
+
+  await expect(
+    offlineResolver.resolveFromNpm(
+      { alias: pkgName, bareSpecifier: '^2.1.0' },
+      { calcSpecifier: true }
+    )
+  ).rejects.toThrow(PnpmError)
+})
+
+test('offline mode should fail immediately with NO_OFFLINE_TARBALL if cachedVersions is empty', async () => {
+  const cacheDir = temporaryDirectory()
+  const storeDir = temporaryDirectory()
+  const pkgName = 'xyz-empty-cache-test'
+
+  nock(registries.default)
+    .get(`/${pkgName}`)
+    .reply(200, {
+      name: pkgName,
+      'dist-tags': { latest: '2.1.1' },
+      versions: {
+        '2.1.1': {
+          name: pkgName,
+          version: '2.1.1',
+          dist: { tarball: 'http://fake.url/2.1.1.tgz', shasum: 'fake' },
+        },
+      },
+      cachedVersions: [],
+    })
+
+  const onlineResolver = createResolveFromNpm({ storeDir, cacheDir, registries })
+  await onlineResolver.resolveFromNpm({ alias: pkgName, bareSpecifier: '^2.0.0' }, { calcSpecifier: true })
+
+  const offlineResolver = createResolveFromNpm({ storeDir, cacheDir, registries, offline: true })
+
+  await expect(
+    offlineResolver.resolveFromNpm(
+      { alias: pkgName, bareSpecifier: '^2.0.0' },
+      { calcSpecifier: true }
+    )
+  ).rejects.toThrow(PnpmError)
+})
