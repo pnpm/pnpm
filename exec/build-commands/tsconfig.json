@@ -34,9 +34,6 @@
       "path": "../../pkg-manager/modules-yaml"
     },
     {
-      "path": "../../pkg-manager/plugin-commands-installation"
-    },
-    {
       "path": "../plugin-commands-rebuild"
     }
   ]

@@ -2453,9 +2453,6 @@ importers:
       '@pnpm/exec.build-commands':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/plugin-commands-installation':
-        specifier: workspace:*
-        version: link:../../pkg-manager/plugin-commands-installation
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -2468,6 +2465,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.2.0
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1

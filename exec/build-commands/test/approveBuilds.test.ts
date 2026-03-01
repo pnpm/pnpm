@@ -1,6 +1,5 @@
 import fs from 'fs'
 import path from 'path'
-import { install } from '@pnpm/plugin-commands-installation'
 import type { ApproveBuildsCommandOpts } from '@pnpm/exec.build-commands'
 import type { RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { prepare } from '@pnpm/prepare'
@@ -13,6 +12,7 @@ import { tempDir } from '@pnpm/prepare-temp-dir'
 import { writePackageSync } from 'write-package'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
+import execa from 'execa'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 const { default: enquirer } = await import('enquirer')
@@ -20,15 +20,28 @@ const { approveBuilds } = await import('@pnpm/exec.build-commands')
 
 const prompt = jest.mocked(enquirer.prompt)
 
-type ApproveBuildsOptions = Partial<ApproveBuildsCommandOpts & RebuildCommandOpts>
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
-async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
+async function execPnpmInstall (): Promise<void> {
+  await execa('node', [
+    pnpmBin,
+    'install',
+    `--store-dir=${path.resolve('store')}`,
+    `--cache-dir=${path.resolve('cache')}`,
+    `--registry=${REGISTRY}`,
+    '--config.strict-dep-builds=false',
+    '--config.enable-global-virtual-store=false',
+  ])
+}
+
+async function getApproveBuildsConfig () {
   const cliOptions = {
     argv: [],
     dir: process.cwd(),
     registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
   }
-  const config = {
+  return {
     ...omit(['reporter'], (await getConfig({
       cliOptions,
       packageManager: { name: 'pnpm', version: '' },
@@ -37,9 +50,14 @@ async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
     cacheDir: path.resolve('cache'),
     pnpmfile: [], // this is only needed because the pnpmfile returned by getConfig is string | string[]
     enableGlobalVirtualStore: false,
-    strictDepBuilds: false,
   }
-  await install.handler({ ...config, argv: { original: [] } })
+}
+
+type ApproveBuildsOptions = Partial<ApproveBuildsCommandOpts & RebuildCommandOpts>
+
+async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
 
   prompt.mockResolvedValueOnce({
     result: [
@@ -56,22 +74,8 @@ async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
 }
 
 async function approveNoBuilds (opts?: ApproveBuildsOptions) {
-  const cliOptions = {
-    argv: [],
-    dir: process.cwd(),
-    registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
-  }
-  const config = {
-    ...omit(['reporter'], (await getConfig({
-      cliOptions,
-      packageManager: { name: 'pnpm', version: '' },
-    })).config),
-    storeDir: path.resolve('store'),
-    cacheDir: path.resolve('cache'),
-    pnpmfile: [], // this is only needed because the pnpmfile returned by getConfig is string | string[]
-    strictDepBuilds: false,
-  }
-  await install.handler({ ...config, argv: { original: [] } })
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
 
   prompt.mockResolvedValueOnce({
     result: [],
@@ -136,11 +140,22 @@ test("works when root project manifest doesn't exist in a workspace", async () =
     },
   })
 
-  const workspaceDir = path.resolve('workspace')
+  // Install before writing the workspace manifest so the CLI doesn't
+  // detect a workspace (matching the old install.handler() behaviour
+  // where getConfig() didn't read allowBuilds from the manifest).
+  process.chdir('workspace/packages/project')
+  await execPnpmInstall()
+
+  const workspaceDir = path.resolve('../..')
   const workspaceManifestFile = path.join(workspaceDir, 'pnpm-workspace.yaml')
   writeYamlFile(workspaceManifestFile, { packages: ['packages/*'] })
-  process.chdir('workspace/packages/project')
-  await approveSomeBuilds({ workspaceDir, rootProjectManifestDir: workspaceDir })
+
+  const config = await getApproveBuildsConfig()
+  prompt.mockResolvedValueOnce({
+    result: [{ value: '@pnpm.e2e/pre-and-postinstall-scripts-example' }],
+  })
+  prompt.mockResolvedValueOnce({ build: true })
+  await approveBuilds.handler({ ...config, workspaceDir, rootProjectManifestDir: workspaceDir })
 
   expect(readYamlFile(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],
@@ -184,23 +199,8 @@ test('approve all builds with --all flag', async () => {
     },
   })
 
-  const cliOptions = {
-    argv: [],
-    dir: process.cwd(),
-    registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
-  }
-  const config = {
-    ...omit(['reporter'], (await getConfig({
-      cliOptions,
-      packageManager: { name: 'pnpm', version: '' },
-    })).config),
-    storeDir: path.resolve('store'),
-    cacheDir: path.resolve('cache'),
-    pnpmfile: [],
-    enableGlobalVirtualStore: false,
-    strictDepBuilds: false,
-  }
-  await install.handler({ ...config, argv: { original: [] } })
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
 
   prompt.mockClear()
   await approveBuilds.handler({ ...config, all: true })
@@ -230,6 +230,11 @@ test('should retain existing allowBuilds entries when approving builds', async (
     tempDir: temp,
   })
 
+  // Install before writing the workspace manifest with allowBuilds so the
+  // CLI ignores all builds (matching the old install.handler() behaviour
+  // where getConfig() didn't read allowBuilds from the manifest).
+  await execPnpmInstall()
+
   const workspaceManifestFile = path.join(temp, 'pnpm-workspace.yaml')
   writeYamlFile(workspaceManifestFile, {
     packages: ['packages/*'],
@@ -238,15 +243,21 @@ test('should retain existing allowBuilds entries when approving builds', async (
       '@pnpm.e2e/install-script-example': true,
     },
   })
-  await approveSomeBuilds(
-    {
-      workspaceDir: temp,
-      rootProjectManifestDir: temp,
-      allowBuilds: {
-        '@pnpm.e2e/test': false,
-        '@pnpm.e2e/install-script-example': true,
-      },
-    })
+
+  const config = await getApproveBuildsConfig()
+  prompt.mockResolvedValueOnce({
+    result: [{ value: '@pnpm.e2e/pre-and-postinstall-scripts-example' }],
+  })
+  prompt.mockResolvedValueOnce({ build: true })
+  await approveBuilds.handler({
+    ...config,
+    workspaceDir: temp,
+    rootProjectManifestDir: temp,
+    allowBuilds: {
+      '@pnpm.e2e/test': false,
+      '@pnpm.e2e/install-script-example': true,
+    },
+  })
 
   expect(readYamlFile(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],
