@@ -15,6 +15,7 @@ import { type DependencyManifest } from '@pnpm/types'
 import isSubdir from 'is-subdir'
 import symlinkDir from 'symlink-dir'
 import { type AddCommandOptions } from './add.js'
+import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { installDeps } from './installDeps.js'
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 
@@ -70,6 +71,21 @@ export async function handleGlobalAdd (
   const pkgJson = readPackageJsonFromDirRawSync(installDir)
   const aliases = Object.keys(pkgJson.dependencies ?? {})
 
+  // Check for bin name conflicts with other global packages
+  // (must happen before removeExistingGlobalInstalls so we don't lose existing packages on failure)
+  const pkgs = await readInstalledPackages(installDir)
+  try {
+    await checkGlobalBinConflicts({
+      globalDir,
+      globalBinDir,
+      newPkgs: pkgs,
+      shouldSkip: (pkg) => aliases.some((alias) => alias in pkg.dependencies),
+    })
+  } catch (err) {
+    await fs.promises.rm(installDir, { recursive: true, force: true })
+    throw err
+  }
+
   // Remove any existing global installations of these aliases
   await removeExistingGlobalInstalls(globalDir, globalBinDir, aliases)
 
@@ -82,7 +98,6 @@ export async function handleGlobalAdd (
   await symlinkDir(installDir, hashLink, { overwrite: true })
 
   // Link bins from installed packages into global bin dir
-  const pkgs = await readInstalledPackages(installDir)
   await linkBinsOfPackages(pkgs, globalBinDir)
 }
 

@@ -55,6 +55,7 @@
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/outdated": "workspace:*",
+    "@pnpm/package-bins": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",

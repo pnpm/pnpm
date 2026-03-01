@@ -15,6 +15,7 @@ import { type DependencyManifest } from '@pnpm/types'
 import isSubdir from 'is-subdir'
 import symlinkDir from 'symlink-dir'
 import { type UpdateCommandOptions } from './update/index.js'
+import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { installDeps } from './installDeps.js'
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 
@@ -91,6 +92,20 @@ async function updateGlobalPackageGroup (
     includeDirect: include,
   }, depSpecs)
 
+  // Check for bin name conflicts with other global packages
+  const pkgs = await readInstalledPackages(installDir)
+  try {
+    await checkGlobalBinConflicts({
+      globalDir,
+      globalBinDir,
+      newPkgs: pkgs,
+      shouldSkip: (existingPkg) => existingPkg.hash === pkg.hash,
+    })
+  } catch (err) {
+    await fs.promises.rm(installDir, { recursive: true, force: true })
+    throw err
+  }
+
   // Remove stale bins from old installation before swapping
   const oldBinNames = await getInstalledBinNames(pkg)
   await Promise.all(oldBinNames.map((binName) => removeBin(path.join(globalBinDir, binName))))
@@ -104,7 +119,6 @@ async function updateGlobalPackageGroup (
   }
 
   // Link bins from new installation
-  const pkgs = await readInstalledPackages(installDir)
   await linkBinsOfPackages(pkgs, globalBinDir)
 }
 

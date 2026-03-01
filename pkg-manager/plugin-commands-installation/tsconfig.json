@@ -145,6 +145,9 @@
       "path": "../link-bins"
     },
     {
+      "path": "../package-bins"
+    },
+    {
       "path": "../modules-yaml"
     },
     {

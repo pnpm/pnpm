@@ -289,3 +289,43 @@ test('global update should not crash if there are no global packages', async () 
 
   expect(execPnpmSync(['update', '--global'], { env }).status).toBe(0)
 })
+
+test('global add refuses to install when bin name conflicts with another global package', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  // Create two local packages that both expose a bin called "my-bin"
+  const pkgA = path.resolve('..', 'pkg-a')
+  fs.mkdirSync(pkgA, { recursive: true })
+  fs.writeFileSync(path.join(pkgA, 'package.json'), JSON.stringify({
+    name: 'pkg-a',
+    version: '1.0.0',
+    bin: { 'my-bin': './index.js' },
+  }))
+  fs.writeFileSync(path.join(pkgA, 'index.js'), '#!/usr/bin/env node\nconsole.log("a")\n')
+
+  const pkgB = path.resolve('..', 'pkg-b')
+  fs.mkdirSync(pkgB, { recursive: true })
+  fs.writeFileSync(path.join(pkgB, 'package.json'), JSON.stringify({
+    name: 'pkg-b',
+    version: '1.0.0',
+    bin: { 'my-bin': './index.js' },
+  }))
+  fs.writeFileSync(path.join(pkgB, 'index.js'), '#!/usr/bin/env node\nconsole.log("b")\n')
+
+  // Install pkg-a globally — should succeed
+  await execPnpm(['add', '-g', pkgA], { env })
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'pkg-a')).toBeTruthy()
+
+  // Install pkg-b globally — should fail due to bin conflict
+  const result = execPnpmSync(['add', '-g', pkgB], { env })
+  expect(result.status).not.toBe(0)
+  expect(result.stdout.toString()).toContain('ERR_PNPM_GLOBAL_BIN_CONFLICT')
+
+  // pkg-a should still be installed
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'pkg-a')).toBeTruthy()
+})

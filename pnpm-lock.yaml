@@ -5877,6 +5877,9 @@ importers:
       '@pnpm/outdated':
         specifier: workspace:*
         version: link:../../reviewing/outdated
+      '@pnpm/package-bins':
+        specifier: workspace:*
+        version: link:../package-bins
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store
