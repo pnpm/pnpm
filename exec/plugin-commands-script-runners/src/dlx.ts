@@ -8,8 +8,12 @@ import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { createHexHash } from '@pnpm/crypto.hash'
+import { writeSettings } from '@pnpm/config.config-writer'
 import { PnpmError } from '@pnpm/error'
-import { add } from '@pnpm/plugin-commands-installation'
+import { approveBuilds } from '@pnpm/exec.build-commands'
+import { installGlobalPackages, type InstallGlobalPackagesOptions } from '@pnpm/global.commands'
+import { rebuild } from '@pnpm/plugin-commands-rebuild'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { type PackageManifest, type PnpmSettings, type SupportedArchitectures } from '@pnpm/types'
@@ -82,7 +86,7 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
+} & Pick<Config, 'catalogs' | 'dlxCacheMaxAge' | 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'rawLocalConfig' | 'reporter' | 'supportedArchitectures' | 'symlink'> & InstallGlobalPackagesOptions & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -134,41 +138,41 @@ export async function handler (
     })
     return resolved.id
   }))
-  const { cacheLink, cacheExists, cachedDir } = findCache({
+  let { cacheLink, cacheExists, cachedDir } = findCache({
     packages: resolvedPkgs,
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
     registries: opts.registries,
-    allowBuild: opts.allowBuild,
     supportedArchitectures: opts.supportedArchitectures,
   })
+  const allowBuilds = buildAllowBuildsRecord(resolvedPkgAliases, opts.allowBuild)
   if (!cacheExists) {
-    fs.mkdirSync(cachedDir, { recursive: true })
-    await add.handler({
-      ...opts,
-      bin: path.join(cachedDir, 'node_modules/.bin'),
-      dir: cachedDir,
-      lockfileDir: cachedDir,
-      allowBuilds: Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true])),
-      rootProjectManifestDir: cachedDir,
-      saveProd: true, // dlx will be looking for the package in the "dependencies" field!
-      saveDev: false,
-      saveOptional: false,
-      savePeer: false,
-      symlink: true,
-      workspaceDir: undefined,
-    }, resolvedPkgs)
-    try {
-      await symlinkDir(cachedDir, cacheLink, { overwrite: true })
-    } catch (error) {
-      // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
-      // Similarly, EEXIST means that another dlx process has created the cache link before this process.
-      // The link created by the other process is just as up-to-date as the link the current process was attempting
-      // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
-      // the other link stay. The current process should yield.
-      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
-        throw error
-      }
+    cachedDir = await installAndApproveBuilds(opts, cachedDir, resolvedPkgs, allowBuilds)
+    await tryCacheLink(cachedDir, cacheLink)
+  } else {
+    const cachedAllowBuilds = await readCachedAllowBuilds(cachedDir)
+    const delta = computeAllowBuildsDelta(allowBuilds, cachedAllowBuilds)
+    if (delta.action === 'invalidate') {
+      const dlxCommandCacheDir = createDlxCommandCacheDir({
+        packages: resolvedPkgs,
+        registries: opts.registries,
+        cacheDir: opts.cacheDir,
+        supportedArchitectures: opts.supportedArchitectures,
+      })
+      cachedDir = await installAndApproveBuilds(opts, getPrepareDir(dlxCommandCacheDir), resolvedPkgs, allowBuilds)
+      await tryCacheLink(cachedDir, cacheLink)
+    } else if (delta.action === 'rebuild') {
+      await rebuild.handler({
+        ...opts,
+        dir: cachedDir,
+        lockfileDir: cachedDir,
+        rootProjectManifest: undefined,
+        rootProjectManifestDir: cachedDir,
+        workspaceDir: cachedDir,
+        pending: false,
+        allowBuilds,
+      } as Parameters<typeof rebuild.handler>[0], delta.newlyAllowed)
+      await persistAllowBuilds(cachedDir, allowBuilds)
     }
   }
   const binsDir = path.join(cachedDir, 'node_modules/.bin')
@@ -240,7 +244,6 @@ function findCache (opts: {
   cacheDir: string
   dlxCacheMaxAge: number
   registries: Record<string, string>
-  allowBuild?: string[]
   supportedArchitectures?: SupportedArchitectures
 }): { cacheLink: string, cacheExists: boolean, cachedDir: string } {
   const dlxCommandCacheDir = createDlxCommandCacheDir(opts)
@@ -258,7 +261,6 @@ function createDlxCommandCacheDir (
     packages: string[]
     registries: Record<string, string>
     cacheDir: string
-    allowBuild?: string[]
     supportedArchitectures?: SupportedArchitectures
   }
 ): string {
@@ -272,15 +274,11 @@ function createDlxCommandCacheDir (
 export function createCacheKey (opts: {
   packages: string[]
   registries: Record<string, string>
-  allowBuild?: string[]
   supportedArchitectures?: SupportedArchitectures
 }): string {
   const sortedPkgs = [...opts.packages].sort(lexCompare)
   const sortedRegistries = Object.entries(opts.registries).sort(([k1], [k2]) => lexCompare(k1, k2))
   const args: unknown[] = [sortedPkgs, sortedRegistries]
-  if (opts.allowBuild?.length) {
-    args.push({ allowBuild: opts.allowBuild.sort(lexCompare) })
-  }
   if (opts.supportedArchitectures) {
     const supportedArchitecturesKeys = ['cpu', 'libc', 'os'] as const satisfies Array<keyof SupportedArchitectures>
     for (const key of supportedArchitecturesKeys) {
@@ -321,6 +319,119 @@ function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | 
 function getPrepareDir (cachePath: string): string {
   const name = `${new Date().getTime().toString(16)}-${process.pid.toString(16)}`
   return path.join(cachePath, name)
+}
+
+function buildAllowBuildsRecord (
+  resolvedPkgAliases: string[],
+  allowBuild?: string[]
+): Record<string, boolean | string> {
+  return Object.fromEntries(
+    [...resolvedPkgAliases, ...(allowBuild ?? [])].map((pkg: string) => [pkg, true])
+  )
+}
+
+async function installAndApproveBuilds (
+  opts: DlxCommandOptions,
+  targetDir: string,
+  resolvedPkgs: string[],
+  allowBuilds: Record<string, boolean | string>
+): Promise<string> {
+  fs.mkdirSync(targetDir, { recursive: true })
+  const ignoredBuilds = await installGlobalPackages({
+    ...opts,
+    bin: path.join(targetDir, 'node_modules/.bin'),
+    dir: targetDir,
+    lockfileDir: targetDir,
+    allowBuilds,
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: true,
+    },
+    symlink: true,
+  }, resolvedPkgs)
+  if (ignoredBuilds?.size && process.stdin.isTTY) {
+    await approveBuilds.handler({
+      ...opts,
+      modulesDir: path.join(targetDir, 'node_modules'),
+      dir: targetDir,
+      lockfileDir: targetDir,
+      rootProjectManifest: undefined,
+      rootProjectManifestDir: targetDir,
+      workspaceDir: targetDir,
+      global: false,
+      pending: false,
+      allowBuilds,
+    } as Parameters<typeof approveBuilds.handler>[0])
+  } else {
+    await persistAllowBuilds(targetDir, allowBuilds)
+  }
+  return targetDir
+}
+
+async function tryCacheLink (cachedDir: string, cacheLink: string): Promise<void> {
+  try {
+    await symlinkDir(cachedDir, cacheLink, { overwrite: true })
+  } catch (error) {
+    // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
+    // Similarly, EEXIST means that another dlx process has created the cache link before this process.
+    // The link created by the other process is just as up-to-date as the link the current process was attempting
+    // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
+    // the other link stay. The current process should yield.
+    if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
+      throw error
+    }
+  }
+}
+
+async function persistAllowBuilds (
+  dir: string,
+  allowBuilds: Record<string, boolean | string>
+): Promise<void> {
+  await writeSettings({
+    rootProjectManifest: undefined,
+    rootProjectManifestDir: dir,
+    workspaceDir: dir,
+    updatedSettings: { allowBuilds },
+  })
+}
+
+async function readCachedAllowBuilds (cachedDir: string): Promise<Record<string, boolean | string>> {
+  try {
+    const manifest = await readWorkspaceManifest(cachedDir)
+    return manifest?.allowBuilds ?? {}
+  } catch {
+    return {}
+  }
+}
+
+export interface AllowBuildsDelta {
+  action: 'none' | 'rebuild' | 'invalidate'
+  newlyAllowed: string[]
+}
+
+export function computeAllowBuildsDelta (
+  currentAllowBuilds: Record<string, boolean | string>,
+  cachedAllowBuilds: Record<string, boolean | string>
+): AllowBuildsDelta {
+  // If a previously built package is no longer allowed, we must invalidate
+  // because we cannot "un-build" it.
+  for (const [pkg, wasAllowed] of Object.entries(cachedAllowBuilds)) {
+    if (wasAllowed === true && currentAllowBuilds[pkg] !== true) {
+      return { action: 'invalidate', newlyAllowed: [] }
+    }
+  }
+  // Check for newly allowed packages that weren't built before
+  const newlyAllowed: string[] = []
+  for (const [pkg, isAllowed] of Object.entries(currentAllowBuilds)) {
+    if (isAllowed === true && cachedAllowBuilds[pkg] !== true) {
+      newlyAllowed.push(pkg)
+    }
+  }
+  if (newlyAllowed.length === 0) {
+    return { action: 'none', newlyAllowed: [] }
+  }
+  return { action: 'rebuild', newlyAllowed }
 }
 
 function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string, bareSpecifier: string): string {
