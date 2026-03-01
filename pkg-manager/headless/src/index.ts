@@ -339,6 +339,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,
+    extraVariantLinks,
     graph,
     hierarchy,
     hoistedLocations,
@@ -495,6 +496,18 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         registries: opts.registries,
         symlink: opts.symlink,
       })
+
+      if (opts.symlink !== false && extraVariantLinks.length > 0) {
+        const modulesDirByImporterId = Object.fromEntries(selectedProjects.map((p) => [p.id, p.modulesDir]))
+        await Promise.all(
+          extraVariantLinks.flatMap(({ alias, dir, importerIds: variantImporterIds }) =>
+            variantImporterIds
+              .map((importerId) => modulesDirByImporterId[importerId])
+              .filter(Boolean)
+              .map((modulesDir) => symlinkDependency(dir, modulesDir, alias))
+          )
+        )
+      }
     }
   }
 

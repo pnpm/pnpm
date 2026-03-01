@@ -49,6 +49,9 @@
       "path": "../../pkg-manager/modules-yaml"
     },
     {
+      "path": "../../pkg-manager/package-requester"
+    },
+    {
       "path": "../../store/store-controller-types"
     }
   ]

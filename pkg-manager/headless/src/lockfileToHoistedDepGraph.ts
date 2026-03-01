@@ -126,6 +126,7 @@ async function _lockfileToHoistedDepGraph (
   )
   return {
     directDependenciesByImporterId,
+    extraVariantLinks: [],
     graph,
     hierarchy,
     symlinkedDirectDependenciesByImporterId,

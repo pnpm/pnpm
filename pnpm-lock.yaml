@@ -2157,6 +2157,9 @@ importers:
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
+      '@pnpm/package-requester':
+        specifier: workspace:*
+        version: link:../../pkg-manager/package-requester
       '@pnpm/patching.config':
         specifier: workspace:*
         version: link:../../patching/config

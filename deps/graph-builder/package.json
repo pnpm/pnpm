@@ -39,6 +39,7 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
+    "@pnpm/package-requester": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/patching.types": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",

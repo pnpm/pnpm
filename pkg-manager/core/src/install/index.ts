@@ -1327,6 +1327,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         symlink: opts.symlink,
         skipped: ctx.skipped,
         storeController: opts.storeController,
+        supportedArchitectures: opts.supportedArchitectures,
         virtualStoreDir: ctx.virtualStoreDir,
         virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
         wantedLockfile: newLockfile,
