@@ -335,6 +335,7 @@ test('dlx builds the package that is executed', async () => {
 
   await dlx.handler({
     ...DEFAULT_OPTS,
+    enableGlobalVirtualStore: false,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
@@ -361,6 +362,7 @@ test('dlx builds the packages passed via --allow-build', async () => {
   const allowBuild = ['@pnpm.e2e/install-script-example']
   await dlx.handler({
     ...DEFAULT_OPTS,
+    enableGlobalVirtualStore: false,
     allowBuild,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),

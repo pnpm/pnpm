@@ -146,6 +146,7 @@ export async function handler (
     fs.mkdirSync(cachedDir, { recursive: true })
     await add.handler({
       ...opts,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
       bin: path.join(cachedDir, 'node_modules/.bin'),
       dir: cachedDir,
       lockfileDir: cachedDir,
