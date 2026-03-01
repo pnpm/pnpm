@@ -137,3 +137,23 @@ test('getOptionsFromRootManifest() converts allowBuilds', () => {
     },
   })
 })
+
+test('getOptionsFromPnpmSettings() warns and keeps original value when env variable is not defined', () => {
+  delete process.env.UNDEFINED_TEST_VAR
+
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    ignoreScripts: '${UNDEFINED_TEST_VAR}', // eslint-disable-line
+  } as any) as any // eslint-disable-line
+
+  expect(options.ignoreScripts).toBe('${UNDEFINED_TEST_VAR}') // eslint-disable-line
+})
+
+test('getOptionsFromPnpmSettings() supports env variable default value syntax', () => {
+  delete process.env.UNDEFINED_TEST_VAR_WITH_DEFAULT
+
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    ignoreScripts: '${UNDEFINED_TEST_VAR_WITH_DEFAULT:-false}', // eslint-disable-line
+  } as any) as any // eslint-disable-line
+
+  expect(options.ignoreScripts).toBe('false')
+})

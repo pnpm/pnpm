@@ -75,10 +75,23 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
 function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
   const newSettings: PnpmSettings = {}
   for (const [key, value] of Object.entries(settings)) {
-    const newKey = envReplace(key, process.env)
+    let newKey: string
+    try {
+      newKey = envReplace(key, process.env)
+    } catch (err) {
+      globalWarn((err as Error).message)
+      newKey = key
+    }
     if (typeof value === 'string') {
+      let newValue: string
+      try {
+        newValue = envReplace(value, process.env)
+      } catch (err) {
+        globalWarn((err as Error).message)
+        newValue = value
+      }
       // @ts-expect-error
-      newSettings[newKey as keyof PnpmSettings] = envReplace(value, process.env)
+      newSettings[newKey as keyof PnpmSettings] = newValue
     } else {
       newSettings[newKey as keyof PnpmSettings] = value
     }
