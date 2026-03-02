@@ -1,4 +1,4 @@
-#! /usr/bin/env sh
+#!/usr/bin/env sh
 set -o errexit -o nounset
 
 if command -v pnpm >/dev/null; then
