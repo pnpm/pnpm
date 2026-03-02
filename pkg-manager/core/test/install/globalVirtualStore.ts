@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { install, type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
+import { install, mutateModulesInSingleProject, type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
@@ -194,4 +194,45 @@ test('injected local packages work with global virtual store', async () => {
   const injectedDepLocation = modulesState?.injectedDeps?.['project-1'][0]
   expect(injectedDepLocation).toContain('links')
   expect(fs.existsSync(path.join(injectedDepLocation!, 'foo.js'))).toBeTruthy()
+})
+
+test('global virtual store links/ is populated when enableModulesDir is false', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+
+  // First install to generate lockfile
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+  }))
+
+  // Clean up and re-install with enableModulesDir: false (simulates pnpm fetch)
+  rimraf('node_modules')
+  rimraf(globalVirtualStoreDir)
+
+  await mutateModulesInSingleProject({
+    manifest: {},
+    mutation: 'install',
+    pruneDirectDependencies: true,
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({
+    enableGlobalVirtualStore: true,
+    enableModulesDir: false,
+    virtualStoreDir: globalVirtualStoreDir,
+    ignorePackageManifest: true,
+    frozenLockfile: true,
+  }))
+
+  // GVS links/ should be populated even though enableModulesDir is false
+  const hashDirs = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
+  expect(hashDirs).toHaveLength(1)
+  expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', hashDirs[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+
+  // Project node_modules/ should NOT exist
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeFalsy()
 })

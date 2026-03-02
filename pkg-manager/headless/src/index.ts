@@ -412,15 +412,33 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       registries: opts.registries,
       symlink: opts.symlink,
     })
-  } else if (opts.enableModulesDir !== false) {
-    await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
-    await Promise.all([
-      opts.symlink === false
-        ? Promise.resolve()
-        : linkAllModules(depNodes, {
-          optional: opts.include.optionalDependencies,
+  } else {
+    // Import packages from CAS into their target directories.
+    // When GVS is enabled, depNode.dir is inside {storeDir}/v11/links/ (store-level),
+    // so this must run even when enableModulesDir is false.
+    // When GVS is not enabled, depNode.dir is inside node_modules/.pnpm/ (project-level),
+    // so it should only run when enableModulesDir is true.
+    if (opts.enableModulesDir !== false) {
+      await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+      await Promise.all([
+        opts.symlink === false
+          ? Promise.resolve()
+          : linkAllModules(depNodes, {
+            optional: opts.include.optionalDependencies,
+          }),
+        linkAllPkgs(opts.storeController, depNodes, {
+          allowBuild,
+          force: opts.force,
+          disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+          depGraph: graph,
+          depsStateCache,
+          ignoreScripts: opts.ignoreScripts,
+          lockfileDir: opts.lockfileDir,
+          sideEffectsCacheRead: opts.sideEffectsCacheRead,
         }),
-      linkAllPkgs(opts.storeController, depNodes, {
+      ])
+    } else if (opts.enableGlobalVirtualStore) {
+      await linkAllPkgs(opts.storeController, depNodes, {
         allowBuild,
         force: opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
@@ -429,72 +447,75 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         ignoreScripts: opts.ignoreScripts,
         lockfileDir: opts.lockfileDir,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
-      }),
-    ])
+      })
+    }
 
     stageLogger.debug({
       prefix: lockfileDir,
       stage: 'importing_done',
     })
 
-    if (opts.ignorePackageManifest !== true && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
-      newHoistedDependencies = {
-        ...opts.hoistedDependencies,
-        ...await hoist({
-          extraNodePath: opts.extraNodePaths,
-          graph,
-          directDepsByImporterId: Object.fromEntries(Object.entries(directDependenciesByImporterId).map(([projectId, deps]) => [
-            projectId,
-            new Map(Object.entries(deps)),
-          ])),
-          importerIds,
-          preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-          privateHoistedModulesDir: hoistedModulesDir,
-          privateHoistPattern: opts.hoistPattern ?? [],
-          publicHoistedModulesDir,
-          publicHoistPattern: opts.publicHoistPattern ?? [],
-          virtualStoreDir,
-          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-          hoistedWorkspacePackages: opts.hoistWorkspacePackages
-            ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
-              if (project.manifest.name && project.id !== '.') {
-                hoistedWorkspacePackages[project.id] = {
-                  dir: project.rootDir,
-                  name: project.manifest.name,
+    if (opts.enableModulesDir !== false) {
+
+      if (opts.ignorePackageManifest !== true && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
+        newHoistedDependencies = {
+          ...opts.hoistedDependencies,
+          ...await hoist({
+            extraNodePath: opts.extraNodePaths,
+            graph,
+            directDepsByImporterId: Object.fromEntries(Object.entries(directDependenciesByImporterId).map(([projectId, deps]) => [
+              projectId,
+              new Map(Object.entries(deps)),
+            ])),
+            importerIds,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            privateHoistedModulesDir: hoistedModulesDir,
+            privateHoistPattern: opts.hoistPattern ?? [],
+            publicHoistedModulesDir,
+            publicHoistPattern: opts.publicHoistPattern ?? [],
+            virtualStoreDir,
+            virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+            hoistedWorkspacePackages: opts.hoistWorkspacePackages
+              ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
+                if (project.manifest.name && project.id !== '.') {
+                  hoistedWorkspacePackages[project.id] = {
+                    dir: project.rootDir,
+                    name: project.manifest.name,
+                  }
                 }
-              }
-              return hoistedWorkspacePackages
-            }, {} as Record<string, HoistedWorkspaceProject>)
-            : undefined,
-          skipped: opts.skipped,
-        }),
+                return hoistedWorkspacePackages
+              }, {} as Record<string, HoistedWorkspaceProject>)
+              : undefined,
+            skipped: opts.skipped,
+          }),
+        }
+      } else {
+        newHoistedDependencies = {}
       }
-    } else {
-      newHoistedDependencies = {}
-    }
 
-    await linkAllBins(graph, {
-      extraNodePaths: opts.extraNodePaths,
-      optional: opts.include.optionalDependencies,
-      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-      warn,
-    })
-
-    if ((currentLockfile != null) && !equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
-      Object.assign(filteredLockfile.packages!, currentLockfile.packages)
-    }
-
-    /** Skip linking and due to no project manifest */
-    if (!opts.ignorePackageManifest) {
-      linkedToRoot = await symlinkDirectDependencies({
-        dedupe: Boolean(opts.dedupeDirectDeps),
-        directDependenciesByImporterId,
-        filteredLockfile,
-        lockfileDir,
-        projects: selectedProjects,
-        registries: opts.registries,
-        symlink: opts.symlink,
+      await linkAllBins(graph, {
+        extraNodePaths: opts.extraNodePaths,
+        optional: opts.include.optionalDependencies,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        warn,
       })
+
+      if ((currentLockfile != null) && !equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
+        Object.assign(filteredLockfile.packages!, currentLockfile.packages)
+      }
+
+      /** Skip linking and due to no project manifest */
+      if (!opts.ignorePackageManifest) {
+        linkedToRoot = await symlinkDirectDependencies({
+          dedupe: Boolean(opts.dedupeDirectDeps),
+          directDependenciesByImporterId,
+          filteredLockfile,
+          lockfileDir,
+          projects: selectedProjects,
+          registries: opts.registries,
+          symlink: opts.symlink,
+        })
+      }
     }
   }
 
