@@ -4,5 +4,5 @@ set -o errexit -o nounset
 if command -v pnpm >/dev/null; then
   pnpm run lint --quiet
 else
-  echo 'Neither pnpm nor npm was found. Skip linting.' >&2
+  echo 'No pnpm command found. Skip linting.' >&2
 fi
