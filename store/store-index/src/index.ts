@@ -71,15 +71,19 @@ export class StoreIndex {
     const dbPath = path.join(storeDir, 'index.db')
     fs.mkdirSync(storeDir, { recursive: true })
     this.db = new DatabaseSync(dbPath)
-    // DatabaseSync does not honor busy_timeout, so we use manual retries
-    // for statements that require write locks (WAL setup, CREATE TABLE).
     sqliteRetry(() => {
       this.db.exec('PRAGMA journal_mode=WAL')
     })
-    this.db.exec('PRAGMA synchronous=NORMAL')
-    this.db.exec('PRAGMA mmap_size=268435456')
-    this.db.exec('PRAGMA cache_size=-8000') // 8 MB page cache
+    // In WAL mode, synchronous=NORMAL is safe but synchronous=OFF provides a massive speedup
+    // for bulk inserts. Since pnpm can always re-fetch a corrupted index, OFF is preferred.
+    this.db.exec('PRAGMA synchronous=OFF')
+    // Increase memory map size to 512MB
+    this.db.exec('PRAGMA mmap_size=536870912')
+    // Increase page cache size to ~32MB
+    this.db.exec('PRAGMA cache_size=-32000')
     this.db.exec('PRAGMA temp_store=MEMORY')
+    // Increase wal autocheckpoint interval to reduce I/O during heavy writes
+    this.db.exec('PRAGMA wal_autocheckpoint=10000')
     sqliteRetry(() => {
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS package_index (
@@ -161,8 +165,7 @@ export class StoreIndex {
    * Yields [key, data] pairs where key is `integrity\tpkgId`.
    */
   * entries (): IterableIterator<[string, unknown]> {
-    const rows = this.stmtAll.all() as Array<{ key: string, data: Uint8Array }>
-    for (const row of rows) {
+    for (const row of this.stmtAll.iterate() as IterableIterator<{ key: string, data: Uint8Array }>) {
       yield [row.key, packr.unpack(row.data)]
     }
   }
@@ -180,19 +183,56 @@ export class StoreIndex {
       return
     }
     sqliteRetry(() => {
-      this.db.exec('BEGIN')
-    })
-    try {
-      for (const { key, buffer } of entries) {
-        this.stmtSet.run(key, buffer)
-      }
-      this.db.exec('COMMIT')
-    } catch (e) {
+      this.db.exec('BEGIN IMMEDIATE')
+      let committed = false
       try {
-        this.db.exec('ROLLBACK')
-      } catch {}
-      throw e
+        for (const { key, buffer } of entries) {
+          this.stmtSet.run(key, buffer)
+        }
+        this.db.exec('COMMIT')
+        committed = true
+      } finally {
+        if (!committed) {
+          try {
+            this.db.exec('ROLLBACK')
+          } catch {}
+        }
+      }
+    })
+  }
+
+  /**
+   * Delete multiple index entries in a single transaction.
+   */
+  deleteMany (keys: string[]): void {
+    if (keys.length === 0) return
+    if (keys.length === 1) {
+      this.delete(keys[0])
+      return
     }
+    sqliteRetry(() => {
+      this.db.exec('BEGIN IMMEDIATE')
+      let committed = false
+      try {
+        for (const key of keys) {
+          if (isSqliteKey(key)) {
+            this.stmtDel.run(key)
+          } else {
+            try {
+              fs.unlinkSync(key)
+            } catch {}
+          }
+        }
+        this.db.exec('COMMIT')
+        committed = true
+      } finally {
+        if (!committed) {
+          try {
+            this.db.exec('ROLLBACK')
+          } catch {}
+        }
+      }
+    })
   }
 
   close (): void {

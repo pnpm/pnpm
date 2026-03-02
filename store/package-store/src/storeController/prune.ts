@@ -81,9 +81,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
         pkgCounter++
       }
     }
-    for (const filesIndexFile of toDelete) {
-      storeIndex.delete(filesIndexFile)
-    }
+    storeIndex.deleteMany(toDelete)
   } finally {
     storeIndex.close()
   }
