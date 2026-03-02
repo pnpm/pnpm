@@ -69,6 +69,8 @@ export class StoreIndex {
     })
     this.db.exec('PRAGMA synchronous=NORMAL')
     this.db.exec('PRAGMA mmap_size=268435456')
+    this.db.exec('PRAGMA cache_size=-8000') // 8 MB page cache
+    this.db.exec('PRAGMA temp_store=MEMORY')
     sqliteRetry(() => {
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS package_index (
