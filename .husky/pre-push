@@ -1,14 +1,8 @@
 #! /usr/bin/env sh
 set -o errexit -o nounset
 
-runner=$(
-  command -v pnpm ||
-  command -v npm ||
-  true
-)
-
-if [ -n "$runner" ]; then
-  exec "$runner" run lint --quiet
+if command -v pnpm >/dev/null; then
+  pnpm run lint --quiet
 else
   echo 'Neither pnpm nor npm was found. Skip linting.' >&2
 fi
