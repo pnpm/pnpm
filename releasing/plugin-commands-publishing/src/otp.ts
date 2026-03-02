@@ -1,10 +1,21 @@
 import { PnpmError } from '@pnpm/error'
-import { fetch as pnpmFetch } from '@pnpm/fetch'
-import { globalInfo as logGlobalInfo } from '@pnpm/logger'
+import { type ExportedManifest } from '@pnpm/exportable-manifest'
+import { fetch } from '@pnpm/fetch'
+import { globalInfo } from '@pnpm/logger'
 import enquirer from 'enquirer'
 import { type PublishOptions, publish } from 'libnpmpublish'
 
-// ---- Response type definitions ----
+export interface OtpWebAuthFetchOptions {
+  method: 'GET'
+  retry?: {
+    factor?: number
+    maxTimeout?: number
+    minTimeout?: number
+    randomize?: boolean
+    retries?: number
+  }
+  timeout?: number
+}
 
 export interface OtpWebAuthFetchResponse {
   readonly json: (this: this) => Promise<unknown>
@@ -18,8 +29,23 @@ export interface OtpPublishResponse {
   readonly text: () => Promise<string>
 }
 
+export interface OtpEnquirer {
+  prompt: (this: this, options: OtpEnquirerOptions) => Promise<OtpEnquirerResponse | undefined>
+}
+
+export interface OtpEnquirerOptions {
+  message: string
+  name: 'otp'
+  type: 'input'
+}
+
+export interface OtpEnquirerResponse {
+  otp?: string
+}
+
+// @types/libnpmpublish unfortunately uses an outdated type definition of package.json
 export type OtpPublishFn = (
-  manifest: object,
+  manifest: ExportedManifest,
   tarballData: Buffer,
   options: PublishOptions
 ) => Promise<OtpPublishResponse>
@@ -28,49 +54,33 @@ export interface OtpDate {
   now: (this: this) => number
 }
 
-// ---- Context interface ----
-
 export interface OtpContext {
   Date: OtpDate
   delay: (ms: number) => Promise<void>
-  fetch: (url: string) => Promise<OtpWebAuthFetchResponse>
+  enquirer: OtpEnquirer
+  fetch: (url: string, options: OtpWebAuthFetchOptions) => Promise<OtpWebAuthFetchResponse>
   globalInfo: (message: string) => void
-  isInteractive: boolean
-  prompt: () => Promise<string | undefined>
+  process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
   publish: OtpPublishFn
 }
 
-// ---- Params interface ----
-
 export interface OtpParams {
   context?: OtpContext
-  manifest: object
+  manifest: ExportedManifest
+  otpRetryAllowed?: boolean
   publishOptions: PublishOptions
   tarballData: Buffer
-}
-
-// ---- Shared context (real implementations) ----
-
-async function sharedPrompt (): Promise<string | undefined> {
-  const { otp } = await enquirer.prompt<{ otp: string }>({
-    message: 'This operation requires a one-time password.\nEnter OTP:',
-    name: 'otp',
-    type: 'input',
-  })
-  return otp || undefined
 }
 
 export const SHARED_CONTEXT: OtpContext = {
   Date,
   delay: (ms) => new Promise<void>(resolve => setTimeout(resolve, ms)),
-  fetch: (url) => pnpmFetch(url),
-  globalInfo: logGlobalInfo,
-  get isInteractive () { return !!(process.stdin.isTTY && process.stdout.isTTY) },
-  prompt: sharedPrompt,
+  enquirer: enquirer as unknown as OtpEnquirer,
+  fetch: (url, options) => fetch(url, options),
+  globalInfo,
+  process,
   publish: publish as unknown as OtpPublishFn,
 }
-
-// ---- Internal helpers ----
 
 interface OtpErrorBody {
   authUrl?: string
@@ -82,16 +92,11 @@ interface OtpError {
   body?: OtpErrorBody
 }
 
-function isOtpError (error: unknown): error is OtpError {
-  return (
-    error != null &&
-    typeof error === 'object' &&
-    'code' in error &&
-    (error as Record<string, unknown>).code === 'EOTP'
-  )
-}
-
-// ---- Main function ----
+const isOtpError = (error: unknown): error is OtpError =>
+  error != null &&
+  typeof error === 'object' &&
+  'code' in error &&
+  error.code === 'EOTP'
 
 /**
  * Publish a package, handling OTP challenges (classic OTP prompt and webauth browser flow).
@@ -104,6 +109,7 @@ function isOtpError (error: unknown): error is OtpError {
 export async function publishWithOtpHandling ({
   context = SHARED_CONTEXT,
   manifest,
+  otpRetryAllowed = true,
   publishOptions,
   tarballData,
 }: OtpParams): Promise<OtpPublishResponse> {
@@ -111,17 +117,33 @@ export async function publishWithOtpHandling ({
   try {
     response = await context.publish(manifest, tarballData, publishOptions)
   } catch (error) {
-    if (context.isInteractive && isOtpError(error)) {
+    if (otpRetryAllowed && !!(context.process.stdin.isTTY && context.process.stdout.isTTY) && isOtpError(error)) {
+      const fetchOptions: OtpWebAuthFetchOptions = {
+        method: 'GET',
+        retry: {
+          factor: publishOptions.fetchRetryFactor,
+          maxTimeout: publishOptions.fetchRetryMaxtimeout,
+          minTimeout: publishOptions.fetchRetryMintimeout,
+          retries: publishOptions.fetchRetries,
+        },
+        timeout: publishOptions.timeout,
+      }
       let otp: string | undefined
       if (error.body?.authUrl && error.body?.doneUrl) {
-        otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, context)
+        otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, context, fetchOptions)
       } else {
-        otp = await context.prompt()
+        const enquirerResponse = await context.enquirer.prompt({
+          message: 'This operation requires a one-time password.\nEnter OTP:',
+          name: 'otp',
+          type: 'input',
+        })
+        otp = enquirerResponse?.otp || undefined
       }
       if (otp != null) {
         return publishWithOtpHandling({
           context,
           manifest,
+          otpRetryAllowed: false,
           tarballData,
           publishOptions: { ...publishOptions, otp },
         })
@@ -132,27 +154,21 @@ export async function publishWithOtpHandling ({
   return response
 }
 
-// ---- Webauth helpers ----
-
-async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext): Promise<string> {
+async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext, fetchOptions: OtpWebAuthFetchOptions): Promise<string> {
   context.globalInfo(`Authenticate your account at:\n${authUrl}`)
-  return pollWebAuthDone(doneUrl, context)
-}
-
-async function pollWebAuthDone (doneUrl: string, context: OtpContext): Promise<string> {
   const startTime = context.Date.now()
   const timeout = 5 * 60 * 1000 // 5 minutes
 
   while (true) {
     if (context.Date.now() - startTime > timeout) {
-      throw new OtpWebAuthTimeoutError()
+      throw new OtpWebAuthTimeoutError(context.Date.now(), startTime, timeout)
     }
     // eslint-disable-next-line no-await-in-loop
     await context.delay(1000)
     let response: OtpWebAuthFetchResponse
     try {
       // eslint-disable-next-line no-await-in-loop
-      response = await context.fetch(doneUrl)
+      response = await context.fetch(doneUrl, fetchOptions)
     } catch {
       continue
     }
@@ -170,10 +186,14 @@ async function pollWebAuthDone (doneUrl: string, context: OtpContext): Promise<s
   }
 }
 
-// ---- Error classes ----
-
 export class OtpWebAuthTimeoutError extends PnpmError {
-  constructor () {
+  readonly endTime: number
+  readonly startTime: number
+  readonly timeout: number
+  constructor (endTime: number, startTime: number, timeout: number) {
     super('WEBAUTH_TIMEOUT', 'Web authentication timed out. Please try again.')
+    this.endTime = endTime
+    this.startTime = startTime
+    this.timeout = timeout
   }
 }

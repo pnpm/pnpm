@@ -65,7 +65,7 @@ export async function publishPackedPkg (
     globalWarn(`Skip publishing ${name}@${version} (dry run)`)
     return
   }
-  const response = await publishWithOtpHandling({ manifest: publishedManifest as object, tarballData, publishOptions })
+  const response = await publishWithOtpHandling({ manifest: publishedManifest, tarballData, publishOptions })
   if (response.ok) {
     globalInfo(`✅ Published package ${name}@${version}`)
     return
