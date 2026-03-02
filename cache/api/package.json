@@ -35,6 +35,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/store-index": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "encode-registry": "catalog:",
     "tinyglobby": "catalog:"

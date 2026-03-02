@@ -165,6 +165,9 @@
       "path": "../store/plugin-commands-store-inspecting"
     },
     {
+      "path": "../store/store-index"
+    },
+    {
       "path": "../tools/path"
     },
     {

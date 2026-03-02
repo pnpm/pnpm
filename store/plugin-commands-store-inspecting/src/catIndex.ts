@@ -5,9 +5,9 @@ import { type TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
 import { sortDeepKeys } from '@pnpm/object.key-sorting'
-import { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
 import { getStorePath } from '@pnpm/store-path'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
@@ -82,8 +82,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     }
   )
 
-  const filesIndexFile = getIndexFilePathInCafs(
-    storeDir,
+  const filesIndexFile = storeIndexKey(
     (pkgSnapshot.resolution as TarballResolution).integrity!.toString(),
     `${alias}@${bareSpecifier}`
   )

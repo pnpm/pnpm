@@ -1,9 +1,9 @@
 import path from 'path'
 import { depPathToFilename, parse } from '@pnpm/dependency-path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
 import { type Resolution } from '@pnpm/resolver-base'
-import { getFilePathByModeInCafs, getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 
 export interface ReadPackageFileMapOptions {
   storeDir: string
@@ -47,8 +47,7 @@ export async function readPackageFileMap (
   let pkgIndexFilePath: string
   if (isPackageWithIntegrity) {
     const parsedId = parse(packageId)
-    pkgIndexFilePath = getIndexFilePathInCafs(
-      opts.storeDir,
+    pkgIndexFilePath = storeIndexKey(
       packageResolution.integrity as string,
       parsedId.nonSemverVersion ?? `${parsedId.name}@${parsedId.version}`
     )

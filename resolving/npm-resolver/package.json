@@ -46,6 +46,7 @@
     "@pnpm/resolve-workspace-range": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
+    "@pnpm/store-index": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.spec-parser": "workspace:*",

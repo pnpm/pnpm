@@ -9,10 +9,6 @@ import { Packr } from 'msgpackr'
 const req = createRequire(import.meta.url)
 const { DatabaseSync } = req('node:sqlite') as { DatabaseSync: typeof DatabaseSyncType }
 
-/**
- * Use the same msgpackr configuration as @pnpm/fs.msgpack-file
- * to ensure compatibility with existing .mpk files.
- */
 const packr = new Packr({
   useRecords: true,
   moreTypes: true,
@@ -41,18 +37,28 @@ function sleepSync (ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 }
 
+/**
+ * Create a store index key from an integrity hash and package id.
+ * The key is `${integrity}\t${pkgId}` — tab-separated.
+ * Integrity strings never contain tabs, so this is unambiguous.
+ */
+export function storeIndexKey (integrity: string, pkgId: string): string {
+  return `${integrity}\t${pkgId}`
+}
+
+function isSqliteKey (key: string): boolean {
+  return key.includes('\t')
+}
+
 export class StoreIndex {
   private db: DatabaseSyncType
   private stmtGet: StatementSync
   private stmtSet: StatementSync
   private stmtDel: StatementSync
+  private stmtHas: StatementSync
   private stmtAll: StatementSync
-  private indexDir: string
-  private indexPrefix: string
 
   constructor (storeDir: string) {
-    this.indexDir = path.join(storeDir, 'index')
-    this.indexPrefix = this.indexDir + path.sep
     const dbPath = path.join(storeDir, 'index.db')
     fs.mkdirSync(storeDir, { recursive: true })
     this.db = new DatabaseSync(dbPath)
@@ -74,147 +80,79 @@ export class StoreIndex {
     this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
     this.stmtSet = this.db.prepare('INSERT OR REPLACE INTO package_index (key, data) VALUES (?, ?)')
     this.stmtDel = this.db.prepare('DELETE FROM package_index WHERE key = ?')
+    this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
     this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
   }
 
   /**
-   * Derives a SQLite key from a full filesIndexFile path.
-   * Returns null if the path is not inside the index/ directory
-   * (e.g. integrity.mpk files stored inside package directories).
-   */
-  pathToKey (filePath: string): string | null {
-    if (!filePath.startsWith(this.indexPrefix)) return null
-    // Strip the index/ prefix and .mpk suffix
-    const relative = filePath.slice(this.indexPrefix.length)
-    if (relative.endsWith('.mpk')) {
-      return relative.slice(0, -4)
-    }
-    return relative
-  }
-
-  /**
    * Read a PackageFilesIndex from the store.
-   * Tries SQLite first, then falls back to reading the .mpk file.
+   * Keys containing \t are SQLite keys (integrity\tpkgId).
+   * Other keys are treated as .mpk file paths.
    */
-  get (filesIndexFile: string): unknown | undefined {
-    const key = this.pathToKey(filesIndexFile)
-    if (key == null) {
-      // Not in index/ directory — read .mpk file directly
-      return readMpkFileSync(filesIndexFile)
+  get (key: string): unknown | undefined {
+    if (isSqliteKey(key)) {
+      const row = this.stmtGet.get(key) as { data: Uint8Array } | undefined
+      if (row) {
+        return packr.unpack(row.data)
+      }
+      return undefined
     }
-    const row = this.stmtGet.get(key) as { data: Uint8Array } | undefined
-    if (row) {
-      return packr.unpack(row.data)
-    }
-    // Fall back to reading legacy .mpk file
-    const data = readMpkFileSync(filesIndexFile)
-    if (data != null) {
-      // Migrate to SQLite on read
-      sqliteRetry(() => {
-        this.stmtSet.run(key, packr.pack(data))
-      })
-    }
-    return data
+    return readMpkFileSync(key)
   }
 
   /**
    * Write a PackageFilesIndex to the store.
-   * Always writes to SQLite. For paths outside index/, writes .mpk file.
+   * Keys containing \t are written to SQLite.
+   * Other keys are written as .mpk files.
    */
-  set (filesIndexFile: string, data: unknown): void {
-    const key = this.pathToKey(filesIndexFile)
-    if (key == null) {
-      // Not in index/ directory — write .mpk file directly
-      writeMpkFileSync(filesIndexFile, data)
+  set (key: string, data: unknown): void {
+    if (isSqliteKey(key)) {
+      const buffer = packr.pack(data)
+      sqliteRetry(() => {
+        this.stmtSet.run(key, buffer)
+      })
       return
     }
-    const buffer = packr.pack(data)
-    sqliteRetry(() => {
-      this.stmtSet.run(key, buffer)
-    })
+    writeMpkFileSync(key, data)
   }
 
   /**
    * Delete an index entry.
    */
-  delete (filesIndexFile: string): boolean {
-    const key = this.pathToKey(filesIndexFile)
-    if (key == null) {
-      try {
-        fs.unlinkSync(filesIndexFile)
-        return true
-      } catch {
-        return false
-      }
+  delete (key: string): boolean {
+    if (isSqliteKey(key)) {
+      let result!: { changes: number | bigint }
+      sqliteRetry(() => {
+        result = this.stmtDel.run(key)
+      })
+      return result.changes > 0
     }
-    let result!: { changes: number | bigint }
-    sqliteRetry(() => {
-      result = this.stmtDel.run(key)
-    })
-    // Also try to delete legacy .mpk file
     try {
-      fs.unlinkSync(filesIndexFile)
+      fs.unlinkSync(key)
+      return true
     } catch {
-      // ignore
+      return false
     }
-    return result.changes > 0
   }
 
   /**
-   * Iterate over all index entries.
-   * Yields [filesIndexFile, data] pairs.
-   * Includes both SQLite entries and legacy .mpk files not yet migrated.
+   * Check if an index entry exists.
    */
-  * entries (): IterableIterator<[string, unknown]> {
-    const seenKeys = new Set<string>()
-    // First, yield all entries from SQLite
-    const rows = this.stmtAll.all() as Array<{ key: string, data: Uint8Array }>
-    for (const row of rows) {
-      seenKeys.add(row.key)
-      const filesIndexFile = path.join(this.indexDir, `${row.key}.mpk`)
-      const data = packr.unpack(row.data)
-      yield [filesIndexFile, data]
+  has (key: string): boolean {
+    if (isSqliteKey(key)) {
+      return this.stmtHas.get(key) != null
     }
-    // Then, scan the index/ directory for legacy .mpk files
-    yield * this._scanLegacyFiles(seenKeys)
+    return fs.existsSync(key)
   }
 
-  private * _scanLegacyFiles (seenKeys: Set<string>): IterableIterator<[string, unknown]> {
-    let subdirs: string[]
-    try {
-      subdirs = fs.readdirSync(this.indexDir)
-    } catch {
-      return
-    }
-    for (const subdir of subdirs) {
-      const subdirPath = path.join(this.indexDir, subdir)
-      let stat: fs.Stats
-      try {
-        stat = fs.statSync(subdirPath)
-      } catch {
-        continue
-      }
-      if (!stat.isDirectory()) continue
-      let files: string[]
-      try {
-        files = fs.readdirSync(subdirPath)
-      } catch {
-        continue
-      }
-      for (const file of files) {
-        if (!file.endsWith('.mpk')) continue
-        const key = path.join(subdir, file.slice(0, -4))
-        if (seenKeys.has(key)) continue
-        const filePath = path.join(subdirPath, file)
-        const data = readMpkFileSync(filePath)
-        if (data != null) {
-          // Migrate to SQLite on scan
-          sqliteRetry(() => {
-            this.stmtSet.run(key, packr.pack(data))
-          })
-          yield [filePath, data]
-        }
-      }
+  /**
+   * Iterate over all SQLite index entries.
+   * Yields [key, data] pairs where key is `integrity\tpkgId`.
+   */
+  * entries (): IterableIterator<[string, unknown]> {
+    const rows = this.stmtAll.all() as Array<{ key: string, data: Uint8Array }>
+    for (const row of rows) {
+      yield [row.key, packr.unpack(row.data)]
     }
   }
 

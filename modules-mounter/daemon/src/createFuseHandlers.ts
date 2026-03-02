@@ -1,7 +1,7 @@
 // cspell:ignore ents
 import fs from 'fs'
-import { StoreIndex } from '@pnpm/store-index'
-import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
@@ -173,7 +173,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       const pkgSnapshot = lockfile.packages?.[depPath as DepPath]
       if (pkgSnapshot == null) return undefined
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const pkgIndexFilePath = getIndexFilePathInCafs(storeDir, (pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
+      const pkgIndexFilePath = storeIndexKey((pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
       const storeIndex = new StoreIndex(storeDir)
       const pkgIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex
       storeIndex.close()

@@ -1,6 +1,7 @@
 import path from 'path'
 import { formatIntegrity } from '@pnpm/crypto.integrity'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import { storeIndexKey } from '@pnpm/store-index'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
   nameVerFromPkgSnapshot,
@@ -53,7 +54,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
   try {
     const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
       const pkgIndexFilePath = integrity
-        ? getIndexFilePathInCafs(storeDir, integrity, id)
+        ? storeIndexKey(integrity, id)
         : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.mpk')
       const pkgFilesIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
       if (!pkgFilesIndex) {

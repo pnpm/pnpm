@@ -44,6 +44,7 @@
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/store-index": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "detect-libc": "catalog:",

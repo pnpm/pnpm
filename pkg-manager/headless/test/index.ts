@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   type PackageManifestLog,
@@ -11,7 +11,7 @@ import {
   type StageLog,
   type StatsLog,
 } from '@pnpm/core-loggers'
-import { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
 import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readModulesManifest } from '@pnpm/modules-yaml'
@@ -687,7 +687,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   }, {}, {}, { packageImportMethod: 'copy' })
   await headlessInstall(opts)
 
-  const cacheIntegrityPath = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  const cacheIntegrityPath = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   const storeIndex = new StoreIndex(opts.storeDir)
   const cacheIntegrity = storeIndex.get(cacheIntegrityPath) as PackageFilesIndex
   expect(cacheIntegrity!.sideEffects).toBeTruthy()

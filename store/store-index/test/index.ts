@@ -1,13 +1,12 @@
-import { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
 import path from 'path'
 import { temporaryDirectory } from 'tempy'
 
-test('StoreIndex round-trips data', () => {
+test('StoreIndex round-trips data via SQLite key', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
   const idx = new StoreIndex(storeDir)
   try {
-    const indexDir = path.join(storeDir, 'index')
-    const key = path.join(indexDir, 'ab', 'test-entry.mpk')
+    const key = storeIndexKey('sha512-abc123', 'lodash@4.17.21')
     expect(idx.get(key)).toBeUndefined()
 
     const data = { algo: 'sha512', files: new Map([['index.js', { digest: 'abc', size: 100, mode: 0o644 }]]) }
@@ -18,23 +17,42 @@ test('StoreIndex round-trips data', () => {
     expect(result.algo).toBe('sha512')
     expect(result.files.get('index.js')?.digest).toBe('abc')
 
+    expect(idx.has(key)).toBe(true)
     expect(idx.delete(key)).toBe(true)
     expect(idx.get(key)).toBeUndefined()
+    expect(idx.has(key)).toBe(false)
   } finally {
     idx.close()
   }
 })
 
-test('StoreIndex entries() iterates all entries', () => {
+test('StoreIndex entries() iterates all SQLite entries', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
   const idx = new StoreIndex(storeDir)
   try {
-    const indexDir = path.join(storeDir, 'index')
-    idx.set(path.join(indexDir, 'ab', 'entry1.mpk'), { a: 1 })
-    idx.set(path.join(indexDir, 'cd', 'entry2.mpk'), { b: 2 })
+    const key1 = storeIndexKey('sha512-aaa', 'pkg-a@1.0.0')
+    const key2 = storeIndexKey('sha512-bbb', 'pkg-b@2.0.0')
+    idx.set(key1, { a: 1 })
+    idx.set(key2, { b: 2 })
 
     const entries = [...idx.entries()]
     expect(entries).toHaveLength(2)
+    const keys = entries.map(([k]) => k)
+    expect(keys).toContain(key1)
+    expect(keys).toContain(key2)
+  } finally {
+    idx.close()
+  }
+})
+
+test('StoreIndex falls back to .mpk files for non-SQLite keys', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const idx = new StoreIndex(storeDir)
+  try {
+    // A key without \t is treated as a filesystem path
+    const fakePath = path.join(storeDir, 'nonexistent.mpk')
+    expect(idx.get(fakePath)).toBeUndefined()
+    expect(idx.has(fakePath)).toBe(false)
   } finally {
     idx.close()
   }

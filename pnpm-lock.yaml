@@ -1249,6 +1249,9 @@ importers:
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -5191,6 +5194,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.1(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../../store/store-index
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -5778,6 +5784,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -6726,6 +6735,9 @@ importers:
       '@pnpm/runtime.commands':
         specifier: workspace:*
         version: link:../runtime/commands
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs
@@ -7564,6 +7576,9 @@ importers:
       '@pnpm/resolving.jsr-specifier-parser':
         specifier: workspace:*
         version: link:../jsr-specifier-parser
+      '@pnpm/store-index':
+        specifier: workspace:*
+        version: link:../../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -8331,9 +8346,6 @@ importers:
 
   store/cafs:
     dependencies:
-      '@pnpm/crypto.integrity':
-        specifier: workspace:*
-        version: link:../../crypto/integrity
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error

@@ -1,8 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { StoreIndex } from '@pnpm/store-index'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
 import { ENGINE_NAME, STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
@@ -76,7 +76,7 @@ test('rebuilds dependencies', async () => {
     ])
   }
 
-  const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  const cacheIntegrityPath = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   const storeIndex1 = new StoreIndex(path.join(storeDir, STORE_VERSION))
   const cacheIntegrity = storeIndex1.get(cacheIntegrityPath) as PackageFilesIndex
   storeIndex1.close()
@@ -111,7 +111,7 @@ test('skipIfHasSideEffectsCache', async () => {
     '--config.enableGlobalVirtualStore=false',
   ])
 
-  const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  const cacheIntegrityPath = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   const storeIndex2 = new StoreIndex(path.join(storeDir, STORE_VERSION))
   let cacheIntegrity = storeIndex2.get(cacheIntegrityPath) as PackageFilesIndex
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`

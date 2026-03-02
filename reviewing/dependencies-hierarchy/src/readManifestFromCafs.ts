@@ -1,6 +1,6 @@
-import { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
 import { loadJsonFileSync } from 'load-json-file'
-import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
 
 /**
@@ -14,7 +14,7 @@ export function readManifestFromCafs (storeDir: string, pkg: {
 }): DependencyManifest | undefined {
   try {
     const pkgId = `${pkg.name}@${pkg.version}`
-    const indexPath = getIndexFilePathInCafs(storeDir, pkg.integrity, pkgId)
+    const indexPath = storeIndexKey(pkg.integrity, pkgId)
     const storeIndex = new StoreIndex(storeDir)
     try {
       const pkgIndex = storeIndex.get(indexPath) as PackageFilesIndex | undefined

@@ -1,4 +1,3 @@
-import path from 'path'
 import chalk from 'chalk'
 
 import { type Config } from '@pnpm/config'
@@ -35,7 +34,7 @@ export type FindHashCommandOptions = Pick<Config, 'storeDir' | 'pnpmHomeDir'>
 export interface FindHashResult {
   name: string
   version: string
-  filesIndexFile: string
+  indexKey: string
 }
 
 export async function handler (opts: FindHashCommandOptions, params: string[]): Promise<string> {
@@ -60,19 +59,18 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
-  const indexDir = path.join(storeDir, 'index')
   const result: FindHashResult[] = []
   const storeIndex = new StoreIndex(storeDir)
 
   try {
-    for (const [filesIndexFile, data] of storeIndex.entries()) {
+    for (const [indexKey, data] of storeIndex.entries()) {
       const pkgFilesIndex = data as PackageFilesIndex
       if (!pkgFilesIndex) continue
 
       if (pkgFilesIndex.files) {
         for (const file of pkgFilesIndex.files.values()) {
           if (file?.digest === hash) {
-            result.push({ name: pkgFilesIndex.manifest?.name ?? 'unknown', version: pkgFilesIndex.manifest?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
+            result.push({ name: pkgFilesIndex.manifest?.name ?? 'unknown', version: pkgFilesIndex.manifest?.version ?? 'unknown', indexKey })
 
             // a package is only found once.
             continue
@@ -85,7 +83,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
           if (!added) continue
           for (const file of added.values()) {
             if (file?.digest === hash) {
-              result.push({ name: pkgFilesIndex.manifest?.name ?? 'unknown', version: pkgFilesIndex.manifest?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
+              result.push({ name: pkgFilesIndex.manifest?.name ?? 'unknown', version: pkgFilesIndex.manifest?.version ?? 'unknown', indexKey })
 
               // a package is only found once.
               continue
@@ -106,8 +104,8 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   }
 
   let acc = ''
-  for (const { name, version, filesIndexFile } of result) {
-    acc += `${PACKAGE_INFO_CLR(name)}@${PACKAGE_INFO_CLR(version)}  ${INDEX_PATH_CLR(filesIndexFile)}\n`
+  for (const { name, version, indexKey } of result) {
+    acc += `${PACKAGE_INFO_CLR(name)}@${PACKAGE_INFO_CLR(version)}  ${INDEX_PATH_CLR(indexKey)}\n`
   }
   return acc
 }

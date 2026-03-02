@@ -1,7 +1,8 @@
 import assert from 'assert'
 import path from 'path'
 import util from 'util'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import { storeIndexKey } from '@pnpm/store-index'
 import { calcDepState, lockfileToDepGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
@@ -356,7 +357,7 @@ async function _rebuild (
         let sideEffectsCacheKey: string | undefined
         const pkgId = `${pkgInfo.name}@${pkgInfo.version}`
         if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
-          const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
+          const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)
           const storeIndex = new StoreIndex(opts.storeDir)
           const pkgFilesIndex = storeIndex.get(filesIndexFile) as PackageFilesIndex | undefined
           storeIndex.close()
@@ -392,7 +393,7 @@ async function _rebuild (
         })
         if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
           builtDepPaths.add(depPath)
-          const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
+          const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)
           try {
             if (!sideEffectsCacheKey) {
               sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
