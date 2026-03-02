@@ -212,13 +212,21 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
       requiresBuild,
       integrity: integrity ?? calcIntegrity(buffer),
     },
-    indexWrites: [{ key: filesIndexFile, buffer: packForStorage(pkgFilesIndex) }],
+    indexWrites: [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex) }],
   }
 }
 
 function calcIntegrity (buffer: Buffer): string {
   const calculatedHash: string = crypto.hash('sha512', buffer, 'hex')
   return formatIntegrity('sha512', calculatedHash)
+}
+
+function packToShared (data: unknown): Uint8Array {
+  const packed = packForStorage(data)
+  const shared = new SharedArrayBuffer(packed.byteLength)
+  const view = new Uint8Array(shared)
+  view.set(packed)
+  return view
 }
 
 interface IndexWrite {
@@ -319,7 +327,7 @@ function addFilesFromDir (
     } else {
       requiresBuild = existingFilesIndex.requiresBuild
     }
-    indexWrites = [{ key: filesIndexFile, buffer: packForStorage(existingFilesIndex) }]
+    indexWrites = [{ key: filesIndexFile, buffer: packToShared(existingFilesIndex) }]
   } else {
     requiresBuild = pkgRequiresBuild(bundledManifest, filesIntegrity)
     const pkgFilesIndex: PackageFilesIndex = {
@@ -328,7 +336,7 @@ function addFilesFromDir (
       algo: HASH_ALGORITHM,
       files: filesIntegrity,
     }
-    indexWrites = [{ key: filesIndexFile, buffer: packForStorage(pkgFilesIndex) }]
+    indexWrites = [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex) }]
   }
   return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild }, indexWrites }
 }
