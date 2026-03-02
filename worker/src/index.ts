@@ -9,6 +9,7 @@ import { type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
 import { type BundledManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { globalWarn } from '@pnpm/logger'
+import { StoreIndex } from '@pnpm/store-index'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
@@ -19,6 +20,58 @@ import {
 
 let workerPool: WorkerPool | undefined
 
+// Single-writer index: all SQLite writes happen in the main process.
+// Writes from the fetch phase are batched via process.nextTick for throughput.
+// Writes from the build phase (side effects) are written immediately so that
+// subsequent worker reads see the committed data.
+const mainStoreIndexCache = new Map<string, StoreIndex>()
+const pendingIndexWrites = new Map<string, Array<{ key: string, buffer: Uint8Array }>>()
+let flushScheduled = false
+
+function getMainStoreIndex (storeDir: string): StoreIndex {
+  if (!mainStoreIndexCache.has(storeDir)) {
+    mainStoreIndexCache.set(storeDir, new StoreIndex(storeDir))
+  }
+  return mainStoreIndexCache.get(storeDir)!
+}
+
+function queueIndexWrites (storeDir: string, writes: Array<{ key: string, buffer: Uint8Array }>): void {
+  if (!pendingIndexWrites.has(storeDir)) {
+    pendingIndexWrites.set(storeDir, [])
+  }
+  const queue = pendingIndexWrites.get(storeDir)!
+  for (const w of writes) {
+    queue.push(w)
+  }
+  if (!flushScheduled) {
+    flushScheduled = true
+    process.nextTick(flushIndexWrites)
+  }
+}
+
+function flushIndexWrites (): void {
+  flushScheduled = false
+  for (const [storeDir, writes] of pendingIndexWrites) {
+    if (writes.length === 0) continue
+    const storeIndex = getMainStoreIndex(storeDir)
+    storeIndex.setRawMany(writes)
+  }
+  pendingIndexWrites.clear()
+}
+
+function writeIndexImmediately (storeDir: string, writes: Array<{ key: string, buffer: Uint8Array }>): void {
+  const storeIndex = getMainStoreIndex(storeDir)
+  storeIndex.setRawMany(writes)
+}
+
+function closeMainStoreIndexes (): void {
+  flushIndexWrites()
+  for (const storeIndex of mainStoreIndexCache.values()) {
+    storeIndex.close()
+  }
+  mainStoreIndexCache.clear()
+}
+
 export async function restartWorkerPool (): Promise<void> {
   await finishWorkers()
   workerPool = createTarballWorkerPool()
@@ -27,6 +80,7 @@ export async function restartWorkerPool (): Promise<void> {
 export async function finishWorkers (): Promise<void> {
   // @ts-expect-error
   await global.finishWorkers?.()
+  closeMainStoreIndexes()
 }
 
 function createTarballWorkerPool (): WorkerPool {
@@ -82,11 +136,16 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<AddFilesResult>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }) => {
+    localWorker.once('message', ({ status, error, value, indexWrites }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         reject(new PnpmError(error.code ?? 'GIT_FETCH_FAILED', error.message as string))
         return
+      }
+      if (indexWrites) {
+        // Write immediately so that subsequent worker reads (e.g. side effects)
+        // see the committed data without waiting for nextTick.
+        writeIndexImmediately(opts.storeDir, indexWrites)
       }
       resolve(value)
     })
@@ -149,7 +208,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<AddFilesResult>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }) => {
+    localWorker.once('message', ({ status, error, value, indexWrites }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         if (error.type === 'integrity_validation_failed') {
@@ -161,6 +220,9 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
         }
         reject(new PnpmError(error.code ?? 'TARBALL_EXTRACT', `Failed to add tarball from "${opts.url}" to store: ${error.message as string}`))
         return
+      }
+      if (indexWrites) {
+        queueIndexWrites(opts.storeDir, indexWrites)
       }
       resolve(value)
     })

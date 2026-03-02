@@ -42,6 +42,15 @@ function sleepSync (ms: number): void {
  * The key is `${integrity}\t${pkgId}` — tab-separated.
  * Integrity strings never contain tabs, so this is unambiguous.
  */
+/**
+ * Pack data for storage using msgpackr.
+ * Use this when data will be packed in one thread and stored by another,
+ * to ensure the same Packr instance is used for pack and unpack within each thread.
+ */
+export function packForStorage (data: unknown): Uint8Array {
+  return packr.pack(data)
+}
+
 export function storeIndexKey (integrity: string, pkgId: string): string {
   return `${integrity}\t${pkgId}`
 }
@@ -155,6 +164,74 @@ export class StoreIndex {
     const rows = this.stmtAll.all() as Array<{ key: string, data: Uint8Array }>
     for (const row of rows) {
       yield [row.key, packr.unpack(row.data)]
+    }
+  }
+
+  /**
+   * Write multiple entries in a single transaction.
+   * Only use this from a single-writer process (e.g. the main process).
+   */
+  setMany (entries: Array<{ key: string, data: unknown }>): void {
+    if (entries.length === 0) return
+    if (entries.length === 1) {
+      this.set(entries[0].key, entries[0].data)
+      return
+    }
+    const sqliteEntries: Array<{ key: string, buffer: Uint8Array }> = []
+    const fileEntries: Array<{ key: string, data: unknown }> = []
+    for (const { key, data } of entries) {
+      if (isSqliteKey(key)) {
+        sqliteEntries.push({ key, buffer: packr.pack(data) })
+      } else {
+        fileEntries.push({ key, data })
+      }
+    }
+    if (sqliteEntries.length > 0) {
+      sqliteRetry(() => {
+        this.db.exec('BEGIN')
+      })
+      try {
+        for (const { key, buffer } of sqliteEntries) {
+          this.stmtSet.run(key, buffer)
+        }
+        this.db.exec('COMMIT')
+      } catch (e) {
+        try {
+          this.db.exec('ROLLBACK')
+        } catch {}
+        throw e
+      }
+    }
+    for (const { key, data } of fileEntries) {
+      writeMpkFileSync(key, data)
+    }
+  }
+
+  /**
+   * Write multiple pre-packed entries in a single transaction.
+   * The buffers must already be msgpack-encoded.
+   */
+  setRawMany (entries: Array<{ key: string, buffer: Uint8Array }>): void {
+    if (entries.length === 0) return
+    if (entries.length === 1) {
+      sqliteRetry(() => {
+        this.stmtSet.run(entries[0].key, entries[0].buffer)
+      })
+      return
+    }
+    sqliteRetry(() => {
+      this.db.exec('BEGIN')
+    })
+    try {
+      for (const { key, buffer } of entries) {
+        this.stmtSet.run(key, buffer)
+      }
+      this.db.exec('COMMIT')
+    } catch (e) {
+      try {
+        this.db.exec('ROLLBACK')
+      } catch {}
+      throw e
     }
   }
 

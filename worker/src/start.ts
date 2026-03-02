@@ -2,11 +2,11 @@ import crypto from 'crypto'
 import path from 'path'
 import fs from 'fs'
 import { PnpmError } from '@pnpm/error'
-import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff, type FilesMap } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFiles, type SideEffectsDiff, type FilesMap } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
-import { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex, packForStorage } from '@pnpm/store-index'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import {
   type CafsFunctions,
@@ -197,7 +197,13 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
-  const requiresBuild = writeFilesIndexFile(storeDir, filesIndexFile, { algo: HASH_ALGORITHM, manifest: bundledManifest, files: filesIntegrity })
+  const requiresBuild = pkgRequiresBuild(bundledManifest, filesIntegrity)
+  const pkgFilesIndex: PackageFilesIndex = {
+    requiresBuild,
+    manifest: bundledManifest,
+    algo: HASH_ALGORITHM,
+    files: filesIntegrity,
+  }
   return {
     status: 'success',
     value: {
@@ -206,12 +212,18 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
       requiresBuild,
       integrity: integrity ?? calcIntegrity(buffer),
     },
+    indexWrites: [{ key: filesIndexFile, buffer: packForStorage(pkgFilesIndex) }],
   }
 }
 
 function calcIntegrity (buffer: Buffer): string {
   const calculatedHash: string = crypto.hash('sha512', buffer, 'hex')
   return formatIntegrity('sha512', calculatedHash)
+}
+
+interface IndexWrite {
+  key: string
+  buffer: Uint8Array
 }
 
 interface AddFilesFromDirResult {
@@ -221,6 +233,7 @@ interface AddFilesFromDirResult {
     manifest?: BundledManifest
     requiresBuild: boolean
   }
+  indexWrites?: IndexWrite[]
 }
 
 function initStore ({ storeDir }: InitStoreMessage): { status: string } {
@@ -276,6 +289,7 @@ function addFilesFromDir (
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
   let requiresBuild: boolean
+  let indexWrites: IndexWrite[] | undefined
   if (sideEffectsCacheKey) {
     const existingFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
     if (!existingFilesIndex) {
@@ -305,11 +319,18 @@ function addFilesFromDir (
     } else {
       requiresBuild = existingFilesIndex.requiresBuild
     }
-    writeIndexFile(storeDir, filesIndexFile, existingFilesIndex)
+    indexWrites = [{ key: filesIndexFile, buffer: packForStorage(existingFilesIndex) }]
   } else {
-    requiresBuild = writeFilesIndexFile(storeDir, filesIndexFile, { algo: HASH_ALGORITHM, manifest: bundledManifest, files: filesIntegrity })
+    requiresBuild = pkgRequiresBuild(bundledManifest, filesIntegrity)
+    const pkgFilesIndex: PackageFilesIndex = {
+      requiresBuild,
+      manifest: bundledManifest,
+      algo: HASH_ALGORITHM,
+      files: filesIntegrity,
+    }
+    indexWrites = [{ key: filesIndexFile, buffer: packForStorage(pkgFilesIndex) }]
   }
-  return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild } }
+  return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild }, indexWrites }
 }
 
 function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
@@ -413,28 +434,3 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success'
   return { status: 'success' }
 }
 
-function writeFilesIndexFile (
-  storeDir: string,
-  filesIndexFile: string,
-  { algo, manifest, files, sideEffects }: {
-    algo: string
-    manifest?: BundledManifest
-    files: PackageFiles
-    sideEffects?: SideEffects
-  }
-): boolean {
-  const requiresBuild = pkgRequiresBuild(manifest, files)
-  const filesIndex: PackageFilesIndex = {
-    requiresBuild,
-    manifest,
-    algo,
-    files,
-    sideEffects,
-  }
-  writeIndexFile(storeDir, filesIndexFile, filesIndex)
-  return requiresBuild
-}
-
-function writeIndexFile (storeDir: string, filePath: string, data: PackageFilesIndex): void {
-  getStoreIndex(storeDir).set(filePath, data)
-}
