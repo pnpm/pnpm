@@ -9,11 +9,6 @@ import { Packr } from 'msgpackr'
 const req = createRequire(import.meta.url)
 const { DatabaseSync } = req('node:sqlite') as { DatabaseSync: typeof DatabaseSyncType }
 
-const packr = new Packr({
-  useRecords: true,
-  moreTypes: true,
-})
-
 const SQLITE_BUSY = 5
 const RETRY_DELAY_MS = 50
 const MAX_RETRIES = 100 // ~5 seconds total
@@ -47,8 +42,14 @@ function sleepSync (ms: number): void {
  * Use this when data will be packed in one thread and stored by another,
  * to ensure the same Packr instance is used for pack and unpack within each thread.
  */
+// Exported packForStorage is kept for generic use or fallback without structures.
+// Within workers and StoreIndex, passing a synced Packr instance is preferred.
+const globalPackr = new Packr({
+  useRecords: true,
+  moreTypes: true,
+})
 export function packForStorage (data: unknown): Uint8Array {
-  return packr.pack(data)
+  return globalPackr.pack(data)
 }
 
 export function storeIndexKey (integrity: string, pkgId: string): string {
@@ -66,6 +67,11 @@ export class StoreIndex {
   private stmtDel: StatementSync
   private stmtHas: StatementSync
   private stmtAll: StatementSync
+  private stmtSetStructure: StatementSync
+
+  public packr: Packr
+  public structures: unknown[]
+  private savedStructuresCount: number = 0
 
   constructor (storeDir: string) {
     const dbPath = path.join(storeDir, 'index.db')
@@ -89,14 +95,69 @@ export class StoreIndex {
         CREATE TABLE IF NOT EXISTS package_index (
           key TEXT PRIMARY KEY,
           data BLOB NOT NULL
-        ) WITHOUT ROWID
+        ) WITHOUT ROWID;
+        CREATE TABLE IF NOT EXISTS msgpack_structures (
+          id INTEGER PRIMARY KEY,
+          data BLOB NOT NULL
+        );
       `)
     })
+
+    const stmtGetStructures = this.db.prepare('SELECT id, data FROM msgpack_structures ORDER BY id ASC')
+    const rows = stmtGetStructures.all() as Array<{id: number, data: Uint8Array}>
+    const globalUnpacker = new Packr({ useRecords: true, moreTypes: true })
+    this.structures = rows.map(r => globalUnpacker.unpack(r.data))
+
+    if (this.structures.length === 0) {
+      this.structures = [
+        ['requiresBuild', 'manifest', 'algo', 'files'],
+        ['checkedAt', 'digest', 'mode', 'size'],
+        ['name', 'version', 'dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta', 'bin', 'scripts'],
+      ]
+    }
+
+    this.savedStructuresCount = rows.length
+
+    this.packr = new Packr({
+      useRecords: true,
+      moreTypes: true,
+      // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+      structures: this.structures as {}[],
+      maxSharedStructures: this.structures.length, // Freeze structures to prevent cross-worker divergence
+    })
+
     this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
     this.stmtSet = this.db.prepare('INSERT OR REPLACE INTO package_index (key, data) VALUES (?, ?)')
     this.stmtDel = this.db.prepare('DELETE FROM package_index WHERE key = ?')
     this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
     this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
+    this.stmtSetStructure = this.db.prepare('INSERT OR REPLACE INTO msgpack_structures (id, data) VALUES (?, ?)')
+
+    this.saveNewStructures()
+  }
+
+  saveNewStructures (): void {
+    if (this.structures.length > this.savedStructuresCount) {
+      sqliteRetry(() => {
+        this.db.exec('BEGIN IMMEDIATE')
+        let committed = false
+        try {
+          for (let i = this.savedStructuresCount; i < this.structures.length; i++) {
+            const buffer = globalPackr.pack(this.structures[i])
+            this.stmtSetStructure.run(i, buffer)
+          }
+          this.db.exec('COMMIT')
+          committed = true
+          this.savedStructuresCount = this.structures.length
+        } finally {
+          if (!committed) {
+            try {
+              this.db.exec('ROLLBACK')
+            } catch {}
+          }
+        }
+      })
+    }
   }
 
   /**
@@ -108,7 +169,7 @@ export class StoreIndex {
     if (isSqliteKey(key)) {
       const row = this.stmtGet.get(key) as { data: Uint8Array } | undefined
       if (row) {
-        return packr.unpack(row.data)
+        return this.packr.unpack(row.data)
       }
       return undefined
     }
@@ -122,10 +183,11 @@ export class StoreIndex {
    */
   set (key: string, data: unknown): void {
     if (isSqliteKey(key)) {
-      const buffer = packr.pack(data)
+      const buffer = this.packr.pack(data)
       sqliteRetry(() => {
         this.stmtSet.run(key, buffer)
       })
+      this.saveNewStructures()
       return
     }
     writeMpkFileSync(key, data)
@@ -166,7 +228,7 @@ export class StoreIndex {
    */
   * entries (): IterableIterator<[string, unknown]> {
     for (const row of this.stmtAll.iterate() as IterableIterator<{ key: string, data: Uint8Array }>) {
-      yield [row.key, packr.unpack(row.data)]
+      yield [row.key, this.packr.unpack(row.data)]
     }
   }
 
@@ -180,6 +242,7 @@ export class StoreIndex {
       sqliteRetry(() => {
         this.stmtSet.run(entries[0].key, entries[0].buffer)
       })
+      this.saveNewStructures()
       return
     }
     sqliteRetry(() => {
@@ -191,6 +254,8 @@ export class StoreIndex {
         }
         this.db.exec('COMMIT')
         committed = true
+        // Important: After a successful transaction, save any newly discovered structures!
+        this.saveNewStructures()
       } finally {
         if (!committed) {
           try {
@@ -243,7 +308,7 @@ export class StoreIndex {
 function readMpkFileSync (filePath: string): unknown | undefined {
   try {
     const buffer = fs.readFileSync(filePath)
-    return packr.unpack(buffer)
+    return globalPackr.unpack(buffer)
   } catch {
     return undefined
   }
@@ -252,7 +317,7 @@ function readMpkFileSync (filePath: string): unknown | undefined {
 function writeMpkFileSync (filePath: string, data: unknown): void {
   const targetDir = path.dirname(filePath)
   fs.mkdirSync(targetDir, { recursive: true })
-  const buffer = packr.pack(data)
+  const buffer = globalPackr.pack(data)
   // Atomic write: write to temp file, then rename
   const temp = `${filePath}.${process.pid}.tmp`
   fs.writeFileSync(temp, buffer)
