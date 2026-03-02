@@ -1504,6 +1504,47 @@ test('pnpm_config_lockfile env var overrides lockfile from pnpm-workspace.yaml i
   expect(config.useLockfile).toBe(false)
 })
 
+test('ci disables enableGlobalVirtualStore by default', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    ci: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.enableGlobalVirtualStore).toBe(false)
+})
+
+test('ci respects explicit enableGlobalVirtualStore from config', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    ci: true,
+    enableGlobalVirtualStore: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.enableGlobalVirtualStore).toBe(true)
+})
+
 test('pnpm_config_git_branch_lockfile env var overrides git-branch-lockfile from pnpm-workspace.yaml in useGitBranchLockfile', async () => {
   prepareEmpty()
 
