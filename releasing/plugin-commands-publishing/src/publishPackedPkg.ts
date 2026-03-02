@@ -1,16 +1,16 @@
 import fs from 'fs/promises'
-import { type PublishOptions, publish } from 'libnpmpublish'
+import { type PublishOptions } from 'libnpmpublish'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import enquirer from 'enquirer'
 import { displayError } from './displayError.js'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
 import { AuthTokenError, fetchAuthToken } from './oidc/authToken.js'
 import { IdTokenError, getIdToken } from './oidc/idToken.js'
 import { ProvenanceError, determineProvenance } from './oidc/provenance.js'
+import { publishWithOtpHandling } from './otp.js'
 import { type PackResult } from './pack.js'
 import { type NormalizedRegistryUrl, allRegistryConfigKeys, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 
@@ -51,9 +51,6 @@ export type PublishPackedPkgOptions = Pick<Config,
   provenanceFile?: string // NOTE: This field is currently not supported
 }
 
-// @types/libnpmpublish unfortunately uses an outdated type definition of package.json
-type ManifestFromOutdatedDefinition = typeof publish extends (_a: infer Manifest, ..._: never) => unknown ? Manifest : never
-
 export async function publishPackedPkg (
   packResult: Pick<PackResult, 'publishedManifest' | 'tarballPath'>,
   opts: PublishPackedPkgOptions
@@ -68,102 +65,12 @@ export async function publishPackedPkg (
     globalWarn(`Skip publishing ${name}@${version} (dry run)`)
     return
   }
-  await publishWithOtpHandling(publishedManifest as ManifestFromOutdatedDefinition, tarballData, publishOptions, packResult)
-}
-
-async function publishWithOtpHandling (
-  manifest: ManifestFromOutdatedDefinition,
-  tarballData: Buffer,
-  publishOptions: PublishOptions,
-  packResult: Pick<PackResult, 'publishedManifest'>
-): Promise<void> {
-  let response: Awaited<ReturnType<typeof publish>>
-  try {
-    response = await publish(manifest, tarballData, publishOptions)
-  } catch (error) {
-    if (process.stdin.isTTY && process.stdout.isTTY && isOtpError(error)) {
-      let otp: string | undefined
-      if (error.body?.authUrl && error.body?.doneUrl) {
-        otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl)
-      } else {
-        otp = await promptForOtp()
-      }
-      if (otp != null) {
-        return publishWithOtpHandling(manifest, tarballData, { ...publishOptions, otp }, packResult)
-      }
-    }
-    throw error
-  }
+  const response = await publishWithOtpHandling({ manifest: publishedManifest as object, tarballData, publishOptions })
   if (response.ok) {
-    const { name, version } = packResult.publishedManifest
     globalInfo(`✅ Published package ${name}@${version}`)
     return
   }
   throw await createFailedToPublishError(packResult, response)
-}
-
-interface OtpErrorBody {
-  authUrl?: string
-  doneUrl?: string
-}
-
-interface OtpError {
-  code: string
-  body?: OtpErrorBody
-}
-
-function isOtpError (error: unknown): error is OtpError {
-  return (
-    error != null &&
-    typeof error === 'object' &&
-    'code' in error &&
-    (error as Record<string, unknown>).code === 'EOTP'
-  )
-}
-
-async function webAuthOtp (authUrl: string, doneUrl: string): Promise<string> {
-  globalInfo(`Authenticate your account at:\n${authUrl}`)
-  return pollWebAuthDone(doneUrl)
-}
-
-async function pollWebAuthDone (doneUrl: string): Promise<string> {
-  const startTime = Date.now()
-  const timeout = 5 * 60 * 1000 // 5 minutes
-
-  while (true) {
-    if (Date.now() - startTime > timeout) {
-      throw new PnpmError('WEBAUTH_TIMEOUT', 'Web authentication timed out. Please try again.')
-    }
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise<void>(resolve => setTimeout(resolve, 1000))
-    let response: Response
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      response = await fetch(doneUrl)
-    } catch {
-      continue
-    }
-    if (!response.ok) continue
-    let body: { done?: boolean; token?: string }
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      body = await response.json() as { done?: boolean; token?: string }
-    } catch {
-      continue
-    }
-    if (body.done && body.token) {
-      return body.token
-    }
-  }
-}
-
-async function promptForOtp (): Promise<string | undefined> {
-  const { otp } = await enquirer.prompt<{ otp: string }>({
-    message: 'This operation requires a one-time password.\nEnter OTP:',
-    name: 'otp',
-    type: 'input',
-  })
-  return otp || undefined
 }
 
 async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
