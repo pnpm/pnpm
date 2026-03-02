@@ -1,9 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
-import { fetch } from '@pnpm/fetch'
-import { globalInfo } from '@pnpm/logger'
-import enquirer from 'enquirer'
-import { type PublishOptions, publish } from 'libnpmpublish'
+import { type PublishOptions } from 'libnpmpublish'
+import { SHARED_CONTEXT } from './utils/shared-context.js'
 
 export interface OtpWebAuthFetchOptions {
   method: 'GET'
@@ -55,7 +53,7 @@ export interface OtpDate {
 
 export interface OtpContext {
   Date: OtpDate
-  delay: (ms: number) => Promise<void>
+  setTimeout: (cb: () => void, ms: number) => void
   enquirer: OtpEnquirer
   fetch: (url: string, options: OtpWebAuthFetchOptions) => Promise<OtpWebAuthFetchResponse>
   globalInfo: (message: string) => void
@@ -70,16 +68,7 @@ export interface OtpParams {
   tarballData: Buffer
 }
 
-export const SHARED_CONTEXT: OtpContext = {
-  Date,
-  delay: (ms) => new Promise<void>(resolve => setTimeout(resolve, ms)),
-  enquirer: enquirer as unknown as OtpEnquirer,
-  fetch: (url, options) => fetch(url, options),
-  globalInfo,
-  process,
-  // @types/libnpmpublish unfortunately uses an outdated type definition of package.json
-  publish: publish as unknown as OtpPublishFn,
-}
+export { SHARED_CONTEXT }
 
 interface OtpErrorBody {
   authUrl?: string
@@ -101,6 +90,8 @@ const isOtpError = (error: unknown): error is OtpError =>
  * Publish a package, handling OTP challenges (classic OTP prompt and webauth browser flow).
  *
  * @throws {@link OtpWebAuthTimeoutError} if the webauth browser flow times out.
+ * @throws {@link OtpNonInteractiveError} if OTP is required but the terminal is not interactive.
+ * @throws {@link OtpSecondChallengeError} if the registry requests OTP a second time after one was submitted.
  * @throws the original error if OTP handling is not applicable.
  *
  * @see https://github.com/npm/cli/blob/7d900c46/lib/utils/otplease.js for npm's implementation.
@@ -115,9 +106,7 @@ export async function publishWithOtpHandling ({
   try {
     response = await context.publish(manifest, tarballData, publishOptions)
   } catch (error) {
-    if (!isOtpError(error)) {
-      throw error
-    }
+    if (!isOtpError(error)) throw error
     if (!context.process.stdin.isTTY || !context.process.stdout.isTTY) {
       throw new OtpNonInteractiveError()
     }
@@ -167,7 +156,7 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
       throw new OtpWebAuthTimeoutError(context.Date.now(), startTime, timeout)
     }
     // eslint-disable-next-line no-await-in-loop
-    await context.delay(1000)
+    await new Promise<void>(resolve => context.setTimeout(resolve, 1000))
     let response: OtpWebAuthFetchResponse
     try {
       // eslint-disable-next-line no-await-in-loop
