@@ -43,7 +43,6 @@ export interface OtpEnquirerResponse {
   otp?: string
 }
 
-// @types/libnpmpublish unfortunately uses an outdated type definition of package.json
 export type OtpPublishFn = (
   manifest: ExportedManifest,
   tarballData: Buffer,
@@ -67,7 +66,6 @@ export interface OtpContext {
 export interface OtpParams {
   context?: OtpContext
   manifest: ExportedManifest
-  otpRetryAllowed?: boolean
   publishOptions: PublishOptions
   tarballData: Buffer
 }
@@ -79,6 +77,7 @@ export const SHARED_CONTEXT: OtpContext = {
   fetch: (url, options) => fetch(url, options),
   globalInfo,
   process,
+  // @types/libnpmpublish unfortunately uses an outdated type definition of package.json
   publish: publish as unknown as OtpPublishFn,
 }
 
@@ -104,12 +103,11 @@ const isOtpError = (error: unknown): error is OtpError =>
  * @throws {@link OtpWebAuthTimeoutError} if the webauth browser flow times out.
  * @throws the original error if OTP handling is not applicable.
  *
- * @see https://github.com/npm/cli/blob/7d900c46/lib/utils/otplease.js for npm's `otplease()` implementation.
+ * @see https://github.com/npm/cli/blob/7d900c46/lib/utils/otplease.js for npm's implementation.
  */
 export async function publishWithOtpHandling ({
   context = SHARED_CONTEXT,
   manifest,
-  otpRetryAllowed = true,
   publishOptions,
   tarballData,
 }: OtpParams): Promise<OtpPublishResponse> {
@@ -117,36 +115,41 @@ export async function publishWithOtpHandling ({
   try {
     response = await context.publish(manifest, tarballData, publishOptions)
   } catch (error) {
-    if (otpRetryAllowed && !!(context.process.stdin.isTTY && context.process.stdout.isTTY) && isOtpError(error)) {
-      const fetchOptions: OtpWebAuthFetchOptions = {
-        method: 'GET',
-        retry: {
-          factor: publishOptions.fetchRetryFactor,
-          maxTimeout: publishOptions.fetchRetryMaxtimeout,
-          minTimeout: publishOptions.fetchRetryMintimeout,
-          retries: publishOptions.fetchRetries,
-        },
-        timeout: publishOptions.timeout,
-      }
-      let otp: string | undefined
-      if (error.body?.authUrl && error.body?.doneUrl) {
-        otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, context, fetchOptions)
-      } else {
-        const enquirerResponse = await context.enquirer.prompt({
-          message: 'This operation requires a one-time password.\nEnter OTP:',
-          name: 'otp',
-          type: 'input',
-        })
-        otp = enquirerResponse?.otp || undefined
-      }
-      if (otp != null) {
-        return publishWithOtpHandling({
-          context,
-          manifest,
-          otpRetryAllowed: false,
-          tarballData,
-          publishOptions: { ...publishOptions, otp },
-        })
+    if (!isOtpError(error)) {
+      throw error
+    }
+    if (!context.process.stdin.isTTY || !context.process.stdout.isTTY) {
+      throw new OtpNonInteractiveError()
+    }
+    const fetchOptions: OtpWebAuthFetchOptions = {
+      method: 'GET',
+      retry: {
+        factor: publishOptions.fetchRetryFactor,
+        maxTimeout: publishOptions.fetchRetryMaxtimeout,
+        minTimeout: publishOptions.fetchRetryMintimeout,
+        retries: publishOptions.fetchRetries,
+      },
+      timeout: publishOptions.timeout,
+    }
+    let otp: string | undefined
+    if (error.body?.authUrl && error.body?.doneUrl) {
+      otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, context, fetchOptions)
+    } else {
+      const enquirerResponse = await context.enquirer.prompt({
+        message: 'This operation requires a one-time password.\nEnter OTP:',
+        name: 'otp',
+        type: 'input',
+      })
+      otp = enquirerResponse?.otp || undefined
+    }
+    if (otp != null) {
+      try {
+        return await context.publish(manifest, tarballData, { ...publishOptions, otp })
+      } catch (retryError) {
+        if (isOtpError(retryError)) {
+          throw new OtpSecondChallengeError()
+        }
+        throw retryError
       }
     }
     throw error
@@ -195,5 +198,17 @@ export class OtpWebAuthTimeoutError extends PnpmError {
     this.endTime = endTime
     this.startTime = startTime
     this.timeout = timeout
+  }
+}
+
+export class OtpNonInteractiveError extends PnpmError {
+  constructor () {
+    super('OTP_NON_INTERACTIVE', 'The registry requires a one-time password (OTP) but pnpm is not running in an interactive terminal. Please set the --otp option.')
+  }
+}
+
+export class OtpSecondChallengeError extends PnpmError {
+  constructor () {
+    super('OTP_SECOND_CHALLENGE', 'The registry requested a one-time password (OTP) a second time after one was already provided. This is unexpected behavior from the registry.')
   }
 }
