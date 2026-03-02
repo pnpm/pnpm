@@ -48,9 +48,11 @@ export class StoreIndex {
   private stmtDel: StatementSync
   private stmtAll: StatementSync
   private indexDir: string
+  private indexPrefix: string
 
   constructor (storeDir: string) {
     this.indexDir = path.join(storeDir, 'index')
+    this.indexPrefix = this.indexDir + path.sep
     const dbPath = path.join(storeDir, 'index.db')
     fs.mkdirSync(storeDir, { recursive: true })
     this.db = new DatabaseSync(dbPath)
@@ -60,6 +62,7 @@ export class StoreIndex {
       this.db.exec('PRAGMA journal_mode=WAL')
     })
     this.db.exec('PRAGMA synchronous=NORMAL')
+    this.db.exec('PRAGMA mmap_size=268435456')
     sqliteRetry(() => {
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS package_index (
@@ -80,10 +83,9 @@ export class StoreIndex {
    * (e.g. integrity.mpk files stored inside package directories).
    */
   pathToKey (filePath: string): string | null {
-    const prefix = this.indexDir + path.sep
-    if (!filePath.startsWith(prefix)) return null
+    if (!filePath.startsWith(this.indexPrefix)) return null
     // Strip the index/ prefix and .mpk suffix
-    const relative = filePath.slice(prefix.length)
+    const relative = filePath.slice(this.indexPrefix.length)
     if (relative.endsWith('.mpk')) {
       return relative.slice(0, -4)
     }
@@ -102,7 +104,7 @@ export class StoreIndex {
     }
     const row = this.stmtGet.get(key) as { data: Uint8Array } | undefined
     if (row) {
-      return packr.unpack(Buffer.from(row.data))
+      return packr.unpack(row.data)
     }
     // Fall back to reading legacy .mpk file
     const data = readMpkFileSync(filesIndexFile)
@@ -170,7 +172,7 @@ export class StoreIndex {
     for (const row of rows) {
       seenKeys.add(row.key)
       const filesIndexFile = path.join(this.indexDir, `${row.key}.mpk`)
-      const data = packr.unpack(Buffer.from(row.data))
+      const data = packr.unpack(row.data)
       yield [filesIndexFile, data]
     }
     // Then, scan the index/ directory for legacy .mpk files
