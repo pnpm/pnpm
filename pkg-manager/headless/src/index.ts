@@ -335,7 +335,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     pnpmVersion: opts.currentEngine.pnpmVersion,
     supportedArchitectures: opts.supportedArchitectures,
     includeUnchangedDeps: (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) ||
-      (!equals(opts.currentPublicHoistPattern ?? [], opts.publicHoistPattern ?? [])),
+      (!equals(opts.currentPublicHoistPattern ?? [], opts.publicHoistPattern ?? [])) ||
+      (opts.enableGlobalVirtualStore === true && !equals(opts.modulesFile?.allowBuilds ?? {}, opts.allowBuilds ?? {})),
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,
@@ -639,6 +640,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       storeDir: opts.storeDir,
       virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      allowBuilds: opts.allowBuilds,
     })
     const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
     if (opts.useLockfile) {

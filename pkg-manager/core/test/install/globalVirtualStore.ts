@@ -191,6 +191,51 @@ test('GVS hashes are stable when allowBuilds targets an unrelated package', asyn
   expect(hash1).toBe(hash2)
 })
 
+test('GVS re-links when allowBuilds changes', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+
+  // Step 1: Install with no packages allowed to build (engine-agnostic hashes)
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    allowBuilds: {},
+  }))
+
+  const hashBefore = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))[0]
+
+  // Verify allowBuilds is stored in modules.yaml
+  const rootModules = assertProject(process.cwd())
+  const modulesState = rootModules.readModulesManifest()
+  expect(modulesState?.allowBuilds).toEqual({})
+
+  // Step 2: Reinstall with dep allowed to build — hashes should change
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    allowBuilds: { '@pnpm.e2e/dep-of-pkg-with-1-dep': true },
+  }))
+
+  const hashAfter = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
+    .find((h) => h !== hashBefore)
+
+  // A new hash directory should have been created
+  expect(hashAfter).toBeDefined()
+  expect(hashAfter).not.toBe(hashBefore)
+
+  // Verify the new GVS layout is valid
+  expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', hashAfter!, 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+
+  // Verify modules.yaml is updated with new allowBuilds
+  const updatedState = rootModules.readModulesManifest()
+  expect(updatedState?.allowBuilds).toEqual({ '@pnpm.e2e/dep-of-pkg-with-1-dep': true })
+})
+
 test('injected local packages work with global virtual store', async () => {
   const project1Manifest = {
     name: 'project-1',

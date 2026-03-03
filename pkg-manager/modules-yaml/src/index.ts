@@ -39,6 +39,7 @@ interface ModulesRaw {
   virtualStoreDirMaxLength: number
   injectedDeps?: Record<string, string[]>
   hoistedLocations?: Record<string, string[]>
+  allowBuilds?: Record<string, boolean | string>
 }
 
 export type Modules = Omit<ModulesRaw, 'ignoredBuilds'> & {
