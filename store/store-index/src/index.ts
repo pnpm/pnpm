@@ -173,12 +173,22 @@ export class StoreIndex {
   /**
    * Write multiple pre-packed entries in a single transaction.
    * The buffers must already be msgpack-encoded.
+   * Keys containing \t are written to SQLite; other keys are written as .mpk files.
    */
   setRawMany (entries: Array<{ key: string, buffer: Uint8Array }>): void {
     if (entries.length === 0) return
-    if (entries.length === 1) {
+    const sqliteEntries: Array<{ key: string, buffer: Uint8Array }> = []
+    for (const entry of entries) {
+      if (isSqliteKey(entry.key)) {
+        sqliteEntries.push(entry)
+      } else {
+        writeRawMpkFileSync(entry.key, entry.buffer)
+      }
+    }
+    if (sqliteEntries.length === 0) return
+    if (sqliteEntries.length === 1) {
       sqliteRetry(() => {
-        this.stmtSet.run(entries[0].key, entries[0].buffer)
+        this.stmtSet.run(sqliteEntries[0].key, sqliteEntries[0].buffer)
       })
       return
     }
@@ -186,7 +196,7 @@ export class StoreIndex {
       this.db.exec('BEGIN IMMEDIATE')
       let committed = false
       try {
-        for (const { key, buffer } of entries) {
+        for (const { key, buffer } of sqliteEntries) {
           this.stmtSet.run(key, buffer)
         }
         this.db.exec('COMMIT')
@@ -254,6 +264,14 @@ function writeMpkFileSync (filePath: string, data: unknown): void {
   fs.mkdirSync(targetDir, { recursive: true })
   const buffer = packr.pack(data)
   // Atomic write: write to temp file, then rename
+  const temp = `${filePath}.${process.pid}.tmp`
+  fs.writeFileSync(temp, buffer)
+  fs.renameSync(temp, filePath)
+}
+
+function writeRawMpkFileSync (filePath: string, buffer: Uint8Array): void {
+  const targetDir = path.dirname(filePath)
+  fs.mkdirSync(targetDir, { recursive: true })
   const temp = `${filePath}.${process.pid}.tmp`
   fs.writeFileSync(temp, buffer)
   fs.renameSync(temp, filePath)
