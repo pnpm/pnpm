@@ -74,9 +74,7 @@ export class StoreIndex {
     sqliteRetry(() => {
       this.db.exec('PRAGMA journal_mode=WAL')
     })
-    // In WAL mode, synchronous=NORMAL is safe but synchronous=OFF provides a massive speedup
-    // for bulk inserts. Since pnpm can always re-fetch a corrupted index, OFF is preferred.
-    this.db.exec('PRAGMA synchronous=OFF')
+    this.db.exec('PRAGMA synchronous=NORMAL')
     // Increase memory map size to 512MB
     this.db.exec('PRAGMA mmap_size=536870912')
     // Increase page cache size to ~32MB
