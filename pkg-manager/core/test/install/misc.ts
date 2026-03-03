@@ -266,7 +266,7 @@ test('scoped modules with versions', async () => {
 
 test('multiple scoped modules (@rstacruz/...)', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@rstacruz/tap-spec@4.1.1', '@rstacruz/travis-encrypt@1.1.1'], testDefaults({ fastUnpack: false }))
 
   expect(typeof project.requireModule('@rstacruz/tap-spec')).toBe('function')
   expect(typeof project.requireModule('@rstacruz/travis-encrypt')).toBe('function')
@@ -359,6 +359,7 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async () => {
 })
 
 test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
+  await addDistTag({ package: 'is-positive', version: '3.1.0', distTag: 'latest' })
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@3.0.0'], testDefaults({ save: true }))
   expect(manifest.dependencies?.['is-positive']).toBe('3.0.0')

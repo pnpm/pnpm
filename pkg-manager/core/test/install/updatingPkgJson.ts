@@ -19,6 +19,7 @@ test('save to package.json (is-positive@^1.0.0)', async () => {
 
 // NOTE: this works differently for global installations. See similar tests in global.ts
 test("don't override existing spec in package.json on named installation", async () => {
+  await addDistTag({ package: 'is-negative', version: '2.1.0', distTag: 'latest' })
   const project = prepareEmpty()
   let { updatedManifest: manifest } = await addDependenciesToPackage({
     dependencies: {
@@ -41,6 +42,7 @@ test("don't override existing spec in package.json on named installation", async
 })
 
 test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async () => {
+  await addDistTag({ package: '@rstacruz/tap-spec', version: '4.1.1', distTag: 'latest' })
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@rstacruz/tap-spec'], testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }))
 
@@ -169,6 +171,7 @@ test('dependency should be removed from the old field when installing it as a di
 })
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async () => {
+  await addDistTag({ package: '@zkochan/foo', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0', '@zkochan/foo@latest'], testDefaults({ save: true, pinnedVersion: 'patch' }))
 
