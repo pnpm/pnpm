@@ -45,7 +45,7 @@ export function help (): string {
   })
 }
 
-type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
+type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'enableGlobalVirtualStore' | 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
 
 export async function handler (opts: FetchCommandOptions): Promise<void> {
   const store = await createStoreController(opts)
