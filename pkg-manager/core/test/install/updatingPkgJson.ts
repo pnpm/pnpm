@@ -171,7 +171,6 @@ test('dependency should be removed from the old field when installing it as a di
 })
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async () => {
-  await addDistTag({ package: '@zkochan/foo', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0', '@zkochan/foo@latest'], testDefaults({ save: true, pinnedVersion: 'patch' }))
 
