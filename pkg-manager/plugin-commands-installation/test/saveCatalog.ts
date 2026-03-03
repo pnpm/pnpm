@@ -6,6 +6,7 @@ import { addDistTag } from '@pnpm/registry-mock'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { loadJsonFileSync } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
+import nock from 'nock'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 // This must be a function because some of its values depend on CWD
@@ -15,6 +16,11 @@ const createOptions = (saveCatalogName = 'default'): add.AddCommandOptions => ({
   dir: process.cwd(),
   cacheDir: path.resolve('cache'),
   storeDir: path.resolve('store'),
+})
+
+afterEach(() => {
+  nock.abortPendingRequests()
+  nock.cleanAll()
 })
 
 test('saveCatalogName creates new workspace manifest with the new catalogs', async () => {
@@ -69,6 +75,11 @@ test('saveCatalogName works with different protocols', async () => {
     version: '0.0.0',
     private: true,
   })
+  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes.
+  // Without this, transient network failures cause fallback to git+https:// resolution.
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/kevva/is-positive')
+    .reply(200)
 
   const options = createOptions()
   options.registries['@jsr'] = options.rawConfig['@jsr:registry'] = 'https://npm.jsr.io/'
@@ -126,6 +137,7 @@ test('saveCatalogName works with different protocols', async () => {
       },
     },
   } as Partial<LockfileFile>))
+  githubNock.done()
 })
 
 test('saveCatalogName does not work with local dependencies', async () => {

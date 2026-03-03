@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { STORE_VERSION } from '@pnpm/constants'
 import { install, fetch } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -179,4 +180,44 @@ test('fetch skips file: protocol dependencies that do not exist', async () => {
   })
 
   project.storeHas('is-positive')
+})
+
+test('fetch populates global virtual store links/', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+  const storeDir = path.resolve('store')
+  const globalVirtualStoreDir = path.join(storeDir, STORE_VERSION, 'links')
+
+  // Generate the lockfile only — no need for a full install
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    lockfileOnly: true,
+    storeDir,
+  })
+
+  // Remove the store — simulate a cold start with only the lockfile
+  rimraf(storeDir)
+
+  // Fetch with enableGlobalVirtualStore — should populate links/
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    storeDir,
+    enableGlobalVirtualStore: true,
+  })
+
+  // The global virtual store links/ directory should exist and contain packages
+  expect(fs.existsSync(globalVirtualStoreDir)).toBeTruthy()
+  const entries = fs.readdirSync(globalVirtualStoreDir)
+  expect(entries.length).toBeGreaterThan(0)
 })

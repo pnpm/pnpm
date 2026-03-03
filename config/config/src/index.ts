@@ -609,9 +609,11 @@ export async function getConfig (opts: {
     pnpmConfig.dev = true
   }
 
-  if (pnpmConfig.ci) {
+  if (pnpmConfig.ci && pnpmConfig.enableGlobalVirtualStore == null) {
     // Using a global virtual store in CI makes little sense,
-    // as there is never a warm cache in that environment.
+    // as there is usually no warm cache in that environment.
+    // However, if the user explicitly enabled GVS (e.g., for Nix builds
+    // or CI systems with persistent caches), respect that setting.
     pnpmConfig.enableGlobalVirtualStore = false
   }
 

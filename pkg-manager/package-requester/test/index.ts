@@ -34,6 +34,11 @@ const { resolve, fetchers } = createClient({
   registries,
 })
 
+afterEach(() => {
+  nock.abortPendingRequests()
+  nock.cleanAll()
+})
+
 test('request package', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
@@ -621,7 +626,6 @@ test('fetchPackageToStore() does not cache errors', async () => {
 
 // This test was added to cover the issue described here: https://github.com/pnpm/supi/issues/65
 test('always return a package manifest in the response', async () => {
-  nock.cleanAll()
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
@@ -728,7 +732,6 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
 })
 
 test('refetch package to store if it has been modified', async () => {
-  nock.cleanAll()
   const storeDir = temporaryDirectory()
   const lockfileDir = temporaryDirectory()
 
@@ -853,7 +856,12 @@ test('fetch a git package without a package.json', async () => {
   const repo = 'denolib/camelcase'
   const commit = 'aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b'
 
-  nock.cleanAll()
+  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes to check if the repo is public.
+  // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
+  // resolving via the codeload tarball URL.
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/denolib/camelcase')
+    .reply(200)
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
@@ -881,6 +889,7 @@ test('fetch a git package without a package.json', async () => {
     expect(pkgResponse.body.isInstallable).toBeFalsy()
     expect(pkgResponse.body.id).toBe(`https://codeload.github.com/${repo}/tar.gz/${commit}`)
   }
+  githubNock.done()
 })
 
 test('throw exception if the package data in the store differs from the expected data', async () => {
