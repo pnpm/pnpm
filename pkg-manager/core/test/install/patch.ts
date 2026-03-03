@@ -5,8 +5,9 @@ import { ENGINE_NAME } from '@pnpm/constants'
 import { install } from '@pnpm/core'
 import { type IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
-import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { prepareEmpty } from '@pnpm/prepare'
+import { getIntegrity } from '@pnpm/registry-mock'
+import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { jest } from '@jest/globals'
 import { sync as rimraf } from '@zkochan/rimraf'
@@ -56,8 +57,10 @@ test('patch package with exact version', async () => {
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.mpk')
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexKey = storeIndexKey(getIntegrity('is-positive', '1.0.0'), 'is-positive@1.0.0')
+  const storeIndex = new StoreIndex(opts.storeDir)
+  const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
+  storeIndex.close()
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
@@ -154,8 +157,10 @@ test('patch package with version range', async () => {
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.mpk')
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexKey = storeIndexKey(getIntegrity('is-positive', '1.0.0'), 'is-positive@1.0.0')
+  const storeIndex = new StoreIndex(opts.storeDir)
+  const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
+  storeIndex.close()
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
@@ -324,8 +329,10 @@ test('patch package when scripts are ignored', async () => {
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.mpk')
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexKey = storeIndexKey(getIntegrity('is-positive', '1.0.0'), 'is-positive@1.0.0')
+  const storeIndex = new StoreIndex(opts.storeDir)
+  const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
+  storeIndex.close()
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
@@ -415,8 +422,10 @@ test('patch package when the package is not in allowBuilds list', async () => {
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.mpk')
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexKey = storeIndexKey(getIntegrity('is-positive', '1.0.0'), 'is-positive@1.0.0')
+  const storeIndex = new StoreIndex(opts.storeDir)
+  const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
+  storeIndex.close()
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
