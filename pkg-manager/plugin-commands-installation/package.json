@@ -114,6 +114,7 @@
     "ci-info": "catalog:",
     "delay": "catalog:",
     "jest-diff": "catalog:",
+    "nock": "catalog:",
     "path-name": "catalog:",
     "proxyquire": "catalog:",
     "read-yaml-file": "catalog:",
