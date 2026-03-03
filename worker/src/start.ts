@@ -6,7 +6,7 @@ import { type Cafs, type PackageFiles, type SideEffectsDiff, type FilesMap } fro
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
-import { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex, packForStorage } from '@pnpm/store-index'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import {
   type CafsFunctions,
@@ -212,7 +212,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
       requiresBuild,
       integrity: integrity ?? calcIntegrity(buffer),
     },
-    indexWrites: [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex, getStoreIndex(storeDir)) }],
+    indexWrites: [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex) }],
   }
 }
 
@@ -221,8 +221,8 @@ function calcIntegrity (buffer: Buffer): string {
   return formatIntegrity('sha512', calculatedHash)
 }
 
-function packToShared (data: unknown, storeIndex: StoreIndex): Uint8Array {
-  const packed = storeIndex.packr.pack(data)
+function packToShared (data: unknown): Uint8Array {
+  const packed = packForStorage(data)
   const shared = new SharedArrayBuffer(packed.byteLength)
   const view = new Uint8Array(shared)
   view.set(packed)
@@ -327,7 +327,7 @@ function addFilesFromDir (
     } else {
       requiresBuild = existingFilesIndex.requiresBuild
     }
-    indexWrites = [{ key: filesIndexFile, buffer: packToShared(existingFilesIndex, getStoreIndex(storeDir)) }]
+    indexWrites = [{ key: filesIndexFile, buffer: packToShared(existingFilesIndex) }]
   } else {
     requiresBuild = pkgRequiresBuild(bundledManifest, filesIntegrity)
     const pkgFilesIndex: PackageFilesIndex = {
@@ -336,7 +336,7 @@ function addFilesFromDir (
       algo: HASH_ALGORITHM,
       files: filesIntegrity,
     }
-    indexWrites = [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex, getStoreIndex(storeDir)) }]
+    indexWrites = [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex) }]
   }
   return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild }, indexWrites }
 }
