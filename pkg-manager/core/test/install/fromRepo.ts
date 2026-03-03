@@ -11,14 +11,25 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { assertProject } from '@pnpm/assert-project'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
+import nock from 'nock'
 import sinon from 'sinon'
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 const withGitProtocolDepFixture = f.find('with-git-protocol-dep')
 
+afterEach(() => {
+  nock.abortPendingRequests()
+  nock.cleanAll()
+})
+
 test('from a github repo', async () => {
   const project = prepareEmpty()
+  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes.
+  // Without this, transient network failures cause fallback to git+https:// resolution.
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/kevva/is-negative')
+    .reply(200)
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['kevva/is-negative'], testDefaults())
 
@@ -27,20 +38,28 @@ test('from a github repo', async () => {
   expect(manifest.dependencies).toStrictEqual({
     'is-negative': 'github:kevva/is-negative',
   })
+  githubNock.done()
 })
 
 test('from a github repo through URL', async () => {
   const project = prepareEmpty()
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/kevva/is-negative')
+    .reply(200)
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['https://github.com/kevva/is-negative'], testDefaults())
 
   project.has('is-negative')
 
   expect(manifest.dependencies).toStrictEqual({ 'is-negative': 'github:kevva/is-negative' })
+  githubNock.done()
 })
 
 test('from a github repo with different name via named installation', async () => {
   const project = prepareEmpty()
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/zkochan/hi')
+    .reply(200)
 
   const reporter = sinon.spy()
 
@@ -77,11 +96,15 @@ test('from a github repo with different name via named installation', async () =
 
   project.isExecutable('.bin/hi')
   project.isExecutable('.bin/szia')
+  githubNock.done()
 })
 
 // This used to fail. Maybe won't be needed once api/install.ts gets refactored and covered with dedicated unit tests
 test('from a github repo with different name', async () => {
   const project = prepareEmpty()
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/zkochan/hi')
+    .reply(200)
 
   const reporter = sinon.spy()
 
@@ -120,10 +143,14 @@ test('from a github repo with different name', async () => {
 
   project.isExecutable('.bin/hi')
   project.isExecutable('.bin/szia')
+  githubNock.done()
 })
 
 test('a subdependency is from a github repo with different name', async () => {
   const project = prepareEmpty()
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/zkochan/hi')
+    .reply(200)
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/has-aliased-git-dependency'], testDefaults({ fastUnpack: false }))
 
@@ -141,6 +168,7 @@ test('a subdependency is from a github repo with different name', async () => {
   project.isExecutable('@pnpm.e2e/has-aliased-git-dependency/node_modules/.bin/szia')
 
   expect(fs.existsSync(path.resolve(`node_modules/.pnpm/${depPathToFilename('@pnpm.e2e/has-say-hi-peer@1.0.0(hi@https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd)', 120)}/node_modules/@pnpm.e2e/has-say-hi-peer`))).toBeTruthy()
+  githubNock.done()
 })
 
 test('from a git repo', async () => {
@@ -177,6 +205,10 @@ test.skip('from a non-github git repo', async () => {
 
 test('from a github repo the has no package.json file', async () => {
   const project = prepareEmpty()
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/pnpm/for-testing.no-package-json')
+    .times(2)
+    .reply(200)
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['pnpm/for-testing.no-package-json'], testDefaults())
 
@@ -193,6 +225,7 @@ test('from a github repo the has no package.json file', async () => {
   // e.g. thrown: "Exceeded timeout of 240000 ms for a test.
   await addDependenciesToPackage({}, ['pnpm/for-testing.no-package-json'], testDefaults())
   project.has('for-testing.no-package-json')
+  githubNock.done()
 })
 
 test.skip('from a github repo that needs to be built. isolated node linker is used', async () => {
@@ -241,6 +274,10 @@ test.skip('from a github repo that needs to be built. hoisted node linker is  us
 
 test('re-adding a git repo with a different tag', async () => {
   const project = prepareEmpty()
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/kevva/is-negative')
+    .times(2)
+    .reply(200)
   let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['kevva/is-negative#1.0.0'], testDefaults())
   project.has('is-negative')
   expect(manifest.dependencies).toStrictEqual({
@@ -278,6 +315,7 @@ test('re-adding a git repo with a different tag', async () => {
       },
     }
   )
+  githubNock.done()
 })
 
 test('should not update when adding unrelated dependency', async () => {
@@ -325,6 +363,10 @@ test('git-hosted repository is not added to the store if it fails to be built', 
 
 test('from subdirectories of a git repo', async () => {
   const project = prepareEmpty()
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/RexSkz/test-git-subfolder-fetch')
+    .times(2)
+    .reply(200)
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, [
     'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app',
@@ -338,10 +380,14 @@ test('from subdirectories of a git repo', async () => {
     '@my-namespace/simple-express-server': 'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-express-server',
     '@my-namespace/simple-react-app': 'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app',
   })
+  githubNock.done()
 })
 
 test('no hash character for github subdirectory install', async () => {
   prepareEmpty()
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/pnpm/only-allow')
+    .reply(200)
 
   await addDependenciesToPackage({}, [
     'github:pnpm/only-allow#path:/&v1.2.1',
@@ -349,4 +395,5 @@ test('no hash character for github subdirectory install', async () => {
 
   expect(fs.readdirSync('./node_modules/.pnpm'))
     .toContain('only-allow@https+++codeload.github.com+pnpm+only-allow+tar.gz+91ab41994c6a1b7319869fa8864163c9954f56ec+path++')
+  githubNock.done()
 })

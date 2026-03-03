@@ -32,13 +32,15 @@ To quote the [Rush](https://rushjs.io/) team:
 [![X Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://x.com/intent/follow?screen_name=pnpmjs&region=follow_link)
 [![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://stand-with-ukraine.pp.ua)
 
+<!-- sponsors -->
+
 ## Platinum Sponsors
 
 <table>
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
+        <a href="https://bit.cloud/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
       </td>
     </tr>
   </tbody>
@@ -68,9 +70,7 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <img src="https://pnpm.io/img/users/vitejs.svg" width="42" alt="Vite">
-        </a>
+        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/vitejs.svg" width="42" alt="Vite"></a>
       </td>
     </tr>
     <tr>
@@ -93,22 +93,22 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://workleap.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+        <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/workleap.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/workleap_light.svg" />
-            <img src="https://pnpm.io/img/users/workleap.svg" width="190" alt="Workleap" />
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/stackblitz.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/stackblitz_light.svg" />
+            <img src="https://pnpm.io/img/users/stackblitz.svg" width="190" alt="Stackblitz" />
           </picture>
         </a>
       </td>
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+        <a href="https://workleap.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/stackblitz.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/stackblitz_light.svg" />
-            <img src="https://pnpm.io/img/users/stackblitz.svg" width="190" alt="Stackblitz" />
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/workleap.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/workleap_light.svg" />
+            <img src="https://pnpm.io/img/users/workleap.svg" width="190" alt="Workleap" />
           </picture>
         </a>
       </td>
@@ -131,6 +131,18 @@ To quote the [Rush](https://rushjs.io/) team:
   <tbody>
     <tr>
       <td align="center" valign="middle">
+        <a href="https://replit.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/replit.png" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/replit_light.png" />
+            <img src="https://pnpm.io/img/users/replit.png" width="140" alt="Replit" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://devowl.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/devowlio.svg" width="100" alt="devowl.io"></a>
+      </td>
+      <td align="center" valign="middle">
         <a href="https://uscreen.de/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/uscreen.svg" />
@@ -139,10 +151,10 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
-        <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <img src="https://pnpm.io/img/users/leniolabs.jpg" width="40" alt="Leniolabs_">
-        </a>
+        <a href="https://www.leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/leniolabs.jpg" width="40" alt="Leniolabs_"></a>
       </td>
       <td align="center" valign="middle">
         <a href="https://depot.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
@@ -150,17 +162,6 @@ To quote the [Rush](https://rushjs.io/) team:
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/depot.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/depot_light.svg" />
             <img src="https://pnpm.io/img/users/depot.svg" width="100" alt="Depot" />
-          </picture>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://devowl.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/devowlio.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/devowlio.svg" />
-            <img src="https://pnpm.io/img/users/devowlio.svg" width="100" alt="devowl.io" />
           </picture>
         </a>
       </td>
@@ -173,18 +174,16 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
-        <a href="https://oomol.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/oomol.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/oomol_light.svg" />
-            <img src="https://pnpm.io/img/users/oomol.svg" width="90" alt="OOMOL Studio" />
-          </picture>
-        </a>
+        <a href="https://time.now/?utm_source=pnpm&utm_medium=readme" target="_blank">⏱️ Time.now</a>
       </td>
     </tr>
   </tbody>
 </table>
+
+<!-- sponsors end -->
 
 Support this project by [becoming a sponsor](https://opencollective.com/pnpm#sponsor).
 

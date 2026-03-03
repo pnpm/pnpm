@@ -13,7 +13,6 @@ test('using a global virtual store', async () => {
   const storeDir = path.resolve('store')
   const globalVirtualStoreDir = path.join(storeDir, 'v11/links')
   writeYamlFile(path.resolve('pnpm-workspace.yaml'), {
-    ci: false, // We force CI=false because enableGlobalVirtualStore is always disabled in CI
     enableGlobalVirtualStore: true,
     storeDir,
     privateHoistPattern: '*',
