@@ -27,6 +27,13 @@ try {
 
 global['pnpm__startedAt'] = Date.now()
 
+// We don't want to see "SQLite is an experimental feature and might change at any time" warnings
+process.removeAllListeners('warning').on('warning', err => {
+  if (err.name !== 'ExperimentalWarning' && !err.message.includes('experimental')) {
+    console.warn(err)
+  }
+})
+
 import {} from '../dist/pnpm.mjs'
 
 // if you want to debug at your local env, you can use this
