@@ -194,17 +194,17 @@ test('fetch populates global virtual store links/', async () => {
   const storeDir = path.resolve('store')
   const globalVirtualStoreDir = path.join(storeDir, STORE_VERSION, 'links')
 
-  // First, install to generate the lockfile
+  // Generate the lockfile only — no need for a full install
   await install.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     linkWorkspacePackages: true,
+    lockfileOnly: true,
     storeDir,
   })
 
-  // Remove everything — simulate a cold start with only the lockfile
-  rimraf(path.resolve('node_modules'))
+  // Remove the store — simulate a cold start with only the lockfile
   rimraf(storeDir)
 
   // Fetch with enableGlobalVirtualStore — should populate links/
