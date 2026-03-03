@@ -127,8 +127,9 @@ async function updateGlobalPackageGroup (
 
   // Check for bin name conflicts with other global packages
   const pkgs = await readInstalledPackages(installDir)
+  let binsToSkip: Set<string>
   try {
-    await checkGlobalBinConflicts({
+    binsToSkip = await checkGlobalBinConflicts({
       globalDir,
       globalBinDir,
       newPkgs: pkgs,
@@ -152,5 +153,5 @@ async function updateGlobalPackageGroup (
   }
 
   // Link bins from new installation
-  await linkBinsOfPackages(pkgs, globalBinDir)
+  await linkBinsOfPackages(pkgs, globalBinDir, { excludeBins: binsToSkip })
 }

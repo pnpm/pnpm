@@ -17,16 +17,23 @@ const BIN_OWNER_OVERRIDES: Record<string, string> = {
   npx: 'npm',
 }
 
-function newPkgOwnsBin (binName: string, newPkgName: string): boolean {
-  return binName === newPkgName || BIN_OWNER_OVERRIDES[binName] === newPkgName
+function pkgOwnsBin (binName: string, pkgName: string): boolean {
+  return binName === pkgName || BIN_OWNER_OVERRIDES[binName] === pkgName
 }
 
+/**
+ * Checks for bin name conflicts between new packages and existing global
+ * packages.  Returns a set of bin names that should be skipped during linking
+ * because they are legitimately owned by an already-installed package.
+ */
 export async function checkGlobalBinConflicts (opts: {
   globalDir: string
   globalBinDir: string
   newPkgs: Array<{ manifest: DependencyManifest, location: string }>
   shouldSkip: (pkg: GlobalPackageInfo) => boolean
-}): Promise<void> {
+}): Promise<Set<string>> {
+  const binsToSkip = new Set<string>()
+
   // Map each new bin name to the package that provides it
   const newBinOwners = new Map<string, string>()
   await Promise.all(
@@ -37,13 +44,13 @@ export async function checkGlobalBinConflicts (opts: {
       }
     })
   )
-  if (newBinOwners.size === 0) return
+  if (newBinOwners.size === 0) return binsToSkip
 
   // Quick check: only investigate if a bin with the same name already exists
   const conflicting = [...newBinOwners.keys()].filter(
     (name) => fs.existsSync(path.join(opts.globalBinDir, name))
   )
-  if (conflicting.length === 0) return
+  if (conflicting.length === 0) return binsToSkip
 
   // Some bins already exist — find out if they belong to packages being replaced
   // (in which case it's fine) or to other packages (conflict).
@@ -60,7 +67,13 @@ export async function checkGlobalBinConflicts (opts: {
         if (!conflicting.includes(bin.name)) continue
         // If the new package owns this bin (name match or override), it
         // gets priority and is allowed to override the existing bin.
-        if (newPkgOwnsBin(bin.name, newBinOwners.get(bin.name)!)) continue
+        if (pkgOwnsBin(bin.name, newBinOwners.get(bin.name)!)) continue
+        // If the existing package owns this bin, the new package should
+        // skip linking it rather than failing the entire install.
+        if (pkgOwnsBin(bin.name, alias)) {
+          binsToSkip.add(bin.name)
+          continue
+        }
         throw new PnpmError(
           'GLOBAL_BIN_CONFLICT',
           `Cannot install: binary "${bin.name}" would conflict with package "${alias}" that is already installed globally`,
@@ -71,4 +84,5 @@ export async function checkGlobalBinConflicts (opts: {
       }
     }
   }
+  return binsToSkip
 }

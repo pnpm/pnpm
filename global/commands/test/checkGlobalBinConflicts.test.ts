@@ -73,7 +73,7 @@ describe('checkGlobalBinConflicts', () => {
         newPkgs: [newPkg],
         shouldSkip: () => false,
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual(new Set())
   })
 
   it('throws on unrelated bin name conflict', async () => {
@@ -122,7 +122,7 @@ describe('checkGlobalBinConflicts', () => {
         newPkgs: [newPkg],
         shouldSkip: () => false,
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual(new Set())
   })
 
   it('allows override for npx when npm package is being installed (BIN_OWNER_OVERRIDES)', async () => {
@@ -147,7 +147,7 @@ describe('checkGlobalBinConflicts', () => {
         newPkgs: [newPkg],
         shouldSkip: () => false,
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual(new Set())
   })
 
   it('still throws when an unowned bin conflicts even if another bin is owned', async () => {
@@ -198,6 +198,37 @@ describe('checkGlobalBinConflicts', () => {
         newPkgs: [newPkg],
         shouldSkip: (pkg) => 'typescript' in pkg.dependencies,
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual(new Set())
+  })
+
+  it('returns bins to skip when existing package owns conflicting bins', async () => {
+    const globalDir = makeTempDir()
+    const globalBinDir = makeTempDir()
+
+    // Existing "npm" package provides "npm" and "npx" bins
+    createExistingGlobalPackage(globalDir, {
+      alias: 'npm',
+      bins: { npm: './bin/npm-cli.js', npx: './bin/npx-cli.js' },
+    })
+    fs.writeFileSync(path.join(globalBinDir, 'npm'), '')
+    fs.writeFileSync(path.join(globalBinDir, 'npx'), '')
+
+    // New "node" package provides "node", "npm", and "npx"
+    // "node" doesn't own "npm" or "npx", but the existing "npm" package does,
+    // so those bins should be skipped rather than causing an error.
+    const newPkg = makeNewPkg('node', {
+      node: './bin/node',
+      npm: './lib/npm-cli.js',
+      npx: './lib/npx-cli.js',
+    })
+
+    await expect(
+      checkGlobalBinConflicts({
+        globalDir,
+        globalBinDir,
+        newPkgs: [newPkg],
+        shouldSkip: () => false,
+      })
+    ).resolves.toEqual(new Set(['npm', 'npx']))
   })
 })
