@@ -16,6 +16,7 @@ import {
 import { verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
+  type AllowBuild,
   type DependenciesField,
   DEPENDENCIES_FIELDS,
   type DependencyManifest,
@@ -463,13 +464,31 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     .filter(Boolean) as DependencyManifest[]
 }
 
+function computeBuiltDepPathsFromGraph (graph: DependenciesGraph, allowBuild?: AllowBuild): Set<DepPath> | undefined {
+  if (allowBuild == null) {
+    return new Set()
+  }
+  const builtDepPaths = new Set<DepPath>()
+  for (const depPath in graph) {
+    if (Object.hasOwn(graph, depPath)) {
+      const { name, version } = graph[depPath as DepPath]
+      if (allowBuild(name, version) === true) {
+        builtDepPaths.add(depPath as DepPath)
+      }
+    }
+  }
+  return builtDepPaths
+}
+
 function extendGraph (
   graph: DependenciesGraph,
   opts: {
+    allowBuild?: AllowBuild
     globalVirtualStoreDir: string
     enableGlobalVirtualStore?: boolean
   }
 ): DependenciesGraph {
+  const builtDepPaths = computeBuiltDepPathsFromGraph(graph, opts.allowBuild)
   const pkgMetaIter = (function * () {
     for (const depPath in graph) {
       if ((opts.enableGlobalVirtualStore === true || isRuntimeDepPath(depPath as DepPath)) && Object.hasOwn(graph, depPath)) {
@@ -483,7 +502,7 @@ function extendGraph (
       }
     }
   })()
-  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter)) {
+  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, builtDepPaths)) {
     const modules = path.join(opts.globalVirtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {

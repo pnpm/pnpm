@@ -118,6 +118,79 @@ test('modules are correctly updated when using a global virtual store', async ()
   }
 })
 
+test('GVS hashes are engine-agnostic for packages not in allowBuilds', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+
+  // Scenario 1: No packages allowed to build — all hashes should be engine-agnostic
+  const gvsDir1 = path.resolve('links1')
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: gvsDir1,
+    allowBuilds: {},
+  }))
+  rimraf('node_modules')
+
+  // Scenario 2: Dependency allowed to build — parent hash becomes engine-specific
+  // because it transitively depends on a package that is allowed to build
+  const gvsDir2 = path.resolve('links2')
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: gvsDir2,
+    frozenLockfile: true,
+    allowBuilds: { '@pnpm.e2e/dep-of-pkg-with-1-dep': true },
+  }))
+
+  // Read hash directories for the parent package from both scenarios
+  const hashNoBuilds = fs.readdirSync(path.join(gvsDir1, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))[0]
+  const hashWithBuilds = fs.readdirSync(path.join(gvsDir2, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))[0]
+
+  // Hashes must differ: scenario 1 omits ENGINE_NAME, scenario 2 includes it
+  // (because dep-of-pkg-with-1-dep is allowed to build)
+  expect(hashNoBuilds).not.toBe(hashWithBuilds)
+
+  // Both scenarios should still produce valid GVS layouts
+  expect(fs.existsSync(path.join(gvsDir1, '@pnpm.e2e/pkg-with-1-dep/100.0.0', hashNoBuilds, 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(gvsDir2, '@pnpm.e2e/pkg-with-1-dep/100.0.0', hashWithBuilds, 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+})
+
+test('GVS hashes are stable when allowBuilds targets an unrelated package', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+
+  // Scenario 1: No packages allowed to build
+  const gvsDir1 = path.resolve('links1')
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: gvsDir1,
+    allowBuilds: {},
+  }))
+  rimraf('node_modules')
+
+  // Scenario 2: An unrelated package allowed to build
+  // This should NOT affect hashes of @pnpm.e2e/pkg-with-1-dep or its deps
+  const gvsDir2 = path.resolve('links2')
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: gvsDir2,
+    frozenLockfile: true,
+    allowBuilds: { 'some-unrelated-package': true },
+  }))
+
+  // Hashes should be identical since the allowBuilds target is not in the dep tree
+  const hash1 = fs.readdirSync(path.join(gvsDir1, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))[0]
+  const hash2 = fs.readdirSync(path.join(gvsDir2, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))[0]
+  expect(hash1).toBe(hash2)
+})
+
 test('injected local packages work with global virtual store', async () => {
   const project1Manifest = {
     name: 'project-1',
