@@ -1,6 +1,5 @@
 // cspell:ignore checkin
 import path from 'path'
-import { createRequire } from 'module'
 import os from 'os'
 import { WorkerPool } from '@rushstack/worker-pool'
 import { PnpmError } from '@pnpm/error'
@@ -10,7 +9,7 @@ import { type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
 import { type BundledManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { globalWarn } from '@pnpm/logger'
-import type { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex } from '@pnpm/store-index'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
@@ -20,19 +19,6 @@ import {
 } from './types.js'
 
 let workerPool: WorkerPool | undefined
-
-// Lazy-load @pnpm/store-index to avoid loading node:sqlite at import time.
-// This prevents the native module from being loaded in Jest worker processes
-// that only import @pnpm/worker for finishWorkers().
-const _require = createRequire(import.meta.url)
-let _StoreIndex: (new (storeDir: string) => StoreIndex) | undefined
-
-function requireStoreIndex (): new (storeDir: string) => StoreIndex {
-  if (!_StoreIndex) {
-    _StoreIndex = _require('@pnpm/store-index').StoreIndex
-  }
-  return _StoreIndex!
-}
 
 // Single-writer index: all SQLite writes happen in the main process.
 // Writes from the fetch phase are batched via process.nextTick for throughput.
@@ -44,8 +30,7 @@ let flushScheduled = false
 
 function getMainStoreIndex (storeDir: string): StoreIndex {
   if (!mainStoreIndexCache.has(storeDir)) {
-    const StoreIndexCtor = requireStoreIndex()
-    mainStoreIndexCache.set(storeDir, new StoreIndexCtor(storeDir))
+    mainStoreIndexCache.set(storeDir, new StoreIndex(storeDir))
   }
   return mainStoreIndexCache.get(storeDir)!
 }
