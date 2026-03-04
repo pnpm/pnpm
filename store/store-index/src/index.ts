@@ -18,19 +18,24 @@ const SQLITE_BUSY = 5
 const RETRY_DELAY_MS = 50
 const MAX_RETRIES = 100 // ~5 seconds total
 
-function sqliteRetry (fn: () => void): void {
+function sqliteRetry<T> (fn: () => T): T {
   for (let attempt = 0; ; attempt++) {
     try {
-      fn()
-      return
-    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-      if (err?.errcode === SQLITE_BUSY && attempt < MAX_RETRIES) {
+      return fn()
+    } catch (err: unknown) {
+      if (isSqliteBusy(err) && attempt < MAX_RETRIES) {
         sleepSync(RETRY_DELAY_MS)
         continue
       }
       throw err
     }
   }
+}
+
+function isSqliteBusy (err: any): boolean { // eslint-disable-line @typescript-eslint/no-explicit-any
+  // errcode may be an extended error code (e.g. SQLITE_BUSY_RECOVERY = 261),
+  // so mask off the upper bits to get the primary error code.
+  return (err?.errcode & 0xFF) === SQLITE_BUSY
 }
 
 function sleepSync (ms: number): void {
@@ -75,6 +80,9 @@ export class StoreIndex {
       this.db.exec('PRAGMA journal_mode=WAL')
     })
     this.db.exec('PRAGMA synchronous=NORMAL')
+    // Let SQLite wait up to 5 seconds before returning SQLITE_BUSY.
+    // This handles concurrent access from the main process and worker threads.
+    this.db.exec('PRAGMA busy_timeout=5000')
     // Increase memory map size to 512MB
     this.db.exec('PRAGMA mmap_size=536870912')
     // Increase page cache size to ~32MB
@@ -104,7 +112,7 @@ export class StoreIndex {
    */
   get (key: string): unknown | undefined {
     if (isSqliteKey(key)) {
-      const row = this.stmtGet.get(key) as { data: Uint8Array } | undefined
+      const row = sqliteRetry(() => this.stmtGet.get(key)) as { data: Uint8Array } | undefined
       if (row) {
         return packr.unpack(row.data)
       }
@@ -153,7 +161,7 @@ export class StoreIndex {
    */
   has (key: string): boolean {
     if (isSqliteKey(key)) {
-      return this.stmtHas.get(key) != null
+      return sqliteRetry(() => this.stmtHas.get(key)) != null
     }
     return fs.existsSync(key)
   }
