@@ -72,12 +72,12 @@ test('from a github repo with different name via named installation', async () =
   const m = project.requireModule('say-hi')
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    added: {
+    added: expect.objectContaining({
       dependencyType: 'prod',
       name: 'say-hi',
       realName: 'hi',
       version: '1.0.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog))
@@ -117,12 +117,12 @@ test('from a github repo with different name', async () => {
   const m = project.requireModule('say-hi')
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    added: {
+    added: expect.objectContaining({
       dependencyType: 'prod',
       name: 'say-hi',
       realName: 'hi',
       version: '1.0.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog))

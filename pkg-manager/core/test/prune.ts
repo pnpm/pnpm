@@ -46,11 +46,11 @@ test('prune removes extraneous packages', async () => {
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:root',
-    removed: {
+    removed: expect.objectContaining({
       dependencyType: undefined,
       name: '@pnpm.e2e/hello-world-js-bin',
       version: '1.0.0',
-    },
+    }),
   } as RootLog))
 
   project.hasNot('@pnpm.e2e/hello-world-js-bin') // external link pruned

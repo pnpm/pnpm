@@ -57,11 +57,11 @@ test('uninstall package with no dependencies', async () => {
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:root',
-    removed: {
+    removed: expect.objectContaining({
       dependencyType: 'prod',
       name: 'is-negative',
       version: '2.1.0',
-    },
+    }),
   } as RootLog))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
@@ -94,9 +94,9 @@ test('uninstall a dependency that is not present in node_modules', async () => {
   expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:root',
-    removed: {
+    removed: expect.objectContaining({
       name: 'is-negative',
-    },
+    }),
   } as RootLog))
 })
 

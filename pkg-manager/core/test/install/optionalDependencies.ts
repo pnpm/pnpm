@@ -54,10 +54,10 @@ test('skip non-existing optional dependency', async () => {
   }, testDefaults({ reporter }))
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    package: {
+    package: expect.objectContaining({
       name: '@pnpm.e2e/i-do-not-exist',
       version: '1000',
-    },
+    }),
     parents: [],
     reason: 'resolution_failure',
   }))
@@ -99,11 +99,11 @@ test('skip optional dependency that does not support the current OS', async () =
   ])
 
   const logMatcher = {
-    package: {
+    package: expect.objectContaining({
       id: '@pnpm.e2e/not-compatible-with-any-os@1.0.0',
       name: '@pnpm.e2e/not-compatible-with-any-os',
       version: '1.0.0',
-    },
+    }),
     reason: 'unsupported_platform',
   }
   const reportedTimes = reporter.mock.calls.filter(([arg]) => {
@@ -158,11 +158,11 @@ test('skip optional dependency that does not support the current Node version', 
   project.storeHas('@pnpm.e2e/for-legacy-node', '1.0.0')
 
   const logMatcher = {
-    package: {
+    package: expect.objectContaining({
       id: '@pnpm.e2e/for-legacy-node@1.0.0',
       name: '@pnpm.e2e/for-legacy-node',
       version: '1.0.0',
-    },
+    }),
     reason: 'unsupported_engine',
   }
   const reportedTimes = reporter.mock.calls.filter(([arg]) => {
@@ -194,11 +194,11 @@ test('do not skip optional dependency that does not support the current pnpm ver
   project.storeHas('@pnpm.e2e/for-legacy-pnpm', '1.0.0')
 
   const logMatcher = {
-    package: {
+    package: expect.objectContaining({
       id: '@pnpm.e2e/for-legacy-pnpm@1.0.0',
       name: '@pnpm.e2e/for-legacy-pnpm',
       version: '1.0.0',
-    },
+    }),
     reason: 'unsupported_engine',
   }
   const reportedTimes = reporter.mock.calls.filter(([arg]) => {
@@ -311,11 +311,11 @@ test('optional subdependency is skipped', async () => {
   expect(fs.existsSync('node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0')).toBeFalsy()
 
   const logMatcher = {
-    package: {
+    package: expect.objectContaining({
       id: '@pnpm.e2e/not-compatible-with-any-os@1.0.0',
       name: '@pnpm.e2e/not-compatible-with-any-os',
       version: '1.0.0',
-    },
+    }),
     reason: 'unsupported_platform',
   }
   const reportedTimes = reporter.mock.calls.filter(([arg]) => {

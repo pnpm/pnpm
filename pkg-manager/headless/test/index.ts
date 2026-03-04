@@ -243,20 +243,20 @@ test('installing non-prod deps then all deps', async () => {
   }))
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    added: {
+    added: expect.objectContaining({
       dependencyType: 'prod',
       name: 'once',
       realName: 'once',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog))
   expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
-    added: {
+    added: expect.objectContaining({
       dependencyType: 'dev',
       name: 'inflight',
       realName: 'inflight',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog))

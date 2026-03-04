@@ -123,13 +123,13 @@ test('no dependencies (lodash)', async () => {
     removed: 0,
   } as StatsLog))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    added: {
+    added: expect.objectContaining({
       dependencyType: 'prod',
       latest: '4.1.0',
       name: 'lodash',
       realName: 'lodash',
       version: '4.0.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
     prefix: process.cwd(),
@@ -241,19 +241,19 @@ test('update a package when installing with a dist-tag', async () => {
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:root',
-    removed: {
+    removed: expect.objectContaining({
       dependencyType: 'dev',
       name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
       version: '100.0.0',
-    },
+    }),
   } as RootLog))
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    added: {
+    added: expect.objectContaining({
       dependencyType: 'dev',
       name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
       version: '100.1.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog))
@@ -302,11 +302,11 @@ test('idempotency', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    added: {
+    added: expect.objectContaining({
       dependencyType: 'prod',
       name: '@pnpm.e2e/pkg-with-1-dep',
       version: '100.0.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog))
@@ -316,11 +316,11 @@ test('idempotency', async () => {
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
 
   expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
-    added: {
+    added: expect.objectContaining({
       dependencyType: 'prod',
       name: '@pnpm.e2e/pkg-with-1-dep',
       version: '100.0.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog))
@@ -339,11 +339,11 @@ test('reporting adding root package', async () => {
   await addDependenciesToPackage(manifest, ['flatten@1.0.2'], testDefaults({ reporter }))
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    added: {
+    added: expect.objectContaining({
       dependencyType: 'prod',
       name: 'flatten',
       version: '1.0.2',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog))

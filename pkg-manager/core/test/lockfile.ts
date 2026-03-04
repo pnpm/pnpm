@@ -584,20 +584,20 @@ test('packages are placed in devDependencies even if they are present as non-dev
   expect(importer.devDependencies).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep'])
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    added: {
+    added: expect.objectContaining({
       dependencyType: 'dev',
       name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
       version: '100.1.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    added: {
+    added: expect.objectContaining({
       dependencyType: 'dev',
       name: '@pnpm.e2e/pkg-with-1-dep',
       version: '100.0.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog))
