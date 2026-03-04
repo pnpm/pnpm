@@ -80,6 +80,7 @@ export async function restartWorkerPool (): Promise<void> {
 export async function finishWorkers (): Promise<void> {
   // @ts-expect-error
   await global.finishWorkers?.()
+  workerPool = undefined
   closeMainStoreIndexes()
 }
 

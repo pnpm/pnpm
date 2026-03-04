@@ -65,7 +65,14 @@ export async function readPackageFileMap (
   const storeIndex = new StoreIndex(opts.storeDir)
   try {
     const pkgFilesIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
-    if (!pkgFilesIndex) return undefined
+    if (!pkgFilesIndex) {
+      const err: NodeJS.ErrnoException = new Error(
+        `ENOENT: package index not found for '${pkgIndexFilePath}'`
+      )
+      err.code = 'ENOENT'
+      err.path = pkgIndexFilePath
+      throw err
+    }
     const { files: indexFiles } = pkgFilesIndex
     const files = new Map<string, string>()
     for (const [name, info] of indexFiles) {

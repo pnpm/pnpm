@@ -29,6 +29,6 @@ describe('licences', () => {
           virtualStoreDirMaxLength: 120,
         }
       )
-    ).rejects.toThrow(/Failed to find package index file for bogus-package@1\.0\.0 \(at .*16-bogus-package@1\.0\.0\.mpk\), please consider running 'pnpm install'/)
+    ).rejects.toThrow(/Failed to find package index file for bogus-package@1\.0\.0 \(at .*\), please consider running 'pnpm install'/)
   })
 })
