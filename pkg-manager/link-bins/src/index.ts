@@ -112,8 +112,9 @@ export async function linkBinsOfPackages (
     ))
       .filter((cmds: Command[]) => cmds.length)
   )
-  if (opts.excludeBins?.size) {
-    allCmds = allCmds.filter((cmd) => !opts.excludeBins!.has(cmd.name))
+  const excludeBins = opts.excludeBins
+  if (excludeBins?.size) {
+    allCmds = allCmds.filter((cmd) => !excludeBins.has(cmd.name))
   }
 
   return _linkBins(allCmds, binsTarget, opts)

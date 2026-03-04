@@ -34,13 +34,18 @@ export async function checkGlobalBinConflicts (opts: {
 }): Promise<Set<string>> {
   const binsToSkip = new Set<string>()
 
-  // Map each new bin name to the package that provides it
-  const newBinOwners = new Map<string, string>()
+  // Map each new bin name to all packages that provide it
+  const newBinOwners = new Map<string, string[]>()
   await Promise.all(
     opts.newPkgs.map(async (pkg) => {
       const bins = await getBinsFromPackageManifest(pkg.manifest, pkg.location)
       for (const bin of bins) {
-        newBinOwners.set(bin.name, pkg.manifest.name)
+        const owners = newBinOwners.get(bin.name)
+        if (owners) {
+          owners.push(pkg.manifest.name)
+        } else {
+          newBinOwners.set(bin.name, [pkg.manifest.name])
+        }
       }
     })
   )
@@ -65,20 +70,20 @@ export async function checkGlobalBinConflicts (opts: {
       const bins = await getBinsFromPackageManifest(manifest as DependencyManifest, depDir) // eslint-disable-line no-await-in-loop
       for (const bin of bins) {
         if (!conflicting.includes(bin.name)) continue
-        // If the new package owns this bin (name match or override), it
+        // If any new package owns this bin (name match or override), it
         // gets priority and is allowed to override the existing bin.
-        if (pkgOwnsBin(bin.name, newBinOwners.get(bin.name)!)) continue
+        if (newBinOwners.get(bin.name)!.some((owner) => pkgOwnsBin(bin.name, owner))) continue
         // If the existing package owns this bin, the new package should
         // skip linking it rather than failing the entire install.
-        if (pkgOwnsBin(bin.name, alias)) {
+        if (pkgOwnsBin(bin.name, manifest.name)) {
           binsToSkip.add(bin.name)
           continue
         }
         throw new PnpmError(
           'GLOBAL_BIN_CONFLICT',
-          `Cannot install: binary "${bin.name}" would conflict with package "${alias}" that is already installed globally`,
+          `Cannot install: binary "${bin.name}" would conflict with package "${manifest.name}" that is already installed globally`,
           {
-            hint: `Remove the conflicting package first: pnpm remove -g ${alias}`,
+            hint: `Remove the conflicting package first: pnpm remove -g ${manifest.name}`,
           }
         )
       }
