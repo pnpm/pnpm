@@ -4,8 +4,9 @@ import renderHelp from 'render-help'
 import { type CommandDefinition } from './index.js'
 
 type HelpByCommandName = Record<string, () => string>
+type SubcommandsByCommandName = Record<string, string[]>
 
-export function createHelp (helpByCommandName: HelpByCommandName): CommandDefinition {
+export function createHelp (helpByCommandName: HelpByCommandName, subcommandsByCommandName: SubcommandsByCommandName): CommandDefinition {
   return {
     commandNames: ['help'],
     shorthands: {
@@ -16,7 +17,7 @@ export function createHelp (helpByCommandName: HelpByCommandName): CommandDefini
     }),
     rcOptionsTypes: () => ({}),
     help: helpHelp,
-    handler: handler.bind(null, helpByCommandName),
+    handler: handler.bind(null, helpByCommandName, subcommandsByCommandName),
   }
 }
 
@@ -40,10 +41,12 @@ function helpHelp () {
   })
 }
 
-function handler (helpByCommandName: HelpByCommandName, opts: { all?: boolean }, params: string[]): string {
+function handler (helpByCommandName: HelpByCommandName, subcommandsByCommandName: SubcommandsByCommandName, opts: { all?: boolean }, params: string[]): string {
   let helpText!: string
   if (params.length === 0) {
     helpText = getHelpText({ all: opts.all ?? false })
+  } else if (helpByCommandName[params[0]] && subcommandsByCommandName[params[0]] && subcommandsByCommandName[params[0]].includes(params[1])) {
+    helpText = helpByCommandName[`${params[0]} ${params[1]}`]()
   } else if (helpByCommandName[params[0]]) {
     helpText = helpByCommandName[params[0]]()
   } else {
@@ -100,6 +103,10 @@ function getHelpText ({ all }: { all: boolean }): string {
         {
           description: 'Unlinks a package. Like yarn unlink but pnpm re-installs the dependency after removing the external link',
           name: 'unlink',
+        },
+        {
+          description: 'Manage and maintain catalogs',
+          name: 'catalog',
         },
         {
           description: 'Generates a pnpm-lock.yaml from an npm package-lock.json (or npm-shrinkwrap.json) file',

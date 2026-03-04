@@ -1,0 +1,10 @@
+{
+  "name": "foo",
+  "version": "0.0.0",
+  "dependencies": {
+    "is-positive": "1.0.0",
+    "is-negative": "1.0.1",
+    "is-odd": "1.0.0",
+    "is-even": "0.1.0"
+  }
+}

@@ -1,4 +1,5 @@
 import { cache } from '@pnpm/cache.commands'
+import { catalog } from '@pnpm/catalogs.commands'
 import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { approveBuilds, ignoredBuilds } from '@pnpm/exec.build-commands'
@@ -75,10 +76,14 @@ export type Command = (
 export interface CommandDefinition {
   /** The main logic of the command. */
   handler: Command
+  /** A short description of the command. */
+  description?: string
   /** The help text for the command that describes its usage and options. */
   help: () => string
   /** The names that will trigger this command handler. */
   commandNames: string[]
+  /** Sub-commands of this command. If specified, the handler of this command will not be called if a sub-command is provided. */
+  subcommands?: CommandDefinition[]
   /**
    * A function that returns an object whose keys are acceptable CLI options
    * for this command and whose values are the types of values
@@ -112,6 +117,7 @@ export interface CommandDefinition {
 }
 
 const helpByCommandName: Record<string, () => string> = {}
+const subcommandsByCommandName: Record<string, string[]> = {}
 
 const commands: CommandDefinition[] = [
   add,
@@ -119,6 +125,7 @@ const commands: CommandDefinition[] = [
   audit,
   bin,
   cache,
+  catalog,
   ci,
   clean,
   config,
@@ -166,7 +173,7 @@ const commands: CommandDefinition[] = [
   unlink,
   update,
   why,
-  createHelp(helpByCommandName),
+  createHelp(helpByCommandName, subcommandsByCommandName),
 ]
 
 const handlerByCommandName: Record<string, Command> = {}
@@ -181,6 +188,7 @@ for (let i = 0; i < commands.length; i++) {
   const {
     cliOptionsTypes,
     commandNames,
+    subcommands,
     completion,
     handler,
     help,
@@ -196,10 +204,27 @@ for (let i = 0; i < commands.length; i++) {
     helpByCommandName[commandName] = help
     cliOptionsTypesByCommandName[commandName] = cliOptionsTypes
     shorthandsByCommandName[commandName] = shorthands ?? {}
+    subcommandsByCommandName[commandName] = subcommands?.map((cmd) => cmd.commandNames[0]) ?? []
     if (completion != null) {
       completionByCommandName[commandName] = completion
     }
     Object.assign(rcOptionsTypes, rcOptionsTypes())
+
+    for (const subcommand of subcommands ?? []) {
+      if (!subcommand.commandNames || subcommand.commandNames.length === 0) {
+        throw new Error(`A sub-command of ${commandNames[0]} doesn't have command names`)
+      }
+      for (const subcommandName of subcommand.commandNames) {
+        handlerByCommandName[`${commandName} ${subcommandName}`] = subcommand.handler as Command
+        helpByCommandName[`${commandName} ${subcommandName}`] = subcommand.help
+        cliOptionsTypesByCommandName[`${commandName} ${subcommandName}`] = subcommand.cliOptionsTypes
+        shorthandsByCommandName[`${commandName} ${subcommandName}`] = subcommand.shorthands ?? {}
+        if (subcommand.completion != null) {
+          completionByCommandName[`${commandName} ${subcommandName}`] = subcommand.completion
+        }
+        Object.assign(rcOptionsTypes, subcommand.rcOptionsTypes())
+      }
+    }
   }
   if (skipPackageManagerCheck) {
     skipPackageManagerCheckForCommandArray.push(...commandNames)
@@ -239,4 +264,4 @@ export function getCommandFullName (commandName: string): string | null {
     (handlerByCommandName[commandName] ? commandName : null)
 }
 
-export { shorthandsByCommandName, rcOptionsTypes }
+export { subcommandsByCommandName, shorthandsByCommandName, rcOptionsTypes }
