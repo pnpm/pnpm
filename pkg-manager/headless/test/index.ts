@@ -52,7 +52,7 @@ test('installing a simple project', async () => {
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: loadJsonFileSync(path.join(prefix, 'package.json')),
+    updated: expect.objectContaining(loadJsonFileSync(path.join(prefix, 'package.json')) as Record<string, unknown>),
   } as PackageManifestLog))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 15,
@@ -621,7 +621,7 @@ test('installing with publicHoistPattern=*', async () => {
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: loadJsonFileSync(path.join(prefix, 'package.json')),
+    updated: expect.objectContaining(loadJsonFileSync(path.join(prefix, 'package.json')) as Record<string, unknown>),
   } as PackageManifestLog))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 17,
