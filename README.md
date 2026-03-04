@@ -154,7 +154,7 @@ To quote the [Rush](https://rushjs.io/) team:
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://www.leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/leniolabs.jpg" width="40" alt="Leniolabs_"></a>
+        <a href="https://www.leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/leniolabs.jpg" width="40" alt="Leniolabs"></a>
       </td>
       <td align="center" valign="middle">
         <a href="https://depot.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
