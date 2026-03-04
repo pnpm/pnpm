@@ -106,14 +106,8 @@ test('skip optional dependency that does not support the current OS', async () =
     }),
     reason: 'unsupported_platform',
   }
-  const reportedTimes = reporter.mock.calls.filter(([arg]) => {
-    try {
-      expect(arg).toEqual(expect.objectContaining(logMatcher))
-      return true
-    } catch {
-      return false
-    }
-  }).length
+  const matcher = expect.objectContaining(logMatcher)
+  const reportedTimes = reporter.mock.calls.filter(([arg]) => matcher.asymmetricMatch(arg)).length
   expect(reportedTimes).toBe(1)
 
   // a previously skipped package is successfully installed
@@ -165,14 +159,8 @@ test('skip optional dependency that does not support the current Node version', 
     }),
     reason: 'unsupported_engine',
   }
-  const reportedTimes = reporter.mock.calls.filter(([arg]) => {
-    try {
-      expect(arg).toEqual(expect.objectContaining(logMatcher))
-      return true
-    } catch {
-      return false
-    }
-  }).length
+  const matcher = expect.objectContaining(logMatcher)
+  const reportedTimes = reporter.mock.calls.filter(([arg]) => matcher.asymmetricMatch(arg)).length
   expect(reportedTimes).toBe(1)
 })
 
@@ -201,14 +189,8 @@ test('do not skip optional dependency that does not support the current pnpm ver
     }),
     reason: 'unsupported_engine',
   }
-  const reportedTimes = reporter.mock.calls.filter(([arg]) => {
-    try {
-      expect(arg).toEqual(expect.objectContaining(logMatcher))
-      return true
-    } catch {
-      return false
-    }
-  }).length
+  const matcher = expect.objectContaining(logMatcher)
+  const reportedTimes = reporter.mock.calls.filter(([arg]) => matcher.asymmetricMatch(arg)).length
   expect(reportedTimes).toBe(0)
 })
 
@@ -318,14 +300,8 @@ test('optional subdependency is skipped', async () => {
     }),
     reason: 'unsupported_platform',
   }
-  const reportedTimes = reporter.mock.calls.filter(([arg]) => {
-    try {
-      expect(arg).toEqual(expect.objectContaining(logMatcher))
-      return true
-    } catch {
-      return false
-    }
-  }).length
+  const matcher = expect.objectContaining(logMatcher)
+  const reportedTimes = reporter.mock.calls.filter(([arg]) => matcher.asymmetricMatch(arg)).length
   expect(reportedTimes).toBe(1)
 
   // recreate the lockfile with optional dependencies present

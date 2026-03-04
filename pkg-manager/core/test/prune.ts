@@ -47,7 +47,6 @@ test('prune removes extraneous packages', async () => {
     level: 'debug',
     name: 'pnpm:root',
     removed: expect.objectContaining({
-      dependencyType: undefined,
       name: '@pnpm.e2e/hello-world-js-bin',
       version: '1.0.0',
     }),

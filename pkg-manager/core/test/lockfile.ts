@@ -249,14 +249,8 @@ test('lockfile is fixed when it does not match package.json', async () => {
     name: 'pnpm:progress',
     status: 'resolving',
   }
-  expect(reporter.mock.calls.filter(([arg]) => {
-    try {
-      expect(arg).toEqual(expect.objectContaining(progress))
-      return true
-    } catch {
-      return false
-    }
-  })).toHaveLength(0)
+  const progressMatcher = expect.objectContaining(progress)
+  expect(reporter.mock.calls.filter(([arg]) => progressMatcher.asymmetricMatch(arg))).toHaveLength(0)
 
   const lockfile = project.readLockfile()
 

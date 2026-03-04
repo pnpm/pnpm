@@ -74,18 +74,12 @@ test('no dependencies (lodash)', async () => {
     testDefaults({ fastUnpack: false, reporter })
   )
 
-  expect(reporter.mock.calls.filter(([arg]) => {
-    try {
-      expect(arg).toEqual(expect.objectContaining({
-        initial: { name: 'project', version: '0.0.0' },
-        level: 'debug',
-        name: 'pnpm:package-manifest',
-      } as PackageManifestLog))
-      return true
-    } catch {
-      return false
-    }
-  })).toHaveLength(1)
+  const manifestMatcher = expect.objectContaining({
+    initial: { name: 'project', version: '0.0.0' },
+    level: 'debug',
+    name: 'pnpm:package-manifest',
+  } as PackageManifestLog)
+  expect(reporter.mock.calls.filter(([arg]) => manifestMatcher.asymmetricMatch(arg))).toHaveLength(1)
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
