@@ -192,9 +192,6 @@ catalogs:
     '@types/semver':
       specifier: 7.7.1
       version: 7.7.1
-    '@types/sinon':
-      specifier: ^10.0.20
-      version: 10.0.20
     '@types/ssri':
       specifier: ^7.1.5
       version: 7.1.5
@@ -651,9 +648,6 @@ catalogs:
     shx:
       specifier: ^0.4.0
       version: 0.4.0
-    sinon:
-      specifier: ^21.0.1
-      version: 21.0.1
     sort-keys:
       specifier: ^6.0.0
       version: 6.0.0
@@ -2736,6 +2730,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
@@ -2769,15 +2766,9 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1
-      '@types/sinon':
-        specifier: 'catalog:'
-        version: 10.0.20
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
-      sinon:
-        specifier: 'catalog:'
-        version: 21.0.1
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -5218,9 +5209,6 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1
-      '@types/sinon':
-        specifier: 'catalog:'
-        version: 10.0.20
       '@yarnpkg/core':
         specifier: 'catalog:'
         version: 4.2.0(typanion@3.14.0)
@@ -5251,9 +5239,6 @@ importers:
       resolve-link-target:
         specifier: 'catalog:'
         version: 2.0.0
-      sinon:
-        specifier: 'catalog:'
-        version: 21.0.1
       symlink-dir:
         specifier: 'catalog:'
         version: 7.1.0
@@ -5491,9 +5476,6 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
-      '@types/sinon':
-        specifier: 'catalog:'
-        version: 10.0.20
       concurrently:
         specifier: 'catalog:'
         version: 9.2.1
@@ -5503,9 +5485,6 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
-      sinon:
-        specifier: 'catalog:'
-        version: 21.0.1
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -6077,9 +6056,6 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
-      '@types/sinon':
-        specifier: 'catalog:'
-        version: 10.0.20
       '@types/which':
         specifier: 'catalog:'
         version: 2.0.2
@@ -6110,9 +6086,6 @@ importers:
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0
-      sinon:
-        specifier: 'catalog:'
-        version: 21.0.1
       symlink-dir:
         specifier: 'catalog:'
         version: 7.1.0
@@ -7246,9 +7219,6 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
-      '@types/sinon':
-        specifier: 'catalog:'
-        version: 10.0.20
       '@types/tar':
         specifier: 'catalog:'
         version: 6.1.13
@@ -11067,12 +11037,6 @@ packages:
   '@sinonjs/fake-timers@13.0.5':
     resolution: {integrity: sha512-36/hTbH2uaWuGVERyC6da9YwGWnzUZXuPro/F2LfsdOsLnCojz/iSH8MxUt/FD2S5XBSVPhmArFUXcpCQ2Hkiw==}
 
-  '@sinonjs/fake-timers@15.1.1':
-    resolution: {integrity: sha512-cO5W33JgAPbOh07tvZjUOJ7oWhtaqGHiZw+11DPbyqh2kHTBc3eF/CjJDeQ4205RLQsX6rxCuYOroFQwl7JDRw==}
-
-  '@sinonjs/samsam@8.0.3':
-    resolution: {integrity: sha512-hw6HbX+GyVZzmaYNh82Ecj1vdGZrqVIn/keDTg63IgAwiQPO+xCz99uG6Woqgb4tM0mUiFENKZ4cqd7IX94AXQ==}
-
   '@stylistic/eslint-plugin@4.4.1':
     resolution: {integrity: sha512-CEigAk7eOLyHvdgmpZsKFwtiqS2wFwI1fn4j09IU9GmD4euFM4jEBAViWeCqaNLlbX2k2+A/Fq9cje4HQBXuJQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -11261,12 +11225,6 @@ packages:
 
   '@types/semver@7.7.1':
     resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==}
-
-  '@types/sinon@10.0.20':
-    resolution: {integrity: sha512-2APKKruFNCAZgx3daAyACGzWuJ028VVCUDk6o2rw/Z4PXT0ogwdV4KUegW0MwVs0Zu59auPXbbuBJHF12Sx1Eg==}
-
-  '@types/sinonjs__fake-timers@15.0.1':
-    resolution: {integrity: sha512-Ko2tjWJq8oozHzHV+reuvS5KYIRAokHnGbDwGh/J64LntgpbuylF74ipEL24HCyRjf9FOlBiBHWBR1RlVKsI1w==}
 
   '@types/ssri@7.1.5':
     resolution: {integrity: sha512-odD/56S3B51liILSk5aXJlnYt99S6Rt9EFDDqGtJM26rKHApHcwyU/UoYHrzKkdkHMAIquGWCuHtQTbes+FRQw==}
@@ -15724,9 +15682,6 @@ packages:
     resolution: {integrity: sha512-/fUgUhYghuLzVT/gaJoeVehLCgZiUxPCPMcyVNY0lIf/cTCz58K/WTI7PefDarXxp9nUKpEwg1yyz3eSBMTtgA==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
-  sinon@21.0.1:
-    resolution: {integrity: sha512-Z0NVCW45W8Mg5oC/27/+fCqIHFnW8kpkFOq0j9XJIev4Ld0mKmERaZv5DMLAb9fGCevjKwaEeIQz5+MBXfZcDw==}
-
   slash@2.0.0:
     resolution: {integrity: sha512-ZYKh3Wh2z1PpEXWr0MpSBZ0V6mZHAQfYevttO11c51CaWjGTaadiKZ+wVt1PbMlDV5qhMFslpZCemhwOK7C89A==}
     engines: {node: '>=6'}
@@ -16188,10 +16143,6 @@ packages:
 
   type-detect@4.0.8:
     resolution: {integrity: sha512-0fr/mIH1dlO+x7TlcMy+bIDqKPsw/70tVyeHW787goQjhmqaZe10uwLujubK9q9Lg6Fiho1KUKDYz0Z7k7g5/g==}
-    engines: {node: '>=4'}
-
-  type-detect@4.1.0:
-    resolution: {integrity: sha512-Acylog8/luQ8L7il+geoSxhEkazvkslg7PSNKOX59mbB9cOveP5aq9h74Y7YU8yDpJwetzQQrfIwtf4Wp4LKcw==}
     engines: {node: '>=4'}
 
   type-fest@0.16.0:
@@ -19453,15 +19404,6 @@ snapshots:
     dependencies:
       '@sinonjs/commons': 3.0.1
 
-  '@sinonjs/fake-timers@15.1.1':
-    dependencies:
-      '@sinonjs/commons': 3.0.1
-
-  '@sinonjs/samsam@8.0.3':
-    dependencies:
-      '@sinonjs/commons': 3.0.1
-      type-detect: 4.1.0
-
   '@stylistic/eslint-plugin@4.4.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)':
     dependencies:
       '@typescript-eslint/utils': 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
@@ -19677,12 +19619,6 @@ snapshots:
   '@types/semver@6.2.7': {}
 
   '@types/semver@7.7.1': {}
-
-  '@types/sinon@10.0.20':
-    dependencies:
-      '@types/sinonjs__fake-timers': 15.0.1
-
-  '@types/sinonjs__fake-timers@15.0.1': {}
 
   '@types/ssri@7.1.5':
     dependencies:
@@ -24884,14 +24820,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  sinon@21.0.1:
-    dependencies:
-      '@sinonjs/commons': 3.0.1
-      '@sinonjs/fake-timers': 15.1.1
-      '@sinonjs/samsam': 8.0.3
-      diff: 8.0.3
-      supports-color: 7.2.0
-
   slash@2.0.0: {}
 
   slash@3.0.0: {}
@@ -25402,8 +25330,6 @@ snapshots:
       prelude-ls: 1.2.1
 
   type-detect@4.0.8: {}
-
-  type-detect@4.1.0: {}
 
   type-fest@0.16.0: {}
 

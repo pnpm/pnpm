@@ -94,11 +94,9 @@
     "@pnpm/testing.temp-store": "workspace:*",
     "@types/fs-extra": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/sinon": "catalog:",
     "concurrently": "catalog:",
     "isexe": "catalog:",
     "load-json-file": "catalog:",
-    "sinon": "catalog:",
     "tempy": "catalog:",
     "write-json-file": "catalog:"
   },

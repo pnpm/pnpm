@@ -14,7 +14,6 @@ import {
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
-import sinon from 'sinon'
 import { testDefaults } from '../utils/index.js'
 
 test('successfully install optional dependency with subdependencies', async () => {
@@ -44,7 +43,7 @@ test('skip failing optional peer dependencies', async () => {
 test('skip non-existing optional dependency', async () => {
   const project = prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -54,14 +53,14 @@ test('skip non-existing optional dependency', async () => {
     },
   }, testDefaults({ reporter }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     package: {
       name: '@pnpm.e2e/i-do-not-exist',
       version: '1000',
     },
     parents: [],
     reason: 'resolution_failure',
-  })).toBeTruthy()
+  }))
 
   project.has('is-positive')
 
@@ -72,7 +71,7 @@ test('skip non-existing optional dependency', async () => {
 
 test('skip optional dependency that does not support the current OS', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   let { updatedManifest: manifest } = await install({
     optionalDependencies: {
@@ -99,15 +98,22 @@ test('skip optional dependency that does not support the current OS', async () =
     '@pnpm.e2e/not-compatible-with-any-os@1.0.0',
   ])
 
-  const logMatcher = sinon.match({
+  const logMatcher = {
     package: {
       id: '@pnpm.e2e/not-compatible-with-any-os@1.0.0',
       name: '@pnpm.e2e/not-compatible-with-any-os',
       version: '1.0.0',
     },
     reason: 'unsupported_platform',
-  })
-  const reportedTimes = reporter.withArgs(logMatcher).callCount
+  }
+  const reportedTimes = reporter.mock.calls.filter(([arg]) => {
+    try {
+      expect(arg).toEqual(expect.objectContaining(logMatcher))
+      return true
+    } catch {
+      return false
+    }
+  }).length
   expect(reportedTimes).toBe(1)
 
   // a previously skipped package is successfully installed
@@ -140,7 +146,7 @@ test('skip optional dependency that does not support the current OS', async () =
 
 test('skip optional dependency that does not support the current Node version', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await install({
     optionalDependencies: {
@@ -151,21 +157,28 @@ test('skip optional dependency that does not support the current Node version', 
   project.hasNot('@pnpm.e2e/for-legacy-node')
   project.storeHas('@pnpm.e2e/for-legacy-node', '1.0.0')
 
-  const logMatcher = sinon.match({
+  const logMatcher = {
     package: {
       id: '@pnpm.e2e/for-legacy-node@1.0.0',
       name: '@pnpm.e2e/for-legacy-node',
       version: '1.0.0',
     },
     reason: 'unsupported_engine',
-  })
-  const reportedTimes = reporter.withArgs(logMatcher).callCount
+  }
+  const reportedTimes = reporter.mock.calls.filter(([arg]) => {
+    try {
+      expect(arg).toEqual(expect.objectContaining(logMatcher))
+      return true
+    } catch {
+      return false
+    }
+  }).length
   expect(reportedTimes).toBe(1)
 })
 
 test('do not skip optional dependency that does not support the current pnpm version', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await install({
     optionalDependencies: {
@@ -180,15 +193,22 @@ test('do not skip optional dependency that does not support the current pnpm ver
   project.has('@pnpm.e2e/for-legacy-pnpm')
   project.storeHas('@pnpm.e2e/for-legacy-pnpm', '1.0.0')
 
-  const logMatcher = sinon.match({
+  const logMatcher = {
     package: {
       id: '@pnpm.e2e/for-legacy-pnpm@1.0.0',
       name: '@pnpm.e2e/for-legacy-pnpm',
       version: '1.0.0',
     },
     reason: 'unsupported_engine',
-  })
-  const reportedTimes = reporter.withArgs(logMatcher).callCount
+  }
+  const reportedTimes = reporter.mock.calls.filter(([arg]) => {
+    try {
+      expect(arg).toEqual(expect.objectContaining(logMatcher))
+      return true
+    } catch {
+      return false
+    }
+  }).length
   expect(reportedTimes).toBe(0)
 })
 
@@ -278,7 +298,7 @@ test('optional subdependency is not removed from current lockfile when new depen
 
 test('optional subdependency is skipped', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-optional', '@pnpm.e2e/dep-of-optional-pkg'], testDefaults({ reporter }))
 
@@ -290,15 +310,22 @@ test('optional subdependency is skipped', async () => {
   expect(fs.existsSync('node_modules/.pnpm/@pnpm.e2e+pkg-with-optional@1.0.0')).toBeTruthy()
   expect(fs.existsSync('node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0')).toBeFalsy()
 
-  const logMatcher = sinon.match({
+  const logMatcher = {
     package: {
       id: '@pnpm.e2e/not-compatible-with-any-os@1.0.0',
       name: '@pnpm.e2e/not-compatible-with-any-os',
       version: '1.0.0',
     },
     reason: 'unsupported_platform',
-  })
-  const reportedTimes = reporter.withArgs(logMatcher).callCount
+  }
+  const reportedTimes = reporter.mock.calls.filter(([arg]) => {
+    try {
+      expect(arg).toEqual(expect.objectContaining(logMatcher))
+      return true
+    } catch {
+      return false
+    }
+  }).length
   expect(reportedTimes).toBe(1)
 
   // recreate the lockfile with optional dependencies present
@@ -338,7 +365,7 @@ test('optional subdependency is skipped', async () => {
 // Covers https://github.com/pnpm/pnpm/issues/2663
 test('optional subdependency of newly added optional dependency is skipped', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-optional'], testDefaults({ reporter, targetDependenciesField: 'optionalDependencies' }))
 
@@ -353,7 +380,7 @@ test('optional subdependency of newly added optional dependency is skipped', asy
 
 test('only that package is skipped which is an optional dependency only and not installable', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, [
     '@pnpm.e2e/peer-c@1.0.0',

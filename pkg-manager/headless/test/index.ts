@@ -23,14 +23,13 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { jest } from '@jest/globals'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
-import sinon from 'sinon'
 import { testDefaults } from './utils/testDefaults.js'
 
 const f = fixtures(import.meta.dirname)
 
 test('installing a simple project', async () => {
   const prefix = f.prepare('simple')
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await headlessInstall(await testDefaults({
     lockfileDir: prefix,
@@ -50,49 +49,49 @@ test('installing a simple project', async () => {
   expect(project.readCurrentLockfile()).toBeTruthy()
   expect(project.readModulesManifest()).toBeTruthy()
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
     updated: loadJsonFileSync(path.join(prefix, 'package.json')),
-  } as PackageManifestLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as PackageManifestLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 15,
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
-  } as StatsLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StatsLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
     removed: 0,
-  } as StatsLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StatsLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix,
     stage: 'importing_done',
-  } as StageLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StageLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'is-negative@2.1.0',
     requester: prefix,
     status: 'resolved',
-  })).toBeTruthy()
+  }))
 
-  reporter.resetHistory()
+  reporter.mockClear()
   await headlessInstall(await testDefaults({
     lockfileDir: prefix,
     reporter,
   }))
   // On repeat install no new packages should be added
   // covers https://github.com/pnpm/pnpm/issues/7297
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 0,
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
-  } as StatsLog)).toBeTruthy()
+  } as StatsLog))
 })
 
 test('installing only prod deps', async () => {
@@ -230,7 +229,7 @@ test('installing non-prod deps then all deps', async () => {
     expect(currentLockfile.packages).not.toHaveProperty(['is-positive@1.0.0'])
   }
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   // Repeat normal installation adds missing deps to node_modules
   await headlessInstall(await testDefaults({
@@ -243,7 +242,7 @@ test('installing non-prod deps then all deps', async () => {
     reporter,
   }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: {
       dependencyType: 'prod',
       name: 'once',
@@ -251,8 +250,8 @@ test('installing non-prod deps then all deps', async () => {
     },
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as RootLog))
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     added: {
       dependencyType: 'dev',
       name: 'inflight',
@@ -260,7 +259,7 @@ test('installing non-prod deps then all deps', async () => {
     },
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog)).toBeFalsy()
+  } as RootLog))
 
   project.has('once')
 
@@ -312,7 +311,7 @@ test('not installing optional deps', async () => {
 
 test('skipping optional dependency if it cannot be fetched', async () => {
   const prefix = f.prepare('has-nonexistent-optional-dep')
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await headlessInstall(await testDefaults({
     lockfileDir: prefix,
@@ -382,18 +381,18 @@ test('orphan packages are removed', async () => {
     path.join(projectDir, WANTED_LOCKFILE)
   )
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await headlessInstall(await testDefaults({
     lockfileDir: projectDir,
     reporter,
   }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix: projectDir,
     removed: 1,
-  } as StatsLog)).toBeTruthy()
+  } as StatsLog))
 
   const project = assertProject(projectDir)
   project.hasNot('resolve-from')
@@ -418,25 +417,25 @@ test('available packages are used when node_modules is not clean', async () => {
   fs.copyFileSync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   fs.copyFileSync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await headlessInstall(await testDefaults({ lockfileDir: projectDir, reporter }))
 
   const project = assertProject(projectDir)
   project.has('rimraf')
   project.has('glob')
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'balanced-match@1.0.2',
     requester: projectDir,
     status: 'resolved',
-  })).toBeFalsy()
-  expect(reporter.calledWithMatch({
+  }))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'rimraf@2.7.1',
     requester: projectDir,
     status: 'resolved',
-  })).toBeTruthy()
+  }))
 })
 
 test('available packages are relinked during forced install', async () => {
@@ -455,32 +454,32 @@ test('available packages are relinked during forced install', async () => {
   fs.copyFileSync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   fs.copyFileSync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await headlessInstall(await testDefaults({ lockfileDir: projectDir, reporter, force: true }))
 
   const project = assertProject(projectDir)
   project.has('rimraf')
   project.has('glob')
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'balanced-match@1.0.2',
     requester: projectDir,
     status: 'resolved',
-  })).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  }))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'rimraf@2.7.1',
     requester: projectDir,
     status: 'resolved',
-  })).toBeTruthy()
+  }))
 })
 
 test('installing local dependency', async () => {
   let prefix = f.prepare('has-local-dep')
   f.copy('tar-pkg-1.0.0.tgz', path.join(prefix, 'tar-pkg-1.0.0.tgz'))
   prefix = path.join(prefix, 'pkg')
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter }))
 
@@ -490,7 +489,7 @@ test('installing local dependency', async () => {
 
 test('installing local directory dependency', async () => {
   const prefix = f.prepare('has-local-dir-dep')
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter }))
 
@@ -600,7 +599,7 @@ test('installing with hoistPattern=*', async () => {
 
 test('installing with publicHoistPattern=*', async () => {
   const prefix = f.prepare('simple-shamefully-flatten')
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter, publicHoistPattern: '*' }))
 
@@ -619,35 +618,35 @@ test('installing with publicHoistPattern=*', async () => {
   expect(project.readCurrentLockfile()).toBeTruthy()
   expect(project.readModulesManifest()).toBeTruthy()
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
     updated: loadJsonFileSync(path.join(prefix, 'package.json')),
-  } as PackageManifestLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as PackageManifestLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 17,
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
-  } as StatsLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StatsLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
     removed: 0,
-  } as StatsLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StatsLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix,
     stage: 'importing_done',
-  } as StageLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StageLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'is-negative@2.1.0',
     requester: prefix,
     status: 'resolved',
-  })).toBeTruthy()
+  }))
 
   const modules = project.readModulesManifest()
 
