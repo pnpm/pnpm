@@ -370,6 +370,41 @@ test('global add refuses to install when bin name conflicts with another global 
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'pkg-a')).toBeTruthy()
 })
 
+test('global add from a local directory using "."', () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  // Create a local package with a bin
+  const localPkg = path.resolve('..', 'my-local-tool')
+  fs.mkdirSync(localPkg, { recursive: true })
+  fs.writeFileSync(path.join(localPkg, 'package.json'), JSON.stringify({
+    name: 'my-local-tool',
+    version: '1.0.0',
+    bin: { 'my-local-tool': './index.js' },
+  }))
+  fs.writeFileSync(path.join(localPkg, 'index.js'), '#!/usr/bin/env node\nconsole.log("hello")\n')
+
+  const env = {
+    [PATH_NAME]: pnpmHome,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    pnpm_config_store_dir: path.resolve('..', 'store'),
+  }
+
+  // Install globally from within the package directory using "."
+  // This used to fail because "." was resolved relative to the temp install
+  // directory instead of the user's CWD.
+  execPnpmSync(['add', '-g', '.'], { cwd: localPkg, env, expectSuccess: true })
+
+  // Verify the package was installed globally
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'my-local-tool')).toBeTruthy()
+
+  // Verify the bin was linked
+  expect(fs.existsSync(path.join(pnpmHome, 'my-local-tool'))).toBeTruthy()
+})
+
 test('global remove deletes install group and bin shims', async () => {
   prepare()
   const global = path.resolve('..', 'global')
