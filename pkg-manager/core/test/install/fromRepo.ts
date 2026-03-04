@@ -12,7 +12,7 @@ import { assertProject } from '@pnpm/assert-project'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
 import nock from 'nock'
-import sinon from 'sinon'
+import { jest } from '@jest/globals'
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -61,7 +61,7 @@ test('from a github repo with different name via named installation', async () =
     .head('/zkochan/hi')
     .reply(200)
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
@@ -71,16 +71,16 @@ test('from a github repo with different name via named installation', async () =
 
   const m = project.requireModule('say-hi')
 
-  expect(reporter.calledWithMatch({
-    added: {
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
       dependencyType: 'prod',
       name: 'say-hi',
       realName: 'hi',
       version: '1.0.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog)).toBeTruthy()
+  } as RootLog))
 
   expect(m).toBe('Hi')
 
@@ -106,7 +106,7 @@ test('from a github repo with different name', async () => {
     .head('/zkochan/hi')
     .reply(200)
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   const { updatedManifest: manifest } = await install({
     dependencies: {
@@ -116,16 +116,16 @@ test('from a github repo with different name', async () => {
 
   const m = project.requireModule('say-hi')
 
-  expect(reporter.calledWithMatch({
-    added: {
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
       dependencyType: 'prod',
       name: 'say-hi',
       realName: 'hi',
       version: '1.0.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog)).toBeTruthy()
+  } as RootLog))
 
   expect(m).toBe('Hi')
 

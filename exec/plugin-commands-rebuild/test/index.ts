@@ -10,7 +10,7 @@ import { prepare } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import execa from 'execa'
-import sinon from 'sinon'
+import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
@@ -395,7 +395,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
     '--config.enableGlobalVirtualStore=false',
   ])
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   const modules = project.readModulesManifest()
   await rebuild.handler({
