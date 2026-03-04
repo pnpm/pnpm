@@ -49,11 +49,15 @@ test('installing a simple project', async () => {
   expect(project.readCurrentLockfile()).toBeTruthy()
   expect(project.readModulesManifest()).toBeTruthy()
 
-  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+  const manifestLog = reporter.mock.calls.find(
+    ([arg]) => (arg as Record<string, unknown>).name === 'pnpm:package-manifest' && 'updated' in (arg as Record<string, unknown>)
+  )
+  expect(manifestLog).toBeTruthy()
+  expect(manifestLog![0]).toMatchObject({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: expect.objectContaining(loadJsonFileSync(path.join(prefix, 'package.json')) as Record<string, unknown>),
-  } as PackageManifestLog))
+    updated: loadJsonFileSync(path.join(prefix, 'package.json')),
+  } as PackageManifestLog)
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 15,
     level: 'debug',
@@ -618,11 +622,17 @@ test('installing with publicHoistPattern=*', async () => {
   expect(project.readCurrentLockfile()).toBeTruthy()
   expect(project.readModulesManifest()).toBeTruthy()
 
-  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    level: 'debug',
-    name: 'pnpm:package-manifest',
-    updated: expect.objectContaining(loadJsonFileSync(path.join(prefix, 'package.json')) as Record<string, unknown>),
-  } as PackageManifestLog))
+  {
+    const manifestLog = reporter.mock.calls.find(
+      ([arg]) => (arg as Record<string, unknown>).name === 'pnpm:package-manifest' && 'updated' in (arg as Record<string, unknown>)
+    )
+    expect(manifestLog).toBeTruthy()
+    expect(manifestLog![0]).toMatchObject({
+      level: 'debug',
+      name: 'pnpm:package-manifest',
+      updated: loadJsonFileSync(path.join(prefix, 'package.json')),
+    } as PackageManifestLog)
+  }
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 17,
     level: 'debug',
