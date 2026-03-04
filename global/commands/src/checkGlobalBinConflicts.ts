@@ -52,10 +52,12 @@ export async function checkGlobalBinConflicts (opts: {
   if (newBinOwners.size === 0) return binsToSkip
 
   // Quick check: only investigate if a bin with the same name already exists
-  const conflicting = [...newBinOwners.keys()].filter(
-    (name) => fs.existsSync(path.join(opts.globalBinDir, name))
+  const conflicting = new Set(
+    [...newBinOwners.keys()].filter(
+      (name) => fs.existsSync(path.join(opts.globalBinDir, name))
+    )
   )
-  if (conflicting.length === 0) return binsToSkip
+  if (conflicting.size === 0) return binsToSkip
 
   // Some bins already exist — find out if they belong to packages being replaced
   // (in which case it's fine) or to other packages (conflict).
@@ -69,7 +71,7 @@ export async function checkGlobalBinConflicts (opts: {
       if (!manifest) continue
       const bins = await getBinsFromPackageManifest(manifest as DependencyManifest, depDir) // eslint-disable-line no-await-in-loop
       for (const bin of bins) {
-        if (!conflicting.includes(bin.name)) continue
+        if (!conflicting.has(bin.name)) continue
         // If any new package owns this bin (name match or override), it
         // gets priority and is allowed to override the existing bin.
         if (newBinOwners.get(bin.name)!.some((owner) => pkgOwnsBin(bin.name, owner))) continue
@@ -79,11 +81,14 @@ export async function checkGlobalBinConflicts (opts: {
           binsToSkip.add(bin.name)
           continue
         }
+        const conflictDisplay = alias === manifest.name
+          ? `"${alias}"`
+          : `"${alias}" (package "${manifest.name}")`
         throw new PnpmError(
           'GLOBAL_BIN_CONFLICT',
-          `Cannot install: binary "${bin.name}" would conflict with package "${manifest.name}" that is already installed globally`,
+          `Cannot install: binary "${bin.name}" would conflict with ${conflictDisplay} that is already installed globally`,
           {
-            hint: `Remove the conflicting package first: pnpm remove -g ${manifest.name}`,
+            hint: `Remove the conflicting package first: pnpm remove -g ${alias}`,
           }
         )
       }
