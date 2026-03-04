@@ -101,17 +101,21 @@ export async function linkBinsOfPackages (
     location: string
   }>,
   binsTarget: string,
-  opts: LinkBinOptions = {}
+  opts: LinkBinOptions & { excludeBins?: Set<string> } = {}
 ): Promise<string[]> {
   if (pkgs.length === 0) return []
 
-  const allCmds = unnest(
+  let allCmds = unnest(
     (await Promise.all(
       pkgs
         .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
     ))
       .filter((cmds: Command[]) => cmds.length)
   )
+  const excludeBins = opts.excludeBins
+  if (excludeBins?.size) {
+    allCmds = allCmds.filter((cmd) => !excludeBins.has(cmd.name))
+  }
 
   return _linkBins(allCmds, binsTarget, opts)
 }
