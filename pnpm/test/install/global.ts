@@ -403,6 +403,16 @@ test('global add from a local directory using "."', () => {
 
   // Verify the bin was linked
   expect(fs.existsSync(path.join(pnpmHome, 'my-local-tool'))).toBeTruthy()
+
+  // Install globally using a file: relative selector
+  execPnpmSync(['add', '-g', 'file:./'], { cwd: localPkg, env, expectSuccess: true })
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'my-local-tool')).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'my-local-tool'))).toBeTruthy()
+
+  // Install globally using a link: relative selector
+  execPnpmSync(['add', '-g', 'link:../my-local-tool'], { cwd: process.cwd(), env, expectSuccess: true })
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'my-local-tool')).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'my-local-tool'))).toBeTruthy()
 })
 
 test('global remove deletes install group and bin shims', async () => {

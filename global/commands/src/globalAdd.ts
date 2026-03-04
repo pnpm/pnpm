@@ -40,7 +40,7 @@ export async function handleGlobalAdd (
   // Resolve relative path selectors to absolute paths before the working
   // directory is changed to the global install dir, otherwise "." or
   // "./foo" would resolve against the temp install directory.
-  params = params.map(resolveLocalParam)
+  params = params.map((param) => resolveLocalParam(param, opts.dir))
   const globalDir = opts.globalPkgDir!
   const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
@@ -140,18 +140,18 @@ export async function handleGlobalAdd (
   await linkBinsOfPackages(pkgs, globalBinDir)
 }
 
-function resolveLocalParam (param: string): string {
+function resolveLocalParam (param: string, baseDir: string): string {
   for (const prefix of ['file:', 'link:']) {
     if (param.startsWith(prefix)) {
       const rest = param.slice(prefix.length)
       if (rest.startsWith('.')) {
-        return prefix + path.resolve(rest)
+        return prefix + path.resolve(baseDir, rest)
       }
       return param
     }
   }
   if (param.startsWith('.')) {
-    return path.resolve(param)
+    return path.resolve(baseDir, param)
   }
   return param
 }
