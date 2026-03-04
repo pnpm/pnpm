@@ -9,7 +9,7 @@ import { type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
 import { type BundledManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { globalWarn } from '@pnpm/logger'
-import type { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex } from '@pnpm/store-index'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
@@ -19,18 +19,6 @@ import {
 } from './types.js'
 
 let workerPool: WorkerPool | undefined
-
-// Lazy-load @pnpm/store-index to avoid pulling node:sqlite into the process
-// at import time. This prevents Jest from hanging after tests complete, because
-// loading node:sqlite has side effects that keep the event loop alive.
-let StoreIndexCtor: typeof StoreIndex | undefined
-
-async function loadStoreIndex (): Promise<void> {
-  if (!StoreIndexCtor) {
-    const mod = await import('@pnpm/store-index')
-    StoreIndexCtor = mod.StoreIndex
-  }
-}
 
 // Single-writer index: all SQLite writes happen in the main process.
 // Writes from the fetch phase are batched via process.nextTick for throughput.
@@ -42,7 +30,7 @@ let flushScheduled = false
 
 function getMainStoreIndex (storeDir: string): StoreIndex {
   if (!mainStoreIndexCache.has(storeDir)) {
-    mainStoreIndexCache.set(storeDir, new StoreIndexCtor!(storeDir))
+    mainStoreIndexCache.set(storeDir, new StoreIndex(storeDir))
   }
   return mainStoreIndexCache.get(storeDir)!
 }
@@ -147,7 +135,6 @@ interface AddFilesResult {
 type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest' | 'includeNodeModules'>
 
 export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
-  await loadStoreIndex()
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
@@ -220,7 +207,6 @@ type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeD
 }
 
 export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Promise<AddFilesResult> {
-  await loadStoreIndex()
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }

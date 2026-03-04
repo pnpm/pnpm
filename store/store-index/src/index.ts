@@ -4,10 +4,19 @@ import fs from 'fs'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
 import { Packr } from 'msgpackr'
 
-// Use createRequire to load node:sqlite because it is a prefix-only builtin
-// that Jest's ESM module resolver cannot handle.
-const req = createRequire(import.meta.url)
-const { DatabaseSync } = req('node:sqlite') as { DatabaseSync: typeof DatabaseSyncType }
+// Lazy-load node:sqlite to avoid pulling it into processes that only import
+// this module for its types or utility functions (e.g. packForStorage).
+// Uses createRequire because node:sqlite is a prefix-only builtin that
+// Jest's ESM module resolver cannot handle.
+let DatabaseSync: typeof DatabaseSyncType | undefined
+
+function getDatabaseSync (): typeof DatabaseSyncType {
+  if (!DatabaseSync) {
+    const req = createRequire(import.meta.url)
+    DatabaseSync = (req('node:sqlite') as { DatabaseSync: typeof DatabaseSyncType }).DatabaseSync
+  }
+  return DatabaseSync
+}
 
 const packr = new Packr({
   useRecords: true,
@@ -75,7 +84,7 @@ export class StoreIndex {
   constructor (storeDir: string) {
     const dbPath = path.join(storeDir, 'index.db')
     fs.mkdirSync(storeDir, { recursive: true })
-    this.db = new DatabaseSync(dbPath)
+    this.db = new (getDatabaseSync())(dbPath)
     sqliteRetry(() => {
       this.db.exec('PRAGMA journal_mode=WAL')
     })
