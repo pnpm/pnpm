@@ -4,6 +4,7 @@ import { STORE_VERSION } from '@pnpm/constants'
 import { install, fetch } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { finishWorkers } from '@pnpm/worker'
 import { sync as rimraf } from '@zkochan/rimraf'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -203,6 +204,9 @@ test('fetch populates global virtual store links/', async () => {
     lockfileOnly: true,
     storeDir,
   })
+
+  // Close SQLite connections before removing the store (required on Windows)
+  await finishWorkers()
 
   // Remove the store — simulate a cold start with only the lockfile
   rimraf(storeDir)
