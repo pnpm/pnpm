@@ -27,8 +27,14 @@ export default async () => {
       process.exit(1)
     }
   })
-  global.killServer = () => {
+  global.killServer = async () => {
     killed = true
-    return kill(server.pid)
+    await kill(server.pid)
+    // tree-kill resolves after sending the signal, but the process may still
+    // be shutting down.  Wait for the child process to actually close so that
+    // its handle no longer keeps the Jest main process alive.
+    if (server.exitCode == null) {
+      await new Promise((resolve) => server.on('close', resolve))
+    }
   }
 }
