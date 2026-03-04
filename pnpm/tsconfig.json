@@ -153,6 +153,9 @@
       "path": "../reviewing/plugin-commands-sbom"
     },
     {
+      "path": "../runtime/commands"
+    },
+    {
       "path": "../store/cafs"
     },
     {

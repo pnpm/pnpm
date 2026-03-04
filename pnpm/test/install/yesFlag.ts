@@ -23,10 +23,10 @@ describe('pnpm install --yes', () => {
   }
 
   test('prompts without --yes flag', () => {
-    expect(() => execPnpmSync(['install'], execPnpmOpts)).toThrow('Aborted removal of modules directory due to no TTY')
+    expect(() => execPnpmSync(['install', '--config.optimistic-repeat-install=false'], execPnpmOpts)).toThrow('Aborted removal of modules directory due to no TTY')
   })
 
   test('skips prompt when --yes is passed', () => {
-    expect(() => execPnpmSync(['install', '--yes'], execPnpmOpts)).not.toThrow()
+    expect(() => execPnpmSync(['install', '--yes', '--config.optimistic-repeat-install=false'], execPnpmOpts)).not.toThrow()
   })
 })

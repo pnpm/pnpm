@@ -184,7 +184,7 @@ export async function getConfig (opts: {
     'hoist-workspace-packages': true,
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
-    'optimistic-repeat-install': false,
+    'optimistic-repeat-install': true,
     optional: true,
     'init-package-manager': true,
     'init-type': 'module',
@@ -222,7 +222,7 @@ export async function getConfig (opts: {
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
     userconfig: npmDefaults.userconfig,
-    'verify-deps-before-run': false,
+    'verify-deps-before-run': 'install',
     'verify-store-integrity': true,
     'workspace-concurrency': getDefaultWorkspaceConcurrency(),
     'workspace-prefix': opts.workspaceDir,
@@ -379,7 +379,9 @@ export async function getConfig (opts: {
       throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
         'Configuration conflict. "virtual-store-dir" may not be used with "global"')
     }
-    pnpmConfig.virtualStoreDir = '.pnpm'
+    if (pnpmConfig.enableGlobalVirtualStore == null) {
+      pnpmConfig.enableGlobalVirtualStore = true
+    }
   } else {
     pnpmConfig.dir = cwd
     if (!pnpmConfig.bin) {
@@ -607,9 +609,11 @@ export async function getConfig (opts: {
     pnpmConfig.dev = true
   }
 
-  if (pnpmConfig.ci) {
+  if (pnpmConfig.ci && pnpmConfig.enableGlobalVirtualStore == null) {
     // Using a global virtual store in CI makes little sense,
-    // as there is never a warm cache in that environment.
+    // as there is usually no warm cache in that environment.
+    // However, if the user explicitly enabled GVS (e.g., for Nix builds
+    // or CI systems with persistent caches), respect that setting.
     pnpmConfig.enableGlobalVirtualStore = false
   }
 

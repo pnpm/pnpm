@@ -244,10 +244,6 @@ function getHelpText ({ all }: { all: boolean }): string {
           name: 'publish',
         },
         {
-          description: 'Updates pnpm to the latest version',
-          name: 'self-update',
-        },
-        {
           description: 'Create a package.json file',
           name: 'init',
         },
@@ -279,13 +275,22 @@ function getHelpText ({ all }: { all: boolean }): string {
       ],
     },
     {
-      title: 'Manage your environments',
+      title: 'Manage your engines',
       advanced: true,
 
       list: [
         {
-          description: 'Manage Node.js versions',
-          name: 'env ',
+          description: 'Manage runtimes',
+          name: 'runtime',
+          shortAlias: 'rt',
+        },
+        {
+          description: 'Manage Node.js versions (deprecated, use runtime)',
+          name: 'env',
+        },
+        {
+          description: 'Updates pnpm to the latest version',
+          name: 'self-update',
         },
       ],
     },

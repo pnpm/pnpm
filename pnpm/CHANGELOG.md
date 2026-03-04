@@ -1,6 +1,6 @@
 # pnpm
 
-## 11.0.0-alpha.11
+## 11.0.0-alpha.12
 
 ### Major Changes
 
@@ -16,6 +16,18 @@
   Related PR: [#10500](https://github.com/pnpm/pnpm/pull/10500)
 
 - Store the bundled manifest (name, version, bin, engines, scripts, etc.) directly in the package index file, eliminating the need to read `package.json` from the content-addressable store during resolution and installation. This reduces I/O and speeds up repeat installs [#10473](https://github.com/pnpm/pnpm/pull/10473).
+
+#### Global Packages
+
+- Global installs (`pnpm add -g pkg`) and `pnpm dlx` now use the global virtual store by default. Packages are stored at `{storeDir}/links` instead of per-project `.pnpm` directories. This can be disabled by setting `enableGlobalVirtualStore: false` [#10694](https://github.com/pnpm/pnpm/pull/10694).
+- Isolated global packages. Each globally installed package (or group of packages installed together) now gets its own isolated installation directory with its own `package.json`, `node_modules/`, and lockfile. This prevents global packages from interfering with each other through peer dependency conflicts, hoisting changes, or version resolution shifts.
+
+  Key changes:
+  - `pnpm add -g <pkg>` creates an isolated installation in `{pnpmHomeDir}/global/v11/{hash}/`
+  - `pnpm remove -g <pkg>` removes the entire installation group containing the package
+  - `pnpm update -g [pkg]` re-installs packages in new isolated directories
+  - `pnpm list -g` scans isolated directories to show all installed global packages
+  - `pnpm install -g` (no args) is no longer supported; use `pnpm add -g <pkg>` instead
 
 #### Configuration
 
@@ -120,6 +132,14 @@
 
   Since the new `pnpm publish` no longer calls `npm publish`, some undocumented features may have been unknowingly dropped. If you rely on a feature that is now gone, please open an issue at <https://github.com/pnpm/pnpm/issues>. In the meantime, you can use `pnpm pack && npm publish *.tgz` as a workaround.
 
+- Breaking changes to `pnpm link`:
+
+  - `pnpm link <pkg-name>` no longer resolves packages from the global store. Only relative or absolute paths are accepted. For example, use `pnpm link ./foo` instead of `pnpm link foo`.
+  - `pnpm link --global` is removed. Use `pnpm add -g .` to register a local package's bins globally.
+  - `pnpm link` (no arguments) is removed. Use `pnpm link <dir>` with an explicit path instead.
+
+- Do not exclude the root workspace project, when it is explicitly selected via a filter [#10465](https://github.com/pnpm/pnpm/pull/10465).
+
 ### Minor Changes
 
 - 7fab2a2: Load environment variables whose names start with `pnpm_config_` into config. These environment variables override settings from `pnpm-workspace.yaml` but not the CLI arguments.
@@ -135,6 +155,34 @@
 - 7d5ada0: `pnpm why` now shows a reverse dependency tree. The searched package appears at the root with its dependents as branches, walking back to workspace roots. This replaces the previous forward-tree output which was noisy and hard to read for deeply nested dependencies.
 - 5bf7768: A new `--yes` flag can be passed to pnpm to automatically confirm prompts. This is useful when running pnpm in non-interactive script.
 - 2b14c74: When pnpm updates the `pnpm-workspace.yaml`, comments, string formatting, and whitespace will be preserved.
+- Added `pnpm sbom` command for generating Software Bill of Materials in CycloneDX 1.7 and SPDX 2.3 JSON formats [#9088](https://github.com/pnpm/pnpm/issues/9088).
+- Allow loading certificates from `cert`, `ca`, and `key` for specific registry URLs. E.g., `//registry.example.com/:ca=-----BEGIN CERTIFICATE-----...`. Previously this was only working via `certfile`, `cafile`, and `keyfile` [#10230](https://github.com/pnpm/pnpm/pull/10230).
+- Added `--all` flag to `pnpm approve-builds` that approves all pending builds without interactive prompts [#10136](https://github.com/pnpm/pnpm/issues/10136).
+- Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic protocols in transitive dependencies [#10265](https://github.com/pnpm/pnpm/pull/10265).
+- Added `trustPolicyIgnoreAfter`, which allows you to ignore trust policy checks for packages published more than a specified time ago [#10352](https://github.com/pnpm/pnpm/issues/10352).
+- Added a new flag called `--bare` to `pnpm init` for creating a package.json with the bare minimum of required fields [#10226](https://github.com/pnpm/pnpm/issues/10226).
+- Added support for `allowBuilds`, which is a new field that can be used instead of `onlyBuiltDependencies` and `ignoredBuiltDependencies` [#10311](https://github.com/pnpm/pnpm/pull/10311).
+- Added support for object type in `configDependencies` when the tarball URL returned from package metadata differs from the computed URL [#10431](https://github.com/pnpm/pnpm/pull/10431).
+- The `pnpm dlx` / `pnpx` command now supports the `catalog:` protocol. Example: `pnpm dlx shx@catalog:`.
+- Add support for a hook called `beforePacking` that can be used to customize the `package.json` contents at publish time [#3816](https://github.com/pnpm/pnpm/issues/3816).
+- On systems using the musl C library (e.g. Alpine Linux), `pnpm env use` now automatically downloads the musl variant of Node.js. `pnpm env add` and `pnpm env remove` subcommands have been removed. `pnpm env list` now only lists remote Node.js versions.
+- Added support for `--dry-run` to the `pack` command [#10301](https://github.com/pnpm/pnpm/issues/10301).
+- Added mark-and-sweep garbage collection for global virtual store. `pnpm store prune` now removes unused packages from the global virtual store's `links/` directory.
+- **Semi-breaking.** Changed the location of unscoped packages in the virtual global store. They will now be stored under a directory named `@` to maintain a uniform 4-level directory depth.
+- Support configuring `auditLevel` in the `pnpm-workspace.yaml` file [#10540](https://github.com/pnpm/pnpm/issues/10540).
+- Support bare `workspace:` protocol without version specifier. It is now treated as `workspace:*` and resolves to the concrete version during publish [#10436](https://github.com/pnpm/pnpm/pull/10436).
+- Added support for `pnpm config get globalconfig` to retrieve the global config file path [#9977](https://github.com/pnpm/pnpm/issues/9977).
+- Added a new command `pnpm runtime set <runtime name> <runtime version spec> [-g]` for installing runtimes. Deprecated `pnpm env use` in favor of the new command.
+- Added `pnpm clean` command that safely removes `node_modules` directories from all workspace projects [#10707](https://github.com/pnpm/pnpm/issues/10707). Use `--lockfile` to also remove `pnpm-lock.yaml` files.
+- Increase the network concurrency on machines with many CPU cores [#10068](https://github.com/pnpm/pnpm/issues/10068).
+- Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+- Compute integrity hash for HTTP tarball dependencies when fetching, storing it in the lockfile to prevent servers from serving altered content on subsequent installs [#10287](https://github.com/pnpm/pnpm/pull/10287).
+- Added support for automatic Node.js runtime installation for dependencies. pnpm will now install the Node.js version required by a dependency if that dependency declares a Node.js runtime in the `engines` field [#10141](https://github.com/pnpm/pnpm/pull/10141).
+- Allow overriding the `engines` field on publish by the `publishConfig.engines` field.
+- Changed default values: `optimisticRepeatInstall` is now `true` and `verifyDepsBeforeRun` is now `install`.
+- Added a new setting: `trustPolicy`. When set to `no-downgrade`, pnpm will fail installation if a package's trust level has decreased compared to previous releases [#8889](https://github.com/pnpm/pnpm/issues/8889).
+- Support `.pnpmfile.mjs` as the default pnpmfile. When `.pnpmfile.mjs` exists, it takes priority over `.pnpmfile.cjs` and only one is loaded.
+- Added `-F` as a short alias for the `--filter` option.
 
 ### Patch Changes
 
