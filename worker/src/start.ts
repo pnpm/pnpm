@@ -65,6 +65,13 @@ async function handleMessage (
 ): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)
+    // Explicitly close cached SQLite connections before exiting.
+    // process.exit() in a worker thread may not run C++ destructors,
+    // which would leave file descriptors and mmap regions open.
+    for (const idx of storeIndexCache.values()) {
+      idx.close()
+    }
+    storeIndexCache.clear()
     process.exit(0)
   }
   try {
