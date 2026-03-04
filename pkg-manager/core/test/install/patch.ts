@@ -11,13 +11,12 @@ import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { jest } from '@jest/globals'
 import { sync as rimraf } from '@zkochan/rimraf'
-import sinon from 'sinon'
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
 test('patch package with exact version', async () => {
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   const project = prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
@@ -39,11 +38,11 @@ test('patch package with exact version', async () => {
     },
   }, opts)
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     packageNames: [],
     level: 'debug',
     name: 'pnpm:ignored-scripts',
-  } as IgnoredScriptsLog)).toBeTruthy()
+  } as IgnoredScriptsLog))
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
@@ -117,7 +116,7 @@ test('patch package with exact version', async () => {
 })
 
 test('patch package with version range', async () => {
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   const project = prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
@@ -139,11 +138,11 @@ test('patch package with version range', async () => {
     },
   }, opts)
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     packageNames: [],
     level: 'debug',
     name: 'pnpm:ignored-scripts',
-  } as IgnoredScriptsLog)).toBeTruthy()
+  } as IgnoredScriptsLog))
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 

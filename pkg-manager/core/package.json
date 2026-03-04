@@ -146,7 +146,6 @@
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "@types/sinon": "catalog:",
     "@yarnpkg/core": "catalog:",
     "ci-info": "catalog:",
     "deep-require-cwd": "catalog:",
@@ -157,7 +156,6 @@
     "path-name": "catalog:",
     "read-yaml-file": "catalog:",
     "resolve-link-target": "catalog:",
-    "sinon": "catalog:",
     "symlink-dir": "catalog:",
     "write-json-file": "catalog:",
     "write-yaml-file": "catalog:"

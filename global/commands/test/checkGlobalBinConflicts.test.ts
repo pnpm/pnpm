@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { checkGlobalBinConflicts } from '@pnpm/global.commands'
 import { type DependencyManifest } from '@pnpm/types'
+import symlinkDir from 'symlink-dir'
 
 function makeTempDir (): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-test-'))
@@ -21,8 +22,9 @@ function makeTempDir (): string {
  */
 function createExistingGlobalPackage (
   globalDir: string,
-  opts: { alias: string, bins: Record<string, string> }
+  opts: { alias: string, name?: string, bins: Record<string, string> }
 ): void {
+  const pkgName = opts.name ?? opts.alias
   const installDir = makeTempDir()
   const depDir = path.join(installDir, 'node_modules', opts.alias)
   fs.mkdirSync(depDir, { recursive: true })
@@ -32,10 +34,10 @@ function createExistingGlobalPackage (
   )
   fs.writeFileSync(
     path.join(depDir, 'package.json'),
-    JSON.stringify({ name: opts.alias, version: '1.0.0', bin: opts.bins })
+    JSON.stringify({ name: pkgName, version: '1.0.0', bin: opts.bins })
   )
   // Create hash symlink so scanGlobalPackages discovers it
-  fs.symlinkSync(installDir, path.join(globalDir, 'fakehash-' + opts.alias))
+  symlinkDir.sync(installDir, path.join(globalDir, `fakehash-${opts.alias}`))
 }
 
 function makeNewPkg (
@@ -73,7 +75,7 @@ describe('checkGlobalBinConflicts', () => {
         newPkgs: [newPkg],
         shouldSkip: () => false,
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual(new Set())
   })
 
   it('throws on unrelated bin name conflict', async () => {
@@ -122,7 +124,7 @@ describe('checkGlobalBinConflicts', () => {
         newPkgs: [newPkg],
         shouldSkip: () => false,
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual(new Set())
   })
 
   it('allows override for npx when npm package is being installed (BIN_OWNER_OVERRIDES)', async () => {
@@ -147,7 +149,7 @@ describe('checkGlobalBinConflicts', () => {
         newPkgs: [newPkg],
         shouldSkip: () => false,
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual(new Set())
   })
 
   it('still throws when an unowned bin conflicts even if another bin is owned', async () => {
@@ -198,6 +200,93 @@ describe('checkGlobalBinConflicts', () => {
         newPkgs: [newPkg],
         shouldSkip: (pkg) => 'typescript' in pkg.dependencies,
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual(new Set())
+  })
+
+  it('allows override when one of multiple new packages owns the bin', async () => {
+    const globalDir = makeTempDir()
+    const globalBinDir = makeTempDir()
+
+    // Existing "old-pkg" provides "foo" bin
+    createExistingGlobalPackage(globalDir, {
+      alias: 'old-pkg',
+      bins: { foo: './bin/foo.js' },
+    })
+    fs.writeFileSync(path.join(globalBinDir, 'foo'), '')
+
+    // Two new packages both provide "foo"; "foo" owns the bin by name
+    const newPkgA = makeNewPkg('bar', { foo: './bin/foo.js' })
+    const newPkgB = makeNewPkg('foo', { foo: './bin/foo.js' })
+
+    await expect(
+      checkGlobalBinConflicts({
+        globalDir,
+        globalBinDir,
+        newPkgs: [newPkgA, newPkgB],
+        shouldSkip: () => false,
+      })
+    ).resolves.toEqual(new Set())
+  })
+
+  it('uses manifest.name instead of alias for existing package ownership', async () => {
+    const globalDir = makeTempDir()
+    const globalBinDir = makeTempDir()
+
+    // Existing package has alias "my-npm" but its real name is "npm"
+    createExistingGlobalPackage(globalDir, {
+      alias: 'my-npm',
+      name: 'npm',
+      bins: { npm: './bin/npm-cli.js', npx: './bin/npx-cli.js' },
+    })
+    fs.writeFileSync(path.join(globalBinDir, 'npm'), '')
+    fs.writeFileSync(path.join(globalBinDir, 'npx'), '')
+
+    // New "node" package provides "npm" and "npx" — the existing package
+    // owns them (real name "npm"), so they should be skipped.
+    const newPkg = makeNewPkg('node', {
+      node: './bin/node',
+      npm: './lib/npm-cli.js',
+      npx: './lib/npx-cli.js',
+    })
+
+    await expect(
+      checkGlobalBinConflicts({
+        globalDir,
+        globalBinDir,
+        newPkgs: [newPkg],
+        shouldSkip: () => false,
+      })
+    ).resolves.toEqual(new Set(['npm', 'npx']))
+  })
+
+  it('returns bins to skip when existing package owns conflicting bins', async () => {
+    const globalDir = makeTempDir()
+    const globalBinDir = makeTempDir()
+
+    // Existing "npm" package provides "npm" and "npx" bins
+    createExistingGlobalPackage(globalDir, {
+      alias: 'npm',
+      bins: { npm: './bin/npm-cli.js', npx: './bin/npx-cli.js' },
+    })
+    fs.writeFileSync(path.join(globalBinDir, 'npm'), '')
+    fs.writeFileSync(path.join(globalBinDir, 'npx'), '')
+
+    // New "node" package provides "node", "npm", and "npx"
+    // "node" doesn't own "npm" or "npx", but the existing "npm" package does,
+    // so those bins should be skipped rather than causing an error.
+    const newPkg = makeNewPkg('node', {
+      node: './bin/node',
+      npm: './lib/npm-cli.js',
+      npx: './lib/npx-cli.js',
+    })
+
+    await expect(
+      checkGlobalBinConflicts({
+        globalDir,
+        globalBinDir,
+        newPkgs: [newPkg],
+        shouldSkip: () => false,
+      })
+    ).resolves.toEqual(new Set(['npm', 'npx']))
   })
 })

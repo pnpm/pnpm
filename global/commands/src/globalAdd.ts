@@ -109,8 +109,9 @@ export async function handleGlobalAdd (
   // Check for bin name conflicts with other global packages
   // (must happen before removeExistingGlobalInstalls so we don't lose existing packages on failure)
   const pkgs = await readInstalledPackages(installDir)
+  let binsToSkip: Set<string>
   try {
-    await checkGlobalBinConflicts({
+    binsToSkip = await checkGlobalBinConflicts({
       globalDir,
       globalBinDir,
       newPkgs: pkgs,
@@ -133,7 +134,7 @@ export async function handleGlobalAdd (
   await symlinkDir(installDir, hashLink, { overwrite: true })
 
   // Link bins from installed packages into global bin dir
-  await linkBinsOfPackages(pkgs, globalBinDir)
+  await linkBinsOfPackages(pkgs, globalBinDir, { excludeBins: binsToSkip })
 }
 
 async function removeExistingGlobalInstalls (
