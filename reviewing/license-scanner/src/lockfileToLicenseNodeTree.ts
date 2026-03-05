@@ -1,5 +1,5 @@
 import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { nameVerFromPkgSnapshot, packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import {
   lockfileWalkerGroupImporterSteps,
@@ -71,7 +71,7 @@ export async function lockfileToLicenseNode (
 
       const packageInfo = await getPkgInfo(
         {
-          id: pkgSnapshot.id ?? depPath,
+          id: packageIdFromSnapshot(depPath, pkgSnapshot),
           name,
           version,
           depPath,
