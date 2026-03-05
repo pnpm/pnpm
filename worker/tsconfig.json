@@ -43,7 +43,7 @@
       "path": "../store/create-cafs-store"
     },
     {
-      "path": "../store/store-index"
+      "path": "../store/index"
     }
   ]
 }

@@ -19,7 +19,7 @@ import {
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
-import { storeIndexKey } from '@pnpm/store-index'
+import { storeIndexKey } from '@pnpm/store.index'
 import {
   readPkgFromCafs,
 } from '@pnpm/worker'

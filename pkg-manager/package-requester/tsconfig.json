@@ -58,10 +58,10 @@
       "path": "../../store/create-cafs-store"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/index"
     },
     {
-      "path": "../../store/store-index"
+      "path": "../../store/store-controller-types"
     },
     {
       "path": "../../worker"

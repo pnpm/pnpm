@@ -9,7 +9,7 @@ import { type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
 import { type BundledManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { globalWarn } from '@pnpm/logger'
-import { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex } from '@pnpm/store.index'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,

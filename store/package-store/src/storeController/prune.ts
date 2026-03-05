@@ -1,7 +1,7 @@
 import { type Dirent, promises as fs } from 'fs'
 import util from 'util'
 import path from 'path'
-import { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex } from '@pnpm/store.index'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'

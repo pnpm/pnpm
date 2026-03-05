@@ -159,13 +159,13 @@
       "path": "../store/cafs"
     },
     {
+      "path": "../store/index"
+    },
+    {
       "path": "../store/plugin-commands-store"
     },
     {
       "path": "../store/plugin-commands-store-inspecting"
-    },
-    {
-      "path": "../store/store-index"
     },
     {
       "path": "../tools/path"

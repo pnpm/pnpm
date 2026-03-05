@@ -33,8 +33,8 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/store-index": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*"
+    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.index": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/store.pkg-finder": "workspace:*"

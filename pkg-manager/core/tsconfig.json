@@ -154,10 +154,10 @@
       "path": "../../store/cafs"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/index"
     },
     {
-      "path": "../../store/store-index"
+      "path": "../../store/store-controller-types"
     },
     {
       "path": "../../store/store-path"

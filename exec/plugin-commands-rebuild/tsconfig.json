@@ -88,13 +88,13 @@
       "path": "../../store/cafs"
     },
     {
+      "path": "../../store/index"
+    },
+    {
       "path": "../../store/store-connection-manager"
     },
     {
       "path": "../../store/store-controller-types"
-    },
-    {
-      "path": "../../store/store-index"
     },
     {
       "path": "../../worker"

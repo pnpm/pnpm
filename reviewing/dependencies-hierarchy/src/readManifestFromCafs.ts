@@ -1,4 +1,4 @@
-import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { loadJsonFileSync } from 'load-json-file'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'

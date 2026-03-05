@@ -1001,12 +1001,12 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.2(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
     devDependencies:
       '@pnpm/assert-store':
         specifier: workspace:*
@@ -1243,12 +1243,12 @@ importers:
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       encode-registry:
         specifier: 'catalog:'
         version: 3.0.1
@@ -2699,12 +2699,12 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -4282,15 +4282,15 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../../store/store-index
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5185,15 +5185,15 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.2(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../../store/store-index
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5461,15 +5461,15 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.2(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../../store/store-index
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5763,12 +5763,12 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -6714,12 +6714,12 @@ importers:
       '@pnpm/runtime.commands':
         specifier: workspace:*
         version: link:../runtime/commands
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../store/index
       '@pnpm/tabtab':
         specifier: 'catalog:'
         version: 0.5.4
@@ -7552,12 +7552,12 @@ importers:
       '@pnpm/resolving.jsr-specifier-parser':
         specifier: workspace:*
         version: link:../jsr-specifier-parser
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -7705,12 +7705,12 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -8439,6 +8439,22 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
 
+  store/index:
+    dependencies:
+      msgpackr:
+        specifier: 'catalog:'
+        version: 1.11.8
+    devDependencies:
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.13
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
+
   store/package-store:
     dependencies:
       '@pnpm/create-cafs-store':
@@ -8465,12 +8481,12 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../index
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -8526,12 +8542,12 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../index
     devDependencies:
       '@pnpm/store.pkg-finder':
         specifier: workspace:*
@@ -8575,15 +8591,15 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../store-index
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../index
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -8678,15 +8694,15 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../store-index
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../index
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -8762,22 +8778,6 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: 'link:'
-
-  store/store-index:
-    dependencies:
-      msgpackr:
-        specifier: 'catalog:'
-        version: 1.11.8
-    devDependencies:
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/node':
-        specifier: 'catalog:'
-        version: 22.19.13
-      tempy:
-        specifier: 'catalog:'
-        version: 3.0.0
 
   store/store-path:
     dependencies:
@@ -8965,12 +8965,12 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../fs/graceful-fs
-      '@pnpm/store-index':
-        specifier: workspace:*
-        version: link:../store/store-index
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../store/index
       '@pnpm/symlink-dependency':
         specifier: workspace:*
         version: link:../fs/symlink-dependency

@@ -11,7 +11,7 @@ import {
   type StageLog,
   type StatsLog,
 } from '@pnpm/core-loggers'
-import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readModulesManifest } from '@pnpm/modules-yaml'

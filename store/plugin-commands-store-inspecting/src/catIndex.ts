@@ -5,7 +5,7 @@ import { type TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
 import { sortDeepKeys } from '@pnpm/object.key-sorting'
-import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { getStorePath } from '@pnpm/store-path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'

@@ -6,7 +6,7 @@ import { type Cafs, type PackageFiles, type SideEffectsDiff, type FilesMap } fro
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
-import { StoreIndex, packForStorage } from '@pnpm/store-index'
+import { StoreIndex, packForStorage } from '@pnpm/store.index'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import {
   type CafsFunctions,

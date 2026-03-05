@@ -64,6 +64,9 @@
       "path": "../cafs"
     },
     {
+      "path": "../index"
+    },
+    {
       "path": "../package-store"
     },
     {
@@ -71,9 +74,6 @@
     },
     {
       "path": "../store-controller-types"
-    },
-    {
-      "path": "../store-index"
     },
     {
       "path": "../store-path"

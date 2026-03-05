@@ -1,7 +1,7 @@
 import path from 'path'
 import { formatIntegrity } from '@pnpm/crypto.integrity'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
-import { storeIndexKey } from '@pnpm/store-index'
+import { storeIndexKey } from '@pnpm/store.index'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
   nameVerFromPkgSnapshot,
@@ -10,7 +10,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
-import { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex } from '@pnpm/store.index'
 import { type DepPath } from '@pnpm/types'
 import dint from 'dint'
 import pFilter from 'p-filter'

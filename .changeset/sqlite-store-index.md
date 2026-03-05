@@ -1,5 +1,5 @@
 ---
-"@pnpm/store-index": minor
+"@pnpm/store.index": minor
 "@pnpm/store.cafs": minor
 "@pnpm/worker": minor
 "@pnpm/plugin-commands-store-inspecting": minor

@@ -49,10 +49,10 @@
       "path": "../create-cafs-store"
     },
     {
-      "path": "../store-controller-types"
+      "path": "../index"
     },
     {
-      "path": "../store-index"
+      "path": "../store-controller-types"
     }
   ]
 }

@@ -3,7 +3,7 @@ import path from 'path'
 import {
   normalizeBundledManifest,
 } from '@pnpm/store.cafs'
-import { storeIndexKey } from '@pnpm/store-index'
+import { storeIndexKey } from '@pnpm/store.index'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { PnpmError } from '@pnpm/error'

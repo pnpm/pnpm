@@ -1,6 +1,6 @@
 {
-  "name": "@pnpm/store-index",
-  "version": "1000.0.0",
+  "name": "@pnpm/store.index",
+  "version": "1000.0.0-0",
   "description": "SQLite-backed index for the pnpm content-addressable store",
   "keywords": [
     "pnpm",
@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/store/store-index",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/store/store-index#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/store/index",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/store/index#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -35,7 +35,7 @@
     "msgpackr": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/store-index": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@types/node": "catalog:",
     "tempy": "catalog:"
   },

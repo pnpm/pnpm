@@ -1,7 +1,7 @@
 import path from 'path'
 import { depPathToFilename, parse } from '@pnpm/dependency-path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { type Resolution } from '@pnpm/resolver-base'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 

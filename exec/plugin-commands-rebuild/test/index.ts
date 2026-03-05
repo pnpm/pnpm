@@ -2,7 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
-import { StoreIndex, storeIndexKey } from '@pnpm/store-index'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { ENGINE_NAME, STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'

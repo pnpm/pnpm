@@ -2,7 +2,7 @@ import assert from 'assert'
 import path from 'path'
 import util from 'util'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
-import { storeIndexKey } from '@pnpm/store-index'
+import { storeIndexKey } from '@pnpm/store.index'
 import { calcDepState, lockfileToDepGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
@@ -37,7 +37,7 @@ import {
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
-import { StoreIndex } from '@pnpm/store-index'
+import { StoreIndex } from '@pnpm/store.index'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { hardLinkDir } from '@pnpm/worker'
 import { runGroups } from 'run-groups'

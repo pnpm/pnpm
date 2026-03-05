@@ -58,7 +58,7 @@
       "path": "../../store/cafs"
     },
     {
-      "path": "../../store/store-index"
+      "path": "../../store/index"
     },
     {
       "path": "../../worker"
