@@ -17,6 +17,15 @@ export default async () => {
     stdio: 'inherit',
     listen: process.env.PNPM_REGISTRY_MOCK_PORT,
   })
+  // Unref the server and its stdio so that the Verdaccio child process does
+  // not prevent Jest from exiting.  With Jest 30 worker threads the main
+  // thread and worker thread share the same event loop, so ref'd handles
+  // from globalSetup keep the whole process alive after tests complete.
+  // globalTeardown still properly kills the server via tree-kill.
+  server.unref()
+  if (server.stdout) server.stdout.unref()
+  if (server.stderr) server.stderr.unref()
+  if (server.stdin) server.stdin.unref()
   let killed = false
   server.on('error', (err) => {
     console.log(err)
@@ -27,14 +36,8 @@ export default async () => {
       process.exit(1)
     }
   })
-  global.killServer = async () => {
+  global.killServer = () => {
     killed = true
-    await kill(server.pid)
-    // tree-kill resolves after sending the signal, but the process may still
-    // be shutting down.  Wait for the child process to actually close so that
-    // its handle no longer keeps the Jest main process alive.
-    if (server.exitCode == null) {
-      await new Promise((resolve) => server.on('close', resolve))
-    }
+    return kill(server.pid)
   }
 }
