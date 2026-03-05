@@ -15,6 +15,11 @@ import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
+
 test('patch package with exact version', async () => {
   const reporter = jest.fn()
   const project = prepareEmpty()
@@ -58,8 +63,8 @@ test('patch package with exact version', async () => {
 
   const filesIndexKey = storeIndexKey(getIntegrity('is-positive', '1.0.0'), 'is-positive@1.0.0')
   const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
   const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
-  storeIndex.close()
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
@@ -158,8 +163,8 @@ test('patch package with version range', async () => {
 
   const filesIndexKey = storeIndexKey(getIntegrity('is-positive', '1.0.0'), 'is-positive@1.0.0')
   const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
   const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
-  storeIndex.close()
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
@@ -330,8 +335,8 @@ test('patch package when scripts are ignored', async () => {
 
   const filesIndexKey = storeIndexKey(getIntegrity('is-positive', '1.0.0'), 'is-positive@1.0.0')
   const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
   const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
-  storeIndex.close()
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
@@ -423,8 +428,8 @@ test('patch package when the package is not in allowBuilds list', async () => {
 
   const filesIndexKey = storeIndexKey(getIntegrity('is-positive', '1.0.0'), 'is-positive@1.0.0')
   const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
   const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
-  storeIndex.close()
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()

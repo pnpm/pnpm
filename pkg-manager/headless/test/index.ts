@@ -27,6 +27,11 @@ import { testDefaults } from './utils/testDefaults.js'
 
 const f = fixtures(import.meta.dirname)
 
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
+
 test('installing a simple project', async () => {
   const prefix = f.prepare('simple')
   const reporter = jest.fn()
@@ -698,6 +703,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
 
   const cacheIntegrityPath = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
   const cacheIntegrity = storeIndex.get(cacheIntegrityPath) as PackageFilesIndex
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
@@ -714,7 +720,6 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
 
   expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)?.added?.has('generated-by-preinstall.js')).toBeTruthy()
   storeIndex.set(cacheIntegrityPath, cacheIntegrity)
-  storeIndex.close()
 
   prefix = f.prepare('side-effects')
   const opts2 = await testDefaults({

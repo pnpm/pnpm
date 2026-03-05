@@ -26,10 +26,13 @@ const registries = { default: registry }
 
 const authConfig = { registry }
 
-const topStoreIndex = new StoreIndex('.store')
+const storeIndexes: StoreIndex[] = []
 afterAll(() => {
-  topStoreIndex.close()
+  for (const si of storeIndexes) si.close()
 })
+
+const topStoreIndex = new StoreIndex('.store')
+storeIndexes.push(topStoreIndex)
 
 const { resolve, fetchers } = createClient({
   authConfig,
@@ -38,11 +41,6 @@ const { resolve, fetchers } = createClient({
   rawConfig: {},
   registries,
   storeIndex: topStoreIndex,
-})
-
-const storeIndexes: StoreIndex[] = []
-afterAll(() => {
-  for (const si of storeIndexes) si.close()
 })
 
 function createFetchersForStore (storeDir: string) {
@@ -479,8 +477,8 @@ test('fetchPackageToStore()', async () => {
   expect(files.resolvedFrom).toBe('remote')
 
   const storeIndex = new StoreIndex(storeDir)
+  storeIndexes.push(storeIndex)
   const indexFile = storeIndex.get(fetchResult.filesIndexFile) as PackageFilesIndex
-  storeIndex.close()
   expect(indexFile).toBeTruthy()
   expect(typeof indexFile.files.get('package.json')!.checkedAt).toBeTruthy()
 

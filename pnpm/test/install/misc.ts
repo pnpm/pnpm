@@ -25,6 +25,11 @@ import {
 const skipOnWindows = isWindows() ? test.skip : test
 const f = fixtures(import.meta.dirname)
 
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
+
 test('bin files are found by lifecycle scripts', () => {
   prepare({
     dependencies: {
@@ -514,12 +519,12 @@ test('installation fails when the stored package name and version do not match t
 
   const cacheIntegrityKey = storeIndexKey(getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
   const storeIndex = new StoreIndex(path.join(storeDir, STORE_VERSION))
+  storeIndexes.push(storeIndex)
   const cacheIntegrity = storeIndex.get(cacheIntegrityKey) as PackageFilesIndex
   storeIndex.set(cacheIntegrityKey, {
     ...cacheIntegrity,
     manifest: { ...cacheIntegrity.manifest, name: 'foo' },
   })
-  storeIndex.close()
 
   rimraf('node_modules')
   await expect(

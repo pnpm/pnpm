@@ -12,6 +12,11 @@ import { testDefaults } from '../utils/index.js'
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
+
 test.skip('caching side effects of native package', async () => {
   prepareEmpty()
 
@@ -84,6 +89,7 @@ test('using side effects cache', async () => {
 
   const filesIndexKey = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
   const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
@@ -103,7 +109,6 @@ test('using side effects cache', async () => {
   expect(addedFiles.has('generated-by-postinstall.js')).toBeTruthy()
   addedFiles.delete('generated-by-postinstall.js')
   storeIndex.set(filesIndexKey, filesIndex)
-  storeIndex.close()
 
   rimraf('node_modules')
   rimraf('pnpm-lock.yaml') // to avoid headless install

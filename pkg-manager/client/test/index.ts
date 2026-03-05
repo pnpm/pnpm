@@ -2,8 +2,14 @@
 import { createClient, createResolver } from '@pnpm/client'
 import { StoreIndex } from '@pnpm/store.index'
 
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
+
 test('createClient()', () => {
   const storeIndex = new StoreIndex('.store')
+  storeIndexes.push(storeIndex)
   const client = createClient({
     authConfig: { registry: 'https://registry.npmjs.org/' },
     cacheDir: '',
@@ -14,7 +20,6 @@ test('createClient()', () => {
     storeDir: '.store',
     storeIndex,
   })
-  storeIndex.close()
   expect(typeof client === 'object').toBeTruthy()
 })
 
