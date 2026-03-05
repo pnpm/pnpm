@@ -3,6 +3,7 @@ import { Response } from 'node-fetch'
 import path from 'path'
 import { Readable } from 'stream'
 import type { FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
+import { StoreIndex } from '@pnpm/store.index'
 import { tempDir } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
 
@@ -47,12 +48,16 @@ test.skip('install Node using a custom node mirror', async () => {
   tempDir()
 
   const nodeMirrorBaseUrl = 'https://pnpm-node-mirror-test.localhost/download/release/'
+  const storeDir = path.resolve('store')
+  const storeIndex = new StoreIndex(storeDir)
   const opts: FetchNodeOptions = {
     nodeMirrorBaseUrl,
-    storeDir: path.resolve('store'),
+    storeDir,
+    storeIndex,
   }
 
   await fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
+  storeIndex.close()
 
   for (const call of fetchMock.mock.calls) {
     expect(call[0]).toMatch(nodeMirrorBaseUrl)
@@ -62,11 +67,15 @@ test.skip('install Node using a custom node mirror', async () => {
 test.skip('install Node using the default node mirror', async () => {
   tempDir()
 
+  const storeDir = path.resolve('store')
+  const storeIndex = new StoreIndex(storeDir)
   const opts: FetchNodeOptions = {
-    storeDir: path.resolve('store'),
+    storeDir,
+    storeIndex,
   }
 
   await fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
+  storeIndex.close()
 
   for (const call of fetchMock.mock.calls) {
     expect(call[0]).toMatch('https://nodejs.org/download/release/')
@@ -84,6 +93,7 @@ test('auto-detects musl on non-glibc Linux and uses unofficial-builds mirror', a
   await expect(
     fetchNode(fetchMock, '22.0.0', path.resolve('node'), {
       storeDir: path.resolve('store'),
+      storeIndex: new StoreIndex(path.resolve('store')),
       platform: 'linux',
       arch: 'x64',
       retry: { retries: 0 },
