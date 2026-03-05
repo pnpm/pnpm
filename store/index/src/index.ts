@@ -204,6 +204,7 @@ export class StoreIndex {
   close (): void {
     if (this.closed) return
     this.closed = true
+    this.db.exec('PRAGMA optimize')
     this.db.close()
   }
 }
