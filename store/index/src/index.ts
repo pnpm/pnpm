@@ -65,6 +65,7 @@ export function gitHostedStoreIndexKey (pkgId: string, opts: { built: boolean })
 
 export class StoreIndex {
   private db: DatabaseSyncType
+  private closed = false
   private stmtGet: StatementSync
   private stmtSet: StatementSync
   private stmtDel: StatementSync
@@ -201,6 +202,8 @@ export class StoreIndex {
   }
 
   close (): void {
+    if (this.closed) return
+    this.closed = true
     this.db.close()
   }
 }
