@@ -15,7 +15,9 @@ import type { CustomFetcher } from '@pnpm/hooks.types'
 
 const f = fixtures(import.meta.dirname)
 const storeIndex = new StoreIndex(temporaryDirectory())
-afterAll(() => { storeIndex.close() })
+afterAll(() => {
+  storeIndex.close()
+})
 
 // Test helpers to reduce type casting
 function createMockFetchers (partial: Partial<Fetchers> = {}): Fetchers {
