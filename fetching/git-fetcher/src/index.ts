@@ -5,7 +5,7 @@ import type { GitFetcher } from '@pnpm/fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
-import { StoreIndex } from '@pnpm/store.index'
+import { type StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
 import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
@@ -15,7 +15,7 @@ import { URL } from 'url'
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]
   rawConfig: Record<string, unknown>
-  storeIndex?: StoreIndex
+  storeIndex: StoreIndex
   unsafePerm?: boolean
   ignoreScripts?: boolean
 }
@@ -61,21 +61,15 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
     // Important! We cannot remove the temp location at this stage.
     // Even though we have the index of the package,
     // the linking of files to the store is in progress.
-    const ownStoreIndex = !createOpts.storeIndex
-    const storeIndex = createOpts.storeIndex ?? new StoreIndex(cafs.storeDir)
-    try {
-      return await addFilesFromDir({
-        storeDir: cafs.storeDir,
-        storeIndex,
-        dir: pkgDir,
-        files,
-        filesIndexFile: opts.filesIndexFile,
-        readManifest: opts.readManifest,
-        pkg: opts.pkg,
-      })
-    } finally {
-      if (ownStoreIndex) storeIndex.close()
-    }
+    return addFilesFromDir({
+      storeDir: cafs.storeDir,
+      storeIndex: createOpts.storeIndex,
+      dir: pkgDir,
+      files,
+      filesIndexFile: opts.filesIndexFile,
+      readManifest: opts.readManifest,
+      pkg: opts.pkg,
+    })
   }
 
   return {
