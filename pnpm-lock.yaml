@@ -3243,15 +3243,9 @@ importers:
       p-map-values:
         specifier: 'catalog:'
         version: 1.0.0
-      path-temp:
-        specifier: 'catalog:'
-        version: 2.1.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
-      rename-overwrite:
-        specifier: 'catalog:'
-        version: 6.0.3
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

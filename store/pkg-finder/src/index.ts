@@ -1,5 +1,5 @@
 import path from 'path'
-import { depPathToFilename, parse } from '@pnpm/dependency-path'
+import { parse } from '@pnpm/dependency-path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { type Resolution } from '@pnpm/resolver-base'
@@ -52,12 +52,7 @@ export async function readPackageFileMap (
       parsedId.nonSemverVersion ?? `${parsedId.name}@${parsedId.version}`
     )
   } else if (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) {
-    const packageDirInStore = depPathToFilename(parse(packageId).nonSemverVersion ?? packageId, opts.virtualStoreDirMaxLength)
-    pkgIndexFilePath = path.join(
-      opts.storeDir,
-      packageDirInStore,
-      'integrity.mpk'
-    )
+    pkgIndexFilePath = storeIndexKey(packageId, 'built')
   } else {
     return undefined
   }

@@ -1,5 +1,4 @@
 import assert from 'assert'
-import fs from 'node:fs/promises'
 import util from 'util'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import { type Cafs, type FilesMap } from '@pnpm/cafs-types'
@@ -8,8 +7,6 @@ import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import { type BundledManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
-import renameOverwrite from 'rename-overwrite'
-import { fastPathTemp as pathTemp } from 'path-temp'
 
 interface Resolution {
   integrity?: string
@@ -26,13 +23,9 @@ export interface CreateGitHostedTarballFetcher {
 
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
-    const tempIndexFile = pathTemp(opts.filesIndexFile)
-    const { filesMap, manifest, requiresBuild } = await fetchRemoteTarball(cafs, resolution, {
-      ...opts,
-      filesIndexFile: tempIndexFile,
-    })
+    const { filesMap, manifest, requiresBuild } = await fetchRemoteTarball(cafs, resolution, opts)
     try {
-      const prepareResult = await prepareGitHostedPkg(filesMap, cafs, tempIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
+      const prepareResult = await prepareGitHostedPkg(filesMap, cafs, opts.filesIndexFile, fetcherOpts, opts, resolution)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
@@ -60,7 +53,6 @@ interface PrepareGitHostedPkgResult {
 async function prepareGitHostedPkg (
   filesMap: FilesMap,
   cafs: Cafs,
-  filesIndexFileNonBuilt: string,
   filesIndexFile: string,
   opts: CreateGitHostedTarballFetcher,
   fetcherOpts: FetchOptions,
@@ -82,9 +74,6 @@ async function prepareGitHostedPkg (
   const files = await packlist(pkgDir)
   if (!resolution.path && files.length === filesMap.size) {
     if (!shouldBeBuilt) {
-      if (filesIndexFileNonBuilt !== filesIndexFile) {
-        await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
-      }
       return {
         filesMap,
         ignoredBuild: false,
@@ -97,10 +86,6 @@ async function prepareGitHostedPkg (
       }
     }
   }
-  try {
-    // The temporary index file may be deleted
-    await fs.unlink(filesIndexFileNonBuilt)
-  } catch {}
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.

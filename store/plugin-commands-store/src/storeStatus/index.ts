@@ -55,7 +55,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
       const pkgIndexFilePath = integrity
         ? storeIndexKey(integrity, id)
-        : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.mpk')
+        : storeIndexKey(id, 'built')
       const pkgFilesIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
       if (!pkgFilesIndex) {
         return false

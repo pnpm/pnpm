@@ -44,9 +44,7 @@
     "@zkochan/retry": "catalog:",
     "lodash.throttle": "catalog:",
     "p-map-values": "catalog:",
-    "path-temp": "catalog:",
-    "ramda": "catalog:",
-    "rename-overwrite": "catalog:"
+    "ramda": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:",

@@ -357,7 +357,7 @@ function getFilesIndexFilePath (
   } else {
     resolution = opts.pkg.resolution
   }
-  const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.mpk' : 'integrity.mpk')
+  const filesIndexFile = storeIndexKey(opts.pkg.id, opts.ignoreScripts ? 'not-built' : 'built')
   return { filesIndexFile, target, resolution }
 }
 
