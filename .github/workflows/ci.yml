@@ -23,8 +23,8 @@ jobs:
       with:
         standalone: true
     - name: Setup Node
-      run: pnpm env use -g 24.6.0
-      timeout-minutes: 1
+      run: pnpm runtime -g set node 24.6.0
+      timeout-minutes: 2
     - name: pnpm install
       run: pnpm install
       timeout-minutes: 3
@@ -79,8 +79,8 @@ jobs:
       with:
         standalone: false
     - name: Setup Node
-      run: pnpm env use -g ${{ join(matrix.node, '.') }}
-      timeout-minutes: 1
+      run: pnpm runtime -g set node ${{ join(matrix.node, '.') }}
+      timeout-minutes: 2
     # npm is needed for preparing git-hosted dependencies (e.g. in dlx tests)
     - name: Verify npm
       run: npm --version

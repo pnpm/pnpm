@@ -36,8 +36,8 @@ jobs:
         standalone: true
 
     - name: Setup Node
-      run: pnpm env use -g 25.7.0
-      timeout-minutes: 1
+      run: pnpm runtime -g set node 25.7.0
+      timeout-minutes: 2
 
     - name: Install hyperfine
       run: |

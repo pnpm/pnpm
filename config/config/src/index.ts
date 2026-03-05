@@ -334,9 +334,9 @@ export async function getConfig (opts: {
     globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
   }
   pnpmConfig.globalPkgDir = path.join(globalDirRoot, GLOBAL_LAYOUT_VERSION)
+  pnpmConfig.dir = cwd
   if (cliOptions['global']) {
     delete pnpmConfig.workspaceDir
-    pnpmConfig.dir = pnpmConfig.globalPkgDir
     pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
@@ -382,11 +382,8 @@ export async function getConfig (opts: {
     if (pnpmConfig.enableGlobalVirtualStore == null) {
       pnpmConfig.enableGlobalVirtualStore = true
     }
-  } else {
-    pnpmConfig.dir = cwd
-    if (!pnpmConfig.bin) {
-      pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
-    }
+  } else if (!pnpmConfig.bin) {
+    pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
   }
   pnpmConfig.packageManager = packageManager
 
