@@ -9,7 +9,7 @@ import { type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
 import { type BundledManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { globalWarn } from '@pnpm/logger'
-import { StoreIndex } from '@pnpm/store.index'
+import { type StoreIndex } from '@pnpm/store.index'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
@@ -24,52 +24,35 @@ let workerPool: WorkerPool | undefined
 // Writes from the fetch phase are batched via process.nextTick for throughput.
 // Writes from the build phase (side effects) are written immediately so that
 // subsequent worker reads see the committed data.
-const mainStoreIndexCache = new Map<string, StoreIndex>()
-const pendingIndexWrites = new Map<string, Array<{ key: string, buffer: Uint8Array }>>()
+// The StoreIndex instance is passed in by the caller (owned by StoreController).
+const pendingIndexWrites = new Map<StoreIndex, Array<{ key: string, buffer: Uint8Array }>>()
 let flushScheduled = false
 
-function getMainStoreIndex (storeDir: string): StoreIndex {
-  if (!mainStoreIndexCache.has(storeDir)) {
-    mainStoreIndexCache.set(storeDir, new StoreIndex(storeDir))
+function queueIndexWrites (storeIndex: StoreIndex, writes: Array<{ key: string, buffer: Uint8Array }>): void {
+  if (!pendingIndexWrites.has(storeIndex)) {
+    pendingIndexWrites.set(storeIndex, [])
   }
-  return mainStoreIndexCache.get(storeDir)!
-}
-
-function queueIndexWrites (storeDir: string, writes: Array<{ key: string, buffer: Uint8Array }>): void {
-  if (!pendingIndexWrites.has(storeDir)) {
-    pendingIndexWrites.set(storeDir, [])
-  }
-  const queue = pendingIndexWrites.get(storeDir)!
+  const queue = pendingIndexWrites.get(storeIndex)!
   for (const w of writes) {
     queue.push(w)
   }
   if (!flushScheduled) {
     flushScheduled = true
-    process.nextTick(flushIndexWrites)
+    process.nextTick(flushStoreIndexWrites)
   }
 }
 
-function flushIndexWrites (): void {
+export function flushStoreIndexWrites (): void {
   flushScheduled = false
-  for (const [storeDir, writes] of pendingIndexWrites) {
+  for (const [storeIndex, writes] of pendingIndexWrites) {
     if (writes.length === 0) continue
-    const storeIndex = getMainStoreIndex(storeDir)
     storeIndex.setRawMany(writes)
   }
   pendingIndexWrites.clear()
 }
 
-function writeIndexImmediately (storeDir: string, writes: Array<{ key: string, buffer: Uint8Array }>): void {
-  const storeIndex = getMainStoreIndex(storeDir)
+function writeIndexImmediately (storeIndex: StoreIndex, writes: Array<{ key: string, buffer: Uint8Array }>): void {
   storeIndex.setRawMany(writes)
-}
-
-function closeMainStoreIndexes (): void {
-  flushIndexWrites()
-  for (const storeIndex of mainStoreIndexCache.values()) {
-    storeIndex.close()
-  }
-  mainStoreIndexCache.clear()
 }
 
 export async function restartWorkerPool (): Promise<void> {
@@ -84,7 +67,7 @@ export async function finishWorkers (): Promise<void> {
   global.finishWorkers = undefined
   await finish?.()
   workerPool = undefined
-  closeMainStoreIndexes()
+  flushStoreIndexWrites()
 }
 
 function createTarballWorkerPool (): WorkerPool {
@@ -132,7 +115,9 @@ interface AddFilesResult {
   integrity?: string
 }
 
-type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest' | 'includeNodeModules'>
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest' | 'includeNodeModules'> & {
+  storeIndex: StoreIndex
+}
 
 export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
   if (!workerPool) {
@@ -149,7 +134,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
       if (indexWrites) {
         // Write immediately so that subsequent worker reads (e.g. side effects)
         // see the committed data without waiting for nextTick.
-        writeIndexImmediately(opts.storeDir, indexWrites)
+        writeIndexImmediately(opts.storeIndex, indexWrites)
       }
       resolve(value)
     })
@@ -203,6 +188,7 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
 }
 
 type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest'> & {
+  storeIndex: StoreIndex
   url: string
 }
 
@@ -226,7 +212,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
         return
       }
       if (indexWrites) {
-        queueIndexWrites(opts.storeDir, indexWrites)
+        queueIndexWrites(opts.storeIndex, indexWrites)
       }
       resolve(value)
     })

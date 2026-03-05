@@ -25,7 +25,7 @@ export type ClientOptions = {
   rawConfig: Record<string, string>
   sslConfigs?: Record<string, SslConfig>
   retry?: RetryTimeoutOptions
-  storeIndex?: StoreIndex
+  storeIndex: StoreIndex
   timeout?: number
   unsafePerm?: boolean
   userAgent?: string
@@ -55,7 +55,7 @@ export function createClient (opts: ClientOptions): Client {
   }
 }
 
-export function createResolver (opts: ClientOptions): { resolve: ResolveFunction, clearCache: () => void } {
+export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { resolve: ResolveFunction, clearCache: () => void } {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
 
@@ -83,6 +83,7 @@ function createFetchers (
       fetchFromRemoteTarball: tarballFetchers.remoteTarball,
       offline: opts.offline,
       rawConfig: opts.rawConfig,
+      storeIndex: opts.storeIndex,
     }),
   }
 }

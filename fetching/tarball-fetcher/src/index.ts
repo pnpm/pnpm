@@ -42,7 +42,7 @@ export function createTarballFetcher (
     rawConfig: Record<string, unknown>
     unsafePerm?: boolean
     ignoreScripts?: boolean
-    storeIndex?: StoreIndex
+    storeIndex: StoreIndex
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean
@@ -58,12 +58,13 @@ export function createTarballFetcher (
     download,
     getAuthHeaderByURI: getAuthHeader,
     offline: opts.offline,
+    storeIndex: opts.storeIndex,
   }) as FetchFunction
 
   return {
-    localTarball: createLocalTarballFetcher(),
+    localTarball: createLocalTarballFetcher(opts.storeIndex),
     remoteTarball: remoteTarballFetcher,
-    gitHostedTarball: createGitHostedTarballFetcher(remoteTarballFetcher, { ...opts, storeIndex: opts.storeIndex! }),
+    gitHostedTarball: createGitHostedTarballFetcher(remoteTarballFetcher, opts),
   }
 }
 
@@ -72,6 +73,7 @@ async function fetchFromTarball (
     download: DownloadFunction
     getAuthHeaderByURI: (registry: string) => string | undefined
     offline?: boolean
+    storeIndex: StoreIndex
   },
   cafs: Cafs,
   resolution: {
@@ -88,6 +90,7 @@ async function fetchFromTarball (
   return ctx.download(resolution.tarball, {
     getAuthHeaderByURI: ctx.getAuthHeaderByURI,
     cafs,
+    storeIndex: ctx.storeIndex,
     integrity: resolution.integrity,
     readManifest: opts.readManifest,
     onProgress: opts.onProgress,

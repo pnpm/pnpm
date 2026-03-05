@@ -246,6 +246,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     offline: true,
     rawConfig: {},
+    storeIndex,
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -273,6 +274,7 @@ test('fail when trying to fetch a non-local tarball in offline mode', async () =
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     offline: true,
     rawConfig: {},
+    storeIndex,
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -403,6 +405,7 @@ test('accessing private packages', async () => {
   const getAuthHeader = () => 'Bearer ofjergrg349gj3f2'
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     rawConfig: {},
+    storeIndex,
     retry: {
       maxTimeout: 100,
       minTimeout: 0,

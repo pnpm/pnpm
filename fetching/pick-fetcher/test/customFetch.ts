@@ -3,6 +3,7 @@ import { jest } from '@jest/globals'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/create-cafs-store'
+import { StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { temporaryDirectory } from 'tempy'
 import path from 'path'
@@ -13,6 +14,8 @@ import type { AtomicResolution } from '@pnpm/resolver-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 
 const f = fixtures(import.meta.dirname)
+const storeIndex = new StoreIndex(temporaryDirectory())
+afterAll(() => { storeIndex.close() })
 
 // Test helpers to reduce type casting
 function createMockFetchers (partial: Partial<Fetchers> = {}): Fetchers {
@@ -280,7 +283,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {} }
+        { rawConfig: {}, storeIndex }
       )
 
       // Custom fetcher that maps custom URLs to tarballs
@@ -328,7 +331,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {} }
+        { rawConfig: {}, storeIndex }
       )
 
       // Custom fetcher that maps custom local paths to tarballs
@@ -379,7 +382,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {} }
+        { rawConfig: {}, storeIndex }
       )
 
       // Custom fetcher that transforms custom resolution to tarball URL
@@ -428,7 +431,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {}, ignoreScripts: true }
+        { rawConfig: {}, storeIndex, ignoreScripts: true }
       )
 
       // Custom fetcher that maps custom git resolution to git-hosted tarball

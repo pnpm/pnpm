@@ -6,6 +6,7 @@ import {
 } from '@pnpm/fetching-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { type Cafs } from '@pnpm/cafs-types'
+import { StoreIndex } from '@pnpm/store.index'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import {
   getNodeArtifactAddress,
@@ -163,36 +164,42 @@ async function downloadAndUnpackTarballToDir (
   targetDir: string,
   opts: FetchNodeOptionsToDir
 ): Promise<void> {
-  const getAuthHeader = () => undefined
-  const fetchers = createTarballFetcher(fetch, getAuthHeader, {
-    retry: opts.retry,
-    timeout: opts.fetchTimeout,
-    // These are not needed for fetching Node.js
-    rawConfig: {},
-    unsafePerm: false,
-  })
+  const storeIndex = new StoreIndex(opts.storeDir)
+  try {
+    const getAuthHeader = () => undefined
+    const fetchers = createTarballFetcher(fetch, getAuthHeader, {
+      retry: opts.retry,
+      timeout: opts.fetchTimeout,
+      storeIndex,
+      // These are not needed for fetching Node.js
+      rawConfig: {},
+      unsafePerm: false,
+    })
 
-  const cafs = createCafsStore(opts.storeDir)
+    const cafs = createCafsStore(opts.storeDir)
 
-  // Create a unique index file name for Node.js tarballs
-  const indexFileName = `node-${encodeURIComponent(artifactInfo.url)}`
-  const filesIndexFile = path.join(opts.storeDir, indexFileName)
+    // Create a unique index file name for Node.js tarballs
+    const indexFileName = `node-${encodeURIComponent(artifactInfo.url)}`
+    const filesIndexFile = path.join(opts.storeDir, indexFileName)
 
-  const { filesMap } = await fetchers.remoteTarball(cafs, {
-    tarball: artifactInfo.url,
-    integrity: artifactInfo.integrity,
-  }, {
-    filesIndexFile,
-    lockfileDir: process.cwd(),
-    pkg: {},
-  })
+    const { filesMap } = await fetchers.remoteTarball(cafs, {
+      tarball: artifactInfo.url,
+      integrity: artifactInfo.integrity,
+    }, {
+      filesIndexFile,
+      lockfileDir: process.cwd(),
+      pkg: {},
+    })
 
-  cafs.importPackage(targetDir, {
-    filesResponse: {
-      filesMap,
-      resolvedFrom: 'remote',
-      requiresBuild: false,
-    },
-    force: true,
-  })
+    cafs.importPackage(targetDir, {
+      filesResponse: {
+        filesMap,
+        resolvedFrom: 'remote',
+        requiresBuild: false,
+      },
+      force: true,
+    })
+  } finally {
+    storeIndex.close()
+  }
 }

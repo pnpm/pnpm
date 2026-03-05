@@ -38,6 +38,7 @@
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "detect-libc": "catalog:"
   },

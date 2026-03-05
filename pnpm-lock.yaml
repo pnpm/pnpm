@@ -2276,6 +2276,9 @@ importers:
       '@pnpm/node.resolver':
         specifier: workspace:*
         version: link:../node.resolver
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher
@@ -3019,6 +3022,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
@@ -3127,6 +3133,9 @@ importers:
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
@@ -3192,6 +3201,9 @@ importers:
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../tarball-fetcher

@@ -22,6 +22,7 @@ export function createTempStore (opts?: {
   const authConfig = { registry }
   const cacheDir = path.resolve('cache')
   const storeDir = opts?.storeDir ?? path.resolve('.store')
+  const storeIndex = new StoreIndex(storeDir)
   const { resolve, fetchers, clearResolutionCache } = createClient({
     authConfig,
     rawConfig: {},
@@ -33,12 +34,12 @@ export function createTempStore (opts?: {
     },
     cacheDir,
     storeDir,
+    storeIndex,
     registries: {
       default: registry,
     },
     ...opts?.clientOptions,
   })
-  const storeIndex = new StoreIndex(storeDir)
   const storeController = createPackageStore(
     resolve,
     fetchers,
