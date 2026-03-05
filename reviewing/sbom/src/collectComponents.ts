@@ -6,6 +6,7 @@ import {
 } from '@pnpm/lockfile.walker'
 import { type DepTypes, DepType, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { type DependenciesField, type ProjectId, type Registries } from '@pnpm/types'
+import { StoreIndex } from '@pnpm/store.index'
 import { buildPurl, encodePurlName } from './purl.js'
 import { getPkgMetadata, type GetPkgMetadataOptions } from './getPkgMetadata.js'
 import { type SbomComponent, type SbomRelationship, type SbomResult, type SbomComponentType } from './types.js'
@@ -42,9 +43,13 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
   const relationships: SbomRelationship[] = []
   const rootPurl = `pkg:npm/${encodePurlName(opts.rootName)}@${opts.rootVersion}`
 
-  const metadataOpts: GetPkgMetadataOptions | undefined = (!opts.lockfileOnly && opts.storeDir)
+  const storeIndex = (!opts.lockfileOnly && opts.storeDir)
+    ? new StoreIndex(opts.storeDir)
+    : undefined
+  const metadataOpts: GetPkgMetadataOptions | undefined = (storeIndex && opts.storeDir)
     ? {
       storeDir: opts.storeDir,
+      storeIndex,
       lockfileDir: opts.lockfileDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength ?? 120,
     }
@@ -63,6 +68,7 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
       )
     })
   )
+  storeIndex?.close()
 
   return {
     rootComponent: {

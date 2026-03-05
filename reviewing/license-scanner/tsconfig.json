@@ -46,6 +46,9 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
+      "path": "../../store/index"
+    },
+    {
       "path": "../../store/pkg-finder"
     }
   ]

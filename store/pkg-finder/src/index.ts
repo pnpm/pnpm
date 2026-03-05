@@ -1,12 +1,13 @@
 import path from 'path'
 import { parse } from '@pnpm/dependency-path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { StoreIndex, storeIndexKey, gitHostedStoreIndexKey } from '@pnpm/store.index'
+import { type StoreIndex, storeIndexKey, gitHostedStoreIndexKey } from '@pnpm/store.index'
 import { type Resolution } from '@pnpm/resolver-base'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 
 export interface ReadPackageFileMapOptions {
   storeDir: string
+  storeIndex: StoreIndex
   lockfileDir: string
   virtualStoreDirMaxLength: number
 }
@@ -57,24 +58,19 @@ export async function readPackageFileMap (
     return undefined
   }
 
-  const storeIndex = new StoreIndex(opts.storeDir)
-  try {
-    const pkgFilesIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
-    if (!pkgFilesIndex) {
-      const err: NodeJS.ErrnoException = new Error(
-        `ENOENT: package index not found for '${pkgIndexFilePath}'`
-      )
-      err.code = 'ENOENT'
-      err.path = pkgIndexFilePath
-      throw err
-    }
-    const { files: indexFiles } = pkgFilesIndex
-    const files = new Map<string, string>()
-    for (const [name, info] of indexFiles) {
-      files.set(name, getFilePathByModeInCafs(opts.storeDir, info.digest, info.mode))
-    }
-    return files
-  } finally {
-    storeIndex.close()
+  const pkgFilesIndex = opts.storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
+  if (!pkgFilesIndex) {
+    const err: NodeJS.ErrnoException = new Error(
+      `ENOENT: package index not found for '${pkgIndexFilePath}'`
+    )
+    err.code = 'ENOENT'
+    err.path = pkgIndexFilePath
+    throw err
   }
+  const { files: indexFiles } = pkgFilesIndex
+  const files = new Map<string, string>()
+  for (const [name, info] of indexFiles) {
+    files.set(name, getFilePathByModeInCafs(opts.storeDir, info.digest, info.mode))
+  }
+  return files
 }

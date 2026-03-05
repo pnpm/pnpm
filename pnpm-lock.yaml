@@ -7790,6 +7790,9 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/store.pkg-finder':
         specifier: workspace:*
         version: link:../../store/pkg-finder
@@ -8262,6 +8265,9 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/store.pkg-finder':
         specifier: workspace:*
         version: link:../../store/pkg-finder
