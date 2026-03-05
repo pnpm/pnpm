@@ -44,16 +44,3 @@ test('StoreIndex entries() iterates all SQLite entries', () => {
     idx.close()
   }
 })
-
-test('StoreIndex falls back to .mpk files for non-SQLite keys', () => {
-  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
-  const idx = new StoreIndex(storeDir)
-  try {
-    // A key without \t is treated as a filesystem path
-    const fakePath = path.join(storeDir, 'nonexistent.mpk')
-    expect(idx.get(fakePath)).toBeUndefined()
-    expect(idx.has(fakePath)).toBe(false)
-  } finally {
-    idx.close()
-  }
-})

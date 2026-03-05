@@ -1,5 +1,4 @@
 import { createRequire } from 'module'
-import path from 'path'
 import fs from 'fs'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
 import { Packr } from 'msgpackr'
@@ -43,11 +42,6 @@ function sleepSync (ms: number): void {
 }
 
 /**
- * Create a store index key from an integrity hash and package id.
- * The key is `${integrity}\t${pkgId}` — tab-separated.
- * Integrity strings never contain tabs, so this is unambiguous.
- */
-/**
  * Pack data for storage using msgpackr.
  * Use this when data will be packed in one thread and stored by another,
  * to ensure the same Packr instance is used for pack and unpack within each thread.
@@ -56,12 +50,13 @@ export function packForStorage (data: unknown): Uint8Array {
   return packr.pack(data)
 }
 
+/**
+ * Create a store index key from an integrity hash and package id.
+ * The key is `${integrity}\t${pkgId}` — tab-separated.
+ * Integrity strings never contain tabs, so this is unambiguous.
+ */
 export function storeIndexKey (integrity: string, pkgId: string): string {
   return `${integrity}\t${pkgId}`
-}
-
-function isSqliteKey (key: string): boolean {
-  return key.includes('\t')
 }
 
 export class StoreIndex {
@@ -73,7 +68,7 @@ export class StoreIndex {
   private stmtAll: StatementSync
 
   constructor (storeDir: string) {
-    const dbPath = path.join(storeDir, 'index.db')
+    const dbPath = `${storeDir}/index.db`
     fs.mkdirSync(storeDir, { recursive: true })
     this.db = new DatabaseSync(dbPath)
     sqliteRetry(() => {
@@ -105,69 +100,35 @@ export class StoreIndex {
     this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
   }
 
-  /**
-   * Read a PackageFilesIndex from the store.
-   * Keys containing \t are SQLite keys (integrity\tpkgId).
-   * Other keys are treated as .mpk file paths.
-   */
   get (key: string): unknown | undefined {
-    if (isSqliteKey(key)) {
-      const row = sqliteRetry(() => this.stmtGet.get(key)) as { data: Uint8Array } | undefined
-      if (row) {
-        return packr.unpack(row.data)
-      }
-      return undefined
+    const row = sqliteRetry(() => this.stmtGet.get(key)) as { data: Uint8Array } | undefined
+    if (row) {
+      return packr.unpack(row.data)
     }
-    return readMpkFileSync(key)
+    return undefined
   }
 
-  /**
-   * Write a PackageFilesIndex to the store.
-   * Keys containing \t are written to SQLite.
-   * Other keys are written as .mpk files.
-   */
   set (key: string, data: unknown): void {
-    if (isSqliteKey(key)) {
-      const buffer = packr.pack(data)
-      sqliteRetry(() => {
-        this.stmtSet.run(key, buffer)
-      })
-      return
-    }
-    writeMpkFileSync(key, data)
+    const buffer = packr.pack(data)
+    sqliteRetry(() => {
+      this.stmtSet.run(key, buffer)
+    })
   }
 
-  /**
-   * Delete an index entry.
-   */
   delete (key: string): boolean {
-    if (isSqliteKey(key)) {
-      let result!: { changes: number | bigint }
-      sqliteRetry(() => {
-        result = this.stmtDel.run(key)
-      })
-      return result.changes > 0
-    }
-    try {
-      fs.unlinkSync(key)
-      return true
-    } catch {
-      return false
-    }
+    let result!: { changes: number | bigint }
+    sqliteRetry(() => {
+      result = this.stmtDel.run(key)
+    })
+    return result.changes > 0
   }
 
-  /**
-   * Check if an index entry exists.
-   */
   has (key: string): boolean {
-    if (isSqliteKey(key)) {
-      return sqliteRetry(() => this.stmtHas.get(key)) != null
-    }
-    return fs.existsSync(key)
+    return sqliteRetry(() => this.stmtHas.get(key)) != null
   }
 
   /**
-   * Iterate over all SQLite index entries.
+   * Iterate over all index entries.
    * Yields [key, data] pairs where key is `integrity\tpkgId`.
    */
   * entries (): IterableIterator<[string, unknown]> {
@@ -179,22 +140,12 @@ export class StoreIndex {
   /**
    * Write multiple pre-packed entries in a single transaction.
    * The buffers must already be msgpack-encoded.
-   * Keys containing \t are written to SQLite; other keys are written as .mpk files.
    */
   setRawMany (entries: Array<{ key: string, buffer: Uint8Array }>): void {
     if (entries.length === 0) return
-    const sqliteEntries: Array<{ key: string, buffer: Uint8Array }> = []
-    for (const entry of entries) {
-      if (isSqliteKey(entry.key)) {
-        sqliteEntries.push(entry)
-      } else {
-        writeRawMpkFileSync(entry.key, entry.buffer)
-      }
-    }
-    if (sqliteEntries.length === 0) return
-    if (sqliteEntries.length === 1) {
+    if (entries.length === 1) {
       sqliteRetry(() => {
-        this.stmtSet.run(sqliteEntries[0].key, sqliteEntries[0].buffer)
+        this.stmtSet.run(entries[0].key, entries[0].buffer)
       })
       return
     }
@@ -202,7 +153,7 @@ export class StoreIndex {
       this.db.exec('BEGIN IMMEDIATE')
       let committed = false
       try {
-        for (const { key, buffer } of sqliteEntries) {
+        for (const { key, buffer } of entries) {
           this.stmtSet.run(key, buffer)
         }
         this.db.exec('COMMIT')
@@ -231,13 +182,7 @@ export class StoreIndex {
       let committed = false
       try {
         for (const key of keys) {
-          if (isSqliteKey(key)) {
-            this.stmtDel.run(key)
-          } else {
-            try {
-              fs.unlinkSync(key)
-            } catch {}
-          }
+          this.stmtDel.run(key)
         }
         this.db.exec('COMMIT')
         committed = true
@@ -254,31 +199,4 @@ export class StoreIndex {
   close (): void {
     this.db.close()
   }
-}
-
-function readMpkFileSync (filePath: string): unknown | undefined {
-  try {
-    const buffer = fs.readFileSync(filePath)
-    return packr.unpack(buffer)
-  } catch {
-    return undefined
-  }
-}
-
-function writeMpkFileSync (filePath: string, data: unknown): void {
-  const targetDir = path.dirname(filePath)
-  fs.mkdirSync(targetDir, { recursive: true })
-  const buffer = packr.pack(data)
-  // Atomic write: write to temp file, then rename
-  const temp = `${filePath}.${process.pid}.tmp`
-  fs.writeFileSync(temp, buffer)
-  fs.renameSync(temp, filePath)
-}
-
-function writeRawMpkFileSync (filePath: string, buffer: Uint8Array): void {
-  const targetDir = path.dirname(filePath)
-  fs.mkdirSync(targetDir, { recursive: true })
-  const temp = `${filePath}.${process.pid}.tmp`
-  fs.writeFileSync(temp, buffer)
-  fs.renameSync(temp, filePath)
 }
