@@ -3,7 +3,7 @@ import path from 'path'
 import {
   normalizeBundledManifest,
 } from '@pnpm/store.cafs'
-import { storeIndexKey } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { PnpmError } from '@pnpm/error'
@@ -357,7 +357,7 @@ function getFilesIndexFilePath (
   } else {
     resolution = opts.pkg.resolution
   }
-  const filesIndexFile = storeIndexKey(opts.pkg.id, opts.ignoreScripts ? 'not-built' : 'built')
+  const filesIndexFile = gitHostedStoreIndexKey(opts.pkg.id, { built: !opts.ignoreScripts })
   return { filesIndexFile, target, resolution }
 }
 

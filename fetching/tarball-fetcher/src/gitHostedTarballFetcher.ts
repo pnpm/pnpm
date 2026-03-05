@@ -24,15 +24,13 @@ export interface CreateGitHostedTarballFetcher {
 
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
-    // Write the raw tarball index to a temp key so the final key is never
-    // populated with data from a package that has not been built.
-    const tempFilesIndexFile = `${opts.filesIndexFile}\ttmp`
+    const rawFilesIndexFile = `${opts.filesIndexFile}\traw`
     const { filesMap, manifest, requiresBuild } = await fetchRemoteTarball(cafs, resolution, {
       ...opts,
-      filesIndexFile: tempFilesIndexFile,
+      filesIndexFile: rawFilesIndexFile,
     })
     try {
-      const prepareResult = await prepareGitHostedPkg(filesMap, cafs, tempFilesIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
+      const prepareResult = await prepareGitHostedPkg(filesMap, cafs, rawFilesIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
@@ -42,7 +40,6 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
         requiresBuild,
       }
     } catch (err: unknown) {
-      deleteFromIndex(cafs.storeDir, tempFilesIndexFile)
       assert(util.types.isNativeError(err))
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
       throw err
@@ -61,7 +58,7 @@ interface PrepareGitHostedPkgResult {
 async function prepareGitHostedPkg (
   filesMap: FilesMap,
   cafs: Cafs,
-  tempFilesIndexFile: string,
+  rawFilesIndexFile: string,
   filesIndexFile: string,
   opts: CreateGitHostedTarballFetcher,
   fetcherOpts: FetchOptions,
@@ -83,22 +80,21 @@ async function prepareGitHostedPkg (
   const files = await packlist(pkgDir)
   if (!resolution.path && files.length === filesMap.size) {
     if (!shouldBeBuilt) {
-      renameInIndex(cafs.storeDir, tempFilesIndexFile, filesIndexFile)
+      renameInIndex(cafs.storeDir, rawFilesIndexFile, filesIndexFile)
       return {
         filesMap,
         ignoredBuild: false,
       }
     }
     if (opts.ignoreScripts) {
-      renameInIndex(cafs.storeDir, tempFilesIndexFile, filesIndexFile)
+      deleteFromIndex(cafs.storeDir, rawFilesIndexFile)
       return {
         filesMap,
         ignoredBuild: true,
       }
     }
   }
-  // Delete the temp entry before re-indexing the built package.
-  deleteFromIndex(cafs.storeDir, tempFilesIndexFile)
+  deleteFromIndex(cafs.storeDir, rawFilesIndexFile)
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.
@@ -115,31 +111,24 @@ async function prepareGitHostedPkg (
   }
 }
 
-function withStoreIndex<T> (storeDir: string, fn: (storeIndex: StoreIndex) => T): T {
+function renameInIndex (storeDir: string, fromKey: string, toKey: string): void {
   const storeIndex = new StoreIndex(storeDir)
   try {
-    return fn(storeIndex)
+    const data = storeIndex.get(fromKey)
+    if (data) {
+      storeIndex.set(toKey, data)
+      storeIndex.delete(fromKey)
+    }
   } finally {
     storeIndex.close()
   }
 }
 
-function renameInIndex (storeDir: string, fromKey: string, toKey: string): void {
-  try {
-    withStoreIndex(storeDir, (storeIndex) => {
-      const data = storeIndex.get(fromKey)
-      if (data) {
-        storeIndex.set(toKey, data)
-        storeIndex.delete(fromKey)
-      }
-    })
-  } catch {}
-}
-
 function deleteFromIndex (storeDir: string, key: string): void {
+  const storeIndex = new StoreIndex(storeDir)
   try {
-    withStoreIndex(storeDir, (storeIndex) => {
-      storeIndex.delete(key)
-    })
-  } catch {}
+    storeIndex.delete(key)
+  } finally {
+    storeIndex.close()
+  }
 }

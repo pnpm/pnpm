@@ -1,7 +1,7 @@
 import path from 'path'
 import { formatIntegrity } from '@pnpm/crypto.integrity'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
-import { storeIndexKey } from '@pnpm/store.index'
+import { storeIndexKey, gitHostedStoreIndexKey } from '@pnpm/store.index'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
   nameVerFromPkgSnapshot,
@@ -55,7 +55,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
       const pkgIndexFilePath = integrity
         ? storeIndexKey(integrity, id)
-        : storeIndexKey(id, 'built')
+        : gitHostedStoreIndexKey(id, { built: true })
       const pkgFilesIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
       if (!pkgFilesIndex) {
         return false

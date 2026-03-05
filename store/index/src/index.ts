@@ -59,6 +59,10 @@ export function storeIndexKey (integrity: string, pkgId: string): string {
   return `${integrity}\t${pkgId}`
 }
 
+export function gitHostedStoreIndexKey (pkgId: string, opts: { built: boolean }): string {
+  return storeIndexKey(pkgId, opts.built ? 'built' : 'not-built')
+}
+
 export class StoreIndex {
   private db: DatabaseSyncType
   private stmtGet: StatementSync

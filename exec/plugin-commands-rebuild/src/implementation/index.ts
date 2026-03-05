@@ -329,6 +329,7 @@ async function _rebuild (
     return false
   }
   const builtDepPaths = new Set<string>()
+  const storeIndex = opts.skipIfHasSideEffectsCache ? new StoreIndex(opts.storeDir) : undefined
 
   const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
     async () => {
@@ -358,9 +359,7 @@ async function _rebuild (
         const pkgId = `${pkgInfo.name}@${pkgInfo.version}`
         if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
           const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)
-          const storeIndex = new StoreIndex(opts.storeDir)
-          const pkgFilesIndex = storeIndex.get(filesIndexFile) as PackageFilesIndex | undefined
-          storeIndex.close()
+          const pkgFilesIndex = storeIndex!.get(filesIndexFile) as PackageFilesIndex | undefined
           if (pkgFilesIndex) {
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
               includeDepGraphHash: true,
@@ -439,6 +438,7 @@ async function _rebuild (
   ))
 
   await runGroups(opts.childConcurrency || 5, groups)
+  storeIndex?.close()
 
   if (builtDepPaths.size > 0) {
     // It may be optimized because some bins were already linked before running lifecycle scripts

@@ -1,7 +1,7 @@
 import path from 'path'
 import { parse } from '@pnpm/dependency-path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { StoreIndex, storeIndexKey, gitHostedStoreIndexKey } from '@pnpm/store.index'
 import { type Resolution } from '@pnpm/resolver-base'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 
@@ -52,7 +52,7 @@ export async function readPackageFileMap (
       parsedId.nonSemverVersion ?? `${parsedId.name}@${parsedId.version}`
     )
   } else if (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) {
-    pkgIndexFilePath = storeIndexKey(packageId, 'built')
+    pkgIndexFilePath = gitHostedStoreIndexKey(packageId, { built: true })
   } else {
     return undefined
   }
