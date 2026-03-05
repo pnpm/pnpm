@@ -147,7 +147,7 @@ export class StoreIndex {
    * The buffers must already be msgpack-encoded.
    */
   setRawMany (entries: Array<{ key: string, buffer: Uint8Array }>): void {
-    if (entries.length === 0) return
+    if (this.closed || entries.length === 0) return
     if (entries.length === 1) {
       sqliteRetry(() => {
         this.stmtSet.run(entries[0].key, entries[0].buffer)
