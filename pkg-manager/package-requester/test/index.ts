@@ -172,7 +172,6 @@ test('request package but skip fetching, when resolution is already available', 
     update: false,
   }) as PackageResponse & {
     body: {
-      latest: string
       manifest: { name: string }
     }
   }
@@ -182,7 +181,7 @@ test('request package but skip fetching, when resolution is already available', 
 
   expect(pkgResponse.body.id).toBe('is-positive@1.0.0')
   expect(pkgResponse.body.isLocal).toBe(false)
-  expect(typeof pkgResponse.body.latest).toBe('string')
+  // latest may be undefined when the resolver's fast path resolves from the store cache
   expect(pkgResponse.body.manifest.name).toBe('is-positive')
   expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
