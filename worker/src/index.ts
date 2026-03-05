@@ -26,6 +26,7 @@ let workerPool: WorkerPool | undefined
 // subsequent worker reads see the committed data.
 // The StoreIndex instance is passed in by the caller (owned by StoreController).
 const pendingIndexWrites = new Map<StoreIndex, Array<{ key: string, buffer: Uint8Array }>>()
+const storeIndexesToClose = new Set<StoreIndex>()
 let flushScheduled = false
 
 function queueIndexWrites (storeIndex: StoreIndex, writes: Array<{ key: string, buffer: Uint8Array }>): void {
@@ -51,6 +52,14 @@ export function flushStoreIndexWrites (): void {
   pendingIndexWrites.clear()
 }
 
+/**
+ * Register a StoreIndex to be closed after finishWorkers() completes.
+ * This ensures the database stays open until all worker results have been flushed.
+ */
+export function deferStoreIndexClose (storeIndex: StoreIndex): void {
+  storeIndexesToClose.add(storeIndex)
+}
+
 function writeIndexImmediately (storeIndex: StoreIndex, writes: Array<{ key: string, buffer: Uint8Array }>): void {
   storeIndex.setRawMany(writes)
 }
@@ -68,6 +77,10 @@ export async function finishWorkers (): Promise<void> {
   await finish?.()
   workerPool = undefined
   flushStoreIndexWrites()
+  for (const si of storeIndexesToClose) {
+    si.close()
+  }
+  storeIndexesToClose.clear()
 }
 
 function createTarballWorkerPool (): WorkerPool {
