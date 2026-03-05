@@ -1,7 +1,7 @@
 import { type Dirent, promises as fs } from 'fs'
 import util from 'util'
 import path from 'path'
-import { StoreIndex } from '@pnpm/store.index'
+import { type StoreIndex } from '@pnpm/store.index'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
@@ -12,9 +12,10 @@ const BIG_ONE = BigInt(1) as unknown
 export interface PruneOptions {
   cacheDir: string
   storeDir: string
+  storeIndex: StoreIndex
 }
 
-export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
+export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
   // 1. First, prune the global virtual store
   // This must happen BEFORE pruning the CAS, because removing packages from
   // the virtual store will reduce hard link counts on files in the CAS
@@ -69,22 +70,17 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
 
   // 4. Clean up orphaned package index entries
   let pkgCounter = 0
-  const storeIndex = new StoreIndex(storeDir)
-  try {
-    const toDelete: string[] = []
-    for (const [filesIndexFile, data] of storeIndex.entries()) {
-      const pkgFilesIndex = data as PackageFilesIndex
-      const pkgJson = pkgFilesIndex.files.get('package.json')
-      // TODO: implement prune of Node.js packages, they don't have a package.json file
-      if (pkgJson && removedHashes.has(pkgJson.digest)) {
-        toDelete.push(filesIndexFile)
-        pkgCounter++
-      }
+  const toDelete: string[] = []
+  for (const [filesIndexFile, data] of storeIndex.entries()) {
+    const pkgFilesIndex = data as PackageFilesIndex
+    const pkgJson = pkgFilesIndex.files.get('package.json')
+    // TODO: implement prune of Node.js packages, they don't have a package.json file
+    if (pkgJson && removedHashes.has(pkgJson.digest)) {
+      toDelete.push(filesIndexFile)
+      pkgCounter++
     }
-    storeIndex.deleteMany(toDelete)
-  } finally {
-    storeIndex.close()
   }
+  storeIndex.deleteMany(toDelete)
   globalInfo(`Removed ${pkgCounter} package${pkgCounter === 1 ? '' : 's'}`)
 }
 

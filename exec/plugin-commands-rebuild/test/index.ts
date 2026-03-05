@@ -112,49 +112,50 @@ test('skipIfHasSideEffectsCache', async () => {
   ])
 
   const cacheIntegrityPath = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const storeIndex2 = new StoreIndex(path.join(storeDir, STORE_VERSION))
-  let cacheIntegrity = storeIndex2.get(cacheIntegrityPath) as PackageFilesIndex
-  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
-  cacheIntegrity.sideEffects = new Map([
-    [sideEffectsKey, {
-      added: new Map([
-        ['foo', {
-          digest: 'bar',
-          mode: 1,
-          size: 1,
-        }],
-      ]),
-    }],
-  ])
-  storeIndex2.set(cacheIntegrityPath, cacheIntegrity)
-  storeIndex2.close()
+  const storeIndex = new StoreIndex(path.join(storeDir, STORE_VERSION))
+  try {
+    let cacheIntegrity = storeIndex.get(cacheIntegrityPath) as PackageFilesIndex
+    const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
+    cacheIntegrity.sideEffects = new Map([
+      [sideEffectsKey, {
+        added: new Map([
+          ['foo', {
+            digest: 'bar',
+            mode: 1,
+            size: 1,
+          }],
+        ]),
+      }],
+    ])
+    storeIndex.set(cacheIntegrityPath, cacheIntegrity)
 
-  let modules = project.readModulesManifest()
-  expect(modules!.pendingBuilds).toStrictEqual([
-    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
-  ])
+    let modules = project.readModulesManifest()
+    expect(modules!.pendingBuilds).toStrictEqual([
+      '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    ])
 
-  const modulesManifest = project.readModulesManifest()
-  await rebuild.handler({
-    ...DEFAULT_OPTS,
-    cacheDir,
-    dir: process.cwd(),
-    pending: true,
-    registries: modulesManifest!.registries!,
-    skipIfHasSideEffectsCache: true,
-    storeDir,
-    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
-  }, [])
+    const modulesManifest = project.readModulesManifest()
+    await rebuild.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      pending: true,
+      registries: modulesManifest!.registries!,
+      skipIfHasSideEffectsCache: true,
+      storeDir,
+      allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+    }, [])
 
-  modules = project.readModulesManifest()
-  expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds).toHaveLength(0)
+    modules = project.readModulesManifest()
+    expect(modules).toBeTruthy()
+    expect(modules!.pendingBuilds).toHaveLength(0)
 
-  const storeIndex3 = new StoreIndex(path.join(storeDir, STORE_VERSION))
-  cacheIntegrity = storeIndex3.get(cacheIntegrityPath) as PackageFilesIndex
-  storeIndex3.close()
-  expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)?.added?.has('foo')).toBeTruthy()
+    cacheIntegrity = storeIndex.get(cacheIntegrityPath) as PackageFilesIndex
+    expect(cacheIntegrity!.sideEffects).toBeTruthy()
+    expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)?.added?.has('foo')).toBeTruthy()
+  } finally {
+    storeIndex.close()
+  }
 })
 
 test('rebuild does not fail when a linked package is present', async () => {

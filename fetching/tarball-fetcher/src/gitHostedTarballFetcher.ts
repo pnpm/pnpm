@@ -5,7 +5,7 @@ import { type Cafs, type FilesMap } from '@pnpm/cafs-types'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
-import { StoreIndex } from '@pnpm/store.index'
+import { type StoreIndex } from '@pnpm/store.index'
 import { type BundledManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
 
@@ -19,6 +19,7 @@ interface Resolution {
 export interface CreateGitHostedTarballFetcher {
   ignoreScripts?: boolean
   rawConfig: Record<string, unknown>
+  storeIndex: StoreIndex
   unsafePerm?: boolean
 }
 
@@ -78,23 +79,28 @@ async function prepareGitHostedPkg (
     allowBuild: fetcherOpts.allowBuild,
   }, tempLocation, resolution.path ?? '')
   const files = await packlist(pkgDir)
+  const { storeIndex } = opts
   if (!resolution.path && files.length === filesMap.size) {
     if (!shouldBeBuilt) {
-      renameInIndex(cafs.storeDir, rawFilesIndexFile, filesIndexFile)
+      const data = storeIndex.get(rawFilesIndexFile)
+      if (data) {
+        storeIndex.set(filesIndexFile, data)
+        storeIndex.delete(rawFilesIndexFile)
+      }
       return {
         filesMap,
         ignoredBuild: false,
       }
     }
     if (opts.ignoreScripts) {
-      deleteFromIndex(cafs.storeDir, rawFilesIndexFile)
+      storeIndex.delete(rawFilesIndexFile)
       return {
         filesMap,
         ignoredBuild: true,
       }
     }
   }
-  deleteFromIndex(cafs.storeDir, rawFilesIndexFile)
+  storeIndex.delete(rawFilesIndexFile)
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.
@@ -108,27 +114,5 @@ async function prepareGitHostedPkg (
       readManifest: fetcherOpts.readManifest,
     }),
     ignoredBuild: Boolean(opts.ignoreScripts),
-  }
-}
-
-function renameInIndex (storeDir: string, fromKey: string, toKey: string): void {
-  const storeIndex = new StoreIndex(storeDir)
-  try {
-    const data = storeIndex.get(fromKey)
-    if (data) {
-      storeIndex.set(toKey, data)
-      storeIndex.delete(fromKey)
-    }
-  } finally {
-    storeIndex.close()
-  }
-}
-
-function deleteFromIndex (storeDir: string, key: string): void {
-  const storeIndex = new StoreIndex(storeDir)
-  try {
-    storeIndex.delete(key)
-  } finally {
-    storeIndex.close()
   }
 }

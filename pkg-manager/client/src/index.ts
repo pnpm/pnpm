@@ -12,6 +12,7 @@ import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { createGitFetcher } from '@pnpm/git-fetcher'
 import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { type StoreIndex } from '@pnpm/store.index'
 import { createBinaryFetcher } from '@pnpm/fetching.binary-fetcher'
 
 export type { ResolveFunction }
@@ -24,6 +25,7 @@ export type ClientOptions = {
   rawConfig: Record<string, string>
   sslConfigs?: Record<string, SslConfig>
   retry?: RetryTimeoutOptions
+  storeIndex?: StoreIndex
   timeout?: number
   unsafePerm?: boolean
   userAgent?: string
@@ -69,7 +71,7 @@ type Fetchers = {
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
-  opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles' | 'offline' | 'fetchMinSpeedKiBps'>
+  opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles' | 'offline' | 'fetchMinSpeedKiBps' | 'storeIndex'>
 ): Fetchers {
   const tarballFetchers = createTarballFetcher(fetchFromRegistry, getAuthHeader, opts)
   return {

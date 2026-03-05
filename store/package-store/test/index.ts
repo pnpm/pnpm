@@ -3,6 +3,7 @@ import path from 'path'
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
 import { type FetchPackageToStoreFunction } from '@pnpm/store-controller-types'
+import { StoreIndex } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'
 
 describe('store.importPackage()', () => {
@@ -21,12 +22,14 @@ describe('store.importPackage()', () => {
         default: registry,
       },
     })
+    const storeIndex = new StoreIndex(storeDir)
     const storeController = createPackageStore(resolve, fetchers, {
       storeDir,
       cacheDir,
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: 120,
       clearResolutionCache,
+      storeIndex,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
     const fetchResponse = (storeController.fetchPackage as FetchPackageToStoreFunction)({
@@ -64,6 +67,7 @@ describe('store.importPackage()', () => {
         default: registry,
       },
     })
+    const storeIndex = new StoreIndex(storeDir)
     const storeController = createPackageStore(resolve, fetchers, {
       packageImportMethod: 'copy',
       storeDir,
@@ -71,6 +75,7 @@ describe('store.importPackage()', () => {
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: 120,
       clearResolutionCache,
+      storeIndex,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
     const fetchResponse = (storeController.fetchPackage as FetchPackageToStoreFunction)({

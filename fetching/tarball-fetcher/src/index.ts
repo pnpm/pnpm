@@ -10,6 +10,7 @@ import {
   type GetAuthHeader,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
+import { type StoreIndex } from '@pnpm/store.index'
 import { TarballIntegrityError } from '@pnpm/worker'
 import {
   createDownloader,
@@ -41,6 +42,7 @@ export function createTarballFetcher (
     rawConfig: Record<string, unknown>
     unsafePerm?: boolean
     ignoreScripts?: boolean
+    storeIndex?: StoreIndex
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean
@@ -61,7 +63,7 @@ export function createTarballFetcher (
   return {
     localTarball: createLocalTarballFetcher(),
     remoteTarball: remoteTarballFetcher,
-    gitHostedTarball: createGitHostedTarballFetcher(remoteTarballFetcher, opts),
+    gitHostedTarball: createGitHostedTarballFetcher(remoteTarballFetcher, { ...opts, storeIndex: opts.storeIndex! }),
   }
 }
 

@@ -36,6 +36,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/store-path": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "dir-is-case-sensitive": "catalog:"
   },
   "peerDependencies": {

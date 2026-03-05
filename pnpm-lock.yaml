@@ -4937,6 +4937,9 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher
@@ -8746,6 +8749,9 @@ importers:
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../index
       dir-is-case-sensitive:
         specifier: 'catalog:'
         version: 2.0.0
@@ -8839,6 +8845,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
     devDependencies:
       '@pnpm/testing.temp-store':
         specifier: workspace:*
