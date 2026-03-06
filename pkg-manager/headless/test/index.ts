@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   type PackageManifestLog,
@@ -11,7 +11,7 @@ import {
   type StageLog,
   type StatsLog,
 } from '@pnpm/core-loggers'
-import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readModulesManifest } from '@pnpm/modules-yaml'
@@ -26,6 +26,11 @@ import { loadJsonFileSync } from 'load-json-file'
 import { testDefaults } from './utils/testDefaults.js'
 
 const f = fixtures(import.meta.dirname)
+
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
 
 test('installing a simple project', async () => {
   const prefix = f.prepare('simple')
@@ -696,8 +701,10 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   }, {}, {}, { packageImportMethod: 'copy' })
   await headlessInstall(opts)
 
-  const cacheIntegrityPath = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)
+  const cacheIntegrityPath = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
+  const cacheIntegrity = storeIndex.get(cacheIntegrityPath) as PackageFilesIndex
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -712,7 +719,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   cacheIntegrity!.sideEffects!.get(sideEffectsKey)!.added!.delete('generated-by-postinstall.js')
 
   expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)?.added?.has('generated-by-preinstall.js')).toBeTruthy()
-  writeMsgpackFileSync(cacheIntegrityPath, cacheIntegrity)
+  storeIndex.set(cacheIntegrityPath, cacheIntegrity)
 
   prefix = f.prepare('side-effects')
   const opts2 = await testDefaults({

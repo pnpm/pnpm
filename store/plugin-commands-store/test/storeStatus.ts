@@ -11,6 +11,11 @@ import { temporaryDirectory } from 'tempy'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
+// Use an empty config dir to ensure the subprocess is not affected by
+// the user's global pnpm config (e.g. enable-global-virtual-store).
+const cleanConfigDir = temporaryDirectory()
+const execaOpts = { env: { XDG_CONFIG_HOME: cleanConfigDir } }
+
 test('CLI fails when store status finds modified packages', async () => {
   const project = prepare()
   const tmp = temporaryDirectory()
@@ -24,7 +29,7 @@ test('CLI fails when store status finds modified packages', async () => {
     `--store-dir=${storeDir}`,
     `--registry=${REGISTRY}`,
     '--verify-store-integrity',
-  ])
+  ], execaOpts)
 
   rimraf('node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive/index.js')
 
@@ -72,7 +77,7 @@ test('CLI does not fail when store status does not find modified packages', asyn
     'react@15.4.1',
     'webpack@5.24.2',
     'koorchik/node-mole-rpc',
-  ])
+  ], execaOpts)
   // store status does not fail on not installed optional dependencies
   await execa('node', [
     pnpmBin,
@@ -82,7 +87,7 @@ test('CLI does not fail when store status does not find modified packages', asyn
     `--store-dir=${storeDir}`,
     `--registry=${REGISTRY}`,
     '--verify-store-integrity',
-  ])
+  ], execaOpts)
 
   const modulesState = project.readModulesManifest()
   await store.handler({
@@ -125,7 +130,7 @@ storeDir: "${relativeStoreDir}"
     'is-positive@3.1.0',
     `--registry=${REGISTRY}`,
     '--verify-store-integrity',
-  ])
+  ], execaOpts)
 
   const modulesState = project.readModulesManifest()
 

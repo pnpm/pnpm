@@ -22,6 +22,9 @@
       "path": "../../pkg-manager/client"
     },
     {
+      "path": "../index"
+    },
+    {
       "path": "../package-store"
     },
     {

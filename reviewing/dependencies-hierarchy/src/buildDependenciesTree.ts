@@ -9,6 +9,7 @@ import {
 } from '@pnpm/lockfile.fs'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
+import { StoreIndex } from '@pnpm/store.index'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -72,6 +73,8 @@ export async function buildDependenciesTree (
     return result
   }
 
+  const storeDir = modules?.storeDir
+  const storeIndex = storeDir ? new StoreIndex(storeDir) : undefined
   const opts = {
     depth: maybeOpts.depth || 0,
     excludePeerDependencies: maybeOpts.excludePeerDependencies,
@@ -87,7 +90,8 @@ export async function buildDependenciesTree (
     search: maybeOpts.search,
     showDedupedSearchMatches: maybeOpts.showDedupedSearchMatches ?? (maybeOpts.search != null),
     skipped: new Set(modules?.skipped ?? []),
-    storeDir: modules?.storeDir,
+    storeDir,
+    storeIndex,
     modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
@@ -130,6 +134,7 @@ export async function buildDependenciesTree (
   for (const [projectPath, dependenciesHierarchy] of pairs) {
     result[projectPath] = dependenciesHierarchy
   }
+  storeIndex?.close()
   return result
 }
 

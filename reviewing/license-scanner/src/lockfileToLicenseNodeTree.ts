@@ -1,11 +1,12 @@
 import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { nameVerFromPkgSnapshot, packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
 } from '@pnpm/lockfile.walker'
 import { type DepTypes, DepType, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
+import { StoreIndex } from '@pnpm/store.index'
 import { type SupportedArchitectures, type DependenciesField, type ProjectId, type Registries } from '@pnpm/types'
 import { map as mapValues } from 'ramda'
 import { getPkgInfo } from './getPkgInfo.js'
@@ -33,6 +34,7 @@ export type LicenseNodeTree = Omit<
 
 export interface LicenseExtractOptions {
   storeDir: string
+  storeIndex: StoreIndex
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   modulesDir?: string
@@ -71,7 +73,7 @@ export async function lockfileToLicenseNode (
 
       const packageInfo = await getPkgInfo(
         {
-          id: pkgSnapshot.id ?? depPath,
+          id: packageIdFromSnapshot(depPath, pkgSnapshot),
           name,
           version,
           depPath,
@@ -80,6 +82,7 @@ export async function lockfileToLicenseNode (
         },
         {
           storeDir: options.storeDir,
+          storeIndex: options.storeIndex,
           virtualStoreDir: options.virtualStoreDir,
           virtualStoreDirMaxLength: options.virtualStoreDirMaxLength,
           dir: options.dir,
@@ -128,7 +131,7 @@ export async function lockfileToLicenseNodeTree (
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     includedImporterIds?: ProjectId[]
-  } & LicenseExtractOptions
+  } & Omit<LicenseExtractOptions, 'storeIndex'>
 ): Promise<LicenseNodeTree> {
   const importerWalkers = lockfileWalkerGroupImporterSteps(
     lockfile,
@@ -136,11 +139,13 @@ export async function lockfileToLicenseNodeTree (
     { include: opts?.include }
   )
   const depTypes = detectDepTypes(lockfile)
+  const storeIndex = new StoreIndex(opts.storeDir)
   const dependencies = Object.fromEntries(
     await Promise.all(
       importerWalkers.map(async (importerWalker) => {
         const importerDeps = await lockfileToLicenseNode(importerWalker.step, {
           storeDir: opts.storeDir,
+          storeIndex,
           virtualStoreDir: opts.virtualStoreDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
           modulesDir: opts.modulesDir,
@@ -158,6 +163,7 @@ export async function lockfileToLicenseNodeTree (
       })
     )
   )
+  storeIndex.close()
 
   const licenseNodeTree: LicenseNodeTree = {
     name: undefined,

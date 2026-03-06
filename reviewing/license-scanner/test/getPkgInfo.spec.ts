@@ -1,3 +1,7 @@
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
+import { StoreIndex } from '@pnpm/store.index'
 import { getPkgInfo } from '../lib/getPkgInfo.js'
 
 export const DEFAULT_REGISTRIES = {
@@ -6,6 +10,19 @@ export const DEFAULT_REGISTRIES = {
 }
 
 describe('licences', () => {
+  let storeDir: string
+  let storeIndex: StoreIndex
+
+  beforeAll(() => {
+    storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-license-test-'))
+    storeIndex = new StoreIndex(storeDir)
+  })
+
+  afterAll(() => {
+    storeIndex.close()
+    fs.rmSync(storeDir, { recursive: true, force: true })
+  })
+
   test('getPkgInfo() should throw error when package info can not be fetched', async () => {
     await expect(
       getPkgInfo(
@@ -22,13 +39,14 @@ describe('licences', () => {
           registries: DEFAULT_REGISTRIES,
         },
         {
-          storeDir: 'store-dir',
+          storeDir,
+          storeIndex,
           virtualStoreDir: 'virtual-store-dir',
           modulesDir: 'modules-dir',
           dir: 'workspace-dir',
           virtualStoreDirMaxLength: 120,
         }
       )
-    ).rejects.toThrow(/Failed to find package index file for bogus-package@1\.0\.0 \(at .*16-bogus-package@1\.0\.0\.mpk\), please consider running 'pnpm install'/)
+    ).rejects.toThrow(/Failed to find package index file for bogus-package@1\.0\.0 \(at .*\), please consider running 'pnpm install'/)
   })
 })

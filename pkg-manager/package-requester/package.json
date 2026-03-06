@@ -45,6 +45,7 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "detect-libc": "catalog:",
     "load-json-file": "catalog:",

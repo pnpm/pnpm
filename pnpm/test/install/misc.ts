@@ -1,13 +1,13 @@
 import fs from 'fs'
 import path from 'path'
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getIntegrity } from '@pnpm/registry-mock'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -24,6 +24,11 @@ import {
 
 const skipOnWindows = isWindows() ? test.skip : test
 const f = fixtures(import.meta.dirname)
+
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
 
 test('bin files are found by lifecycle scripts', () => {
   prepare({
@@ -159,12 +164,19 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
-  const { files: integrityFile } = readMsgpackFileSync<PackageFilesIndex>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
-  const packageFiles = Array.from(integrityFile.keys()).sort(lexCompare)
+  const storeDir = project.getStorePath()
+  const indexKey = storeIndexKey(getIntegrity('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'), '@pnpm.e2e/with-same-file-in-different-cases@1.0.0')
+  const si = new StoreIndex(storeDir)
+  let filesIndex: PackageFilesIndex
+  try {
+    filesIndex = si.get(indexKey) as PackageFilesIndex
+  } finally {
+    si.close()
+  }
+  const packageFiles = Array.from(filesIndex.files.keys()).sort(lexCompare)
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
-  const storeDir = project.getStorePath()
   if (await dirIsCaseSensitive.default(storeDir)) {
     expect([...files].sort(lexCompare)).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
@@ -505,9 +517,11 @@ test('installation fails when the stored package name and version do not match t
 
   await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
 
-  const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
-  const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)
-  writeMsgpackFileSync(cacheIntegrityPath, {
+  const cacheIntegrityKey = storeIndexKey(getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+  const storeIndex = new StoreIndex(path.join(storeDir, STORE_VERSION))
+  storeIndexes.push(storeIndex)
+  const cacheIntegrity = storeIndex.get(cacheIntegrityKey) as PackageFilesIndex
+  storeIndex.set(cacheIntegrityKey, {
     ...cacheIntegrity,
     manifest: { ...cacheIntegrity.manifest, name: 'foo' },
   })

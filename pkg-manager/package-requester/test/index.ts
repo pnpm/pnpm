@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
-import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
+import { StoreIndex } from '@pnpm/store.index'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
 import { createCafsStore } from '@pnpm/create-cafs-store'
@@ -26,13 +26,35 @@ const registries = { default: registry }
 
 const authConfig = { registry }
 
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
+
+const topStoreIndex = new StoreIndex('.store')
+storeIndexes.push(topStoreIndex)
+
 const { resolve, fetchers } = createClient({
   authConfig,
   cacheDir: '.store',
   storeDir: '.store',
   rawConfig: {},
   registries,
+  storeIndex: topStoreIndex,
 })
+
+function createFetchersForStore (storeDir: string) {
+  const si = new StoreIndex(storeDir)
+  storeIndexes.push(si)
+  return createClient({
+    authConfig,
+    rawConfig: {},
+    cacheDir: storeDir,
+    storeDir,
+    registries,
+    storeIndex: si,
+  }).fetchers
+}
 
 afterEach(() => {
   nock.abortPendingRequests()
@@ -150,7 +172,6 @@ test('request package but skip fetching, when resolution is already available', 
     update: false,
   }) as PackageResponse & {
     body: {
-      latest: string
       manifest: { name: string }
     }
   }
@@ -160,7 +181,7 @@ test('request package but skip fetching, when resolution is already available', 
 
   expect(pkgResponse.body.id).toBe('is-positive@1.0.0')
   expect(pkgResponse.body.isLocal).toBe(false)
-  expect(typeof pkgResponse.body.latest).toBe('string')
+  // latest may be undefined when the resolver's fast path resolves from the store cache
   expect(pkgResponse.body.manifest.name).toBe('is-positive')
   expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
@@ -180,6 +201,7 @@ test('refetch local tarball if its integrity has changed', async () => {
   const wantedPackage = { bareSpecifier: tarball }
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
+  const localFetchers = createFetchersForStore(storeDir)
   const pkgId = `file:${normalize(tarballRelativePath)}`
   const requestPackageOpts = {
     downloadPriority: 0,
@@ -193,7 +215,7 @@ test('refetch local tarball if its integrity has changed', async () => {
   {
     const requestPackage = createPackageRequester({
       resolve,
-      fetchers,
+      fetchers: localFetchers,
       cafs,
       storeDir,
       verifyStoreIntegrity: true,
@@ -225,7 +247,7 @@ test('refetch local tarball if its integrity has changed', async () => {
   {
     const requestPackage = createPackageRequester({
       resolve,
-      fetchers,
+      fetchers: localFetchers,
       cafs,
       storeDir,
       verifyStoreIntegrity: true,
@@ -252,7 +274,7 @@ test('refetch local tarball if its integrity has changed', async () => {
   {
     const requestPackage = createPackageRequester({
       resolve,
-      fetchers,
+      fetchers: localFetchers,
       cafs,
       storeDir,
       verifyStoreIntegrity: true,
@@ -287,6 +309,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   const wantedPackage = { bareSpecifier: tarball }
   const storeDir = path.join(projectDir, 'store')
   const cafs = createCafsStore(storeDir)
+  const localFetchers = createFetchersForStore(storeDir)
   const requestPackageOpts = {
     downloadPriority: 0,
     lockfileDir: projectDir,
@@ -298,7 +321,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   {
     const requestPackage = createPackageRequester({
       resolve,
-      fetchers,
+      fetchers: localFetchers,
       cafs,
       storeDir,
       verifyStoreIntegrity: true,
@@ -321,7 +344,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   {
     const requestPackage = createPackageRequester({
       resolve,
-      fetchers,
+      fetchers: localFetchers,
       cafs,
       storeDir,
       verifyStoreIntegrity: true,
@@ -341,7 +364,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   {
     const requestPackage = createPackageRequester({
       resolve,
-      fetchers,
+      fetchers: localFetchers,
       cafs,
       storeDir,
       verifyStoreIntegrity: true,
@@ -421,9 +444,10 @@ test('force fetch when resolution integrity differs from current package integri
 test('fetchPackageToStore()', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
+  const localFetchers = createFetchersForStore(storeDir)
   const packageRequester = createPackageRequester({
     resolve,
-    fetchers,
+    fetchers: localFetchers,
     cafs,
     networkConcurrency: 1,
     storeDir,
@@ -451,7 +475,9 @@ test('fetchPackageToStore()', async () => {
   expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
   expect(files.resolvedFrom).toBe('remote')
 
-  const indexFile = readMsgpackFileSync<PackageFilesIndex>(fetchResult.filesIndexFile)
+  const storeIndex = new StoreIndex(storeDir)
+  storeIndexes.push(storeIndex)
+  const indexFile = storeIndex.get(fetchResult.filesIndexFile) as PackageFilesIndex
   expect(indexFile).toBeTruthy()
   expect(typeof indexFile.files.get('package.json')!.checkedAt).toBeTruthy()
 
@@ -571,6 +597,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     cacheDir: '.pnpm',
     storeDir: '.store',
     registries,
+    storeIndex: topStoreIndex,
   })
 
   const storeDir = temporaryDirectory()
@@ -732,6 +759,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
 test('refetch package to store if it has been modified', async () => {
   const storeDir = temporaryDirectory()
   const lockfileDir = temporaryDirectory()
+  const localFetchers = createFetchersForStore(storeDir)
 
   const pkgId = 'magic-hook@2.0.0'
   const resolution = {
@@ -743,7 +771,7 @@ test('refetch package to store if it has been modified', async () => {
     const cafs = createCafsStore(storeDir)
     const packageRequester = createPackageRequester({
       resolve,
-      fetchers,
+      fetchers: localFetchers,
       cafs,
       networkConcurrency: 1,
       storeDir,
@@ -782,7 +810,7 @@ test('refetch package to store if it has been modified', async () => {
     const cafs = createCafsStore(storeDir)
     const packageRequester = createPackageRequester({
       resolve,
-      fetchers,
+      fetchers: localFetchers,
       cafs,
       networkConcurrency: 1,
       storeDir,
@@ -893,12 +921,13 @@ test('fetch a git package without a package.json', async () => {
 test('throw exception if the package data in the store differs from the expected data', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
+  const localFetchers = createFetchersForStore(storeDir)
   let pkgResponse!: PackageResponse
 
   {
     const requestPackage = createPackageRequester({
       resolve,
-      fetchers,
+      fetchers: localFetchers,
       cafs,
       networkConcurrency: 1,
       storeDir,
@@ -920,7 +949,7 @@ test('throw exception if the package data in the store differs from the expected
   {
     const requestPackage = createPackageRequester({
       resolve,
-      fetchers,
+      fetchers: localFetchers,
       cafs,
       networkConcurrency: 1,
       storeDir,
@@ -944,7 +973,7 @@ test('throw exception if the package data in the store differs from the expected
   {
     const requestPackage = createPackageRequester({
       resolve,
-      fetchers,
+      fetchers: localFetchers,
       cafs,
       networkConcurrency: 1,
       storeDir,
@@ -968,7 +997,7 @@ test('throw exception if the package data in the store differs from the expected
   {
     const requestPackage = createPackageRequester({
       resolve,
-      fetchers,
+      fetchers: localFetchers,
       cafs,
       networkConcurrency: 1,
       storeDir,

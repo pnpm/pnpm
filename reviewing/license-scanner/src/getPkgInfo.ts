@@ -5,6 +5,7 @@ import { readPackageJson } from '@pnpm/read-package-json'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import pLimit from 'p-limit'
 import { type PackageManifest, type Registries } from '@pnpm/types'
+import { type StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
 import { PnpmError } from '@pnpm/error'
 import type { LicensePackage } from './licenses.js'
@@ -195,6 +196,7 @@ export interface PackageInfo {
 
 export interface GetPackageInfoOptions {
   storeDir: string
+  storeIndex: StoreIndex
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   dir: string
@@ -229,6 +231,7 @@ export async function getPkgInfo (
       pkg.id,
       {
         storeDir: opts.storeDir,
+        storeIndex: opts.storeIndex,
         lockfileDir: opts.dir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       }

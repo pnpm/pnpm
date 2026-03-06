@@ -9,6 +9,7 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import { type CustomFetcher } from '@pnpm/hooks.types'
+import { type StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
 import { prune } from './prune.js'
 
@@ -31,6 +32,7 @@ export interface CreatePackageStoreOptions {
   strictStorePkgContentCheck?: boolean
   clearResolutionCache: () => void
   customFetchers?: CustomFetcher[]
+  storeIndex: StoreIndex
 }
 
 export function createPackageStore (
@@ -64,7 +66,9 @@ export function createPackageStore (
   })
 
   return {
-    close: async () => {}, // eslint-disable-line:no-empty
+    close: async () => {
+      initOpts.storeIndex.flush()
+    },
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
     importPackage: initOpts.importPackage
@@ -75,7 +79,7 @@ export function createPackageStore (
         storeDir: initOpts.storeDir,
         targetDir,
       }),
-    prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir }),
+    prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir, storeIndex: initOpts.storeIndex }),
     requestPackage: packageRequester.requestPackage,
     upload,
     clearResolutionCache: initOpts.clearResolutionCache,
@@ -84,6 +88,7 @@ export function createPackageStore (
   async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }): Promise<void> {
     await addFilesFromDir({
       storeDir: cafs.storeDir,
+      storeIndex: initOpts.storeIndex,
       dir: builtPkgLocation,
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       filesIndexFile: opts.filesIndexFile,

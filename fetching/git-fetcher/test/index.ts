@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 import { createCafsStore } from '@pnpm/create-cafs-store'
+import { StoreIndex } from '@pnpm/store.index'
 import { jest } from '@jest/globals'
 import { temporaryDirectory } from 'tempy'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -29,6 +30,17 @@ const { globalWarn } = await import('@pnpm/logger')
 const { default: execa } = await import('execa')
 const { createGitFetcher } = await import('@pnpm/git-fetcher')
 
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
+
+function createStoreIndex (storeDir: string): StoreIndex {
+  const si = new StoreIndex(storeDir)
+  storeIndexes.push(si)
+  return si
+}
+
 beforeEach(() => {
   jest.mocked(execa).mockClear()
   jest.mocked(globalWarn).mockClear()
@@ -36,7 +48,7 @@ beforeEach(() => {
 
 test('fetch', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {}, storeIndex: createStoreIndex(storeDir) }).git
   const { filesMap, manifest } = await fetch(
     createCafsStore(storeDir),
     {
@@ -55,7 +67,7 @@ test('fetch', async () => {
 
 test('fetch a package from Git sub folder', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {}, storeIndex: createStoreIndex(storeDir) }).git
   const { filesMap } = await fetch(
     createCafsStore(storeDir),
     {
@@ -73,7 +85,7 @@ test('fetch a package from Git sub folder', async () => {
 
 test('prevent directory traversal attack when using Git sub folder', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {}, storeIndex: createStoreIndex(storeDir) }).git
   const repo = 'https://github.com/RexSkz/test-git-subfolder-fetch.git'
   const pkgDir = '../../etc'
   await expect(
@@ -94,7 +106,7 @@ test('prevent directory traversal attack when using Git sub folder', async () =>
 
 test('prevent directory traversal attack when using Git sub folder #2', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {}, storeIndex: createStoreIndex(storeDir) }).git
   const repo = 'https://github.com/RexSkz/test-git-subfolder-fetch.git'
   const pkgDir = 'not/exists'
   await expect(
@@ -117,6 +129,7 @@ test('fetch a package from Git that has a prepare script', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({
     rawConfig: {},
+    storeIndex: createStoreIndex(storeDir),
   }).git
   const { filesMap } = await fetch(
     createCafsStore(storeDir),
@@ -136,7 +149,7 @@ test('fetch a package from Git that has a prepare script', async () => {
 // Test case for https://github.com/pnpm/pnpm/issues/1866
 test('fetch a package without a package.json', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {}, storeIndex: createStoreIndex(storeDir) }).git
   const { filesMap } = await fetch(
     createCafsStore(storeDir),
     {
@@ -155,7 +168,7 @@ test('fetch a package without a package.json', async () => {
 // Covers the regression reported in https://github.com/pnpm/pnpm/issues/4064
 test('fetch a big repository', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {}, storeIndex: createStoreIndex(storeDir) }).git
   const { filesMap } = await fetch(createCafsStore(storeDir),
     {
       commit: 'a65fbf5a90f53c9d72fed4daaca59da50f074355',
@@ -169,7 +182,7 @@ test('fetch a big repository', async () => {
 
 test('still able to shallow fetch for allowed hosts', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ gitShallowHosts: ['github.com'], rawConfig: {} }).git
+  const fetch = createGitFetcher({ gitShallowHosts: ['github.com'], rawConfig: {}, storeIndex: createStoreIndex(storeDir) }).git
   const resolution = {
     commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
     repo: 'https://github.com/kevva/is-positive.git',
@@ -200,6 +213,7 @@ test('fail when preparing a git-hosted package', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({
     rawConfig: {},
+    storeIndex: createStoreIndex(storeDir),
   }).git
   await expect(
     fetch(createCafsStore(storeDir),
@@ -218,6 +232,7 @@ test('fail when preparing a git-hosted package with a partial commit', async () 
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({
     rawConfig: {},
+    storeIndex: createStoreIndex(storeDir),
   }).git
   await expect(
     fetch(createCafsStore(storeDir),
@@ -233,7 +248,7 @@ test('fail when preparing a git-hosted package with a partial commit', async () 
 
 test('do not build the package when scripts are ignored', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ ignoreScripts: true, rawConfig: {} }).git
+  const fetch = createGitFetcher({ ignoreScripts: true, rawConfig: {}, storeIndex: createStoreIndex(storeDir) }).git
   const { filesMap } = await fetch(createCafsStore(storeDir),
     {
       commit: '55416a9c468806a935636c0ad0371a14a64df8c9',
@@ -249,7 +264,7 @@ test('do not build the package when scripts are ignored', async () => {
 
 test('block git package with prepare script', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {}, storeIndex: createStoreIndex(storeDir) }).git
   const repo = 'https://github.com/pnpm-e2e/prepare-script-works.git'
   await expect(
     fetch(createCafsStore(storeDir),
@@ -268,6 +283,7 @@ test('allow git package with prepare script', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({
     rawConfig: {},
+    storeIndex: createStoreIndex(storeDir),
   }).git
   // This should succeed without throwing because the package is in the allowlist
   const { filesMap } = await fetch(createCafsStore(storeDir),
@@ -290,7 +306,7 @@ function prefixGitArgs (): string[] {
 
 test('fetch only the included files', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {}, storeIndex: createStoreIndex(storeDir) }).git
   const { filesMap } = await fetch(
     createCafsStore(storeDir),
     {

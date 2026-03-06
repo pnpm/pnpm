@@ -3,6 +3,7 @@ import { Response } from 'node-fetch'
 import path from 'path'
 import { Readable } from 'stream'
 import type { FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
+import { StoreIndex } from '@pnpm/store.index'
 import { tempDir } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
 
@@ -38,6 +39,11 @@ const fetchMock = jest.fn(async (url: string) => {
   return new Response(Readable.from(Buffer.alloc(0)))
 })
 
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
+
 beforeEach(() => {
   jest.mocked(isNonGlibcLinux).mockReturnValue(Promise.resolve(false))
   fetchMock.mockClear()
@@ -47,9 +53,13 @@ test.skip('install Node using a custom node mirror', async () => {
   tempDir()
 
   const nodeMirrorBaseUrl = 'https://pnpm-node-mirror-test.localhost/download/release/'
+  const storeDir = path.resolve('store')
+  const storeIndex = new StoreIndex(storeDir)
+  storeIndexes.push(storeIndex)
   const opts: FetchNodeOptions = {
     nodeMirrorBaseUrl,
-    storeDir: path.resolve('store'),
+    storeDir,
+    storeIndex,
   }
 
   await fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
@@ -62,8 +72,12 @@ test.skip('install Node using a custom node mirror', async () => {
 test.skip('install Node using the default node mirror', async () => {
   tempDir()
 
+  const storeDir = path.resolve('store')
+  const storeIndex = new StoreIndex(storeDir)
+  storeIndexes.push(storeIndex)
   const opts: FetchNodeOptions = {
-    storeDir: path.resolve('store'),
+    storeDir,
+    storeIndex,
   }
 
   await fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
@@ -81,9 +95,12 @@ test('auto-detects musl on non-glibc Linux and uses unofficial-builds mirror', a
   // The function will throw because the downloaded tarball content won't match
   // the fake sha256 we put in the SHASUMS256.txt mock, but all fetch calls are
   // recorded before the integrity check, so we can assert the correct URLs.
+  const storeIndex = new StoreIndex(path.resolve('store'))
+  storeIndexes.push(storeIndex)
   await expect(
     fetchNode(fetchMock, '22.0.0', path.resolve('node'), {
       storeDir: path.resolve('store'),
+      storeIndex,
       platform: 'linux',
       arch: 'x64',
       retry: { retries: 0 },

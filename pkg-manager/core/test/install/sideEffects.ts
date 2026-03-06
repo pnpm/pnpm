@@ -2,8 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { hashObject } from '@pnpm/crypto.object-hasher'
-import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
-import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { prepareEmpty } from '@pnpm/prepare'
 import { ENGINE_NAME } from '@pnpm/constants'
@@ -11,6 +11,11 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
+
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
 
 test.skip('caching side effects of native package', async () => {
   prepareEmpty()
@@ -82,8 +87,10 @@ test('using side effects cache', async () => {
   }, {}, {}, { packageImportMethod: 'copy' })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
-  const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexKey = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
+  const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -101,7 +108,7 @@ test('using side effects cache', async () => {
   expect(addedFiles.has('generated-by-preinstall.js')).toBeTruthy()
   expect(addedFiles.has('generated-by-postinstall.js')).toBeTruthy()
   addedFiles.delete('generated-by-postinstall.js')
-  writeMsgpackFileSync(filesIndexFile, filesIndex)
+  storeIndex.set(filesIndexKey, filesIndex)
 
   rimraf('node_modules')
   rimraf('pnpm-lock.yaml') // to avoid headless install
@@ -169,9 +176,11 @@ test('uploading errors do not interrupt installation', async () => {
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
 
-  const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
-  expect(filesIndex.sideEffects).toBeFalsy()
+  const filesIndexKey2 = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  const storeIndex2 = new StoreIndex(opts.storeDir)
+  const filesIndex2 = storeIndex2.get(filesIndexKey2) as PackageFilesIndex
+  storeIndex2.close()
+  expect(filesIndex2.sideEffects).toBeFalsy()
 })
 
 test('a postinstall script does not modify the original sources added to the store', async () => {
@@ -187,8 +196,10 @@ test('a postinstall script does not modify the original sources added to the sto
 
   expect(fs.readFileSync('node_modules/@pnpm/postinstall-modifies-source/empty-file.txt', 'utf8')).toContain('hello')
 
-  const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0'), '@pnpm/postinstall-modifies-source@1.0.0')
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexKey3 = storeIndexKey(getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0'), '@pnpm/postinstall-modifies-source@1.0.0')
+  const storeIndex3 = new StoreIndex(opts.storeDir)
+  const filesIndex = storeIndex3.get(filesIndexKey3) as PackageFilesIndex
+  storeIndex3.close()
   expect(filesIndex.sideEffects).toBeTruthy()
   expect(filesIndex.sideEffects?.has(`${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm/postinstall-modifies-source@1.0.0:${getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0')}`,
@@ -219,9 +230,11 @@ test('a corrupted side-effects cache is ignored', async () => {
   })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
-  const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
-  expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
+  const filesIndexKey4 = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  const storeIndex4 = new StoreIndex(opts.storeDir)
+  const filesIndex4 = storeIndex4.get(filesIndexKey4) as PackageFilesIndex
+  storeIndex4.close()
+  expect(filesIndex4.sideEffects).toBeTruthy() // files index has side effects
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
     deps: {
@@ -232,11 +245,11 @@ test('a corrupted side-effects cache is ignored', async () => {
     },
   })}`
 
-  expect(filesIndex.sideEffects).toBeTruthy()
-  expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
-  expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
-  expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added!.has('generated-by-preinstall.js')).toBeTruthy()
-  const sideEffectFileStat = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('generated-by-preinstall.js')!
+  expect(filesIndex4.sideEffects).toBeTruthy()
+  expect(filesIndex4.sideEffects!.has(sideEffectsKey)).toBeTruthy()
+  expect(filesIndex4.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
+  expect(filesIndex4.sideEffects!.get(sideEffectsKey)!.added!.has('generated-by-preinstall.js')).toBeTruthy()
+  const sideEffectFileStat = filesIndex4.sideEffects!.get(sideEffectsKey)!.added!.get('generated-by-preinstall.js')!
   const sideEffectFile = getFilePathByModeInCafs(opts.storeDir, sideEffectFileStat.digest, sideEffectFileStat.mode)
   expect(fs.existsSync(sideEffectFile)).toBeTruthy()
   rimraf(sideEffectFile) // we remove the side effect file to break the store

@@ -19,9 +19,6 @@
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../hooks/types"
     },
     {
@@ -50,6 +47,9 @@
     },
     {
       "path": "../create-cafs-store"
+    },
+    {
+      "path": "../index"
     },
     {
       "path": "../store-controller-types"

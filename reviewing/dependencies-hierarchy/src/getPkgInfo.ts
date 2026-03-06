@@ -9,6 +9,7 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
+import { type StoreIndex } from '@pnpm/store.index'
 import { type DependencyManifest, type Registries } from '@pnpm/types'
 import { refToRelative } from '@pnpm/dependency-path'
 import { readPackageJsonFromDirSync } from '@pnpm/read-package-json'
@@ -24,6 +25,7 @@ export interface GetPkgInfoOpts {
   readonly registries: Registries
   readonly skipped: Set<string>
   readonly storeDir?: string
+  readonly storeIndex?: StoreIndex
   readonly wantedPackages: PackageSnapshots
   readonly virtualStoreDir?: string
   readonly virtualStoreDirMaxLength: number
@@ -141,8 +143,8 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
   return {
     pkgInfo: packageInfo,
     readManifest: () => {
-      if (integrity && opts.storeDir) {
-        const manifest = readManifestFromCafs(opts.storeDir, { integrity, name, version })
+      if (integrity && opts.storeDir && opts.storeIndex) {
+        const manifest = readManifestFromCafs(opts.storeDir, opts.storeIndex, { integrity, name, version })
         if (manifest) return manifest
       }
       return readPackageJsonFromDirSync(fullPackagePath)

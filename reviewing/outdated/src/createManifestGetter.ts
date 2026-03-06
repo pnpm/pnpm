@@ -14,7 +14,7 @@ interface GetManifestOpts {
   minimumReleaseAgeExclude?: string[]
 }
 
-export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig' | 'minimumReleaseAgeExclude'>
+export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig' | 'minimumReleaseAgeExclude' | 'storeIndex'>
 & GetManifestOpts
 & { fullMetadata: boolean, rawConfig: Record<string, string> }
 

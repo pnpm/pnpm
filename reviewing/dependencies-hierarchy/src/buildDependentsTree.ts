@@ -7,6 +7,7 @@ import {
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { readModulesManifest } from '@pnpm/modules-yaml'
+import { StoreIndex } from '@pnpm/store.index'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { type DependenciesField, type DependencyManifest, type Finder, type Registries } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -90,6 +91,7 @@ export async function buildDependentsTree (
     ...modules?.registries,
   })
   const storeDir = modules?.storeDir
+  const storeIndex = storeDir ? new StoreIndex(storeDir) : undefined
   const virtualStoreDir = modules?.virtualStoreDir ?? path.join(modulesDir, '.pnpm')
   const virtualStoreDirMaxLength = modules?.virtualStoreDirMaxLength ?? 120
 
@@ -129,6 +131,7 @@ export async function buildDependentsTree (
     registries,
     wantedPackages: currentPackages,
     storeDir,
+    storeIndex,
   })
 
   // Scan all package nodes for matches.
@@ -208,6 +211,7 @@ export async function buildDependentsTree (
     if (versionCmp !== 0) return versionCmp
     return lexCompare(a.peersSuffixHash ?? '', b.peersSuffixHash ?? '')
   })
+  storeIndex?.close()
   return trees
 }
 
@@ -248,6 +252,7 @@ function resolvePackageNodes (
     registries: Registries
     wantedPackages: PackageSnapshots
     storeDir?: string
+    storeIndex?: StoreIndex
   }
 ): Map<string, { path: string, readManifest: () => DependencyManifest }> {
   const resolved = new Map<string, { path: string, readManifest: () => DependencyManifest }>()

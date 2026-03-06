@@ -1,8 +1,7 @@
-import fs from 'fs'
 import path from 'path'
 import { glob } from 'tinyglobby'
 import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
-import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { type PackageMeta } from '@pnpm/npm-resolver'
 import getRegistryName from 'encode-registry'
 
@@ -20,35 +19,40 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
     expandDirectories: false,
   })).sort()
   const metaFilesByPath: Record<string, CachedVersions> = {}
-  for (const filePath of metaFilePaths) {
-    let metaObject: PackageMeta | null
-    try {
-      metaObject = readMsgpackFileSync<PackageMeta>(path.join(opts.cacheDir, filePath))
-    } catch {
-      continue
-    }
-    if (!metaObject) continue
-    const cachedVersions: string[] = []
-    const nonCachedVersions: string[] = []
-    for (const [version, manifest] of Object.entries(metaObject.versions)) {
-      if (!manifest.dist.integrity) continue
-      const indexFilePath = getIndexFilePathInCafs(opts.storeDir, manifest.dist.integrity, `${manifest.name}@${manifest.version}`)
-      if (fs.existsSync(indexFilePath)) {
-        cachedVersions.push(version)
-      } else {
-        nonCachedVersions.push(version)
+  const storeIndex = new StoreIndex(opts.storeDir)
+  try {
+    for (const filePath of metaFilePaths) {
+      let metaObject: PackageMeta | null
+      try {
+        metaObject = readMsgpackFileSync<PackageMeta>(path.join(opts.cacheDir, filePath))
+      } catch {
+        continue
+      }
+      if (!metaObject) continue
+      const cachedVersions: string[] = []
+      const nonCachedVersions: string[] = []
+      for (const [version, manifest] of Object.entries(metaObject.versions)) {
+        if (!manifest.dist.integrity) continue
+        const key = storeIndexKey(manifest.dist.integrity, `${manifest.name}@${manifest.version}`)
+        if (storeIndex.has(key)) {
+          cachedVersions.push(version)
+        } else {
+          nonCachedVersions.push(version)
+        }
+      }
+      let registryName = filePath
+      while (path.dirname(registryName) !== '.') {
+        registryName = path.dirname(registryName)
+      }
+      metaFilesByPath[registryName.replaceAll('+', ':')] = {
+        cachedVersions,
+        nonCachedVersions,
+        cachedAt: metaObject.cachedAt ? new Date(metaObject.cachedAt).toString() : undefined,
+        distTags: metaObject['dist-tags'],
       }
     }
-    let registryName = filePath
-    while (path.dirname(registryName) !== '.') {
-      registryName = path.dirname(registryName)
-    }
-    metaFilesByPath[registryName.replaceAll('+', ':')] = {
-      cachedVersions,
-      nonCachedVersions,
-      cachedAt: metaObject.cachedAt ? new Date(metaObject.cachedAt).toString() : undefined,
-      distTags: metaObject['dist-tags'],
-    }
+  } finally {
+    storeIndex.close()
   }
   return JSON.stringify(metaFilesByPath, null, 2)
 }

@@ -664,8 +664,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 
   summaryLogger.debug({ prefix: lockfileDir })
 
-  await opts.storeController.close()
-
   if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
     await runLifecycleHooksConcurrently(
       ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],

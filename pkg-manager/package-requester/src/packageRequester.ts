@@ -1,9 +1,9 @@
 import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
 import {
-  getIndexFilePathInCafs as _getIndexFilePathInCafs,
   normalizeBundledManifest,
 } from '@pnpm/store.cafs'
+import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { PnpmError } from '@pnpm/error'
@@ -96,7 +96,6 @@ export function createPackageRequester (
     concurrency: networkConcurrency,
   })
 
-  const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
   const readPkgFromCafs = _readPkgFromCafs.bind(null, {
     storeDir: opts.storeDir,
@@ -107,7 +106,6 @@ export function createPackageRequester (
     readPkgFromCafs,
     fetch,
     fetchingLocker: new Map(),
-    getIndexFilePathInCafs,
     requestsQueue: Object.assign(requestsQueue, {
       counter: 0,
       concurrency: networkConcurrency,
@@ -130,7 +128,6 @@ export function createPackageRequester (
   return Object.assign(requestPackage, {
     fetchPackageToStore,
     getFilesIndexFilePath: getFilesIndexFilePath.bind(null, {
-      getIndexFilePathInCafs,
       storeDir: opts.storeDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }),
@@ -333,7 +330,6 @@ interface GetFilesIndexFilePathResult {
 
 function getFilesIndexFilePath (
   ctx: {
-    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     storeDir: string
     virtualStoreDirMaxLength: number
   },
@@ -344,7 +340,7 @@ function getFilesIndexFilePath (
   if ((opts.pkg.resolution as TarballResolution).integrity) {
     return {
       target,
-      filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
+      filesIndexFile: storeIndexKey((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
       resolution: opts.pkg.resolution as AtomicResolution,
     }
   }
@@ -354,14 +350,14 @@ function getFilesIndexFilePath (
     if ((resolution as TarballResolution).integrity) {
       return {
         target,
-        filesIndexFile: ctx.getIndexFilePathInCafs((resolution as TarballResolution).integrity!, opts.pkg.id),
+        filesIndexFile: storeIndexKey((resolution as TarballResolution).integrity!, opts.pkg.id),
         resolution,
       }
     }
   } else {
     resolution = opts.pkg.resolution
   }
-  const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.mpk' : 'integrity.mpk')
+  const filesIndexFile = gitHostedStoreIndexKey(opts.pkg.id, { built: !opts.ignoreScripts })
   return { filesIndexFile, target, resolution }
 }
 
@@ -402,7 +398,6 @@ function fetchToStore (
       opts: FetchOptions
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
-    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     requestsQueue: {
       add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>
       counter: number

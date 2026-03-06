@@ -137,6 +137,7 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/testing.temp-store": "workspace:*",

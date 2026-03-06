@@ -58,6 +58,9 @@
       "path": "../../store/cafs"
     },
     {
+      "path": "../../store/index"
+    },
+    {
       "path": "../../worker"
     },
     {
