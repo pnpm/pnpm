@@ -93,21 +93,20 @@ export class StoreIndex {
     const dbPath = `${storeDir}/index.db`
     fs.mkdirSync(storeDir, { recursive: true })
     this.db = new DatabaseSync(dbPath)
+    // Set busy_timeout FIRST so SQLite's internal busy handler is active
+    // during all subsequent operations. On Windows, file locking is mandatory
+    // and concurrent processes (e.g. parallel dlx calls) will contend.
+    this.db.exec('PRAGMA busy_timeout=5000')
     sqliteRetry(() => {
       this.db.exec('PRAGMA journal_mode=WAL')
-    })
-    this.db.exec('PRAGMA synchronous=NORMAL')
-    // Let SQLite wait up to 5 seconds before returning SQLITE_BUSY.
-    // This handles concurrent access from the main process and worker threads.
-    this.db.exec('PRAGMA busy_timeout=5000')
-    // Increase memory map size to 512MB
-    this.db.exec('PRAGMA mmap_size=536870912')
-    // Increase page cache size to ~32MB
-    this.db.exec('PRAGMA cache_size=-32000')
-    this.db.exec('PRAGMA temp_store=MEMORY')
-    // Increase wal autocheckpoint interval to reduce I/O during heavy writes
-    this.db.exec('PRAGMA wal_autocheckpoint=10000')
-    sqliteRetry(() => {
+      this.db.exec('PRAGMA synchronous=NORMAL')
+      // Increase memory map size to 512MB
+      this.db.exec('PRAGMA mmap_size=536870912')
+      // Increase page cache size to ~32MB
+      this.db.exec('PRAGMA cache_size=-32000')
+      this.db.exec('PRAGMA temp_store=MEMORY')
+      // Increase wal autocheckpoint interval to reduce I/O during heavy writes
+      this.db.exec('PRAGMA wal_autocheckpoint=10000')
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS package_index (
           key TEXT PRIMARY KEY,
