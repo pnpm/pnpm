@@ -76,28 +76,7 @@ interface PkgMetaAndSnapshot extends PkgMeta {
 
 function hashDependencyPaths (lockfile: LockfileObject, allowBuild?: AllowBuild): IterableIterator<HashedDepPath<PkgMetaAndSnapshot>> {
   const graph = lockfileToDepGraph(lockfile)
-  const builtDepPaths = computeBuiltDepPaths(lockfile, allowBuild)
-  return iterateHashedGraphNodes(graph, iteratePkgMeta(lockfile, graph), builtDepPaths)
-}
-
-function computeBuiltDepPaths (lockfile: LockfileObject, allowBuild?: AllowBuild): Set<DepPath> | undefined {
-  if (allowBuild == null) {
-    // No allowBuild function means no packages are allowed to build.
-    // All GVS hashes can be engine-agnostic.
-    return new Set()
-  }
-  const builtDepPaths = new Set<DepPath>()
-  if (lockfile.packages != null) {
-    for (const depPath in lockfile.packages) {
-      if (!Object.hasOwn(lockfile.packages, depPath)) continue
-      const pkgSnapshot = lockfile.packages[depPath as DepPath]
-      const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      if (allowBuild(name, version) === true) {
-        builtDepPaths.add(depPath as DepPath)
-      }
-    }
-  }
-  return builtDepPaths
+  return iterateHashedGraphNodes(graph, iteratePkgMeta(lockfile, graph), allowBuild)
 }
 
 function * iteratePkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>): PkgMetaIterator<PkgMetaAndSnapshot> {

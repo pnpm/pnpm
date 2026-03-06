@@ -26,6 +26,7 @@ import {
   type ProjectId,
   type ProjectRootDir,
   type DepPath,
+  type PkgIdWithPatchHash,
 } from '@pnpm/types'
 import { difference, zipWith } from 'ramda'
 import isSubdir from 'is-subdir'
@@ -464,20 +465,13 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     .filter(Boolean) as DependencyManifest[]
 }
 
-function computeBuiltDepPathsFromGraph (graph: DependenciesGraph, allowBuild?: AllowBuild): Set<DepPath> | undefined {
-  if (allowBuild == null) {
-    return new Set()
-  }
-  const builtDepPaths = new Set<DepPath>()
+function * iterateGraphPkgMetaEntries (graph: DependenciesGraph): IterableIterator<{ depPath: DepPath; name: string; version: string; pkgIdWithPatchHash: PkgIdWithPatchHash }> {
   for (const depPath in graph) {
     if (Object.hasOwn(graph, depPath)) {
-      const { name, version } = graph[depPath as DepPath]
-      if (allowBuild(name, version) === true) {
-        builtDepPaths.add(depPath as DepPath)
-      }
+      const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
+      yield { depPath: depPath as DepPath, name, version, pkgIdWithPatchHash }
     }
   }
-  return builtDepPaths
 }
 
 function extendGraph (
@@ -488,21 +482,8 @@ function extendGraph (
     enableGlobalVirtualStore?: boolean
   }
 ): DependenciesGraph {
-  const builtDepPaths = computeBuiltDepPathsFromGraph(graph, opts.allowBuild)
-  const pkgMetaIter = (function * () {
-    for (const depPath in graph) {
-      if ((opts.enableGlobalVirtualStore === true || isRuntimeDepPath(depPath as DepPath)) && Object.hasOwn(graph, depPath)) {
-        const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
-        yield {
-          name,
-          version,
-          depPath: depPath as DepPath,
-          pkgIdWithPatchHash,
-        }
-      }
-    }
-  })()
-  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, builtDepPaths)) {
+  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, iterateGraphPkgMetaEntries(graph), opts.allowBuild)) {
+    if (!opts.enableGlobalVirtualStore && !isRuntimeDepPath(depPath)) continue
     const modules = path.join(opts.globalVirtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {

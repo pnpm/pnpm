@@ -1,6 +1,6 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
-import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
+import { type AllowBuild, type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting, hashObject } from '@pnpm/crypto.object-hasher'
 import { type LockfileResolution, type LockfileObject } from '@pnpm/lockfile.types'
 
@@ -91,15 +91,17 @@ export interface HashedDepPath<T extends PkgMeta> {
 export function * iterateHashedGraphNodes<T extends PkgMeta> (
   graph: DepsGraph<DepPath>,
   pkgMetaIterator: PkgMetaIterator<T>,
-  builtDepPaths?: Set<DepPath>
+  allowBuild?: AllowBuild
 ): IterableIterator<HashedDepPath<T>> {
+  const pkgMetaList = Array.from(pkgMetaIterator)
+  const builtDepPaths = computeBuiltDepPaths(pkgMetaList, allowBuild)
   const _calcGraphNodeHash = calcGraphNodeHash.bind(null, {
     graph,
     cache: {},
     builtDepPaths,
     buildRequiredCache: builtDepPaths !== undefined ? {} : undefined,
   })
-  for (const pkgMeta of pkgMetaIterator) {
+  for (const pkgMeta of pkgMetaList) {
     yield {
       hash: _calcGraphNodeHash(pkgMeta),
       pkgMeta,
@@ -151,6 +153,22 @@ export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath
     }
   }
   return graph
+}
+
+function computeBuiltDepPaths (
+  entries: Iterable<{ depPath: DepPath; name: string; version: string }>,
+  allowBuild?: AllowBuild
+): Set<DepPath> | undefined {
+  if (allowBuild == null) {
+    return new Set()
+  }
+  const builtDepPaths = new Set<DepPath>()
+  for (const { depPath, name, version } of entries) {
+    if (allowBuild(name, version) === true) {
+      builtDepPaths.add(depPath)
+    }
+  }
+  return builtDepPaths
 }
 
 function transitivelyRequiresBuild<T extends string> (
