@@ -216,16 +216,22 @@ export async function pickPackage (
         fullMetadata,
         registry: opts.registry,
       })
+      const cachedAt = Date.now()
       let meta = fetchResult.meta
       let jsonToSave: string | undefined
       if (ctx.filterMetadata) {
         meta = clearMeta(meta)
-      } else {
+      } else if (typeof fetchResult.jsonText === 'string') {
         // Reuse the raw JSON text from the registry response to avoid re-stringifying.
-        // Inject cachedAt at the start of the JSON object.
-        jsonToSave = `{"cachedAt":${Date.now()},${fetchResult.jsonText.slice(1)}`
+        // Inject cachedAt at the start of the JSON object. To be robust against BOMs or
+        // leading whitespace/newlines, locate the first '{' and splice after it.
+        const jsonText = fetchResult.jsonText
+        const firstBraceIndex = jsonText.indexOf('{')
+        if (firstBraceIndex !== -1) {
+          jsonToSave = `{"cachedAt":${cachedAt},${jsonText.slice(firstBraceIndex + 1)}`
+        }
       }
-      meta.cachedAt = Date.now()
+      meta.cachedAt = cachedAt
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
       if (!opts.dryRun) {
