@@ -9,7 +9,7 @@ import { type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
 import { type BundledManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { globalWarn } from '@pnpm/logger'
-import { type StoreIndex } from '@pnpm/store.index'
+import { type StoreIndex, closeAllStoreIndexes } from '@pnpm/store.index'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
@@ -32,6 +32,7 @@ export async function finishWorkers (): Promise<void> {
   global.finishWorkers = undefined
   await finish?.()
   workerPool = undefined
+  closeAllStoreIndexes()
 }
 
 function createTarballWorkerPool (): WorkerPool {

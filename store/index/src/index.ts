@@ -63,6 +63,18 @@ export function gitHostedStoreIndexKey (pkgId: string, opts: { built: boolean })
   return storeIndexKey(pkgId, opts.built ? 'built' : 'not-built')
 }
 
+const openInstances = new Set<StoreIndex>()
+
+/**
+ * Close all open StoreIndex instances.
+ * Useful in tests that need to remove the store directory.
+ */
+export function closeAllStoreIndexes (): void {
+  for (const si of openInstances) {
+    si.close()
+  }
+}
+
 export class StoreIndex {
   private db: DatabaseSyncType
   private closed = false
@@ -108,6 +120,7 @@ export class StoreIndex {
     this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
     this.exitHandler = () => this.close()
     process.on('exit', this.exitHandler)
+    openInstances.add(this)
   }
 
   get (key: string): unknown | undefined {
@@ -234,6 +247,7 @@ export class StoreIndex {
     if (this.closed) return
     this.flush()
     this.closed = true
+    openInstances.delete(this)
     process.removeListener('exit', this.exitHandler)
     try {
       this.db.exec('PRAGMA optimize')

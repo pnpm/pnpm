@@ -205,7 +205,7 @@ test('fetch populates global virtual store links/', async () => {
     storeDir,
   })
 
-  // Close SQLite connections before removing the store (required on Windows)
+  // Drain workers and close SQLite connections before removing the store (required on Windows)
   await finishWorkers()
 
   // Remove the store — simulate a cold start with only the lockfile
