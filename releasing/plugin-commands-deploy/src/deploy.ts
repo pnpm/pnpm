@@ -16,7 +16,7 @@ import renderHelp from 'render-help'
 import writeYamlFile from 'write-yaml-file'
 import { deployHook } from './deployHook.js'
 import { logger, globalWarn } from '@pnpm/logger'
-import { type Project } from '@pnpm/types'
+import { type ProjectsGraph, type Project } from '@pnpm/types'
 import { createDeployFiles } from './createDeployFiles.js'
 
 const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes
@@ -132,8 +132,44 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   if (deployedProject) {
     deployedProject.modulesDir = path.relative(selectedProject.rootDir, path.join(deployDir, 'node_modules'))
   }
+
+  let allProjectsGraph: ProjectsGraph | undefined
+
+  // If inject-workspace-packages=false, this is considered a "legacy" deploy.
+  // Legacy deploy currently requires allProjectsGraph to only contain the
+  // deployed project and the root workspace project.
+  //
+  // For historical context, before pnpm v10.6.3, the allProjectsGraph always
+  // contained just the deployed project (and the root) for a pnpm deploy.
+  // Changes to how allProjectsGraph was computed in v10.6.3 caused the "pnpm
+  // deploy --legacy" command to break in some edge cases.
+  //
+  //   - https://github.com/pnpm/pnpm/issues/9284
+  //   - https://github.com/pnpm/pnpm/issues/9302
+  //
+  // This is a selective revert of https://github.com/pnpm/pnpm/pull/9259. It
+  // makes "pnpm deploy --legacy" behave more like it did before v10.6.3 to fix
+  // the bugs above.
+  //
+  // If the allProjectsGraph contains all projects, the legacy deploy process
+  // becomes confused in terms of which packages should be symlinked vs copied
+  // into the deploy directory. When inject-workspace-packages=true, this is not
+  // a problem since pnpm will know to always inject (i.e. copy) workspace
+  // packages into the deploy dir.
+  //
+  // When legacy deploy is removed, this special case should be removed. It may
+  // be possible to remove legacy deploy after no longer requiring users to set
+  // inject-workspace-packages=true in .npmrc.
+  if (!opts.injectWorkspacePackages && deployedProject != null) {
+    allProjectsGraph = {
+      [deployedProject.rootDir]: { dependencies: [], package: deployedProject },
+      ...selectProjectByDir(opts.allProjects ?? [], opts.workspaceDir),
+    }
+  }
+
   await install.handler({
     ...opts,
+    allProjectsGraph,
     confirmModulesPurge: false,
     // Deploy doesn't work with dedupePeerDependents=true currently as for deploy
     // we need to select a single project for install, while dedupePeerDependents
@@ -304,4 +340,10 @@ As a workaround, add the following to pnpm-workspace.yaml:
   }
 
   return undefined
+}
+
+function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
+  const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
+  if (project == null) return undefined
+  return { [searchedDir]: { dependencies: [], package: project } }
 }
