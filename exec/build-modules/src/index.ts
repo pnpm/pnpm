@@ -183,6 +183,11 @@ async function buildDependency<T extends string> (
       shellEmulator: opts.shellEmulator,
       unsafePerm: opts.unsafePerm || false,
     })
+    // Remove the .pnpm-needs-build marker before uploading side effects,
+    // so it doesn't get cached as part of the package's side effects diff.
+    if (opts.enableGlobalVirtualStore) {
+      await fs.unlink(path.join(depNode.dir, '.pnpm-needs-build')).catch(() => {})
+    }
     if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
@@ -201,11 +206,6 @@ async function buildDependency<T extends string> (
           prefix: opts.lockfileDir,
         })
       }
-    }
-    // Build succeeded — remove the .pnpm-needs-build marker so the GVS fast path
-    // won't force a re-import on the next install.
-    if (opts.enableGlobalVirtualStore) {
-      await fs.unlink(path.join(depNode.dir, '.pnpm-needs-build')).catch(() => {})
     }
     buildSucceeded = true
   } catch (err: unknown) {

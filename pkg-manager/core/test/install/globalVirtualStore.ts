@@ -1,8 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
+import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
+import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { getIntegrity } from '@pnpm/registry-mock'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
@@ -244,12 +247,13 @@ test('GVS successful build creates package directory with build artifacts', asyn
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
     },
   }
-  await install(manifest, testDefaults({
+  const opts = testDefaults({
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
     fastUnpack: false,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
-  }))
+  })
+  await install(manifest, opts)
 
   // The GVS directory should exist with build artifacts
   const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
@@ -262,6 +266,19 @@ test('GVS successful build creates package directory with build artifacts', asyn
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-preinstall.js'))).toBeTruthy()
   // The .pnpm-needs-build marker should have been removed after successful build
   expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeFalsy()
+
+  // The .pnpm-needs-build marker must not be uploaded to the side effects cache
+  const filesIndexFile = getIndexFilePathInCafs(
+    opts.storeDir,
+    getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'),
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'
+  )
+  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
+  if (filesIndex.sideEffects) {
+    for (const [, diff] of filesIndex.sideEffects) {
+      expect(diff.added?.has('.pnpm-needs-build')).toBeFalsy()
+    }
+  }
 })
 
 test('GVS build failure cleans up broken package directory', async () => {
