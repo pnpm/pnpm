@@ -14,7 +14,7 @@ interface CachedVersions {
 
 export async function cacheView (opts: { cacheDir: string, storeDir: string, registry?: string }, packageName: string): Promise<string> {
   const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
-  const metaFilePaths = (await glob(`${prefix}/${packageName}.mpk`, {
+  const metaFilePaths = (await glob(`${prefix}/${packageName}.json`, {
     cwd: opts.cacheDir,
     expandDirectories: false,
   })).sort()

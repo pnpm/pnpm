@@ -31,9 +31,7 @@
     "compile": "tsgo --build && pnpm run lint --fix",
     "prepublishOnly": "pnpm run compile"
   },
-  "dependencies": {
-    "msgpackr": "catalog:"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@pnpm/store.index": "workspace:*",
     "@types/node": "catalog:",

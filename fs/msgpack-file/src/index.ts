@@ -1,45 +1,33 @@
-import { Packr } from 'msgpackr'
 import gfs from '@pnpm/graceful-fs'
 
 /**
- * Create a Packr instance with record structure optimization enabled.
- * This provides 2-3x faster decoding performance by reusing object structures
- * and using integer keys instead of string property names.
- */
-const packr = new Packr({
-  useRecords: true,
-  // moreTypes: true enables better type preservation for undefined, etc.
-  moreTypes: true,
-})
-
-/**
- * Write data to a file in msgpack format (synchronous)
+ * Write data to a file in JSON format (synchronous)
  */
 export function writeMsgpackFileSync (filePath: string, data: unknown): void {
-  const buffer = packr.pack(data)
-  gfs.writeFileSync(filePath, buffer)
+  const json = JSON.stringify(data)
+  gfs.writeFileSync(filePath, json, 'utf8')
 }
 
 /**
- * Read msgpack data from a file (synchronous)
+ * Read JSON data from a file (synchronous)
  */
 export function readMsgpackFileSync<T> (filePath: string): T {
-  const buffer = gfs.readFileSync(filePath)
-  return packr.unpack(buffer) as T
+  const content = gfs.readFileSync(filePath, 'utf8')
+  return JSON.parse(content) as T
 }
 
 /**
- * Read msgpack data from a file (async)
+ * Read JSON data from a file (async)
  */
 export async function readMsgpackFile<T> (filePath: string): Promise<T> {
-  const buffer = await gfs.readFile(filePath)
-  return packr.unpack(buffer) as T
+  const content = await gfs.readFile(filePath, 'utf8')
+  return JSON.parse(content) as T
 }
 
 /**
- * Write data to a file in msgpack format (async)
+ * Write data to a file in JSON format (async)
  */
 export async function writeMsgpackFile (filePath: string, data: unknown): Promise<void> {
-  const buffer = packr.pack(data)
-  await gfs.writeFile(filePath, buffer)
+  const json = JSON.stringify(data)
+  await gfs.writeFile(filePath, json, 'utf8')
 }

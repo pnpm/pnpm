@@ -1,17 +1,11 @@
 import { createRequire } from 'module'
 import fs from 'fs'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
-import { Packr } from 'msgpackr'
 
 // Use createRequire to load node:sqlite because it is a prefix-only builtin
 // that Jest's ESM module resolver cannot handle.
 const req = createRequire(import.meta.url)
 const { DatabaseSync } = req('node:sqlite') as { DatabaseSync: typeof DatabaseSyncType }
-
-const packr = new Packr({
-  useRecords: true,
-  moreTypes: true,
-})
 
 const SQLITE_BUSY = 5
 const RETRY_DELAY_MS = 50
@@ -44,12 +38,11 @@ function sleepSync (ms: number): void {
 }
 
 /**
- * Pack data for storage using msgpackr.
- * Use this when data will be packed in one thread and stored by another,
- * to ensure the same Packr instance is used for pack and unpack within each thread.
+ * Pack data for storage as JSON.
+ * Use this when data will be packed in one thread and stored by another.
  */
 export function packForStorage (data: unknown): Uint8Array {
-  return packr.pack(data)
+  return new TextEncoder().encode(JSON.stringify(data))
 }
 
 /**
@@ -127,13 +120,13 @@ export class StoreIndex {
   get (key: string): unknown | undefined {
     const row = sqliteRetry(() => this.stmtGet.get(key)) as { data: Uint8Array } | undefined
     if (row) {
-      return packr.unpack(row.data)
+      return JSON.parse(new TextDecoder().decode(row.data))
     }
     return undefined
   }
 
   set (key: string, data: unknown): void {
-    const buffer = packr.pack(data)
+    const buffer = new TextEncoder().encode(JSON.stringify(data))
     sqliteRetry(() => {
       this.stmtSet.run(key, buffer)
     })
@@ -157,7 +150,7 @@ export class StoreIndex {
    */
   * entries (): IterableIterator<[string, unknown]> {
     for (const row of this.stmtAll.iterate() as IterableIterator<{ key: string, data: Uint8Array }>) {
-      yield [row.key, packr.unpack(row.data)]
+      yield [row.key, JSON.parse(new TextDecoder().decode(row.data))]
     }
   }
 
@@ -187,7 +180,7 @@ export class StoreIndex {
 
   /**
    * Write multiple pre-packed entries in a single transaction.
-   * The buffers must already be msgpack-encoded.
+   * The buffers must already be JSON-encoded.
    */
   setRawMany (entries: Array<{ key: string, buffer: Uint8Array }>): void {
     if (this.closed || entries.length === 0) return

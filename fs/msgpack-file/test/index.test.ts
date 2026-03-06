@@ -7,7 +7,7 @@ import {
 } from '@pnpm/fs.msgpack-file'
 import { temporaryDirectory } from 'tempy'
 
-describe('msgpack-file', () => {
+describe('json-file', () => {
   let tmpDir: string
 
   beforeEach(() => {
@@ -15,7 +15,7 @@ describe('msgpack-file', () => {
   })
 
   test('writeFileSync and readFileSync', () => {
-    const filePath = `${tmpDir}/test.mpk`
+    const filePath = `${tmpDir}/test.json`
     const data = {
       foo: 'bar',
       baz: 123,
@@ -33,7 +33,7 @@ describe('msgpack-file', () => {
   })
 
   test('writeFile and readFile (async)', async () => {
-    const filePath = `${tmpDir}/test-async.mpk`
+    const filePath = `${tmpDir}/test-async.json`
     const data = {
       foo: 'bar',
       baz: 123,
@@ -50,25 +50,8 @@ describe('msgpack-file', () => {
     expect(readData).toEqual(data)
   })
 
-  test('it should support Map and Set serialization (moreTypes: true)', () => {
-    const filePath = `${tmpDir}/map-set.mpk`
-    const data = {
-      map: new Map([['key1', 'value1'], ['key2', 'value2']]),
-      set: new Set([1, 2, 3, 3]),
-    }
-
-    writeMsgpackFileSync(filePath, data)
-    const readData = readMsgpackFileSync<any>(filePath) // eslint-disable-line @typescript-eslint/no-explicit-any
-
-    expect(readData.map).toBeInstanceOf(Map)
-    expect(readData.map.get('key1')).toBe('value1')
-    expect(readData.set).toBeInstanceOf(Set)
-    expect(readData.set.has(1)).toBe(true)
-    expect(readData.set.size).toBe(3)
-  })
-
-  test('it should use record structures for optimization (useRecords: true)', () => {
-    const filePath = `${tmpDir}/records.mpk`
+  test('it should serialize arrays of objects correctly', () => {
+    const filePath = `${tmpDir}/records.json`
     const structure = { name: 'pkg', version: '1.0.0' }
     const data = [
       structure,
@@ -84,5 +67,3 @@ describe('msgpack-file', () => {
     expect(readData[2]).toEqual(structure)
   })
 })
-
-

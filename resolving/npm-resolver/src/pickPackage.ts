@@ -143,7 +143,7 @@ export async function pickPackage (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.mpk`)
+  const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.json`)
 
   return runLimited(pkgMirror, async (limit) => {
     let metaCachedInStore: PackageMeta | null | undefined
