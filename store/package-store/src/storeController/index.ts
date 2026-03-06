@@ -67,7 +67,7 @@ export function createPackageStore (
 
   return {
     close: async () => {
-      initOpts.storeIndex.close()
+      initOpts.storeIndex.flush()
     },
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
