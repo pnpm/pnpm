@@ -106,6 +106,9 @@
       "path": "../../reviewing/outdated"
     },
     {
+      "path": "../../store/index"
+    },
+    {
       "path": "../../store/package-store"
     },
     {
