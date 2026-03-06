@@ -37,8 +37,10 @@ function isSqliteBusy (err: any): boolean { // eslint-disable-line @typescript-e
   return (err?.errcode & 0xFF) === SQLITE_BUSY
 }
 
+const sleepBuffer = new Int32Array(new SharedArrayBuffer(4))
+
 function sleepSync (ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+  Atomics.wait(sleepBuffer, 0, 0, ms)
 }
 
 /**

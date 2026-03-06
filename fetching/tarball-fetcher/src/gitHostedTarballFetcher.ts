@@ -30,6 +30,9 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
       ...opts,
       filesIndexFile: rawFilesIndexFile,
     })
+    // Flush any queued store index writes so that the raw files index entry
+    // written during tarball extraction is visible to subsequent reads.
+    fetcherOpts.storeIndex.flush()
     try {
       const prepareResult = await prepareGitHostedPkg(filesMap, cafs, rawFilesIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
       if (prepareResult.ignoredBuild) {
