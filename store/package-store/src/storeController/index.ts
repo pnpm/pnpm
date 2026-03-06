@@ -67,11 +67,7 @@ export function createPackageStore (
 
   return {
     close: async () => {
-      // Flush pending writes but don't close the DB — storeController.close()
-      // may be called multiple times (e.g. headlessInstall + mutateModules finally)
-      // and later code may still read from the index. The StoreIndex exit handler
-      // closes the DB on process exit.
-      initOpts.storeIndex.flush()
+      initOpts.storeIndex.close()
     },
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
