@@ -1,6 +1,6 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
-import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
+import { type AllowBuild, type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting, hashObject } from '@pnpm/crypto.object-hasher'
 import { type LockfileResolution, type LockfileObject } from '@pnpm/lockfile.types'
 
@@ -90,10 +90,25 @@ export interface HashedDepPath<T extends PkgMeta> {
 
 export function * iterateHashedGraphNodes<T extends PkgMeta> (
   graph: DepsGraph<DepPath>,
-  pkgMetaIterator: PkgMetaIterator<T>
+  pkgMetaIterator: PkgMetaIterator<T>,
+  allowBuild?: AllowBuild
 ): IterableIterator<HashedDepPath<T>> {
-  const _calcGraphNodeHash = calcGraphNodeHash.bind(null, { graph, cache: {} })
-  for (const pkgMeta of pkgMetaIterator) {
+  let builtDepPaths: Set<DepPath> | undefined
+  let entries: Iterable<T>
+  if (allowBuild != null) {
+    const pkgMetaList = Array.from(pkgMetaIterator)
+    builtDepPaths = computeBuiltDepPaths(pkgMetaList, allowBuild)
+    entries = pkgMetaList
+  } else {
+    entries = pkgMetaIterator
+  }
+  const _calcGraphNodeHash = calcGraphNodeHash.bind(null, {
+    graph,
+    cache: {},
+    builtDepPaths,
+    buildRequiredCache: builtDepPaths !== undefined ? {} : undefined,
+  })
+  for (const pkgMeta of entries) {
     yield {
       hash: _calcGraphNodeHash(pkgMeta),
       pkgMeta,
@@ -102,22 +117,24 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
 }
 
 export function calcGraphNodeHash<T extends PkgMeta> (
-  { graph, cache }: {
+  { graph, cache, builtDepPaths, buildRequiredCache }: {
     graph: DepsGraph<DepPath>
     cache: DepsStateCache
+    builtDepPaths?: Set<DepPath>
+    buildRequiredCache?: Record<string, boolean>
   },
   pkgMeta: T
 ): string {
   const { name, version, depPath } = pkgMeta
+  // When builtDepPaths is provided (derived from the allowBuilds config),
+  // we only include the engine name for packages that are allowed to build
+  // or transitively depend on a package that is allowed to build.
+  // This makes GVS hashes engine-agnostic for pure-JS packages,
+  // so they survive Node.js upgrades and architecture changes.
+  const includeEngine = builtDepPaths === undefined ||
+    transitivelyRequiresBuild(graph, builtDepPaths, buildRequiredCache ??= {}, depPath, new Set())
   const state = {
-    // Unfortunately, we need to include the engine name in the hash,
-    // even though it's only required for packages that are built,
-    // or have dependencies that are built.
-    // We can't know for sure whether a package needs to be built
-    // before it's fetched from the registry.
-    // However, we fetch and write packages to node_modules in random order for performance,
-    // so we can't determine at this stage which dependencies will be built.
-    engine: ENGINE_NAME,
+    engine: includeEngine ? ENGINE_NAME : null,
     deps: calcDepGraphHash(graph, cache, new Set(), depPath),
   }
   const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
@@ -143,6 +160,50 @@ export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath
     }
   }
   return graph
+}
+
+function computeBuiltDepPaths (
+  entries: Iterable<{ depPath: DepPath; name: string; version: string }>,
+  allowBuild: AllowBuild
+): Set<DepPath> {
+  const builtDepPaths = new Set<DepPath>()
+  for (const { depPath, name, version } of entries) {
+    if (allowBuild(name, version) === true) {
+      builtDepPaths.add(depPath)
+    }
+  }
+  return builtDepPaths
+}
+
+function transitivelyRequiresBuild<T extends string> (
+  graph: DepsGraph<T>,
+  builtDepPaths: Set<T>,
+  cache: Record<string, boolean>,
+  depPath: T,
+  parents: Set<T>
+): boolean {
+  if (depPath in cache) return cache[depPath]
+  if (builtDepPaths.has(depPath)) {
+    cache[depPath] = true
+    return true
+  }
+  const node = graph[depPath]
+  if (!node) {
+    cache[depPath] = false
+    return false
+  }
+  if (parents.has(depPath)) {
+    return false
+  }
+  const nextParents = new Set([...parents, depPath])
+  for (const childDepPath of Object.values(node.children) as T[]) {
+    if (transitivelyRequiresBuild(graph, builtDepPaths, cache, childDepPath, nextParents)) {
+      cache[depPath] = true
+      return true
+    }
+  }
+  cache[depPath] = false
+  return false
 }
 
 function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<string, DepPath> {

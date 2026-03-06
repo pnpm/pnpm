@@ -335,7 +335,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     pnpmVersion: opts.currentEngine.pnpmVersion,
     supportedArchitectures: opts.supportedArchitectures,
     includeUnchangedDeps: (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) ||
-      (!equals(opts.currentPublicHoistPattern ?? [], opts.publicHoistPattern ?? [])),
+      (!equals(opts.currentPublicHoistPattern ?? [], opts.publicHoistPattern ?? [])) ||
+      (opts.enableGlobalVirtualStore === true && !equals(opts.modulesFile?.allowBuilds ?? {}, opts.allowBuilds ?? {})),
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,
@@ -426,9 +427,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         depGraph: graph,
         depsStateCache,
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         ignoreScripts: opts.ignoreScripts,
         lockfileDir: opts.lockfileDir,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
+        storeDir: opts.storeDir,
       }),
     ])
 
@@ -559,6 +562,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       storeController: opts.storeController,
       unsafePerm: opts.unsafePerm,
       userAgent: opts.userAgent,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
     })).ignoredBuilds
     if (opts.modulesFile?.ignoredBuilds?.size) {
       ignoredBuilds ??= new Set()
@@ -639,6 +643,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       storeDir: opts.storeDir,
       virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      allowBuilds: opts.allowBuilds,
     })
     const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
     if (opts.useLockfile) {
@@ -852,12 +857,22 @@ async function linkAllPkgs (
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
+    enableGlobalVirtualStore?: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
+    storeDir: string
   }
 ): Promise<void> {
+  // Create a marker source file that will be added to filesMap for GVS packages
+  // that need building. The importer treats it as just another file, so it's
+  // atomically included in the staged directory and renamed with the package.
+  let needsBuildMarkerSrc: string | undefined
+  if (opts.enableGlobalVirtualStore) {
+    needsBuildMarkerSrc = path.join(opts.storeDir, '.pnpm-needs-build-marker')
+    await fs.writeFile(needsBuildMarkerSrc, '')
+  }
   await Promise.all(
     depNodes.map(async (depNode) => {
       if (!depNode.fetching) return
@@ -879,8 +894,28 @@ async function linkAllPkgs (
           })
         }
       }
+      // For GVS packages that need building, add a .pnpm-needs-build marker to the
+      // filesMap. The import pipeline treats it as a normal file, so it gets
+      // written into the staging directory and atomically renamed with the rest
+      // of the package. On the next install, GVS fast paths detect the marker
+      // and force a re-fetch/re-import/re-build.
+      // Skip the marker when cached side effects will be applied (the package
+      // is already built and no build will run).
+      const hasCachedSideEffects = sideEffectsCacheKey != null &&
+        filesResponse.sideEffectsMaps?.has(sideEffectsCacheKey) === true
+      const needsBuildMarker = needsBuildMarkerSrc != null &&
+        !hasCachedSideEffects &&
+        (depNode.requiresBuild || depNode.patch != null)
+      let effectiveFilesResponse = filesResponse
+      if (needsBuildMarker) {
+        effectiveFilesResponse = {
+          ...filesResponse,
+          filesMap: new Map([...filesResponse.filesMap, ['.pnpm-needs-build', needsBuildMarkerSrc!]]),
+        }
+      }
+
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-        filesResponse,
+        filesResponse: effectiveFilesResponse,
         force: depNode.forceImportPackage ?? opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         requiresBuild: depNode.patch != null || depNode.requiresBuild,
