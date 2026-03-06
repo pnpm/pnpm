@@ -7,6 +7,7 @@ import { readModulesManifest } from '@pnpm/modules-yaml'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { type BaseManifest } from '@pnpm/types'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 let registries: Record<string, string>
@@ -55,12 +56,11 @@ test('silent dlx prints the output of the child process only', async () => {
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
-test('dlx ignores configuration in current project package.json', async () => {
-  prepare({
-    pnpm: {
-      patchedDependencies: {
-        'shx@0.3.4': 'this_does_not_exist',
-      },
+test('dlx ignores configuration in current project pnpm-workspace.yaml', async () => {
+  prepare()
+  writeYamlFile('pnpm-workspace.yaml', {
+    patchedDependencies: {
+      'shx@0.3.4': 'this_does_not_exist',
     },
   })
   const global = path.resolve('..', 'global')

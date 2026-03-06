@@ -263,10 +263,9 @@ test('git dependencies with preparation scripts should be installed when dangero
 })
 
 test('--allow-build flag should error when conflicting with allowBuilds: false', async () => {
-  prepare({
-    pnpm: {
-      allowBuilds: { '@pnpm.e2e/install-script-example': false },
-    },
+  prepare()
+  writeYamlFile.sync('pnpm-workspace.yaml', {
+    allowBuilds: { '@pnpm.e2e/install-script-example': false },
   })
   const result = execPnpmSync(['add', '--allow-build=@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
 

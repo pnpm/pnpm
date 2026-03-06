@@ -500,13 +500,9 @@ describe('patch and commit', () => {
   })
 
   test('if the patch file is not existed when patching, should throw an error', async () => {
-    const { writeProjectManifest, manifest } = await readProjectManifest(process.cwd())
-    await writeProjectManifest({
-      ...manifest,
-      pnpm: {
-        patchedDependencies: {
-          'is-positive@1.0.0': 'patches/not-found.patch',
-        },
+    writeYamlFile('pnpm-workspace.yaml', {
+      patchedDependencies: {
+        'is-positive@1.0.0': 'patches/not-found.patch',
       },
     })
 
