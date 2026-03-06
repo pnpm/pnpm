@@ -231,7 +231,15 @@ export class StoreIndex {
     if (this.closed) return
     this.flush()
     this.closed = true
-    this.db.exec('PRAGMA optimize')
-    this.db.close()
+    try {
+      this.db.exec('PRAGMA optimize')
+    } catch {
+      // PRAGMA optimize is a performance hint; safe to ignore if the DB is locked.
+    }
+    try {
+      this.db.close()
+    } catch {
+      // The DB may be locked by another connection; the OS will reclaim it on process exit.
+    }
   }
 }
