@@ -27,17 +27,6 @@ try {
 
 global['pnpm__startedAt'] = Date.now()
 
-// Suppress "SQLite is an experimental feature" warnings without removing other listeners.
-const originalEmit = process.emit.bind(process)
-process.emit = function (event, ...args) {
-  if (event === 'warning' && args[0] instanceof Error &&
-      args[0].name === 'ExperimentalWarning' &&
-      args[0].message.includes('SQLite')) {
-    return false
-  }
-  return originalEmit(event, ...args)
-}
-
 import {} from '../dist/pnpm.mjs'
 
 // if you want to debug at your local env, you can use this
