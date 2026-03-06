@@ -1,4 +1,5 @@
-import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+// cspell:ignore IOERR CANTOPEN
+import { StoreIndex, storeIndexKey, isSqliteRetryable } from '@pnpm/store.index'
 import path from 'path'
 import { temporaryDirectory } from 'tempy'
 
@@ -24,6 +25,31 @@ test('StoreIndex round-trips data via SQLite key', () => {
   } finally {
     idx.close()
   }
+})
+
+describe('isSqliteRetryable', () => {
+  test.each([
+    ['SQLITE_BUSY', 5, true],
+    ['SQLITE_BUSY_RECOVERY', 261, true], // extended: 5 | (1 << 8)
+    ['SQLITE_LOCKED', 6, true],
+    ['SQLITE_IOERR', 10, true],
+    ['SQLITE_IOERR_LOCK', 3850, true], // extended: 10 | (15 << 8)
+    ['SQLITE_CANTOPEN', 14, true],
+    ['SQLITE_PROTOCOL', 15, true],
+    ['SQLITE_ERROR', 1, false],
+    ['SQLITE_PERM', 3, false],
+    ['SQLITE_CORRUPT', 11, false],
+    ['SQLITE_NOTFOUND', 12, false],
+  ])('%s (errcode %i) → %s', (_name, errcode, expected) => {
+    expect(isSqliteRetryable({ errcode })).toBe(expected)
+  })
+
+  test('returns false for non-SQLite errors', () => {
+    expect(isSqliteRetryable(new Error('random'))).toBe(false)
+    expect(isSqliteRetryable(null)).toBe(false)
+    expect(isSqliteRetryable(undefined)).toBe(false)
+    expect(isSqliteRetryable({ errcode: 'not-a-number' })).toBe(false)
+  })
 })
 
 test('StoreIndex entries() iterates all SQLite entries', () => {

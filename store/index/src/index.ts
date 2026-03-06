@@ -1,3 +1,4 @@
+// cspell:ignore IOERR CANTOPEN
 import { createRequire } from 'module'
 import fs from 'fs'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
@@ -14,6 +15,10 @@ const packr = new Packr({
 })
 
 const SQLITE_BUSY = 5
+const SQLITE_LOCKED = 6
+const SQLITE_IOERR = 10
+const SQLITE_CANTOPEN = 14
+const SQLITE_PROTOCOL = 15
 const RETRY_DELAY_MS = 50
 const MAX_RETRIES = 100 // ~5 seconds total
 
@@ -31,10 +36,41 @@ function sqliteRetry<T> (fn: () => T): T {
   }
 }
 
+/**
+ * Retry on any transient SQLite error, not just SQLITE_BUSY.
+ * On Windows, concurrent file operations can produce SQLITE_IOERR_LOCK,
+ * SQLITE_CANTOPEN, or SQLITE_PROTOCOL instead of SQLITE_BUSY.
+ * Use this only for idempotent operations (e.g. initialization).
+ */
+function sqliteRetryInit<T> (fn: () => T): T {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return fn()
+    } catch (err: unknown) {
+      if (isSqliteRetryable(err) && attempt < MAX_RETRIES) {
+        sleepSync(RETRY_DELAY_MS)
+        continue
+      }
+      throw err
+    }
+  }
+}
+
 function isSqliteBusy (err: any): boolean { // eslint-disable-line @typescript-eslint/no-explicit-any
   // errcode may be an extended error code (e.g. SQLITE_BUSY_RECOVERY = 261),
   // so mask off the upper bits to get the primary error code.
   return (err?.errcode & 0xFF) === SQLITE_BUSY
+}
+
+export function isSqliteRetryable (err: unknown): boolean {
+  const code = (err as { errcode?: unknown })?.errcode
+  if (typeof code !== 'number') return false
+  const primary = code & 0xFF
+  return primary === SQLITE_BUSY
+    || primary === SQLITE_LOCKED   // another connection in the same process
+    || primary === SQLITE_IOERR    // includes SQLITE_IOERR_LOCK on Windows
+    || primary === SQLITE_CANTOPEN // file being created by another process
+    || primary === SQLITE_PROTOCOL // WAL recovery contention
 }
 
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4))
@@ -82,22 +118,24 @@ export class StoreIndex {
   private closed = false
   private pendingWrites: Array<{ key: string, buffer: Uint8Array }> = []
   private flushScheduled = false
-  private stmtGet: StatementSync
-  private stmtSet: StatementSync
-  private stmtDel: StatementSync
-  private stmtHas: StatementSync
-  private stmtAll: StatementSync
+  private stmtGet!: StatementSync
+  private stmtSet!: StatementSync
+  private stmtDel!: StatementSync
+  private stmtHas!: StatementSync
+  private stmtAll!: StatementSync
   private readonly exitHandler: () => void
 
   constructor (storeDir: string) {
     const dbPath = `${storeDir}/index.db`
     fs.mkdirSync(storeDir, { recursive: true })
-    this.db = new DatabaseSync(dbPath)
-    // Set busy_timeout FIRST so SQLite's internal busy handler is active
-    // during all subsequent operations. On Windows, file locking is mandatory
-    // and concurrent processes (e.g. parallel dlx calls) will contend.
-    this.db.exec('PRAGMA busy_timeout=5000')
-    sqliteRetry(() => {
+    // Use sqliteRetryInit for the entire init sequence. On Windows,
+    // concurrent processes opening the same database can produce
+    // SQLITE_IOERR_LOCK or SQLITE_CANTOPEN, not just SQLITE_BUSY.
+    this.db = sqliteRetryInit(() => new DatabaseSync(dbPath))
+    sqliteRetryInit(() => {
+      // Set busy_timeout FIRST so SQLite's internal busy handler is active
+      // during all subsequent operations.
+      this.db.exec('PRAGMA busy_timeout=5000')
       this.db.exec('PRAGMA journal_mode=WAL')
       this.db.exec('PRAGMA synchronous=NORMAL')
       // Increase memory map size to 512MB
@@ -114,11 +152,13 @@ export class StoreIndex {
         ) WITHOUT ROWID
       `)
     })
-    this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
-    this.stmtSet = this.db.prepare('INSERT OR REPLACE INTO package_index (key, data) VALUES (?, ?)')
-    this.stmtDel = this.db.prepare('DELETE FROM package_index WHERE key = ?')
-    this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
-    this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
+    sqliteRetryInit(() => {
+      this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
+      this.stmtSet = this.db.prepare('INSERT OR REPLACE INTO package_index (key, data) VALUES (?, ?)')
+      this.stmtDel = this.db.prepare('DELETE FROM package_index WHERE key = ?')
+      this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
+      this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
+    })
     this.exitHandler = () => this.close()
     process.on('exit', this.exitHandler)
     openInstances.add(this)
