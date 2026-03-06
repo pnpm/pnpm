@@ -15,6 +15,12 @@ interface RegistryResponse {
   status: number
   statusText: string
   json: () => Promise<PackageMeta>
+  text: () => Promise<string>
+}
+
+export interface FetchMetadataResult {
+  meta: PackageMeta
+  jsonText: string
 }
 
 // https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
@@ -63,7 +69,7 @@ export async function fetchMetadataFromFromRegistry (
     fullMetadata,
     registry,
   }: FetchMetadataOptions
-): Promise<PackageMeta> {
+): Promise<FetchMetadataResult> {
   const uri = toUri(pkgName, registry)
   const op = retry.operation(fetchOpts.retry)
   return new Promise((resolve, reject) => {
@@ -94,13 +100,14 @@ export async function fetchMetadataFromFromRegistry (
       // Here we only retry broken JSON responses.
       // Other HTTP issues are retried by the @pnpm/fetch library
       try {
-        const json = await response.json()
+        const jsonText = await response.text()
+        const meta = JSON.parse(jsonText) as PackageMeta
         // Check if request took longer than expected
         const elapsedMs = Date.now() - startTime
         if (elapsedMs > fetchOpts.fetchWarnTimeoutMs) {
           globalWarn(`Request took ${elapsedMs}ms: ${uri}`)
         }
-        resolve(json)
+        resolve({ meta, jsonText })
       } catch (error: any) { // eslint-disable-line
         const timeout = op.retry(
           new PnpmError('BROKEN_METADATA_JSON', error.message)

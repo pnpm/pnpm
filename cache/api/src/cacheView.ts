@@ -1,6 +1,6 @@
+import fs from 'fs'
 import path from 'path'
 import { glob } from 'tinyglobby'
-import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { type PackageMeta } from '@pnpm/npm-resolver'
 import getRegistryName from 'encode-registry'
@@ -14,7 +14,7 @@ interface CachedVersions {
 
 export async function cacheView (opts: { cacheDir: string, storeDir: string, registry?: string }, packageName: string): Promise<string> {
   const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
-  const metaFilePaths = (await glob(`${prefix}/${packageName}.mpk`, {
+  const metaFilePaths = (await glob(`${prefix}/${packageName}.json`, {
     cwd: opts.cacheDir,
     expandDirectories: false,
   })).sort()
@@ -24,7 +24,7 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
     for (const filePath of metaFilePaths) {
       let metaObject: PackageMeta | null
       try {
-        metaObject = readMsgpackFileSync<PackageMeta>(path.join(opts.cacheDir, filePath))
+        metaObject = JSON.parse(fs.readFileSync(path.join(opts.cacheDir, filePath), 'utf8')) as PackageMeta
       } catch {
         continue
       }

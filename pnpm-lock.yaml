@@ -1237,9 +1237,6 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
@@ -7543,9 +7540,6 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
