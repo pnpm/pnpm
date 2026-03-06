@@ -20,50 +20,6 @@ import {
 
 let workerPool: WorkerPool | undefined
 
-// Single-writer index: all SQLite writes happen in the main process.
-// Writes from the fetch phase are batched via process.nextTick for throughput.
-// Writes from the build phase (side effects) are written immediately so that
-// subsequent worker reads see the committed data.
-// The StoreIndex instance is passed in by the caller (owned by StoreController).
-const pendingIndexWrites = new Map<StoreIndex, Array<{ key: string, buffer: Uint8Array }>>()
-const storeIndexesToClose = new Set<StoreIndex>()
-let flushScheduled = false
-
-function queueIndexWrites (storeIndex: StoreIndex, writes: Array<{ key: string, buffer: Uint8Array }>): void {
-  if (!pendingIndexWrites.has(storeIndex)) {
-    pendingIndexWrites.set(storeIndex, [])
-  }
-  const queue = pendingIndexWrites.get(storeIndex)!
-  for (const w of writes) {
-    queue.push(w)
-  }
-  if (!flushScheduled) {
-    flushScheduled = true
-    process.nextTick(flushStoreIndexWrites)
-  }
-}
-
-export function flushStoreIndexWrites (): void {
-  flushScheduled = false
-  for (const [storeIndex, writes] of pendingIndexWrites) {
-    if (writes.length === 0) continue
-    storeIndex.setRawMany(writes)
-  }
-  pendingIndexWrites.clear()
-}
-
-/**
- * Register a StoreIndex to be closed after finishWorkers() completes.
- * This ensures the database stays open until all worker results have been flushed.
- */
-export function deferStoreIndexClose (storeIndex: StoreIndex): void {
-  storeIndexesToClose.add(storeIndex)
-}
-
-function writeIndexImmediately (storeIndex: StoreIndex, writes: Array<{ key: string, buffer: Uint8Array }>): void {
-  storeIndex.setRawMany(writes)
-}
-
 export async function restartWorkerPool (): Promise<void> {
   await finishWorkers()
   workerPool = createTarballWorkerPool()
@@ -76,11 +32,6 @@ export async function finishWorkers (): Promise<void> {
   global.finishWorkers = undefined
   await finish?.()
   workerPool = undefined
-  flushStoreIndexWrites()
-  for (const si of storeIndexesToClose) {
-    si.close()
-  }
-  storeIndexesToClose.clear()
 }
 
 function createTarballWorkerPool (): WorkerPool {
@@ -147,7 +98,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
       if (indexWrites) {
         // Write immediately so that subsequent worker reads (e.g. side effects)
         // see the committed data without waiting for nextTick.
-        writeIndexImmediately(opts.storeIndex, indexWrites)
+        opts.storeIndex.setRawMany(indexWrites)
       }
       resolve(value)
     })
@@ -225,7 +176,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
         return
       }
       if (indexWrites) {
-        queueIndexWrites(opts.storeIndex, indexWrites)
+        opts.storeIndex.queueWrites(indexWrites)
       }
       resolve(value)
     })

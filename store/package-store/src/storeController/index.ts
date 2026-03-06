@@ -10,7 +10,7 @@ import {
 } from '@pnpm/store-controller-types'
 import { type CustomFetcher } from '@pnpm/hooks.types'
 import { type StoreIndex } from '@pnpm/store.index'
-import { addFilesFromDir, deferStoreIndexClose, flushStoreIndexWrites, importPackage, initStoreDir } from '@pnpm/worker'
+import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
 import { prune } from './prune.js'
 
 export { type CafsLocker }
@@ -67,8 +67,7 @@ export function createPackageStore (
 
   return {
     close: async () => {
-      flushStoreIndexWrites()
-      deferStoreIndexClose(initOpts.storeIndex)
+      initOpts.storeIndex.close()
     },
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,

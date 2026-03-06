@@ -66,6 +66,8 @@ export function gitHostedStoreIndexKey (pkgId: string, opts: { built: boolean })
 export class StoreIndex {
   private db: DatabaseSyncType
   private closed = false
+  private pendingWrites: Array<{ key: string, buffer: Uint8Array }> = []
+  private flushScheduled = false
   private stmtGet: StatementSync
   private stmtSet: StatementSync
   private stmtDel: StatementSync
@@ -143,6 +145,30 @@ export class StoreIndex {
   }
 
   /**
+   * Queue pre-packed writes to be flushed on the next tick.
+   * Used by the fetch phase for throughput.
+   */
+  queueWrites (writes: Array<{ key: string, buffer: Uint8Array }>): void {
+    for (const w of writes) {
+      this.pendingWrites.push(w)
+    }
+    if (!this.flushScheduled) {
+      this.flushScheduled = true
+      process.nextTick(() => this.flush())
+    }
+  }
+
+  /**
+   * Flush all pending queued writes immediately.
+   */
+  flush (): void {
+    this.flushScheduled = false
+    if (this.pendingWrites.length === 0) return
+    this.setRawMany(this.pendingWrites)
+    this.pendingWrites = []
+  }
+
+  /**
    * Write multiple pre-packed entries in a single transaction.
    * The buffers must already be msgpack-encoded.
    */
@@ -203,6 +229,7 @@ export class StoreIndex {
 
   close (): void {
     if (this.closed) return
+    this.flush()
     this.closed = true
     this.db.exec('PRAGMA optimize')
     this.db.close()
