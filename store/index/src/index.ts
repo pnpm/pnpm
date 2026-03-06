@@ -73,6 +73,7 @@ export class StoreIndex {
   private stmtDel: StatementSync
   private stmtHas: StatementSync
   private stmtAll: StatementSync
+  private readonly exitHandler: () => void
 
   constructor (storeDir: string) {
     const dbPath = `${storeDir}/index.db`
@@ -105,6 +106,8 @@ export class StoreIndex {
     this.stmtDel = this.db.prepare('DELETE FROM package_index WHERE key = ?')
     this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
     this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
+    this.exitHandler = () => this.close()
+    process.on('exit', this.exitHandler)
   }
 
   get (key: string): unknown | undefined {
@@ -231,6 +234,7 @@ export class StoreIndex {
     if (this.closed) return
     this.flush()
     this.closed = true
+    process.removeListener('exit', this.exitHandler)
     try {
       this.db.exec('PRAGMA optimize')
     } catch {

@@ -39,6 +39,7 @@ export async function createFuseHandlers (lockfileDir: string, storeDir: string)
 }
 
 export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeDir: string): FuseHandlers {
+  const storeIndex = new StoreIndex(storeDir)
   const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
   const virtualNodeModules = makeVirtualNodeModules(lockfile)
   return {
@@ -156,7 +157,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       currentDirEntry = currentDirEntry.entries[parts.shift()!]
     }
     if (currentDirEntry?.entryType === 'index') {
-      const pkg = getPkgInfo(currentDirEntry.depPath, storeDir)
+      const pkg = getPkgInfo(currentDirEntry.depPath)
       if (pkg == null) {
         return null
       }
@@ -168,15 +169,13 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
     }
     return currentDirEntry
   }
-  function getPkgInfo (depPath: string, storeDir: string) {
+  function getPkgInfo (depPath: string) {
     if (!pkgSnapshotCache.has(depPath)) {
       const pkgSnapshot = lockfile.packages?.[depPath as DepPath]
       if (pkgSnapshot == null) return undefined
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const pkgIndexFilePath = storeIndexKey((pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
-      const storeIndex = new StoreIndex(storeDir)
       const pkgIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex
-      storeIndex.close()
       pkgSnapshotCache.set(depPath, {
         ...nameVer,
         pkgSnapshot,
