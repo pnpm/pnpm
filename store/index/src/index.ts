@@ -216,12 +216,14 @@ export class StoreIndex {
   }
 
   /**
-   * Delete multiple index entries in a single transaction.
+   * Delete multiple index entries in a single transaction,
+   * then VACUUM to reclaim disk space.
    */
   deleteMany (keys: string[]): void {
     if (keys.length === 0) return
     if (keys.length === 1) {
       this.delete(keys[0])
+      this.db.exec('VACUUM')
       return
     }
     sqliteRetry(() => {
@@ -241,6 +243,7 @@ export class StoreIndex {
         }
       }
     })
+    this.db.exec('VACUUM')
   }
 
   close (): void {
