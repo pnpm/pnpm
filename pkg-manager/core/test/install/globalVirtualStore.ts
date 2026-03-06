@@ -236,6 +236,157 @@ test('GVS re-links when allowBuilds changes', async () => {
   expect(updatedState?.allowBuilds).toEqual({ '@pnpm.e2e/dep-of-pkg-with-1-dep': true })
 })
 
+test('GVS successful build creates package directory with build artifacts', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  }
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    fastUnpack: false,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }))
+
+  // The GVS directory should exist with build artifacts
+  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
+  const hashes = fs.readdirSync(pkgDir)
+  expect(hashes).toHaveLength(1)
+  const pkgInGvs = path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(fs.existsSync(path.join(pkgInGvs, 'package.json'))).toBeTruthy()
+  // Build artifacts created by postinstall script should be present
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-preinstall.js'))).toBeTruthy()
+  // The .pnpm-needs-build marker should have been removed after successful build
+  expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeFalsy()
+})
+
+test('GVS build failure cleans up broken package directory', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/failing-postinstall': '1.0.0',
+    },
+  }
+  await expect(
+    install(manifest, testDefaults({
+      enableGlobalVirtualStore: true,
+      virtualStoreDir: globalVirtualStoreDir,
+      fastUnpack: false,
+      allowBuilds: { '@pnpm.e2e/failing-postinstall': true },
+    }))
+  ).rejects.toThrow()
+
+  // The GVS hash directory for the failed package should have been removed
+  // on build failure so the next install can re-fetch and re-build.
+  const pkgVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/failing-postinstall/1.0.0')
+  if (fs.existsSync(pkgVersionDir)) {
+    const hashes = fs.readdirSync(pkgVersionDir)
+    for (const hash of hashes) {
+      const pkgInGvs = path.join(pkgVersionDir, hash, 'node_modules/@pnpm.e2e/failing-postinstall')
+      expect(fs.existsSync(pkgInGvs)).toBeFalsy()
+    }
+  }
+})
+
+test('GVS rebuilds successfully after simulated build failure cleanup', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  }
+
+  // Step 1: Successful install with build
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    fastUnpack: false,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }))
+
+  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
+  const hashes = fs.readdirSync(pkgDir)
+  expect(hashes).toHaveLength(1)
+  const hashDir = path.join(pkgDir, hashes[0])
+  expect(fs.existsSync(path.join(hashDir, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeTruthy()
+
+  // Step 2: Simulate a previous build failure by removing the GVS hash directory
+  rimraf(hashDir)
+  expect(fs.existsSync(hashDir)).toBeFalsy()
+
+  // Step 3: Remove node_modules and reinstall with frozenLockfile
+  // The GVS fast path should NOT kick in because the hash dir is gone
+  rimraf('node_modules')
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    frozenLockfile: true,
+    fastUnpack: false,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }))
+
+  // The GVS directory should be recreated with build artifacts
+  const hashesAfter = fs.readdirSync(pkgDir)
+  expect(hashesAfter).toHaveLength(1)
+  expect(fs.existsSync(path.join(pkgDir, hashesAfter[0], 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeTruthy()
+})
+
+test('GVS .pnpm-needs-build marker triggers re-import on next install', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  }
+
+  // Step 1: Install with build
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    fastUnpack: false,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }))
+
+  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
+  const hashes = fs.readdirSync(pkgDir)
+  expect(hashes).toHaveLength(1)
+  const hashDir = path.join(pkgDir, hashes[0])
+  const pkgInGvs = path.join(hashDir, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
+  // Marker should not be present after successful build
+  expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeFalsy()
+
+  // Step 2: Simulate a crash between import and build — write a .pnpm-needs-build
+  // marker and remove build artifacts (as if the build never completed)
+  fs.writeFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), '')
+  fs.unlinkSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))
+  expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeTruthy()
+
+  // Remove node_modules to force a re-install
+  rimraf('node_modules')
+
+  // Step 3: Reinstall — the GVS fast path should detect the .pnpm-needs-build
+  // marker and force a re-fetch, re-import, and re-build.
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    frozenLockfile: true,
+    fastUnpack: false,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }))
+
+  // The marker should be gone and the package rebuilt with artifacts
+  expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeFalsy()
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
+})
+
 test('injected local packages work with global virtual store', async () => {
   const project1Manifest = {
     name: 'project-1',

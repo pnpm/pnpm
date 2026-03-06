@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -234,6 +235,12 @@ async function buildGraphFromPackages (
         injectionTargetsByDepPath.set(depPath, [dir])
       }
 
+      // In GVS mode, packages that are allowed to build may have a .pnpm-needs-build
+      // marker indicating a previous build failed or was interrupted. When the
+      // marker is present, skip the fast path to force a re-fetch/re-import/re-build.
+      const mightNeedBuild = opts.enableGlobalVirtualStore &&
+        opts.allowBuild?.(pkgName, pkgVersion) === true
+
       let dirExists: boolean | undefined
       if (
         depIsPresent &&
@@ -243,14 +250,19 @@ async function buildGraphFromPackages (
         !opts.includeUnchangedDeps
       ) {
         dirExists = await pathExists(dir)
-        if (dirExists) return
-        brokenModulesLogger.debug({ missing: dir })
+        if (dirExists) {
+          if (!(mightNeedBuild && fs.existsSync(path.join(dir, '.pnpm-needs-build')))) return
+        } else {
+          brokenModulesLogger.debug({ missing: dir })
+        }
       }
 
       let fetchResponse!: Partial<FetchResponse>
       if (depIsPresent && depIntegrityIsUnchanged && equals(currentPackages[depPath].optionalDependencies, pkgSnapshot.optionalDependencies)) {
         if (dirExists ?? await pathExists(dir)) {
-          fetchResponse = {}
+          if (!(mightNeedBuild && fs.existsSync(path.join(dir, '.pnpm-needs-build')))) {
+            fetchResponse = {}
+          }
         } else {
           brokenModulesLogger.debug({ missing: dir })
         }
@@ -259,7 +271,9 @@ async function buildGraphFromPackages (
       if (!fetchResponse && opts.enableGlobalVirtualStore && !isDirectoryDep
         && !opts.force) {
         if (dirExists ?? await pathExists(dir)) {
-          fetchResponse = {}
+          if (!(mightNeedBuild && fs.existsSync(path.join(dir, '.pnpm-needs-build')))) {
+            fetchResponse = {}
+          }
         }
       }
 

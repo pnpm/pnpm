@@ -1392,6 +1392,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           storeController: opts.storeController,
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
+          enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         })).ignoredBuilds
         if (ctx.modulesFile?.ignoredBuilds?.size) {
           ignoredBuilds ??= new Set()

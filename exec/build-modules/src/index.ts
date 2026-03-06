@@ -1,4 +1,5 @@
 import assert from 'assert'
+import fs from 'fs/promises'
 import path from 'path'
 import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
@@ -8,7 +9,7 @@ import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
 import { hardLinkDir } from '@pnpm/worker'
-import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import {
@@ -49,6 +50,7 @@ export async function buildModules<T extends string> (
     storeController: StoreController
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
+    enableGlobalVirtualStore?: boolean
   }
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   if (!rootDepPaths.length) return {}
@@ -146,6 +148,7 @@ async function buildDependency<T extends string> (
     unsafePerm: boolean
     hoistedLocations?: Record<string, string[]>
     builtHoistedDeps?: Record<string, DeferredPromise<void>>
+    enableGlobalVirtualStore?: boolean
     warn: (message: string) => void
   }
 ): Promise<void> {
@@ -158,6 +161,7 @@ async function buildDependency<T extends string> (
     }
     opts.builtHoistedDeps[depNode.depPath] = pDefer()
   }
+  let buildSucceeded = false
   try {
     await linkBinsOfDependencies(depNode, depGraph, opts)
     let isPatched = false
@@ -198,17 +202,28 @@ async function buildDependency<T extends string> (
         })
       }
     }
+    // Build succeeded — remove the .pnpm-needs-build marker so the GVS fast path
+    // won't force a re-import on the next install.
+    if (opts.enableGlobalVirtualStore) {
+      await fs.unlink(path.join(depNode.dir, '.pnpm-needs-build')).catch(() => {})
+    }
+    buildSucceeded = true
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
+    // In GVS mode, remove the entire hash directory so the next install
+    // sees the directory is absent, re-fetches, and re-builds.
+    if (opts.enableGlobalVirtualStore) {
+      const hashDir = path.resolve(depNode.dir, '../..')
+      await fs.rm(hashDir, { recursive: true, force: true })
+    }
     if (depNode.optional) {
       // TODO: add parents field to the log
-      const pkg = await readPackageJsonFromDir(path.join(depNode.dir)) as DependencyManifest
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: {
           id: depNode.dir,
-          name: pkg.name,
-          version: pkg.version,
+          name: depNode.name,
+          version: depNode.version,
         },
         prefix: opts.lockfileDir,
         reason: 'build_failure',
@@ -217,13 +232,15 @@ async function buildDependency<T extends string> (
     }
     throw err
   } finally {
-    const hoistedLocationsOfDep = opts.hoistedLocations?.[depNode.depPath]
-    if (hoistedLocationsOfDep) {
-      // There is no need to build the same package in every location.
-      // We just copy the built package to every location where it is present.
-      const currentHoistedLocation = path.relative(opts.lockfileDir, depNode.dir)
-      const nonBuiltHoistedDeps = hoistedLocationsOfDep?.filter((hoistedLocation) => hoistedLocation !== currentHoistedLocation)
-      await hardLinkDir(depNode.dir, nonBuiltHoistedDeps)
+    if (buildSucceeded) {
+      const hoistedLocationsOfDep = opts.hoistedLocations?.[depNode.depPath]
+      if (hoistedLocationsOfDep) {
+        // There is no need to build the same package in every location.
+        // We just copy the built package to every location where it is present.
+        const currentHoistedLocation = path.relative(opts.lockfileDir, depNode.dir)
+        const nonBuiltHoistedDeps = hoistedLocationsOfDep?.filter((hoistedLocation) => hoistedLocation !== currentHoistedLocation)
+        await hardLinkDir(depNode.dir, nonBuiltHoistedDeps)
+      }
     }
     if (opts.builtHoistedDeps) {
       opts.builtHoistedDeps[depNode.depPath].resolve()
