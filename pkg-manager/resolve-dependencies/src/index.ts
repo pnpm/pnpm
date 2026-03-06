@@ -465,9 +465,10 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     .filter(Boolean) as DependencyManifest[]
 }
 
-function * iterateGraphPkgMetaEntries (graph: DependenciesGraph): IterableIterator<{ depPath: DepPath; name: string; version: string; pkgIdWithPatchHash: PkgIdWithPatchHash }> {
+function * iterateGraphPkgMetaEntries (graph: DependenciesGraph, runtimeOnly?: boolean): IterableIterator<{ depPath: DepPath; name: string; version: string; pkgIdWithPatchHash: PkgIdWithPatchHash }> {
   for (const depPath in graph) {
     if (Object.hasOwn(graph, depPath)) {
+      if (runtimeOnly && !isRuntimeDepPath(depPath as DepPath)) continue
       const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
       yield { depPath: depPath as DepPath, name, version, pkgIdWithPatchHash }
     }
@@ -482,8 +483,10 @@ function extendGraph (
     enableGlobalVirtualStore?: boolean
   }
 ): DependenciesGraph {
-  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, iterateGraphPkgMetaEntries(graph), opts.allowBuild)) {
-    if (!opts.enableGlobalVirtualStore && !isRuntimeDepPath(depPath)) continue
+  const pkgMetaIter = iterateGraphPkgMetaEntries(graph, !opts.enableGlobalVirtualStore)
+  // Only use allowBuild for engine-agnostic hash optimization when GVS is on
+  const allowBuild = opts.enableGlobalVirtualStore ? opts.allowBuild : undefined
+  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, allowBuild)) {
     const modules = path.join(opts.globalVirtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {

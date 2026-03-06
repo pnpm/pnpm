@@ -93,15 +93,22 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   pkgMetaIterator: PkgMetaIterator<T>,
   allowBuild?: AllowBuild
 ): IterableIterator<HashedDepPath<T>> {
-  const pkgMetaList = Array.from(pkgMetaIterator)
-  const builtDepPaths = computeBuiltDepPaths(pkgMetaList, allowBuild)
+  let builtDepPaths: Set<DepPath> | undefined
+  let entries: Iterable<T>
+  if (allowBuild != null) {
+    const pkgMetaList = Array.from(pkgMetaIterator)
+    builtDepPaths = computeBuiltDepPaths(pkgMetaList, allowBuild)
+    entries = pkgMetaList
+  } else {
+    entries = pkgMetaIterator
+  }
   const _calcGraphNodeHash = calcGraphNodeHash.bind(null, {
     graph,
     cache: {},
     builtDepPaths,
     buildRequiredCache: builtDepPaths !== undefined ? {} : undefined,
   })
-  for (const pkgMeta of pkgMetaList) {
+  for (const pkgMeta of entries) {
     yield {
       hash: _calcGraphNodeHash(pkgMeta),
       pkgMeta,
@@ -157,11 +164,8 @@ export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath
 
 function computeBuiltDepPaths (
   entries: Iterable<{ depPath: DepPath; name: string; version: string }>,
-  allowBuild?: AllowBuild
-): Set<DepPath> | undefined {
-  if (allowBuild == null) {
-    return new Set()
-  }
+  allowBuild: AllowBuild
+): Set<DepPath> {
   const builtDepPaths = new Set<DepPath>()
   for (const { depPath, name, version } of entries) {
     if (allowBuild(name, version) === true) {
