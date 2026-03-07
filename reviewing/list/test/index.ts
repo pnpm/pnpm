@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
+import { stripVTControlCharacters } from 'util'
 import { list, listForPackages } from '@pnpm/list'
 import { fixtures } from '@pnpm/test-fixtures'
 import chalk from 'chalk'
@@ -822,7 +823,8 @@ ${boldHighlighted(`with-peer@1.0.0 ${fixture}`)}
 
 test('--only-projects shows only projects', async () => {
   const fixture = f.find('workspace-with-nested-workspace-deps')
-  const output = await list([fixture], { depth: 999, lockfileDir: fixture, onlyProjects: true, virtualStoreDirMaxLength: 120 })
+  const raw = await list([fixture], { depth: 999, lockfileDir: fixture, onlyProjects: true, virtualStoreDirMaxLength: 120 })
+  const output = stripVTControlCharacters(raw)
 
   // The "workspace-with-nested-workspace-deps" test case has an external
   // dependency under @scope/b, but that package should not be printed when
