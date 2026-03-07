@@ -275,7 +275,7 @@ export function toOutput$ (
       throttleProgress: opts.reportingOptions?.throttleProgress,
       width: opts.reportingOptions?.outputMaxWidth,
       hideAddedPkgsProgress: opts.reportingOptions?.hideAddedPkgsProgress,
-      hideProgressPrefix: opts.reportingOptions?.hideProgressPrefix ?? (cmd === 'dlx'),
+      hideProgressPrefix: opts.reportingOptions?.hideProgressPrefix ?? (cmd === 'dlx' || opts.context.config?.global === true),
       hideLifecycleOutput: opts.reportingOptions?.hideLifecycleOutput,
       hideLifecyclePrefix: opts.reportingOptions?.hideLifecyclePrefix,
       approveBuildsInstructionText: opts.reportingOptions?.approveBuildsInstructionText,
