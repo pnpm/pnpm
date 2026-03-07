@@ -77,13 +77,15 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
   return {
     content: `${unified().use(remarkStringify).stringify(ast)}
 
+<!-- sponsors -->
+
 ## Platinum Sponsors
 
 <table>
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://bit.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
+        <a href="https://bit.cloud/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
       </td>
     </tr>
   </tbody>
@@ -113,9 +115,7 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <img src="https://pnpm.io/img/users/vitejs.svg" width="42" alt="Vite">
-        </a>
+        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/vitejs.svg" width="42" alt="Vite"></a>
       </td>
     </tr>
     <tr>
@@ -138,22 +138,22 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://workleap.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+        <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/workleap.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/workleap_light.svg" />
-            <img src="https://pnpm.io/img/users/workleap.svg" width="190" alt="Workleap" />
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/stackblitz.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/stackblitz_light.svg" />
+            <img src="https://pnpm.io/img/users/stackblitz.svg" width="190" alt="Stackblitz" />
           </picture>
         </a>
       </td>
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+        <a href="https://workleap.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/stackblitz.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/stackblitz_light.svg" />
-            <img src="https://pnpm.io/img/users/stackblitz.svg" width="190" alt="Stackblitz" />
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/workleap.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/workleap_light.svg" />
+            <img src="https://pnpm.io/img/users/workleap.svg" width="190" alt="Workleap" />
           </picture>
         </a>
       </td>
@@ -169,6 +169,8 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
     </tr>
   </tbody>
 </table>
+
+<!-- sponsors end -->
 `,
     highestLevel,
   }
