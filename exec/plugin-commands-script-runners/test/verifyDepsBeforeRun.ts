@@ -99,3 +99,24 @@ test('prompt the user if verifyDepsBeforeRun is set to prompt', async () => {
 
   expect(fs.existsSync(path.resolve('node_modules'))).toBeTruthy()
 })
+
+test('throw an error if verifyDepsBeforeRun is set to prompt in noTTY environment', async () => {
+  prepare(rootProjectManifest)
+
+  // Mock non-TTY environment
+  const originalIsTTY = process.stdin.isTTY
+  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
+
+  let err!: Error
+  try {
+    await runTest('prompt')
+  } catch (_err) {
+    err = _err as Error
+  } finally {
+    // Restore original value
+    Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
+  }
+
+  expect(err.message).toContain('Cannot check whether dependencies are outdated')
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeFalsy()
+})

@@ -27,16 +27,31 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
     install()
     break
   case 'prompt': {
-    const confirmed = await enquirer.prompt<{ runInstall: boolean }>({
-      type: 'confirm',
-      name: 'runInstall',
-      message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.
+    // In non-TTY environments (like CI), we can't prompt the user
+    // Exit with error to alert users that node_modules are out of sync
+    if (!process.stdin.isTTY) {
+      throw new PnpmError('VERIFY_DEPS_BEFORE_RUN', issue ?? 'Your node_modules are out of sync with your lockfile', {
+        hint: 'Run "pnpm install" before running scripts. The "verifyDepsBeforeRun: prompt" setting cannot prompt for confirmation in non-interactive environments.',
+      })
+    }
+    try {
+      const confirmed = await enquirer.prompt<{ runInstall: boolean }>({
+        type: 'confirm',
+        name: 'runInstall',
+        message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.
 
 Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?`,
-      initial: true,
-    })
-    if (confirmed.runInstall) {
-      install()
+        initial: true,
+      })
+      if (confirmed.runInstall) {
+        install()
+      }
+    } catch (err) {
+      // Handle Ctrl+C gracefully - user cancelled the prompt
+      if ((err as NodeJS.ErrnoException).code === 'ERR_USE_AFTER_CLOSE') {
+        process.exit(1)
+      }
+      throw err
     }
     break
   }
