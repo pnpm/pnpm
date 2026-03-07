@@ -263,7 +263,7 @@ catalog:
   realpath-missing: ^1.1.0
   remark-parse: ^9.0.0
   remark-stringify: ^9.0.1
-  rename-overwrite: ^6.0.2
+  rename-overwrite: ^6.0.6
   render-help: ^1.0.3
   resolve-link-target: ^2.0.0
   rimraf: ^6.1.2
@@ -343,6 +343,7 @@ minimumReleaseAgeExclude:
   - path-temp@2.1.1
   - parse-npm-tarball-url@4.0.0
   - pnpm
+  - rename-overwrite@6.0.6
   - run-groups@4.0.0
   - tar@7.5.10
   - lodash@4.17.23
