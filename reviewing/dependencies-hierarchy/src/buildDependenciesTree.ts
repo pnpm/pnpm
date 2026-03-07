@@ -64,7 +64,7 @@ export async function buildDependenciesTree (
 
   const result = {} as { [projectDir: string]: DependenciesTree }
 
-  const lockfileToUse = maybeOpts.checkWantedLockfileOnly ? wantedLockfile : currentLockfile
+  const lockfileToUse = maybeOpts.checkWantedLockfileOnly ? wantedLockfile : (currentLockfile ?? wantedLockfile)
 
   if (!lockfileToUse) {
     for (const projectPath of projectPaths) {
@@ -110,6 +110,7 @@ export async function buildDependenciesTree (
     importers: lockfileToUse.importers,
     include: opts.include,
     lockfileDir: opts.lockfileDir,
+    onlyProjects: opts.onlyProjects,
   })
   const sharedMaterializationCache: MaterializationCache = new Map()
   const sharedDepTypes = detectDepTypes(lockfileToUse)

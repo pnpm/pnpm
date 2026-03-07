@@ -123,6 +123,7 @@ export async function handler (
     include,
     lockfileDir: opts.lockfileDir ?? opts.dir,
     checkWantedLockfileOnly: opts.lockfileOnly,
+    onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
   })
 }
 
