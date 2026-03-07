@@ -15906,6 +15906,11 @@ packages:
   yaml-tag@1.1.0:
     resolution: {integrity: sha512-74LVCSjG8KlWeHvIAHk7mrDz/QPnqVtDyQ5PNGxsDOzNdZ9sxHUVvEvSWqqdhg0bIdk0Zv1Y7ConCEJr87lmVw==}
 
+  yaml@2.8.1:
+    resolution: {integrity: sha512-lcYcMxX2PO9XMGvAJkJ3OsNMw+/7FKes7/hgerGUYWIoWu5j/+YQqcZr5JnPZWzOsEBgMbSbiSTn/dv/69Mkpw==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   yaml@2.8.2:
     resolution: {integrity: sha512-mplynKqc1C2hTVYxd0PU2xQAc22TI1vShAYGksCCfxbn/dFwnHTNi1bvYsBTkhdUNtGIf5xNOg938rrSSYvS9A==}
     engines: {node: '>= 14.6'}
@@ -24699,6 +24704,8 @@ snapshots:
   yaml-tag@1.1.0:
     dependencies:
       js-yaml: 3.14.2
+
+  yaml@2.8.1: {}
 
   yaml@2.8.2: {}
 
