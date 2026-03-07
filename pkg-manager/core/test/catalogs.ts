@@ -37,6 +37,11 @@ function preparePackagesAndReturnObjects (manifests: Array<ProjectManifest & Req
     options: {
       ...testDefaults({
         allProjects,
+        // Although the default resolution mode is 'highest' in pnpm, the
+        // mutateModules function uses 'lowest-direct'. Explicitly configure
+        // this option to 'highest' to make these tests more representative of
+        // the default.
+        resolutionMode: 'highest',
       }),
       lockfileDir,
     },
@@ -176,13 +181,13 @@ test('lockfile contains catalog snapshots', async () => {
     {
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/bar': 'catalog:',
       },
     },
     {
       name: 'project2',
       dependencies: {
-        'is-negative': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     },
   ])
@@ -192,8 +197,8 @@ test('lockfile contains catalog snapshots', async () => {
     lockfileOnly: true,
     catalogs: {
       default: {
-        'is-positive': '^1.0.0',
-        'is-negative': '^1.0.0',
+        '@pnpm.e2e/bar': '^100.0.0',
+        '@pnpm.e2e/foo': '^100.0.0',
       },
     },
   })
@@ -201,8 +206,8 @@ test('lockfile contains catalog snapshots', async () => {
   const lockfile = readLockfile()
   expect(lockfile.catalogs).toStrictEqual({
     default: {
-      'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
-      'is-negative': { specifier: '^1.0.0', version: '1.0.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/foo': { specifier: '^100.0.0', version: '100.1.0' },
     },
   })
 })
@@ -304,13 +309,13 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     {
       name: 'project1',
       dependencies: {
-        'is-negative': 'catalog:',
+        '@pnpm.e2e/bar': 'catalog:',
       },
     },
     {
       name: 'project2',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     },
   ])
@@ -320,16 +325,16 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     lockfileOnly: true,
     catalogs: {
       default: {
-        'is-positive': '^1.0.0',
-        'is-negative': '^1.0.0',
+        '@pnpm.e2e/bar': '^100.0.0',
+        '@pnpm.e2e/foo': '^1.0.0',
       },
     },
   })
 
   expect(readLockfile().catalogs).toStrictEqual({
     default: {
-      'is-negative': { specifier: '^1.0.0', version: '1.0.0' },
-      'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.3.0' },
     },
   })
 
@@ -339,19 +344,19 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     lockfileOnly: true,
     catalogs: {
       default: {
-        'is-positive': '=3.1.0',
-        'is-negative': '^1.0.0',
+        '@pnpm.e2e/bar': '^100.0.0',
+        '@pnpm.e2e/foo': '=100.0.0',
       },
     },
   })
 
   expect(readLockfile().catalogs).toStrictEqual({
     default: {
-      // The is-negative snapshot should be carried from the previous install,
+      // The @pnpm.e2e/bar snapshot should be carried from the previous install,
       // despite the current filtered install not using it.
-      'is-negative': { specifier: '^1.0.0', version: '1.0.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
 
-      'is-positive': { specifier: '=3.1.0', version: '3.1.0' },
+      '@pnpm.e2e/foo': { specifier: '=100.0.0', version: '100.0.0' },
     },
   })
 })
@@ -511,28 +516,28 @@ test('--fix-lockfile with --filter does not erase catalog snapshots', async () =
     {
       name: 'project1',
       dependencies: {
-        'is-negative': 'catalog:',
+        '@pnpm.e2e/bar': 'catalog:',
       },
     },
     {
       name: 'project2',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     },
   ])
 
   const catalogs = {
     default: {
-      'is-positive': '^1.0.0',
-      'is-negative': '^1.0.0',
+      '@pnpm.e2e/bar': '^100.0.0',
+      '@pnpm.e2e/foo': '^100.0.0',
     },
   }
 
   const expectedCatalogsSnapshot: CatalogSnapshots = {
     default: {
-      'is-negative': { specifier: '^1.0.0', version: '1.0.0' },
-      'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/foo': { specifier: '^100.0.0', version: '100.1.0' },
     },
   }
 
@@ -1208,7 +1213,7 @@ describe('add', () => {
     ])
 
     const catalogs = {
-      default: { '@pnpm.e2e/foo': '^100.0.0' },
+      default: { '@pnpm.e2e/foo': '^100.1.0' },
     }
 
     await mutateModules(installProjects(projects), {
@@ -1236,12 +1241,12 @@ describe('add', () => {
 
     // Sanity check that the rest of the lockfile has expected contents.
     expect(readLockfile()).toMatchObject({
-      catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^100.0.0', version: '100.0.0' } } },
+      catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^100.1.0', version: '100.1.0' } } },
       importers: {
-        project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '100.0.0' } } },
-        project2: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '100.0.0' } } },
+        project1: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '100.1.0' } } },
+        project2: { dependencies: { '@pnpm.e2e/foo': { specifier: 'catalog:', version: '100.1.0' } } },
       },
-      packages: { '@pnpm.e2e/foo@100.0.0': expect.any(Object) },
+      packages: { '@pnpm.e2e/foo@100.1.0': expect.any(Object) },
     })
   })
 
