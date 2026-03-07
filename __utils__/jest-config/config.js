@@ -8,7 +8,12 @@ const config = {
   },
   testMatch: ["**/test/**/*.[jt]s?(x)", "**/src/**/*.test.ts"],
   testEnvironment: "node",
-  collectCoverage: true,
+  // Allow Just coverage to be configured through an environment variable. This
+  // can be useful for pnpm developers working locally that only want to run one
+  // test suite. Jest coverage collection setup scripts also contain a
+  // "debugger;" keyword usage that causes an interactive debugger to pause,
+  // which can be annoying.
+  collectCoverage: Boolean(process.env.PNPM_JEST_COLLECT_COVERAGE ?? true),
   coveragePathIgnorePatterns: ["/node_modules/"],
   testPathIgnorePatterns: ["/fixtures/", "/__fixtures__/", "<rootDir>/test/utils/.+"],
   modulePathIgnorePatterns: ['\/__fixtures__\/.*'],
