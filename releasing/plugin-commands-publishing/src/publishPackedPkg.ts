@@ -1,5 +1,5 @@
 import fs from 'fs/promises'
-import { type PublishOptions, publish } from 'libnpmpublish'
+import { type PublishOptions } from 'libnpmpublish'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
@@ -10,6 +10,7 @@ import { createFailedToPublishError } from './FailedToPublishError.js'
 import { AuthTokenError, fetchAuthToken } from './oidc/authToken.js'
 import { IdTokenError, getIdToken } from './oidc/idToken.js'
 import { ProvenanceError, determineProvenance } from './oidc/provenance.js'
+import { publishWithOtpHandling } from './otp.js'
 import { type PackResult } from './pack.js'
 import { type NormalizedRegistryUrl, allRegistryConfigKeys, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 
@@ -50,9 +51,6 @@ export type PublishPackedPkgOptions = Pick<Config,
   provenanceFile?: string // NOTE: This field is currently not supported
 }
 
-// @types/libnpmpublish unfortunately uses an outdated type definition of package.json
-type ManifestFromOutdatedDefinition = typeof publish extends (_a: infer Manifest, ..._: never) => unknown ? Manifest : never
-
 export async function publishPackedPkg (
   packResult: Pick<PackResult, 'publishedManifest' | 'tarballPath'>,
   opts: PublishPackedPkgOptions
@@ -67,7 +65,7 @@ export async function publishPackedPkg (
     globalWarn(`Skip publishing ${name}@${version} (dry run)`)
     return
   }
-  const response = await publish(publishedManifest as ManifestFromOutdatedDefinition, tarballData, publishOptions)
+  const response = await publishWithOtpHandling({ manifest: publishedManifest, tarballData, publishOptions })
   if (response.ok) {
     globalInfo(`✅ Published package ${name}@${version}`)
     return
