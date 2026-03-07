@@ -9,7 +9,7 @@ import {
   isRuntimeDepPath,
   removeSuffix,
 } from '@pnpm/dependency-path'
-import { type DepPath } from '@pnpm/types'
+import type { DepPath } from '@pnpm/types'
 
 test('isAbsolute()', () => {
   expect(isAbsolute('/foo/1.0.0')).toBeFalsy()

@@ -1,4 +1,4 @@
-import { type VerifyDepsBeforeRun } from '@pnpm/config'
+import type { VerifyDepsBeforeRun } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { globalWarn } from '@pnpm/logger'

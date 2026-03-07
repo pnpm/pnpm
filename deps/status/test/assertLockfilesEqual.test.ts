@@ -1,6 +1,6 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
-import { type ProjectId } from '@pnpm/types'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { ProjectId } from '@pnpm/types'
 import { assertLockfilesEqual } from '../src/assertLockfilesEqual.js'
 
 test('if wantedLockfile does not have any specifier, currentLockfile is allowed to be null', () => {

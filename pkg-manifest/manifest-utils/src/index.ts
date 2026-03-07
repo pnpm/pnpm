@@ -1,7 +1,7 @@
-import {
-  type Dependencies,
-  type IncludedDependencies,
-  type ProjectManifest,
+import type {
+  Dependencies,
+  IncludedDependencies,
+  ProjectManifest,
 } from '@pnpm/types'
 import { getAllUniqueSpecs } from './getAllUniqueSpecs.js'
 import { getSpecFromPackageManifest } from './getSpecFromPackageManifest.js'

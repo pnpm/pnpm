@@ -2,7 +2,7 @@ import path from 'path'
 import { parse } from '@pnpm/dependency-path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { type StoreIndex, storeIndexKey, gitHostedStoreIndexKey } from '@pnpm/store.index'
-import { type Resolution } from '@pnpm/resolver-base'
+import type { Resolution } from '@pnpm/resolver-base'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 
 export interface ReadPackageFileMapOptions {

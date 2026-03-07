@@ -1,7 +1,7 @@
 import fs from 'fs'
 import { createGzip } from 'zlib'
 import tar from 'tar-stream'
-import { type ExportedManifest } from '@pnpm/exportable-manifest'
+import type { ExportedManifest } from '@pnpm/exportable-manifest'
 import { prepareEmpty } from '@pnpm/prepare'
 import {
   type TarballPath,

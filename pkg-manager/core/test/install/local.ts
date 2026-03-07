@@ -1,11 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type LockfileFile } from '@pnpm/lockfile.fs'
+import type { LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import {
   addDependenciesToPackage,
   install,

@@ -1,8 +1,8 @@
 import { audit } from '@pnpm/audit'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type PnpmError } from '@pnpm/error'
+import type { PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type DepPath, type ProjectId } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 import nock from 'nock'
 import { lockfileToAuditTree } from '../lib/lockfileToAuditTree.js'
 

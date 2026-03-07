@@ -1,5 +1,5 @@
 import { lockfileToDepGraph } from '@pnpm/calc-dep-state'
-import { type DepPath } from '@pnpm/types'
+import type { DepPath } from '@pnpm/types'
 
 test('lockfileToDepGraph', () => {
   expect(lockfileToDepGraph({

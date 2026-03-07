@@ -1,5 +1,5 @@
 import type * as logs from '@pnpm/core-loggers'
-import { type BaseManifest } from '@pnpm/types'
+import type { BaseManifest } from '@pnpm/types'
 import * as Rx from 'rxjs'
 import { filter, map, mapTo, reduce, scan, startWith, take } from 'rxjs/operators'
 import { mergeRight, difference } from 'ramda'

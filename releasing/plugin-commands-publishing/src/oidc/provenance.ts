@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type PublishPackedPkgOptions } from '../publishPackedPkg.js'
+import type { PublishPackedPkgOptions } from '../publishPackedPkg.js'
 import { SHARED_CONTEXT } from './utils/shared-context.js'
 
 export interface ProvenanceCIInfo {

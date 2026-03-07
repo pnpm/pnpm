@@ -1,8 +1,8 @@
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { type PackageManifest } from '@pnpm/types'
-import { type OutdatedWithVersionDiff } from '../src/utils.js'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import type { PackageManifest } from '@pnpm/types'
+import type { OutdatedWithVersionDiff } from '../src/utils.js'
 
 test('renderLatest: outdated and deprecated', () => {
   const diffResult = semverDiff.default('0.0.1', '1.0.0')

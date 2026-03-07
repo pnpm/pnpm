@@ -5,7 +5,7 @@ import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
-import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
+import type { PackageMeta, PackageInRegistry } from '@pnpm/registry.types'
 import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
@@ -13,14 +13,14 @@ import { pick } from 'ramda'
 import semver from 'semver'
 import renameOverwrite from 'rename-overwrite'
 import { toRaw } from './toRaw.js'
-import { type FetchMetadataResult } from './fetch.js'
+import type { FetchMetadataResult } from './fetch.js'
 import {
   pickPackageFromMeta,
   pickVersionByVersionRange,
   pickLowestVersionByVersionRange,
   type PickPackageFromMetaOptions,
 } from './pickPackageFromMeta.js'
-import { type RegistryPackageSpec } from './parseBareSpecifier.js'
+import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 
 export interface PackageMetaCache {
   get: (key: string) => PackageMeta | undefined

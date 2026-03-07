@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
-import { type ProjectManifest } from '@pnpm/types'
-import { type ExportedManifest } from './index.js'
+import type { ProjectManifest } from '@pnpm/types'
+import type { ExportedManifest } from './index.js'
 
 type RequiredField = 'name' | 'version'
 type Input = Pick<ProjectManifest, RequiredField>

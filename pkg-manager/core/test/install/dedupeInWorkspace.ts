@@ -3,7 +3,7 @@ import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
 import { mutateModules, type MutatedProject } from '@pnpm/core'
 import { addDistTag } from '@pnpm/registry-mock'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from '../utils/index.js'
 
 test('pick common range for a dependency used in two workspace projects when resolution mode is highest', async () => {

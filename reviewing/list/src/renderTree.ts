@@ -1,12 +1,12 @@
 import path from 'path'
-import { type DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode, type TreeNodeGroup } from '@pnpm/text.tree-renderer'
 import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import chalk from 'chalk'
 import { getPkgInfo } from './getPkgInfo.js'
 import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
-import { type PackageDependencyHierarchy } from './types.js'
+import type { PackageDependencyHierarchy } from './types.js'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color

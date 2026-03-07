@@ -1,5 +1,5 @@
-import { type CompletionItem } from '@pnpm/tabtab'
-import { type CompletionFunc } from '@pnpm/command'
+import type { CompletionItem } from '@pnpm/tabtab'
+import type { CompletionFunc } from '@pnpm/command'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'

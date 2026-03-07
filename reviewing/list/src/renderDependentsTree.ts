@@ -1,4 +1,4 @@
-import { type DependentsTree, type DependentNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import type { DependentsTree, DependentNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
 import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'

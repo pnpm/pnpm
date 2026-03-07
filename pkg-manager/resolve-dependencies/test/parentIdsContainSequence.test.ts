@@ -1,4 +1,4 @@
-import { type PkgResolutionId } from '@pnpm/types'
+import type { PkgResolutionId } from '@pnpm/types'
 import { parentIdsContainSequence } from '../lib/parentIdsContainSequence.js'
 
 test('parentIdsContainSequence()', () => {

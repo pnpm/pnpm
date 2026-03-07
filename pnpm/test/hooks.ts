@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { createHash } from '@pnpm/crypto.hash'
-import { type PackageManifest } from '@pnpm/types'
+import type { PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { loadJsonFileSync } from 'load-json-file'

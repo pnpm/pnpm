@@ -1,11 +1,11 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import {
-  type LockfileObject,
-  type PackageSnapshots,
-  type ProjectSnapshot,
-  type ResolvedDependencies,
+import type {
+  LockfileObject,
+  PackageSnapshots,
+  ProjectSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile.types'
-import { type DepPath, type PackageManifest, type ProjectId } from '@pnpm/types'
+import type { DepPath, PackageManifest, ProjectId } from '@pnpm/types'
 import { refToRelative } from '@pnpm/dependency-path'
 import { difference, isEmpty, unnest } from 'ramda'
 
