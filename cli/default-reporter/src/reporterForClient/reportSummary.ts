@@ -118,7 +118,7 @@ function printDiffs (
       result += ` ${chalk.red('deprecated')}`
     }
     if (pkg.from) {
-      result += ` ${chalk.grey(`<- ${pkg.from && path.relative(opts.prefix, pkg.from) || '???'}`)}`
+      result += ` ${chalk.grey(`<- ${path.relative(opts.prefix, pkg.from) || pkg.from}`)}`
     }
     if (pkg.added && depType === 'dev' && opts.pnpmConfig?.saveDev === false && opts.cmd === 'add') {
       result += `${chalk.yellow(' already in devDependencies, was not moved to dependencies.')}`
