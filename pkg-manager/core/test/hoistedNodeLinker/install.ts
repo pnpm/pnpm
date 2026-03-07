@@ -56,6 +56,7 @@ test('installing with hoisted node-linker and no lockfile', async () => {
 })
 
 test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
+  await addDistTag({ package: 'is-positive', version: '3.1.0', distTag: 'latest' })
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},

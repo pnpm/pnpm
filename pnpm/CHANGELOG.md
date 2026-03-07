@@ -1,6 +1,6 @@
 # pnpm
 
-## 11.0.0-alpha.12
+## 11.0.0-alpha.13
 
 ### Major Changes
 
@@ -9,13 +9,8 @@
 - Runtime dependencies are always linked from the global virtual store [#10233](https://github.com/pnpm/pnpm/pull/10233).
 - Optimized index file format to store the hash algorithm once per file instead of repeating it for every file entry. Each file entry now stores only the hex digest instead of the full integrity string (`<algo>-<digest>`). Using hex format improves performance since file paths in the content-addressable store use hex representation, eliminating base64-to-hex conversion during path lookups.
 - Store version bumped to v11.
-- Switched internal store and cache files from JSON to MessagePack format for improved performance.
-
-  This change migrates all internal index files and metadata cache files to use MessagePack serialization instead of JSON. MessagePack provides faster serialization/deserialization and more compact file sizes, resulting in improved installation performance.
-
-  Related PR: [#10500](https://github.com/pnpm/pnpm/pull/10500)
-
 - Store the bundled manifest (name, version, bin, engines, scripts, etc.) directly in the package index file, eliminating the need to read `package.json` from the content-addressable store during resolution and installation. This reduces I/O and speeds up repeat installs [#10473](https://github.com/pnpm/pnpm/pull/10473).
+- Use SQLite for storing package index in the content-addressable store. Instead of individual JSON files under `$STORE/index/`, package metadata is now stored in a single SQLite database at `$STORE/index.db` with MessagePack-encoded values. This reduces filesystem syscall overhead, improves space efficiency for small metadata entries, and enables concurrent access via SQLite's WAL mode. Packages missing from the new index are re-fetched on demand [#10500](https://github.com/pnpm/pnpm/pull/10500) [#10826](https://github.com/pnpm/pnpm/issues/10826).
 
 #### Global Packages
 
@@ -183,6 +178,7 @@
 - Added a new setting: `trustPolicy`. When set to `no-downgrade`, pnpm will fail installation if a package's trust level has decreased compared to previous releases [#8889](https://github.com/pnpm/pnpm/issues/8889).
 - Support `.pnpmfile.mjs` as the default pnpmfile. When `.pnpmfile.mjs` exists, it takes priority over `.pnpmfile.cjs` and only one is loaded.
 - Added `-F` as a short alias for the `--filter` option.
+- When the global virtual store is enabled, packages that are not allowed to build (and don't transitively depend on packages that are) now get hashes that don't include the engine name (platform, architecture, Node.js major version). This means ~95% of packages in the GVS survive Node.js upgrades and architecture changes without re-import [#10837](https://github.com/pnpm/pnpm/issues/10837).
 
 ### Patch Changes
 

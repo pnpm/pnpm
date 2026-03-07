@@ -6,6 +6,7 @@ import {
 } from '@pnpm/fetching-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { type Cafs } from '@pnpm/cafs-types'
+import { type StoreIndex } from '@pnpm/store.index'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import {
   getNodeArtifactAddress,
@@ -17,6 +18,7 @@ import { isNonGlibcLinux } from 'detect-libc'
 
 export interface FetchNodeOptionsToDir {
   storeDir: string
+  storeIndex: StoreIndex
   fetchTimeout?: number
   nodeMirrorBaseUrl?: string
   retry?: RetryTimeoutOptions
@@ -167,6 +169,7 @@ async function downloadAndUnpackTarballToDir (
   const fetchers = createTarballFetcher(fetch, getAuthHeader, {
     retry: opts.retry,
     timeout: opts.fetchTimeout,
+    storeIndex: opts.storeIndex,
     // These are not needed for fetching Node.js
     rawConfig: {},
     unsafePerm: false,

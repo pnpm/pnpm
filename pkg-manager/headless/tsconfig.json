@@ -40,9 +40,6 @@
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../fs/symlink-dependency"
     },
     {
@@ -89,6 +86,9 @@
     },
     {
       "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/index"
     },
     {
       "path": "../../store/store-controller-types"

@@ -1,10 +1,8 @@
-import path from 'path'
-import fs from 'fs'
 import chalk from 'chalk'
 
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
+import { StoreIndex } from '@pnpm/store.index'
 import { getStorePath } from '@pnpm/store-path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 
@@ -36,7 +34,7 @@ export type FindHashCommandOptions = Pick<Config, 'storeDir' | 'pnpmHomeDir'>
 export interface FindHashResult {
   name: string
   version: string
-  filesIndexFile: string
+  indexKey: string
 }
 
 export async function handler (opts: FindHashCommandOptions, params: string[]): Promise<string> {
@@ -61,52 +59,41 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
-  const indexDir = path.join(storeDir, 'index')
-  const cafsChildrenDirs = fs.readdirSync(indexDir, { withFileTypes: true }).filter(file => file.isDirectory())
-  const indexFiles: string[] = []; const result: FindHashResult[] = []
+  const result: FindHashResult[] = []
+  const storeIndex = new StoreIndex(storeDir)
 
-  for (const { name: dirName } of cafsChildrenDirs) {
-    const dirIndexFiles = fs
-      .readdirSync(`${indexDir}/${dirName}`)
-      .filter((fileName) => fileName.includes('.mpk'))
-      ?.map((fileName) => `${indexDir}/${dirName}/${fileName}`)
+  try {
+    for (const [indexKey, data] of storeIndex.entries()) {
+      const pkgFilesIndex = data as PackageFilesIndex
+      if (!pkgFilesIndex) continue
 
-    indexFiles.push(...dirIndexFiles)
-  }
-
-  for (const filesIndexFile of indexFiles) {
-    let pkgFilesIndex: PackageFilesIndex | undefined
-    try {
-      pkgFilesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
-    } catch {
-      continue
-    }
-    if (!pkgFilesIndex) continue
-
-    if (pkgFilesIndex.files) {
-      for (const file of pkgFilesIndex.files.values()) {
-        if (file?.digest === hash) {
-          result.push({ name: pkgFilesIndex.manifest?.name ?? 'unknown', version: pkgFilesIndex.manifest?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
-
-          // a package is only found once.
-          continue
-        }
-      }
-    }
-
-    if (pkgFilesIndex.sideEffects) {
-      for (const { added } of pkgFilesIndex.sideEffects.values()) {
-        if (!added) continue
-        for (const file of added.values()) {
+      if (pkgFilesIndex.files) {
+        for (const file of pkgFilesIndex.files.values()) {
           if (file?.digest === hash) {
-            result.push({ name: pkgFilesIndex.manifest?.name ?? 'unknown', version: pkgFilesIndex.manifest?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
+            result.push({ name: pkgFilesIndex.manifest?.name ?? 'unknown', version: pkgFilesIndex.manifest?.version ?? 'unknown', indexKey })
 
             // a package is only found once.
             continue
           }
         }
       }
+
+      if (pkgFilesIndex.sideEffects) {
+        for (const { added } of pkgFilesIndex.sideEffects.values()) {
+          if (!added) continue
+          for (const file of added.values()) {
+            if (file?.digest === hash) {
+              result.push({ name: pkgFilesIndex.manifest?.name ?? 'unknown', version: pkgFilesIndex.manifest?.version ?? 'unknown', indexKey })
+
+              // a package is only found once.
+              continue
+            }
+          }
+        }
+      }
     }
+  } finally {
+    storeIndex.close()
   }
 
   if (!result.length) {
@@ -117,8 +104,8 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   }
 
   let acc = ''
-  for (const { name, version, filesIndexFile } of result) {
-    acc += `${PACKAGE_INFO_CLR(name)}@${PACKAGE_INFO_CLR(version)}  ${INDEX_PATH_CLR(filesIndexFile)}\n`
+  for (const { name, version, indexKey } of result) {
+    acc += `${PACKAGE_INFO_CLR(name)}@${PACKAGE_INFO_CLR(version)}  ${INDEX_PATH_CLR(indexKey)}\n`
   }
   return acc
 }

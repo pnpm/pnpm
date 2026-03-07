@@ -39,10 +39,11 @@ export async function handler (
   opts: {
     dir: string
     global?: boolean
+    globalPkgDir?: string
   }
 ): Promise<string> {
   if (opts.global) {
-    return `${opts.dir}\n`
+    return `${opts.globalPkgDir}\n`
   }
   return `${path.join(opts.dir, 'node_modules')}\n`
 }

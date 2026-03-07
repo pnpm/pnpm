@@ -1403,6 +1403,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           storeController: opts.storeController,
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
+          enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         })).ignoredBuilds
         if (ctx.modulesFile?.ignoredBuilds?.size) {
           ignoredBuilds ??= new Set()
@@ -1522,6 +1523,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           storeDir: ctx.storeDir,
           virtualStoreDir: ctx.virtualStoreDir,
           virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+          allowBuilds: opts.allowBuilds,
         })
       })(),
     ])

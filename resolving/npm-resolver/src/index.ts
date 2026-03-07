@@ -19,7 +19,7 @@ import {
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
-import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
+import { storeIndexKey } from '@pnpm/store.index'
 import {
   readPkgFromCafs,
 } from '@pnpm/worker'
@@ -184,7 +184,7 @@ export function createNpmResolver (
   let peekManifestFromStore: ResolveFromNpmContext['peekManifestFromStore'] | undefined
   if (storeDir) {
     peekManifestFromStore = async (peekOpts) => {
-      const filesIndexFile = getIndexFilePathInCafs(storeDir, peekOpts.integrity, peekOpts.id)
+      const filesIndexFile = storeIndexKey(peekOpts.integrity, peekOpts.id)
       const existingRequest = peekLockerForPeek.get(filesIndexFile)
       if (existingRequest != null) {
         return existingRequest

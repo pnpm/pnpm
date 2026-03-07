@@ -18,7 +18,6 @@ import {
   type VerifyResult,
 } from './checkPkgFilesIntegrity.js'
 import {
-  getIndexFilePathInCafs,
   contentPathFromHex,
   type FileType,
   getFilePathByModeInCafs,
@@ -37,7 +36,6 @@ export {
   buildFileMapsFromIndex,
   type FileType,
   getFilePathByModeInCafs,
-  getIndexFilePathInCafs,
   type Integrity,
   type PackageFileInfo,
   type PackageFiles,
@@ -60,7 +58,6 @@ export interface CafsFunctions {
   addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean }) => AddToStoreResult
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
-  getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
   getFilePathByModeInCafs: (digest: string, mode: number) => string
 }
 
@@ -71,7 +68,6 @@ export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: Create
     addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
     addFilesFromTarball: addFilesFromTarball.bind(null, addBuffer, ignoreFile ?? null),
     addFile: addBuffer,
-    getIndexFilePathInCafs: getIndexFilePathInCafs.bind(null, storeDir),
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, storeDir),
   }
 }

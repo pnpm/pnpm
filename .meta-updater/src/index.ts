@@ -373,6 +373,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   if (scripts.test) {
     Object.assign(manifest, {
       jest: {
+        ...(manifest as any).jest, // eslint-disable-line
         preset,
       },
     })

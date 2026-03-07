@@ -87,7 +87,6 @@
     "@types/libnpmpublish": "catalog:",
     "@types/proxyquire": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/sinon": "catalog:",
     "@types/tar": "catalog:",
     "@types/tar-stream": "catalog:",
     "@types/validate-npm-package-name": "catalog:",

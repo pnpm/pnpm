@@ -18,7 +18,6 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
 import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
-import sinon from 'sinon'
 import { testDefaults } from '../utils/index.js'
 
 const testOnNonWindows = isWindows() ? test.skip : test
@@ -217,66 +216,66 @@ test('INIT_CWD is always set to lockfile directory', async () => {
 test("reports child's output", async () => {
   prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/count-to-10'], testDefaults({ fastUnpack: false, reporter, allowBuilds: { '@pnpm.e2e/count-to-10': true } }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     depPath: '@pnpm.e2e/count-to-10@1.0.0',
     level: 'debug',
     name: 'pnpm:lifecycle',
     script: 'node postinstall',
     stage: 'postinstall',
-  } as LifecycleLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as LifecycleLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     depPath: '@pnpm.e2e/count-to-10@1.0.0',
     level: 'debug',
     line: '1',
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
     stdio: 'stdout',
-  } as LifecycleLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as LifecycleLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     depPath: '@pnpm.e2e/count-to-10@1.0.0',
     level: 'debug',
     line: '2',
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
     stdio: 'stdout',
-  } as LifecycleLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as LifecycleLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     depPath: '@pnpm.e2e/count-to-10@1.0.0',
     level: 'debug',
     line: '6',
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
     stdio: 'stderr',
-  } as LifecycleLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as LifecycleLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     depPath: '@pnpm.e2e/count-to-10@1.0.0',
     exitCode: 0,
     level: 'debug',
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
-  } as LifecycleLog)).toBeTruthy()
+  } as LifecycleLog))
 })
 
 test("reports child's close event", async () => {
   prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await expect(
     addDependenciesToPackage({}, ['@pnpm.e2e/failing-postinstall'], testDefaults({ reporter, allowBuilds: { '@pnpm.e2e/failing-postinstall': true } }))
   ).rejects.toThrow()
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     depPath: '@pnpm.e2e/failing-postinstall@1.0.0',
     exitCode: 1,
     level: 'debug',
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
-  } as LifecycleLog)).toBeTruthy()
+  } as LifecycleLog))
 })
 
 testOnNonWindows('lifecycle scripts have access to node-gyp', async () => {
@@ -466,7 +465,7 @@ test('selectively ignore scripts in some dependencies by allowBuilds (not others
 
 test('selectively allow scripts in some dependencies by allowBuilds', async () => {
   prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   const allowBuilds = { '@pnpm.e2e/install-script-example': true }
   const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
@@ -478,10 +477,10 @@ test('selectively allow scripts in some dependencies by allowBuilds', async () =
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
   {
-    const ignoredPkgsLog = reporter.getCalls().find((call) => call.firstArg.name === 'pnpm:ignored-scripts')?.firstArg
+    const ignoredPkgsLog = reporter.mock.calls.find((call) => (call[0] as Record<string, unknown>).name === 'pnpm:ignored-scripts')![0] as Record<string, unknown>
     expect(ignoredPkgsLog.packageNames).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
   }
-  reporter.resetHistory()
+  reporter.mockClear()
 
   rimraf('node_modules')
 
@@ -497,14 +496,14 @@ test('selectively allow scripts in some dependencies by allowBuilds', async () =
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
   {
-    const ignoredPkgsLog = reporter.getCalls().find((call) => call.firstArg.name === 'pnpm:ignored-scripts')?.firstArg
+    const ignoredPkgsLog = reporter.mock.calls.find((call) => (call[0] as Record<string, unknown>).name === 'pnpm:ignored-scripts')![0] as Record<string, unknown>
     expect(ignoredPkgsLog.packageNames).toStrictEqual([])
   }
 })
 
 test('selectively allow scripts in some dependencies by allowBuilds using exact versions', async () => {
   prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   const allowBuilds = { '@pnpm.e2e/install-script-example@1.0.0': true }
   const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
@@ -516,10 +515,10 @@ test('selectively allow scripts in some dependencies by allowBuilds using exact 
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
   {
-    const ignoredPkgsLog = reporter.getCalls().find((call) => call.firstArg.name === 'pnpm:ignored-scripts')?.firstArg
+    const ignoredPkgsLog = reporter.mock.calls.find((call) => (call[0] as Record<string, unknown>).name === 'pnpm:ignored-scripts')![0] as Record<string, unknown>
     expect(ignoredPkgsLog.packageNames).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
   }
-  reporter.resetHistory()
+  reporter.mockClear()
 
   rimraf('node_modules')
 
@@ -535,7 +534,7 @@ test('selectively allow scripts in some dependencies by allowBuilds using exact 
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
   {
-    const ignoredPkgsLog = reporter.getCalls().find((call) => call.firstArg.name === 'pnpm:ignored-scripts')?.firstArg
+    const ignoredPkgsLog = reporter.mock.calls.find((call) => (call[0] as Record<string, unknown>).name === 'pnpm:ignored-scripts')![0] as Record<string, unknown>
     expect(ignoredPkgsLog.packageNames).toStrictEqual([])
   }
 })

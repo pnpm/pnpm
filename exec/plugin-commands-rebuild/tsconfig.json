@@ -43,9 +43,6 @@
       "path": "../../deps/graph-sequencer"
     },
     {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../lockfile/types"
     },
     {
@@ -89,6 +86,9 @@
     },
     {
       "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/index"
     },
     {
       "path": "../../store/store-connection-manager"

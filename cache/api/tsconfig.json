@@ -13,9 +13,6 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../packages/constants"
     },
     {
@@ -26,6 +23,9 @@
     },
     {
       "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/index"
     }
   ]
 }

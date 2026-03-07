@@ -3,6 +3,7 @@ import path from 'path'
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
 import { type FetchPackageToStoreFunction } from '@pnpm/store-controller-types'
+import { StoreIndex } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'
 
 describe('store.importPackage()', () => {
@@ -12,11 +13,13 @@ describe('store.importPackage()', () => {
     const cacheDir = path.join(tmp, 'cache')
     const registry = 'https://registry.npmjs.org/'
     const authConfig = { registry }
+    const storeIndex = new StoreIndex(storeDir)
     const { resolve, fetchers, clearResolutionCache } = createClient({
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
       storeDir: path.join(tmp, 'store'),
       rawConfig: {},
+      storeIndex,
       registries: {
         default: registry,
       },
@@ -27,6 +30,7 @@ describe('store.importPackage()', () => {
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: 120,
       clearResolutionCache,
+      storeIndex,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
     const fetchResponse = (storeController.fetchPackage as FetchPackageToStoreFunction)({
@@ -55,11 +59,13 @@ describe('store.importPackage()', () => {
     const cacheDir = path.join(tmp, 'cache')
     const registry = 'https://registry.npmjs.org/'
     const authConfig = { registry }
+    const storeIndex = new StoreIndex(storeDir)
     const { resolve, fetchers, clearResolutionCache } = createClient({
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
       storeDir: path.join(tmp, 'store'),
       rawConfig: {},
+      storeIndex,
       registries: {
         default: registry,
       },
@@ -71,6 +77,7 @@ describe('store.importPackage()', () => {
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: 120,
       clearResolutionCache,
+      storeIndex,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
     const fetchResponse = (storeController.fetchPackage as FetchPackageToStoreFunction)({

@@ -19,9 +19,6 @@
       "path": "../../fs/graceful-fs"
     },
     {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../lockfile/types"
     },
     {
@@ -41,6 +38,9 @@
     },
     {
       "path": "../cafs"
+    },
+    {
+      "path": "../index"
     },
     {
       "path": "../store-path"

@@ -159,6 +159,9 @@
       "path": "../store/cafs"
     },
     {
+      "path": "../store/index"
+    },
+    {
       "path": "../store/plugin-commands-store"
     },
     {

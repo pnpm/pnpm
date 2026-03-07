@@ -42,6 +42,7 @@
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "nock": "catalog:",

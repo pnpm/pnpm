@@ -2,7 +2,12 @@ import { build } from 'esbuild'
 
 ;(async () => {
   try {
-    const banner = { js: `import { createRequire as _cr } from 'module';const require = _cr(import.meta.url); const __filename = import.meta.filename; const __dirname = import.meta.dirname` }
+    const banner = { js: [
+      `import { createRequire as _cr } from 'module';const require = _cr(import.meta.url); const __filename = import.meta.filename; const __dirname = import.meta.dirname;`,
+      // Suppress "SQLite is an experimental feature" warnings.
+      // Must run before any module that loads node:sqlite.
+      `var _ew=process.emitWarning;process.emitWarning=function(w,...a){if(String(w).includes('SQLite')&&(a[0]==='ExperimentalWarning'||(a[0]&&a[0].type==='ExperimentalWarning')))return;return _ew.call(process,w,...a)};`,
+    ].join('') }
     await build({
       entryPoints: ['lib/pnpm.js'],
       bundle: true,

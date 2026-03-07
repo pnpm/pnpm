@@ -3,6 +3,7 @@ import { createClient, type ClientOptions } from '@pnpm/client'
 import { type Config } from '@pnpm/config'
 import { createPackageStore, type CafsLocker, type StoreController } from '@pnpm/package-store'
 import { packageManager } from '@pnpm/cli-meta'
+import { StoreIndex } from '@pnpm/store.index'
 
 type CreateResolverOptions = Pick<Config,
 | 'fetchRetries'
@@ -64,6 +65,8 @@ export async function createNewStoreController (
       opts.trustPolicy === 'no-downgrade'
     ) && !opts.registrySupportsTimeField
   )
+  await fs.mkdir(opts.storeDir, { recursive: true })
+  const storeIndex = new StoreIndex(opts.storeDir)
   const { resolve, fetchers, clearResolutionCache } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
@@ -109,8 +112,8 @@ export async function createNewStoreController (
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     preserveAbsolutePaths: opts.preserveAbsolutePaths,
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
+    storeIndex,
   })
-  await fs.mkdir(opts.storeDir, { recursive: true })
   return {
     ctrl: createPackageStore(resolve, fetchers, {
       cafsLocker: opts.cafsLocker,
@@ -131,6 +134,7 @@ export async function createNewStoreController (
       strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
       clearResolutionCache,
       customFetchers: opts.hooks?.customFetchers,
+      storeIndex,
     }),
     dir: opts.storeDir,
   }

@@ -16,7 +16,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
 import { loadJsonFileSync } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
-import sinon from 'sinon'
+import { jest } from '@jest/globals'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils/index.js'
 
@@ -579,14 +579,14 @@ test('headless install is used when package linked to another package in the wor
   ]
   await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true }))
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await mutateModules(importers.slice(0, 1), testDefaults({ allProjects, reporter }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'info',
     message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
-  })).toBeTruthy()
+  }))
 
   projects['project-1'].has('is-positive')
   projects['project-1'].has('project-2')
@@ -637,14 +637,14 @@ test('headless install is used with an up-to-date lockfile when package referenc
   ]
   await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true }))
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await mutateModules(importers, testDefaults({ allProjects, reporter }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'info',
     message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
-  })).toBeTruthy()
+  }))
 
   projects['project-1'].has('is-positive')
   projects['project-1'].has('project-2')
@@ -711,18 +711,18 @@ test('headless install is used when packages are not linked from the workspace (
     lockfileOnly: true,
   }))
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await mutateModules(importers, testDefaults({
     allProjects,
     linkWorkspacePackagesDepth: -1,
     reporter,
   }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'info',
     message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
-  })).toBeTruthy()
+  }))
 })
 
 test('current lockfile contains only installed dependencies when adding a new importer to workspace with shared lockfile', async () => {
