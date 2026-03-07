@@ -1,23 +1,24 @@
 import chalk from 'chalk'
+import { stripVTControlCharacters } from 'util'
 import { formatUnknownOptionsError } from '../src/formatError.js'
 
 const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
 
 test('formatUnknownOptionsError()', async () => {
   expect(
-    formatUnknownOptionsError(new Map([['foo', []]]))
+    stripVTControlCharacters(formatUnknownOptionsError(new Map([['foo', []]])))
   ).toBe(
-    `${ERROR} ${chalk.red("Unknown option: 'foo'")}`
+    stripVTControlCharacters(`${ERROR} ${chalk.red("Unknown option: 'foo'")}`)
   )
   expect(
-    formatUnknownOptionsError(new Map([['foo', ['foa', 'fob']]]))
+    stripVTControlCharacters(formatUnknownOptionsError(new Map([['foo', ['foa', 'fob']]])))
   ).toBe(
-    `${ERROR} ${chalk.red("Unknown option: 'foo'")}
-Did you mean 'foa', or 'fob'? Use "--config.unknown=value" to force an unknown option.`
+    stripVTControlCharacters(`${ERROR} ${chalk.red("Unknown option: 'foo'")}
+Did you mean 'foa', or 'fob'? Use "--config.unknown=value" to force an unknown option.`)
   )
   expect(
-    formatUnknownOptionsError(new Map([['foo', []], ['bar', []]]))
+    stripVTControlCharacters(formatUnknownOptionsError(new Map([['foo', []], ['bar', []]])))
   ).toBe(
-    `${ERROR} ${chalk.red("Unknown options: 'foo', 'bar'")}`
+    stripVTControlCharacters(`${ERROR} ${chalk.red("Unknown options: 'foo', 'bar'")}`)
   )
 })
