@@ -243,7 +243,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     pruneStore: false,
     rawConfig: {},
     registries: DEFAULT_REGISTRIES,
-    resolutionMode: 'lowest-direct',
+    resolutionMode: 'highest',
     saveWorkspaceProtocol: 'rolling',
     scriptsPrependNodePath: false,
     shamefullyHoist: false,
