@@ -8,11 +8,12 @@ import { tempDir } from '@pnpm/prepare'
 // when renameOverwrite exhausts its retries due to concurrent threads
 // repeatedly recreating the target, which can't be reproduced deterministically.
 const renameOverwriteSyncMock = jest.fn()
-jest.unstable_mockModule('rename-overwrite', () => ({
+jest.mock('rename-overwrite', () => ({
   default: { sync: renameOverwriteSyncMock },
 }))
 
-const { importIndexedDir } = await import('../src/importIndexedDir.js')
+// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+const { importIndexedDir } = require('../src/importIndexedDir.js')
 
 beforeEach(() => {
   renameOverwriteSyncMock.mockReset()
@@ -31,7 +32,7 @@ test('importIndexedDir succeeds when rename races with another thread (ENOTEMPTY
   fs.mkdirSync(newDir, { recursive: true })
   fs.writeFileSync(path.join(newDir, 'index.js'), 'content')
 
-  const filenames = new Map([['index.js', srcFile]])
+  const filenames: Record<string, string> = { 'index.js': srcFile }
 
   renameOverwriteSyncMock.mockImplementation(() => {
     throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })
@@ -55,7 +56,7 @@ test('importIndexedDir throws ENOTEMPTY when target does not have expected conte
   // Target exists but does NOT have the expected file
   fs.mkdirSync(newDir, { recursive: true })
 
-  const filenames = new Map([['index.js', srcFile]])
+  const filenames: Record<string, string> = { 'index.js': srcFile }
 
   renameOverwriteSyncMock.mockImplementation(() => {
     throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })

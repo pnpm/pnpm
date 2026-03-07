@@ -72,7 +72,7 @@ They were renamed.`)
       rimraf(stage)
     } catch {} // eslint-disable-line:no-empty
     if (util.types.isNativeError(renameErr) && 'code' in renameErr && (renameErr.code === 'ENOTEMPTY' || renameErr.code === 'EEXIST')) {
-      const firstFile = filenames.keys().next().value
+      const firstFile = Object.keys(filenames)[0]
       if (firstFile && fs.existsSync(path.join(newDir, firstFile))) {
         logger('_virtual-store-race').debug({ target: newDir })
         return
