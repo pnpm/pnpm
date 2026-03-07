@@ -146,7 +146,7 @@ export default tseslint.config(
         varsIgnorePattern: '^_',
         caughtErrorsIgnorePattern: '^_',
       }],
-      "@typescript-eslint/no-import-type-side-effects": "error",
+      '@typescript-eslint/no-import-type-side-effects': 'error',
 
       // Core ESLint rules
       'no-return-await': 'error',
