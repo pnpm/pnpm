@@ -1,17 +1,17 @@
 import { getDenoBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import {
-  type BinaryResolution,
-  type PlatformAssetResolution,
-  type PlatformAssetTarget,
-  type ResolveOptions,
-  type ResolveResult,
-  type VariationsResolution,
-  type WantedDependency,
+import type { FetchFromRegistry } from '@pnpm/fetching-types'
+import type {
+  BinaryResolution,
+  PlatformAssetResolution,
+  PlatformAssetTarget,
+  ResolveOptions,
+  ResolveResult,
+  VariationsResolution,
+  WantedDependency,
 } from '@pnpm/resolver-base'
-import { type PkgResolutionId } from '@pnpm/types'
-import { type NpmResolver } from '@pnpm/npm-resolver'
+import type { PkgResolutionId } from '@pnpm/types'
+import type { NpmResolver } from '@pnpm/npm-resolver'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
 const ASSET_REGEX = /^deno-(?<cpu>aarch64|x86_64)-(?<os>apple-darwin|unknown-linux-gnu|pc-windows-msvc)\.zip\.sha256sum$/

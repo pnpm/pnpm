@@ -3,7 +3,7 @@ import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/com
 import { type Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import type { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'

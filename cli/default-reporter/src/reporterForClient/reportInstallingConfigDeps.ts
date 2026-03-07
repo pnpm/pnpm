@@ -1,4 +1,4 @@
-import { type InstallingConfigDepsLog } from '@pnpm/core-loggers'
+import type { InstallingConfigDepsLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'
 

@@ -1,7 +1,7 @@
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { PnpmError } from '@pnpm/error'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { type ConfigDependencies, type Registries } from '@pnpm/types'
+import type { ConfigDependencies, Registries } from '@pnpm/types'
 
 interface NormalizeConfigDepsOpts {
   registries: Registries

@@ -1,4 +1,4 @@
-import { type Config } from './Config.js'
+import type { Config } from './Config.js'
 
 export type InheritableConfig = Partial<Config> & Pick<Config, 'rawConfig' | 'rawLocalConfig'>
 export type PickConfig = (cfg: Partial<Config>) => Partial<Config>

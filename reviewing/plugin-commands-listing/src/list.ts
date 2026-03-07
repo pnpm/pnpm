@@ -3,7 +3,7 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { type Config, types as allTypes } from '@pnpm/config'
 import { listGlobalPackages } from '@pnpm/global.commands'
 import { list, listForPackages } from '@pnpm/list'
-import { type Finder, type IncludedDependencies } from '@pnpm/types'
+import type { Finder, IncludedDependencies } from '@pnpm/types'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { computeInclude, resolveFinders, determineReportAs, SHARED_CLI_HELP_OPTIONS, BASE_RC_OPTION_KEYS } from './common.js'

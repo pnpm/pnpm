@@ -1,13 +1,13 @@
 import { PnpmError } from '@pnpm/error'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
-import {
-  type SupportedArchitectures,
-  type DependenciesField,
-  type IncludedDependencies,
-  type ProjectId,
-  type ProjectManifest,
-  type Registries,
+import type {
+  SupportedArchitectures,
+  DependenciesField,
+  IncludedDependencies,
+  ProjectId,
+  ProjectManifest,
+  Registries,
 } from '@pnpm/types'
 import {
   type LicenseNode,

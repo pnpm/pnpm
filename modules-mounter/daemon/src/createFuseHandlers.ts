@@ -6,7 +6,7 @@ import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type Tar
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import { type DepPath } from '@pnpm/types'
+import type { DepPath } from '@pnpm/types'
 import schemas from 'hyperdrive-schemas'
 import Fuse from 'fuse-native'
 import * as cafsExplorer from './cafsExplorer.js'

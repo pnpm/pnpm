@@ -7,7 +7,7 @@ import {
 import { PnpmError } from '@pnpm/error'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 
 // Bins that are logically owned by a package other than the one matching
 // the bin name.  For example, `npx` ships inside the `npm` package, so

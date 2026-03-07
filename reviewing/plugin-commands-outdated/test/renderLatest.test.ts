@@ -1,7 +1,7 @@
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { type PackageManifest } from '@pnpm/types'
-import { type OutdatedWithVersionDiff } from '../src/utils.js'
+import type { PackageManifest } from '@pnpm/types'
+import type { OutdatedWithVersionDiff } from '../src/utils.js'
 import chalk from 'chalk'
 
 test('renderLatest: outdated and deprecated', () => {

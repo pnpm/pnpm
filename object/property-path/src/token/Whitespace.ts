@@ -1,4 +1,4 @@
-import { type TokenBase, type Tokenize } from './types.js'
+import type { TokenBase, Tokenize } from './types.js'
 
 export interface Whitespace extends TokenBase {
   type: 'whitespace'

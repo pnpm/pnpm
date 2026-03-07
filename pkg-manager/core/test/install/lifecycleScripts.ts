@@ -1,7 +1,7 @@
 import * as path from 'path'
 import fs from 'fs'
 import { assertProject } from '@pnpm/assert-project'
-import { type LifecycleLog } from '@pnpm/core-loggers'
+import type { LifecycleLog } from '@pnpm/core-loggers'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
@@ -11,7 +11,7 @@ import {
   mutateModules,
 } from '@pnpm/core'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import { restartWorkerPool } from '@pnpm/worker'
 import { jest } from '@jest/globals'
 import { sync as rimraf } from '@zkochan/rimraf'

@@ -2,7 +2,7 @@
 import path from 'path'
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
-import { type FetchPackageToStoreFunction } from '@pnpm/store-controller-types'
+import type { FetchPackageToStoreFunction } from '@pnpm/store-controller-types'
 import { StoreIndex } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'
 

@@ -1,7 +1,7 @@
-import { type PreferredVersions } from '@pnpm/resolver-base'
+import type { PreferredVersions } from '@pnpm/resolver-base'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import semver from 'semver'
-import { type PkgAddressOrLink } from './resolveDependencies.js'
+import type { PkgAddressOrLink } from './resolveDependencies.js'
 
 export function hoistPeers (
   opts: {

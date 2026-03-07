@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type PackResult } from './pack.js'
+import type { PackResult } from './pack.js'
 
 interface PublishErrorProperties<Pack> {
   readonly pack: Pack

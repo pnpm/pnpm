@@ -1,4 +1,4 @@
-import { type Dependencies, type DependencyManifest, type DependenciesMeta } from '@pnpm/types'
+import type { Dependencies, DependencyManifest, DependenciesMeta } from '@pnpm/types'
 import { pickBy } from 'ramda'
 
 export interface WantedDependency {

@@ -1,8 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import util from 'util'
-import { type Catalogs } from '@pnpm/catalogs.types'
-import { type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
+import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import { validateWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { patchDocument } from '@pnpm/yaml.document-sync'
@@ -10,8 +10,8 @@ import { equals } from 'ramda'
 import yaml from 'yaml'
 import writeFileAtomic from 'write-file-atomic'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
-import {
-  type Project,
+import type {
+  Project,
 } from '@pnpm/types'
 
 export type FileName =

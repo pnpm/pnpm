@@ -1,4 +1,4 @@
-import { type PinnedVersion } from '@pnpm/types'
+import type { PinnedVersion } from '@pnpm/types'
 import { parseRange } from 'semver-utils'
 
 export function whichVersionIsPinned (spec: string): PinnedVersion | undefined {

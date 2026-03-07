@@ -1,15 +1,15 @@
-import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
+import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
 } from '@pnpm/lockfile.walker'
 import { type DepTypes, DepType, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
-import { type DependenciesField, type ProjectId, type Registries } from '@pnpm/types'
+import type { DependenciesField, ProjectId, Registries } from '@pnpm/types'
 import { StoreIndex } from '@pnpm/store.index'
 import { buildPurl, encodePurlName } from './purl.js'
 import { getPkgMetadata, type GetPkgMetadataOptions } from './getPkgMetadata.js'
-import { type SbomComponent, type SbomRelationship, type SbomResult, type SbomComponentType } from './types.js'
+import type { SbomComponent, SbomRelationship, SbomResult, SbomComponentType } from './types.js'
 
 export interface CollectSbomComponentsOptions {
   lockfile: LockfileObject

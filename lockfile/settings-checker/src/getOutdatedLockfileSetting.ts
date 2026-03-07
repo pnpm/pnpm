@@ -1,5 +1,5 @@
-import { type Catalogs } from '@pnpm/catalogs.types'
-import { type LockfileObject, type PatchFile } from '@pnpm/lockfile.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
+import type { LockfileObject, PatchFile } from '@pnpm/lockfile.types'
 import { allCatalogsAreUpToDate } from '@pnpm/lockfile.verification'
 import { equals } from 'ramda'
 

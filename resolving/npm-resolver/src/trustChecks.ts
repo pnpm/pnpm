@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
-import { type PackageInRegistry, type PackageMeta, type PackageMetaWithTime } from '@pnpm/registry.types'
-import { type PackageVersionPolicy } from '@pnpm/types'
+import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/registry.types'
+import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 import { assertMetaHasTime } from './pickPackageFromMeta.js'
 

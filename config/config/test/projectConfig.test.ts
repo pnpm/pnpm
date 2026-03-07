@@ -1,10 +1,10 @@
 import { omit } from 'ramda'
-import {
-  type Config,
-  type ProjectConfig,
-  type ProjectConfigMultiMatch,
-  type ProjectConfigRecord,
-  type ProjectConfigSet,
+import type {
+  Config,
+  ProjectConfig,
+  ProjectConfigMultiMatch,
+  ProjectConfigRecord,
+  ProjectConfigSet,
 } from '../src/Config.js'
 import { createProjectConfigRecord } from '../src/projectConfig.js'
 

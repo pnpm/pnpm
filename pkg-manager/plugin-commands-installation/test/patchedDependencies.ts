@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { jest } from '@jest/globals'

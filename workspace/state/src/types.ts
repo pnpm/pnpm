@@ -1,5 +1,5 @@
-import { type Config } from '@pnpm/config'
-import { type ConfigDependencies, type Project, type ProjectRootDir } from '@pnpm/types'
+import type { Config } from '@pnpm/config'
+import type { ConfigDependencies, Project, ProjectRootDir } from '@pnpm/types'
 
 export type ProjectsList = Array<Pick<Project, 'rootDir' | 'manifest'>>
 
