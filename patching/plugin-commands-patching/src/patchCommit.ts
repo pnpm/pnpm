@@ -1,5 +1,4 @@
 import fs from 'fs'
-import os from 'os'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
@@ -167,7 +166,10 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
         // error because any stderr output is treated as a failure.
         // We do not set XDG_CONFIG_HOME to avoid the same issue: an empty
         // value would make git resolve paths like /git/config and /git/attributes.
-        GIT_CONFIG_GLOBAL: os.devNull,
+        // Use '/dev/null' instead of os.devNull because git on Windows
+        // (Git for Windows / MSYS2) understands Unix-style '/dev/null' but
+        // cannot access the native Windows null device '\\.\nul' as a file path.
+        GIT_CONFIG_GLOBAL: '/dev/null',
         // #endregion
       },
       stripFinalNewline: false,
