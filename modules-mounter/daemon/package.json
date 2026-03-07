@@ -66,6 +66,9 @@
     "node": ">=22.13"
   },
   "jest": {
-    "preset": "@pnpm/jest-config"
+    "preset": "@pnpm/jest-config",
+    "moduleNameMapper": {
+      "^fuse-native$": "<rootDir>/__mocks__/fuse-native.js"
+    }
   }
 }
