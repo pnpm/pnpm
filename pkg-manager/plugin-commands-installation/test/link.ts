@@ -289,6 +289,7 @@ test('logger warns about peer dependencies when linking', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     globalPkgDir: globalDir,
+    rootProjectManifestDir: globalDir,
   }, ['linked-with-peer-deps'])
 
   expect(warnMock).toHaveBeenCalledWith(expect.objectContaining({

@@ -48,7 +48,7 @@ async function readManifestRaw (dir: string): Promise<unknown> {
   }
 }
 
-function validateWorkspaceManifest (manifest: unknown): asserts manifest is WorkspaceManifest | undefined {
+export function validateWorkspaceManifest (manifest: unknown): asserts manifest is WorkspaceManifest | undefined {
   if (manifest === undefined || manifest === null) {
     // Empty or null manifest is ok
     return
