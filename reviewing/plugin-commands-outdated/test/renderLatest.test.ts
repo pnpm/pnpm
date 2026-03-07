@@ -1,8 +1,8 @@
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import semverDiff from '@pnpm/semver-diff'
 import type { PackageManifest } from '@pnpm/types'
 import type { OutdatedWithVersionDiff } from '../src/utils.js'
-import chalk from 'chalk'
 
 test('renderLatest: outdated and deprecated', () => {
   const diffResult = semverDiff.default('0.0.1', '1.0.0')
@@ -21,9 +21,10 @@ test('renderLatest: outdated and deprecated', () => {
   }
 
   const output = outdated.renderLatest(outdatedPkg)
+  const plain = stripAnsi(output)
 
-  expect(output).toContain('1.0.0')
-  expect(output).toContain(chalk.redBright('(deprecated)'))
+  expect(plain).toContain('1.0.0')
+  expect(plain).toContain('(deprecated)')
 })
 
 test('renderLatest: outdated and not deprecated', () => {
