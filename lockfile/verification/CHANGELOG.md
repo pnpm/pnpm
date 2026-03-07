@@ -1,5 +1,12 @@
 # @pnpm/lockfile.verification
 
+## 1001.2.23
+
+### Patch Changes
+
+- ca2c5f3: Fix headless install not being used when a project has an injected self-referencing `file:` dependency that resolves to `link:` in the lockfile.
+  - @pnpm/get-context@1001.2.7
+
 ## 1001.2.22
 
 ### Patch Changes

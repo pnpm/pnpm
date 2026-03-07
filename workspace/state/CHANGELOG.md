@@ -1,5 +1,13 @@
 # @pnpm/workspace.state
 
+## 1002.1.4
+
+### Patch Changes
+
+- 8da4281: Fixed `optimisticRepeatInstall` skipping install when `overrides`, `packageExtensions`, `ignoredOptionalDependencies`, `patchedDependencies`, or `peersSuffixMaxLength` changed.
+- Updated dependencies [6eedf82]
+  - @pnpm/config@1004.10.3
+
 ## 1002.1.3
 
 ### Patch Changes

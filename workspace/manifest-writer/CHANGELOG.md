@@ -1,5 +1,18 @@
 # @pnpm/workspace.manifest-writer
 
+## 1001.3.0
+
+### Minor Changes
+
+- d18d7f3: When pnpm updates the `pnpm-workspace.yaml`, comments, string formatting, and whitespace will be preserved.
+
+### Patch Changes
+
+- Updated dependencies [e6c72f5]
+- Updated dependencies [d18d7f3]
+  - @pnpm/yaml.document-sync@1000.0.0
+  - @pnpm/workspace.read-manifest@1000.3.0
+
 ## 1001.2.0
 
 ### Minor Changes

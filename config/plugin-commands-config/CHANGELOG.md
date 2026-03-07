@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-config
 
+## 1000.3.19
+
+### Patch Changes
+
+- c6cbb25: Explicitly tell `npm` the path to the global `rc` config file.
+- Updated dependencies [c6cbb25]
+- Updated dependencies [6eedf82]
+- Updated dependencies [d18d7f3]
+  - @pnpm/run-npm@1000.1.0
+  - @pnpm/config@1004.10.3
+  - @pnpm/workspace.manifest-writer@1001.3.0
+  - @pnpm/cli-utils@1001.3.8
+
 ## 1000.3.18
 
 ### Patch Changes

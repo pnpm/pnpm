@@ -1,5 +1,14 @@
 # @pnpm/resolve-dependencies
 
+## 1008.7.6
+
+### Patch Changes
+
+- 129d254: When `lockfile-include-tarball-url` is set to `false`, tarball URLs are now always excluded from the lockfile. Previously, tarball URLs could still appear for packages hosted under non-standard URLs, making the behavior flaky and inconsistent [#6667](https://github.com/pnpm/pnpm/issues/6667).
+- Updated dependencies [d15ac84]
+- Updated dependencies [1e28c91]
+  - @pnpm/npm-resolver@1005.2.2
+
 ## 1008.7.5
 
 ### Patch Changes

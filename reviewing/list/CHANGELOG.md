@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 1000.3.3
+
+### Patch Changes
+
+- 22eb5e6: Fix `pnpm why -r --parseable` missing dependents when multiple workspace packages share the same dependency [#8100](https://github.com/pnpm/pnpm/issues/8100).
+- Updated dependencies [c716415]
+  - @pnpm/reviewing.dependencies-hierarchy@1001.3.3
+
 ## 1000.3.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/outdated
 
+## 1001.1.19
+
+### Patch Changes
+
+- Updated dependencies [d15ac84]
+- Updated dependencies [1e28c91]
+  - @pnpm/npm-resolver@1005.2.2
+  - @pnpm/client@1001.1.22
+
 ## 1001.1.18
 
 ### Patch Changes

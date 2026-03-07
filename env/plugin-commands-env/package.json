@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-env",
-  "version": "1000.0.63",
+  "version": "1000.0.64",
   "description": "pnpm commands for managing Node.js",
   "keywords": [
     "pnpm",

@@ -1,5 +1,11 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1001.3.3
+
+### Patch Changes
+
+- c716415: Handle undefined pkgSnapshot in `pnpm why -r` [#10700](https://github.com/pnpm/pnpm/issues/10700).
+
 ## 1001.3.2
 
 ### Patch Changes

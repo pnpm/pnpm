@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 1010.1.8
+
+### Patch Changes
+
+- @pnpm/build-modules@1007.0.9
+- @pnpm/package-requester@1011.2.3
+- @pnpm/worker@1000.6.6
+
 ## 1010.1.7
 
 ### Patch Changes

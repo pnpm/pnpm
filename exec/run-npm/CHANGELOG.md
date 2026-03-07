@@ -1,5 +1,11 @@
 # @pnpm/run-npm
 
+## 1000.1.0
+
+### Minor Changes
+
+- c6cbb25: Explicitly tell `npm` the path to the global `rc` config file.
+
 ## 7.0.0
 
 ### Major Changes

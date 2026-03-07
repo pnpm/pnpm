@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-completion
 
+## 1000.0.34
+
+### Patch Changes
+
+- adb054f: Give correct suggestions when command line ends with a space. #[10607](https://github.com/pnpm/pnpm/pull/10607/changes)
+- Updated dependencies [d18d7f3]
+  - @pnpm/workspace.read-manifest@1000.3.0
+  - @pnpm/workspace.find-packages@1000.0.63
+  - @pnpm/cli-utils@1001.3.8
+
 ## 1000.0.33
 
 ### Patch Changes

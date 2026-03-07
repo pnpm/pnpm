@@ -1,5 +1,35 @@
 # pnpm
 
+## 10.31.0
+
+### Minor Changes
+
+- When pnpm updates the `pnpm-workspace.yaml`, comments, string formatting, and whitespace will be preserved.
+
+### Patch Changes
+
+- Added `-F` as a short alias for the `--filter` option in the help output.
+- Handle undefined pkgSnapshot in `pnpm why -r` [#10700](https://github.com/pnpm/pnpm/issues/10700).
+- Fix headless install not being used when a project has an injected self-referencing `file:` dependency that resolves to `link:` in the lockfile.
+- Fixed a race condition when multiple worker threads import the same package to the global virtual store concurrently. The rename operation now tolerates `ENOTEMPTY`/`EEXIST` errors if another thread already completed the import.
+- When `lockfile-include-tarball-url` is set to `false`, tarball URLs are now always excluded from the lockfile. Previously, tarball URLs could still appear for packages hosted under non-standard URLs, making the behavior flaky and inconsistent [#6667](https://github.com/pnpm/pnpm/issues/6667).
+- Fixed `optimisticRepeatInstall` skipping install when `overrides`, `packageExtensions`, `ignoredOptionalDependencies`, `patchedDependencies`, or `peersSuffixMaxLength` changed.
+- Fixed `pnpm patch-commit` failing with "unable to access '/.config/git/attributes': Permission denied" error in environments where HOME is unset or non-standard (Docker containers, CI systems).
+
+  The issue occurred because pnpm was setting `HOME` and the Windows user profile env var to empty strings to suppress user git configuration when running `git diff`. This caused git to resolve the home directory (`~`) as root (`/`), leading to permission errors when attempting to access `/.config/git/attributes`.
+
+  Now uses `GIT_CONFIG_GLOBAL: os.devNull` instead, which is git's proper mechanism for bypassing user-level configuration without corrupting the home directory path resolution.
+
+  Fixes #6537
+
+- Fix `pnpm why -r --parseable` missing dependents when multiple workspace packages share the same dependency [#8100](https://github.com/pnpm/pnpm/issues/8100).
+- Fix `link-workspace-packages=true` incorrectly linking workspace packages when the requested version doesn't match the workspace package's version. Previously, on fresh installs the version constraint is overridden to `*` in the fallback resolution paths, causing any workspace package with a matching name to be linked regardless of version [#10173](https://github.com/pnpm/pnpm/issues/10173).
+- Fixed `pnpm update --interactive` table breaking with long version strings (e.g., prerelease versions like `7.0.0-dev.20251209.1`) by dynamically calculating column widths instead of using hardcoded values [#10316](https://github.com/pnpm/pnpm/issues/10316).
+- Explicitly tell `npm` the path to the global `rc` config file.
+- The parameter set by the `--allow-build` flag is written to `allowBuilds`.
+- Fix a bug in which specifying `filter` on `pnpm-workspace.yaml` would cause pnpm to not detect any projects.
+- Print help message on running pnpm dlx without arguments and exit.
+
 ## 10.30.3
 
 ### Patch Changes

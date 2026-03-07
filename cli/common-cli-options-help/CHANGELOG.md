@@ -1,5 +1,11 @@
 # @pnpm/common-cli-options-help
 
+## 1000.0.2
+
+### Patch Changes
+
+- 7f466fd: Added `-F` as a short alias for the `--filter` option in the help output.
+
 ## 1000.0.1
 
 ### Patch Changes

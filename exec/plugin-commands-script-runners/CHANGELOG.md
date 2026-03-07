@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.2.6
+
+### Patch Changes
+
+- 9c7b3ca: Print help message on running pnpm dlx without arguments and exit.
+- Updated dependencies [7f466fd]
+- Updated dependencies [add1080]
+- Updated dependencies [e5fab27]
+- Updated dependencies [6eedf82]
+  - @pnpm/common-cli-options-help@1000.0.2
+  - @pnpm/plugin-commands-installation@1004.9.10
+  - @pnpm/config@1004.10.3
+  - @pnpm/deps.status@1003.0.35
+  - @pnpm/cli-utils@1001.3.8
+  - @pnpm/plugin-commands-env@1000.0.64
+  - @pnpm/client@1001.1.22
+  - @pnpm/workspace.injected-deps-syncer@1000.0.37
+
 ## 1001.2.5
 
 ### Patch Changes

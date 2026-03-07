@@ -1,5 +1,15 @@
 # @pnpm/resolving.deno-resolver
 
+## 1005.0.9
+
+### Patch Changes
+
+- Updated dependencies [d15ac84]
+- Updated dependencies [1e28c91]
+  - @pnpm/npm-resolver@1005.2.2
+  - @pnpm/node.fetcher@1001.0.25
+  - @pnpm/worker@1000.6.6
+
 ## 1005.0.8
 
 ### Patch Changes

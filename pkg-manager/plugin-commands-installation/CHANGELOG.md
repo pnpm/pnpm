@@ -1,5 +1,34 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.9.10
+
+### Patch Changes
+
+- add1080: Fixed `pnpm update --interactive` table breaking with long version strings (e.g., prerelease versions like `7.0.0-dev.20251209.1`) by dynamically calculating column widths instead of using hardcoded values [#10316](https://github.com/pnpm/pnpm/issues/10316).
+- e5fab27: The parameter set by the `--allow-build` flag is written to `allowBuilds`.
+- Updated dependencies [7f466fd]
+- Updated dependencies [8da4281]
+- Updated dependencies [6eedf82]
+- Updated dependencies [d18d7f3]
+  - @pnpm/common-cli-options-help@1000.0.2
+  - @pnpm/workspace.state@1002.1.4
+  - @pnpm/config@1004.10.3
+  - @pnpm/workspace.manifest-writer@1001.3.0
+  - @pnpm/plugin-commands-rebuild@1008.0.11
+  - @pnpm/config.deps-installer@1000.1.4
+  - @pnpm/outdated@1001.1.19
+  - @pnpm/workspace.pkgs-graph@1000.0.38
+  - @pnpm/deps.status@1003.0.35
+  - @pnpm/core@1016.1.10
+  - @pnpm/workspace.find-packages@1000.0.63
+  - @pnpm/cli-utils@1001.3.8
+  - @pnpm/plugin-commands-env@1000.0.64
+  - @pnpm/store-connection-manager@1002.3.17
+  - @pnpm/config.config-writer@1000.1.2
+  - @pnpm/filter-workspace-packages@1000.1.4
+  - @pnpm/package-store@1007.1.5
+  - @pnpm/get-context@1001.2.7
+
 ## 1004.9.9
 
 ### Patch Changes

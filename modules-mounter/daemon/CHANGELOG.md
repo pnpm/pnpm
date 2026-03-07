@@ -1,5 +1,12 @@
 # @pnpm/mount-modules
 
+## 1001.0.51
+
+### Patch Changes
+
+- Updated dependencies [6eedf82]
+  - @pnpm/config@1004.10.3
+
 ## 1001.0.50
 
 ### Patch Changes

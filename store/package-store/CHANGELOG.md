@@ -1,5 +1,13 @@
 # @pnpm/package-store
 
+## 1007.1.5
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.32
+- @pnpm/package-requester@1011.2.3
+- @pnpm/worker@1000.6.6
+
 ## 1007.1.4
 
 ### Patch Changes

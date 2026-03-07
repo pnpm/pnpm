@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.41
+
+### Patch Changes
+
+- 982c999: Fixed `pnpm patch-commit` failing with "unable to access '/.config/git/attributes': Permission denied" error in environments where HOME is unset or non-standard (Docker containers, CI systems).
+
+  The issue occurred because pnpm was setting `HOME` and the Windows user profile env var to empty strings to suppress user git configuration when running `git diff`. This caused git to resolve the home directory (`~`) as root (`/`), leading to permission errors when attempting to access `/.config/git/attributes`.
+
+  Now uses `GIT_CONFIG_GLOBAL: os.devNull` instead, which is git's proper mechanism for bypassing user-level configuration without corrupting the home directory path resolution.
+
+  Fixes #6537
+
+- Updated dependencies [add1080]
+- Updated dependencies [d18d7f3]
+- Updated dependencies [e5fab27]
+- Updated dependencies [6eedf82]
+  - @pnpm/plugin-commands-installation@1004.9.10
+  - @pnpm/workspace.read-manifest@1000.3.0
+  - @pnpm/config@1004.10.3
+  - @pnpm/cli-utils@1001.3.8
+  - @pnpm/store-connection-manager@1002.3.17
+  - @pnpm/config.config-writer@1000.1.2
+
 ## 1000.3.40
 
 ### Patch Changes

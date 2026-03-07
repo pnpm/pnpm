@@ -1,5 +1,13 @@
 # @pnpm-private/updater
 
+## 1000.0.21
+
+### Patch Changes
+
+- Updated dependencies [d18d7f3]
+  - @pnpm/workspace.read-manifest@1000.3.0
+  - @pnpm/workspace.find-packages@1000.0.63
+
 ## 1000.0.20
 
 ### Patch Changes

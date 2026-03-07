@@ -1,5 +1,12 @@
 # @pnpm/lockfile.settings-checker
 
+## 1001.0.30
+
+### Patch Changes
+
+- Updated dependencies [ca2c5f3]
+  - @pnpm/lockfile.verification@1001.2.23
+
 ## 1001.0.29
 
 ### Patch Changes

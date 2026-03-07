@@ -1,5 +1,14 @@
 # @pnpm/config
 
+## 1004.10.3
+
+### Patch Changes
+
+- 6eedf82: Fix a bug in which specifying `filter` on `pnpm-workspace.yaml` would cause pnpm to not detect any projects.
+- Updated dependencies [d18d7f3]
+  - @pnpm/workspace.read-manifest@1000.3.0
+  - @pnpm/catalogs.config@1000.0.5
+
 ## 1004.10.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/filter-workspace-packages
 
+## 1000.1.4
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@1000.0.38
+- @pnpm/workspace.find-packages@1000.0.63
+
 ## 1000.1.3
 
 ### Patch Changes

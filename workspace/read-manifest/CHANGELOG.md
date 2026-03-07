@@ -1,5 +1,11 @@
 # @pnpm/workspace.read-manifest
 
+## 1000.3.0
+
+### Minor Changes
+
+- d18d7f3: The `validateWorkspaceManifest` function is now exported and can be used to validate whether a workspace manifest object's schema is correct.
+
 ## 1000.2.10
 
 ### Patch Changes

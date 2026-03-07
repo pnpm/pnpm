@@ -1,5 +1,21 @@
 # @pnpm/core
 
+## 1016.1.10
+
+### Patch Changes
+
+- Updated dependencies [ca2c5f3]
+- Updated dependencies [129d254]
+  - @pnpm/lockfile.verification@1001.2.23
+  - @pnpm/resolve-dependencies@1008.7.6
+  - @pnpm/plugin-commands-rebuild@1008.0.11
+  - @pnpm/lockfile.settings-checker@1001.0.30
+  - @pnpm/build-modules@1007.0.9
+  - @pnpm/package-requester@1011.2.3
+  - @pnpm/worker@1000.6.6
+  - @pnpm/headless@1010.1.8
+  - @pnpm/get-context@1001.2.7
+
 ## 1016.1.9
 
 ### Patch Changes
