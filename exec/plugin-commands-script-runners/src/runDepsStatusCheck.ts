@@ -27,16 +27,24 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
     install()
     break
   case 'prompt': {
-    const confirmed = await enquirer.prompt<{ runInstall: boolean }>({
-      type: 'confirm',
-      name: 'runInstall',
-      message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.
+    try {
+      const confirmed = await enquirer.prompt<{ runInstall: boolean }>({
+        type: 'confirm',
+        name: 'runInstall',
+        message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.
 
 Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?`,
-      initial: true,
-    })
-    if (confirmed.runInstall) {
-      install()
+        initial: true,
+      })
+      if (confirmed.runInstall) {
+        install()
+      }
+    } catch (err) {
+      // Handle Ctrl+C gracefully - user cancelled the prompt
+      if ((err as NodeJS.ErrnoException).code === 'ERR_USE_AFTER_CLOSE') {
+        process.exit(1)
+      }
+      throw err
     }
     break
   }
