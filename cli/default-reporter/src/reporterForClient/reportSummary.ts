@@ -46,7 +46,7 @@ export function reportSummary (
     pnpmConfig?: Config
   }
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {
-  const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
+  const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.pnpmConfig?.global ? undefined : opts.cwd })
 
   const summaryLog$ = log$.summary.pipe(take(1))
   const _printDiffs = printDiffs.bind(null, { cmd: opts.cmd, prefix: opts.cwd, pnpmConfig: opts.pnpmConfig })
@@ -68,11 +68,7 @@ export function reportSummary (
           }
           if (diffs.length > 0) {
             msg += EOL
-            if (opts.pnpmConfig?.global) {
-              msg += chalk.cyanBright(`${opts.cwd}:`)
-            } else {
-              msg += chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)
-            }
+            msg += chalk.cyanBright(opts.pnpmConfig?.global ? 'global:' : `${propertyByDependencyType[depType] as string}:`)
             msg += EOL
             msg += _printDiffs(diffs, depType)
             msg += EOL

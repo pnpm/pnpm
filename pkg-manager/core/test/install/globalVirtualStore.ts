@@ -1,14 +1,19 @@
 import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
-import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
+
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
 
 test('using a global virtual store', async () => {
   prepareEmpty()
@@ -268,12 +273,10 @@ test('GVS successful build creates package directory with build artifacts', asyn
   expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeFalsy()
 
   // The .pnpm-needs-build marker must not be uploaded to the side effects cache
-  const filesIndexFile = getIndexFilePathInCafs(
-    opts.storeDir,
-    getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'),
-    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'
-  )
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexKey = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
+  const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
   if (filesIndex.sideEffects) {
     for (const [, diff] of filesIndex.sideEffects) {
       expect(diff.added?.has('.pnpm-needs-build')).toBeFalsy()

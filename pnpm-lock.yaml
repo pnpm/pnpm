@@ -601,8 +601,8 @@ catalogs:
       specifier: ^9.0.1
       version: 9.0.1
     rename-overwrite:
-      specifier: ^6.0.2
-      version: 6.0.3
+      specifier: ^6.0.6
+      version: 6.0.6
     render-help:
       specifier: ^1.0.3
       version: 1.0.3
@@ -3033,7 +3033,7 @@ importers:
         version: 1.2.0
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.6
       ssri:
         specifier: 'catalog:'
         version: 13.0.0
@@ -3353,7 +3353,7 @@ importers:
         version: 2.1.1
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.6
     devDependencies:
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
@@ -3396,7 +3396,7 @@ importers:
         version: 2.1.1
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.6
       sanitize-filename:
         specifier: 'catalog:'
         version: 1.6.3
@@ -4546,7 +4546,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.6
     devDependencies:
       '@pnpm/make-dedicated-lockfile':
         specifier: workspace:*
@@ -6331,7 +6331,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.6
       safe-promise-defer:
         specifier: 'catalog:'
         version: 1.0.1
@@ -7605,7 +7605,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.6
       semver:
         specifier: 'catalog:'
         version: 7.7.4
@@ -8366,7 +8366,7 @@ importers:
         version: 7.3.0
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.6
       semver:
         specifier: 'catalog:'
         version: 7.7.4
@@ -15505,8 +15505,8 @@ packages:
   remove-trailing-separator@1.1.0:
     resolution: {integrity: sha512-/hS+Y0u3aOfIETiaiirUFwDBDzmXPvO+jAfKTitUngIPzdKc6Z0LoFjM/CK5PL4C+eKwHohlHAb6H0VFfmmUsw==}
 
-  rename-overwrite@6.0.3:
-    resolution: {integrity: sha512-Daqe51STnrCUq/t4dbzCtfNBLElrqVpCtuWK0MuPrzUi6K/13E98y3E8/kzuMZt6IEmghMnF41J0AidrFqjZUA==}
+  rename-overwrite@6.0.6:
+    resolution: {integrity: sha512-bSbsw/VyMyDez6NJKxqURBCLRCm98uezWBi03UZCeEFccCNIthC6Jk5JazMjexOTdrYd4q/jIxTIwGtgk1k1gA==}
     engines: {node: '>=18'}
 
   render-help@1.0.3:
@@ -18432,7 +18432,7 @@ snapshots:
       '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.13)
       adm-zip: 0.5.16
       is-subdir: 1.2.0
-      rename-overwrite: 6.0.3
+      rename-overwrite: 6.0.6
       ssri: 10.0.5
       tempy: 1.0.1
     transitivePeerDependencies:
@@ -18446,7 +18446,7 @@ snapshots:
       '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.3)
       adm-zip: 0.5.16
       is-subdir: 1.2.0
-      rename-overwrite: 6.0.3
+      rename-overwrite: 6.0.6
       ssri: 10.0.5
       tempy: 1.0.1
     transitivePeerDependencies:
@@ -18472,7 +18472,7 @@ snapshots:
       '@pnpm/graceful-fs': 1000.1.0
       '@pnpm/logger': 1001.0.1
       path-temp: 2.1.1
-      rename-overwrite: 6.0.3
+      rename-overwrite: 6.0.6
 
   '@pnpm/fs.indexed-pkg-importer@1000.1.24(@pnpm/logger@1001.0.1)':
     dependencies:
@@ -18486,7 +18486,7 @@ snapshots:
       make-empty-dir: 3.0.2
       p-limit: 3.1.0
       path-temp: 2.1.1
-      rename-overwrite: 6.0.3
+      rename-overwrite: 6.0.6
       sanitize-filename: 1.6.3
 
   '@pnpm/fs.packlist@1000.0.0':
@@ -18794,7 +18794,7 @@ snapshots:
       parse-npm-tarball-url: 4.0.0
       path-temp: 2.1.1
       ramda: '@pnpm/ramda@0.28.1'
-      rename-overwrite: 6.0.3
+      rename-overwrite: 6.0.6
       semver: 7.7.4
       semver-utils: 1.1.4
       ssri: 10.0.5
@@ -19232,7 +19232,7 @@ snapshots:
       is-gzip: 2.0.0
       is-subdir: 1.2.0
       p-limit: 3.1.0
-      rename-overwrite: 6.0.3
+      rename-overwrite: 6.0.6
       ssri: 10.0.5
       strip-bom: 4.0.0
 
@@ -19269,7 +19269,7 @@ snapshots:
       p-map-values: 1.0.0
       path-temp: 2.1.1
       ramda: '@pnpm/ramda@0.28.1'
-      rename-overwrite: 6.0.3
+      rename-overwrite: 6.0.6
     transitivePeerDependencies:
       - domexception
       - supports-color
@@ -19292,7 +19292,7 @@ snapshots:
       p-map-values: 1.0.0
       path-temp: 2.1.1
       ramda: '@pnpm/ramda@0.28.1'
-      rename-overwrite: 6.0.3
+      rename-overwrite: 6.0.6
     transitivePeerDependencies:
       - domexception
       - supports-color
@@ -24744,7 +24744,7 @@ snapshots:
 
   remove-trailing-separator@1.1.0: {}
 
-  rename-overwrite@6.0.3:
+  rename-overwrite@6.0.6:
     dependencies:
       '@zkochan/rimraf': 3.0.2
       fs-extra: 11.3.0
@@ -25351,12 +25351,12 @@ snapshots:
   symlink-dir@6.0.5:
     dependencies:
       better-path-resolve: 1.0.0
-      rename-overwrite: 6.0.3
+      rename-overwrite: 6.0.6
 
   symlink-dir@7.1.0:
     dependencies:
       better-path-resolve: 1.0.0
-      rename-overwrite: 6.0.3
+      rename-overwrite: 6.0.6
 
   synckit@0.11.12:
     dependencies:
