@@ -7,16 +7,18 @@ import { tempDir } from '@pnpm/prepare'
 // internally (rimraf + retry). The race condition we're testing only surfaces
 // when renameOverwrite exhausts its retries due to concurrent threads
 // repeatedly recreating the target, which can't be reproduced deterministically.
-const renameOverwriteSyncMock = jest.fn()
-jest.mock('rename-overwrite', () => ({
-  default: { sync: renameOverwriteSyncMock },
-}))
+jest.mock('rename-overwrite', () => {
+  const fn = Object.assign(jest.fn(), { sync: jest.fn() })
+  return fn
+})
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+const renameOverwrite = require('rename-overwrite') as { sync: jest.Mock }
 // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
 const { importIndexedDir } = require('../src/importIndexedDir.js')
 
 beforeEach(() => {
-  renameOverwriteSyncMock.mockReset()
+  renameOverwrite.sync.mockReset()
 })
 
 test('importIndexedDir succeeds when rename races with another thread (ENOTEMPTY)', () => {
@@ -34,7 +36,7 @@ test('importIndexedDir succeeds when rename races with another thread (ENOTEMPTY
 
   const filenames: Record<string, string> = { 'index.js': srcFile }
 
-  renameOverwriteSyncMock.mockImplementation(() => {
+  renameOverwrite.sync.mockImplementation(() => {
     throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })
   })
 
@@ -58,7 +60,7 @@ test('importIndexedDir throws ENOTEMPTY when target does not have expected conte
 
   const filenames: Record<string, string> = { 'index.js': srcFile }
 
-  renameOverwriteSyncMock.mockImplementation(() => {
+  renameOverwrite.sync.mockImplementation(() => {
     throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })
   })
 
