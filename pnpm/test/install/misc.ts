@@ -448,11 +448,11 @@ test('CI mode: frozen-lockfile can be overridden via environment variable', asyn
     dependencies: { rimraf: '1' },
   })
 
-  // Should not fail when pnpm_config_frozen_lockfile is set to false
+  // Should not fail when npm_config_frozen_lockfile is set to false
   await execPnpm(['install'], {
     env: {
       CI: 'true',
-      pnpm_config_frozen_lockfile: 'false',
+      npm_config_frozen_lockfile: 'false',
     },
   })
 })
