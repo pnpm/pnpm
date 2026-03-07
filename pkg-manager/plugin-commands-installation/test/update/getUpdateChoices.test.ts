@@ -156,7 +156,7 @@ test('getUpdateChoices() handles long version strings without wrapping', () => {
     },
   ], false)
 
-  const dataRow = choices[0].choices[1] as { message: string; value: string; name: string }
+  const dataRow = choices[0].choices[1] as { message: string, value: string, name: string }
   expect(dataRow).toStrictEqual({
     message: expect.stringContaining('7.0.0-dev.20251209.1'),
     value: '@typescript/native-preview',

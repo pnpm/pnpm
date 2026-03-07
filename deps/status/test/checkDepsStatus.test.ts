@@ -1,5 +1,6 @@
 import { type Stats } from 'fs'
 import { checkDepsStatus, type CheckDepsStatusOptions } from '@pnpm/deps.status'
+import { type WorkspaceState } from '@pnpm/workspace.state'
 import * as workspaceStateModule from '@pnpm/workspace.state'
 import * as lockfileFs from '@pnpm/lockfile.fs'
 import { jest } from '@jest/globals'
@@ -22,6 +23,13 @@ jest.mock('@pnpm/lockfile.fs', () => ({
   readCurrentLockfile: jest.fn(),
   readWantedLockfile: jest.fn(),
 }))
+
+jest.mock('@pnpm/workspace.state', () => ({
+  ...jest.requireActual<object>('@pnpm/workspace.state'),
+  loadWorkspaceState: jest.fn(),
+}))
+
+const { loadWorkspaceState } = workspaceStateModule
 
 describe('checkDepsStatus - settings change detection', () => {
   beforeEach(() => {

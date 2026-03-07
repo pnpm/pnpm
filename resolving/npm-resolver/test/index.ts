@@ -1945,9 +1945,8 @@ test('throws when workspace package version does not match and package is not fo
     .get('/is-positive')
     .reply(404, {})
 
-  const cacheDir = temporaryDirectory()
+  const cacheDir = tempy.directory()
   const { resolveFromNpm } = createResolveFromNpm({
-    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -1976,9 +1975,8 @@ test('throws NoMatchingVersionError when workspace package version does not matc
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = temporaryDirectory()
+  const cacheDir = tempy.directory()
   const { resolveFromNpm } = createResolveFromNpm({
-    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
@@ -2007,9 +2005,8 @@ test('resolve from registry when workspace package version does not match the re
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = temporaryDirectory()
+  const cacheDir = tempy.directory()
   const { resolveFromNpm } = createResolveFromNpm({
-    storeDir: temporaryDirectory(),
     cacheDir,
     registries,
   })
