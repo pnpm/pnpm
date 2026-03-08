@@ -1,6 +1,7 @@
 import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
+import { readConfigLockfile } from '@pnpm/config.deps-installer'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from './utils/index.js'
@@ -76,8 +77,20 @@ test('installing a new configurational dependency', async () => {
 
   await execPnpm(['add', '@pnpm.e2e/foo@100.0.0', '--config'])
 
+  // Workspace manifest should have a clean specifier (no integrity)
   const workspaceManifest = readYamlFile<{ configDependencies: Record<string, string> }>('pnpm-workspace.yaml')
   expect(workspaceManifest.configDependencies).toStrictEqual({
-    '@pnpm.e2e/foo': `100.0.0+${getIntegrity('@pnpm.e2e/foo', '100.0.0')}`,
+    '@pnpm.e2e/foo': '100.0.0',
   })
+
+  // Config lockfile should contain the resolved dependency with integrity
+  const configLockfile = await readConfigLockfile(process.cwd())
+  expect(configLockfile).not.toBeNull()
+  expect(configLockfile!.importers['.'].configDependencies['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
+  expect(configLockfile!.packages['@pnpm.e2e/foo@100.0.0'].resolution.integrity).toBe(
+    getIntegrity('@pnpm.e2e/foo', '100.0.0')
+  )
 })

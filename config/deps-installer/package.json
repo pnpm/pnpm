@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@pnpm/config.config-writer": "workspace:*",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
@@ -46,7 +47,10 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "get-npm-tarball-url": "catalog:"
+    "get-npm-tarball-url": "catalog:",
+    "js-yaml": "catalog:",
+    "strip-bom": "catalog:",
+    "write-file-atomic": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -56,6 +60,8 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/testing.temp-store": "workspace:*",
+    "@types/js-yaml": "catalog:",
+    "@types/write-file-atomic": "catalog:",
     "load-json-file": "catalog:",
     "read-yaml-file": "catalog:"
   },

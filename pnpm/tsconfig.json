@@ -51,6 +51,9 @@
       "path": "../config/config"
     },
     {
+      "path": "../config/deps-installer"
+    },
+    {
       "path": "../config/plugin-commands-config"
     },
     {

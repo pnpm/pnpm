@@ -5,9 +5,10 @@ import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@p
 import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/npm-resolver'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import type { ConfigDependencies } from '@pnpm/types'
+import type { ConfigDependencies, ConfigDependencySpecifiers } from '@pnpm/types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
+import { type ConfigLockfile, createConfigLockfile, readConfigLockfile, writeConfigLockfile } from './configLockfile.js'
 
 export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   configDependencies?: ConfigDependencies
@@ -19,7 +20,11 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   const fetch = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.userConfig!, userSettings: opts.userConfig })
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
-  const configDependencies = opts.configDependencies ?? {}
+
+  // Extract existing specifiers from configDependencies (handles both old and new formats)
+  const configDependencySpecifiers: ConfigDependencySpecifiers = extractSpecifiers(opts.configDependencies)
+  const configLockfile: ConfigLockfile = (await readConfigLockfile(opts.rootDir)) ?? createConfigLockfile()
+
   await Promise.all(configDeps.map(async (configDep) => {
     const wantedDep = parseWantedDependency(configDep)
     if (!wantedDep.alias) {
@@ -35,27 +40,61 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
     }
     const pkgName = wantedDep.alias
     const version = resolution.manifest.version
-    const { tarball, integrity } = resolution.resolution
+    const { tarball, integrity } = resolution.resolution as { tarball: string, integrity: string }
     const registry = pickRegistryForPackage(opts.registries, pkgName)
     const defaultTarball = getNpmTarballUrl(pkgName, version, { registry })
-    if (tarball !== defaultTarball && isValidHttpUrl(tarball)) {
-      configDependencies[pkgName] = {
-        tarball,
-        integrity: `${version}+${integrity}`,
-      }
-    } else {
-      configDependencies[pkgName] = `${version}+${integrity}`
+    const hasCustomTarball = tarball !== defaultTarball && isValidHttpUrl(tarball)
+
+    // Write clean specifier to workspace manifest
+    configDependencySpecifiers[pkgName] = wantedDep.bareSpecifier ?? version
+
+    // Write resolved info to config lockfile
+    const pkgKey = `${pkgName}@${version}`
+    configLockfile.importers['.'].configDependencies[pkgName] = {
+      specifier: configDependencySpecifiers[pkgName],
+      version,
     }
+    configLockfile.packages[pkgKey] = {
+      resolution: hasCustomTarball
+        ? { integrity, tarball }
+        : { integrity },
+    }
+    configLockfile.snapshots[pkgKey] = {}
   }))
-  await writeSettings({
-    ...opts,
-    rootProjectManifestDir: opts.rootDir,
-    workspaceDir: opts.rootDir,
-    updatedSettings: {
-      configDependencies,
-    },
-  })
-  await installConfigDeps(configDependencies, opts)
+
+  await Promise.all([
+    writeSettings({
+      ...opts,
+      rootProjectManifestDir: opts.rootDir,
+      workspaceDir: opts.rootDir,
+      updatedSettings: {
+        configDependencies: configDependencySpecifiers,
+      },
+    }),
+    writeConfigLockfile(opts.rootDir, configLockfile),
+  ])
+  await installConfigDeps(configLockfile, opts)
+}
+
+/**
+ * Extracts plain specifiers from configDependencies, handling both old format
+ * ("version+integrity") and new format (plain specifiers).
+ */
+function extractSpecifiers (configDependencies?: ConfigDependencies): ConfigDependencySpecifiers {
+  if (!configDependencies) return {}
+  const specifiers: ConfigDependencySpecifiers = {}
+  for (const [name, value] of Object.entries(configDependencies)) {
+    if (typeof value === 'object') {
+      // Old format with tarball: extract version from integrity string
+      const sepIndex = value.integrity.indexOf('+')
+      specifiers[name] = sepIndex !== -1 ? value.integrity.substring(0, sepIndex) : value.integrity
+    } else {
+      // Could be old "version+integrity" or new plain specifier
+      const sepIndex = value.indexOf('+')
+      specifiers[name] = sepIndex !== -1 ? value.substring(0, sepIndex) : value
+    }
+  }
+  return specifiers
 }
 
 function isValidHttpUrl (url: string): boolean {

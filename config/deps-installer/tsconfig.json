@@ -22,6 +22,9 @@
       "path": "../../network/fetch"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/core-loggers"
     },
     {
