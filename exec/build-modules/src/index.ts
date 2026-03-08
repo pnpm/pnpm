@@ -165,7 +165,12 @@ async function buildDependency<T extends string> (
   try {
     await linkBinsOfDependencies(depNode, depGraph, opts)
     let isPatched = false
-    if (depNode.patch?.patchFilePath) {
+    if (depNode.patch) {
+      if (!depNode.patch.patchFilePath) {
+        throw new Error(
+          `Cannot apply patch for ${depPath}: patch file path is missing`
+        )
+      }
       isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patch.patchFilePath })
     }
     const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
