@@ -1480,7 +1480,7 @@ async function resolveDependency (
   const patch = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
   if (patch) {
     ctx.appliedPatches.add(patch.key)
-    pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.file.hash})` as PkgIdWithPatchHash
+    pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.hash})` as PkgIdWithPatchHash
   }
 
   // We are building the dependency tree only until there are new packages

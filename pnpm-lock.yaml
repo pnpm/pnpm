@@ -2507,6 +2507,9 @@ importers:
       '@pnpm/deps.graph-sequencer':
         specifier: workspace:*
         version: link:../../deps/graph-sequencer
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../../fs/hard-link-dir

@@ -1,8 +1,7 @@
-import type { PatchFile } from '@pnpm/patching.types'
 import type { DependenciesMeta, DepPath, ProjectId } from '@pnpm/types'
 import type { PlatformAssetTarget } from '@pnpm/resolver-base'
 
-export type { PatchFile, ProjectId }
+export type { ProjectId }
 
 export * from './lockfileFileTypes.js'
 
@@ -19,7 +18,7 @@ export interface LockfileBase {
   lockfileVersion: string
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
-  patchedDependencies?: Record<string, PatchFile>
+  patchedDependencies?: Record<string, string>
   pnpmfileChecksum?: string
   settings?: LockfileSettings
   time?: Record<string, string>

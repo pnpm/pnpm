@@ -35,8 +35,7 @@ test('patch from configuration dependency is applied via updateConfig hook', asy
   expect(fs.existsSync('node_modules/@pnpm.e2e/foo/index.js')).toBeTruthy()
 
   const lockfile = project.readLockfile()
-  // The patch path goes through the global virtual store since config deps are symlinked there
-  expect(lockfile.patchedDependencies['@pnpm.e2e/foo'].path).toContain('@pnpm.e2e/has-patch-for-foo/@pnpm.e2e__foo@100.0.0.patch')
+  expect(lockfile.patchedDependencies['@pnpm.e2e/foo']).toEqual(expect.any(String))
 })
 
 test('catalog applied by configurational dependency hook', async () => {
