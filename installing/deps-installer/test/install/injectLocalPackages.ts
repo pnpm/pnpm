@@ -1802,7 +1802,7 @@ test('injected local packages are deduped', async () => {
       'project-1': 'workspace:1.0.0',
     },
     devDependencies: {
-      'is-positive': '1.0.0',
+      'is-positive': '2.0.0',
     },
     dependenciesMeta: {
       'project-1': {
@@ -1954,9 +1954,9 @@ test('injected local packages are deduped', async () => {
       },
     })
     expect(lockfile.packages['project-1@file:project-1(is-positive@1.0.0)']).toBeFalsy()
-    expect(lockfile.snapshots['project-2@file:project-2(is-positive@2.0.0)']).toEqual({
+    expect(lockfile.snapshots['project-2@file:project-2(is-positive@1.0.0)']).toEqual({
       dependencies: {
-        'project-1': 'file:project-1(is-positive@2.0.0)',
+        'project-1': 'file:project-1(is-positive@1.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
     })
