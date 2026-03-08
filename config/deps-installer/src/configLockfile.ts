@@ -61,7 +61,24 @@ export async function readConfigLockfile (rootDir: string): Promise<ConfigLockfi
     }
     throw err
   }
-  return yaml.load(rawContent) as ConfigLockfile
+  const parsed = yaml.load(rawContent)
+  if (parsed == null || typeof parsed !== 'object') {
+    throw new Error(`Invalid config lockfile at ${lockfilePath}: expected a YAML object`)
+  }
+  const lockfile = parsed as Record<string, unknown>
+  if (typeof lockfile.lockfileVersion !== 'string') {
+    throw new Error(`Invalid config lockfile at ${lockfilePath}: missing or non-string "lockfileVersion"`)
+  }
+  if (lockfile.importers == null || typeof lockfile.importers !== 'object') {
+    throw new Error(`Invalid config lockfile at ${lockfilePath}: missing or invalid "importers"`)
+  }
+  if (lockfile.packages == null || typeof lockfile.packages !== 'object') {
+    throw new Error(`Invalid config lockfile at ${lockfilePath}: missing or invalid "packages"`)
+  }
+  if (lockfile.snapshots == null || typeof lockfile.snapshots !== 'object') {
+    throw new Error(`Invalid config lockfile at ${lockfilePath}: missing or invalid "snapshots"`)
+  }
+  return parsed as ConfigLockfile
 }
 
 export async function writeConfigLockfile (rootDir: string, lockfile: ConfigLockfile): Promise<void> {

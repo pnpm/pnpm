@@ -61,7 +61,17 @@ export async function migrateConfigDepsToLockfile (
     }
 
     if (typeof pkgSpec === 'string') {
-      // Check if this is old format (version+integrity) or new format (just specifier)
+      // This branch only handles the legacy inline format (version+integrity).
+      // New clean specifiers (just version/range) require an existing pnpm-config-lock.yaml.
+      if (!pkgSpec.includes('+')) {
+        throw new PnpmError(
+          'CONFIG_DEP_MISSING_LOCKFILE',
+          `Config dependency "${pkgName}" is already in clean-specifier form (${pkgSpec}) ` +
+          'but no pnpm-config-lock.yaml was found to resolve it. ' +
+          'Please generate and commit pnpm-config-lock.yaml (for example by running ' +
+          '`pnpm install` in the workspace root) before attempting to migrate configDependencies.'
+        )
+      }
       const { version, integrity } = parseIntegrity(pkgName, pkgSpec)
       const tarball = getNpmTarballUrl(pkgName, version, { registry })
 

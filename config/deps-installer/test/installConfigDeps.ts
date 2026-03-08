@@ -3,7 +3,9 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import { installConfigDeps, createConfigLockfile, type ConfigLockfile } from '@pnpm/config.deps-installer'
+import { CONFIG_LOCKFILE } from '@pnpm/constants'
 import { loadJsonFileSync } from 'load-json-file'
+import readYamlFile from 'read-yaml-file'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -105,11 +107,12 @@ test('installation fails if the checksum of the config dependency is invalid', a
 
 test('migration: installs from old inline integrity format and creates config lockfile', async () => {
   prepareEmpty()
-  const { storeController } = createTempStore()
+  const { storeController, storeDir } = createTempStore()
 
   // Old format: ConfigDependencies with inline integrity
+  const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
   const configDeps: Record<string, string> = {
-    '@pnpm.e2e/foo': `100.0.0+${getIntegrity('@pnpm.e2e/foo', '100.0.0')}`,
+    '@pnpm.e2e/foo': `100.0.0+${integrity}`,
   }
   await installConfigDeps(configDeps, {
     registries: {
@@ -117,6 +120,7 @@ test('migration: installs from old inline integrity format and creates config lo
     },
     rootDir: process.cwd(),
     store: storeController,
+    storeDir,
   })
 
   {
@@ -124,6 +128,15 @@ test('migration: installs from old inline integrity format and creates config lo
     expect(configDepManifest.name).toBe('@pnpm.e2e/foo')
     expect(configDepManifest.version).toBe('100.0.0')
   }
+
+  // Verify pnpm-config-lock.yaml was created with expected content
+  const configLockfile = await readYamlFile<ConfigLockfile>(CONFIG_LOCKFILE)
+  expect(configLockfile.lockfileVersion).toBeDefined()
+  expect(configLockfile.importers['.'].configDependencies['@pnpm.e2e/foo']).toEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
+  expect(configLockfile.packages['@pnpm.e2e/foo@100.0.0'].resolution.integrity).toBe(integrity)
 })
 
 test('installation fails if the config dependency does not have a checksum (old format)', async () => {
@@ -146,5 +159,5 @@ test('installation fails if the config dependency does not have a checksum (old 
     rootDir: process.cwd(),
     store: storeController,
     storeDir,
-  })).rejects.toThrow("doesn't have an integrity checksum")
+  })).rejects.toThrow('already in clean-specifier form')
 })

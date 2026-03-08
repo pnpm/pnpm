@@ -7,6 +7,7 @@ import { readModulesDir } from '@pnpm/read-modules-dir'
 import rimraf from '@zkochan/rimraf'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import type { StoreController } from '@pnpm/package-store'
+import { PnpmError } from '@pnpm/error'
 import type { ConfigDependencies, Registries } from '@pnpm/types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import symlinkDir from 'symlink-dir'
@@ -114,7 +115,16 @@ async function normalizeForInstall (
 }
 
 function isConfigLockfile (obj: ConfigDependencies | ConfigLockfile): obj is ConfigLockfile {
-  return 'lockfileVersion' in obj
+  return 'lockfileVersion' in obj &&
+    'importers' in obj &&
+    obj.importers != null &&
+    typeof obj.importers === 'object' &&
+    'packages' in obj &&
+    obj.packages != null &&
+    typeof obj.packages === 'object' &&
+    'snapshots' in obj &&
+    obj.snapshots != null &&
+    typeof obj.snapshots === 'object'
 }
 
 function normalizeFromLockfile (
@@ -126,7 +136,13 @@ function normalizeFromLockfile (
   for (const [pkgName, { version }] of Object.entries(configDeps)) {
     const pkgKey = `${pkgName}@${version}`
     const pkgInfo = lockfile.packages[pkgKey]
-    if (!pkgInfo) continue
+    if (!pkgInfo) {
+      throw new PnpmError(
+        'CONFIG_LOCKFILE_CORRUPTED',
+        `pnpm-config-lock.yaml is corrupted or incomplete: missing packages entry for "${pkgKey}" ` +
+        'referenced from importers[\'.\'].configDependencies'
+      )
+    }
     const registry = pickRegistryForPackage(registries, pkgName)
     deps[pkgName] = {
       version,
