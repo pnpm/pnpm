@@ -839,6 +839,8 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     dir: process.cwd(),
     patchedDependencies,
     recursive: true,
+    rootProjectManifest: preparedManifests.root,
+    rootProjectManifestDir: process.cwd(),
     selectedProjectsGraph,
     sharedWorkspaceLockfile: true,
     lockfileDir: process.cwd(),
