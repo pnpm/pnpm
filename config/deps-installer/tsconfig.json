@@ -13,9 +13,6 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../packages/calc-dep-state"
-    },
-    {
       "path": "../../fs/read-modules-dir"
     },
     {
@@ -23,6 +20,9 @@
     },
     {
       "path": "../../network/fetch"
+    },
+    {
+      "path": "../../packages/calc-dep-state"
     },
     {
       "path": "../../packages/core-loggers"
