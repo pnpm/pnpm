@@ -37,6 +37,9 @@
       "path": "../../store/cafs-types"
     },
     {
+      "path": "../broop-resolver"
+    },
+    {
       "path": "../bun-resolver"
     },
     {

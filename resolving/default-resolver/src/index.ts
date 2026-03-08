@@ -3,8 +3,9 @@ import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching-types'
 import { type GitResolveResult, createGitResolver } from '@pnpm/git-resolver'
 import { type LocalResolveResult, resolveFromLocal } from '@pnpm/local-resolver'
 import { resolveNodeRuntime, type NodeRuntimeResolveResult } from '@pnpm/node.resolver'
-import { resolveDenoRuntime, type DenoRuntimeResolveResult } from '@pnpm/resolving.deno-resolver'
+import { resolveBroop, type BroopResolveResult } from '@pnpm/resolving.broop-resolver'
 import { resolveBunRuntime, type BunRuntimeResolveResult } from '@pnpm/resolving.bun-resolver'
+import { resolveDenoRuntime, type DenoRuntimeResolveResult } from '@pnpm/resolving.deno-resolver'
 import {
   createNpmResolver,
   type JsrResolveResult,
@@ -45,6 +46,7 @@ export type DefaultResolveResult =
   | NodeRuntimeResolveResult
   | DenoRuntimeResolveResult
   | BunRuntimeResolveResult
+  | BroopResolveResult
   | CustomResolverResolveResult
 
 export type DefaultResolver = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<DefaultResolveResult>
@@ -99,6 +101,7 @@ export function createResolver (
   const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig })
   const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
+  const _resolveBroop = resolveBroop.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline })
   const _resolveFromCustomResolvers = pnpmOpts.customResolvers
     ? resolveFromCustomResolvers.bind(null, pnpmOpts.customResolvers)
     : null
@@ -112,6 +115,7 @@ export function createResolver (
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
           await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
         )) ??
+        await _resolveBroop(wantedDependency, opts) ??
         await _resolveNodeRuntime(wantedDependency, opts) ??
         await _resolveDenoRuntime(wantedDependency, opts) ??
         await _resolveBunRuntime(wantedDependency, opts)
