@@ -426,7 +426,15 @@ export async function mutateModules (
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
       : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies) : {})
-    const patchGroups = patchedDependencies ? groupPatchedDependencies(patchedDependencies) : undefined
+    const patchGroupInput = opts.patchedDependencies
+      ? Object.fromEntries(
+        Object.entries(patchedDependencies ?? {}).map(([key, hash]) => [
+          key,
+          { hash, patchFilePath: path.join(opts.lockfileDir, opts.patchedDependencies![key]) },
+        ])
+      )
+      : patchedDependencies
+    const patchGroups = patchGroupInput ? groupPatchedDependencies(patchGroupInput) : undefined
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false

@@ -165,9 +165,8 @@ async function buildDependency<T extends string> (
   try {
     await linkBinsOfDependencies(depNode, depGraph, opts)
     let isPatched = false
-    if (depNode.patch) {
-      const { file } = depNode.patch
-      isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: file.path })
+    if (depNode.patch?.patchFilePath) {
+      isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patch.patchFilePath })
     }
     const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
       depPath,

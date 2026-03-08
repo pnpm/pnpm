@@ -1,5 +1,6 @@
 export interface PatchInfo {
   hash: string
+  patchFilePath?: string
 }
 
 export interface ExtendedPatchInfo extends PatchInfo {
