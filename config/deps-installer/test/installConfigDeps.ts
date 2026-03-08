@@ -5,7 +5,7 @@ import { createTempStore } from '@pnpm/testing.temp-store'
 import { installConfigDeps, createConfigLockfile, type ConfigLockfile } from '@pnpm/config.deps-installer'
 import { CONFIG_LOCKFILE } from '@pnpm/constants'
 import { loadJsonFileSync } from 'load-json-file'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -130,7 +130,7 @@ test('migration: installs from old inline integrity format and creates config lo
   }
 
   // Verify pnpm-config-lock.yaml was created with expected content
-  const configLockfile = await readYamlFile<ConfigLockfile>(CONFIG_LOCKFILE)
+  const configLockfile = readYamlFile<ConfigLockfile>(CONFIG_LOCKFILE)
   expect(configLockfile.lockfileVersion).toBeDefined()
   expect(configLockfile.importers['.'].configDependencies['@pnpm.e2e/foo']).toEqual({
     specifier: '100.0.0',
