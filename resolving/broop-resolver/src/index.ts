@@ -93,8 +93,12 @@ export async function resolveBroop (
       version: version!,
       // Each dependency is prefixed with broop: so pnpm's core engine
       // will recursively resolve them through this same resolver.
+      // We use optionalDependencies because Homebrew and Scoop have
+      // different dependency sets — a Scoop-only dep (e.g. cacert) won't
+      // resolve on macOS, and vice versa. Optional deps are skipped
+      // gracefully when no variant matches the current platform.
       ...(allDeps.size > 0 && {
-        dependencies: Object.fromEntries(
+        optionalDependencies: Object.fromEntries(
           [...allDeps].map((dep) => [dep, `broop:${dep}`])
         ),
       }),

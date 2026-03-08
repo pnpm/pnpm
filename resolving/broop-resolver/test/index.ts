@@ -195,7 +195,7 @@ test('resolveBroop includes transitive dependencies as broop: specifiers', async
 
   expect(result).not.toBeNull()
   // Homebrew's ripgrep depends on pcre2
-  expect(result!.manifest?.dependencies).toEqual({
+  expect(result!.manifest?.optionalDependencies).toEqual({
     pcre2: 'broop:pcre2',
   })
 })
