@@ -223,6 +223,7 @@ export async function handler (
     await resolveConfigDeps(params, {
       ...opts,
       store: store.ctrl,
+      storeDir: store.dir,
       rootDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
     })
     return

@@ -1759,6 +1759,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -1798,6 +1801,9 @@ importers:
       get-npm-tarball-url:
         specifier: 'catalog:'
         version: 2.1.0
+      symlink-dir:
+        specifier: 'catalog:'
+        version: 7.1.0
     devDependencies:
       '@pnpm/config.deps-installer':
         specifier: workspace:*

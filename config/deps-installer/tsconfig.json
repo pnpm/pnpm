@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../crypto/object-hasher"
+    },
+    {
       "path": "../../fs/read-modules-dir"
     },
     {

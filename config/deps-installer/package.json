@@ -35,6 +35,7 @@
   "dependencies": {
     "@pnpm/config.config-writer": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
@@ -46,7 +47,8 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "get-npm-tarball-url": "catalog:"
+    "get-npm-tarball-url": "catalog:",
+    "symlink-dir": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
