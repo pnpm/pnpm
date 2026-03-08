@@ -152,17 +152,14 @@ export function createDeployFiles ({
   }
 
   if (lockfile.patchedDependencies) {
-    result.lockfile.patchedDependencies = {}
-    result.manifest.pnpm!.patchedDependencies = {}
-
-    for (const name in lockfile.patchedDependencies) {
-      const patchInfo = lockfile.patchedDependencies[name]
-      const resolvedPath = path.resolve(rootProjectManifestDir, patchInfo.path)
-      const relativePath = normalizePath(path.relative(deployDir, resolvedPath))
-      result.manifest.pnpm!.patchedDependencies[name] = relativePath
-      result.lockfile.patchedDependencies[name] = {
-        hash: patchInfo.hash,
-        path: relativePath,
+    result.lockfile.patchedDependencies = { ...lockfile.patchedDependencies }
+    const manifestPatchedDeps = rootProjectManifest?.pnpm?.patchedDependencies
+    if (manifestPatchedDeps) {
+      result.manifest.pnpm!.patchedDependencies = {}
+      for (const name in manifestPatchedDeps) {
+        const resolvedPath = path.resolve(rootProjectManifestDir, manifestPatchedDeps[name])
+        const relativePath = normalizePath(path.relative(deployDir, resolvedPath))
+        result.manifest.pnpm!.patchedDependencies[name] = relativePath
       }
     }
   }
