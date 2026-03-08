@@ -33,6 +33,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/config.config-writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
@@ -50,6 +51,7 @@
     "get-npm-tarball-url": "catalog:",
     "js-yaml": "catalog:",
     "strip-bom": "catalog:",
+    "symlink-dir": "catalog:",
     "write-file-atomic": "catalog:"
   },
   "peerDependencies": {

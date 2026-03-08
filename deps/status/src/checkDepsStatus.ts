@@ -466,7 +466,6 @@ async function assertWantedLockfileUpToDate (
     linkWorkspacePackages,
     getManifestsByDir,
     getWorkspacePackages,
-    rootDir,
     rootManifestOptions,
   } = ctx
 
@@ -482,7 +481,7 @@ async function assertWantedLockfileUpToDate (
     patchedDependencies,
     pnpmfileChecksum,
   ] = await Promise.all([
-    calcPatchHashes(rootManifestOptions?.patchedDependencies ?? {}, rootDir),
+    calcPatchHashes(rootManifestOptions?.patchedDependencies ?? {}),
     config.hooks?.calculatePnpmfileChecksum?.(),
   ])
 

@@ -20,7 +20,7 @@ function makeConfigLockfile (deps: Record<string, { version: string, integrity: 
 
 test('configuration dependency is installed from config lockfile', async () => {
   prepareEmpty()
-  const { storeController } = createTempStore()
+  const { storeController, storeDir } = createTempStore()
 
   const lockfile = makeConfigLockfile({
     '@pnpm.e2e/foo': { version: '100.0.0', integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
@@ -31,12 +31,15 @@ test('configuration dependency is installed from config lockfile', async () => {
     },
     rootDir: process.cwd(),
     store: storeController,
+    storeDir,
   })
 
   {
     const configDepManifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')
     expect(configDepManifest.name).toBe('@pnpm.e2e/foo')
     expect(configDepManifest.version).toBe('100.0.0')
+    // The local path should be a symlink to the global virtual store
+    expect(fs.lstatSync('node_modules/.pnpm-config/@pnpm.e2e/foo').isSymbolicLink()).toBe(true)
   }
 
   // Dependency is updated
@@ -50,6 +53,7 @@ test('configuration dependency is installed from config lockfile', async () => {
     },
     rootDir: process.cwd(),
     store: storeController,
+    storeDir,
   })
 
   {
@@ -67,6 +71,7 @@ test('configuration dependency is installed from config lockfile', async () => {
     },
     rootDir: process.cwd(),
     store: storeController,
+    storeDir,
   })
 
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')).toBeFalsy()
@@ -74,7 +79,7 @@ test('configuration dependency is installed from config lockfile', async () => {
 
 test('installation fails if the checksum of the config dependency is invalid', async () => {
   prepareEmpty()
-  const { storeController } = createTempStore({
+  const { storeController, storeDir } = createTempStore({
     clientOptions: {
       retry: {
         retries: 0,
@@ -94,6 +99,7 @@ test('installation fails if the checksum of the config dependency is invalid', a
     },
     rootDir: process.cwd(),
     store: storeController,
+    storeDir,
   })).rejects.toThrow('Got unexpected checksum for')
 })
 
@@ -122,7 +128,7 @@ test('migration: installs from old inline integrity format and creates config lo
 
 test('installation fails if the config dependency does not have a checksum (old format)', async () => {
   prepareEmpty()
-  const { storeController } = createTempStore({
+  const { storeController, storeDir } = createTempStore({
     clientOptions: {
       retry: {
         retries: 0,
@@ -139,5 +145,6 @@ test('installation fails if the config dependency does not have a checksum (old 
     },
     rootDir: process.cwd(),
     store: storeController,
+    storeDir,
   })).rejects.toThrow("doesn't have an integrity checksum")
 })

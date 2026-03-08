@@ -36,6 +36,7 @@ export async function getConfig (
       registries: config.registries,
       rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
       store: store.ctrl,
+      storeDir: store.dir,
     })
   }
   if (!config.ignorePnpmfile) {

@@ -9,7 +9,7 @@ const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 test('configuration dependency is resolved', async () => {
   prepareEmpty()
-  const { storeController } = createTempStore()
+  const { storeController, storeDir } = createTempStore()
 
   await resolveConfigDeps(['@pnpm.e2e/foo@100.0.0'], {
     registries: {
@@ -19,7 +19,7 @@ test('configuration dependency is resolved', async () => {
     cacheDir: path.resolve('cache'),
     userConfig: {},
     store: storeController,
-    storeDir: '.store',
+    storeDir,
   })
 
   // Workspace manifest should have a clean specifier (no integrity)
