@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/config.config-writer": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/crypto.object-hasher": "workspace:*",
+    "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",

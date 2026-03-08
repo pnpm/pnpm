@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
+import { calcLeafGlobalVirtualStorePath } from '@pnpm/calc-dep-state'
 import { installingConfigDepsLogger } from '@pnpm/core-loggers'
-import { hashObjectWithoutSorting, hashObject } from '@pnpm/crypto.object-hasher'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import rimraf from '@zkochan/rimraf'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -40,8 +40,9 @@ export async function installConfigDeps (configDeps: ConfigDependencies, opts: I
       return
     }
     installingConfigDepsLogger.debug({ status: 'started' })
-    const dirInGlobalVirtualStore = calcConfigDepGlobalDir(globalVirtualStoreDir, pkgName, pkg.version, pkg.resolution.integrity)
-    const pkgDirInGlobalVirtualStore = path.join(dirInGlobalVirtualStore, 'node_modules', pkgName)
+    const fullPkgId = `${pkgName}@${pkg.version}:${pkg.resolution.integrity}`
+    const relPath = calcLeafGlobalVirtualStorePath(fullPkgId, pkgName, pkg.version)
+    const pkgDirInGlobalVirtualStore = path.join(globalVirtualStoreDir, relPath, 'node_modules', pkgName)
     if (!fs.existsSync(path.join(pkgDirInGlobalVirtualStore, 'package.json'))) {
       const { fetching } = await opts.store.fetchPackage({
         force: true,
@@ -71,12 +72,4 @@ export async function installConfigDeps (configDeps: ConfigDependencies, opts: I
   if (installedConfigDeps.length) {
     installingConfigDepsLogger.debug({ status: 'done', deps: installedConfigDeps })
   }
-}
-
-function calcConfigDepGlobalDir (globalVirtualStoreDir: string, pkgName: string, version: string, integrity: string): string {
-  const fullPkgId = `${pkgName}@${version}:${integrity}`
-  const depsHash = hashObject({ id: fullPkgId, deps: {} })
-  const hexDigest = hashObjectWithoutSorting({ engine: null, deps: depsHash }, { encoding: 'hex' })
-  const prefix = pkgName.startsWith('@') ? '' : '@/'
-  return path.join(globalVirtualStoreDir, `${prefix}${pkgName}/${version}/${hexDigest}`)
 }

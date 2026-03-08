@@ -133,14 +133,22 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   // so they survive Node.js upgrades and architecture changes.
   const includeEngine = builtDepPaths === undefined ||
     transitivelyRequiresBuild(graph, builtDepPaths, buildRequiredCache ??= {}, depPath, new Set())
-  const state = {
-    engine: includeEngine ? ENGINE_NAME : null,
-    deps: calcDepGraphHash(graph, cache, new Set(), depPath),
-  }
-  const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
-  // Use @/ prefix for unscoped packages to maintain uniform 4-level directory depth
-  // Scoped: @scope/pkg/version/hash
-  // Unscoped: @/pkg/version/hash
+  const engine = includeEngine ? ENGINE_NAME : null
+  const deps = calcDepGraphHash(graph, cache, new Set(), depPath)
+  const hexDigest = hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
+  return formatGlobalVirtualStorePath(name, version, hexDigest)
+}
+
+export function calcLeafGlobalVirtualStorePath (fullPkgId: string, name: string, version: string): string {
+  const depsHash = hashObject({ id: fullPkgId, deps: {} })
+  const hexDigest = hashObjectWithoutSorting({ engine: null, deps: depsHash }, { encoding: 'hex' })
+  return formatGlobalVirtualStorePath(name, version, hexDigest)
+}
+
+// Use @/ prefix for unscoped packages to maintain uniform 4-level directory depth
+// Scoped: @scope/pkg/version/hash
+// Unscoped: @/pkg/version/hash
+function formatGlobalVirtualStorePath (name: string, version: string, hexDigest: string): string {
   const prefix = name.startsWith('@') ? '' : '@/'
   return `${prefix}${name}/${version}/${hexDigest}`
 }

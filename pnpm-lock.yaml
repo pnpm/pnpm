@@ -1753,15 +1753,15 @@ importers:
 
   config/deps-installer:
     dependencies:
+      '@pnpm/calc-dep-state':
+        specifier: workspace:*
+        version: link:../../packages/calc-dep-state
       '@pnpm/config.config-writer':
         specifier: workspace:*
         version: link:../config-writer
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/crypto.object-hasher':
-        specifier: workspace:*
-        version: link:../../crypto/object-hasher
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
