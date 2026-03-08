@@ -1,5 +1,5 @@
 import path from 'path'
-import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
+import type { ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 
 export interface GetEditDirOptions {
   modulesDir: string

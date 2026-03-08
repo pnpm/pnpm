@@ -6,7 +6,7 @@ import { formatWarn } from '@pnpm/default-reporter'
 import { createStoreController } from '@pnpm/store-connection-manager'
 import { installConfigDeps } from '@pnpm/config.deps-installer'
 import { requireHooks } from '@pnpm/pnpmfile'
-import { type ConfigDependencies } from '@pnpm/types'
+import type { ConfigDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export async function getConfig (
@@ -36,6 +36,7 @@ export async function getConfig (
       registries: config.registries,
       rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
       store: store.ctrl,
+      storeDir: store.dir,
     })
   }
   if (!config.ignorePnpmfile) {

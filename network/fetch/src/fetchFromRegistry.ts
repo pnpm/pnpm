@@ -1,6 +1,6 @@
 import { URL } from 'url'
-import { type SslConfig } from '@pnpm/types'
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import type { SslConfig } from '@pnpm/types'
+import type { FetchFromRegistry } from '@pnpm/fetching-types'
 import { getAgent, type AgentOptions } from '@pnpm/network.agent'
 import { fetch, isRedirect, type Response, type RequestInfo, type RequestInit } from './fetch.js'
 

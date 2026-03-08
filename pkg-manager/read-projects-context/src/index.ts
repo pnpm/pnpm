@@ -4,14 +4,14 @@ import path from 'path'
 import { getLockfileImporterId } from '@pnpm/lockfile.fs'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
-import {
-  type DepPath,
-  type DependenciesField,
-  type HoistedDependencies,
-  type ProjectId,
-  type Registries,
-  type ProjectRootDir,
-  type ProjectRootDirRealPath,
+import type {
+  DepPath,
+  DependenciesField,
+  HoistedDependencies,
+  ProjectId,
+  Registries,
+  ProjectRootDir,
+  ProjectRootDirRealPath,
 } from '@pnpm/types'
 import realpathMissing from 'realpath-missing'
 

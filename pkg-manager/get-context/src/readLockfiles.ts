@@ -12,7 +12,7 @@ import {
   readWantedLockfileAndAutofixConflicts,
 } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
-import { type ProjectId, type ProjectRootDir } from '@pnpm/types'
+import type { ProjectId, ProjectRootDir } from '@pnpm/types'
 import { clone, equals } from 'ramda'
 
 export interface PnpmContext {

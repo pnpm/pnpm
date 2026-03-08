@@ -1,7 +1,7 @@
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
-import { type DependenciesField, type ProjectId } from '@pnpm/types'
+import type { DependenciesField, ProjectId } from '@pnpm/types'
 
 export function lockfileToPackages (
   lockfile: LockfileObject,

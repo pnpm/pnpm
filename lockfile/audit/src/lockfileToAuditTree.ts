@@ -1,9 +1,9 @@
 import path from 'path'
-import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
+import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { detectDepTypes, type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
-import { type DependenciesField, type ProjectId } from '@pnpm/types'
+import type { DependenciesField, ProjectId } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { map as mapValues } from 'ramda'
 

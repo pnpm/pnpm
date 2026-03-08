@@ -8,7 +8,7 @@ import { createStoreController } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
-import { type InstallCommandOptions } from './install.js'
+import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { writeSettings } from '@pnpm/config.config-writer'
 
@@ -223,6 +223,7 @@ export async function handler (
     await resolveConfigDeps(params, {
       ...opts,
       store: store.ctrl,
+      storeDir: store.dir,
       rootDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
     })
     return

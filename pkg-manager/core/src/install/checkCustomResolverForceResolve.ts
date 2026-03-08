@@ -1,5 +1,5 @@
-import { type LockfileObject } from '@pnpm/lockfile.types'
-import { type CustomResolver } from '@pnpm/hooks.types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { CustomResolver } from '@pnpm/hooks.types'
 
 /**
  * Check if any custom resolver's shouldRefreshResolution returns true for any

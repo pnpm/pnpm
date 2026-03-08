@@ -11,7 +11,7 @@ import {
   NoMatchingVersionError,
 } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type Registries, type ProjectRootDir } from '@pnpm/types'
+import type { Registries, ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import { omit } from 'ramda'

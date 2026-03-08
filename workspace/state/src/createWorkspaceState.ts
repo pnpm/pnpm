@@ -1,5 +1,5 @@
 import { pick } from 'ramda'
-import { type ConfigDependencies } from '@pnpm/types'
+import type { ConfigDependencies } from '@pnpm/types'
 import { WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings, type ProjectsList } from './types.js'
 
 export interface CreateWorkspaceStateOptions {

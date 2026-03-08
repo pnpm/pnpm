@@ -1,5 +1,5 @@
-import { type PackageManifest, type Registries } from '@pnpm/types'
-import { type StoreIndex } from '@pnpm/store.index'
+import type { PackageManifest, Registries } from '@pnpm/types'
+import type { StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
 import { readPackageJson } from '@pnpm/read-package-json'
 import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'

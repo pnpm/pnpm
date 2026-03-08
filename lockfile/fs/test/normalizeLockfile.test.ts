@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type ProjectId } from '@pnpm/types'
+import type { ProjectId } from '@pnpm/types'
 import { convertToLockfileFile } from '../lib/lockfileFormatConverters.js'
 
 test('empty overrides and neverBuiltDependencies are removed during lockfile normalization', () => {

@@ -1,5 +1,5 @@
-import { type Config } from './Config.js'
-import { type types } from './types.js'
+import type { Config } from './Config.js'
+import type { types } from './types.js'
 
 const CLI_OPTION_NAMES = ['cpu', 'libc', 'os'] as const satisfies Array<keyof typeof types>
 type CliOptionName = typeof CLI_OPTION_NAMES[number]

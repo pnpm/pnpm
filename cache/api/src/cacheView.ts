@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { glob } from 'tinyglobby'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
-import { type PackageMeta } from '@pnpm/npm-resolver'
+import type { PackageMeta } from '@pnpm/npm-resolver'
 import getRegistryName from 'encode-registry'
 
 interface CachedVersions {

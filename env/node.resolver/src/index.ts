@@ -1,19 +1,19 @@
 import { getNodeBinsForCurrentOS } from '@pnpm/constants'
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import {
-  type BinaryResolution,
-  type PlatformAssetResolution,
-  type PlatformAssetTarget,
-  type ResolveOptions,
-  type ResolveResult,
-  type VariationsResolution,
-  type WantedDependency,
+import type { FetchFromRegistry } from '@pnpm/fetching-types'
+import type {
+  BinaryResolution,
+  PlatformAssetResolution,
+  PlatformAssetTarget,
+  ResolveOptions,
+  ResolveResult,
+  VariationsResolution,
+  WantedDependency,
 } from '@pnpm/resolver-base'
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
-import { type PkgResolutionId } from '@pnpm/types'
+import type { PkgResolutionId } from '@pnpm/types'
 import { parseNodeSpecifier } from './parseNodeSpecifier.js'
 import { getNodeMirror } from './getNodeMirror.js'
 import { getNodeArtifactAddress } from './getNodeArtifactAddress.js'

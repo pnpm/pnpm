@@ -10,8 +10,8 @@ import { DEPENDENCIES_FIELDS, type ProjectManifest, type Project } from '@pnpm/t
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import {
-  type WorkspacePackages,
+import type {
+  WorkspacePackages,
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
 import { pick, partition } from 'ramda'

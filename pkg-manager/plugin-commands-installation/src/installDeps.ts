@@ -10,16 +10,16 @@ import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import {
-  type IncludedDependencies,
-  type Project,
-  type ProjectsGraph,
-  type ProjectRootDir,
-  type PackageVulnerabilityAudit,
-  type VulnerabilitySeverity,
+import type {
+  IncludedDependencies,
+  Project,
+  ProjectsGraph,
+  ProjectRootDir,
+  PackageVulnerabilityAudit,
+  VulnerabilitySeverity,
 } from '@pnpm/types'
 import {
   IgnoredBuildsError,
@@ -34,7 +34,7 @@ import { sequenceGraph } from '@pnpm/sort-packages'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
-import { type PreferredVersions, type VersionSelectors } from '@pnpm/resolver-base'
+import type { PreferredVersions, VersionSelectors } from '@pnpm/resolver-base'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import {

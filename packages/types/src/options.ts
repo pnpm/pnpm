@@ -1,5 +1,5 @@
-import { type DependenciesField } from './misc.js'
-import { type BaseManifest, type DependencyManifest } from './package.js'
+import type { DependenciesField } from './misc.js'
+import type { BaseManifest, DependencyManifest } from './package.js'
 
 export type LogBase = {
   level: 'debug' | 'error'

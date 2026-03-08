@@ -5,7 +5,7 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { type ProjectManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
+import type { ProjectManifest, ProjectId, ProjectRootDir } from '@pnpm/types'
 import {
   addDependenciesToPackage,
   type MutatedProject,

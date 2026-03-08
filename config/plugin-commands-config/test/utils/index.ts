@@ -4,7 +4,7 @@ import { readIniFileSync } from 'read-ini-file'
 import { writeIniFileSync } from 'write-ini-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { type config } from '../../src/index.js'
+import type { config } from '../../src/index.js'
 
 export function getOutputString (result: config.ConfigHandlerResult): string {
   if (result == null) throw new Error('output is null or undefined')

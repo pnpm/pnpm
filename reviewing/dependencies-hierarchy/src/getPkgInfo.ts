@@ -1,16 +1,16 @@
 import path from 'path'
-import {
-  type PackageSnapshot,
-  type PackageSnapshots,
-  type TarballResolution,
+import type {
+  PackageSnapshot,
+  PackageSnapshots,
+  TarballResolution,
 } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
-import { type StoreIndex } from '@pnpm/store.index'
-import { type DependencyManifest, type Registries } from '@pnpm/types'
+import type { StoreIndex } from '@pnpm/store.index'
+import type { DependencyManifest, Registries } from '@pnpm/types'
 import { refToRelative } from '@pnpm/dependency-path'
 import { readPackageJsonFromDirSync } from '@pnpm/read-package-json'
 import normalizePath from 'normalize-path'
