@@ -61,12 +61,12 @@ export async function resolveFromHomebrew (
   const formulaSlug = formula.full_name.replace(/\+/g, 'x').replace(/\//g, '--')
 
   // Get anonymous GHCR token (one token works for all platforms of the same formula)
-  const token = await getGhcrToken(fetchFromRegistry, formulaSlug)
+  const token = await getGhcrToken(formulaSlug)
 
   // Resolve bottle URLs in parallel
   const entries = Object.entries(formula.bottle.stable.files)
   const resolvedUrls = await Promise.all(
-    entries.map(([, file]) => resolveGhcrBlobUrl(fetchFromRegistry, file.url, token))
+    entries.map(([, file]) => resolveGhcrBlobUrl(file.url, token))
   )
 
   const assets: PlatformAssetResolution[] = []
@@ -134,11 +134,10 @@ async function fetchHomebrewFormula (
 }
 
 async function getGhcrToken (
-  fetchFromRegistry: FetchFromRegistry,
   formulaSlug: string
 ): Promise<string> {
   const tokenUrl = `https://ghcr.io/token?scope=${encodeURIComponent(`repository:homebrew/core/${formulaSlug}:pull`)}&service=ghcr.io`
-  const res = await fetchFromRegistry(tokenUrl)
+  const res = await globalThis.fetch(tokenUrl)
   if (!res.ok) {
     throw new PnpmError('BROOP_GHCR_TOKEN', `Failed to get GHCR token for "${formulaSlug}": ${res.status}`)
   }
@@ -147,14 +146,15 @@ async function getGhcrToken (
 }
 
 async function resolveGhcrBlobUrl (
-  fetchFromRegistry: FetchFromRegistry,
   ghcrBlobUrl: string,
   token: string
 ): Promise<string> {
-  // Request the blob with redirect: manual to capture the CDN URL
-  const res = await fetchFromRegistry(ghcrBlobUrl, {
+  // Use globalThis.fetch with redirect: 'manual' to capture the CDN redirect URL.
+  // pnpm's fetchFromRegistry does not pass through the redirect option,
+  // so it would follow the redirect and we'd lose the location header.
+  const res = await globalThis.fetch(ghcrBlobUrl, {
     redirect: 'manual',
-    authHeaderValue: `Bearer ${token}`,
+    headers: { Authorization: `Bearer ${token}` },
   })
 
   const location = res.headers.get('location')

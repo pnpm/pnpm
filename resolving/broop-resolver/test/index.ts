@@ -101,7 +101,7 @@ function createMockFetch (): FetchFromRegistry {
       statusText: 'Not Found',
       headers: new Headers(),
     }
-  }) as FetchFromRegistry
+  }) as unknown as FetchFromRegistry
 }
 
 test('resolveBroop returns null for non-broop specifiers', async () => {
