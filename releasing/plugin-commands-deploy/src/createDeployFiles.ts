@@ -152,9 +152,9 @@ export function createDeployFiles ({
   }
 
   if (lockfile.patchedDependencies) {
-    result.lockfile.patchedDependencies = { ...lockfile.patchedDependencies }
     const manifestPatchedDeps = rootProjectManifest?.pnpm?.patchedDependencies
     if (manifestPatchedDeps) {
+      result.lockfile.patchedDependencies = { ...lockfile.patchedDependencies }
       result.manifest.pnpm!.patchedDependencies = {}
       for (const name in manifestPatchedDeps) {
         const resolvedPath = path.resolve(rootProjectManifestDir, manifestPatchedDeps[name])
