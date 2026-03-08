@@ -1,9 +1,9 @@
 import * as dp from '@pnpm/dependency-path'
 import { PnpmError } from '@pnpm/error'
-import type { PatchFile, PatchGroup, PatchGroupRecord } from '@pnpm/patching.types'
+import type { PatchGroup, PatchGroupRecord } from '@pnpm/patching.types'
 import { validRange } from 'semver'
 
-export function groupPatchedDependencies (patchedDependencies: Record<string, PatchFile>): PatchGroupRecord {
+export function groupPatchedDependencies (patchedDependencies: Record<string, string>): PatchGroupRecord {
   const result: PatchGroupRecord = {}
   function getGroup (name: string): PatchGroup {
     let group: PatchGroup | undefined = result[name]
@@ -18,11 +18,11 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
   }
 
   for (const key in patchedDependencies) {
-    const file = patchedDependencies[key]
+    const hash = patchedDependencies[key]
     const { name, version, nonSemverVersion } = dp.parse(key)
 
     if (name && version) {
-      getGroup(name).exact[version] = { file, key }
+      getGroup(name).exact[version] = { hash, key }
       continue
     }
 
@@ -31,17 +31,17 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
         throw new PnpmError('PATCH_NON_SEMVER_RANGE', `${nonSemverVersion} is not a valid semantic version range.`)
       }
       if (nonSemverVersion.trim() === '*') {
-        getGroup(name).all = { file, key }
+        getGroup(name).all = { hash, key }
       } else {
         getGroup(name).range.push({
           version: nonSemverVersion,
-          patch: { file, key },
+          patch: { hash, key },
         })
       }
       continue
     }
 
-    getGroup(key).all = { file, key }
+    getGroup(key).all = { hash, key }
   }
 
   return result

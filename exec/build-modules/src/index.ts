@@ -191,7 +191,7 @@ async function buildDependency<T extends string> (
     if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
-          patchFileHash: depNode.patch?.file.hash,
+          patchFileHash: depNode.patch?.hash,
           includeDepGraphHash: hasSideEffects,
         })
         await opts.storeController.upload(depNode.dir, {
