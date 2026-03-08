@@ -150,9 +150,19 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
   }
   return {
     ...omit(['snapshots'], rest),
+    patchedDependencies: migratePatchedDependencies(rest.patchedDependencies),
     packages,
     importers: mapValues(importers ?? {}, revertProjectSnapshot),
   }
+}
+
+function migratePatchedDependencies (patchedDependencies: Record<string, string | { hash: string }> | undefined): Record<string, string> | undefined {
+  if (!patchedDependencies) return undefined
+  const result: Record<string, string> = {}
+  for (const [key, value] of Object.entries(patchedDependencies)) {
+    result[key] = typeof value === 'string' ? value : value.hash
+  }
+  return result
 }
 
 function convertProjectSnapshotToInlineSpecifiersFormat (
