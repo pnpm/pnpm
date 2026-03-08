@@ -1753,6 +1753,9 @@ importers:
 
   config/deps-installer:
     dependencies:
+      '@pnpm/calc-dep-state':
+        specifier: workspace:*
+        version: link:../../packages/calc-dep-state
       '@pnpm/config.config-writer':
         specifier: workspace:*
         version: link:../config-writer
@@ -1798,6 +1801,9 @@ importers:
       get-npm-tarball-url:
         specifier: 'catalog:'
         version: 2.1.0
+      symlink-dir:
+        specifier: 'catalog:'
+        version: 7.1.0
     devDependencies:
       '@pnpm/config.deps-installer':
         specifier: workspace:*
