@@ -429,9 +429,7 @@ export async function mutateModules (
     const patchGroupInput = opts.patchedDependencies
       ? Object.fromEntries(
         Object.entries(patchedDependencies ?? {}).map(([key, hash]) => {
-          const patchFilePath = opts.patchedDependencies![key]
-            ? path.join(opts.lockfileDir, opts.patchedDependencies![key])
-            : undefined
+          const patchFilePath = opts.patchedDependencies![key] ?? undefined
           return [key, { hash, patchFilePath }]
         })
       )
