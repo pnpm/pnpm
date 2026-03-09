@@ -1,4 +1,4 @@
-import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 
 it('should allowBuilds with true value', () => {
   const allowBuild = createAllowBuildFunction({

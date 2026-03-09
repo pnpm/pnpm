@@ -1,6 +1,6 @@
 {
-  "name": "@pnpm/builder.policy",
-  "version": "1000.0.0",
+  "name": "@pnpm/building.policy",
+  "version": "1000.0.0-0",
   "description": "Create a function for filtering out dependencies that are not allowed to be built",
   "keywords": [
     "pnpm",
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/builder/policy",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/builder/policy#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/building/policy",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/building/policy#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -35,7 +35,7 @@
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/builder.policy": "workspace:*"
+    "@pnpm/building.policy": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

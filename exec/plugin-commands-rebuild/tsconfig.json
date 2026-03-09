@@ -22,7 +22,7 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../builder/policy"
+      "path": "../../building/after-install"
     },
     {
       "path": "../../cli/cli-utils"
@@ -34,55 +34,16 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../config/normalize-registries"
-    },
-    {
       "path": "../../crypto/object-hasher"
     },
     {
-      "path": "../../deps/graph-sequencer"
-    },
-    {
-      "path": "../../lockfile/types"
-    },
-    {
-      "path": "../../lockfile/utils"
-    },
-    {
-      "path": "../../lockfile/walker"
-    },
-    {
-      "path": "../../packages/calc-dep-state"
-    },
-    {
       "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/dependency-path"
-    },
-    {
-      "path": "../../packages/error"
     },
     {
       "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/get-context"
-    },
-    {
-      "path": "../../pkg-manager/link-bins"
-    },
-    {
-      "path": "../../pkg-manager/modules-yaml"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
     },
     {
       "path": "../../store/cafs"
@@ -94,25 +55,10 @@
       "path": "../../store/store-connection-manager"
     },
     {
-      "path": "../../store/store-controller-types"
-    },
-    {
-      "path": "../../worker"
-    },
-    {
       "path": "../../workspace/filter-packages-from-dir"
     },
     {
-      "path": "../../workspace/find-packages"
-    },
-    {
       "path": "../../workspace/sort-packages"
-    },
-    {
-      "path": "../lifecycle"
-    },
-    {
-      "path": "../pkg-requires-build"
     }
   ]
 }

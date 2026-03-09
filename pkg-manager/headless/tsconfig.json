@@ -22,7 +22,7 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../builder/policy"
+      "path": "../../building/policy"
     },
     {
       "path": "../../config/package-is-installable"
