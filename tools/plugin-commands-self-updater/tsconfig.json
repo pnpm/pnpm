@@ -28,31 +28,22 @@
       "path": "../../env/path"
     },
     {
-      "path": "../../global/packages"
+      "path": "../../global/commands"
     },
     {
-      "path": "../../lockfile/types"
+      "path": "../../global/packages"
     },
     {
       "path": "../../packages/error"
     },
     {
-      "path": "../../packages/types"
-    },
-    {
       "path": "../../pkg-manager/client"
-    },
-    {
-      "path": "../../pkg-manager/headless"
     },
     {
       "path": "../../pkg-manager/link-bins"
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
-      "path": "../../store/package-store"
     },
     {
       "path": "../../store/store-connection-manager"

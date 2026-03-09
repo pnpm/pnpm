@@ -1,12 +1,9 @@
-import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
-import { linkBins } from '@pnpm/link-bins'
-import { globalWarn } from '@pnpm/logger'
 import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
@@ -40,6 +37,7 @@ export function help (): string {
 }
 
 export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Config,
+| 'bin'
 | 'globalPkgDir'
 | 'lockfileDir'
 | 'managePackageManagerVersions'
@@ -96,7 +94,7 @@ export async function handler (
   const configLockfileDir = projectManifest != null ? opts.rootProjectManifestDir : opts.pnpmHomeDir
 
   // Always resolve integrities and write pnpm-config-lock.yaml
-  const configLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
+  await resolvePackageManagerIntegrities(resolution.manifest.version, {
     registries: opts.registries,
     rootDir: configLockfileDir,
     storeController: store.ctrl,
@@ -111,16 +109,8 @@ export async function handler (
 
   const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, {
     ...opts,
-    configLockfile,
-    rootProjectManifestDir: configLockfileDir,
-    storeController: store.ctrl,
-    storeDir: store.dir,
+    bin: opts.pnpmHomeDir,
   })
-  await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir,
-    {
-      warn: globalWarn,
-    }
-  )
   if (alreadyExisted) {
     return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
   }

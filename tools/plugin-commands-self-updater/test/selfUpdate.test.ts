@@ -116,19 +116,25 @@ function mockExeMetadata (registry: string, version: string) {
     .reply(200, createExeMetadata(version, registry))
 }
 
+/**
+ * Mock all registry requests needed for a full self-update flow.
+ * This includes: initial resolution, resolvePackageManagerIntegrities, and handleGlobalAdd.
+ */
+function mockRegistryForUpdate (registry: string, version: string, metadata: object) {
+  // Use persist for metadata since multiple components request it
+  nock(registry)
+    .persist()
+    .get('/pnpm')
+    .reply(200, metadata)
+  mockExeMetadata(registry, version)
+  nock(registry)
+    .get(`/pnpm/-/pnpm-${version}.tgz`)
+    .replyWithFile(200, pnpmTarballPath)
+}
+
 test('self-update', async () => {
   const opts = prepare()
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.1.0', opts.registries.default))
-  // Mock metadata needed by resolvePackageManagerIntegrities
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.1.0', opts.registries.default))
-  mockExeMetadata(opts.registries.default, '9.1.0')
-  nock(opts.registries.default)
-    .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, pnpmTarballPath)
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
 
   await selfUpdate.handler(opts, [])
 
@@ -153,13 +159,11 @@ test('self-update', async () => {
 
 test('self-update by exact version', async () => {
   const opts = prepare()
+  const metadata = createMetadata('9.2.0', opts.registries.default, ['9.1.0'])
   nock(opts.registries.default)
+    .persist()
     .get('/pnpm')
-    .reply(200, createMetadata('9.2.0', opts.registries.default, ['9.1.0']))
-  // Mock metadata needed by resolvePackageManagerIntegrities
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.2.0', opts.registries.default, ['9.1.0']))
+    .reply(200, metadata)
   mockExeMetadata(opts.registries.default, '9.1.0')
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
@@ -204,10 +208,7 @@ test('should update packageManager field when a newer pnpm version is available'
     packageManager: 'pnpm@8.0.0',
   }), 'utf8')
   nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.0.0', opts.registries.default))
-  // Mock metadata needed by resolvePackageManagerIntegrities
-  nock(opts.registries.default)
+    .persist()
     .get('/pnpm')
     .reply(200, createMetadata('9.0.0', opts.registries.default))
   mockExeMetadata(opts.registries.default, '9.0.0')
@@ -255,24 +256,16 @@ test('self-update finds pnpm that is already in the global dir', async () => {
   // Pre-create a pnpm package in the global dir with a hash symlink
   const installDir = path.join(globalDir, 'test-install')
   const pkgDir = path.join(installDir, 'node_modules', 'pnpm')
-  const binDir = path.join(installDir, 'bin')
   fs.mkdirSync(pkgDir, { recursive: true })
-  fs.mkdirSync(binDir, { recursive: true })
   fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { pnpm: '9.2.0' } }), 'utf8')
   fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '9.2.0', bin: { pnpm: 'bin.js' } }), 'utf8')
   fs.writeFileSync(path.join(pkgDir, 'bin.js'), `#!/usr/bin/env node
 console.log('9.2.0')`, 'utf8')
-  // Create a bin shim like linkBins would have created
-  const shimContent = `#!/bin/sh\nexec node "${path.join(pkgDir, 'bin.js')}" "$@"\n`
-  fs.writeFileSync(path.join(binDir, 'pnpm'), shimContent, { mode: 0o755 })
   // Create a hash symlink pointing to the install dir (like handleGlobalAdd does)
   fs.symlinkSync(installDir, path.join(globalDir, 'fake-hash'))
 
   nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.2.0', opts.registries.default))
-  // Mock metadata needed by resolvePackageManagerIntegrities
-  nock(opts.registries.default)
+    .persist()
     .get('/pnpm')
     .reply(200, createMetadata('9.2.0', opts.registries.default))
   mockExeMetadata(opts.registries.default, '9.2.0')
@@ -301,18 +294,9 @@ test('self-update works globally without package.json', async () => {
     ...prepareOptions(dir),
     globalPkgDir: path.join(pnpmHomeDir, 'global', 'v11'),
     pnpmHomeDir,
+    bin: pnpmHomeDir,
   }
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.1.0', opts.registries.default))
-  // Mock metadata needed by resolvePackageManagerIntegrities
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.1.0', opts.registries.default))
-  mockExeMetadata(opts.registries.default, '9.1.0')
-  nock(opts.registries.default)
-    .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, pnpmTarballPath)
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
 
   await selfUpdate.handler(opts, [])
 
@@ -353,16 +337,13 @@ test('self-update updates the packageManager field in package.json', async () =>
     },
   }
   nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.1.0', opts.registries.default))
-  nock(opts.registries.default)
-    .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, pnpmTarballPath)
-  // Mock metadata needed by resolvePackageManagerIntegrities
-  nock(opts.registries.default)
+    .persist()
     .get('/pnpm')
     .reply(200, createMetadata('9.1.0', opts.registries.default))
   mockExeMetadata(opts.registries.default, '9.1.0')
+  nock(opts.registries.default)
+    .get('/pnpm/-/pnpm-9.1.0.tgz')
+    .replyWithFile(200, pnpmTarballPath)
 
   const output = await selfUpdate.handler(opts, [])
 

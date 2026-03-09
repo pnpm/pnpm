@@ -37,17 +37,13 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/config.deps-installer": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/global.commands": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
-    "@pnpm/headless": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
-    "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/package-store": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "ramda": "catalog:",
-    "render-help": "catalog:",
-    "symlink-dir": "catalog:"
+    "render-help": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
