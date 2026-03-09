@@ -74,6 +74,12 @@ function createEnv (
 
   if (opts.userConfigPath) {
     env.npm_config_userconfig = opts.userConfigPath
+    // Remove globalconfig from the environment to prevent npm from loading
+    // the same file as both "user" and "global" config. The npm_config_globalconfig
+    // env var may be inherited from a parent pnpm process (set by npm-lifecycle
+    // from pnpm's rawConfig), and it points to pnpm's own config file which
+    // conflicts with the userconfig we're explicitly setting here.
+    delete env.npm_config_globalconfig
   }
 
   return env
