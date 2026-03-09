@@ -38,7 +38,9 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/fetch": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/package-store": "workspace:*",
@@ -50,6 +52,7 @@
     "@zkochan/rimraf": "catalog:",
     "get-npm-tarball-url": "catalog:",
     "js-yaml": "catalog:",
+    "path-temp": "catalog:",
     "strip-bom": "catalog:",
     "symlink-dir": "catalog:",
     "write-file-atomic": "catalog:"

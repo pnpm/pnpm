@@ -1768,9 +1768,15 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/exec.pnpm-cli-runner':
+        specifier: workspace:*
+        version: link:../../exec/pnpm-cli-runner
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
@@ -1807,6 +1813,9 @@ importers:
       js-yaml:
         specifier: 'catalog:'
         version: '@zkochan/js-yaml@0.0.11'
+      path-temp:
+        specifier: 'catalog:'
+        version: 2.1.1
       strip-bom:
         specifier: 'catalog:'
         version: 5.0.0
@@ -8934,6 +8943,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/config.deps-installer':
+        specifier: workspace:*
+        version: link:../../config/deps-installer
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error

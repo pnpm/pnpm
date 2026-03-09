@@ -3,6 +3,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
@@ -74,6 +75,9 @@ export async function handler (
       const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
       manifest.packageManager = `pnpm@${resolution.manifest.version}`
       await writeProjectManifest(manifest)
+      await resolvePackageManagerIntegrities(resolution.manifest.version, {
+        rootDir: opts.rootProjectManifestDir,
+      })
       return `The current project has been updated to use pnpm v${resolution.manifest.version}`
     } else {
       return `The current project is already set to use pnpm v${resolution.manifest.version}`

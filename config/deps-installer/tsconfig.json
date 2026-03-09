@@ -13,7 +13,13 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../exec/pnpm-cli-runner"
+    },
+    {
       "path": "../../fs/read-modules-dir"
+    },
+    {
+      "path": "../../lockfile/fs"
     },
     {
       "path": "../../network/auth-header"
