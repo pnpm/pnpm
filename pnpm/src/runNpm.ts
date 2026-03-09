@@ -1,4 +1,3 @@
-import path from 'path'
 import { type SpawnSyncReturns } from 'child_process'
 import { packageManager } from '@pnpm/cli-meta'
 import { getConfig, types as allTypes } from '@pnpm/config'
@@ -15,8 +14,5 @@ export async function runNpm (args: string[]): Promise<SpawnSyncReturns<Buffer>>
       ], allTypes),
     },
   })
-  return _runNpm(config.npmPath, args, {
-    // This code is only used in `passThruToNpm`, so it is safe to specify `userConfigPath` here.
-    userConfigPath: path.join(config.configDir, 'rc'),
-  })
+  return _runNpm(config.npmPath, args)
 }

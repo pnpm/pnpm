@@ -1,4 +1,3 @@
-import path from 'path'
 import kebabCase from 'lodash.kebabcase'
 import { encode } from 'ini'
 import { globalWarn } from '@pnpm/logger'
@@ -14,10 +13,7 @@ export function configGet (opts: ConfigCommandOptions, key: string): { output: s
   // Exclude scoped keys from npm fallback because they are pnpm-native config
   // that can be read directly from rawConfig (e.g., '@scope:registry')
   if (opts.global && settingShouldFallBackToNpm(key) && !isScopedKey) {
-    const { status: exitCode } = runNpm(opts.npmPath, ['config', 'get', key], {
-      location: 'user',
-      userConfigPath: path.join(opts.configDir, 'rc'),
-    })
+    const { status: exitCode } = runNpm(opts.npmPath, ['config', 'get', key])
     return { output: '', exitCode: exitCode ?? 0 }
   }
 
