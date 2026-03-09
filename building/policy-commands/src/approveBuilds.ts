@@ -1,13 +1,13 @@
+import { rebuild, type RebuildCommandOpts } from '@pnpm/building.build-commands'
 import type { Config } from '@pnpm/config'
+import { writeSettings } from '@pnpm/config.config-writer'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import renderHelp from 'render-help'
-import enquirer from 'enquirer'
 import chalk from 'chalk'
-import { rebuild, type RebuildCommandOpts } from '@pnpm/building.build-commands'
-import { writeSettings } from '@pnpm/config.config-writer'
+import enquirer from 'enquirer'
+import renderHelp from 'render-help'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
 export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds'> & { all?: boolean, global?: boolean }

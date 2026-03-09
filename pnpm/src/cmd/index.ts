@@ -1,7 +1,8 @@
+import { rebuild } from '@pnpm/building.build-commands'
+import { approveBuilds, ignoredBuilds } from '@pnpm/building.policy-commands'
 import { cache } from '@pnpm/cache.commands'
 import type { CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
-import { approveBuilds, ignoredBuilds } from '@pnpm/building.policy-commands'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { generateCompletion, createCompletionServer } from '@pnpm/plugin-commands-completion'
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
@@ -17,7 +18,6 @@ import { sbom } from '@pnpm/plugin-commands-sbom'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
-import { rebuild } from '@pnpm/building.build-commands'
 import {
   create,
   dlx,

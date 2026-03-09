@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import { rebuild } from '@pnpm/building.build-commands'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   type RecursiveSummary,
@@ -18,7 +19,6 @@ import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { createMatcherWithIndex } from '@pnpm/matcher'
-import { rebuild } from '@pnpm/building.build-commands'
 import type { StoreController } from '@pnpm/package-store'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { sortPackages } from '@pnpm/sort-packages'
