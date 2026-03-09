@@ -6,7 +6,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 import renderHelp from 'render-help'
 import enquirer from 'enquirer'
 import chalk from 'chalk'
-import { rebuild, type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
+import { rebuild, type RebuildCommandOpts } from '@pnpm/building.build-commands'
 import { writeSettings } from '@pnpm/config.config-writer'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 

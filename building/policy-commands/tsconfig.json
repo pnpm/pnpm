@@ -34,7 +34,7 @@
       "path": "../../pkg-manager/modules-yaml"
     },
     {
-      "path": "../plugin-commands-rebuild"
+      "path": "../build-commands"
     }
   ]
 }

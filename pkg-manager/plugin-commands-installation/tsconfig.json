@@ -25,6 +25,9 @@
       "path": "../../building/after-install"
     },
     {
+      "path": "../../building/build-commands"
+    },
+    {
       "path": "../../catalogs/types"
     },
     {
@@ -56,9 +59,6 @@
     },
     {
       "path": "../../deps/status"
-    },
-    {
-      "path": "../../exec/plugin-commands-rebuild"
     },
     {
       "path": "../../fs/graceful-fs"
