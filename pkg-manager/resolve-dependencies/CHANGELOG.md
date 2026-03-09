@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 1008.7.7
+
+### Patch Changes
+
+- 09ad114: Reverted fix related to `lockfile-include-tarball-url`. Fixes [#10915](https://github.com/pnpm/pnpm/issues/10915).
+
 ## 1008.7.6
 
 ### Patch Changes

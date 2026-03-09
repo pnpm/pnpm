@@ -1,5 +1,11 @@
 # @pnpm/run-npm
 
+## 1000.1.1
+
+### Patch Changes
+
+- f733456: Reverted change related to setting explicitly the npm config file path, which caused regressions.
+
 ## 1000.1.0
 
 ### Minor Changes

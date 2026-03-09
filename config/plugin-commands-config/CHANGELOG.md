@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-config
 
+## 1000.3.20
+
+### Patch Changes
+
+- f733456: Reverted change related to setting explicitly the npm config file path, which caused regressions.
+- Updated dependencies [f733456]
+  - @pnpm/run-npm@1000.1.1
+
 ## 1000.3.19
 
 ### Patch Changes

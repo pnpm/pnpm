@@ -1,5 +1,16 @@
 # pnpm
 
+## 10.32.0
+
+### Minor Changes
+
+- Added `--all` flag to `pnpm approve-builds` that approves all pending builds without interactive prompts [#10136](https://github.com/pnpm/pnpm/issues/10136).
+
+### Patch Changes
+
+- Reverted change related to setting explicitly the npm config file path, which caused regressions.
+- Reverted fix related to `lockfile-include-tarball-url`. Fixes [#10915](https://github.com/pnpm/pnpm/issues/10915).
+
 ## 10.31.0
 
 ### Minor Changes

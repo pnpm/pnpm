@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.3.14
+
+### Patch Changes
+
+- Updated dependencies [f733456]
+  - @pnpm/run-npm@1000.1.1
+
 ## 1000.3.13
 
 ### Patch Changes

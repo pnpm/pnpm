@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 1016.1.11
+
+### Patch Changes
+
+- Updated dependencies [09ad114]
+  - @pnpm/resolve-dependencies@1008.7.7
+
 ## 1016.1.10
 
 ### Patch Changes

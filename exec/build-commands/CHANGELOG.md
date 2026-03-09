@@ -1,5 +1,11 @@
 # @pnpm/exec.build-commands
 
+## 1002.1.0
+
+### Minor Changes
+
+- 39aa198: Added `--all` flag to `pnpm approve-builds` that approves all pending builds without interactive prompts [#10136](https://github.com/pnpm/pnpm/issues/10136).
+
 ## 1002.0.14
 
 ### Patch Changes
