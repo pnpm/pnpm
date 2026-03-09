@@ -31,7 +31,7 @@
     "test": "pnpm run compile"
   },
   "dependencies": {
-    "@pnpm/builder.policy": "workspace:*",
+    "@pnpm/building.policy": "workspace:*",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",

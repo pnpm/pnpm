@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../builder/policy"
-    },
-    {
       "path": "../../config/config"
     },
     {
@@ -80,6 +77,9 @@
     },
     {
       "path": "../../worker"
+    },
+    {
+      "path": "../policy"
     }
   ]
 }

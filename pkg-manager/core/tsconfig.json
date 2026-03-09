@@ -25,10 +25,10 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../builder/policy"
+      "path": "../../building/after-install"
     },
     {
-      "path": "../../building/after-install"
+      "path": "../../building/policy"
     },
     {
       "path": "../../catalogs/protocol-parser"

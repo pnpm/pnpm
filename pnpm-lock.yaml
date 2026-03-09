@@ -1216,24 +1216,11 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  builder/policy:
-    dependencies:
-      '@pnpm/config.version-policy':
-        specifier: workspace:*
-        version: link:../../config/version-policy
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-    devDependencies:
-      '@pnpm/builder.policy':
-        specifier: workspace:*
-        version: 'link:'
-
   building/after-install:
     dependencies:
-      '@pnpm/builder.policy':
+      '@pnpm/building.policy':
         specifier: workspace:*
-        version: link:../../builder/policy
+        version: link:../policy
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
@@ -1328,6 +1315,19 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1
+
+  building/policy:
+    dependencies:
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../config/version-policy
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: 'link:'
 
   cache/api:
     dependencies:
@@ -2736,12 +2736,12 @@ importers:
 
   exec/plugin-commands-rebuild:
     dependencies:
-      '@pnpm/builder.policy':
-        specifier: workspace:*
-        version: link:../../builder/policy
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../../building/after-install
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../../building/policy
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
@@ -5086,12 +5086,12 @@ importers:
       '@pnpm/build-modules':
         specifier: workspace:*
         version: link:../../exec/build-modules
-      '@pnpm/builder.policy':
-        specifier: workspace:*
-        version: link:../../builder/policy
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../../building/after-install
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../../building/policy
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
@@ -5458,9 +5458,9 @@ importers:
       '@pnpm/build-modules':
         specifier: workspace:*
         version: link:../../exec/build-modules
-      '@pnpm/builder.policy':
+      '@pnpm/building.policy':
         specifier: workspace:*
-        version: link:../../builder/policy
+        version: link:../../building/policy
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state

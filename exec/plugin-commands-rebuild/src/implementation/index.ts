@@ -34,7 +34,7 @@ import type {
   ProjectId,
   ProjectRootDir,
 } from '@pnpm/types'
-import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
 import { StoreIndex } from '@pnpm/store.index'

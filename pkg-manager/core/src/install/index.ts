@@ -1,6 +1,6 @@
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
-import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { rebuildSelectedPkgs } from '@pnpm/building.after-install'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
