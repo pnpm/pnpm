@@ -66,7 +66,7 @@ function findPackages (
       if (!pkgInfo.name) {
         logger.warn({
           message: `Skipping ${relativeDepPath} because cannot get the package name from ${WANTED_LOCKFILE}.
-            Try to run run \`pnpm update --depth 100\` to create a new ${WANTED_LOCKFILE} with all the necessary info.`,
+            Try to run \`pnpm update --depth 100\` to create a new ${WANTED_LOCKFILE} with all the necessary info.`,
           prefix: opts.prefix,
         })
         return false
