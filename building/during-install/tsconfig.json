@@ -16,6 +16,9 @@
       "path": "../../deps/graph-sequencer"
     },
     {
+      "path": "../../exec/lifecycle"
+    },
+    {
       "path": "../../fs/hard-link-dir"
     },
     {
@@ -53,9 +56,6 @@
     },
     {
       "path": "../../worker"
-    },
-    {
-      "path": "../lifecycle"
     }
   ]
 }

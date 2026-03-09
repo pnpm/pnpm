@@ -1,7 +1,7 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import util from 'util'
-import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
+import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
 import type { FilesMap } from '@pnpm/cafs-types'
 import { logger } from '@pnpm/logger'

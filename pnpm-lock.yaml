@@ -1218,6 +1218,9 @@ importers:
 
   building/after-install:
     dependencies:
+      '@pnpm/building.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../pkg-requires-build
       '@pnpm/building.policy':
         specifier: workspace:*
         version: link:../policy
@@ -1242,9 +1245,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/exec.pkg-requires-build':
-        specifier: workspace:*
-        version: link:../../exec/pkg-requires-build
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
@@ -1397,6 +1397,83 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
+
+  building/during-install:
+    dependencies:
+      '@pnpm/calc-dep-state':
+        specifier: workspace:*
+        version: link:../../packages/calc-dep-state
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/deps.graph-sequencer':
+        specifier: workspace:*
+        version: link:../../deps/graph-sequencer
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fs.hard-link-dir':
+        specifier: workspace:*
+        version: link:../../fs/hard-link-dir
+      '@pnpm/lifecycle':
+        specifier: workspace:*
+        version: link:../../exec/lifecycle
+      '@pnpm/link-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/link-bins
+      '@pnpm/patching.apply-patch':
+        specifier: workspace:*
+        version: link:../../patching/apply-patch
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../../patching/types
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../../store/store-controller-types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
+      p-defer:
+        specifier: 'catalog:'
+        version: 4.0.1
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      run-groups:
+        specifier: 'catalog:'
+        version: 4.0.0
+    devDependencies:
+      '@pnpm/building.during-install':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+
+  building/pkg-requires-build:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/building.pkg-requires-build':
+        specifier: workspace:*
+        version: 'link:'
 
   building/policy:
     dependencies:
@@ -2672,73 +2749,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  exec/build-modules:
-    dependencies:
-      '@pnpm/calc-dep-state':
-        specifier: workspace:*
-        version: link:../../packages/calc-dep-state
-      '@pnpm/config':
-        specifier: workspace:*
-        version: link:../../config/config
-      '@pnpm/core-loggers':
-        specifier: workspace:*
-        version: link:../../packages/core-loggers
-      '@pnpm/dependency-path':
-        specifier: workspace:*
-        version: link:../../packages/dependency-path
-      '@pnpm/deps.graph-sequencer':
-        specifier: workspace:*
-        version: link:../../deps/graph-sequencer
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/fs.hard-link-dir':
-        specifier: workspace:*
-        version: link:../../fs/hard-link-dir
-      '@pnpm/lifecycle':
-        specifier: workspace:*
-        version: link:../lifecycle
-      '@pnpm/link-bins':
-        specifier: workspace:*
-        version: link:../../pkg-manager/link-bins
-      '@pnpm/patching.apply-patch':
-        specifier: workspace:*
-        version: link:../../patching/apply-patch
-      '@pnpm/patching.types':
-        specifier: workspace:*
-        version: link:../../patching/types
-      '@pnpm/read-package-json':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-package-json
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@pnpm/worker':
-        specifier: workspace:^
-        version: link:../../worker
-      p-defer:
-        specifier: 'catalog:'
-        version: 4.0.1
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-      run-groups:
-        specifier: 'catalog:'
-        version: 4.0.0
-    devDependencies:
-      '@pnpm/build-modules':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
-
   exec/lifecycle:
     dependencies:
       '@pnpm/cafs-types':
@@ -2805,16 +2815,6 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
-
-  exec/pkg-requires-build:
-    dependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-    devDependencies:
-      '@pnpm/exec.pkg-requires-build':
-        specifier: workspace:*
-        version: 'link:'
 
   exec/plugin-commands-script-runners:
     dependencies:
@@ -3093,12 +3093,12 @@ importers:
 
   fetching/directory-fetcher:
     dependencies:
+      '@pnpm/building.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../../building/pkg-requires-build
       '@pnpm/cafs-types':
         specifier: workspace:*
         version: link:../../store/cafs-types
-      '@pnpm/exec.pkg-requires-build':
-        specifier: workspace:*
-        version: link:../../exec/pkg-requires-build
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
@@ -5008,12 +5008,12 @@ importers:
 
   pkg-manager/core:
     dependencies:
-      '@pnpm/build-modules':
-        specifier: workspace:*
-        version: link:../../exec/build-modules
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../../building/after-install
+      '@pnpm/building.during-install':
+        specifier: workspace:*
+        version: link:../../building/during-install
       '@pnpm/building.policy':
         specifier: workspace:*
         version: link:../../building/policy
@@ -5380,9 +5380,9 @@ importers:
 
   pkg-manager/headless:
     dependencies:
-      '@pnpm/build-modules':
+      '@pnpm/building.during-install':
         specifier: workspace:*
-        version: link:../../exec/build-modules
+        version: link:../../building/during-install
       '@pnpm/building.policy':
         specifier: workspace:*
         version: link:../../building/policy
@@ -8453,9 +8453,9 @@ importers:
 
   store/create-cafs-store:
     dependencies:
-      '@pnpm/exec.pkg-requires-build':
+      '@pnpm/building.pkg-requires-build':
         specifier: workspace:*
-        version: link:../../exec/pkg-requires-build
+        version: link:../../building/pkg-requires-build
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -9005,6 +9005,9 @@ importers:
 
   worker:
     dependencies:
+      '@pnpm/building.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../building/pkg-requires-build
       '@pnpm/cafs-types':
         specifier: workspace:*
         version: link:../store/cafs-types
@@ -9017,9 +9020,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../packages/error
-      '@pnpm/exec.pkg-requires-build':
-        specifier: workspace:*
-        version: link:../exec/pkg-requires-build
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../fs/hard-link-dir

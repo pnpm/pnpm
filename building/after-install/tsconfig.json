@@ -22,9 +22,6 @@
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../exec/pkg-requires-build"
-    },
-    {
       "path": "../../lockfile/types"
     },
     {
@@ -77,6 +74,9 @@
     },
     {
       "path": "../../worker"
+    },
+    {
+      "path": "../pkg-requires-build"
     },
     {
       "path": "../policy"

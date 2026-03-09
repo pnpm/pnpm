@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { buildModules } from '@pnpm/build-modules'
+import { buildModules } from '@pnpm/building.during-install'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {

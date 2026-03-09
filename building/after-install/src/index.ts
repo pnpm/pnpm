@@ -35,7 +35,7 @@ import type {
   ProjectRootDir,
 } from '@pnpm/types'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
-import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
+import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
 import { StoreIndex } from '@pnpm/store.index'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
