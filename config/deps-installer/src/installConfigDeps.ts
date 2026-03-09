@@ -143,7 +143,8 @@ function normalizeFromLockfile (
         'referenced from importers[\'.\'].configDependencies'
       )
     }
-    if (!pkgInfo.resolution.integrity) {
+    const resolution = pkgInfo.resolution as { integrity?: string; tarball?: string }
+    if (!resolution.integrity) {
       throw new PnpmError(
         'CONFIG_LOCKFILE_CORRUPTED',
         `pnpm-config-lock.yaml is corrupted or incomplete: missing integrity for "${pkgKey}"`
@@ -153,8 +154,8 @@ function normalizeFromLockfile (
     deps[pkgName] = {
       version,
       resolution: {
-        integrity: pkgInfo.resolution.integrity,
-        tarball: pkgInfo.resolution.tarball ?? getNpmTarballUrl(pkgName, version, { registry }),
+        integrity: resolution.integrity,
+        tarball: resolution.tarball ?? getNpmTarballUrl(pkgName, version, { registry }),
       },
     }
   }
