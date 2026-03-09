@@ -46,6 +46,7 @@ To set up the environment and build the project:
 
 ```bash
 pnpm install
+pnpm run lint
 pnpm run compile
 ```
 
