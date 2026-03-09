@@ -32,7 +32,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
     wantedPnpmBinDir = existing.binDir
   } else {
     // Resolve integrities if needed, then install
-    await resolvePackageManagerIntegrities(pmVersion, {
+    const configLockfile = await resolvePackageManagerIntegrities(pmVersion, {
       registries: config.registries,
       rootDir: config.rootProjectManifestDir,
       storeController: store.ctrl,
@@ -40,6 +40,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
     })
     const result = await installPnpmToTools(pmVersion, {
       ...config,
+      configLockfile,
       storeController: store.ctrl,
       storeDir: store.dir,
     })

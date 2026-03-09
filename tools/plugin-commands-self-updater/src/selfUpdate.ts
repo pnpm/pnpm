@@ -97,7 +97,7 @@ export async function handler (
   const configLockfileDir = projectManifest != null ? opts.rootProjectManifestDir : opts.pnpmHomeDir
 
   // Always resolve integrities and write pnpm-config-lock.yaml
-  await resolvePackageManagerIntegrities(resolution.manifest.version, {
+  const configLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
     registries: opts.registries,
     rootDir: configLockfileDir,
     storeController: store.ctrl,
@@ -123,6 +123,7 @@ export async function handler (
 
   const { baseDir } = await installPnpmToTools(resolution.manifest.version, {
     ...opts,
+    configLockfile,
     rootProjectManifestDir: configLockfileDir,
     storeController: store.ctrl,
     storeDir: store.dir,

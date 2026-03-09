@@ -27,14 +27,14 @@ export interface ResolvePackageManagerIntegritiesOpts {
 export async function resolvePackageManagerIntegrities (
   pnpmVersion: string,
   opts: ResolvePackageManagerIntegritiesOpts
-): Promise<void> {
+): Promise<ConfigLockfile> {
   const configLockfile = (await readConfigLockfile(opts.rootDir)) ?? createConfigLockfile()
 
   // Check if already resolved for this version
   const pmDeps = configLockfile.importers['.'].packageManagerDependencies
   if (pmDeps != null) {
     const hasVersion = Object.values(pmDeps).some((dep) => dep.version === pnpmVersion)
-    if (hasVersion) return
+    if (hasVersion) return configLockfile
   }
 
   const tempDir = pathTemp(path.join(opts.rootDir, 'node_modules', '.pnpm-tmp'))
@@ -92,6 +92,7 @@ export async function resolvePackageManagerIntegrities (
       rimraf(tempDir)
     } catch {}
   }
+  return configLockfile
 }
 
 /**

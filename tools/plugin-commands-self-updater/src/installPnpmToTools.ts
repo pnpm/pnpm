@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import { getCurrentPackageName } from '@pnpm/cli-meta'
 import { calcLeafGlobalVirtualStorePath } from '@pnpm/calc-dep-state'
-import { readConfigLockfile } from '@pnpm/config.deps-installer'
 import type { ConfigLockfile } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { linkBins } from '@pnpm/link-bins'
@@ -19,6 +18,7 @@ export interface InstallPnpmToToolsResult {
 }
 
 export interface InstallPnpmToToolsOptions extends SelfUpdateCommandOptions {
+  configLockfile: ConfigLockfile
   storeController: StoreController
   storeDir: string
 }
@@ -32,10 +32,9 @@ export async function installPnpmToTools (pnpmVersion: string, opts: InstallPnpm
     return { ...existing, alreadyExisted: true }
   }
 
-  // Read config lockfile to get integrity
-  const configLockfile = await readConfigLockfile(opts.rootProjectManifestDir)
+  const { configLockfile } = opts
   const pkgKey = `${currentPkgName}@${pnpmVersion}`
-  const pkgInfo = configLockfile?.packages[pkgKey]
+  const pkgInfo = configLockfile.packages[pkgKey]
 
   if (!pkgInfo?.resolution || !('integrity' in pkgInfo.resolution) || !pkgInfo.resolution.integrity) {
     throw new PnpmError(
@@ -66,7 +65,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: InstallPnpm
   }
 
   // For @pnpm/exe, also install the platform binary
-  if (currentPkgName === '@pnpm/exe' && configLockfile) {
+  if (currentPkgName === '@pnpm/exe') {
     await installExePlatformBinary(pnpmVersion, configLockfile, opts, globalVirtualStoreDir, pkgDir)
   }
 
