@@ -6,7 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import { prependDirsToPath } from '@pnpm/env.path'
 import { globalWarn } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store-connection-manager'
-import { installPnpmToTools } from '@pnpm/tools.plugin-commands-self-updater'
+import { installPnpmToStore } from '@pnpm/tools.plugin-commands-self-updater'
 import spawn from 'cross-spawn'
 import semver from 'semver'
 
@@ -24,16 +24,20 @@ export async function switchCliVersion (config: Config): Promise<void> {
   }
   const store = await createStoreController(config)
 
-  // Resolve integrities if needed
-  await resolvePackageManagerIntegrities(pmVersion, {
+  // Resolve integrities and use the config lockfile for secure installation
+  const configLockfile = await resolvePackageManagerIntegrities(pmVersion, {
     registries: config.registries,
     rootDir: config.rootProjectManifestDir,
     storeController: store.ctrl,
     storeDir: store.dir,
   })
-  const { binDir: wantedPnpmBinDir } = await installPnpmToTools(pmVersion, {
-    ...config,
-    bin: config.pnpmHomeDir,
+  const { binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, {
+    configLockfile,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+    registries: config.registries,
+    virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
+    packageManager: { name: packageManager.name, version: packageManager.version },
   })
   const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
   if (!pnpmEnv.updated) {

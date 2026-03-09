@@ -1,10 +1,27 @@
 import fs from 'fs'
 import path from 'path'
 import { getCurrentPackageName } from '@pnpm/cli-meta'
-import { handleGlobalAdd, type GlobalAddOptions } from '@pnpm/global.commands'
-import { findGlobalPackage } from '@pnpm/global.packages'
+import {
+  iterateHashedGraphNodes,
+  lockfileToDepGraph,
+} from '@pnpm/calc-dep-state'
+import type { ConfigLockfile } from '@pnpm/config.deps-installer'
+import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
+import {
+  cleanOrphanedInstallDirs,
+  createGlobalCacheKey,
+  createInstallDir,
+  findGlobalPackage,
+  getHashLink,
+} from '@pnpm/global.packages'
+import { headlessInstall } from '@pnpm/headless'
 import { linkBins } from '@pnpm/link-bins'
-import { globalWarn } from '@pnpm/logger'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
+import type { StoreController } from '@pnpm/package-store'
+import type { DepPath, PkgIdWithPatchHash, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
+import * as dp from '@pnpm/dependency-path'
+import symlinkDir from 'symlink-dir'
 
 export interface InstallPnpmToToolsResult {
   binDir: string
@@ -12,36 +29,356 @@ export interface InstallPnpmToToolsResult {
   alreadyExisted: boolean
 }
 
-export type InstallPnpmToToolsOptions = GlobalAddOptions
+export interface InstallPnpmToToolsOptions extends GlobalAddOptions {
+  configLockfile?: ConfigLockfile
+  storeController?: StoreController
+  storeDir?: string
+  packageManager?: { name: string, version: string }
+}
 
+/**
+ * Installs pnpm to the global packages directory (for self-update).
+ * Creates an entry in globalPkgDir that is visible to `pnpm ls -g`.
+ */
 export async function installPnpmToTools (pnpmVersion: string, opts: InstallPnpmToToolsOptions): Promise<InstallPnpmToToolsResult> {
   const currentPkgName = getCurrentPackageName()
+
+  const wantedLockfile = opts.configLockfile
+    ? buildLockfileFromConfigLockfile(opts.configLockfile, currentPkgName, pnpmVersion)
+    : undefined
+
+  const result = await installPnpmToGlobalDir(
+    opts,
+    currentPkgName,
+    pnpmVersion,
+    wantedLockfile
+  )
+
+  return {
+    alreadyExisted: result.alreadyExisted,
+    baseDir: result.installDir,
+    binDir: result.binDir,
+  }
+}
+
+/**
+ * Installs pnpm to the global virtual store (for version switching).
+ * Does NOT create an entry in globalPkgDir — the package lives only in the store.
+ * Returns the bin directory where the pnpm binary can be found.
+ */
+export async function installPnpmToStore (
+  pnpmVersion: string,
+  opts: {
+    configLockfile: ConfigLockfile
+    storeController: StoreController
+    storeDir: string
+    registries: Registries
+    virtualStoreDirMaxLength: number
+    packageManager?: { name: string, version: string }
+  }
+): Promise<{ binDir: string }> {
+  const currentPkgName = getCurrentPackageName()
+  const wantedLockfile = buildLockfileFromConfigLockfile(opts.configLockfile, currentPkgName, pnpmVersion)
+  const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
+
+  // Compute the GVS hash for the pnpm package to find its path
+  const pnpmGvsPath = findPnpmGvsPath(wantedLockfile, currentPkgName, globalVirtualStoreDir)
+  const pnpmPkgDir = path.join(pnpmGvsPath, 'node_modules', currentPkgName)
+  const binDir = path.join(pnpmGvsPath, 'bin')
+
+  // Check if already installed in the GVS
+  if (fs.existsSync(path.join(pnpmPkgDir, 'package.json'))) {
+    if (!fs.existsSync(binDir)) {
+      await linkBins(path.join(pnpmGvsPath, 'node_modules'), binDir, { warn: noop })
+    }
+    return { binDir }
+  }
+
+  // Install to a temporary directory — headless install with GVS enabled
+  // will populate the global virtual store
+  const tmpInstallDir = path.join(opts.storeDir, '.tmp', `pnpm-${pnpmVersion}-${Date.now()}`)
+  fs.mkdirSync(tmpInstallDir, { recursive: true })
+
+  try {
+    await installFromLockfile(tmpInstallDir, binDir, {
+      wantedLockfile,
+      storeController: opts.storeController,
+      storeDir: opts.storeDir,
+      registries: opts.registries,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      packageManager: opts.packageManager,
+    })
+
+    // Now the GVS should be populated — create bins alongside the GVS entry
+    linkExePlatformBinary(pnpmGvsPath)
+    await linkBins(path.join(pnpmGvsPath, 'node_modules'), binDir, { warn: noop })
+
+    return { binDir }
+  } finally {
+    try {
+      fs.rmSync(tmpInstallDir, { recursive: true, force: true })
+    } catch {}
+  }
+}
+
+function noop (_message: string) {}
+
+function findPnpmGvsPath (
+  lockfile: LockfileObject,
+  pkgName: string,
+  globalVirtualStoreDir: string
+): string {
+  const graph = lockfileToDepGraph(lockfile)
+  const pkgMetaIterator = iteratePkgMeta(lockfile, graph)
+  for (const { hash, pkgMeta } of iterateHashedGraphNodes(graph, pkgMetaIterator)) {
+    if (pkgMeta.name === pkgName) {
+      return path.join(globalVirtualStoreDir, hash)
+    }
+  }
+  throw new Error(`Could not find ${pkgName} in lockfile`)
+}
+
+function * iteratePkgMeta (lockfile: LockfileObject, graph: ReturnType<typeof lockfileToDepGraph>) {
+  if (lockfile.packages == null) return
+  for (const depPath in lockfile.packages) {
+    if (!Object.hasOwn(lockfile.packages, depPath)) continue
+    const pkgSnapshot = lockfile.packages[depPath as DepPath]
+    const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+    yield {
+      name,
+      version,
+      depPath: depPath as DepPath,
+      pkgIdWithPatchHash: (graph[depPath as DepPath]?.pkgIdWithPatchHash ?? dp.getPkgIdWithPatchHash(depPath as DepPath)) as PkgIdWithPatchHash,
+      pkgSnapshot,
+    }
+  }
+}
+
+interface InstallPnpmToGlobalDirResult {
+  installDir: string
+  binDir: string
+  alreadyExisted: boolean
+}
+
+/**
+ * Installs pnpm to the global packages directory.
+ * Bins are created within the install dir's own bin/ subdirectory.
+ *
+ * When a `wantedLockfile` is provided, a frozen headless install is performed
+ * using the lockfile's integrity hashes for security. Otherwise, full resolution
+ * is performed via `installGlobalPackages`.
+ */
+async function installPnpmToGlobalDir (
+  opts: InstallPnpmToToolsOptions,
+  pkgName: string,
+  version: string,
+  wantedLockfile?: LockfileObject
+): Promise<InstallPnpmToGlobalDirResult> {
   const globalDir = opts.globalPkgDir!
+  cleanOrphanedInstallDirs(globalDir)
 
   // Check if already installed globally
-  const existing = findGlobalPackage(globalDir, currentPkgName)
+  const existing = findGlobalPackage(globalDir, pkgName)
   if (existing) {
-    const pkgJsonPath = path.join(existing.installDir, 'node_modules', currentPkgName, 'package.json')
+    const pkgJsonPath = path.join(existing.installDir, 'node_modules', pkgName, 'package.json')
     try {
       const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
-      if (pkgJson.version === pnpmVersion) {
-        // Re-link bins so the correct version is active in pnpmHomeDir
-        await linkBins(path.join(existing.installDir, 'node_modules'), opts.bin!, { warn: globalWarn })
-        return { alreadyExisted: true, baseDir: existing.installDir, binDir: opts.bin! }
+      if (pkgJson.version === version) {
+        const binDir = path.join(existing.installDir, 'bin')
+        return { alreadyExisted: true, installDir: existing.installDir, binDir }
       }
     } catch {}
   }
 
-  await handleGlobalAdd(opts, [`${currentPkgName}@${pnpmVersion}`])
+  const installDir = createInstallDir(globalDir)
+  const binDir = path.join(installDir, 'bin')
 
-  const installed = findGlobalPackage(globalDir, currentPkgName)
-  if (!installed) {
-    throw new Error(`Failed to install ${currentPkgName}@${pnpmVersion}`)
+  try {
+    if (wantedLockfile != null && opts.storeController != null && opts.storeDir != null) {
+      await installFromLockfile(installDir, binDir, {
+        wantedLockfile,
+        storeController: opts.storeController,
+        storeDir: opts.storeDir,
+        registries: opts.registries as Registries,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        packageManager: opts.packageManager,
+      })
+    } else {
+      await installFromResolution(installDir, opts, [`${pkgName}@${version}`])
+    }
+
+    linkExePlatformBinary(installDir)
+    await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: noop })
+
+    // Create hash symlink for the global packages system
+    const pkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'package.json'), 'utf8'))
+    const aliases = Object.keys(pkgJson.dependencies ?? {})
+    const cacheHash = createGlobalCacheKey({ aliases, registries: opts.registries })
+    const hashLink = getHashLink(globalDir, cacheHash)
+    await symlinkDir(installDir, hashLink, { overwrite: true })
+
+    return { alreadyExisted: false, installDir, binDir }
+  } catch (err: unknown) {
+    try {
+      fs.rmSync(installDir, { recursive: true, force: true })
+    } catch {}
+    throw err
+  }
+}
+
+async function installFromLockfile (
+  installDir: string,
+  binDir: string,
+  opts: {
+    wantedLockfile: LockfileObject
+    storeController: StoreController
+    storeDir: string
+    registries: Registries
+    virtualStoreDirMaxLength: number
+    packageManager?: { name: string, version: string }
+  }
+): Promise<void> {
+  const rootImporter = opts.wantedLockfile.importers['.' as ProjectId]
+  const dependencies = rootImporter?.dependencies ?? {}
+  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies }))
+
+  await headlessInstall({
+    wantedLockfile: opts.wantedLockfile,
+    lockfileDir: installDir,
+    storeController: opts.storeController,
+    storeDir: opts.storeDir,
+    registries: opts.registries,
+    enableGlobalVirtualStore: true,
+    globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
+    ignoreScripts: true,
+    ignoreDepScripts: true,
+    force: false,
+    engineStrict: false,
+    currentEngine: {
+      pnpmVersion: opts.packageManager?.version ?? '',
+    },
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: true,
+    },
+    selectedProjectDirs: [installDir],
+    allProjects: {
+      [installDir]: {
+        binsDir: binDir,
+        buildIndex: 0,
+        manifest: { dependencies },
+        modulesDir: path.join(installDir, 'node_modules'),
+        id: '.' as ProjectId,
+        rootDir: installDir as ProjectRootDir,
+      },
+    },
+    hoistedDependencies: {},
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    sideEffectsCacheRead: false,
+    sideEffectsCacheWrite: false,
+    rawConfig: {},
+    unsafePerm: false,
+    userAgent: '',
+    packageManager: opts.packageManager ?? { name: 'pnpm', version: '' },
+    pruneStore: false,
+    pendingBuilds: [],
+    skipped: new Set(),
+  })
+}
+
+async function installFromResolution (
+  installDir: string,
+  opts: GlobalAddOptions,
+  params: string[]
+): Promise<void> {
+  const include = {
+    dependencies: true,
+    devDependencies: false,
+    optionalDependencies: true,
+  }
+  const fetchFullMetadata = (opts.supportedArchitectures?.libc ?? opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc) && true
+  await installGlobalPackages({
+    ...opts,
+    global: false,
+    bin: path.join(installDir, 'node_modules/.bin'),
+    dir: installDir,
+    lockfileDir: installDir,
+    rootProjectManifestDir: installDir,
+    rootProjectManifest: undefined,
+    saveProd: true,
+    saveDev: false,
+    saveOptional: false,
+    savePeer: false,
+    workspaceDir: undefined,
+    sharedWorkspaceLockfile: false,
+    lockfileOnly: false,
+    fetchFullMetadata,
+    include,
+    includeDirect: include,
+    allowBuilds: {},
+  }, params)
+}
+
+// @pnpm/exe bundles Node.js via optional platform-specific packages (e.g. @pnpm/macos-arm64).
+// Its postinstall script links the correct binary into the @pnpm/exe package dir.
+// Since scripts are disabled during install (to support systems without Node.js),
+// we replicate that linking here.
+function linkExePlatformBinary (installDir: string): void {
+  const platform = process.platform === 'win32'
+    ? 'win'
+    : process.platform === 'darwin'
+      ? 'macos'
+      : process.platform
+  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
+  const executable = platform === 'win' ? 'pnpm.exe' : 'pnpm'
+  const platformPkgDir = path.join(installDir, 'node_modules', '@pnpm', `${platform}-${arch}`)
+  const src = path.join(platformPkgDir, executable)
+  if (!fs.existsSync(src)) return
+  const exePkgDir = path.join(installDir, 'node_modules', '@pnpm', 'exe')
+  const dest = path.join(exePkgDir, executable)
+  try {
+    fs.unlinkSync(dest)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err
+    }
+  }
+  fs.linkSync(src, dest)
+  fs.chmodSync(dest, 0o755)
+  if (platform === 'win') {
+    const exePkgJsonPath = path.join(exePkgDir, 'package.json')
+    const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
+    fs.writeFileSync(path.join(exePkgDir, 'pnpm'), 'This file intentionally left blank')
+    exePkg.bin.pnpm = 'pnpm.exe'
+    fs.writeFileSync(exePkgJsonPath, JSON.stringify(exePkg, null, 2))
+  }
+}
+
+function buildLockfileFromConfigLockfile (
+  configLockfile: ConfigLockfile,
+  pkgName: string,
+  version: string
+) {
+  const dependencies: Record<string, string> = {}
+  dependencies[pkgName] = version
+
+  const packages: Record<string, PackageSnapshot> = {}
+  for (const [depPath, snapshot] of Object.entries(configLockfile.snapshots)) {
+    packages[depPath as DepPath] = {
+      ...snapshot,
+      ...configLockfile.packages[depPath],
+    }
   }
 
   return {
-    alreadyExisted: false,
-    baseDir: installed.installDir,
-    binDir: opts.bin!,
+    lockfileVersion: configLockfile.lockfileVersion,
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { [pkgName]: version },
+        dependencies,
+      },
+    },
+    packages: packages as Record<DepPath, PackageSnapshot>,
   }
 }

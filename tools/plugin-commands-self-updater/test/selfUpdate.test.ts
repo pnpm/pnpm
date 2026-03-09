@@ -20,7 +20,7 @@ jest.unstable_mockModule('@pnpm/cli-meta', () => {
     },
   }
 })
-const { selfUpdate } = await import('@pnpm/tools.plugin-commands-self-updater')
+const { selfUpdate, installPnpmToTools } = await import('@pnpm/tools.plugin-commands-self-updater')
 
 afterEach(() => {
   nock.cleanAll()
@@ -351,4 +351,22 @@ test('self-update updates the packageManager field in package.json', async () =>
 
   const pkgJson = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'))
   expect(pkgJson.packageManager).toBe('pnpm@9.1.0')
+})
+
+test('installPnpmToTools without config lockfile uses resolution path', async () => {
+  const opts = prepare()
+  nock(opts.registries.default)
+    .persist()
+    .get('/pnpm')
+    .reply(200, createMetadata('9.1.0', opts.registries.default))
+  nock(opts.registries.default)
+    .get('/pnpm/-/pnpm-9.1.0.tgz')
+    .replyWithFile(200, pnpmTarballPath)
+
+  const result = await installPnpmToTools('9.1.0', opts)
+
+  expect(result.alreadyExisted).toBe(false)
+  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(result.baseDir, 'node_modules/pnpm/package.json'), 'utf8'))
+  expect(pnpmPkgJson.version).toBe('9.1.0')
+  expect(fs.existsSync(result.binDir)).toBe(true)
 })

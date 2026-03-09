@@ -34,16 +34,37 @@
       "path": "../../global/packages"
     },
     {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../packages/calc-dep-state"
+    },
+    {
+      "path": "../../packages/dependency-path"
+    },
+    {
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../pkg-manager/client"
+    },
+    {
+      "path": "../../pkg-manager/headless"
     },
     {
       "path": "../../pkg-manager/link-bins"
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../store/package-store"
     },
     {
       "path": "../../store/store-connection-manager"
