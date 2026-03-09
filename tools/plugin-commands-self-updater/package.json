@@ -31,25 +31,22 @@
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "dependencies": {
+    "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/cli-meta": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/config.deps-installer": "workspace:*",
-    "@pnpm/constants": "workspace:*",
-    "@pnpm/core": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
-    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/package-store": "workspace:*",
+    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
-    "@pnpm/tools.path": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "path-temp": "catalog:",
+    "get-npm-tarball-url": "catalog:",
     "ramda": "catalog:",
-    "render-help": "catalog:",
-    "symlink-dir": "catalog:"
+    "render-help": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

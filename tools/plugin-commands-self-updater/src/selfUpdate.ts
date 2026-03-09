@@ -11,7 +11,8 @@ import { linkBins } from '@pnpm/link-bins'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
-import { installPnpmToTools } from './installPnpmToTools.js'
+import { getCurrentPackageName } from '@pnpm/cli-meta'
+import { findPnpmInGlobalStore, installPnpmToTools } from './installPnpmToTools.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -89,13 +90,33 @@ export async function handler (
   }
 
   const store = await createStoreController(opts)
+  const currentPkgName = getCurrentPackageName()
+
+  // Always resolve integrities and write pnpm-config-lock.yaml
   await resolvePackageManagerIntegrities(resolution.manifest.version, {
     registries: opts.registries,
     rootDir: opts.rootProjectManifestDir,
     storeController: store.ctrl,
     storeDir: store.dir,
   })
-  const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, {
+
+  // Update packageManager field in package.json
+  const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
+  manifest.packageManager = `pnpm@${resolution.manifest.version}`
+  await writeProjectManifest(manifest)
+
+  // Check if the version is already in the global virtual store
+  const existing = findPnpmInGlobalStore(store.dir, currentPkgName, resolution.manifest.version)
+  if (existing) {
+    await linkBins(path.join(existing.baseDir, 'node_modules'), opts.pnpmHomeDir,
+      {
+        warn: globalWarn,
+      }
+    )
+    return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${existing.baseDir}.`
+  }
+
+  const { baseDir } = await installPnpmToTools(resolution.manifest.version, {
     ...opts,
     storeController: store.ctrl,
     storeDir: store.dir,
@@ -105,7 +126,5 @@ export async function handler (
       warn: globalWarn,
     }
   )
-  return alreadyExisted
-    ? `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
-    : undefined
+  return undefined
 }

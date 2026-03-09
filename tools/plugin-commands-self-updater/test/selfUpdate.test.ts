@@ -20,7 +20,7 @@ jest.unstable_mockModule('@pnpm/cli-meta', () => {
     },
   }
 })
-const { selfUpdate } = await import('@pnpm/tools.plugin-commands-self-updater')
+const { selfUpdate, findPnpmInGlobalStore } = await import('@pnpm/tools.plugin-commands-self-updater')
 
 afterEach(() => {
   nock.cleanAll()
@@ -33,6 +33,7 @@ beforeEach(() => {
 
 function prepare () {
   const dir = tempDir(false)
+  fs.writeFileSync(path.join(dir, 'package.json'), '{}', 'utf8')
   return prepareOptions(dir)
 }
 
@@ -130,7 +131,11 @@ test('self-update', async () => {
 
   await selfUpdate.handler(opts, [])
 
-  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(opts.pnpmHomeDir, '.tools/pnpm/9.1.0/node_modules/pnpm/package.json'), 'utf8'))
+  // Verify the package was installed in the global virtual store
+  const storeDir = path.join(opts.pnpmHomeDir, 'store', 'v11')
+  const found = findPnpmInGlobalStore(storeDir, 'pnpm', '9.1.0')
+  expect(found).not.toBeNull()
+  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(found!.baseDir, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
 
   const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
@@ -160,7 +165,11 @@ test('self-update by exact version', async () => {
 
   await selfUpdate.handler(opts, ['9.1.0'])
 
-  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(opts.pnpmHomeDir, '.tools/pnpm/9.1.0/node_modules/pnpm/package.json'), 'utf8'))
+  // Verify the package was installed in the global virtual store
+  const storeDir = path.join(opts.pnpmHomeDir, 'store', 'v11')
+  const found = findPnpmInGlobalStore(storeDir, 'pnpm', '9.1.0')
+  expect(found).not.toBeNull()
+  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(found!.baseDir, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
 
   const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
@@ -236,8 +245,24 @@ test('should not update packageManager field when current version matches latest
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
-test('self-update links pnpm that is already present on the disk', async () => {
+test('self-update finds pnpm that is already in the global virtual store', async () => {
   const opts = prepare()
+  const storeDir = path.join(opts.pnpmHomeDir, 'store', 'v11')
+
+  // Pre-create a pnpm package in the global virtual store
+  const fakeHash = 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890'
+  const baseDir = path.join(storeDir, 'links', '@', 'pnpm', '9.2.0', fakeHash)
+  const pkgDir = path.join(baseDir, 'node_modules', 'pnpm')
+  const binDir = path.join(baseDir, 'bin')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.mkdirSync(binDir, { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '9.2.0', bin: { pnpm: 'bin.js' } }), 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'bin.js'), `#!/usr/bin/env node
+console.log('9.2.0')`, 'utf8')
+  // Create a bin shim like linkBins would have created
+  const shimContent = `#!/bin/sh\nexec node "${path.join(pkgDir, 'bin.js')}" "$@"\n`
+  fs.writeFileSync(path.join(binDir, 'pnpm'), shimContent, { mode: 0o755 })
+
   nock(opts.registries.default)
     .get('/pnpm')
     .reply(200, createMetadata('9.2.0', opts.registries.default))
@@ -247,16 +272,9 @@ test('self-update links pnpm that is already present on the disk', async () => {
     .reply(200, createMetadata('9.2.0', opts.registries.default))
   mockExeMetadata(opts.registries.default, '9.2.0')
 
-  const baseDir = path.join(opts.pnpmHomeDir, '.tools/pnpm/9.2.0')
-  fs.mkdirSync(path.join(baseDir, 'bin'), { recursive: true })
-  const latestPnpmDir = path.join(baseDir, 'node_modules/pnpm')
-  fs.mkdirSync(latestPnpmDir, { recursive: true })
-  fs.writeFileSync(path.join(latestPnpmDir, 'package.json'), JSON.stringify({ name: 'pnpm', bin: 'bin.js' }), 'utf8')
-  fs.writeFileSync(path.join(latestPnpmDir, 'bin.js'), `#!/usr/bin/env node
-console.log('9.2.0')`, 'utf8')
   const output = await selfUpdate.handler(opts, [])
 
-  expect(output).toBe(`The latest version, v9.2.0, is already present on the system. It was activated by linking it from ${path.join(latestPnpmDir, '../..')}.`)
+  expect(output).toBe(`The latest version, v9.2.0, is already present on the system. It was activated by linking it from ${baseDir}.`)
 
   const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
   const { status, stdout } = spawn.sync('pnpm', ['-v'], {

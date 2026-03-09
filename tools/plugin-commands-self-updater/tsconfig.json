@@ -22,13 +22,16 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/deps-installer"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../env/path"
     },
     {
-      "path": "../../lockfile/fs"
-    },
-    {
-      "path": "../../packages/constants"
+      "path": "../../packages/calc-dep-state"
     },
     {
       "path": "../../packages/error"
@@ -38,9 +41,6 @@
     },
     {
       "path": "../../pkg-manager/client"
-    },
-    {
-      "path": "../../pkg-manager/core"
     },
     {
       "path": "../../pkg-manager/link-bins"
@@ -53,9 +53,6 @@
     },
     {
       "path": "../../store/store-connection-manager"
-    },
-    {
-      "path": "../path"
     }
   ]
 }

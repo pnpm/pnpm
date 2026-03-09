@@ -19,6 +19,9 @@
       "path": "../../lockfile/fs"
     },
     {
+      "path": "../../lockfile/pruner"
+    },
+    {
       "path": "../../lockfile/types"
     },
     {
