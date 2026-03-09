@@ -101,7 +101,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: InstallPnpm
 }
 
 /**
- * Tries to create a pnpm-lock.yaml from the packageManager section of pnpm-config-lock.yaml.
+ * Tries to create a pnpm-lock.yaml from the packageManagerDependencies section of pnpm-config-lock.yaml.
  * Returns true if a frozen lockfile was written, false otherwise.
  */
 async function tryWriteLockfileFromConfigLock (
@@ -111,34 +111,28 @@ async function tryWriteLockfileFromConfigLock (
   version: string
 ): Promise<boolean> {
   const configLockfile = await readConfigLockfile(rootProjectManifestDir)
-  if (!configLockfile?.packageManager) return false
+  if (!configLockfile) return false
+  const pmDeps = configLockfile.importers['.'].packageManagerDependencies
+  if (!pmDeps?.[pkgName]) return false
 
   const pkgKey = `${pkgName}@${version}` as DepPath
-  if (!configLockfile.packageManager[pkgKey]) return false
+  if (!configLockfile.packages[pkgKey]) return false
 
-  // Build a lockfile from the stored integrities
-  const packages: Record<string, { resolution: { integrity: string } }> = {}
-  for (const [depPath, info] of Object.entries(configLockfile.packageManager)) {
+  // Merge packages and snapshots into the in-memory format (PackageSnapshots)
+  const packages: Record<string, Record<string, unknown>> = {}
+  for (const [depPath, pkgInfo] of Object.entries(configLockfile.packages)) {
     packages[depPath] = {
-      resolution: { integrity: info.resolution.integrity },
+      ...configLockfile.snapshots[depPath],
+      ...pkgInfo,
     }
   }
-
-  // Find dependencies of the main package to build snapshots
-  // The packageManager section stores flat integrities — we write them as packages
-  // and let the lockfile be used for integrity verification
-  const specifiers: Record<string, string> = {}
-  specifiers[pkgName] = version
-
-  const dependencies: Record<string, string> = {}
-  dependencies[pkgName] = version
 
   await writeWantedLockfile(stageDir, {
     lockfileVersion: LOCKFILE_VERSION,
     importers: {
       ['.' as ProjectId]: {
-        specifiers,
-        dependencies,
+        specifiers: { [pkgName]: version },
+        dependencies: { [pkgName]: version },
       },
     },
     packages: packages as any, // eslint-disable-line @typescript-eslint/no-explicit-any

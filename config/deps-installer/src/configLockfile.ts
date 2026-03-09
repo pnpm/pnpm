@@ -2,6 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import util from 'util'
 import { CONFIG_LOCKFILE, LOCKFILE_VERSION } from '@pnpm/constants'
+import type { LockfilePackageInfo, LockfilePackageSnapshot } from '@pnpm/lockfile.types'
 import yaml from 'js-yaml'
 import writeFileAtomicCB from 'write-file-atomic'
 import stripBom from 'strip-bom'
@@ -11,23 +12,16 @@ export interface ConfigLockfileImporterDep {
   version: string
 }
 
-export interface ConfigLockfilePackageInfo {
-  resolution: {
-    integrity: string
-    tarball?: string
-  }
-}
-
 export interface ConfigLockfile {
   lockfileVersion: string
   importers: {
     '.': {
       configDependencies: Record<string, ConfigLockfileImporterDep>
+      packageManagerDependencies?: Record<string, ConfigLockfileImporterDep>
     }
   }
-  packageManager?: Record<string, ConfigLockfilePackageInfo>
-  packages: Record<string, ConfigLockfilePackageInfo>
-  snapshots: Record<string, Record<string, never>>
+  packages: Record<string, LockfilePackageInfo>
+  snapshots: Record<string, LockfilePackageSnapshot>
 }
 
 const YAML_FORMAT = {
@@ -79,9 +73,6 @@ export async function readConfigLockfile (rootDir: string): Promise<ConfigLockfi
   if (lockfile.snapshots == null || typeof lockfile.snapshots !== 'object') {
     throw new Error(`Invalid config lockfile at ${lockfilePath}: missing or invalid "snapshots"`)
   }
-  if (lockfile.packageManager != null && typeof lockfile.packageManager !== 'object') {
-    throw new Error(`Invalid config lockfile at ${lockfilePath}: invalid "packageManager"`)
-  }
   return parsed as ConfigLockfile
 }
 
@@ -101,20 +92,20 @@ export async function writeConfigLockfile (rootDir: string, lockfile: ConfigLock
 }
 
 function sortConfigLockfile (lockfile: ConfigLockfile): ConfigLockfile {
-  const sorted: ConfigLockfile = {
+  const importer: ConfigLockfile['importers']['.'] = {
+    configDependencies: sortKeys(lockfile.importers['.'].configDependencies),
+  }
+  if (lockfile.importers['.'].packageManagerDependencies && Object.keys(lockfile.importers['.'].packageManagerDependencies).length > 0) {
+    importer.packageManagerDependencies = sortKeys(lockfile.importers['.'].packageManagerDependencies)
+  }
+  return {
     lockfileVersion: lockfile.lockfileVersion,
     importers: {
-      '.': {
-        configDependencies: sortKeys(lockfile.importers['.'].configDependencies),
-      },
+      '.': importer,
     },
     packages: sortKeys(lockfile.packages),
     snapshots: sortKeys(lockfile.snapshots),
   }
-  if (lockfile.packageManager && Object.keys(lockfile.packageManager).length > 0) {
-    sorted.packageManager = sortKeys(lockfile.packageManager)
-  }
-  return sorted
 }
 
 function sortKeys<T> (obj: Record<string, T>): Record<string, T> {

@@ -19,6 +19,9 @@
       "path": "../../lockfile/fs"
     },
     {
+      "path": "../../lockfile/types"
+    },
+    {
       "path": "../../network/auth-header"
     },
     {

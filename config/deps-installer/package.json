@@ -41,6 +41,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/package-store": "workspace:*",

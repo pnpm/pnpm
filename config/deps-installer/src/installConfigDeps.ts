@@ -143,6 +143,12 @@ function normalizeFromLockfile (
         'referenced from importers[\'.\'].configDependencies'
       )
     }
+    if (!pkgInfo.resolution.integrity) {
+      throw new PnpmError(
+        'CONFIG_LOCKFILE_CORRUPTED',
+        `pnpm-config-lock.yaml is corrupted or incomplete: missing integrity for "${pkgKey}"`
+      )
+    }
     const registry = pickRegistryForPackage(registries, pkgName)
     deps[pkgName] = {
       version,

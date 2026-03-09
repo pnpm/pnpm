@@ -110,7 +110,7 @@ function createExeMetadata (version: string, registry: string) {
  */
 function mockExeMetadata (registry: string, version: string) {
   nock(registry)
-    .get(`/${encodeURIComponent('@pnpm/exe')}`)
+    .get('/@pnpm%2Fexe')
     .reply(200, createExeMetadata(version, registry))
 }
 
@@ -119,6 +119,11 @@ test('self-update', async () => {
   nock(opts.registries.default)
     .get('/pnpm')
     .reply(200, createMetadata('9.1.0', opts.registries.default))
+  // Mock metadata needed by resolvePackageManagerIntegrities
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.1.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.1.0')
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
     .replyWithFile(200, pnpmTarballPath)
@@ -144,6 +149,11 @@ test('self-update by exact version', async () => {
   nock(opts.registries.default)
     .get('/pnpm')
     .reply(200, createMetadata('9.2.0', opts.registries.default, ['9.1.0']))
+  // Mock metadata needed by resolvePackageManagerIntegrities
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.2.0', opts.registries.default, ['9.1.0']))
+  mockExeMetadata(opts.registries.default, '9.1.0')
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
     .replyWithFile(200, pnpmTarballPath)
@@ -231,6 +241,11 @@ test('self-update links pnpm that is already present on the disk', async () => {
   nock(opts.registries.default)
     .get('/pnpm')
     .reply(200, createMetadata('9.2.0', opts.registries.default))
+  // Mock metadata needed by resolvePackageManagerIntegrities
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.2.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.2.0')
 
   const baseDir = path.join(opts.pnpmHomeDir, '.tools/pnpm/9.2.0')
   fs.mkdirSync(path.join(baseDir, 'bin'), { recursive: true })

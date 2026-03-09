@@ -89,6 +89,12 @@ export async function handler (
   }
 
   const store = await createStoreController(opts)
+  await resolvePackageManagerIntegrities(resolution.manifest.version, {
+    registries: opts.registries,
+    rootDir: opts.rootProjectManifestDir,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+  })
   const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, {
     ...opts,
     storeController: store.ctrl,

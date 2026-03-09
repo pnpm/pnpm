@@ -8,5 +8,4 @@ export {
   createConfigLockfile,
   type ConfigLockfile,
   type ConfigLockfileImporterDep,
-  type ConfigLockfilePackageInfo,
 } from './configLockfile.js'
