@@ -5,14 +5,13 @@ import { createResolver } from '@pnpm/client'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
+import { linkBins } from '@pnpm/link-bins'
 import { globalWarn } from '@pnpm/logger'
 import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
-import { linkBins } from '@pnpm/link-bins'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
-import { getCurrentPackageName } from '@pnpm/cli-meta'
-import { findPnpmInGlobalStore, installPnpmToTools } from './installPnpmToTools.js'
+import { installPnpmToTools } from './installPnpmToTools.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -41,6 +40,7 @@ export function help (): string {
 }
 
 export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Config,
+| 'globalPkgDir'
 | 'lockfileDir'
 | 'managePackageManagerVersions'
 | 'modulesDir'
@@ -90,7 +90,6 @@ export async function handler (
   }
 
   const store = await createStoreController(opts)
-  const currentPkgName = getCurrentPackageName()
 
   // Use pnpmHomeDir as fallback for config lockfile when there's no project
   const { manifest: projectManifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir)
@@ -110,18 +109,7 @@ export async function handler (
     await writeProjectManifest(projectManifest)
   }
 
-  // Check if the version is already in the global virtual store
-  const existing = findPnpmInGlobalStore(store.dir, currentPkgName, resolution.manifest.version)
-  if (existing) {
-    await linkBins(path.join(existing.baseDir, 'node_modules'), opts.pnpmHomeDir,
-      {
-        warn: globalWarn,
-      }
-    )
-    return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${existing.baseDir}.`
-  }
-
-  const { baseDir } = await installPnpmToTools(resolution.manifest.version, {
+  const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, {
     ...opts,
     configLockfile,
     rootProjectManifestDir: configLockfileDir,
@@ -133,5 +121,8 @@ export async function handler (
       warn: globalWarn,
     }
   )
+  if (alreadyExisted) {
+    return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
+  }
   return undefined
 }

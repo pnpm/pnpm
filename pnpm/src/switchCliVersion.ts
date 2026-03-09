@@ -1,12 +1,12 @@
 import path from 'path'
-import { getCurrentPackageName, packageManager } from '@pnpm/cli-meta'
+import { packageManager } from '@pnpm/cli-meta'
 import type { Config } from '@pnpm/config'
 import { resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
-import { globalWarn } from '@pnpm/logger'
 import { prependDirsToPath } from '@pnpm/env.path'
+import { globalWarn } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store-connection-manager'
-import { findPnpmInGlobalStore, installPnpmToTools } from '@pnpm/tools.plugin-commands-self-updater'
+import { installPnpmToTools } from '@pnpm/tools.plugin-commands-self-updater'
 import spawn from 'cross-spawn'
 import semver from 'semver'
 
@@ -24,28 +24,19 @@ export async function switchCliVersion (config: Config): Promise<void> {
   }
   const store = await createStoreController(config)
 
-  // Fast path: check if the version is already in the global virtual store
-  const currentPkgName = getCurrentPackageName()
-  let wantedPnpmBinDir: string
-  const existing = findPnpmInGlobalStore(store.dir, currentPkgName, pmVersion)
-  if (existing) {
-    wantedPnpmBinDir = existing.binDir
-  } else {
-    // Resolve integrities if needed, then install
-    const configLockfile = await resolvePackageManagerIntegrities(pmVersion, {
-      registries: config.registries,
-      rootDir: config.rootProjectManifestDir,
-      storeController: store.ctrl,
-      storeDir: store.dir,
-    })
-    const result = await installPnpmToTools(pmVersion, {
-      ...config,
-      configLockfile,
-      storeController: store.ctrl,
-      storeDir: store.dir,
-    })
-    wantedPnpmBinDir = result.binDir
-  }
+  // Resolve integrities if needed, then install
+  const configLockfile = await resolvePackageManagerIntegrities(pmVersion, {
+    registries: config.registries,
+    rootDir: config.rootProjectManifestDir,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+  })
+  const { binDir: wantedPnpmBinDir } = await installPnpmToTools(pmVersion, {
+    ...config,
+    configLockfile,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+  })
   const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
   if (!pnpmEnv.updated) {
     // We throw this error to prevent an infinite recursive call of the same pnpm version.

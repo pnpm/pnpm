@@ -25,13 +25,13 @@
       "path": "../../config/deps-installer"
     },
     {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
       "path": "../../env/path"
     },
     {
-      "path": "../../packages/calc-dep-state"
+      "path": "../../global/packages"
+    },
+    {
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../packages/error"
@@ -41,6 +41,9 @@
     },
     {
       "path": "../../pkg-manager/client"
+    },
+    {
+      "path": "../../pkg-manager/headless"
     },
     {
       "path": "../../pkg-manager/link-bins"

@@ -20,7 +20,7 @@ jest.unstable_mockModule('@pnpm/cli-meta', () => {
     },
   }
 })
-const { selfUpdate, findPnpmInGlobalStore } = await import('@pnpm/tools.plugin-commands-self-updater')
+const { selfUpdate } = await import('@pnpm/tools.plugin-commands-self-updater')
 
 afterEach(() => {
   nock.cleanAll()
@@ -46,6 +46,7 @@ function prepareOptions (dir: string) {
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     bail: true,
+    globalPkgDir: path.join(dir, 'global', 'v11'),
     pnpmHomeDir: dir,
     preferWorkspacePackages: true,
     registries: {
@@ -131,11 +132,12 @@ test('self-update', async () => {
 
   await selfUpdate.handler(opts, [])
 
-  // Verify the package was installed in the global virtual store
-  const storeDir = path.join(opts.pnpmHomeDir, 'store', 'v11')
-  const found = findPnpmInGlobalStore(storeDir, 'pnpm', '9.1.0')
-  expect(found).not.toBeNull()
-  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(found!.baseDir, 'node_modules/pnpm/package.json'), 'utf8'))
+  // Verify the package was installed in the global dir
+  const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
+  const entries = fs.readdirSync(globalDir)
+  const installDirName = entries.find((e) => fs.statSync(path.join(globalDir, e)).isDirectory())
+  expect(installDirName).toBeDefined()
+  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(globalDir, installDirName!, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
 
   const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
@@ -165,11 +167,12 @@ test('self-update by exact version', async () => {
 
   await selfUpdate.handler(opts, ['9.1.0'])
 
-  // Verify the package was installed in the global virtual store
-  const storeDir = path.join(opts.pnpmHomeDir, 'store', 'v11')
-  const found = findPnpmInGlobalStore(storeDir, 'pnpm', '9.1.0')
-  expect(found).not.toBeNull()
-  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(found!.baseDir, 'node_modules/pnpm/package.json'), 'utf8'))
+  // Verify the package was installed in the global dir
+  const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
+  const entries = fs.readdirSync(globalDir)
+  const installDirName = entries.find((e) => fs.statSync(path.join(globalDir, e)).isDirectory())
+  expect(installDirName).toBeDefined()
+  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(globalDir, installDirName!, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
 
   const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
@@ -245,23 +248,25 @@ test('should not update packageManager field when current version matches latest
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
-test('self-update finds pnpm that is already in the global virtual store', async () => {
+test('self-update finds pnpm that is already in the global dir', async () => {
   const opts = prepare()
-  const storeDir = path.join(opts.pnpmHomeDir, 'store', 'v11')
+  const globalDir = opts.globalPkgDir
 
-  // Pre-create a pnpm package in the global virtual store
-  const fakeHash = 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890'
-  const baseDir = path.join(storeDir, 'links', '@', 'pnpm', '9.2.0', fakeHash)
-  const pkgDir = path.join(baseDir, 'node_modules', 'pnpm')
-  const binDir = path.join(baseDir, 'bin')
+  // Pre-create a pnpm package in the global dir with a hash symlink
+  const installDir = path.join(globalDir, 'test-install')
+  const pkgDir = path.join(installDir, 'node_modules', 'pnpm')
+  const binDir = path.join(installDir, 'bin')
   fs.mkdirSync(pkgDir, { recursive: true })
   fs.mkdirSync(binDir, { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { pnpm: '9.2.0' } }), 'utf8')
   fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '9.2.0', bin: { pnpm: 'bin.js' } }), 'utf8')
   fs.writeFileSync(path.join(pkgDir, 'bin.js'), `#!/usr/bin/env node
 console.log('9.2.0')`, 'utf8')
   // Create a bin shim like linkBins would have created
   const shimContent = `#!/bin/sh\nexec node "${path.join(pkgDir, 'bin.js')}" "$@"\n`
   fs.writeFileSync(path.join(binDir, 'pnpm'), shimContent, { mode: 0o755 })
+  // Create a hash symlink pointing to the install dir (like handleGlobalAdd does)
+  fs.symlinkSync(installDir, path.join(globalDir, 'fake-hash'))
 
   nock(opts.registries.default)
     .get('/pnpm')
@@ -274,7 +279,7 @@ console.log('9.2.0')`, 'utf8')
 
   const output = await selfUpdate.handler(opts, [])
 
-  expect(output).toBe(`The latest version, v9.2.0, is already present on the system. It was activated by linking it from ${baseDir}.`)
+  expect(output).toBe(`The latest version, v9.2.0, is already present on the system. It was activated by linking it from ${installDir}.`)
 
   const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
   const { status, stdout } = spawn.sync('pnpm', ['-v'], {
@@ -294,6 +299,7 @@ test('self-update works globally without package.json', async () => {
   fs.mkdirSync(pnpmHomeDir, { recursive: true })
   const opts = {
     ...prepareOptions(dir),
+    globalPkgDir: path.join(pnpmHomeDir, 'global', 'v11'),
     pnpmHomeDir,
   }
   nock(opts.registries.default)
@@ -316,10 +322,12 @@ test('self-update works globally without package.json', async () => {
   // Verify pnpm-config-lock.yaml was written to pnpmHomeDir
   expect(fs.existsSync(path.join(pnpmHomeDir, 'pnpm-config-lock.yaml'))).toBe(true)
 
-  // Verify the package was installed in the global virtual store
-  const storeDir = path.join(pnpmHomeDir, 'store', 'v11')
-  const found = findPnpmInGlobalStore(storeDir, 'pnpm', '9.1.0')
-  expect(found).not.toBeNull()
+  // Verify the package was installed in the global dir
+  const globalDir = path.join(pnpmHomeDir, 'global', 'v11')
+  const globalEntries = fs.readdirSync(globalDir)
+  const globalInstallDir = globalEntries.find((e) => fs.statSync(path.join(globalDir, e)).isDirectory())
+  expect(globalInstallDir).toBeDefined()
+  expect(fs.existsSync(path.join(globalDir, globalInstallDir!, 'node_modules', 'pnpm', 'package.json'))).toBe(true)
 
   const pnpmEnv = prependDirsToPath([pnpmHomeDir])
   const { status, stdout } = spawn.sync('pnpm', ['-v'], {

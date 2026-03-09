@@ -8968,9 +8968,6 @@ importers:
 
   tools/plugin-commands-self-updater:
     dependencies:
-      '@pnpm/calc-dep-state':
-        specifier: workspace:*
-        version: link:../../packages/calc-dep-state
       '@pnpm/cli-meta':
         specifier: workspace:*
         version: link:../../cli/cli-meta
@@ -8989,18 +8986,24 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/global.packages':
+        specifier: workspace:*
+        version: link:../../global/packages
+      '@pnpm/headless':
+        specifier: workspace:*
+        version: link:../../pkg-manager/headless
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -9010,15 +9013,15 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      get-npm-tarball-url:
-        specifier: 'catalog:'
-        version: 2.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
+      symlink-dir:
+        specifier: 'catalog:'
+        version: 7.1.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
