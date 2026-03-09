@@ -1,6 +1,6 @@
 import assert from 'assert'
 import util from 'util'
-import { buildProjects as rebuildAll, type RebuildOptions, buildSelectedPkgs } from '@pnpm/building.after-install'
+import { buildProjects as rebuildAll, type BuildOptions, buildSelectedPkgs } from '@pnpm/building.after-install'
 import {
   type RecursiveSummary,
   throwOnCommandFail,
@@ -70,7 +70,7 @@ export async function recursiveRebuild (
       pkgs.length === allProjects.length,
     storeController: store.ctrl,
     storeDir: store.dir,
-  }) as RebuildOptions
+  }) as BuildOptions
 
   const result: RecursiveSummary = {}
 

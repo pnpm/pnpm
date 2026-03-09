@@ -46,12 +46,12 @@ import npa from '@pnpm/npm-package-arg'
 import pLimit from 'p-limit'
 import semver from 'semver'
 import {
-  extendRebuildOptions,
-  type RebuildOptions,
-  type StrictRebuildOptions,
-} from './extendRebuildOptions.js'
+  extendBuildOptions,
+  type BuildOptions,
+  type StrictBuildOptions,
+} from './extendBuildOptions.js'
 
-export type { RebuildOptions }
+export type { BuildOptions }
 
 function findPackages (
   packages: PackageSnapshots,
@@ -98,13 +98,13 @@ type PackageSelector = string | {
 export async function buildSelectedPkgs (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>,
   pkgSpecs: string[],
-  maybeOpts: RebuildOptions
+  maybeOpts: BuildOptions
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
-  const opts = await extendRebuildOptions(maybeOpts)
+  const opts = await extendBuildOptions(maybeOpts)
   const ctx = await getContext({ ...opts, allProjects: projects })
 
   if (ctx.currentLockfile?.packages == null) return {}
@@ -163,13 +163,13 @@ export async function buildSelectedPkgs (
 
 export async function buildProjects (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>,
-  maybeOpts: RebuildOptions
+  maybeOpts: BuildOptions
 ): Promise<void> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
-  const opts = await extendRebuildOptions(maybeOpts)
+  const opts = await extendBuildOptions(maybeOpts)
   const ctx = await getContext({ ...opts, allProjects: projects })
 
   let idsToRebuild: string[] = []
@@ -275,7 +275,7 @@ async function _rebuild (
     extraBinPaths: string[]
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,
-  opts: StrictRebuildOptions
+  opts: StrictBuildOptions
 ): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: IgnoredBuilds }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile)
   const depsStateCache: DepsStateCache = {}
