@@ -4,7 +4,7 @@ import { packageManager } from '@pnpm/cli-meta'
 import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
 import { createStoreController } from '@pnpm/store-connection-manager'
-import { installConfigDeps } from '@pnpm/config.deps-installer'
+import { installConfigDeps, resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import { requireHooks } from '@pnpm/pnpmfile'
 import type { ConfigDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -30,14 +30,24 @@ export async function getConfig (
     ignoreNonAuthSettingsFromLocal: opts.ignoreNonAuthSettingsFromLocal,
   })
   config.cliOptions = cliOptions
-  if (config.configDependencies) {
+  if (config.configDependencies || config.wantedPackageManager?.version) {
     const store = await createStoreController(config)
-    await installConfigDeps(config.configDependencies, {
-      registries: config.registries,
-      rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
-      store: store.ctrl,
-      storeDir: store.dir,
-    })
+    if (config.configDependencies) {
+      await installConfigDeps(config.configDependencies, {
+        registries: config.registries,
+        rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
+        store: store.ctrl,
+        storeDir: store.dir,
+      })
+    }
+    if (config.wantedPackageManager?.version) {
+      await resolvePackageManagerIntegrities(config.wantedPackageManager.version, {
+        registries: config.registries,
+        rootDir: config.rootProjectManifestDir,
+        storeController: store.ctrl,
+        storeDir: store.dir,
+      })
+    }
   }
   if (!config.ignorePnpmfile) {
     config.tryLoadDefaultPnpmfile = config.pnpmfile == null

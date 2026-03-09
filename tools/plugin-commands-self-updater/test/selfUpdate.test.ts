@@ -86,11 +86,44 @@ function createMetadata (latest: string, registry: string, otherVersions: string
   }
 }
 
+function createExeMetadata (version: string, registry: string) {
+  return {
+    name: '@pnpm/exe',
+    'dist-tags': { latest: version },
+    versions: {
+      [version]: {
+        name: '@pnpm/exe',
+        version,
+        dist: {
+          shasum: 'abcdef1234567890',
+          tarball: `${registry}@pnpm/exe/-/exe-${version}.tgz`,
+          integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+        },
+      },
+    },
+  }
+}
+
+/**
+ * Mock @pnpm/exe metadata for tests that call resolvePackageManagerIntegrities.
+ * This prevents install() from making real HTTP requests for @pnpm/exe.
+ */
+function mockExeMetadata (registry: string, version: string) {
+  nock(registry)
+    .get('/@pnpm%2Fexe')
+    .reply(200, createExeMetadata(version, registry))
+}
+
 test('self-update', async () => {
   const opts = prepare()
   nock(opts.registries.default)
     .get('/pnpm')
     .reply(200, createMetadata('9.1.0', opts.registries.default))
+  // Mock metadata needed by resolvePackageManagerIntegrities
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.1.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.1.0')
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
     .replyWithFile(200, pnpmTarballPath)
@@ -116,6 +149,11 @@ test('self-update by exact version', async () => {
   nock(opts.registries.default)
     .get('/pnpm')
     .reply(200, createMetadata('9.2.0', opts.registries.default, ['9.1.0']))
+  // Mock metadata needed by resolvePackageManagerIntegrities
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.2.0', opts.registries.default, ['9.1.0']))
+  mockExeMetadata(opts.registries.default, '9.1.0')
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
     .replyWithFile(200, pnpmTarballPath)
@@ -156,6 +194,11 @@ test('should update packageManager field when a newer pnpm version is available'
   nock(opts.registries.default)
     .get('/pnpm')
     .reply(200, createMetadata('9.0.0', opts.registries.default))
+  // Mock metadata needed by resolvePackageManagerIntegrities
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.0.0')
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -198,6 +241,11 @@ test('self-update links pnpm that is already present on the disk', async () => {
   nock(opts.registries.default)
     .get('/pnpm')
     .reply(200, createMetadata('9.2.0', opts.registries.default))
+  // Mock metadata needed by resolvePackageManagerIntegrities
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.2.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.2.0')
 
   const baseDir = path.join(opts.pnpmHomeDir, '.tools/pnpm/9.2.0')
   fs.mkdirSync(path.join(baseDir, 'bin'), { recursive: true })
@@ -239,6 +287,11 @@ test('self-update updates the packageManager field in package.json', async () =>
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
     .replyWithFile(200, pnpmTarballPath)
+  // Mock metadata needed by resolvePackageManagerIntegrities
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.1.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.1.0')
 
   const output = await selfUpdate.handler(opts, [])
 

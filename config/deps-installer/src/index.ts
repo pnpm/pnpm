@@ -7,5 +7,5 @@ export {
   createConfigLockfile,
   type ConfigLockfile,
   type ConfigLockfileImporterDep,
-  type ConfigLockfilePackageInfo,
 } from './configLockfile.js'
+export { resolvePackageManagerIntegrities, type ResolvePackageManagerIntegritiesOpts } from './resolvePackageManagerIntegrities.js'

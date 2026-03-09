@@ -36,9 +36,12 @@
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/config.config-writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/core": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/package-store": "workspace:*",
@@ -50,12 +53,14 @@
     "@zkochan/rimraf": "catalog:",
     "get-npm-tarball-url": "catalog:",
     "js-yaml": "catalog:",
+    "path-temp": "catalog:",
     "strip-bom": "catalog:",
     "symlink-dir": "catalog:",
     "write-file-atomic": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/config.deps-installer": "workspace:*",

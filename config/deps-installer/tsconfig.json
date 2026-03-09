@@ -16,6 +16,12 @@
       "path": "../../fs/read-modules-dir"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
       "path": "../../network/auth-header"
     },
     {
@@ -40,6 +46,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../pkg-manager/core"
+    },
+    {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
@@ -50,6 +59,9 @@
     },
     {
       "path": "../../testing/temp-store"
+    },
+    {
+      "path": "../../worker"
     },
     {
       "path": "../config-writer"

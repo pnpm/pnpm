@@ -2,6 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import util from 'util'
 import { CONFIG_LOCKFILE, LOCKFILE_VERSION } from '@pnpm/constants'
+import type { LockfilePackageInfo, LockfilePackageSnapshot } from '@pnpm/lockfile.types'
 import yaml from 'js-yaml'
 import writeFileAtomicCB from 'write-file-atomic'
 import stripBom from 'strip-bom'
@@ -11,22 +12,16 @@ export interface ConfigLockfileImporterDep {
   version: string
 }
 
-export interface ConfigLockfilePackageInfo {
-  resolution: {
-    integrity: string
-    tarball?: string
-  }
-}
-
 export interface ConfigLockfile {
   lockfileVersion: string
   importers: {
     '.': {
       configDependencies: Record<string, ConfigLockfileImporterDep>
+      packageManagerDependencies?: Record<string, ConfigLockfileImporterDep>
     }
   }
-  packages: Record<string, ConfigLockfilePackageInfo>
-  snapshots: Record<string, Record<string, never>>
+  packages: Record<string, LockfilePackageInfo>
+  snapshots: Record<string, LockfilePackageSnapshot>
 }
 
 const YAML_FORMAT = {
@@ -97,12 +92,16 @@ export async function writeConfigLockfile (rootDir: string, lockfile: ConfigLock
 }
 
 function sortConfigLockfile (lockfile: ConfigLockfile): ConfigLockfile {
+  const importer: ConfigLockfile['importers']['.'] = {
+    configDependencies: sortKeys(lockfile.importers['.'].configDependencies),
+  }
+  if (lockfile.importers['.'].packageManagerDependencies && Object.keys(lockfile.importers['.'].packageManagerDependencies).length > 0) {
+    importer.packageManagerDependencies = sortKeys(lockfile.importers['.'].packageManagerDependencies)
+  }
   return {
     lockfileVersion: lockfile.lockfileVersion,
     importers: {
-      '.': {
-        configDependencies: sortKeys(lockfile.importers['.'].configDependencies),
-      },
+      '.': importer,
     },
     packages: sortKeys(lockfile.packages),
     snapshots: sortKeys(lockfile.snapshots),

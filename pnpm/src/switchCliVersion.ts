@@ -4,6 +4,7 @@ import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { packageManager } from '@pnpm/cli-meta'
 import { prependDirsToPath } from '@pnpm/env.path'
+import { createStoreController } from '@pnpm/store-connection-manager'
 import { installPnpmToTools } from '@pnpm/tools.plugin-commands-self-updater'
 import spawn from 'cross-spawn'
 import semver from 'semver'
@@ -20,7 +21,12 @@ export async function switchCliVersion (config: Config): Promise<void> {
     globalWarn(`Cannot switch to pnpm@${pm.version}: you need to specify the version as "${pmVersion}"`)
     return
   }
-  const { binDir: wantedPnpmBinDir } = await installPnpmToTools(pmVersion, config)
+  const store = await createStoreController(config)
+  const { binDir: wantedPnpmBinDir } = await installPnpmToTools(pmVersion, {
+    ...config,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+  })
   const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
   if (!pnpmEnv.updated) {
     // We throw this error to prevent an infinite recursive call of the same pnpm version.

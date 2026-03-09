@@ -136,7 +136,7 @@ test('migration: installs from old inline integrity format and creates config lo
     specifier: '100.0.0',
     version: '100.0.0',
   })
-  expect(configLockfile.packages['@pnpm.e2e/foo@100.0.0'].resolution.integrity).toBe(integrity)
+  expect((configLockfile.packages['@pnpm.e2e/foo@100.0.0'].resolution as { integrity: string }).integrity).toBe(integrity)
 })
 
 test('installation fails if the config dependency does not have a checksum (old format)', async () => {

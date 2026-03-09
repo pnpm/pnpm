@@ -1216,7 +1216,266 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  builder/policy:
+  building/after-install:
+    dependencies:
+      '@pnpm/building.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../pkg-requires-build
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@pnpm/calc-dep-state':
+        specifier: workspace:*
+        version: link:../../packages/calc-dep-state
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/deps.graph-sequencer':
+        specifier: workspace:*
+        version: link:../../deps/graph-sequencer
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/get-context':
+        specifier: workspace:*
+        version: link:../../pkg-manager/get-context
+      '@pnpm/lifecycle':
+        specifier: workspace:*
+        version: link:../../exec/lifecycle
+      '@pnpm/link-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/link-bins
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../lockfile/utils
+      '@pnpm/lockfile.walker':
+        specifier: workspace:*
+        version: link:../../lockfile/walker
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 1001.0.1
+      '@pnpm/modules-yaml':
+        specifier: workspace:*
+        version: link:../../pkg-manager/modules-yaml
+      '@pnpm/normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
+      '@pnpm/npm-package-arg':
+        specifier: 'catalog:'
+        version: 2.0.0
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/store-connection-manager':
+        specifier: workspace:*
+        version: link:../../store/store-connection-manager
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../../store/store-controller-types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.0
+      run-groups:
+        specifier: 'catalog:'
+        version: 4.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
+    devDependencies:
+      '@pnpm/building.after-install':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
+
+  building/build-commands:
+    dependencies:
+      '@pnpm/building.after-install':
+        specifier: workspace:*
+        version: link:../after-install
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/common-cli-options-help':
+        specifier: workspace:*
+        version: link:../../cli/common-cli-options-help
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/sort-packages':
+        specifier: workspace:*
+        version: link:../../workspace/sort-packages
+      '@pnpm/store-connection-manager':
+        specifier: workspace:*
+        version: link:../../store/store-connection-manager
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      render-help:
+        specifier: 'catalog:'
+        version: 1.0.3
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
+      '@pnpm/assert-project':
+        specifier: workspace:*
+        version: link:../../__utils__/assert-project
+      '@pnpm/building.build-commands':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 5.2.2(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
+      '@pnpm/workspace.filter-packages-from-dir':
+        specifier: workspace:*
+        version: link:../../workspace/filter-packages-from-dir
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.2.0
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
+
+  building/during-install:
+    dependencies:
+      '@pnpm/calc-dep-state':
+        specifier: workspace:*
+        version: link:../../packages/calc-dep-state
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/deps.graph-sequencer':
+        specifier: workspace:*
+        version: link:../../deps/graph-sequencer
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fs.hard-link-dir':
+        specifier: workspace:*
+        version: link:../../fs/hard-link-dir
+      '@pnpm/lifecycle':
+        specifier: workspace:*
+        version: link:../../exec/lifecycle
+      '@pnpm/link-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/link-bins
+      '@pnpm/patching.apply-patch':
+        specifier: workspace:*
+        version: link:../../patching/apply-patch
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../../patching/types
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../../store/store-controller-types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
+      p-defer:
+        specifier: 'catalog:'
+        version: 4.0.1
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      run-groups:
+        specifier: 'catalog:'
+        version: 4.0.0
+    devDependencies:
+      '@pnpm/building.during-install':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+
+  building/pkg-requires-build:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/building.pkg-requires-build':
+        specifier: workspace:*
+        version: 'link:'
+
+  building/policy:
     dependencies:
       '@pnpm/config.version-policy':
         specifier: workspace:*
@@ -1225,9 +1484,85 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
     devDependencies:
-      '@pnpm/builder.policy':
+      '@pnpm/building.policy':
         specifier: workspace:*
         version: 'link:'
+
+  building/policy-commands:
+    dependencies:
+      '@pnpm/building.build-commands':
+        specifier: workspace:*
+        version: link:../build-commands
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/config.config-writer':
+        specifier: workspace:*
+        version: link:../../config/config-writer
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 1001.0.1
+      '@pnpm/modules-yaml':
+        specifier: workspace:*
+        version: link:../../pkg-manager/modules-yaml
+      '@pnpm/prepare-temp-dir':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare-temp-dir
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
+      chalk:
+        specifier: 'catalog:'
+        version: 5.6.2
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
+      render-help:
+        specifier: 'catalog:'
+        version: 1.0.3
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
+      '@pnpm/building.policy-commands':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 5.2.2(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.2.0
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      read-yaml-file:
+        specifier: 'catalog:'
+        version: 2.1.0
+      write-package:
+        specifier: 'catalog:'
+        version: 7.2.0
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
 
   cache/api:
     dependencies:
@@ -1762,6 +2097,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/core':
+        specifier: workspace:*
+        version: link:../../pkg-manager/core
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
@@ -1771,6 +2109,12 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
@@ -1798,6 +2142,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -1807,6 +2154,9 @@ importers:
       js-yaml:
         specifier: 'catalog:'
         version: '@zkochan/js-yaml@0.0.11'
+      path-temp:
+        specifier: 'catalog:'
+        version: 2.1.1
       strip-bom:
         specifier: 'catalog:'
         version: 5.0.0
@@ -2432,149 +2782,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  exec/build-commands:
-    dependencies:
-      '@pnpm/config':
-        specifier: workspace:*
-        version: link:../../config/config
-      '@pnpm/config.config-writer':
-        specifier: workspace:*
-        version: link:../../config/config-writer
-      '@pnpm/dependency-path':
-        specifier: workspace:*
-        version: link:../../packages/dependency-path
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/logger':
-        specifier: 'catalog:'
-        version: 1001.0.1
-      '@pnpm/modules-yaml':
-        specifier: workspace:*
-        version: link:../../pkg-manager/modules-yaml
-      '@pnpm/plugin-commands-rebuild':
-        specifier: workspace:*
-        version: link:../plugin-commands-rebuild
-      '@pnpm/prepare-temp-dir':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare-temp-dir
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 3.0.2
-      chalk:
-        specifier: 'catalog:'
-        version: 5.6.2
-      enquirer:
-        specifier: 'catalog:'
-        version: 2.4.1
-      render-help:
-        specifier: 'catalog:'
-        version: 1.0.3
-    devDependencies:
-      '@jest/globals':
-        specifier: 'catalog:'
-        version: 30.0.5
-      '@pnpm/exec.build-commands':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare
-      '@pnpm/registry-mock':
-        specifier: 'catalog:'
-        version: 5.2.2(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
-      execa:
-        specifier: 'catalog:'
-        version: safe-execa@0.2.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-      read-yaml-file:
-        specifier: 'catalog:'
-        version: 2.1.0
-      write-package:
-        specifier: 'catalog:'
-        version: 7.2.0
-      write-yaml-file:
-        specifier: 'catalog:'
-        version: 5.0.0
-
-  exec/build-modules:
-    dependencies:
-      '@pnpm/calc-dep-state':
-        specifier: workspace:*
-        version: link:../../packages/calc-dep-state
-      '@pnpm/config':
-        specifier: workspace:*
-        version: link:../../config/config
-      '@pnpm/core-loggers':
-        specifier: workspace:*
-        version: link:../../packages/core-loggers
-      '@pnpm/dependency-path':
-        specifier: workspace:*
-        version: link:../../packages/dependency-path
-      '@pnpm/deps.graph-sequencer':
-        specifier: workspace:*
-        version: link:../../deps/graph-sequencer
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/fs.hard-link-dir':
-        specifier: workspace:*
-        version: link:../../fs/hard-link-dir
-      '@pnpm/lifecycle':
-        specifier: workspace:*
-        version: link:../lifecycle
-      '@pnpm/link-bins':
-        specifier: workspace:*
-        version: link:../../pkg-manager/link-bins
-      '@pnpm/patching.apply-patch':
-        specifier: workspace:*
-        version: link:../../patching/apply-patch
-      '@pnpm/patching.types':
-        specifier: workspace:*
-        version: link:../../patching/types
-      '@pnpm/read-package-json':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-package-json
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@pnpm/worker':
-        specifier: workspace:^
-        version: link:../../worker
-      p-defer:
-        specifier: 'catalog:'
-        version: 4.0.1
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-      run-groups:
-        specifier: 'catalog:'
-        version: 4.0.0
-    devDependencies:
-      '@pnpm/build-modules':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
-
   exec/lifecycle:
     dependencies:
       '@pnpm/cafs-types':
@@ -2641,170 +2848,6 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
-
-  exec/pkg-requires-build:
-    dependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-    devDependencies:
-      '@pnpm/exec.pkg-requires-build':
-        specifier: workspace:*
-        version: 'link:'
-
-  exec/plugin-commands-rebuild:
-    dependencies:
-      '@pnpm/builder.policy':
-        specifier: workspace:*
-        version: link:../../builder/policy
-      '@pnpm/calc-dep-state':
-        specifier: workspace:*
-        version: link:../../packages/calc-dep-state
-      '@pnpm/cli-utils':
-        specifier: workspace:*
-        version: link:../../cli/cli-utils
-      '@pnpm/common-cli-options-help':
-        specifier: workspace:*
-        version: link:../../cli/common-cli-options-help
-      '@pnpm/config':
-        specifier: workspace:*
-        version: link:../../config/config
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
-      '@pnpm/core-loggers':
-        specifier: workspace:*
-        version: link:../../packages/core-loggers
-      '@pnpm/dependency-path':
-        specifier: workspace:*
-        version: link:../../packages/dependency-path
-      '@pnpm/deps.graph-sequencer':
-        specifier: workspace:*
-        version: link:../../deps/graph-sequencer
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/exec.pkg-requires-build':
-        specifier: workspace:*
-        version: link:../pkg-requires-build
-      '@pnpm/get-context':
-        specifier: workspace:*
-        version: link:../../pkg-manager/get-context
-      '@pnpm/lifecycle':
-        specifier: workspace:*
-        version: link:../lifecycle
-      '@pnpm/link-bins':
-        specifier: workspace:*
-        version: link:../../pkg-manager/link-bins
-      '@pnpm/lockfile.types':
-        specifier: workspace:*
-        version: link:../../lockfile/types
-      '@pnpm/lockfile.utils':
-        specifier: workspace:*
-        version: link:../../lockfile/utils
-      '@pnpm/lockfile.walker':
-        specifier: workspace:*
-        version: link:../../lockfile/walker
-      '@pnpm/modules-yaml':
-        specifier: workspace:*
-        version: link:../../pkg-manager/modules-yaml
-      '@pnpm/normalize-registries':
-        specifier: workspace:*
-        version: link:../../config/normalize-registries
-      '@pnpm/npm-package-arg':
-        specifier: 'catalog:'
-        version: 2.0.0
-      '@pnpm/read-package-json':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-package-json
-      '@pnpm/sort-packages':
-        specifier: workspace:*
-        version: link:../../workspace/sort-packages
-      '@pnpm/store-connection-manager':
-        specifier: workspace:*
-        version: link:../../store/store-connection-manager
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
-      '@pnpm/store.cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
-      '@pnpm/store.index':
-        specifier: workspace:*
-        version: link:../../store/index
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@pnpm/worker':
-        specifier: workspace:^
-        version: link:../../worker
-      '@pnpm/workspace.find-packages':
-        specifier: workspace:*
-        version: link:../../workspace/find-packages
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
-      memoize:
-        specifier: 'catalog:'
-        version: 10.2.0
-      p-limit:
-        specifier: 'catalog:'
-        version: 7.3.0
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-      render-help:
-        specifier: 'catalog:'
-        version: 1.0.3
-      run-groups:
-        specifier: 'catalog:'
-        version: 4.0.0
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.4
-    devDependencies:
-      '@jest/globals':
-        specifier: 'catalog:'
-        version: 30.0.5
-      '@pnpm/assert-project':
-        specifier: workspace:*
-        version: link:../../__utils__/assert-project
-      '@pnpm/crypto.object-hasher':
-        specifier: workspace:*
-        version: link:../../crypto/object-hasher
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@pnpm/plugin-commands-rebuild':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare
-      '@pnpm/registry-mock':
-        specifier: 'catalog:'
-        version: 5.2.2(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
-      '@pnpm/test-fixtures':
-        specifier: workspace:*
-        version: link:../../__utils__/test-fixtures
-      '@pnpm/test-ipc-server':
-        specifier: workspace:*
-        version: link:../../__utils__/test-ipc-server
-      '@pnpm/workspace.filter-packages-from-dir':
-        specifier: workspace:*
-        version: link:../../workspace/filter-packages-from-dir
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.7.1
-      execa:
-        specifier: 'catalog:'
-        version: safe-execa@0.2.0
-      write-yaml-file:
-        specifier: 'catalog:'
-        version: 5.0.0
 
   exec/plugin-commands-script-runners:
     dependencies:
@@ -3083,12 +3126,12 @@ importers:
 
   fetching/directory-fetcher:
     dependencies:
+      '@pnpm/building.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../../building/pkg-requires-build
       '@pnpm/cafs-types':
         specifier: workspace:*
         version: link:../../store/cafs-types
-      '@pnpm/exec.pkg-requires-build':
-        specifier: workspace:*
-        version: link:../../exec/pkg-requires-build
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
@@ -3513,6 +3556,9 @@ importers:
 
   global/commands:
     dependencies:
+      '@pnpm/building.policy-commands':
+        specifier: workspace:*
+        version: link:../../building/policy-commands
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
@@ -3525,9 +3571,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/exec.build-commands':
-        specifier: workspace:*
-        version: link:../../exec/build-commands
       '@pnpm/global.packages':
         specifier: workspace:*
         version: link:../packages
@@ -4998,12 +5041,15 @@ importers:
 
   pkg-manager/core:
     dependencies:
-      '@pnpm/build-modules':
+      '@pnpm/building.after-install':
         specifier: workspace:*
-        version: link:../../exec/build-modules
-      '@pnpm/builder.policy':
+        version: link:../../building/after-install
+      '@pnpm/building.during-install':
         specifier: workspace:*
-        version: link:../../builder/policy
+        version: link:../../building/during-install
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../../building/policy
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
@@ -5118,9 +5164,6 @@ importers:
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: link:../direct-dep-linker
-      '@pnpm/plugin-commands-rebuild':
-        specifier: workspace:*
-        version: link:../../exec/plugin-commands-rebuild
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
@@ -5370,12 +5413,12 @@ importers:
 
   pkg-manager/headless:
     dependencies:
-      '@pnpm/build-modules':
+      '@pnpm/building.during-install':
         specifier: workspace:*
-        version: link:../../exec/build-modules
-      '@pnpm/builder.policy':
+        version: link:../../building/during-install
+      '@pnpm/building.policy':
         specifier: workspace:*
-        version: link:../../builder/policy
+        version: link:../../building/policy
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
@@ -5893,6 +5936,12 @@ importers:
 
   pkg-manager/plugin-commands-installation:
     dependencies:
+      '@pnpm/building.after-install':
+        specifier: workspace:*
+        version: link:../../building/after-install
+      '@pnpm/building.build-commands':
+        specifier: workspace:*
+        version: link:../../building/build-commands
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
@@ -5968,9 +6017,6 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
-      '@pnpm/plugin-commands-rebuild':
-        specifier: workspace:*
-        version: link:../../exec/plugin-commands-rebuild
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -6603,6 +6649,12 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../__utils__/assert-project
+      '@pnpm/building.build-commands':
+        specifier: workspace:*
+        version: link:../building/build-commands
+      '@pnpm/building.policy-commands':
+        specifier: workspace:*
+        version: link:../building/policy-commands
       '@pnpm/byline':
         specifier: 'catalog:'
         version: 1.0.0
@@ -6654,9 +6706,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../packages/error
-      '@pnpm/exec.build-commands':
-        specifier: workspace:*
-        version: link:../exec/build-commands
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../workspace/filter-workspace-packages
@@ -6720,9 +6769,6 @@ importers:
       '@pnpm/plugin-commands-publishing':
         specifier: workspace:*
         version: link:../releasing/plugin-commands-publishing
-      '@pnpm/plugin-commands-rebuild':
-        specifier: workspace:*
-        version: link:../exec/plugin-commands-rebuild
       '@pnpm/plugin-commands-sbom':
         specifier: workspace:*
         version: link:../reviewing/plugin-commands-sbom
@@ -6756,6 +6802,9 @@ importers:
       '@pnpm/runtime.commands':
         specifier: workspace:*
         version: link:../runtime/commands
+      '@pnpm/store-connection-manager':
+        specifier: workspace:*
+        version: link:../store/store-connection-manager
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs
@@ -8443,9 +8492,9 @@ importers:
 
   store/create-cafs-store:
     dependencies:
-      '@pnpm/exec.pkg-requires-build':
+      '@pnpm/building.pkg-requires-build':
         specifier: workspace:*
-        version: link:../../exec/pkg-requires-build
+        version: link:../../building/pkg-requires-build
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -8934,27 +8983,42 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/config.deps-installer':
+        specifier: workspace:*
+        version: link:../../config/deps-installer
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/core':
+        specifier: workspace:*
+        version: link:../../pkg-manager/core
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/exec.pnpm-cli-runner':
-        specifier: workspace:*
-        version: link:../../exec/pnpm-cli-runner
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
+      '@pnpm/package-store':
+        specifier: workspace:*
+        version: link:../../store/package-store
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/store-connection-manager':
+        specifier: workspace:*
+        version: link:../../store/store-connection-manager
       '@pnpm/tools.path':
         specifier: workspace:*
         version: link:../path
-      '@zkochan/rimraf':
-        specifier: 'catalog:'
-        version: 3.0.2
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       path-temp:
         specifier: 'catalog:'
         version: 2.1.1
@@ -8995,6 +9059,9 @@ importers:
 
   worker:
     dependencies:
+      '@pnpm/building.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../building/pkg-requires-build
       '@pnpm/cafs-types':
         specifier: workspace:*
         version: link:../store/cafs-types
@@ -9007,9 +9074,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../packages/error
-      '@pnpm/exec.pkg-requires-build':
-        specifier: workspace:*
-        version: link:../exec/pkg-requires-build
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../fs/hard-link-dir

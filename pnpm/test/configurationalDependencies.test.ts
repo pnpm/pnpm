@@ -90,7 +90,7 @@ test('installing a new configurational dependency', async () => {
     specifier: '100.0.0',
     version: '100.0.0',
   })
-  expect(configLockfile!.packages['@pnpm.e2e/foo@100.0.0'].resolution.integrity).toBe(
+  expect((configLockfile!.packages['@pnpm.e2e/foo@100.0.0'].resolution as { integrity: string }).integrity).toBe(
     getIntegrity('@pnpm.e2e/foo', '100.0.0')
   )
 })
