@@ -27,6 +27,9 @@ export function createBinaryFetcher (ctx: {
       name: opts.pkg.name!,
       version: opts.pkg.version!,
       bin: resolution.bin,
+      ...(resolution.nativeLibraryDeps && {
+        nativeLibraryDeps: resolution.nativeLibraryDeps,
+      }),
     }
 
     let fetchResult!: FetchResult

@@ -1806,6 +1806,7 @@ function getCatalogExistingVersionFromSnapshot (
 }
 
 const NON_EXOTIC_RESOLVED_VIA = new Set([
+  'broop',
   'custom-resolver',
   'github.com/denoland/deno',
   'github.com/oven-sh/bun',

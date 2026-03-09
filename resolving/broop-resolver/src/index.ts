@@ -10,7 +10,7 @@ import type {
 import type { PkgResolutionId } from '@pnpm/types'
 import type { BinaryResolution } from '@pnpm/resolver-base'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { resolveFromHomebrew } from './homebrew.js'
+import { resolveFromHomebrew, sanitizeHomebrewName } from './homebrew.js'
 import { resolveFromScoop } from './scoop.js'
 
 export interface BroopResolveResult extends ResolveResult {
@@ -99,7 +99,7 @@ export async function resolveBroop (
       // gracefully when no variant matches the current platform.
       ...(allDeps.size > 0 && {
         optionalDependencies: Object.fromEntries(
-          [...allDeps].map((dep) => [dep, `broop:${dep}`])
+          [...allDeps].map((dep) => [sanitizeHomebrewName(dep), `broop:${dep}`])
         ),
       }),
     },

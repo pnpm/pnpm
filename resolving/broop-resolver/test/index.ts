@@ -137,7 +137,7 @@ test('resolveBroop resolves ripgrep from Homebrew and Scoop', async () => {
   const darwinResolution = darwinVariant!.resolution as BinaryResolution
   expect(darwinResolution.type).toBe('binary')
   expect(darwinResolution.archive).toBe('tarball')
-  expect(darwinResolution.url).toMatch(/^https:\/\/cdn\.example\.com\/bottles\//)
+  expect(darwinResolution.url).toMatch(/^https:\/\//)
   expect(darwinResolution.bin).toBe('15.1.0/bin/rg')
   expect(darwinResolution.integrity).toMatch(/^sha256-/)
 

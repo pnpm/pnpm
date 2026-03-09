@@ -26,6 +26,7 @@ export interface BinaryResolution {
   integrity: string
   bin: string | Record<string, string>
   prefix?: string
+  nativeLibraryDeps?: string[]
 }
 
 /**

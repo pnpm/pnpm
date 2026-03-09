@@ -49,16 +49,29 @@ export interface HomebrewResolveResult {
 export async function resolveFromHomebrew (
   fetchFromRegistry: FetchFromRegistry,
   name: string,
-  _versionSpec?: string
+  versionSpec?: string
 ): Promise<HomebrewResolveResult> {
-  const formula = await fetchHomebrewFormula(fetchFromRegistry, name)
+  // Homebrew uses @ for versioned formulas (e.g., openssl@3, python@3.12).
+  // If name alone fails and a versionSpec was provided, try name@versionSpec
+  // as the full formula name.
+  let formula: HomebrewFormula
+  if (versionSpec) {
+    try {
+      formula = await fetchHomebrewFormula(fetchFromRegistry, `${name}@${versionSpec}`)
+    } catch {
+      formula = await fetchHomebrewFormula(fetchFromRegistry, name)
+    }
+  } else {
+    formula = await fetchHomebrewFormula(fetchFromRegistry, name)
+  }
 
   if (!formula.versions.bottle) {
     throw new PnpmError('BROOP_NO_BOTTLE', `Homebrew formula "${name}" does not have pre-built bottles`)
   }
 
   const version = formula.versions.stable
-  const formulaSlug = formula.full_name.replace(/\+/g, 'x').replace(/\//g, '--')
+  // GHCR uses / instead of @ for versioned formulas (e.g., openssl@3 → openssl/3)
+  const formulaSlug = formula.full_name.replace(/@/g, '/').replace(/\+/g, 'x')
 
   // Get anonymous GHCR token (one token works for all platforms of the same formula)
   const token = await getGhcrToken(formulaSlug)
@@ -99,6 +112,9 @@ export async function resolveFromHomebrew (
       url: downloadUrl,
       integrity: `sha256-${base64Hash}`,
       bin: `${version}/bin/${binName}`,
+      ...(formula.dependencies.length > 0 && {
+        nativeLibraryDeps: formula.dependencies.map(sanitizeHomebrewName),
+      }),
     }
 
     assets.push({
@@ -165,4 +181,11 @@ async function resolveGhcrBlobUrl (
   // If no redirect, the response contains the blob directly.
   // Return the original URL — the fetcher will need auth.
   return ghcrBlobUrl
+}
+
+// Homebrew uses @ for versioned formulas (e.g., openssl@3, python@3.12)
+// but @ is not valid in non-scoped npm package names.
+// Replace @ with -v to create a valid package name alias.
+export function sanitizeHomebrewName (name: string): string {
+  return name.replace(/@/g, '-v')
 }
