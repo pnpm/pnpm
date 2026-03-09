@@ -35,7 +35,6 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
-    "@pnpm/config.deps-installer": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/link-bins": "workspace:*",

@@ -22,9 +22,6 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../config/deps-installer"
-    },
-    {
       "path": "../../env/path"
     },
     {

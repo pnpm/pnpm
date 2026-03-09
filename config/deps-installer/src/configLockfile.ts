@@ -25,7 +25,6 @@ export interface ConfigLockfile {
       configDependencies: Record<string, ConfigLockfileImporterDep>
     }
   }
-  packageManager?: Record<string, ConfigLockfilePackageInfo>
   packages: Record<string, ConfigLockfilePackageInfo>
   snapshots: Record<string, Record<string, never>>
 }
@@ -79,9 +78,6 @@ export async function readConfigLockfile (rootDir: string): Promise<ConfigLockfi
   if (lockfile.snapshots == null || typeof lockfile.snapshots !== 'object') {
     throw new Error(`Invalid config lockfile at ${lockfilePath}: missing or invalid "snapshots"`)
   }
-  if (lockfile.packageManager != null && typeof lockfile.packageManager !== 'object') {
-    throw new Error(`Invalid config lockfile at ${lockfilePath}: invalid "packageManager"`)
-  }
   return parsed as ConfigLockfile
 }
 
@@ -101,7 +97,7 @@ export async function writeConfigLockfile (rootDir: string, lockfile: ConfigLock
 }
 
 function sortConfigLockfile (lockfile: ConfigLockfile): ConfigLockfile {
-  const sorted: ConfigLockfile = {
+  return {
     lockfileVersion: lockfile.lockfileVersion,
     importers: {
       '.': {
@@ -111,10 +107,6 @@ function sortConfigLockfile (lockfile: ConfigLockfile): ConfigLockfile {
     packages: sortKeys(lockfile.packages),
     snapshots: sortKeys(lockfile.snapshots),
   }
-  if (lockfile.packageManager && Object.keys(lockfile.packageManager).length > 0) {
-    sorted.packageManager = sortKeys(lockfile.packageManager)
-  }
-  return sorted
 }
 
 function sortKeys<T> (obj: Record<string, T>): Record<string, T> {

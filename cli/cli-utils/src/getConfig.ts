@@ -4,7 +4,7 @@ import { packageManager } from '@pnpm/cli-meta'
 import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
 import { createStoreController } from '@pnpm/store-connection-manager'
-import { installConfigDeps, resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
+import { installConfigDeps } from '@pnpm/config.deps-installer'
 import { requireHooks } from '@pnpm/pnpmfile'
 import type { ConfigDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -37,11 +37,6 @@ export async function getConfig (
       rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
       store: store.ctrl,
       storeDir: store.dir,
-    })
-  }
-  if (config.wantedPackageManager?.version) {
-    await resolvePackageManagerIntegrities(config.wantedPackageManager.version, {
-      rootDir: config.rootProjectManifestDir,
     })
   }
   if (!config.ignorePnpmfile) {
