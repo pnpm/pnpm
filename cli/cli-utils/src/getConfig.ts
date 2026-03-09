@@ -30,19 +30,24 @@ export async function getConfig (
     ignoreNonAuthSettingsFromLocal: opts.ignoreNonAuthSettingsFromLocal,
   })
   config.cliOptions = cliOptions
-  if (config.configDependencies) {
+  if (config.configDependencies || config.wantedPackageManager?.version) {
     const store = await createStoreController(config)
-    await installConfigDeps(config.configDependencies, {
-      registries: config.registries,
-      rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
-      store: store.ctrl,
-      storeDir: store.dir,
-    })
-  }
-  if (config.wantedPackageManager?.version) {
-    await resolvePackageManagerIntegrities(config.wantedPackageManager.version, {
-      rootDir: config.rootProjectManifestDir,
-    })
+    if (config.configDependencies) {
+      await installConfigDeps(config.configDependencies, {
+        registries: config.registries,
+        rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
+        store: store.ctrl,
+        storeDir: store.dir,
+      })
+    }
+    if (config.wantedPackageManager?.version) {
+      await resolvePackageManagerIntegrities(config.wantedPackageManager.version, {
+        registries: config.registries,
+        rootDir: config.rootProjectManifestDir,
+        storeController: store.ctrl,
+        storeDir: store.dir,
+      })
+    }
   }
   if (!config.ignorePnpmfile) {
     config.tryLoadDefaultPnpmfile = config.pnpmfile == null

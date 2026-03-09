@@ -171,6 +171,9 @@
       "path": "../store/plugin-commands-store-inspecting"
     },
     {
+      "path": "../store/store-connection-manager"
+    },
+    {
       "path": "../tools/path"
     },
     {

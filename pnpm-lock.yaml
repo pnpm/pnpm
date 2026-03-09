@@ -2097,15 +2097,15 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/core':
+        specifier: workspace:*
+        version: link:../../pkg-manager/core
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/exec.pnpm-cli-runner':
-        specifier: workspace:*
-        version: link:../../exec/pnpm-cli-runner
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
@@ -2139,6 +2139,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -6796,6 +6799,9 @@ importers:
       '@pnpm/runtime.commands':
         specifier: workspace:*
         version: link:../runtime/commands
+      '@pnpm/store-connection-manager':
+        specifier: workspace:*
+        version: link:../store/store-connection-manager
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs
@@ -8977,27 +8983,39 @@ importers:
       '@pnpm/config.deps-installer':
         specifier: workspace:*
         version: link:../../config/deps-installer
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/core':
+        specifier: workspace:*
+        version: link:../../pkg-manager/core
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/exec.pnpm-cli-runner':
-        specifier: workspace:*
-        version: link:../../exec/pnpm-cli-runner
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
+      '@pnpm/package-store':
+        specifier: workspace:*
+        version: link:../../store/package-store
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/store-connection-manager':
+        specifier: workspace:*
+        version: link:../../store/store-connection-manager
       '@pnpm/tools.path':
         specifier: workspace:*
         version: link:../path
-      '@zkochan/rimraf':
-        specifier: 'catalog:'
-        version: 3.0.2
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       path-temp:
         specifier: 'catalog:'
         version: 2.1.1

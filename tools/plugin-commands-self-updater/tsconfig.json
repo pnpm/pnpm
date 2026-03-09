@@ -28,19 +28,34 @@
       "path": "../../env/path"
     },
     {
-      "path": "../../exec/pnpm-cli-runner"
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../pkg-manager/client"
+    },
+    {
+      "path": "../../pkg-manager/core"
     },
     {
       "path": "../../pkg-manager/link-bins"
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../store/package-store"
+    },
+    {
+      "path": "../../store/store-connection-manager"
     },
     {
       "path": "../path"

@@ -8,6 +8,7 @@ import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { linkBins } from '@pnpm/link-bins'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { installPnpmToTools } from './installPnpmToTools.js'
@@ -38,15 +39,11 @@ export function help (): string {
   })
 }
 
-export type SelfUpdateCommandOptions = Pick<Config,
-| 'cacheDir'
-| 'dir'
+export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileDir'
 | 'managePackageManagerVersions'
 | 'modulesDir'
 | 'pnpmHomeDir'
-| 'rawConfig'
-| 'registries'
 | 'rootProjectManifestDir'
 | 'wantedPackageManager'
 >
@@ -75,8 +72,12 @@ export async function handler (
       const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
       manifest.packageManager = `pnpm@${resolution.manifest.version}`
       await writeProjectManifest(manifest)
+      const store = await createStoreController(opts)
       await resolvePackageManagerIntegrities(resolution.manifest.version, {
+        registries: opts.registries,
         rootDir: opts.rootProjectManifestDir,
+        storeController: store.ctrl,
+        storeDir: store.dir,
       })
       return `The current project has been updated to use pnpm v${resolution.manifest.version}`
     } else {
@@ -87,7 +88,12 @@ export async function handler (
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
 
-  const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, opts)
+  const store = await createStoreController(opts)
+  const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, {
+    ...opts,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+  })
   await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir,
     {
       warn: globalWarn,

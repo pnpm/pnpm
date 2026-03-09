@@ -1,18 +1,23 @@
 import fs from 'fs'
 import path from 'path'
-import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
+import { install } from '@pnpm/core'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
+import type { StoreController } from '@pnpm/package-store'
+import type { Registries } from '@pnpm/types'
 import { readConfigLockfile, writeConfigLockfile, createConfigLockfile } from './configLockfile.js'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { sync as rimraf } from '@zkochan/rimraf'
 
 export interface ResolvePackageManagerIntegritiesOpts {
+  registries: Registries
   rootDir: string
+  storeController: StoreController
+  storeDir: string
 }
 
 /**
  * Resolves integrity checksums for `pnpm`, `@pnpm/exe`, and their dependencies
- * by running `pnpm install --lockfile-only` in a temp directory.
+ * by calling @pnpm/core's install with lockfileOnly in a temp directory.
  * Writes the results to the `packageManager` section of pnpm-config-lock.yaml.
  */
 export async function resolvePackageManagerIntegrities (
@@ -37,12 +42,23 @@ export async function resolvePackageManagerIntegrities (
   }))
 
   try {
-    runPnpmCli([
-      'install',
-      '--lockfile-only',
-      '--no-strict-peer-dependencies',
-      '--loglevel=error',
-    ], { cwd: tempDir })
+    await install(
+      {
+        dependencies: {
+          'pnpm': pnpmVersion,
+          '@pnpm/exe': pnpmVersion,
+        },
+      },
+      {
+        dir: tempDir,
+        lockfileDir: tempDir,
+        lockfileOnly: true,
+        strictPeerDependencies: false,
+        storeController: opts.storeController,
+        storeDir: opts.storeDir,
+        registries: opts.registries,
+      }
+    )
 
     const lockfile = await readWantedLockfile(tempDir, { ignoreIncompatible: true })
     if (lockfile?.packages) {

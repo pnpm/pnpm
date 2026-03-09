@@ -13,9 +13,6 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../exec/pnpm-cli-runner"
-    },
-    {
       "path": "../../fs/read-modules-dir"
     },
     {
@@ -46,6 +43,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../pkg-manager/core"
+    },
+    {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
@@ -56,6 +56,9 @@
     },
     {
       "path": "../../testing/temp-store"
+    },
+    {
+      "path": "../../worker"
     },
     {
       "path": "../config-writer"
