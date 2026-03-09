@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
-import type { ApproveBuildsCommandOpts } from '@pnpm/exec.build-commands'
-import type { RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
+import type { ApproveBuildsCommandOpts } from '@pnpm/building.policy-commands'
+import type { RebuildCommandOpts } from '@pnpm/building.build-commands'
 import { prepare } from '@pnpm/prepare'
 import { getConfig } from '@pnpm/config'
 import { readModulesManifest } from '@pnpm/modules-yaml'
@@ -16,7 +16,7 @@ import execa from 'execa'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 const { default: enquirer } = await import('enquirer')
-const { approveBuilds } = await import('@pnpm/exec.build-commands')
+const { approveBuilds } = await import('@pnpm/building.policy-commands')
 
 const prompt = jest.mocked(enquirer.prompt)
 

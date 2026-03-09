@@ -1,7 +1,7 @@
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { rebuild } from '@pnpm/plugin-commands-rebuild'
+import { rebuild } from '@pnpm/building.build-commands'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { PackageManifest } from '@pnpm/types'

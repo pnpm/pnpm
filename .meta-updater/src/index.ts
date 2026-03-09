@@ -253,7 +253,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/lockfile.types':
     scripts = { ...manifest.scripts }
     break
-  case '@pnpm/exec.build-commands':
+  case '@pnpm/building.policy-commands':
   case '@pnpm/config.deps-installer':
   case '@pnpm/headless':
   case '@pnpm/outdated':
@@ -265,7 +265,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-outdated':
   case '@pnpm/plugin-commands-patching':
   case '@pnpm/plugin-commands-publishing':
-  case '@pnpm/plugin-commands-rebuild':
+  case '@pnpm/building.build-commands':
   case '@pnpm/plugin-commands-script-runners':
   case '@pnpm/plugin-commands-store':
   case '@pnpm/plugin-commands-deploy':

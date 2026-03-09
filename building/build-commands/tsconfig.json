@@ -22,9 +22,6 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../building/after-install"
-    },
-    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -59,6 +56,9 @@
     },
     {
       "path": "../../workspace/sort-packages"
+    },
+    {
+      "path": "../after-install"
     }
   ]
 }

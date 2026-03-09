@@ -1,7 +1,7 @@
 import path from 'path'
-import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
+import { buildSelectedPkgs } from '@pnpm/building.after-install'
+import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
-import { rebuildSelectedPkgs } from '@pnpm/building.after-install'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -903,7 +903,7 @@ async function runUnignoredDependencyBuilds (
     }
   }
   if (pkgsToBuild.length) {
-    return (await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
+    return (await buildSelectedPkgs(opts.allProjects, pkgsToBuild, {
       ...opts,
       reporter: undefined, // We don't want to attach the reporter again, it was already attached.
       rootProjectManifestDir: opts.lockfileDir,

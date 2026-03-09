@@ -1,5 +1,5 @@
 import path from 'path'
-import { rebuildProjects } from '@pnpm/building.after-install'
+import { buildProjects } from '@pnpm/building.after-install'
 import {
   readProjectManifestOnly,
   tryReadProjectManifest,
@@ -391,7 +391,7 @@ when running add/update with the --workspace option')
 
     if (opts.ignoreScripts) return
 
-    await rebuildProjects(
+    await buildProjects(
       [
         {
           buildIndex: 0,

@@ -31,6 +31,7 @@
     "test": "pnpm run compile"
   },
   "dependencies": {
+    "@pnpm/building.pkg-requires-build": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/config": "workspace:*",
@@ -39,7 +40,6 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/exec.pkg-requires-build": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",

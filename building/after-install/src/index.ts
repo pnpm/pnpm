@@ -1,14 +1,16 @@
 import assert from 'assert'
 import path from 'path'
 import util from 'util'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
-import { storeIndexKey } from '@pnpm/store.index'
+import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { calcDepState, lockfileToDepGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import * as dp from '@pnpm/dependency-path'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
 import {
@@ -26,6 +28,10 @@ import {
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
+import npa from '@pnpm/npm-package-arg'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { createStoreController } from '@pnpm/store-connection-manager'
 import type {
   DepPath,
@@ -34,24 +40,17 @@ import type {
   ProjectId,
   ProjectRootDir,
 } from '@pnpm/types'
-import { createAllowBuildFunction } from '@pnpm/building.policy'
-import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
-import * as dp from '@pnpm/dependency-path'
-import { StoreIndex } from '@pnpm/store.index'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { hardLinkDir } from '@pnpm/worker'
-import { runGroups } from 'run-groups'
-import { graphSequencer } from '@pnpm/deps.graph-sequencer'
-import npa from '@pnpm/npm-package-arg'
 import pLimit from 'p-limit'
+import { runGroups } from 'run-groups'
 import semver from 'semver'
 import {
-  extendRebuildOptions,
-  type RebuildOptions,
-  type StrictRebuildOptions,
-} from './extendRebuildOptions.js'
+  extendBuildOptions,
+  type BuildOptions,
+  type StrictBuildOptions,
+} from './extendBuildOptions.js'
 
-export type { RebuildOptions }
+export type { BuildOptions }
 
 function findPackages (
   packages: PackageSnapshots,
@@ -95,16 +94,16 @@ type PackageSelector = string | {
   range: string
 }
 
-export async function rebuildSelectedPkgs (
+export async function buildSelectedPkgs (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>,
   pkgSpecs: string[],
-  maybeOpts: RebuildOptions
+  maybeOpts: BuildOptions
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
-  const opts = await extendRebuildOptions(maybeOpts)
+  const opts = await extendBuildOptions(maybeOpts)
   const ctx = await getContext({ ...opts, allProjects: projects })
 
   if (ctx.currentLockfile?.packages == null) return {}
@@ -161,15 +160,15 @@ export async function rebuildSelectedPkgs (
   }
 }
 
-export async function rebuildProjects (
+export async function buildProjects (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>,
-  maybeOpts: RebuildOptions
+  maybeOpts: BuildOptions
 ): Promise<void> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
-  const opts = await extendRebuildOptions(maybeOpts)
+  const opts = await extendBuildOptions(maybeOpts)
   const ctx = await getContext({ ...opts, allProjects: projects })
 
   let idsToRebuild: string[] = []
@@ -275,7 +274,7 @@ async function _rebuild (
     extraBinPaths: string[]
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,
-  opts: StrictRebuildOptions
+  opts: StrictBuildOptions
 ): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: IgnoredBuilds }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile)
   const depsStateCache: DepsStateCache = {}

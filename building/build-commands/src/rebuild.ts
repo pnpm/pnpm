@@ -1,6 +1,6 @@
 import {
-  rebuildProjects,
-  rebuildSelectedPkgs,
+  buildProjects,
+  buildSelectedPkgs,
 } from '@pnpm/building.after-install'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
@@ -117,7 +117,7 @@ export async function handler (
   })
 
   if (params.length === 0) {
-    await rebuildProjects(
+    await buildProjects(
       [
         {
           buildIndex: 0,
@@ -129,7 +129,7 @@ export async function handler (
     )
     return
   }
-  await rebuildSelectedPkgs(
+  await buildSelectedPkgs(
     [
       {
         buildIndex: 0,

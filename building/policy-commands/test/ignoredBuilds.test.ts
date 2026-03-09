@@ -1,6 +1,6 @@
 import path from 'path'
 import fs from 'fs'
-import { ignoredBuilds } from '@pnpm/exec.build-commands'
+import { ignoredBuilds } from '@pnpm/building.policy-commands'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import type { DepPath } from '@pnpm/types'

@@ -28,6 +28,9 @@
       "path": "../../building/after-install"
     },
     {
+      "path": "../../building/during-install"
+    },
+    {
       "path": "../../building/policy"
     },
     {
@@ -56,9 +59,6 @@
     },
     {
       "path": "../../deps/graph-sequencer"
-    },
-    {
-      "path": "../../exec/build-modules"
     },
     {
       "path": "../../exec/lifecycle"

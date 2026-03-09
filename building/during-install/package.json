@@ -1,6 +1,6 @@
 {
-  "name": "@pnpm/build-modules",
-  "version": "1002.0.0",
+  "name": "@pnpm/building.during-install",
+  "version": "1000.0.0-0",
   "description": "Build packages in node_modules",
   "keywords": [
     "pnpm",
@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/exec/build-modules",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/exec/build-modules#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/building/during-install",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/building/during-install#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -56,7 +56,7 @@
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
-    "@pnpm/build-modules": "workspace:*",
+    "@pnpm/building.during-install": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"
   },

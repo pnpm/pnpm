@@ -6,7 +6,7 @@ import type { StoreController } from '@pnpm/store-controller-types'
 import type { Registries } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 
-export type StrictRebuildOptions = {
+export type StrictBuildOptions = {
   autoInstallPeers: boolean
   cacheDir: string
   childConcurrency: number
@@ -53,10 +53,10 @@ export type StrictRebuildOptions = {
   fetchFullMetadata?: boolean
 } & Pick<Config, 'sslConfigs' | 'allowBuilds'>
 
-export type RebuildOptions = Partial<StrictRebuildOptions> &
-Pick<StrictRebuildOptions, 'storeDir' | 'storeController'> & Pick<Config, 'rootProjectManifest' | 'rootProjectManifestDir'>
+export type BuildOptions = Partial<StrictBuildOptions> &
+Pick<StrictBuildOptions, 'storeDir' | 'storeController'> & Pick<Config, 'rootProjectManifest' | 'rootProjectManifestDir'>
 
-const defaults = async (opts: RebuildOptions): Promise<StrictRebuildOptions> => {
+const defaults = async (opts: BuildOptions): Promise<StrictBuildOptions> => {
   const packageManager = opts.packageManager ??
     await loadJsonFile<{ name: string, version: string }>(path.join(import.meta.dirname, '../package.json'))!
   const dir = opts.dir ?? process.cwd()
@@ -85,16 +85,16 @@ const defaults = async (opts: RebuildOptions): Promise<StrictRebuildOptions> => 
       process.getuid?.() !== 0,
     useLockfile: true,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
-  } as StrictRebuildOptions
+  } as StrictBuildOptions
 }
 
-export async function extendRebuildOptions (
-  opts: RebuildOptions
-): Promise<StrictRebuildOptions> {
+export async function extendBuildOptions (
+  opts: BuildOptions
+): Promise<StrictBuildOptions> {
   if (opts) {
     for (const key in opts) {
-      if (opts[key as keyof RebuildOptions] === undefined) {
-        delete opts[key as keyof RebuildOptions]
+      if (opts[key as keyof BuildOptions] === undefined) {
+        delete opts[key as keyof BuildOptions]
       }
     }
   }

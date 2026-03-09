@@ -39,7 +39,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/build-modules": "workspace:*",
+    "@pnpm/building.during-install": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/constants": "workspace:*",
