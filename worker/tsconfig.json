@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../crypto/integrity"
+      "path": "../building/pkg-requires-build"
     },
     {
-      "path": "../exec/pkg-requires-build"
+      "path": "../crypto/integrity"
     },
     {
       "path": "../fs/graceful-fs"

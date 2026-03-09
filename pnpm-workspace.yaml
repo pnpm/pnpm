@@ -4,7 +4,7 @@ packages:
   - __typings__
   - __utils__/*
   - '!__utils__/build-artifacts'
-  - builder/*
+  - building/*
   - cache/*
   - catalogs/*
   - cli/*

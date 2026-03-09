@@ -24,6 +24,12 @@
       "path": "../__utils__/test-ipc-server"
     },
     {
+      "path": "../building/build-commands"
+    },
+    {
+      "path": "../building/policy-commands"
+    },
+    {
       "path": "../cache/commands"
     },
     {
@@ -67,12 +73,6 @@
     },
     {
       "path": "../env/plugin-commands-env"
-    },
-    {
-      "path": "../exec/build-commands"
-    },
-    {
-      "path": "../exec/plugin-commands-rebuild"
     },
     {
       "path": "../exec/plugin-commands-script-runners"

@@ -1,6 +1,7 @@
 import path from 'path'
-import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
-import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { buildSelectedPkgs } from '@pnpm/building.after-install'
+import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -48,7 +49,6 @@ import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { type PatchGroupRecord, groupPatchedDependencies } from '@pnpm/patching.config'
-import { rebuildSelectedPkgs } from '@pnpm/plugin-commands-rebuild'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   getWantedDependencies,
@@ -903,7 +903,7 @@ async function runUnignoredDependencyBuilds (
     }
   }
   if (pkgsToBuild.length) {
-    return (await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
+    return (await buildSelectedPkgs(opts.allProjects, pkgsToBuild, {
       ...opts,
       reporter: undefined, // We don't want to attach the reporter again, it was already attached.
       rootProjectManifestDir: opts.lockfileDir,
