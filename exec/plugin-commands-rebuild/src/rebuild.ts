@@ -1,3 +1,7 @@
+import {
+  rebuildProjects,
+  rebuildSelectedPkgs,
+} from '@pnpm/building.after-install'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
@@ -9,10 +13,6 @@ import {
 import type { ProjectRootDir } from '@pnpm/types'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
-import {
-  rebuildProjects,
-  rebuildSelectedPkgs,
-} from './implementation/index.js'
 import { recursiveRebuild } from './recursive.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {

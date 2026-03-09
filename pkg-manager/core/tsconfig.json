@@ -28,6 +28,9 @@
       "path": "../../builder/policy"
     },
     {
+      "path": "../../building/after-install"
+    },
+    {
       "path": "../../catalogs/protocol-parser"
     },
     {
@@ -59,9 +62,6 @@
     },
     {
       "path": "../../exec/lifecycle"
-    },
-    {
-      "path": "../../exec/plugin-commands-rebuild"
     },
     {
       "path": "../../fs/msgpack-file"
