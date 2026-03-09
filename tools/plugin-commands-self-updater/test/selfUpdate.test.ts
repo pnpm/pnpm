@@ -110,7 +110,7 @@ function createExeMetadata (version: string, registry: string) {
  */
 function mockExeMetadata (registry: string, version: string) {
   nock(registry)
-    .get('/@pnpm%2Fexe')
+    .get('/@pnpm%2Fexe') // cspell:disable-line
     .reply(200, createExeMetadata(version, registry))
 }
 
