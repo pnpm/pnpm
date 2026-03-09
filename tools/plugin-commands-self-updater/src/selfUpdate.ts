@@ -6,7 +6,7 @@ import { type Config, types as allTypes } from '@pnpm/config'
 import { resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
-import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { linkBins } from '@pnpm/link-bins'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
@@ -92,18 +92,23 @@ export async function handler (
   const store = await createStoreController(opts)
   const currentPkgName = getCurrentPackageName()
 
+  // Use pnpmHomeDir as fallback for config lockfile when there's no project
+  const { manifest: projectManifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir)
+  const configLockfileDir = projectManifest != null ? opts.rootProjectManifestDir : opts.pnpmHomeDir
+
   // Always resolve integrities and write pnpm-config-lock.yaml
   await resolvePackageManagerIntegrities(resolution.manifest.version, {
     registries: opts.registries,
-    rootDir: opts.rootProjectManifestDir,
+    rootDir: configLockfileDir,
     storeController: store.ctrl,
     storeDir: store.dir,
   })
 
-  // Update packageManager field in package.json
-  const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
-  manifest.packageManager = `pnpm@${resolution.manifest.version}`
-  await writeProjectManifest(manifest)
+  // Update packageManager field in package.json if it exists
+  if (projectManifest != null) {
+    projectManifest.packageManager = `pnpm@${resolution.manifest.version}`
+    await writeProjectManifest(projectManifest)
+  }
 
   // Check if the version is already in the global virtual store
   const existing = findPnpmInGlobalStore(store.dir, currentPkgName, resolution.manifest.version)
@@ -118,6 +123,7 @@ export async function handler (
 
   const { baseDir } = await installPnpmToTools(resolution.manifest.version, {
     ...opts,
+    rootProjectManifestDir: configLockfileDir,
     storeController: store.ctrl,
     storeDir: store.dir,
   })

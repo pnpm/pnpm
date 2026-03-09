@@ -287,6 +287,51 @@ console.log('9.2.0')`, 'utf8')
   expect(stdout.toString().trim()).toBe('9.2.0')
 })
 
+test('self-update works globally without package.json', async () => {
+  const dir = tempDir(false)
+  // No package.json in this directory
+  const pnpmHomeDir = path.join(dir, 'pnpm-home')
+  fs.mkdirSync(pnpmHomeDir, { recursive: true })
+  const opts = {
+    ...prepareOptions(dir),
+    pnpmHomeDir,
+  }
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.1.0', opts.registries.default))
+  // Mock metadata needed by resolvePackageManagerIntegrities
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.1.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.1.0')
+  nock(opts.registries.default)
+    .get('/pnpm/-/pnpm-9.1.0.tgz')
+    .replyWithFile(200, pnpmTarballPath)
+
+  await selfUpdate.handler(opts, [])
+
+  // Verify no package.json was created
+  expect(fs.existsSync(path.join(dir, 'package.json'))).toBe(false)
+
+  // Verify pnpm-config-lock.yaml was written to pnpmHomeDir
+  expect(fs.existsSync(path.join(pnpmHomeDir, 'pnpm-config-lock.yaml'))).toBe(true)
+
+  // Verify the package was installed in the global virtual store
+  const storeDir = path.join(pnpmHomeDir, 'store', 'v11')
+  const found = findPnpmInGlobalStore(storeDir, 'pnpm', '9.1.0')
+  expect(found).not.toBeNull()
+
+  const pnpmEnv = prependDirsToPath([pnpmHomeDir])
+  const { status, stdout } = spawn.sync('pnpm', ['-v'], {
+    env: {
+      ...process.env,
+      [pnpmEnv.name]: pnpmEnv.value,
+    },
+  })
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe('9.1.0')
+})
+
 test('self-update updates the packageManager field in package.json', async () => {
   prepareWithPkg({
     packageManager: 'pnpm@9.0.0',
