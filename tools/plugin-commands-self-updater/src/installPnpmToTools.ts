@@ -63,6 +63,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: InstallPnpm
       storeDir: opts.storeDir,
       registries: opts.registries,
       nodeLinker: 'hoisted',
+      enableGlobalVirtualStore: true,
       ignoreScripts: true,
       ignoreDepScripts: true,
       force: false,
