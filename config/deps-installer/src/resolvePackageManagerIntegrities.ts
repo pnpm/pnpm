@@ -1,13 +1,9 @@
-import fs from 'fs'
-import path from 'path'
-import { install } from '@pnpm/core'
-import { convertToLockfileFile, readWantedLockfile, readConfigLockfile, writeConfigLockfile, createConfigLockfile } from '@pnpm/lockfile.fs'
+import { convertToLockfileFile, readConfigLockfile, writeConfigLockfile, createConfigLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { ConfigLockfile, PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/package-store'
 import type { DepPath, ProjectId, Registries } from '@pnpm/types'
-import { sync as rimraf } from '@zkochan/rimraf'
-import { fastPathTemp as pathTemp } from 'path-temp'
+import { resolveManifestDependencies } from './resolveManifestDependencies.js'
 
 export interface ResolvePackageManagerIntegritiesOpts {
   registries: Registries
@@ -18,7 +14,7 @@ export interface ResolvePackageManagerIntegritiesOpts {
 
 /**
  * Resolves integrity checksums for `pnpm`, `@pnpm/exe`, and their dependencies
- * by calling @pnpm/core's install with lockfileOnly in a temp directory.
+ * by calling resolveManifestDependencies.
  * Writes the results to the `packageManagerDependencies` section of pnpm-config-lock.yaml.
  */
 export async function resolvePackageManagerIntegrities (
@@ -34,60 +30,41 @@ export async function resolvePackageManagerIntegrities (
     if (hasVersion) return configLockfile
   }
 
-  const tempDir = pathTemp(path.join(opts.rootDir, 'node_modules', '.pnpm-tmp'))
-  fs.mkdirSync(tempDir, { recursive: true })
-  fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
-    dependencies: {
-      'pnpm': pnpmVersion,
-      '@pnpm/exe': pnpmVersion,
-    },
-  }))
-
-  try {
-    await install(
-      {
-        dependencies: {
-          'pnpm': pnpmVersion,
-          '@pnpm/exe': pnpmVersion,
-        },
+  const lockfile = await resolveManifestDependencies(
+    {
+      dependencies: {
+        'pnpm': pnpmVersion,
+        '@pnpm/exe': pnpmVersion,
       },
-      {
-        dir: tempDir,
-        lockfileDir: tempDir,
-        lockfileOnly: true,
-        strictPeerDependencies: false,
-        storeController: opts.storeController,
-        storeDir: opts.storeDir,
-        registries: opts.registries,
-      }
-    )
-
-    const lockfile = await readWantedLockfile(tempDir, { ignoreIncompatible: true })
-    if (lockfile?.packages) {
-      const lockfileFile = convertToLockfileFile(lockfile)
-      const packageManagerDependencies: Record<string, { specifier: string, version: string }> = {}
-      for (const pkgName of ['pnpm', '@pnpm/exe']) {
-        packageManagerDependencies[pkgName] = {
-          specifier: pnpmVersion,
-          version: pnpmVersion,
-        }
-      }
-      // Add new PM entries
-      for (const [depPath, pkgInfo] of Object.entries(lockfileFile.packages ?? {})) {
-        configLockfile.packages[depPath] = pkgInfo
-      }
-      for (const [depPath, snapshotInfo] of Object.entries(lockfileFile.snapshots ?? {})) {
-        configLockfile.snapshots[depPath] = snapshotInfo
-      }
-      configLockfile.importers['.'].packageManagerDependencies = packageManagerDependencies
-      // Prune orphan packages/snapshots using the lockfile pruner
-      pruneConfigLockfile(configLockfile)
-      await writeConfigLockfile(opts.rootDir, configLockfile)
+    },
+    {
+      dir: opts.rootDir,
+      registries: opts.registries,
+      storeController: opts.storeController,
+      storeDir: opts.storeDir,
     }
-  } finally {
-    try {
-      rimraf(tempDir)
-    } catch {}
+  )
+
+  if (lockfile.packages) {
+    const lockfileFile = convertToLockfileFile(lockfile)
+    const packageManagerDependencies: Record<string, { specifier: string, version: string }> = {}
+    for (const pkgName of ['pnpm', '@pnpm/exe']) {
+      packageManagerDependencies[pkgName] = {
+        specifier: pnpmVersion,
+        version: pnpmVersion,
+      }
+    }
+    // Add new PM entries
+    for (const [depPath, pkgInfo] of Object.entries(lockfileFile.packages ?? {})) {
+      configLockfile.packages[depPath] = pkgInfo
+    }
+    for (const [depPath, snapshotInfo] of Object.entries(lockfileFile.snapshots ?? {})) {
+      configLockfile.snapshots[depPath] = snapshotInfo
+    }
+    configLockfile.importers['.'].packageManagerDependencies = packageManagerDependencies
+    // Prune orphan packages/snapshots using the lockfile pruner
+    pruneConfigLockfile(configLockfile)
+    await writeConfigLockfile(opts.rootDir, configLockfile)
   }
   return configLockfile
 }

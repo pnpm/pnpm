@@ -37,6 +37,9 @@
       "path": "../../packages/calc-dep-state"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/core-loggers"
     },
     {
@@ -49,7 +52,7 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manager/core"
+      "path": "../../pkg-manager/resolve-dependencies"
     },
     {
       "path": "../../pkg-manifest/read-package-json"
@@ -59,6 +62,9 @@
     },
     {
       "path": "../../store/package-store"
+    },
+    {
+      "path": "../../store/store-controller-types"
     },
     {
       "path": "../../testing/temp-store"

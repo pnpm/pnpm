@@ -2094,9 +2094,9 @@ importers:
       '@pnpm/config.config-writer':
         specifier: workspace:*
         version: link:../config-writer
-      '@pnpm/core':
+      '@pnpm/constants':
         specifier: workspace:*
-        version: link:../../pkg-manager/core
+        version: link:../../packages/constants
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
@@ -2142,6 +2142,12 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
+      '@pnpm/resolve-dependencies':
+        specifier: workspace:*
+        version: link:../../pkg-manager/resolve-dependencies
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../../store/store-controller-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2154,9 +2160,6 @@ importers:
       get-npm-tarball-url:
         specifier: 'catalog:'
         version: 2.1.0
-      path-temp:
-        specifier: 'catalog:'
-        version: 2.1.1
       symlink-dir:
         specifier: 'catalog:'
         version: 7.1.0
