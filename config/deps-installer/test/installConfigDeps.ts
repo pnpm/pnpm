@@ -1,6 +1,5 @@
 import fs from 'fs'
 import { installConfigDeps } from '@pnpm/config.deps-installer'
-import { CONFIG_LOCKFILE } from '@pnpm/constants'
 import { createConfigLockfile, type ConfigLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -131,7 +130,7 @@ test('migration: installs from old inline integrity format and creates config lo
   }
 
   // Verify pnpm-config-lock.yaml was created with expected content
-  const configLockfile = readYamlFile<ConfigLockfile>(CONFIG_LOCKFILE)
+  const configLockfile = readYamlFile<ConfigLockfile>('pnpm-config-lock.yaml')
   expect(configLockfile.lockfileVersion).toBeDefined()
   expect(configLockfile.importers['.'].configDependencies['@pnpm.e2e/foo']).toEqual({
     specifier: '100.0.0',
