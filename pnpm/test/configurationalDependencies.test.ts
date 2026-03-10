@@ -1,10 +1,13 @@
 import fs from 'fs'
+import path from 'path'
 import { readConfigLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
+import { writeJsonFileSync } from 'write-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm } from './utils/index.js'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { execPnpm, execPnpmSync, pnpmBinLocation } from './utils/index.js'
 
 test('patch from configuration dependency is applied', async () => {
   prepare()
@@ -69,6 +72,100 @@ test('catalog applied by configurational dependency hook', async () => {
         version: '100.0.0',
       },
     },
+  })
+})
+
+test('config deps are not installed before switching to a different pnpm version', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+
+  // First, add config dep to create the config lockfile (clean specifier format)
+  await execPnpm(['add', '@pnpm.e2e/has-patch-for-foo@1.0.0', '--config'], { env })
+
+  // Remove node_modules so we can check if config deps get re-installed
+  fs.rmSync('node_modules', { recursive: true })
+
+  // Switch to pnpm 9.3.0, which doesn't know about configDependencies.
+  // If the current pnpm installed config deps before switching, the directory would exist.
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+
+  execPnpmSync(['install'], { env, stdio: 'pipe' })
+
+  // Config deps should NOT be installed — pnpm 9.3.0 doesn't support them,
+  // and the current pnpm should not have installed them before switching.
+  expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeFalsy()
+
+  // The config lockfile should have packageManagerDependencies from the version switch
+  const configLockfile = await readConfigLockfile(process.cwd())
+  expect(configLockfile).not.toBeNull()
+  expect(configLockfile!.importers['.'].configDependencies['@pnpm.e2e/has-patch-for-foo']).toBeDefined()
+  expect(configLockfile!.importers['.'].packageManagerDependencies).toBeDefined()
+  expect(configLockfile!.importers['.'].packageManagerDependencies!['pnpm']).toStrictEqual({
+    specifier: '9.3.0',
+    version: '9.3.0',
+  })
+  expect(configLockfile!.importers['.'].packageManagerDependencies!['@pnpm/exe']).toStrictEqual({
+    specifier: '9.3.0',
+    version: '9.3.0',
+  })
+})
+
+test('config deps are installed after switching to a pnpm version that supports them', async () => {
+  prepare({
+    packageManager: 'pnpm@10.32.0',
+  })
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  // Write .npmrc so the switched-to pnpm version can find the mock registry
+  fs.writeFileSync('.npmrc', `registry=http://localhost:${REGISTRY_MOCK_PORT}/\n`)
+  // Use old inline integrity format that pnpm v10 understands
+  writeYamlFile('pnpm-workspace.yaml', {
+    configDependencies: {
+      '@pnpm.e2e/has-patch-for-foo': `1.0.0+${getIntegrity('@pnpm.e2e/has-patch-for-foo', '1.0.0')}`,
+    },
+  })
+
+  execPnpmSync(['install'], { env })
+
+  // pnpm 10.32.0 supports configDependencies and should have installed them
+  expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeTruthy()
+
+  // The config lockfile should exist (created by version switch) but should
+  // NOT have configDependencies — v11 didn't install them before switching,
+  // and v10 doesn't write config lockfiles. This proves v10 handled the install.
+  const configLockfile = await readConfigLockfile(process.cwd())
+  expect(configLockfile).not.toBeNull()
+  expect(configLockfile!.importers['.'].configDependencies).toStrictEqual({})
+  expect(configLockfile!.importers['.'].packageManagerDependencies).toBeDefined()
+})
+
+test('package manager is saved into the lockfile even if it matches the current version', async () => {
+  const pnpmVersion = JSON.parse(fs.readFileSync(path.join(path.dirname(pnpmBinLocation), '..', 'package.json'), 'utf8')).version as string
+  prepare({
+    packageManager: `pnpm@${pnpmVersion}`,
+  })
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+
+  // Create the config lockfile via pnpm add --config
+  await execPnpm(['add', '@pnpm.e2e/has-patch-for-foo@1.0.0', '--config'], { env })
+
+  expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeTruthy()
+
+  // The config lockfile should have both config dep and package manager entries
+  const configLockfile = await readConfigLockfile(process.cwd())
+  expect(configLockfile).not.toBeNull()
+  expect(configLockfile!.importers['.'].configDependencies['@pnpm.e2e/has-patch-for-foo']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+  expect(configLockfile!.importers['.'].packageManagerDependencies).toBeDefined()
+  expect(configLockfile!.importers['.'].packageManagerDependencies!['pnpm']).toStrictEqual({
+    specifier: pnpmVersion,
+    version: pnpmVersion,
   })
 })
 

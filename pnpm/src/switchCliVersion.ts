@@ -12,7 +12,7 @@ import semver from 'semver'
 
 export async function switchCliVersion (config: Config): Promise<void> {
   const pm = config.wantedPackageManager
-  if (pm == null || pm.name !== 'pnpm' || pm.version == null || pm.version === packageManager.version) return
+  if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
   const pmVersion = semver.valid(pm.version)
   if (!pmVersion) {
     globalWarn(`Cannot switch to pnpm@${pm.version}: "${pm.version}" is not a valid version`)
@@ -25,13 +25,17 @@ export async function switchCliVersion (config: Config): Promise<void> {
 
   const store = await createStoreController(config)
 
-  // Resolve integrities and use the config lockfile for secure installation
+  // Always resolve integrities to populate packageManagerDependencies in the config lockfile
   const configLockfile = await resolvePackageManagerIntegrities(pmVersion, {
     registries: config.registries,
     rootDir: config.rootProjectManifestDir,
     storeController: store.ctrl,
     storeDir: store.dir,
   })
+
+  // If the wanted version matches the current version, no switch needed
+  if (pmVersion === packageManager.version) return
+
   const { binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, {
     configLockfile,
     storeController: store.ctrl,
