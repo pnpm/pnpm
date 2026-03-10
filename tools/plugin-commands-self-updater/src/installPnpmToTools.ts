@@ -1,11 +1,11 @@
 import fs from 'fs'
 import path from 'path'
-import { getCurrentPackageName } from '@pnpm/cli-meta'
 import {
   iterateHashedGraphNodes,
   lockfileToDepGraph,
 } from '@pnpm/calc-dep-state'
-import type { ConfigLockfile } from '@pnpm/config.deps-installer'
+import { getCurrentPackageName } from '@pnpm/cli-meta'
+import * as dp from '@pnpm/dependency-path'
 import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
 import {
   cleanOrphanedInstallDirs,
@@ -16,11 +16,10 @@ import {
 } from '@pnpm/global.packages'
 import { headlessInstall } from '@pnpm/headless'
 import { linkBins } from '@pnpm/link-bins'
+import type { ConfigLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/package-store'
 import type { DepPath, PkgIdWithPatchHash, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
 import symlinkDir from 'symlink-dir'
 
 export interface InstallPnpmToToolsResult {

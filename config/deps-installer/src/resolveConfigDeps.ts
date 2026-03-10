@@ -2,13 +2,18 @@ import getNpmTarballUrl from 'get-npm-tarball-url'
 import { PnpmError } from '@pnpm/error'
 import { writeSettings } from '@pnpm/config.config-writer'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/fetch'
+import {
+  type ConfigLockfile,
+  createConfigLockfile,
+  readConfigLockfile,
+  writeConfigLockfile,
+} from '@pnpm/lockfile.fs'
 import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/npm-resolver'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import type { ConfigDependencies, ConfigDependencySpecifiers } from '@pnpm/types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
-import { type ConfigLockfile, createConfigLockfile, readConfigLockfile, writeConfigLockfile } from './configLockfile.js'
 
 export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   configDependencies?: ConfigDependencies

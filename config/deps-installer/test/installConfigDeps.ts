@@ -1,9 +1,10 @@
 import fs from 'fs'
+import { installConfigDeps } from '@pnpm/config.deps-installer'
+import { CONFIG_LOCKFILE } from '@pnpm/constants'
+import { createConfigLockfile, type ConfigLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
-import { installConfigDeps, createConfigLockfile, type ConfigLockfile } from '@pnpm/config.deps-installer'
-import { CONFIG_LOCKFILE } from '@pnpm/constants'
 import { loadJsonFileSync } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 

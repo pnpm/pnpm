@@ -1,7 +1,8 @@
 import path from 'path'
+import { resolveConfigDeps } from '@pnpm/config.deps-installer'
+import { readConfigLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { resolveConfigDeps, readConfigLockfile } from '@pnpm/config.deps-installer'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import { sync as readYamlFile } from 'read-yaml-file'
 

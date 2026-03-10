@@ -1,16 +1,13 @@
 import fs from 'fs'
 import path from 'path'
 import { install } from '@pnpm/core'
-import { convertToLockfileFile, readWantedLockfile } from '@pnpm/lockfile.fs'
+import { convertToLockfileFile, readWantedLockfile, readConfigLockfile, writeConfigLockfile, createConfigLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
-import type { PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
+import type { ConfigLockfile, PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/package-store'
-import type { DepPath, ProjectId } from '@pnpm/types'
-import type { Registries } from '@pnpm/types'
-import { readConfigLockfile, writeConfigLockfile, createConfigLockfile } from './configLockfile.js'
-import type { ConfigLockfile } from './configLockfile.js'
-import { fastPathTemp as pathTemp } from 'path-temp'
+import type { DepPath, ProjectId, Registries } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
+import { fastPathTemp as pathTemp } from 'path-temp'
 
 export interface ResolvePackageManagerIntegritiesOpts {
   registries: Registries

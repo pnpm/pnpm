@@ -2094,9 +2094,6 @@ importers:
       '@pnpm/config.config-writer':
         specifier: workspace:*
         version: link:../config-writer
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
       '@pnpm/core':
         specifier: workspace:*
         version: link:../../pkg-manager/core
@@ -2154,21 +2151,12 @@ importers:
       get-npm-tarball-url:
         specifier: 'catalog:'
         version: 2.1.0
-      js-yaml:
-        specifier: 'catalog:'
-        version: '@zkochan/js-yaml@0.0.11'
       path-temp:
         specifier: 'catalog:'
         version: 2.1.1
-      strip-bom:
-        specifier: 'catalog:'
-        version: 5.0.0
       symlink-dir:
         specifier: 'catalog:'
         version: 7.1.0
-      write-file-atomic:
-        specifier: 'catalog:'
-        version: 7.0.1
     devDependencies:
       '@pnpm/config.deps-installer':
         specifier: workspace:*
@@ -2182,12 +2170,6 @@ importers:
       '@pnpm/testing.temp-store':
         specifier: workspace:*
         version: link:../../testing/temp-store
-      '@types/js-yaml':
-        specifier: 'catalog:'
-        version: 4.0.9
-      '@types/write-file-atomic':
-        specifier: 'catalog:'
-        version: 4.0.3
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -6712,6 +6694,9 @@ importers:
       '@pnpm/fs.msgpack-file':
         specifier: workspace:*
         version: link:../fs/msgpack-file
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../lockfile/fs
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../lockfile/types

@@ -1,9 +1,9 @@
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { PnpmError } from '@pnpm/error'
 import { writeSettings } from '@pnpm/config.config-writer'
+import { createConfigLockfile, writeConfigLockfile } from '@pnpm/lockfile.fs'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import type { ConfigDependencies, ConfigDependencySpecifiers, Registries } from '@pnpm/types'
-import { createConfigLockfile, writeConfigLockfile } from './configLockfile.js'
 
 interface MigrateOpts {
   registries: Registries
