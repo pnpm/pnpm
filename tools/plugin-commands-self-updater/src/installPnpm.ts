@@ -22,13 +22,13 @@ import type { StoreController } from '@pnpm/package-store'
 import type { DepPath, PkgIdWithPatchHash, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
 import symlinkDir from 'symlink-dir'
 
-export interface InstallPnpmToToolsResult {
+export interface InstallPnpmResult {
   binDir: string
   baseDir: string
   alreadyExisted: boolean
 }
 
-export interface InstallPnpmToToolsOptions extends GlobalAddOptions {
+export interface InstallPnpmOptions extends GlobalAddOptions {
   envLockfile?: EnvLockfile
   storeController?: StoreController
   storeDir?: string
@@ -39,7 +39,7 @@ export interface InstallPnpmToToolsOptions extends GlobalAddOptions {
  * Installs pnpm to the global packages directory (for self-update).
  * Creates an entry in globalPkgDir that is visible to `pnpm ls -g`.
  */
-export async function installPnpmToTools (pnpmVersion: string, opts: InstallPnpmToToolsOptions): Promise<InstallPnpmToToolsResult> {
+export async function installPnpm (pnpmVersion: string, opts: InstallPnpmOptions): Promise<InstallPnpmResult> {
   const currentPkgName = getCurrentPackageName()
 
   const wantedLockfile = opts.envLockfile
@@ -168,7 +168,7 @@ interface InstallPnpmToGlobalDirResult {
  * is performed via `installGlobalPackages`.
  */
 async function installPnpmToGlobalDir (
-  opts: InstallPnpmToToolsOptions,
+  opts: InstallPnpmOptions,
   pkgName: string,
   version: string,
   wantedLockfile?: LockfileObject

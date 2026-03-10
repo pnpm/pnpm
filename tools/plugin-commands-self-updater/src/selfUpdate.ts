@@ -11,7 +11,7 @@ import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
-import { installPnpmToTools } from './installPnpmToTools.js'
+import { installPnpm } from './installPnpm.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -109,7 +109,7 @@ export async function handler (
     await writeProjectManifest(projectManifest)
   }
 
-  const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, {
+  const { baseDir, alreadyExisted } = await installPnpm(resolution.manifest.version, {
     ...opts,
     envLockfile,
     storeController: store.ctrl,
