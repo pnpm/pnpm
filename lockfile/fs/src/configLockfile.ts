@@ -7,7 +7,8 @@ import type { ConfigLockfile } from '@pnpm/lockfile.types'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
 import yaml from 'js-yaml'
 import stripBom from 'strip-bom'
-import { lockfileYamlDump, writeFileAtomic } from './write.js'
+import writeFileAtomic from 'write-file-atomic'
+import { lockfileYamlDump } from './write.js'
 
 export function createConfigLockfile (): ConfigLockfile {
   return {
