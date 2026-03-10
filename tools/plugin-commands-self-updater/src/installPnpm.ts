@@ -2,10 +2,10 @@ import fs from 'fs'
 import path from 'path'
 import {
   iterateHashedGraphNodes,
+  iteratePkgMeta,
   lockfileToDepGraph,
 } from '@pnpm/calc-dep-state'
 import { getCurrentPackageName } from '@pnpm/cli-meta'
-import * as dp from '@pnpm/dependency-path'
 import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
 import {
   cleanOrphanedInstallDirs,
@@ -17,9 +17,8 @@ import {
 import { headlessInstall } from '@pnpm/headless'
 import { linkBins } from '@pnpm/link-bins'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type { StoreController } from '@pnpm/package-store'
-import type { DepPath, PkgIdWithPatchHash, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
+import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
 import symlinkDir from 'symlink-dir'
 
 export interface InstallPnpmResult {
@@ -135,22 +134,6 @@ function findPnpmGvsPath (
     }
   }
   throw new Error(`Could not find ${pkgName} in lockfile`)
-}
-
-function * iteratePkgMeta (lockfile: LockfileObject, graph: ReturnType<typeof lockfileToDepGraph>) {
-  if (lockfile.packages == null) return
-  for (const depPath in lockfile.packages) {
-    if (!Object.hasOwn(lockfile.packages, depPath)) continue
-    const pkgSnapshot = lockfile.packages[depPath as DepPath]
-    const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-    yield {
-      name,
-      version,
-      depPath: depPath as DepPath,
-      pkgIdWithPatchHash: (graph[depPath as DepPath]?.pkgIdWithPatchHash ?? dp.getPkgIdWithPatchHash(depPath as DepPath)) as PkgIdWithPatchHash,
-      pkgSnapshot,
-    }
-  }
 }
 
 interface InstallPnpmToGlobalDirResult {

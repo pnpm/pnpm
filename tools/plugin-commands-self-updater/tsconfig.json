@@ -37,13 +37,7 @@
       "path": "../../lockfile/types"
     },
     {
-      "path": "../../lockfile/utils"
-    },
-    {
       "path": "../../packages/calc-dep-state"
-    },
-    {
-      "path": "../../packages/dependency-path"
     },
     {
       "path": "../../packages/error"

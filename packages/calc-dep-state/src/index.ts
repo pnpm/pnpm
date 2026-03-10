@@ -2,7 +2,8 @@ import { ENGINE_NAME } from '@pnpm/constants'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
 import type { AllowBuild, DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting, hashObject } from '@pnpm/crypto.object-hasher'
-import type { LockfileResolution, LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileResolution, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 
 export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
 
@@ -151,6 +152,31 @@ export function calcLeafGlobalVirtualStorePath (fullPkgId: string, name: string,
 function formatGlobalVirtualStorePath (name: string, version: string, hexDigest: string): string {
   const prefix = name.startsWith('@') ? '' : '@/'
   return `${prefix}${name}/${version}/${hexDigest}`
+}
+
+export interface PkgMetaAndSnapshot extends PkgMeta {
+  pkgSnapshot: PackageSnapshot
+  pkgIdWithPatchHash: PkgIdWithPatchHash
+}
+
+export function * iteratePkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>): PkgMetaIterator<PkgMetaAndSnapshot> {
+  if (lockfile.packages == null) {
+    return
+  }
+  for (const depPath in lockfile.packages) {
+    if (!Object.hasOwn(lockfile.packages, depPath)) {
+      continue
+    }
+    const pkgSnapshot = lockfile.packages[depPath as DepPath]
+    const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+    yield {
+      name,
+      version,
+      depPath: depPath as DepPath,
+      pkgIdWithPatchHash: graph[depPath as DepPath]?.pkgIdWithPatchHash ?? getPkgIdWithPatchHash(depPath as DepPath),
+      pkgSnapshot,
+    }
+  }
 }
 
 export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath> {
