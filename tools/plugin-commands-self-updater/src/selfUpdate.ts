@@ -3,13 +3,15 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
+import { linkBins } from '@pnpm/link-bins'
 import { globalWarn } from '@pnpm/logger'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
-import { linkBins } from '@pnpm/link-bins'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
-import { installPnpmToTools } from './installPnpmToTools.js'
+import { installPnpm } from './installPnpm.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -37,15 +39,12 @@ export function help (): string {
   })
 }
 
-export type SelfUpdateCommandOptions = Pick<Config,
-| 'cacheDir'
-| 'dir'
+export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Config,
+| 'globalPkgDir'
 | 'lockfileDir'
 | 'managePackageManagerVersions'
 | 'modulesDir'
 | 'pnpmHomeDir'
-| 'rawConfig'
-| 'registries'
 | 'rootProjectManifestDir'
 | 'wantedPackageManager'
 >
@@ -74,6 +73,13 @@ export async function handler (
       const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
       manifest.packageManager = `pnpm@${resolution.manifest.version}`
       await writeProjectManifest(manifest)
+      const store = await createStoreController(opts)
+      await resolvePackageManagerIntegrities(resolution.manifest.version, {
+        registries: opts.registries,
+        rootDir: opts.rootProjectManifestDir,
+        storeController: store.ctrl,
+        storeDir: store.dir,
+      })
       return `The current project has been updated to use pnpm v${resolution.manifest.version}`
     } else {
       return `The current project is already set to use pnpm v${resolution.manifest.version}`
@@ -83,13 +89,28 @@ export async function handler (
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
 
-  const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, opts)
-  await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir,
-    {
-      warn: globalWarn,
-    }
-  )
-  return alreadyExisted
-    ? `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
-    : undefined
+  const store = await createStoreController(opts)
+
+  // Resolve integrities and write pnpm-lock.env.yaml
+  const envLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
+    registries: opts.registries,
+    rootDir: opts.pnpmHomeDir,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+  })
+
+  const { baseDir, alreadyExisted } = await installPnpm(resolution.manifest.version, {
+    ...opts,
+    envLockfile,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+  })
+
+  // Link bins to pnpmHomeDir so the updated pnpm is the active global binary
+  await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir, { warn: globalWarn })
+
+  if (alreadyExisted) {
+    return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
+  }
+  return undefined
 }

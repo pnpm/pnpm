@@ -8,7 +8,7 @@ if (!global['pnpm__startedAt']) {
 }
 import loudRejection from 'loud-rejection'
 import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
-import { getConfig } from '@pnpm/cli-utils'
+import { getConfig, installConfigDepsAndLoadHooks } from '@pnpm/cli-utils'
 import type { Config, WantedPackageManager } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
@@ -122,6 +122,7 @@ export async function main (inputArgv: string[]): Promise<void> {
         }
       }
     }
+    config = await installConfigDepsAndLoadHooks(config) as typeof config
     if (isDlxOrCreateCommand || cmd === 'sbom') {
       config.useStderr = true
     }

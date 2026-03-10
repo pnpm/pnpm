@@ -18,11 +18,6 @@ jest.unstable_mockModule('fs', () => {
   }
 })
 
-jest.mock('@zkochan/cmd-shim', () => ({
-  __esModule: true,
-  default: jest.fn(),
-}))
-
 const { addDirToEnvPath } = await import('@pnpm/os.env.path-extender')
 const { setup } = await import('@pnpm/plugin-commands-setup')
 
