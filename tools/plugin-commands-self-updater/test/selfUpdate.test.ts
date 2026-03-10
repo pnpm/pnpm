@@ -303,8 +303,8 @@ test('self-update works globally without package.json', async () => {
   // Verify no package.json was created
   expect(fs.existsSync(path.join(dir, 'package.json'))).toBe(false)
 
-  // Verify pnpm-config-lock.yaml was written to pnpmHomeDir
-  expect(fs.existsSync(path.join(pnpmHomeDir, 'pnpm-config-lock.yaml'))).toBe(true)
+  // Verify pnpm-lock.env.yaml was written to pnpmHomeDir
+  expect(fs.existsSync(path.join(pnpmHomeDir, 'pnpm-lock.env.yaml'))).toBe(true)
 
   // Verify the package was installed in the global dir
   const globalDir = path.join(pnpmHomeDir, 'global', 'v11')
@@ -353,7 +353,7 @@ test('self-update updates the packageManager field in package.json', async () =>
   expect(pkgJson.packageManager).toBe('pnpm@9.1.0')
 })
 
-test('installPnpmToTools without config lockfile uses resolution path', async () => {
+test('installPnpmToTools without env lockfile uses resolution path', async () => {
   const opts = prepare()
   nock(opts.registries.default)
     .persist()

@@ -1,5 +1,5 @@
 export const WANTED_LOCKFILE = 'pnpm-lock.yaml'
-export const CONFIG_LOCKFILE = 'pnpm-config-lock.yaml'
+export const ENV_LOCKFILE = 'pnpm-lock.env.yaml'
 export const LOCKFILE_MAJOR_VERSION = '9'
 export const LOCKFILE_VERSION = `${LOCKFILE_MAJOR_VERSION}.0`
 

@@ -1,6 +1,6 @@
 import fs from 'fs'
 import { installConfigDeps } from '@pnpm/config.deps-installer'
-import { createConfigLockfile, type ConfigLockfile } from '@pnpm/lockfile.fs'
+import { createEnvLockfile, type EnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
@@ -9,8 +9,8 @@ import { sync as readYamlFile } from 'read-yaml-file'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
-function makeConfigLockfile (deps: Record<string, { version: string, integrity: string }>): ConfigLockfile {
-  const lockfile = createConfigLockfile()
+function makeEnvLockfile (deps: Record<string, { version: string, integrity: string }>): EnvLockfile {
+  const lockfile = createEnvLockfile()
   for (const [name, { version, integrity }] of Object.entries(deps)) {
     const pkgKey = `${name}@${version}`
     lockfile.importers['.'].configDependencies[name] = { specifier: version, version }
@@ -20,11 +20,11 @@ function makeConfigLockfile (deps: Record<string, { version: string, integrity: 
   return lockfile
 }
 
-test('configuration dependency is installed from config lockfile', async () => {
+test('configuration dependency is installed from env lockfile', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()
 
-  const lockfile = makeConfigLockfile({
+  const lockfile = makeEnvLockfile({
     '@pnpm.e2e/foo': { version: '100.0.0', integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
   })
   await installConfigDeps(lockfile, {
@@ -45,7 +45,7 @@ test('configuration dependency is installed from config lockfile', async () => {
   }
 
   // Dependency is updated
-  const lockfile2 = makeConfigLockfile({
+  const lockfile2 = makeEnvLockfile({
     '@pnpm.e2e/foo': { version: '100.1.0', integrity: getIntegrity('@pnpm.e2e/foo', '100.1.0') },
   })
 
@@ -65,7 +65,7 @@ test('configuration dependency is installed from config lockfile', async () => {
   }
 
   // Dependency is removed
-  const lockfile3 = createConfigLockfile()
+  const lockfile3 = createEnvLockfile()
 
   await installConfigDeps(lockfile3, {
     registries: {
@@ -89,7 +89,7 @@ test('installation fails if the checksum of the config dependency is invalid', a
     },
   })
 
-  const lockfile = makeConfigLockfile({
+  const lockfile = makeEnvLockfile({
     '@pnpm.e2e/foo': {
       version: '100.0.0',
       integrity: 'sha512-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000==',
@@ -105,7 +105,7 @@ test('installation fails if the checksum of the config dependency is invalid', a
   })).rejects.toThrow('Got unexpected checksum for')
 })
 
-test('migration: installs from old inline integrity format and creates config lockfile', async () => {
+test('migration: installs from old inline integrity format and creates env lockfile', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()
 
@@ -129,14 +129,14 @@ test('migration: installs from old inline integrity format and creates config lo
     expect(configDepManifest.version).toBe('100.0.0')
   }
 
-  // Verify pnpm-config-lock.yaml was created with expected content
-  const configLockfile = readYamlFile<ConfigLockfile>('pnpm-config-lock.yaml')
-  expect(configLockfile.lockfileVersion).toBeDefined()
-  expect(configLockfile.importers['.'].configDependencies['@pnpm.e2e/foo']).toEqual({
+  // Verify pnpm-lock.env.yaml was created with expected content
+  const envLockfile = readYamlFile<EnvLockfile>('pnpm-lock.env.yaml')
+  expect(envLockfile.lockfileVersion).toBeDefined()
+  expect(envLockfile.importers['.'].configDependencies['@pnpm.e2e/foo']).toEqual({
     specifier: '100.0.0',
     version: '100.0.0',
   })
-  expect((configLockfile.packages['@pnpm.e2e/foo@100.0.0'].resolution as { integrity: string }).integrity).toBe(integrity)
+  expect((envLockfile.packages['@pnpm.e2e/foo@100.0.0'].resolution as { integrity: string }).integrity).toBe(integrity)
 })
 
 test('installation fails if the config dependency does not have a checksum (old format)', async () => {

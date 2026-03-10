@@ -16,7 +16,7 @@ import {
 } from '@pnpm/global.packages'
 import { headlessInstall } from '@pnpm/headless'
 import { linkBins } from '@pnpm/link-bins'
-import type { ConfigLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
+import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type { StoreController } from '@pnpm/package-store'
 import type { DepPath, PkgIdWithPatchHash, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
@@ -29,7 +29,7 @@ export interface InstallPnpmToToolsResult {
 }
 
 export interface InstallPnpmToToolsOptions extends GlobalAddOptions {
-  configLockfile?: ConfigLockfile
+  envLockfile?: EnvLockfile
   storeController?: StoreController
   storeDir?: string
   packageManager?: { name: string, version: string }
@@ -42,8 +42,8 @@ export interface InstallPnpmToToolsOptions extends GlobalAddOptions {
 export async function installPnpmToTools (pnpmVersion: string, opts: InstallPnpmToToolsOptions): Promise<InstallPnpmToToolsResult> {
   const currentPkgName = getCurrentPackageName()
 
-  const wantedLockfile = opts.configLockfile
-    ? buildLockfileFromConfigLockfile(opts.configLockfile, currentPkgName, pnpmVersion)
+  const wantedLockfile = opts.envLockfile
+    ? buildLockfileFromEnvLockfile(opts.envLockfile, currentPkgName, pnpmVersion)
     : undefined
 
   const result = await installPnpmToGlobalDir(
@@ -68,7 +68,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: InstallPnpm
 export async function installPnpmToStore (
   pnpmVersion: string,
   opts: {
-    configLockfile: ConfigLockfile
+    envLockfile: EnvLockfile
     storeController: StoreController
     storeDir: string
     registries: Registries
@@ -77,7 +77,7 @@ export async function installPnpmToStore (
   }
 ): Promise<{ binDir: string }> {
   const currentPkgName = getCurrentPackageName()
-  const wantedLockfile = buildLockfileFromConfigLockfile(opts.configLockfile, currentPkgName, pnpmVersion)
+  const wantedLockfile = buildLockfileFromEnvLockfile(opts.envLockfile, currentPkgName, pnpmVersion)
   const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
 
   // Compute the GVS hash for the pnpm package to find its path
@@ -354,8 +354,8 @@ function linkExePlatformBinary (installDir: string): void {
   }
 }
 
-function buildLockfileFromConfigLockfile (
-  configLockfile: ConfigLockfile,
+function buildLockfileFromEnvLockfile (
+  envLockfile: EnvLockfile,
   pkgName: string,
   version: string
 ) {
@@ -363,15 +363,15 @@ function buildLockfileFromConfigLockfile (
   dependencies[pkgName] = version
 
   const packages: Record<string, PackageSnapshot> = {}
-  for (const [depPath, snapshot] of Object.entries(configLockfile.snapshots)) {
+  for (const [depPath, snapshot] of Object.entries(envLockfile.snapshots)) {
     packages[depPath as DepPath] = {
       ...snapshot,
-      ...configLockfile.packages[depPath],
+      ...envLockfile.packages[depPath],
     }
   }
 
   return {
-    lockfileVersion: configLockfile.lockfileVersion,
+    lockfileVersion: envLockfile.lockfileVersion,
     importers: {
       ['.' as ProjectId]: {
         specifiers: { [pkgName]: version },

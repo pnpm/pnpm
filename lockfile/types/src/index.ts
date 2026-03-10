@@ -165,7 +165,7 @@ export type PackageBin = string | { [name: string]: string }
  */
 export type ResolvedDependencies = Record<string, string>
 
-export interface ConfigLockfile {
+export interface EnvLockfile {
   lockfileVersion: string
   importers: {
     '.': {

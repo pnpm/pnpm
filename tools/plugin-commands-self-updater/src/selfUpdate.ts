@@ -91,14 +91,14 @@ export async function handler (
 
   const store = await createStoreController(opts)
 
-  // Use pnpmHomeDir as fallback for config lockfile when there's no project
+  // Use pnpmHomeDir as fallback for env lockfile when there's no project
   const { manifest: projectManifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir)
-  const configLockfileDir = projectManifest != null ? opts.rootProjectManifestDir : opts.pnpmHomeDir
+  const envLockfileDir = projectManifest != null ? opts.rootProjectManifestDir : opts.pnpmHomeDir
 
-  // Resolve integrities and write pnpm-config-lock.yaml
-  const configLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
+  // Resolve integrities and write pnpm-lock.env.yaml
+  const envLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
     registries: opts.registries,
-    rootDir: configLockfileDir,
+    rootDir: envLockfileDir,
     storeController: store.ctrl,
     storeDir: store.dir,
   })
@@ -111,7 +111,7 @@ export async function handler (
 
   const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, {
     ...opts,
-    configLockfile,
+    envLockfile,
     storeController: store.ctrl,
     storeDir: store.dir,
   })

@@ -3,7 +3,7 @@ import path from 'path'
 import { calcLeafGlobalVirtualStorePath } from '@pnpm/calc-dep-state'
 import { installingConfigDepsLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import { readConfigLockfile, type ConfigLockfile } from '@pnpm/lockfile.fs'
+import { readEnvLockfile, type EnvLockfile } from '@pnpm/lockfile.fs'
 import type { StoreController } from '@pnpm/package-store'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { readModulesDir } from '@pnpm/read-modules-dir'
@@ -30,12 +30,12 @@ interface NormalizedConfigDep {
 }
 
 /**
- * Install config dependencies using the config lockfile.
- * Accepts either a ConfigLockfile directly (from resolveConfigDeps) or
+ * Install config dependencies using the env lockfile.
+ * Accepts either a EnvLockfile directly (from resolveConfigDeps) or
  * ConfigDependencies from the workspace manifest (legacy/migration).
  */
 export async function installConfigDeps (
-  configDepsOrLockfile: ConfigDependencies | ConfigLockfile,
+  configDepsOrLockfile: ConfigDependencies | EnvLockfile,
   opts: InstallConfigDepsOpts
 ): Promise<void> {
   const normalizedDeps = await normalizeForInstall(configDepsOrLockfile, opts)
@@ -94,26 +94,26 @@ export async function installConfigDeps (
 }
 
 async function normalizeForInstall (
-  configDepsOrLockfile: ConfigDependencies | ConfigLockfile,
+  configDepsOrLockfile: ConfigDependencies | EnvLockfile,
   opts: InstallConfigDepsOpts
 ): Promise<Record<string, NormalizedConfigDep>> {
-  // If it's a ConfigLockfile object (has lockfileVersion), use it directly
-  if (isConfigLockfile(configDepsOrLockfile)) {
+  // If it's a EnvLockfile object (has lockfileVersion), use it directly
+  if (isEnvLockfile(configDepsOrLockfile)) {
     return normalizeFromLockfile(configDepsOrLockfile, opts.registries)
   }
 
   // It's ConfigDependencies from workspace manifest.
-  // Try to read the config lockfile first.
-  const configLockfile = await readConfigLockfile(opts.rootDir)
-  if (configLockfile) {
-    return normalizeFromLockfile(configLockfile, opts.registries)
+  // Try to read the env lockfile first.
+  const envLockfile = await readEnvLockfile(opts.rootDir)
+  if (envLockfile) {
+    return normalizeFromLockfile(envLockfile, opts.registries)
   }
 
-  // No config lockfile yet — migrate from old inline integrity format
+  // No env lockfile yet — migrate from old inline integrity format
   return migrateConfigDepsToLockfile(configDepsOrLockfile, opts)
 }
 
-function isConfigLockfile (obj: ConfigDependencies | ConfigLockfile): obj is ConfigLockfile {
+function isEnvLockfile (obj: ConfigDependencies | EnvLockfile): obj is EnvLockfile {
   return 'lockfileVersion' in obj &&
     'importers' in obj &&
     obj.importers != null &&
@@ -127,7 +127,7 @@ function isConfigLockfile (obj: ConfigDependencies | ConfigLockfile): obj is Con
 }
 
 function normalizeFromLockfile (
-  lockfile: ConfigLockfile,
+  lockfile: EnvLockfile,
   registries: Registries
 ): Record<string, NormalizedConfigDep> {
   const deps: Record<string, NormalizedConfigDep> = {}
@@ -137,16 +137,16 @@ function normalizeFromLockfile (
     const pkgInfo = lockfile.packages[pkgKey]
     if (!pkgInfo) {
       throw new PnpmError(
-        'CONFIG_LOCKFILE_CORRUPTED',
-        `pnpm-config-lock.yaml is corrupted or incomplete: missing packages entry for "${pkgKey}" ` +
+        'ENV_LOCKFILE_CORRUPTED',
+        `pnpm-lock.env.yaml is corrupted or incomplete: missing packages entry for "${pkgKey}" ` +
         'referenced from importers[\'.\'].configDependencies'
       )
     }
     const resolution = pkgInfo.resolution as { integrity?: string; tarball?: string }
     if (!resolution.integrity) {
       throw new PnpmError(
-        'CONFIG_LOCKFILE_CORRUPTED',
-        `pnpm-config-lock.yaml is corrupted or incomplete: missing integrity for "${pkgKey}"`
+        'ENV_LOCKFILE_CORRUPTED',
+        `pnpm-lock.env.yaml is corrupted or incomplete: missing integrity for "${pkgKey}"`
       )
     }
     const registry = pickRegistryForPackage(registries, pkgName)

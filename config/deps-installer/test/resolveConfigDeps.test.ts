@@ -1,6 +1,6 @@
 import path from 'path'
 import { resolveConfigDeps } from '@pnpm/config.deps-installer'
-import { readConfigLockfile } from '@pnpm/lockfile.fs'
+import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
@@ -29,17 +29,17 @@ test('configuration dependency is resolved', async () => {
     '@pnpm.e2e/foo': '100.0.0',
   })
 
-  // Config lockfile should contain the resolved dependency with integrity
-  const configLockfile = await readConfigLockfile(process.cwd())
-  expect(configLockfile).not.toBeNull()
-  expect(configLockfile!.importers['.'].configDependencies['@pnpm.e2e/foo']).toStrictEqual({
+  // Env lockfile should contain the resolved dependency with integrity
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile).not.toBeNull()
+  expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/foo']).toStrictEqual({
     specifier: '100.0.0',
     version: '100.0.0',
   })
-  expect(configLockfile!.packages['@pnpm.e2e/foo@100.0.0']).toStrictEqual({
+  expect(envLockfile!.packages['@pnpm.e2e/foo@100.0.0']).toStrictEqual({
     resolution: {
       integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0'),
     },
   })
-  expect(configLockfile!.snapshots['@pnpm.e2e/foo@100.0.0']).toStrictEqual({})
+  expect(envLockfile!.snapshots['@pnpm.e2e/foo@100.0.0']).toStrictEqual({})
 })

@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { readConfigLockfile } from '@pnpm/lockfile.fs'
+import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -80,7 +80,7 @@ test('config deps are not installed before switching to a different pnpm version
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
 
-  // First, add config dep to create the config lockfile (clean specifier format)
+  // First, add config dep to create the env lockfile (clean specifier format)
   await execPnpm(['add', '@pnpm.e2e/has-patch-for-foo@1.0.0', '--config'], { env })
 
   // Remove node_modules so we can check if config deps get re-installed
@@ -98,16 +98,16 @@ test('config deps are not installed before switching to a different pnpm version
   // and the current pnpm should not have installed them before switching.
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeFalsy()
 
-  // The config lockfile should have packageManagerDependencies from the version switch
-  const configLockfile = await readConfigLockfile(process.cwd())
-  expect(configLockfile).not.toBeNull()
-  expect(configLockfile!.importers['.'].configDependencies['@pnpm.e2e/has-patch-for-foo']).toBeDefined()
-  expect(configLockfile!.importers['.'].packageManagerDependencies).toBeDefined()
-  expect(configLockfile!.importers['.'].packageManagerDependencies!['pnpm']).toStrictEqual({
+  // The env lockfile should have packageManagerDependencies from the version switch
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile).not.toBeNull()
+  expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/has-patch-for-foo']).toBeDefined()
+  expect(envLockfile!.importers['.'].packageManagerDependencies).toBeDefined()
+  expect(envLockfile!.importers['.'].packageManagerDependencies!['pnpm']).toStrictEqual({
     specifier: '9.3.0',
     version: '9.3.0',
   })
-  expect(configLockfile!.importers['.'].packageManagerDependencies!['@pnpm/exe']).toStrictEqual({
+  expect(envLockfile!.importers['.'].packageManagerDependencies!['@pnpm/exe']).toStrictEqual({
     specifier: '9.3.0',
     version: '9.3.0',
   })
@@ -133,13 +133,13 @@ test('config deps are installed after switching to a pnpm version that supports 
   // pnpm 10.32.0 supports configDependencies and should have installed them
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeTruthy()
 
-  // The config lockfile should exist (created by version switch) but should
+  // The env lockfile should exist (created by version switch) but should
   // NOT have configDependencies — v11 didn't install them before switching,
-  // and v10 doesn't write config lockfiles. This proves v10 handled the install.
-  const configLockfile = await readConfigLockfile(process.cwd())
-  expect(configLockfile).not.toBeNull()
-  expect(configLockfile!.importers['.'].configDependencies).toStrictEqual({})
-  expect(configLockfile!.importers['.'].packageManagerDependencies).toBeDefined()
+  // and v10 doesn't write env lockfiles. This proves v10 handled the install.
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile).not.toBeNull()
+  expect(envLockfile!.importers['.'].configDependencies).toStrictEqual({})
+  expect(envLockfile!.importers['.'].packageManagerDependencies).toBeDefined()
 })
 
 test('package manager is saved into the lockfile even if it matches the current version', async () => {
@@ -150,20 +150,20 @@ test('package manager is saved into the lockfile even if it matches the current 
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
 
-  // Create the config lockfile via pnpm add --config
+  // Create the env lockfile via pnpm add --config
   await execPnpm(['add', '@pnpm.e2e/has-patch-for-foo@1.0.0', '--config'], { env })
 
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeTruthy()
 
-  // The config lockfile should have both config dep and package manager entries
-  const configLockfile = await readConfigLockfile(process.cwd())
-  expect(configLockfile).not.toBeNull()
-  expect(configLockfile!.importers['.'].configDependencies['@pnpm.e2e/has-patch-for-foo']).toStrictEqual({
+  // The env lockfile should have both config dep and package manager entries
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile).not.toBeNull()
+  expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/has-patch-for-foo']).toStrictEqual({
     specifier: '1.0.0',
     version: '1.0.0',
   })
-  expect(configLockfile!.importers['.'].packageManagerDependencies).toBeDefined()
-  expect(configLockfile!.importers['.'].packageManagerDependencies!['pnpm']).toStrictEqual({
+  expect(envLockfile!.importers['.'].packageManagerDependencies).toBeDefined()
+  expect(envLockfile!.importers['.'].packageManagerDependencies!['pnpm']).toStrictEqual({
     specifier: pnpmVersion,
     version: pnpmVersion,
   })
@@ -180,14 +180,14 @@ test('installing a new configurational dependency', async () => {
     '@pnpm.e2e/foo': '100.0.0',
   })
 
-  // Config lockfile should contain the resolved dependency with integrity
-  const configLockfile = await readConfigLockfile(process.cwd())
-  expect(configLockfile).not.toBeNull()
-  expect(configLockfile!.importers['.'].configDependencies['@pnpm.e2e/foo']).toStrictEqual({
+  // Env lockfile should contain the resolved dependency with integrity
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile).not.toBeNull()
+  expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/foo']).toStrictEqual({
     specifier: '100.0.0',
     version: '100.0.0',
   })
-  expect((configLockfile!.packages['@pnpm.e2e/foo@100.0.0'].resolution as { integrity: string }).integrity).toBe(
+  expect((envLockfile!.packages['@pnpm.e2e/foo@100.0.0'].resolution as { integrity: string }).integrity).toBe(
     getIntegrity('@pnpm.e2e/foo', '100.0.0')
   )
 })

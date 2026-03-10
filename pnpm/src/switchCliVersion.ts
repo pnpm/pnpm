@@ -25,8 +25,8 @@ export async function switchCliVersion (config: Config): Promise<void> {
 
   const store = await createStoreController(config)
 
-  // Always resolve integrities to populate packageManagerDependencies in the config lockfile
-  const configLockfile = await resolvePackageManagerIntegrities(pmVersion, {
+  // Always resolve integrities to populate packageManagerDependencies in the env lockfile
+  const envLockfile = await resolvePackageManagerIntegrities(pmVersion, {
     registries: config.registries,
     rootDir: config.rootProjectManifestDir,
     storeController: store.ctrl,
@@ -37,7 +37,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
   if (pmVersion === packageManager.version) return
 
   const { binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, {
-    configLockfile,
+    envLockfile,
     storeController: store.ctrl,
     storeDir: store.dir,
     registries: config.registries,

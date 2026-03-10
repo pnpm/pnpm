@@ -2,10 +2,10 @@ import { PnpmError } from '@pnpm/error'
 import { writeSettings } from '@pnpm/config.config-writer'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/fetch'
 import {
-  type ConfigLockfile,
-  createConfigLockfile,
-  readConfigLockfile,
-  writeConfigLockfile,
+  type EnvLockfile,
+  createEnvLockfile,
+  readEnvLockfile,
+  writeEnvLockfile,
 } from '@pnpm/lockfile.fs'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/npm-resolver'
@@ -28,7 +28,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
 
   // Extract existing specifiers from configDependencies (handles both old and new formats)
   const configDependencySpecifiers: ConfigDependencySpecifiers = extractSpecifiers(opts.configDependencies)
-  const configLockfile: ConfigLockfile = (await readConfigLockfile(opts.rootDir)) ?? createConfigLockfile()
+  const envLockfile: EnvLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
 
   await Promise.all(configDeps.map(async (configDep) => {
     const wantedDep = parseWantedDependency(configDep)
@@ -50,20 +50,20 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
     // Write clean specifier to workspace manifest
     configDependencySpecifiers[pkgName] = wantedDep.bareSpecifier ?? version
 
-    // Write resolved info to config lockfile
+    // Write resolved info to env lockfile
     const pkgKey = `${pkgName}@${version}`
-    configLockfile.importers['.'].configDependencies[pkgName] = {
+    envLockfile.importers['.'].configDependencies[pkgName] = {
       specifier: configDependencySpecifiers[pkgName],
       version,
     }
-    configLockfile.packages[pkgKey] = {
+    envLockfile.packages[pkgKey] = {
       resolution: toLockfileResolution(
         { name: pkgName, version },
         resolution.resolution,
         registry
       ),
     }
-    configLockfile.snapshots[pkgKey] = {}
+    envLockfile.snapshots[pkgKey] = {}
   }))
 
   await Promise.all([
@@ -75,9 +75,9 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
         configDependencies: configDependencySpecifiers,
       },
     }),
-    writeConfigLockfile(opts.rootDir, configLockfile),
+    writeEnvLockfile(opts.rootDir, envLockfile),
   ])
-  await installConfigDeps(configLockfile, opts)
+  await installConfigDeps(envLockfile, opts)
 }
 
 /**

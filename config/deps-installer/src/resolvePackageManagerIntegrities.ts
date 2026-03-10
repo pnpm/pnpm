@@ -1,6 +1,6 @@
-import { convertToLockfileFile, convertToLockfileObject, readConfigLockfile, writeConfigLockfile, createConfigLockfile } from '@pnpm/lockfile.fs'
+import { convertToLockfileFile, convertToLockfileObject, readEnvLockfile, writeEnvLockfile, createEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
-import type { ConfigLockfile } from '@pnpm/lockfile.types'
+import type { EnvLockfile } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/package-store'
 import type { DepPath, ProjectId, Registries } from '@pnpm/types'
 import { resolveManifestDependencies } from './resolveManifestDependencies.js'
@@ -15,19 +15,19 @@ export interface ResolvePackageManagerIntegritiesOpts {
 /**
  * Resolves integrity checksums for `pnpm`, `@pnpm/exe`, and their dependencies
  * by calling resolveManifestDependencies.
- * Writes the results to the `packageManagerDependencies` section of pnpm-config-lock.yaml.
+ * Writes the results to the `packageManagerDependencies` section of pnpm-lock.env.yaml.
  */
 export async function resolvePackageManagerIntegrities (
   pnpmVersion: string,
   opts: ResolvePackageManagerIntegritiesOpts
-): Promise<ConfigLockfile> {
-  const configLockfile = (await readConfigLockfile(opts.rootDir)) ?? createConfigLockfile()
+): Promise<EnvLockfile> {
+  const envLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
 
   // Check if already resolved for this version
-  const pmDeps = configLockfile.importers['.'].packageManagerDependencies
+  const pmDeps = envLockfile.importers['.'].packageManagerDependencies
   if (pmDeps != null) {
     const hasVersion = Object.values(pmDeps).some((dep) => dep.version === pnpmVersion)
-    if (hasVersion) return configLockfile
+    if (hasVersion) return envLockfile
   }
 
   const lockfile = await resolveManifestDependencies(
@@ -55,31 +55,31 @@ export async function resolvePackageManagerIntegrities (
         version,
       }
     }
-    configLockfile.importers['.'].packageManagerDependencies = packageManagerDependencies
+    envLockfile.importers['.'].packageManagerDependencies = packageManagerDependencies
 
-    // Convert config lockfile to LockfileObject, merge new packages, prune, and split back
+    // Convert env lockfile to LockfileObject, merge new packages, prune, and split back
     const merged = convertToLockfileObject({
-      lockfileVersion: configLockfile.lockfileVersion,
+      lockfileVersion: envLockfile.lockfileVersion,
       importers: {
         '.': {
           dependencies: {
-            ...configLockfile.importers['.'].configDependencies,
-            ...configLockfile.importers['.'].packageManagerDependencies,
+            ...envLockfile.importers['.'].configDependencies,
+            ...envLockfile.importers['.'].packageManagerDependencies,
           },
         },
       },
-      packages: configLockfile.packages,
-      snapshots: configLockfile.snapshots,
+      packages: envLockfile.packages,
+      snapshots: envLockfile.snapshots,
     })
     for (const [depPath, pkg] of Object.entries(lockfile.packages)) {
       merged.packages![depPath as DepPath] = pkg
     }
     const pruned = pruneSharedLockfile(merged)
     const prunedFile = convertToLockfileFile(pruned)
-    configLockfile.packages = prunedFile.packages ?? {}
-    configLockfile.snapshots = prunedFile.snapshots ?? {}
+    envLockfile.packages = prunedFile.packages ?? {}
+    envLockfile.snapshots = prunedFile.snapshots ?? {}
 
-    await writeConfigLockfile(opts.rootDir, configLockfile)
+    await writeEnvLockfile(opts.rootDir, envLockfile)
   }
-  return configLockfile
+  return envLockfile
 }
