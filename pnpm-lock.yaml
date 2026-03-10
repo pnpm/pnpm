@@ -2115,6 +2115,9 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../lockfile/utils
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
@@ -6354,9 +6357,6 @@ importers:
       filenamify:
         specifier: 'catalog:'
         version: 6.0.0
-      get-npm-tarball-url:
-        specifier: 'catalog:'
-        version: 2.1.0
       graph-cycles:
         specifier: 'catalog:'
         version: 3.0.0

@@ -1,4 +1,3 @@
-import getNpmTarballUrl from 'get-npm-tarball-url'
 import { PnpmError } from '@pnpm/error'
 import { writeSettings } from '@pnpm/config.config-writer'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/fetch'
@@ -8,6 +7,7 @@ import {
   readConfigLockfile,
   writeConfigLockfile,
 } from '@pnpm/lockfile.fs'
+import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/npm-resolver'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
@@ -45,10 +45,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
     }
     const pkgName = wantedDep.alias
     const version = resolution.manifest.version
-    const { tarball, integrity } = resolution.resolution as { tarball: string, integrity: string }
     const registry = pickRegistryForPackage(opts.registries, pkgName)
-    const defaultTarball = getNpmTarballUrl(pkgName, version, { registry })
-    const hasCustomTarball = tarball !== defaultTarball && isValidHttpUrl(tarball)
 
     // Write clean specifier to workspace manifest
     configDependencySpecifiers[pkgName] = wantedDep.bareSpecifier ?? version
@@ -60,9 +57,11 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
       version,
     }
     configLockfile.packages[pkgKey] = {
-      resolution: hasCustomTarball
-        ? { integrity, tarball }
-        : { integrity },
+      resolution: toLockfileResolution(
+        { name: pkgName, version },
+        resolution.resolution,
+        registry
+      ),
     }
     configLockfile.snapshots[pkgKey] = {}
   }))
@@ -100,13 +99,4 @@ function extractSpecifiers (configDependencies?: ConfigDependencies): ConfigDepe
     }
   }
   return specifiers
-}
-
-function isValidHttpUrl (url: string): boolean {
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
 }

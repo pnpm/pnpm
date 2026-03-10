@@ -1,9 +1,10 @@
-import getNpmTarballUrl from 'get-npm-tarball-url'
 import { PnpmError } from '@pnpm/error'
 import { writeSettings } from '@pnpm/config.config-writer'
 import { createConfigLockfile, writeConfigLockfile } from '@pnpm/lockfile.fs'
+import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import type { ConfigDependencies, ConfigDependencySpecifiers, Registries } from '@pnpm/types'
+import getNpmTarballUrl from 'get-npm-tarball-url'
 
 interface MigrateOpts {
   registries: Registries
@@ -39,7 +40,6 @@ export async function migrateConfigDepsToLockfile (
     if (typeof pkgSpec === 'object') {
       const { version, integrity } = parseIntegrity(pkgName, pkgSpec.integrity)
       const tarball = pkgSpec.tarball ?? getNpmTarballUrl(pkgName, version, { registry })
-      const hasCustomTarball = pkgSpec.tarball != null
 
       cleanSpecifiers[pkgName] = version
       const pkgKey = `${pkgName}@${version}`
@@ -48,9 +48,11 @@ export async function migrateConfigDepsToLockfile (
         version,
       }
       configLockfile.packages[pkgKey] = {
-        resolution: hasCustomTarball
-          ? { integrity, tarball }
-          : { integrity },
+        resolution: toLockfileResolution(
+          { name: pkgName, version },
+          { integrity, tarball },
+          registry
+        ),
       }
       configLockfile.snapshots[pkgKey] = {}
       normalizedDeps[pkgName] = {
