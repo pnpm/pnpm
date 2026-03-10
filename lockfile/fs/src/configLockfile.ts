@@ -7,7 +7,7 @@ import type { ConfigLockfile } from '@pnpm/lockfile.types'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
 import yaml from 'js-yaml'
 import stripBom from 'strip-bom'
-import writeFileAtomicCB from 'write-file-atomic'
+import { lockfileYamlDump, writeFileAtomic } from './write.js'
 
 export function createConfigLockfile (): ConfigLockfile {
   return {
@@ -53,27 +53,11 @@ export async function readConfigLockfile (rootDir: string): Promise<ConfigLockfi
   return parsed as ConfigLockfile
 }
 
-const YAML_FORMAT = {
-  blankLines: true,
-  lineWidth: -1,
-  noCompatMode: true,
-  noRefs: true,
-  sortKeys: false,
-}
-
 export async function writeConfigLockfile (rootDir: string, lockfile: ConfigLockfile): Promise<void> {
   const lockfilePath = path.join(rootDir, CONFIG_LOCKFILE)
   const sorted = sortConfigLockfile(lockfile)
-  const yamlDoc = yaml.dump(sorted, YAML_FORMAT)
-  return new Promise<void>((resolve, reject) => {
-    writeFileAtomicCB(lockfilePath, yamlDoc, {}, (err?: Error) => {
-      if (err != null) {
-        reject(err)
-      } else {
-        resolve()
-      }
-    })
-  })
+  const yamlDoc = lockfileYamlDump(sorted)
+  return writeFileAtomic(lockfilePath, yamlDoc)
 }
 
 function sortConfigLockfile (lockfile: ConfigLockfile): ConfigLockfile {
