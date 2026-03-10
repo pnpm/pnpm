@@ -177,9 +177,6 @@
       "path": "../store/store-connection-manager"
     },
     {
-      "path": "../tools/path"
-    },
-    {
       "path": "../tools/plugin-commands-self-updater"
     },
     {

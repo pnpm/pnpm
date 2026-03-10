@@ -6805,9 +6805,6 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../__utils__/test-ipc-server
-      '@pnpm/tools.path':
-        specifier: workspace:*
-        version: link:../tools/path
       '@pnpm/tools.plugin-commands-self-updater':
         specifier: workspace:*
         version: link:../tools/plugin-commands-self-updater
@@ -8945,12 +8942,6 @@ importers:
   text/tree-renderer:
     devDependencies:
       '@pnpm/text.tree-renderer':
-        specifier: workspace:*
-        version: 'link:'
-
-  tools/path:
-    devDependencies:
-      '@pnpm/tools.path':
         specifier: workspace:*
         version: 'link:'
 
