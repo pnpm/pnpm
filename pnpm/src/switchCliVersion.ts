@@ -1,9 +1,12 @@
 import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
 import type { Config } from '@pnpm/config'
+import { resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { prependDirsToPath } from '@pnpm/env.path'
 import { globalWarn } from '@pnpm/logger'
+import { createStoreController } from '@pnpm/store-connection-manager'
+import { installPnpmToStore } from '@pnpm/tools.plugin-commands-self-updater'
 import spawn from 'cross-spawn'
 import semver from 'semver'
 
@@ -19,12 +22,6 @@ export async function switchCliVersion (config: Config): Promise<void> {
     globalWarn(`Cannot switch to pnpm@${pm.version}: you need to specify the version as "${pmVersion}"`)
     return
   }
-
-  // Dynamically import heavy modules only when version switching is needed,
-  // to avoid loading them on every pnpm CLI startup.
-  const { createStoreController } = await import('@pnpm/store-connection-manager')
-  const { resolvePackageManagerIntegrities } = await import('@pnpm/config.deps-installer')
-  const { installPnpmToStore } = await import('@pnpm/tools.plugin-commands-self-updater')
 
   const store = await createStoreController(config)
 
