@@ -7,7 +7,7 @@ import { resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { linkBins } from '@pnpm/link-bins'
 import { globalWarn } from '@pnpm/logger'
-import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
@@ -91,23 +91,13 @@ export async function handler (
 
   const store = await createStoreController(opts)
 
-  // Use pnpmHomeDir as fallback for env lockfile when there's no project
-  const { manifest: projectManifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir)
-  const envLockfileDir = projectManifest != null ? opts.rootProjectManifestDir : opts.pnpmHomeDir
-
   // Resolve integrities and write pnpm-lock.env.yaml
   const envLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
     registries: opts.registries,
-    rootDir: envLockfileDir,
+    rootDir: opts.pnpmHomeDir,
     storeController: store.ctrl,
     storeDir: store.dir,
   })
-
-  // Update packageManager field in package.json if it exists
-  if (projectManifest != null) {
-    projectManifest.packageManager = `pnpm@${resolution.manifest.version}`
-    await writeProjectManifest(projectManifest)
-  }
 
   const { baseDir, alreadyExisted } = await installPnpm(resolution.manifest.version, {
     ...opts,

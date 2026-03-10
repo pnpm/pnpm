@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
 import { prepare } from '@pnpm/prepare'
@@ -24,9 +25,7 @@ test('self-update updates the packageManager field in package.json', async () =>
 })
 
 test('version switch reuses pnpm previously installed by self-update', async () => {
-  prepare({
-    packageManager: 'pnpm@9.0.0',
-  })
+  prepare({})
 
   const pnpmHome = process.cwd()
 
@@ -36,13 +35,14 @@ test('version switch reuses pnpm previously installed by self-update', async () 
     XDG_DATA_HOME: path.resolve('data'),
   }
 
-  // self-update installs pnpm 10.0.0 to the global dir (with GVS enabled),
-  // populating the global virtual store
+  // self-update without managePackageManagerVersions installs pnpm 10.0.0
+  // globally (with GVS enabled), populating the global virtual store
   await execPnpm(['self-update', '10.0.0'], { env })
 
-  // Now set packageManager to the same version and run install.
-  // The version switch should find pnpm 10.0.0 already in the GVS
-  // and reuse it without downloading again.
+  // Write packageManager field so the version switch triggers.
+  // It should find pnpm 10.0.0 already in the GVS and reuse it
+  // without downloading again.
+  fs.writeFileSync('package.json', JSON.stringify({ packageManager: 'pnpm@10.0.0' }))
   const result = execPnpmSync(['-v'], { env })
   expect(result.status).toBe(0)
   expect(result.stdout.toString().trim()).toBe('10.0.0')
