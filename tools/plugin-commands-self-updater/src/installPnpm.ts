@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import {
   iterateHashedGraphNodes,
   iteratePkgMeta,
@@ -279,7 +280,7 @@ async function installFromResolution (
     devDependencies: false,
     optionalDependencies: true,
   }
-  const fetchFullMetadata = (opts.supportedArchitectures?.libc ?? opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc) && true
+  const fetchFullMetadata = Boolean(opts.supportedArchitectures?.libc ?? opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc)
   await installGlobalPackages({
     ...opts,
     global: false,
@@ -322,7 +323,7 @@ function linkExePlatformBinary (installDir: string): void {
   try {
     fs.unlinkSync(dest)
   } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
       throw err
     }
   }

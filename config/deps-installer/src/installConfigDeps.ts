@@ -13,20 +13,13 @@ import rimraf from '@zkochan/rimraf'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import symlinkDir from 'symlink-dir'
 import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
+import type { NormalizedConfigDep } from './parseIntegrity.js'
 
 export interface InstallConfigDepsOpts {
   registries: Registries
   rootDir: string
   store: StoreController
   storeDir: string
-}
-
-interface NormalizedConfigDep {
-  version: string
-  resolution: {
-    integrity: string
-    tarball: string
-  }
 }
 
 /**

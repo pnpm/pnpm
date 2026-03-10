@@ -24,12 +24,12 @@ export async function switchCliVersion (config: Config): Promise<void> {
     return
   }
 
-  const envLockfile = await readEnvLockfile(config.rootProjectManifestDir) ?? undefined
+  let envLockfile = await readEnvLockfile(config.rootProjectManifestDir) ?? undefined
   let storeToUse: Awaited<ReturnType<typeof createStoreController>> | undefined
 
   if (!isPackageManagerResolved(envLockfile, pmVersion)) {
     storeToUse = await createStoreController(config)
-    await resolvePackageManagerIntegrities(pmVersion, {
+    envLockfile = await resolvePackageManagerIntegrities(pmVersion, {
       envLockfile,
       registries: config.registries,
       rootDir: config.rootProjectManifestDir,
