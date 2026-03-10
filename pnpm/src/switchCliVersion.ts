@@ -1,10 +1,11 @@
 import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
 import type { Config } from '@pnpm/config'
-import { resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
+import { resolvePackageManagerIntegrities, isPackageManagerResolved } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { prependDirsToPath } from '@pnpm/env.path'
 import { globalWarn } from '@pnpm/logger'
+import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { createStoreController } from '@pnpm/store-connection-manager'
 import { installPnpmToStore } from '@pnpm/tools.plugin-commands-self-updater'
 import spawn from 'cross-spawn'
@@ -23,27 +24,47 @@ export async function switchCliVersion (config: Config): Promise<void> {
     return
   }
 
-  const store = await createStoreController(config)
+  const envLockfile = await readEnvLockfile(config.rootProjectManifestDir) ?? undefined
+  let storeToUse: Awaited<ReturnType<typeof createStoreController>> | undefined
 
-  // Always resolve integrities to populate packageManagerDependencies in the env lockfile
-  const envLockfile = await resolvePackageManagerIntegrities(pmVersion, {
-    registries: config.registries,
-    rootDir: config.rootProjectManifestDir,
-    storeController: store.ctrl,
-    storeDir: store.dir,
-  })
+  if (!isPackageManagerResolved(envLockfile, pmVersion)) {
+    storeToUse = await createStoreController(config)
+    await resolvePackageManagerIntegrities(pmVersion, {
+      envLockfile,
+      registries: config.registries,
+      rootDir: config.rootProjectManifestDir,
+      storeController: storeToUse.ctrl,
+      storeDir: storeToUse.dir,
+    })
+  }
 
   // If the wanted version matches the current version, no switch needed
-  if (pmVersion === packageManager.version) return
+  if (pmVersion === packageManager.version) {
+    await storeToUse?.ctrl.close()
+    return
+  }
+
+  // We need a store controller to install pnpm. If it wasn't created during
+  // integrity resolution (because integrities were already cached), create it now.
+  if (!storeToUse) {
+    storeToUse = await createStoreController(config)
+  }
+
+  if (!envLockfile) {
+    throw new PnpmError('NO_PKG_MANAGER_INTEGRITY', `The packageManager dependency ${pmVersion} was not found in the pnpm-lock.env.yaml`)
+  }
 
   const { binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, {
     envLockfile,
-    storeController: store.ctrl,
-    storeDir: store.dir,
+    storeController: storeToUse.ctrl,
+    storeDir: storeToUse.dir,
     registries: config.registries,
     virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
     packageManager: { name: packageManager.name, version: packageManager.version },
   })
+
+  await storeToUse.ctrl.close()
+
   const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
   if (!pnpmEnv.updated) {
     // We throw this error to prevent an infinite recursive call of the same pnpm version.

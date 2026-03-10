@@ -131,7 +131,7 @@ function normalizeFromLockfile (
   registries: Registries
 ): Record<string, NormalizedConfigDep> {
   const deps: Record<string, NormalizedConfigDep> = {}
-  const configDeps = lockfile.importers['.'].configDependencies
+  const configDeps = lockfile.importers['.']?.configDependencies ?? {}
   for (const [pkgName, { version }] of Object.entries(configDeps)) {
     const pkgKey = `${pkgName}@${version}`
     const pkgInfo = lockfile.packages[pkgKey]

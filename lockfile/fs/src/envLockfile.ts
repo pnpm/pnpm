@@ -51,7 +51,13 @@ export async function readEnvLockfile (rootDir: string): Promise<EnvLockfile | n
   if (lockfile.snapshots == null || typeof lockfile.snapshots !== 'object') {
     throw new PnpmError('INVALID_ENV_LOCKFILE', `Invalid env lockfile at ${lockfilePath}: missing or invalid "snapshots"`)
   }
-  return parsed as EnvLockfile
+  const envLockfile = parsed as EnvLockfile
+  if (!envLockfile.importers['.']) {
+    envLockfile.importers['.'] = { configDependencies: {} }
+  } else if (!envLockfile.importers['.'].configDependencies) {
+    envLockfile.importers['.'].configDependencies = {}
+  }
+  return envLockfile
 }
 
 export async function writeEnvLockfile (rootDir: string, lockfile: EnvLockfile): Promise<void> {
@@ -63,7 +69,7 @@ export async function writeEnvLockfile (rootDir: string, lockfile: EnvLockfile):
 
 function sortEnvLockfile (lockfile: EnvLockfile): EnvLockfile {
   const importer: EnvLockfile['importers']['.'] = {
-    configDependencies: sortDirectKeys(lockfile.importers['.'].configDependencies),
+    configDependencies: sortDirectKeys(lockfile.importers['.']?.configDependencies ?? {}),
   }
   if (lockfile.importers['.'].packageManagerDependencies && Object.keys(lockfile.importers['.'].packageManagerDependencies).length > 0) {
     importer.packageManagerDependencies = sortDirectKeys(lockfile.importers['.'].packageManagerDependencies)

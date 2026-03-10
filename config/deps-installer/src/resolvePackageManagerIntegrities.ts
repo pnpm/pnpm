@@ -6,10 +6,26 @@ import type { DepPath, ProjectId, Registries } from '@pnpm/types'
 import { resolveManifestDependencies } from './resolveManifestDependencies.js'
 
 export interface ResolvePackageManagerIntegritiesOpts {
+  envLockfile?: EnvLockfile
   registries: Registries
   rootDir: string
   storeController: StoreController
   storeDir: string
+}
+
+/**
+ * Checks if the wanted pnpm version integrities are already fully resolved in the env lockfile.
+ */
+export function isPackageManagerResolved (
+  envLockfile: EnvLockfile | undefined,
+  pnpmVersion: string
+): boolean {
+  if (!envLockfile) return false
+
+  const pmDeps = envLockfile.importers['.'].packageManagerDependencies
+  return pmDeps != null &&
+    pmDeps['pnpm']?.version === pnpmVersion &&
+    pmDeps['@pnpm/exe']?.version === pnpmVersion
 }
 
 /**
@@ -21,15 +37,9 @@ export async function resolvePackageManagerIntegrities (
   pnpmVersion: string,
   opts: ResolvePackageManagerIntegritiesOpts
 ): Promise<EnvLockfile> {
-  const envLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
+  const envLockfile = opts.envLockfile ?? (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
 
-  // Check if already resolved for this version
-  const pmDeps = envLockfile.importers['.'].packageManagerDependencies
-  if (
-    pmDeps != null &&
-    pmDeps['pnpm']?.version === pnpmVersion &&
-    pmDeps['@pnpm/exe']?.version === pnpmVersion
-  ) {
+  if (isPackageManagerResolved(envLockfile, pnpmVersion)) {
     return envLockfile
   }
 
