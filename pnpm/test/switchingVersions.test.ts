@@ -1,7 +1,6 @@
 import path from 'path'
 import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
-import { getToolDirPath } from '@pnpm/tools.path'
 import { writeJsonFileSync } from 'write-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpmSync } from './utils/index.js'
@@ -75,25 +74,31 @@ test('do not switch to pnpm version when a range is specified', async () => {
   expect(stdout.toString()).toContain('Cannot switch to pnpm@^9.3.0')
 })
 
-test('throws error if pnpm tools dir is corrupt', () => {
+test('throws error if pnpm binary in store is corrupt', () => {
   prepare()
   const config = ['--config.manage-package-manager-versions=true'] as const
   const pnpmHome = path.resolve('pnpm')
-  const env = { PNPM_HOME: pnpmHome }
+  const storeDir = path.resolve('store')
+  const env = { PNPM_HOME: pnpmHome, pnpm_config_store_dir: storeDir }
   const version = '9.3.0'
 
   writeJsonFileSync('package.json', {
     packageManager: `pnpm@${version}`,
   })
 
-  // Run pnpm once to ensure the tools dir is created.
+  // Run pnpm once to ensure pnpm is installed to the store.
   execPnpmSync([...config, 'help'], { env })
 
-  // Intentionally corrupt the tool dir.
-  const toolDir = getToolDirPath({ pnpmHomeDir: pnpmHome, tool: { name: 'pnpm', version } })
-  fs.rmSync(path.join(toolDir, 'bin/pnpm'))
+  // Find the pnpm binary in the global virtual store and corrupt it.
+  const entries = fs.readdirSync(storeDir, { recursive: true }) as string[]
+  const pnpmBinEntry = entries.find(e => {
+    const normalized = e.replace(/\\/g, '/')
+    return normalized.endsWith('/bin/pnpm') && !normalized.includes('node_modules')
+  })
+  if (!pnpmBinEntry) throw new Error('Could not find pnpm binary in store')
+  fs.rmSync(path.join(storeDir, pnpmBinEntry))
   if (isWindows()) {
-    fs.rmSync(path.join(toolDir, 'bin/pnpm.cmd'))
+    fs.rmSync(path.join(storeDir, pnpmBinEntry + '.cmd'))
   }
 
   const { stderr } = execPnpmSync([...config, 'help'], { env })

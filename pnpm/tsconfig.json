@@ -57,6 +57,9 @@
       "path": "../config/config"
     },
     {
+      "path": "../config/deps-installer"
+    },
+    {
       "path": "../config/plugin-commands-config"
     },
     {
@@ -79,6 +82,9 @@
     },
     {
       "path": "../fs/msgpack-file"
+    },
+    {
+      "path": "../lockfile/fs"
     },
     {
       "path": "../lockfile/plugin-commands-audit"
@@ -168,7 +174,7 @@
       "path": "../store/plugin-commands-store-inspecting"
     },
     {
-      "path": "../tools/path"
+      "path": "../store/store-connection-manager"
     },
     {
       "path": "../tools/plugin-commands-self-updater"
