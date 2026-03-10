@@ -25,9 +25,12 @@ export async function resolvePackageManagerIntegrities (
 
   // Check if already resolved for this version
   const pmDeps = envLockfile.importers['.'].packageManagerDependencies
-  if (pmDeps != null) {
-    const hasVersion = Object.values(pmDeps).some((dep) => dep.version === pnpmVersion)
-    if (hasVersion) return envLockfile
+  if (
+    pmDeps != null &&
+    pmDeps['pnpm']?.version === pnpmVersion &&
+    pmDeps['@pnpm/exe']?.version === pnpmVersion
+  ) {
+    return envLockfile
   }
 
   const lockfile = await resolveManifestDependencies(

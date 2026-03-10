@@ -29,7 +29,7 @@ export function toLockfileResolution (
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
   // Or in other weird cases, like https://github.com/pnpm/pnpm/issues/1072
   const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
-  const actualTarball = resolution['tarball'].replace('%2f', '/')
+  const actualTarball = resolution['tarball'].replaceAll('%2f', '/')
   if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {
     return {
       integrity: resolution['integrity'],
