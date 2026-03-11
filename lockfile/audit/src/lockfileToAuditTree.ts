@@ -52,20 +52,10 @@ export async function lockfileToAuditTree (
   if (opts.envLockfile) {
     const { configDeps, packageManagerDeps } = envLockfileToAuditNodes(opts.envLockfile)
     if (Object.keys(configDeps).length > 0) {
-      dependencies['configDependencies'] = {
-        dependencies: configDeps,
-        dev: false,
-        requires: toRequires(configDeps),
-        version: '0.0.0',
-      }
+      dependencies['configDependencies'] = wrapDepsGroup(configDeps)
     }
     if (Object.keys(packageManagerDeps).length > 0) {
-      dependencies['packageManagerDependencies'] = {
-        dependencies: packageManagerDeps,
-        dev: false,
-        requires: toRequires(packageManagerDeps),
-        version: '0.0.0',
-      }
+      dependencies['packageManagerDependencies'] = wrapDepsGroup(packageManagerDeps)
     }
   }
   const auditTree: AuditTree = {
@@ -106,29 +96,35 @@ function toRequires (auditNodesByDepName: Record<string, AuditNode>): Record<str
   return mapValues((auditNode) => auditNode.version!, auditNodesByDepName)
 }
 
+function wrapDepsGroup (deps: Record<string, AuditNode>): AuditNode {
+  return {
+    dependencies: deps,
+    dev: false,
+    requires: toRequires(deps),
+    version: '0.0.0',
+  }
+}
+
 function envLockfileToAuditNodes (envLockfile: EnvLockfile): {
   configDeps: Record<string, AuditNode>
   packageManagerDeps: Record<string, AuditNode>
 } {
   const importer = envLockfile.importers['.']
   const visited = new Set<string>()
-  const configDeps: Record<string, AuditNode> = {}
-  for (const [name, { version }] of Object.entries(importer.configDependencies)) {
-    const depPath = refToRelative(version, name)
-    if (depPath) {
-      configDeps[name] = envLockfileDepToAuditNode(envLockfile, depPath, visited)
-    }
-  }
-  const packageManagerDeps: Record<string, AuditNode> = {}
-  if (importer.packageManagerDependencies) {
-    for (const [name, { version }] of Object.entries(importer.packageManagerDependencies)) {
+  const toAuditNodes = (deps: Record<string, { version: string }>): Record<string, AuditNode> => {
+    const result: Record<string, AuditNode> = {}
+    for (const [name, { version }] of Object.entries(deps)) {
       const depPath = refToRelative(version, name)
       if (depPath) {
-        packageManagerDeps[name] = envLockfileDepToAuditNode(envLockfile, depPath, visited)
+        result[name] = envLockfileDepToAuditNode(envLockfile, depPath, visited)
       }
     }
+    return result
   }
-  return { configDeps, packageManagerDeps }
+  return {
+    configDeps: toAuditNodes(importer.configDependencies),
+    packageManagerDeps: toAuditNodes(importer.packageManagerDependencies ?? {}),
+  }
 }
 
 function envLockfileDepToAuditNode (
@@ -150,20 +146,11 @@ function envLockfileDepToAuditNode (
   }
   visited.add(depPath)
   const subdeps: Record<string, AuditNode> = {}
-  if (snapshot?.dependencies) {
-    for (const [depName, depVersion] of Object.entries(snapshot.dependencies)) {
-      const subDepPath = refToRelative(depVersion, depName)
-      if (subDepPath) {
-        subdeps[depName] = envLockfileDepToAuditNode(envLockfile, subDepPath, visited)
-      }
-    }
-  }
-  if (snapshot?.optionalDependencies) {
-    for (const [depName, depVersion] of Object.entries(snapshot.optionalDependencies)) {
-      const subDepPath = refToRelative(depVersion, depName)
-      if (subDepPath) {
-        subdeps[depName] = envLockfileDepToAuditNode(envLockfile, subDepPath, visited)
-      }
+  const allSubDeps = { ...snapshot?.dependencies, ...snapshot?.optionalDependencies }
+  for (const [depName, depVersion] of Object.entries(allSubDeps)) {
+    const subDepPath = refToRelative(depVersion, depName)
+    if (subDepPath) {
+      subdeps[depName] = envLockfileDepToAuditNode(envLockfile, subDepPath, visited)
     }
   }
   if (Object.keys(subdeps).length > 0) {
