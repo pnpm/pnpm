@@ -22,9 +22,6 @@
       "path": "../../packages/constants"
     },
     {
-      "path": "../../packages/dependency-path"
-    },
-    {
       "path": "../../packages/error"
     },
     {

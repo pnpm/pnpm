@@ -1,10 +1,10 @@
 import path from 'path'
-import { removeSuffix } from '@pnpm/dependency-path'
-import type { EnvLockfile, LockfileObject, PackageSnapshot, PackageSnapshots, ProjectSnapshot, TarballResolution } from '@pnpm/lockfile.types'
+import { convertToLockfileObject } from '@pnpm/lockfile.fs'
+import type { EnvLockfile, LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { detectDepTypes, type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
-import type { DependenciesField, DepPath, ProjectId } from '@pnpm/types'
+import type { DependenciesField, ProjectId } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { map as mapValues } from 'ramda'
 
@@ -107,19 +107,18 @@ function wrapDepsGroup (deps: Record<string, AuditNode>): AuditNode {
 }
 
 function envLockfileToLockfileObject (envLockfile: EnvLockfile): LockfileObject {
-  const packages: PackageSnapshots = {}
-  for (const [depPath, snapshot] of Object.entries(envLockfile.snapshots)) {
-    packages[depPath as DepPath] = { ...envLockfile.packages[removeSuffix(depPath)], ...snapshot } as PackageSnapshot
-  }
   const envImporter = envLockfile.importers['.']
-  const toResolvedDeps = (deps: Record<string, { version: string }>): Record<string, string> =>
-    Object.fromEntries(Object.entries(deps).map(([name, { version }]) => [name, version]))
-  const importers: Record<ProjectId, ProjectSnapshot> = {}
+  const importers: Record<string, { dependencies?: Record<string, { specifier: string, version: string }> }> = {}
   if (Object.keys(envImporter.configDependencies).length > 0) {
-    importers['configDependencies' as ProjectId] = { specifiers: {}, dependencies: toResolvedDeps(envImporter.configDependencies) }
+    importers['configDependencies'] = { dependencies: envImporter.configDependencies }
   }
   if (envImporter.packageManagerDependencies) {
-    importers['packageManagerDependencies' as ProjectId] = { specifiers: {}, dependencies: toResolvedDeps(envImporter.packageManagerDependencies) }
+    importers['packageManagerDependencies'] = { dependencies: envImporter.packageManagerDependencies }
   }
-  return { lockfileVersion: envLockfile.lockfileVersion, importers, packages }
+  return convertToLockfileObject({
+    lockfileVersion: envLockfile.lockfileVersion,
+    importers,
+    packages: envLockfile.packages,
+    snapshots: envLockfile.snapshots,
+  })
 }

@@ -3738,9 +3738,6 @@ importers:
 
   lockfile/audit:
     dependencies:
-      '@pnpm/dependency-path':
-        specifier: workspace:*
-        version: link:../../packages/dependency-path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -3753,6 +3750,9 @@ importers:
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../detect-dep-types
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../fs
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
@@ -3778,9 +3778,6 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/lockfile.fs':
-        specifier: workspace:*
-        version: link:../fs
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
