@@ -31,9 +31,9 @@ beforeEach(() => {
   nock.enableNetConnect()
 })
 
-function prepare () {
+function prepare (manifest: object = {}) {
   const dir = tempDir(false)
-  fs.writeFileSync(path.join(dir, 'package.json'), '{}', 'utf8')
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(manifest), 'utf8')
   return prepareOptions(dir)
 }
 
@@ -247,6 +247,151 @@ test('should not update packageManager field when current version matches latest
 
   expect(output).toBe('The current project is already set to use pnpm v9.0.0')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
+})
+
+test('should update devEngines.packageManager version when a newer pnpm version is available', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '8.0.0' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  nock(opts.registries.default)
+    .persist()
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.devEngines.packageManager.version).toBe('9.0.0')
+  expect(pkgJson.packageManager).toBeUndefined()
+})
+
+test('should update pnpm entry in devEngines.packageManager array', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: [
+        { name: 'npm', version: '10.0.0' },
+        { name: 'pnpm', version: '8.0.0' },
+      ],
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  nock(opts.registries.default)
+    .persist()
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.devEngines.packageManager[1].version).toBe('9.0.0')
+  expect(pkgJson.devEngines.packageManager[0].version).toBe('10.0.0')
+  expect(pkgJson.packageManager).toBeUndefined()
+})
+
+test('should not modify devEngines.packageManager range when resolved version still satisfies it', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '>=8.0.0' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  nock(opts.registries.default)
+    .persist()
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '>=8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  // The range should remain unchanged — the exact version is pinned in the lockfile
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.devEngines.packageManager.version).toBe('>=8.0.0')
+  // The lockfile should be written with the resolved exact version
+  const lockfile = fs.readFileSync(path.join(opts.dir, 'pnpm-lock.env.yaml'), 'utf8')
+  expect(lockfile).toContain('9.0.0')
+})
+
+test('should fall back to ^version when complex range cannot accommodate the new version', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '>=8.0.0 <9.0.0' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  nock(opts.registries.default)
+    .persist()
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '>=8.0.0 <9.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.devEngines.packageManager.version).toBe('^9.0.0')
+})
+
+test('should update devEngines.packageManager range when resolved version no longer satisfies it', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '^8' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  nock(opts.registries.default)
+    .persist()
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '^8',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  // Range operator preserved, version updated
+  expect(pkgJson.devEngines.packageManager.version).toBe('^9.0.0')
 })
 
 test('self-update finds pnpm that is already in the global dir', async () => {

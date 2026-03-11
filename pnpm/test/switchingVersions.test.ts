@@ -139,6 +139,41 @@ test('devEngines.packageManager with onFail=download reuses resolved version fro
   expect(fs.existsSync('pnpm-lock.env.yaml')).toBe(true)
 })
 
+test('devEngines.packageManager re-resolves when locked version no longer satisfies updated range', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+
+  // First run: seed the lockfile with 9.1.1
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.0 <9.1.2',
+        onFail: 'download',
+      },
+    },
+  })
+  const firstRun = execPnpmSync(['help'], { env })
+  expect(firstRun.stdout.toString()).toContain('Version 9.1.1')
+  expect(fs.existsSync('pnpm-lock.env.yaml')).toBe(true)
+
+  // Update range so the previously locked 9.1.1 no longer satisfies it
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.2 <9.1.4',
+        onFail: 'download',
+      },
+    },
+  })
+
+  // Should re-resolve and switch to 9.1.3
+  const secondRun = execPnpmSync(['help'], { env })
+  expect(secondRun.stdout.toString()).toContain('Version 9.1.3')
+})
+
 test('devEngines.packageManager without onFail=download does not switch version', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
