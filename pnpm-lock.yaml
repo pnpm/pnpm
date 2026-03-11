@@ -676,8 +676,8 @@ catalogs:
       specifier: ^7.0.0
       version: 7.1.0
     tar:
-      specifier: ^7.5.10
-      version: 7.5.10
+      specifier: ^7.5.11
+      version: 7.5.11
     tar-stream:
       specifier: ^3.1.7
       version: 3.1.8
@@ -1161,7 +1161,7 @@ importers:
         version: 3.0.0
       tar:
         specifier: 'catalog:'
-        version: 7.5.10
+        version: 7.5.11
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.15
@@ -6970,7 +6970,7 @@ importers:
         version: safe-execa@0.2.0
       tar:
         specifier: 'catalog:'
-        version: 7.5.10
+        version: 7.5.11
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -7330,7 +7330,7 @@ importers:
         version: 7.0.1
       tar:
         specifier: 'catalog:'
-        version: 7.5.10
+        version: 7.5.11
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -16107,6 +16107,10 @@ packages:
 
   tar@7.5.10:
     resolution: {integrity: sha512-8mOPs1//5q/rlkNSPcCegA6hiHJYDmSLEI8aMH/CdSQJNWztHC9WHNam5zdQlfpTwB9Xp7IBEsHfV5LKMJGVAw==}
+    engines: {node: '>=18'}
+
+  tar@7.5.11:
+    resolution: {integrity: sha512-ChjMH33/KetonMTAtpYdgUFr0tbz69Fp2v7zWxQfYZX4g5ZN2nOBXm1R2xyA+lMIKrLKIoKAwFj93jE/avX9cQ==}
     engines: {node: '>=18'}
 
   teex@1.0.1:
@@ -25289,6 +25293,14 @@ snapshots:
       - react-native-b4a
 
   tar@7.5.10:
+    dependencies:
+      '@isaacs/fs-minipass': 4.0.1
+      chownr: 3.0.0
+      minipass: 7.1.3
+      minizlib: 3.1.0
+      yallist: 5.0.0
+
+  tar@7.5.11:
     dependencies:
       '@isaacs/fs-minipass': 4.0.1
       chownr: 3.0.0
