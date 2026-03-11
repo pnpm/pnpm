@@ -33,6 +33,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
     pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
     if (!pmVersion) {
       globalWarn(`Cannot resolve pnpm version for "${pm.version}"`)
+      await storeToUse?.ctrl.close()
       return
     }
   } else if (!isPackageManagerResolved(envLockfile, pmVersion)) {

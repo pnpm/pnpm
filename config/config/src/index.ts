@@ -693,7 +693,7 @@ function parsePackageManager (packageManager: string): { name: string, version: 
 
 function parseDevEnginesPackageManager (devEngines?: DevEngines): EngineDependency | undefined {
   if (!devEngines?.packageManager) return undefined
-  let pmEngine
+  let pmEngine: EngineDependency | undefined
   let onFail: 'ignore' | 'warn' | 'error' | 'download'
   if (Array.isArray(devEngines.packageManager)) {
     const engines = devEngines.packageManager

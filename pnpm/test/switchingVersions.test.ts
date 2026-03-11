@@ -156,8 +156,9 @@ test('devEngines.packageManager without onFail=download does not switch version'
     },
   })
 
-  const { stdout } = execPnpmSync(['help'], { env })
+  const { status, stdout } = execPnpmSync(['help'], { env })
 
+  expect(status).not.toBe(0)
   expect(stdout.toString()).not.toContain('Version 9.3.0')
 })
 

@@ -354,7 +354,7 @@ function checkPackageManager (pm: EngineDependency): void {
       const msg = `This project is configured to use ${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
       if (shouldError) {
         throw new PnpmError('BAD_PM_VERSION', msg, {
-          hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
+          hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0". If using "devEngines.packageManager", you can set its "onFail" to "warn" or "ignore"',
         })
       } else {
         globalWarn(msg)
