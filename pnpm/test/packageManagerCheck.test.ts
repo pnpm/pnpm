@@ -87,3 +87,27 @@ test('some commands should not fail if the required package manager is not pnpm'
   const { status } = execPnpmSync(['store', 'path'])
   expect(status).toBe(0)
 })
+
+test('--version should work even if the required package manager is not pnpm', async () => {
+  prepare({
+    name: 'project',
+    packageManager: 'yarn@3.0.0',
+    version: '1.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['--version'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toMatch(/^\d+\.\d+\.\d+/)
+})
+
+test('--help should work even if the required package manager is not pnpm', async () => {
+  prepare({
+    name: 'project',
+    packageManager: 'yarn@3.0.0',
+    version: '1.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['--help'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Usage:')
+})
