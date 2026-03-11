@@ -146,7 +146,7 @@ export async function handler (
  * - Ranges that still satisfy the new version are returned unchanged
  *   (the exact version will be pinned in the lockfile instead).
  * - Complex ranges (>=x <y, etc.) that no longer satisfy the new version
- *   are left unchanged — the lockfile still pins the resolved version.
+ *   fall back to a caret range with the new version (`^${newVersion}`).
  */
 function updateVersionConstraint (current: string | undefined, newVersion: string): string | undefined {
   if (current == null) return newVersion

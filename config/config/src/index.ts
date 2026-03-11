@@ -697,6 +697,7 @@ function parseDevEnginesPackageManager (devEngines?: DevEngines): EngineDependen
   let onFail: 'ignore' | 'warn' | 'error' | 'download'
   if (Array.isArray(devEngines.packageManager)) {
     const engines = devEngines.packageManager
+    if (engines.length === 0) return undefined
     const pnpmIndex = engines.findIndex((engine) => engine.name === 'pnpm')
     if (pnpmIndex !== -1) {
       pmEngine = engines[pnpmIndex]
