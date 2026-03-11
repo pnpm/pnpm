@@ -28,6 +28,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['self-update']
 
+export const skipPackageManagerCheck = true
+
 export function help (): string {
   return renderHelp({
     description: 'Updates pnpm to the latest version (or the one specified)',
@@ -91,17 +93,17 @@ export async function handler (
             await writeProjectManifest(manifest)
           }
         }
+        const store = await createStoreController(opts)
+        await resolvePackageManagerIntegrities(resolution.manifest.version, {
+          registries: opts.registries,
+          rootDir: opts.rootProjectManifestDir,
+          storeController: store.ctrl,
+          storeDir: store.dir,
+        })
       } else {
         manifest.packageManager = `pnpm@${resolution.manifest.version}`
         await writeProjectManifest(manifest)
       }
-      const store = await createStoreController(opts)
-      await resolvePackageManagerIntegrities(resolution.manifest.version, {
-        registries: opts.registries,
-        rootDir: opts.rootProjectManifestDir,
-        storeController: store.ctrl,
-        storeDir: store.dir,
-      })
       return `The current project has been updated to use pnpm v${resolution.manifest.version}`
     } else {
       return `The current project is already set to use pnpm v${resolution.manifest.version}`

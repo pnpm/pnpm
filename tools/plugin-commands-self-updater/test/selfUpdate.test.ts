@@ -208,10 +208,8 @@ test('should update packageManager field when a newer pnpm version is available'
     packageManager: 'pnpm@8.0.0',
   }), 'utf8')
   nock(opts.registries.default)
-    .persist()
     .get('/pnpm')
     .reply(200, createMetadata('9.0.0', opts.registries.default))
-  mockExeMetadata(opts.registries.default, '9.0.0')
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -482,13 +480,8 @@ test('self-update updates the packageManager field in package.json', async () =>
     },
   }
   nock(opts.registries.default)
-    .persist()
     .get('/pnpm')
     .reply(200, createMetadata('9.1.0', opts.registries.default))
-  mockExeMetadata(opts.registries.default, '9.1.0')
-  nock(opts.registries.default)
-    .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, pnpmTarballPath)
 
   const output = await selfUpdate.handler(opts, [])
 
