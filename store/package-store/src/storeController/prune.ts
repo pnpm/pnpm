@@ -4,7 +4,7 @@ import path from 'path'
 import type { StoreIndex } from '@pnpm/store.index'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import rimraf from '@zkochan/rimraf'
+import { rimraf } from '@zkochan/rimraf'
 import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
 
 const BIG_ONE = BigInt(1) as unknown

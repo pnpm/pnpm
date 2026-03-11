@@ -75,7 +75,7 @@ import type {
   ProjectRootDir,
 } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import { map as mapValues, clone, isEmpty, pipeWith, props } from 'ramda'
 import { parseWantedDependencies } from '../parseWantedDependencies.js'

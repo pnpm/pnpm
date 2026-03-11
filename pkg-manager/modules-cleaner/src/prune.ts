@@ -23,7 +23,7 @@ import {
   type ProjectRootDir,
 } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
-import rimraf from '@zkochan/rimraf'
+import { rimraf } from '@zkochan/rimraf'
 import { difference, equals, mergeAll, pickAll } from 'ramda'
 import { removeDirectDependency, removeIfEmpty } from './removeDirectDependency.js'
 

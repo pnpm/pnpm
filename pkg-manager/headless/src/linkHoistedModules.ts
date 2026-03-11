@@ -17,7 +17,7 @@ import type {
 } from '@pnpm/store-controller-types'
 import pLimit from 'p-limit'
 import { difference, isEmpty } from 'ramda'
-import rimraf from '@zkochan/rimraf'
+import { rimraf } from '@zkochan/rimraf'
 import type { AllowBuild } from '@pnpm/types'
 
 const limitLinking = pLimit(16)

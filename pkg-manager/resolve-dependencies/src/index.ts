@@ -29,7 +29,7 @@ import {
   type PkgIdWithPatchHash,
 } from '@pnpm/types'
 import { difference, zipWith } from 'ramda'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
 import { depPathToRef } from './depPathToRef.js'
 import type { NodeId } from './nextNodeId.js'

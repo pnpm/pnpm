@@ -11,7 +11,7 @@ import {
   type Registries,
   type ProjectRootDir,
 } from '@pnpm/types'
-import rimraf from '@zkochan/rimraf'
+import { rimraf } from '@zkochan/rimraf'
 import enquirer from 'enquirer'
 import { equals } from 'ramda'
 import { checkCompatibility } from './checkCompatibility/index.js'

@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import type { Config } from '@pnpm/config'
 import { prepare } from '@pnpm/prepare'
 import { execPnpmSync } from '../utils/index.js'
@@ -59,7 +59,7 @@ test('pnpm config list reads workspace-specific settings from pnpm-workspace.yam
   }
 
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
   expect(JSON.parse(stdout.toString())).toStrictEqual(expect.objectContaining(workspaceManifest))
@@ -87,7 +87,7 @@ test('pnpm config list ignores non camelCase settings from pnpm-workspace.yaml',
   }
 
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
@@ -106,7 +106,7 @@ test('pnpm config list still reads unknown camelCase keys from pnpm-workspace.ya
   }
 
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   {
     const { stdout } = execPnpmSync(['config', 'list'], { expectSuccess: true })
@@ -135,7 +135,7 @@ test('pnpm config list --json shows all keys in camelCase', () => {
   }
 
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   const { stdout } = execPnpmSync(['config', 'list'], { expectSuccess: true })
   expect(JSON.parse(stdout.toString())).toStrictEqual(expect.objectContaining(workspaceManifest))
@@ -150,7 +150,7 @@ test('pnpm config list shows settings from global config.yaml', () => {
   const XDG_CONFIG_HOME = path.resolve('.config')
   const configDir = path.join(XDG_CONFIG_HOME, 'pnpm')
   fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(configDir, 'config.yaml'), {
+  writeYamlFileSync(path.join(configDir, 'config.yaml'), {
     dangerouslyAllowAllBuilds: true,
     dlxCacheMaxAge: 1234,
     dev: true,

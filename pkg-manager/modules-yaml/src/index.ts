@@ -7,7 +7,7 @@ import type {
   IgnoredBuilds,
   Registries,
 } from '@pnpm/types'
-import readYamlFile from 'read-yaml-file'
+import { readYamlFile } from 'read-yaml-file'
 import { map as mapValues } from 'ramda'
 import isWindows from 'is-windows'
 
@@ -50,7 +50,7 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   let modulesRaw!: ModulesRaw
   try {
-    modulesRaw = await readYamlFile.default<ModulesRaw>(modulesYamlPath)
+    modulesRaw = await readYamlFile<ModulesRaw>(modulesYamlPath)
     if (!modulesRaw) return modulesRaw
   } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {

@@ -7,7 +7,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { jest } from '@jest/globals'
-import execa from 'execa'
+import { safeExeca as execa } from 'execa'
 import crossSpawn from 'cross-spawn'
 import { loadJsonFileSync } from 'load-json-file'
 import { DEFAULT_OPTS, checkPkgExists } from './utils/index.js'
@@ -113,7 +113,7 @@ test('recursive publish', async () => {
 
   {
     const { stdout } = await execa('npm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
-    expect(stdout.toString()).toContain('next: 2.0.0')
+    expect(stdout?.toString()).toContain('next: 2.0.0')
   }
 })
 

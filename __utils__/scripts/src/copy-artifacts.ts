@@ -1,7 +1,7 @@
 import fs from 'fs'
 import * as execa from 'execa'
 import path from 'path'
-import makeEmptyDir from 'make-empty-dir'
+import { makeEmptyDir } from 'make-empty-dir'
 import stream from 'stream'
 import * as tar from 'tar'
 import { glob } from 'tinyglobby'

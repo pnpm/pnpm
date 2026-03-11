@@ -13,7 +13,7 @@ import type {
   ProjectRootDir,
   ProjectRootDirRealPath,
 } from '@pnpm/types'
-import realpathMissing from 'realpath-missing'
+import { realpathMissing } from 'realpath-missing'
 
 export interface ProjectOptions {
   binsDir?: string

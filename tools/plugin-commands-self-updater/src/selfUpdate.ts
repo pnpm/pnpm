@@ -10,7 +10,7 @@ import { globalWarn } from '@pnpm/logger'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import { installPnpm } from './installPnpm.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {

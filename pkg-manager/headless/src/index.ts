@@ -73,9 +73,9 @@ import {
 import * as dp from '@pnpm/dependency-path'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
-import pathAbsolute from 'path-absolute'
+import { pathAbsolute } from 'path-absolute'
 import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'
-import realpathMissing from 'realpath-missing'
+import { realpathMissing } from 'realpath-missing'
 import { linkHoistedModules } from './linkHoistedModules.js'
 import {
   type DirectDependenciesByImporterId,

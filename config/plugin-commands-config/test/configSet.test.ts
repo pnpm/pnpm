@@ -4,7 +4,7 @@ import { PnpmError } from '@pnpm/error'
 import { tempDir } from '@pnpm/prepare'
 import { config } from '@pnpm/plugin-commands-config'
 import { readIniFileSync } from 'read-ini-file'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { type ConfigFilesData, readConfigFiles, writeConfigFiles } from './utils/index.js'
 
 test('config set registry setting using the global option', async () => {
@@ -180,7 +180,7 @@ test('config delete with location=project, when delete the last setting from pnp
     rawConfig: {},
   }, ['set', 'virtual-store-dir', '.pnpm'])
 
-  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
+  expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
     virtualStoreDir: '.pnpm',
   })
 
@@ -274,7 +274,7 @@ test('config set saves the setting in the right format to pnpm-workspace.yaml', 
     rawConfig: {},
   }, ['set', 'fetch-timeout', '1000'])
 
-  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
+  expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
     fetchTimeout: 1000,
   })
 })
@@ -576,7 +576,7 @@ test('config set with location=project and json=true', async () => {
     rawConfig: {},
   }, ['set', 'catalog', '{ "react": "19" }'])
 
-  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toStrictEqual({
+  expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toStrictEqual({
     catalog: {
       react: '19',
     },
@@ -602,7 +602,7 @@ test('config set with location=project and json=true', async () => {
     },
   })])
 
-  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toStrictEqual({
+  expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toStrictEqual({
     catalog: {
       react: '19',
     },
@@ -837,7 +837,7 @@ test('config set when both pnpm-workspace.yaml and .npmrc exist, pnpm-workspace.
     rawConfig: {},
   }, ['set', 'fetch-timeout', '2000'])
 
-  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
+  expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
     fetchRetries: 5,
     fetchTimeout: 2000,
   })
@@ -862,7 +862,7 @@ test('config set when only pnpm-workspace.yaml exists, writes to it', async () =
     rawConfig: {},
   }, ['set', 'fetch-timeout', '3000'])
 
-  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
+  expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
     fetchRetries: 5,
     fetchTimeout: 3000,
   })

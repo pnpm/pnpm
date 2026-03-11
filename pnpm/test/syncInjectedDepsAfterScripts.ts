@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { execPnpm } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -49,7 +49,7 @@ function prepareInjectedDepsWorkspace (syncInjectedDepsAfterScripts: string[]) {
     f.copy('injected-dep-files', pkgName)
   }
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['*'],
     reporter: 'append-only',
     injectWorkspacePackages: true,

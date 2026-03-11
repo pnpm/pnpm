@@ -2,7 +2,7 @@ import type { PreResolutionHookContext, PreResolutionHookLogger, CustomResolver,
 import { PnpmError } from '@pnpm/error'
 import { hookLogger } from '@pnpm/core-loggers'
 import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
-import pathAbsolute from 'path-absolute'
+import { pathAbsolute } from 'path-absolute'
 import type { ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
 import type { ReadPackageHook, BeforePackingHook, BaseManifest } from '@pnpm/types'
 import type { LockfileObject } from '@pnpm/lockfile.types'

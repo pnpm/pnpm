@@ -3,15 +3,15 @@ import path from 'path'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeJsonFileSync } from 'write-json-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from './utils/index.js'
 
 test('patch from configuration dependency is applied', async () => {
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     configDependencies: {
       '@pnpm.e2e/has-patch-for-foo': `1.0.0+${getIntegrity('@pnpm.e2e/has-patch-for-foo', '1.0.0')}`,
     },
@@ -27,7 +27,7 @@ test('patch from configuration dependency is applied', async () => {
 
 test('patch from configuration dependency is applied via updateConfig hook', async () => {
   const project = prepare()
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     configDependencies: {
       '@pnpm.e2e/has-patch-for-foo': `1.0.0+${getIntegrity('@pnpm.e2e/has-patch-for-foo', '1.0.0')}`,
     },
@@ -49,7 +49,7 @@ test('catalog applied by configurational dependency hook', async () => {
       '@pnpm.e2e/bar': 'catalog:bar',
     },
   })
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     configDependencies: {
       '@pnpm.e2e/update-config-with-catalogs': `1.0.0+${getIntegrity('@pnpm.e2e/update-config-with-catalogs', '1.0.0')}`,
     },
@@ -122,7 +122,7 @@ test('config deps are installed after switching to a pnpm version that supports 
   // Write .npmrc so the switched-to pnpm version can find the mock registry
   fs.writeFileSync('.npmrc', `registry=http://localhost:${REGISTRY_MOCK_PORT}/\n`)
   // Use old inline integrity format that pnpm v10 understands
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     configDependencies: {
       '@pnpm.e2e/has-patch-for-foo': `1.0.0+${getIntegrity('@pnpm.e2e/has-patch-for-foo', '1.0.0')}`,
     },
@@ -175,7 +175,7 @@ test('installing a new configurational dependency', async () => {
   await execPnpm(['add', '@pnpm.e2e/foo@100.0.0', '--config'])
 
   // Workspace manifest should have a clean specifier (no integrity)
-  const workspaceManifest = readYamlFile<{ configDependencies: Record<string, string> }>('pnpm-workspace.yaml')
+  const workspaceManifest = readYamlFileSync<{ configDependencies: Record<string, string> }>('pnpm-workspace.yaml')
   expect(workspaceManifest.configDependencies).toStrictEqual({
     '@pnpm.e2e/foo': '100.0.0',
   })

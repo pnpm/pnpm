@@ -3,14 +3,14 @@ import type { TarballResolution } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import { jest } from '@jest/globals'
 import { clone } from 'ramda'
 import {
   addDependenciesToPackage,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { testDefaults } from './utils/index.js'
 
 test('installation breaks if the lockfile contains the wrong checksum', async () => {
@@ -24,12 +24,12 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     testDefaults()
   )
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   const corruptedLockfile = project.readLockfile()
   const correctLockfile = clone(corruptedLockfile)
   // breaking the lockfile
   ;(corruptedLockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity = (corruptedLockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity
-  writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
+  writeYamlFileSync(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
   await expect(mutateModulesInSingleProject({
     manifest,
@@ -46,9 +46,9 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
   expect(project.readLockfile()).toStrictEqual(correctLockfile)
 
   // Breaking the lockfile again
-  writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
+  writeYamlFileSync(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await mutateModulesInSingleProject({
     manifest,
@@ -74,7 +74,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
   const correctIntegrity = (corruptedLockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity
   // breaking the lockfile
   ;(corruptedLockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity = 'sha512-pl8WtlGAnoIQ7gPxT187/YwhKRnsFBR4h0YY+v0FPQjT5WPuZbI9dPRaKWgKBFOqWHylJ8EyPy34V5u9YArfng=='
-  writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
+  writeYamlFileSync(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
   await expect(
     mutateModulesInSingleProject({
@@ -96,9 +96,9 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
   }
 
   // Breaking the lockfile again
-  writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
+  writeYamlFileSync(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   const reporter = jest.fn()
   await mutateModulesInSingleProject({

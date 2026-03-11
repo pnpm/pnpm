@@ -8,7 +8,7 @@ import type {
 } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import type { DependencyManifest } from '@pnpm/types'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 import { parseJsonBufferSync } from './parseJson.js'
 
 export function addFilesFromDir (

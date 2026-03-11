@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import workerThreads from 'worker_threads'
 import util from 'util'
-import renameOverwrite from 'rename-overwrite'
+import { renameOverwriteSync } from 'rename-overwrite'
 import { type Integrity, verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
 import { writeFile } from './writeFile.js'
 
@@ -57,7 +57,7 @@ export function writeBufferToCafs (
 
 export function optimisticRenameOverwrite (temp: string, fileDest: string): void {
   try {
-    renameOverwrite.sync(temp, fileDest)
+    renameOverwriteSync(temp, fileDest)
   } catch (err: unknown) {
     if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') || !fs.existsSync(fileDest)) throw err
     // The temporary file path is created by appending the process ID to the target file name.

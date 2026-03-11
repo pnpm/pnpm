@@ -2,10 +2,10 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 import { pathExists } from 'path-exists'
-import rimraf from '@zkochan/rimraf'
-import renderHelp from 'render-help'
+import { rimraf } from '@zkochan/rimraf'
+import { renderHelp } from 'render-help'
 
 export const commandNames = ['clean']
 

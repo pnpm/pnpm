@@ -1,5 +1,5 @@
 import path from 'path'
-import execa from 'execa'
+import { safeExeca as execa } from 'execa'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { makeDedicatedLockfile } from '../lib/index.js'

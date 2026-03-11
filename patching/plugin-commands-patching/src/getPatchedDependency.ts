@@ -5,7 +5,7 @@ import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { PnpmError } from '@pnpm/error'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
-import realpathMissing from 'realpath-missing'
+import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 import type { Config } from '@pnpm/config'
 

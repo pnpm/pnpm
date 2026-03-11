@@ -4,7 +4,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { Config } from '@pnpm/config'
 import isWindows from 'is-windows'
 import crossSpawn from 'cross-spawn'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 
 export const binDir = path.join(import.meta.dirname, '../..', isWindows() ? 'dist' : 'bin')
 export const pnpmBinLocation = path.join(binDir, 'pnpm.mjs')
@@ -150,7 +150,7 @@ export function execPnpxSync (
 function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
   let workspaceManifest: Record<string, unknown> | undefined
   try {
-    workspaceManifest = readYamlFile('pnpm-workspace.yaml')
+    workspaceManifest = readYamlFileSync('pnpm-workspace.yaml')
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
       workspaceManifest = undefined

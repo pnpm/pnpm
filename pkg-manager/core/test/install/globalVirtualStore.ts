@@ -7,7 +7,7 @@ import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { getIntegrity } from '@pnpm/registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
 
 const storeIndexes: StoreIndex[] = []
@@ -38,8 +38,8 @@ test('using a global virtual store', async () => {
     expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
   }
 
-  rimraf('node_modules')
-  rimraf(globalVirtualStoreDir)
+  rimrafSync('node_modules')
+  rimrafSync(globalVirtualStoreDir)
   await install(manifest, testDefaults({
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
@@ -73,7 +73,7 @@ test('reinstall from warm global virtual store after deleting node_modules', asy
   await install(manifest, opts)
 
   // Delete only node_modules, keep the global virtual store warm
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   expect(fs.existsSync(globalVirtualStoreDir)).toBeTruthy()
 
   // Spy on fetchPackage to verify the fast-path skips fetching
@@ -141,7 +141,7 @@ test('GVS hashes are engine-agnostic for packages not in allowBuilds', async () 
     virtualStoreDir: gvsDir1,
     allowBuilds: {},
   }))
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   // Scenario 2: Dependency allowed to build — parent hash becomes engine-specific
   // because it transitively depends on a package that is allowed to build
@@ -181,7 +181,7 @@ test('GVS hashes are stable when allowBuilds targets an unrelated package', asyn
     virtualStoreDir: gvsDir1,
     allowBuilds: {},
   }))
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   // Scenario 2: An unrelated package allowed to build
   // This should NOT affect hashes of @pnpm.e2e/pkg-with-1-dep or its deps
@@ -337,12 +337,12 @@ test('GVS rebuilds successfully after simulated build failure cleanup', async ()
   expect(fs.existsSync(path.join(hashDir, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeTruthy()
 
   // Step 2: Simulate a previous build failure by removing the GVS hash directory
-  rimraf(hashDir)
+  rimrafSync(hashDir)
   expect(fs.existsSync(hashDir)).toBeFalsy()
 
   // Step 3: Remove node_modules and reinstall with frozenLockfile
   // The GVS fast path should NOT kick in because the hash dir is gone
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install(manifest, testDefaults({
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
@@ -390,7 +390,7 @@ test('GVS .pnpm-needs-build marker triggers re-import on next install', async ()
   expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeTruthy()
 
   // Remove node_modules to force a re-install
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   // Step 3: Reinstall — the GVS fast path should detect the .pnpm-needs-build
   // marker and force a re-fetch, re-import, and re-build.
