@@ -18,8 +18,8 @@ try {
   // Checkout existing branch
   execSync(`git worktree add "${worktreePath}" "${branch}"`, { stdio: gitStdio, cwd: repoRoot })
 } catch {
-  // Branch doesn't exist yet — create it
-  execSync(`git worktree add -b "${branch}" "${worktreePath}"`, { stdio: gitStdio, cwd: repoRoot })
+  // Branch doesn't exist yet — create it from main
+  execSync(`git worktree add -b "${branch}" "${worktreePath}" main`, { stdio: gitStdio, cwd: repoRoot })
 }
 
 // Print path to stdout — allows: cd $(pnpm worktree:new <branch>)
