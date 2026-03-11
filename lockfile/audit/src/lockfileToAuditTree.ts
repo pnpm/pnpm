@@ -52,7 +52,7 @@ export async function lockfileToAuditTree (
   if (opts.envLockfile) {
     const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
     const envDepTypes = detectDepTypes(envLockfileObject)
-    for (const { importerId, step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[])) {
+    for (const { importerId, step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
       const deps = lockfileToAuditNode(envDepTypes, step)
       if (Object.keys(deps).length > 0) {
         dependencies[importerId] = wrapDepsGroup(deps)
