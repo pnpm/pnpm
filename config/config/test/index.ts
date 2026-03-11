@@ -815,6 +815,21 @@ test('reads workspacePackagePatterns', async () => {
   expect(config.workspacePackagePatterns).toEqual(['packages/*'])
 })
 
+test('workspacePackagePatterns defaults to ["."] when pnpm-workspace.yaml has no packages field', async () => {
+  const workspaceDir = path.join(__dirname, 'fixtures/workspace-yaml-without-packages')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir,
+  })
+
+  expect(config.workspacePackagePatterns).toEqual(['.'])
+})
+
 test('setting workspace-concurrency to negative number', async () => {
   const workspaceDir = path.join(import.meta.dirname, 'fixtures/pkg-with-valid-workspace-yaml')
   process.chdir(workspaceDir)
