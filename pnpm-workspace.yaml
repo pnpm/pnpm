@@ -124,6 +124,7 @@ catalog:
   '@types/picomatch': ^4.0.2
   '@types/pnpm__byline': npm:@types/byline@^4.2.36
   '@types/proxyquire': ^1.3.31
+  '@types/qrcode-terminal': ^0.12.2
   '@types/ramda': 0.29.12
   '@types/retry': ^0.12.5
   '@types/semver': 7.7.1
@@ -258,6 +259,7 @@ catalog:
   promise-share: ^1.0.0
   proxyquire: ^2.1.3
   ps-list: ^8.1.1
+  qrcode-terminal: ^0.12.0
   ramda: npm:@pnpm/ramda@0.28.1
   read-ini-file: 4.0.0
   read-yaml-file: ^2.1.0

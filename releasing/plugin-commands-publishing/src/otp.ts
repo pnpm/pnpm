@@ -1,6 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
 import { type PublishOptions } from 'libnpmpublish'
+import qrcodeTerminal from 'qrcode-terminal'
 import { SHARED_CONTEXT } from './utils/shared-context.js'
 
 export interface OtpWebAuthFetchOptions {
@@ -147,7 +148,8 @@ export async function publishWithOtpHandling ({
 }
 
 async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext, fetchOptions: OtpWebAuthFetchOptions): Promise<string> {
-  context.globalInfo(`Authenticate your account at:\n${authUrl}`)
+  const qrCode = await generateQrCode(authUrl)
+  context.globalInfo(`Authenticate your account at:\n${authUrl}\n\n${qrCode}`)
   const startTime = context.Date.now()
   const timeout = 5 * 60 * 1000 // 5 minutes
 
@@ -176,6 +178,12 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
       return body.token
     }
   }
+}
+
+function generateQrCode (url: string): Promise<string> {
+  return new Promise(resolve => {
+    qrcodeTerminal.generate(url, { small: true }, resolve)
+  })
 }
 
 export class OtpWebAuthTimeoutError extends PnpmError {
