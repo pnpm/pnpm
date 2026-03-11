@@ -315,6 +315,7 @@ test('recursive command with filter from config', async () => {
 
   fs.writeFileSync('package.json', '{}', 'utf8')
   writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['*'],
     filter: ['project-1', 'project-2'],
   })
   await execPnpm(['recursive', 'install'])
