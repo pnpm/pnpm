@@ -76,9 +76,15 @@ interface OtpErrorBody {
   doneUrl?: string
 }
 
+interface OtpErrorHeaders {
+  'npm-notice'?: string[]
+  'www-authenticate'?: string[]
+}
+
 interface OtpError {
   code: string
   body?: OtpErrorBody
+  headers?: OtpErrorHeaders
 }
 
 const isOtpError = (error: unknown): error is OtpError =>
@@ -125,12 +131,24 @@ export async function publishWithOtpHandling ({
     if (error.body?.authUrl && error.body?.doneUrl) {
       otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, context, fetchOptions)
     } else {
-      const enquirerResponse = await context.enquirer.prompt({
-        message: 'This operation requires a one-time password.\nEnter OTP:',
-        name: 'otp',
-        type: 'input',
-      })
-      otp = enquirerResponse?.otp || undefined
+      const npmNotice = error.headers?.['npm-notice']
+      const npmNoticeAuthUrl = npmNotice && extractUrlFromNpmNotice(npmNotice)
+      const registry = publishOptions.registry
+      const npmNoticeDoneUrl = npmNoticeAuthUrl && registry
+        ? derivePollUrl(registry, npmNoticeAuthUrl)
+        : undefined
+
+      if (npmNoticeAuthUrl && npmNoticeDoneUrl) {
+        const noticeMessage = npmNotice!.join('\n')
+        otp = await webAuthOtp(npmNoticeAuthUrl, npmNoticeDoneUrl, context, fetchOptions, noticeMessage)
+      } else {
+        const enquirerResponse = await context.enquirer.prompt({
+          message: 'This operation requires a one-time password.\nEnter OTP:',
+          name: 'otp',
+          type: 'input',
+        })
+        otp = enquirerResponse?.otp || undefined
+      }
     }
     if (otp != null) {
       try {
@@ -147,9 +165,30 @@ export async function publishWithOtpHandling ({
   return response
 }
 
-async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext, fetchOptions: OtpWebAuthFetchOptions): Promise<string> {
+// Matches a URL in an npm-notice message such as:
+// "Open https://www.npmjs.com/login/TOKEN to use your security key for authentication"
+const NPM_NOTICE_URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/
+
+function extractUrlFromNpmNotice (npmNotice: string[]): string | undefined {
+  for (const notice of npmNotice) {
+    const match = NPM_NOTICE_URL_REGEX.exec(notice)
+    if (match) return match[0]
+  }
+  return undefined
+}
+
+function derivePollUrl (registry: string, authUrl: string): string | undefined {
+  // Extracts the login token from URLs like https://www.npmjs.com/login/TOKEN
+  // and constructs the registry poll endpoint at {registry}/-/v1/login/poll/TOKEN
+  const tokenMatch = /\/login\/([^/\s]+)/.exec(authUrl)
+  if (!tokenMatch) return undefined
+  const token = tokenMatch[1]
+  return `${registry}-/v1/login/poll/${token}`
+}
+
+async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext, fetchOptions: OtpWebAuthFetchOptions, message?: string): Promise<string> {
   const qrCode = await generateQrCode(authUrl)
-  context.globalInfo(`Authenticate your account at:\n${authUrl}\n\n${qrCode}`)
+  context.globalInfo(`${message ?? `Authenticate your account at:\n${authUrl}`}\n\n${qrCode}`)
   const startTime = context.Date.now()
   const timeout = 5 * 60 * 1000 // 5 minutes
 
