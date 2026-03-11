@@ -13,12 +13,14 @@ import type { DependencyManifest } from '@pnpm/types'
 // the bin name.  For example, `npx` ships inside the `npm` package, so
 // when `npm` is being installed globally it should be allowed to claim
 // the `npx` bin as well.
-const BIN_OWNER_OVERRIDES: Record<string, string> = {
-  npx: 'npm',
+const BIN_OWNER_OVERRIDES: Record<string, string[]> = {
+  npx: ['npm'],
+  pnpm: ['@pnpm/exe'],
+  pnpx: ['@pnpm/exe'],
 }
 
 function pkgOwnsBin (binName: string, pkgName: string): boolean {
-  return binName === pkgName || BIN_OWNER_OVERRIDES[binName] === pkgName
+  return binName === pkgName || BIN_OWNER_OVERRIDES[binName]?.includes(pkgName) === true
 }
 
 /**
@@ -72,15 +74,19 @@ export async function checkGlobalBinConflicts (opts: {
       const bins = await getBinsFromPackageManifest(manifest as DependencyManifest, depDir) // eslint-disable-line no-await-in-loop
       for (const bin of bins) {
         if (!conflicting.has(bin.name)) continue
-        // If any new package owns this bin (name match or override), it
-        // gets priority and is allowed to override the existing bin.
-        if (newBinOwners.get(bin.name)!.some((owner) => pkgOwnsBin(bin.name, owner))) continue
-        // If the existing package owns this bin, the new package should
-        // skip linking it rather than failing the entire install.
-        if (pkgOwnsBin(bin.name, manifest.name)) {
+        const newOwns = newBinOwners.get(bin.name)!.some((owner) => pkgOwnsBin(bin.name, owner))
+        const existingOwns = pkgOwnsBin(bin.name, manifest.name)
+        // If only the new package owns this bin, it gets priority and is
+        // allowed to override the existing bin.
+        if (newOwns && !existingOwns) continue
+        // If only the existing package owns this bin, the new package
+        // should skip linking it rather than failing the entire install.
+        if (existingOwns && !newOwns) {
           binsToSkip.add(bin.name)
           continue
         }
+        // If both own it (e.g. "pnpm" vs "@pnpm/exe"), or neither owns
+        // it, fall through to the conflict error below.
         const conflictDisplay = alias === manifest.name
           ? `"${alias}"`
           : `"${alias}" (package "${manifest.name}")`
