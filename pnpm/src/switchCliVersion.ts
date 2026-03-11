@@ -14,20 +14,28 @@ import semver from 'semver'
 export async function switchCliVersion (config: Config): Promise<void> {
   const pm = config.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
-  const pmVersion = semver.valid(pm.version)
-  if (!pmVersion) {
-    globalWarn(`Cannot switch to pnpm@${pm.version}: "${pm.version}" is not a valid version`)
-    return
-  }
-  if (pmVersion !== pm.version.trim()) {
-    globalWarn(`Cannot switch to pnpm@${pm.version}: you need to specify the version as "${pmVersion}"`)
-    return
-  }
 
   let envLockfile = await readEnvLockfile(config.rootProjectManifestDir) ?? undefined
   let storeToUse: Awaited<ReturnType<typeof createStoreController>> | undefined
 
-  if (!isPackageManagerResolved(envLockfile, pmVersion)) {
+  // Check if the env lockfile already has a resolved version that satisfies the wanted version/range.
+  let pmVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
+  if (!pmVersion || !semver.satisfies(pmVersion, pm.version, { includePrerelease: true })) {
+    // Resolve to an exact version from the registry.
+    storeToUse = await createStoreController(config)
+    envLockfile = await resolvePackageManagerIntegrities(pm.version, {
+      envLockfile,
+      registries: config.registries,
+      rootDir: config.rootProjectManifestDir,
+      storeController: storeToUse.ctrl,
+      storeDir: storeToUse.dir,
+    })
+    pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
+    if (!pmVersion) {
+      globalWarn(`Cannot resolve pnpm version for "${pm.version}"`)
+      return
+    }
+  } else if (!isPackageManagerResolved(envLockfile, pmVersion)) {
     storeToUse = await createStoreController(config)
     envLockfile = await resolvePackageManagerIntegrities(pmVersion, {
       envLockfile,
