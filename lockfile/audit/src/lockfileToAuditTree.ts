@@ -1,5 +1,5 @@
 import path from 'path'
-import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
+import type { EnvLockfile, LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { detectDepTypes, type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
@@ -25,6 +25,7 @@ export interface AuditTree extends AuditNode {
 export async function lockfileToAuditTree (
   lockfile: LockfileObject,
   opts: {
+    envLockfile?: EnvLockfile | null
     include?: { [dependenciesField in DependenciesField]: boolean }
     lockfileDir: string
   }
@@ -47,6 +48,25 @@ export async function lockfileToAuditTree (
       }
     })
   )
+  if (opts.envLockfile) {
+    const { configDeps, packageManagerDeps } = envLockfileToAuditNodes(opts.envLockfile)
+    if (Object.keys(configDeps).length > 0) {
+      dependencies['configDependencies'] = {
+        dependencies: configDeps,
+        dev: false,
+        requires: toRequires(configDeps),
+        version: '0.0.0',
+      }
+    }
+    if (Object.keys(packageManagerDeps).length > 0) {
+      dependencies['packageManagerDependencies'] = {
+        dependencies: packageManagerDeps,
+        dev: false,
+        requires: toRequires(packageManagerDeps),
+        version: '0.0.0',
+      }
+    }
+  }
   const auditTree: AuditTree = {
     name: undefined,
     version: undefined,
@@ -83,4 +103,53 @@ function lockfileToAuditNode (depTypes: DepTypes, step: LockfileWalkerStep): Rec
 
 function toRequires (auditNodesByDepName: Record<string, AuditNode>): Record<string, string> {
   return mapValues((auditNode) => auditNode.version!, auditNodesByDepName)
+}
+
+function envLockfileToAuditNodes (envLockfile: EnvLockfile): {
+  configDeps: Record<string, AuditNode>
+  packageManagerDeps: Record<string, AuditNode>
+} {
+  const importer = envLockfile.importers['.']
+  const configDeps: Record<string, AuditNode> = {}
+  for (const [name, { version }] of Object.entries(importer.configDependencies)) {
+    configDeps[name] = envLockfileDepToAuditNode(envLockfile, name, version)
+  }
+  const packageManagerDeps: Record<string, AuditNode> = {}
+  if (importer.packageManagerDependencies) {
+    for (const [name, { version }] of Object.entries(importer.packageManagerDependencies)) {
+      packageManagerDeps[name] = envLockfileDepToAuditNode(envLockfile, name, version)
+    }
+  }
+  return { configDeps, packageManagerDeps }
+}
+
+function envLockfileDepToAuditNode (
+  envLockfile: EnvLockfile,
+  name: string,
+  version: string
+): AuditNode {
+  const pkgId = `${name}@${version}`
+  const pkgInfo = envLockfile.packages[pkgId]
+  const snapshot = envLockfile.snapshots[pkgId]
+  const node: AuditNode = {
+    dev: false,
+    integrity: (pkgInfo?.resolution as { integrity?: string } | undefined)?.integrity,
+    version,
+  }
+  const subdeps: Record<string, AuditNode> = {}
+  if (snapshot?.dependencies) {
+    for (const [depName, depVersion] of Object.entries(snapshot.dependencies)) {
+      subdeps[depName] = envLockfileDepToAuditNode(envLockfile, depName, depVersion)
+    }
+  }
+  if (snapshot?.optionalDependencies) {
+    for (const [depName, depVersion] of Object.entries(snapshot.optionalDependencies)) {
+      subdeps[depName] = envLockfileDepToAuditNode(envLockfile, depName, depVersion)
+    }
+  }
+  if (Object.keys(subdeps).length > 0) {
+    node.dependencies = subdeps
+    node.requires = toRequires(subdeps)
+  }
+  return node
 }

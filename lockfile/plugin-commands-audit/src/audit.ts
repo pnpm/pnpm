@@ -4,7 +4,7 @@ import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { readWantedLockfile } from '@pnpm/lockfile.fs'
+import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
@@ -164,6 +164,7 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
   if (lockfile == null) {
     throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found: Cannot audit a project without a lockfile`)
   }
+  const envLockfile = await readEnvLockfile(opts.workspaceDir ?? lockfileDir)
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
@@ -185,6 +186,7 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
         strictSsl: opts.strictSsl,
         timeout: opts.fetchTimeout,
       },
+      envLockfile,
       include,
       lockfileDir,
       registry: opts.registries.default,
