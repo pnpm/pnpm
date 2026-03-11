@@ -68,7 +68,7 @@ export async function handler (
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
   }
 
-  if (opts.wantedPackageManager?.name === packageManager.name && opts.managePackageManagerVersions) {
+  if (opts.wantedPackageManager?.name === packageManager.name) {
     if (opts.wantedPackageManager?.version !== resolution.manifest.version) {
       const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
       manifest.packageManager = `pnpm@${resolution.manifest.version}`
