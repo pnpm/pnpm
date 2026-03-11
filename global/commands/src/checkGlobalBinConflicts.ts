@@ -9,14 +9,14 @@ import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import type { DependencyManifest } from '@pnpm/types'
 
-// Bins that are logically owned by a package other than the one matching
-// the bin name.  For example, `npx` ships inside the `npm` package, so
-// when `npm` is being installed globally it should be allowed to claim
-// the `npx` bin as well.
+// Maps a bin name to all packages that are legitimate owners of it, beyond
+// the default rule that a package named `X` owns the `X` bin.  For example,
+// `npx` ships inside the `npm` package, and `pnpx` ships inside both the
+// `pnpm` package and the `@pnpm/exe` package.
 const BIN_OWNER_OVERRIDES: Record<string, string[]> = {
   npx: ['npm'],
   pnpm: ['@pnpm/exe'],
-  pnpx: ['@pnpm/exe'],
+  pnpx: ['pnpm', '@pnpm/exe'],
 }
 
 function pkgOwnsBin (binName: string, pkgName: string): boolean {
