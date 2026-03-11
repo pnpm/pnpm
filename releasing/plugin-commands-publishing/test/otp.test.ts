@@ -1,4 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals'
+import { describe, expect, it } from '@jest/globals'
 import {
   type OtpContext,
   type OtpPublishResponse,
@@ -60,7 +60,7 @@ describe('extractUrlFromNotice', () => {
 
 describe('publishWithOtpHandling', () => {
   const manifest = { name: 'test-pkg', version: '1.0.0' }
-  const publishOptions = {} as any
+  const publishOptions = {} as Parameters<typeof publishWithOtpHandling>[0]['publishOptions']
   const tarballData = Buffer.from('test')
 
   it('returns response when publish succeeds without OTP', async () => {
@@ -75,7 +75,9 @@ describe('publishWithOtpHandling', () => {
   it('throws non-OTP errors as-is', async () => {
     const error = new Error('network error')
     const context = createMockContext({
-      publish: async () => { throw error },
+      publish: async () => {
+        throw error
+      },
     })
     await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
       .rejects.toBe(error)
@@ -84,7 +86,9 @@ describe('publishWithOtpHandling', () => {
   it('throws OtpNonInteractiveError when terminal is not interactive', async () => {
     const context = createMockContext({
       process: { stdin: { isTTY: false }, stdout: { isTTY: true } },
-      publish: async () => { throw Object.assign(new Error('otp'), { code: 'EOTP' }) },
+      publish: async () => {
+        throw Object.assign(new Error('otp'), { code: 'EOTP' })
+      },
     })
     await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
       .rejects.toBeInstanceOf(OtpNonInteractiveError)
@@ -111,7 +115,9 @@ describe('publishWithOtpHandling', () => {
 
     it('throws OtpSecondChallengeError if retry also requires OTP', async () => {
       const context = createMockContext({
-        publish: async () => { throw Object.assign(new Error('otp'), { code: 'EOTP' }) },
+        publish: async () => {
+          throw Object.assign(new Error('otp'), { code: 'EOTP' })
+        },
       })
       await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
         .rejects.toBeInstanceOf(OtpSecondChallengeError)

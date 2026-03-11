@@ -97,7 +97,7 @@ const isOtpError = (error: unknown): error is OtpError =>
   'code' in error &&
   error.code === 'EOTP'
 
-const URL_IN_NOTICE_RE = /https?:\/\/[^\s]+/i
+const URL_IN_NOTICE_RE = /https?:\/\/\S+/i
 
 /**
  * Extract a URL from an npm-notice header message.
@@ -191,6 +191,7 @@ async function displayNpmNotice (error: OtpError, context: OtpContext): Promise<
     context.globalInfo(notice)
     const url = extractUrlFromNotice(notice)
     if (url) {
+      // eslint-disable-next-line no-await-in-loop
       const qrCode = await generateQrCode(url)
       context.globalInfo(`\n${qrCode}`)
     }
