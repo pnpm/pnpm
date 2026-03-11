@@ -70,15 +70,22 @@ To use `wt` in your current terminal without restarting it, also run the `source
 # Create a worktree for an existing branch and switch to it
 wt fix/4444
 
-# Create a worktree and a new branch, then switch to it
+# Create a worktree for a new branch (branched from main) and switch to it
 wt feat/my-feature
+
+# Create a worktree for a GitHub PR (works for forks too) and switch to it
+wt-pr 10000
 ```
 
+`wt-pr` fetches the PR via `git fetch origin pull/<number>/head` and creates a local branch
+named `pr-<number>`, so it works for both same-repo branches and forks.
+
 If you only need the worktree path (e.g. to open it in an editor) without switching directories,
-run the underlying script directly:
+run the underlying scripts directly:
 
 ```shell
 pnpm worktree:new feat/my-feature
+pnpm worktree:pr 10000
 ```
 
 ## Running Tests
