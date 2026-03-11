@@ -29,7 +29,7 @@ catalogs:
       version: 9.4.1
     '@eslint/js':
       specifier: ^9.18.0
-      version: 9.39.3
+      version: 9.39.4
     '@jest/globals':
       specifier: 30.0.5
       version: 30.0.5
@@ -98,10 +98,10 @@ catalogs:
       version: 3.0.2
     '@pnpm/workspace.find-packages':
       specifier: ^1000.0.15
-      version: 1000.0.62
+      version: 1000.0.63
     '@pnpm/workspace.read-manifest':
       specifier: ^1000.1.1
-      version: 1000.2.10
+      version: 1000.3.0
     '@reflink/reflink':
       specifier: 0.1.19
       version: 0.1.19
@@ -221,7 +221,7 @@ catalogs:
       version: 6.0.0
     '@typescript-eslint/utils':
       specifier: ^8.53.0
-      version: 8.56.1
+      version: 8.57.0
     '@typescript/native-preview':
       specifier: 7.0.0-dev.20260216.1
       version: 7.0.0-dev.20260216.1
@@ -356,7 +356,7 @@ catalogs:
       version: 5.0.0
     eslint:
       specifier: ^9.39.2
-      version: 9.39.3
+      version: 9.39.4
     eslint-plugin-import-x:
       specifier: ^4.16.1
       version: 4.16.1
@@ -677,7 +677,7 @@ catalogs:
       version: 7.1.0
     tar:
       specifier: ^7.5.10
-      version: 7.5.10
+      version: 7.5.11
     tar-stream:
       specifier: ^3.1.7
       version: 3.1.8
@@ -704,7 +704,7 @@ catalogs:
       version: 5.9.2
     typescript-eslint:
       specifier: ^8.53.0
-      version: 8.56.1
+      version: 8.57.0
     unified:
       specifier: ^9.2.2
       version: 9.2.2
@@ -790,15 +790,9 @@ packageExtensionsChecksum: sha256-1qxck4M+gjHKVxNHtl5ISCI+egyJsA5Hru0aRTpMm9I=
 pnpmfileChecksum: sha256-FyKtfMeHqu9zq1rXAr8P3zdA0NAXUioGdY0esg+SB5s=
 
 patchedDependencies:
-  '@pnpm/npm-lifecycle':
-    hash: 9ca23edf604c5e8ff290e3c0a5443646b5f9865624042a5c41d9b2beb8f98972
-    path: __patches__/@pnpm__npm-lifecycle.patch
-  graceful-fs@4.2.11:
-    hash: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
-    path: __patches__/graceful-fs@4.2.11.patch
-  mdast-util-to-string@2.0.0:
-    hash: 78bd3240806e30c963b9f930251eb10b9940e506f7cc8910fb3d17d7867956a2
-    path: __patches__/mdast-util-to-string@2.0.0.patch
+  '@pnpm/npm-lifecycle': 9ca23edf604c5e8ff290e3c0a5443646b5f9865624042a5c41d9b2beb8f98972
+  graceful-fs@4.2.11: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
+  mdast-util-to-string@2.0.0: 78bd3240806e30c963b9f930251eb10b9940e506f7cc8910fb3d17d7867956a2
 
 importers:
 
@@ -857,10 +851,10 @@ importers:
         version: 9.2.0
       eslint:
         specifier: 'catalog:'
-        version: 9.39.3(jiti@2.6.1)
+        version: 9.39.4(jiti@2.6.1)
       eslint-plugin-regexp:
         specifier: 'catalog:'
-        version: 2.10.0(eslint@9.39.3(jiti@2.6.1))
+        version: 2.10.0(eslint@9.39.4(jiti@2.6.1))
       husky:
         specifier: 'catalog:'
         version: 9.1.7
@@ -1019,38 +1013,38 @@ importers:
     dependencies:
       '@eslint/js':
         specifier: 'catalog:'
-        version: 9.39.3
+        version: 9.39.4
       '@stylistic/eslint-plugin':
         specifier: 'catalog:'
-        version: 4.4.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
+        version: 4.4.1(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
       eslint:
         specifier: 'catalog:'
-        version: 9.39.3(jiti@2.6.1)
+        version: 9.39.4(jiti@2.6.1)
       eslint-plugin-import-x:
         specifier: 'catalog:'
-        version: 4.16.1(@typescript-eslint/utils@8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.3(jiti@2.6.1))
+        version: 4.16.1(@typescript-eslint/utils@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.4(jiti@2.6.1))
       eslint-plugin-n:
         specifier: 'catalog:'
-        version: 17.24.0(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
+        version: 17.24.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
       eslint-plugin-promise:
         specifier: 'catalog:'
-        version: 7.2.1(eslint@9.39.3(jiti@2.6.1))
+        version: 7.2.1(eslint@9.39.4(jiti@2.6.1))
       typescript:
         specifier: 'catalog:'
         version: 5.9.2
       typescript-eslint:
         specifier: 'catalog:'
-        version: 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
+        version: 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
     devDependencies:
       '@pnpm/eslint-config':
         specifier: workspace:*
         version: 'link:'
       '@typescript-eslint/utils':
         specifier: 'catalog:'
-        version: 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
+        version: 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
       eslint-plugin-jest:
         specifier: 'catalog:'
-        version: 29.15.0(@typescript-eslint/eslint-plugin@8.56.1(@typescript-eslint/parser@8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.3(jiti@2.6.1))(jest@30.2.0(@babel/types@7.29.0)(@types/node@22.19.15))(typescript@5.9.2)
+        version: 29.15.0(@typescript-eslint/eslint-plugin@8.57.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.4(jiti@2.6.1))(jest@30.2.0(@babel/types@7.29.0)(@types/node@22.19.15))(typescript@5.9.2)
 
   __utils__/get-release-text:
     dependencies:
@@ -1143,10 +1137,10 @@ importers:
     dependencies:
       '@pnpm/workspace.find-packages':
         specifier: 'catalog:'
-        version: 1000.0.62(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
+        version: 1000.0.63(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
       '@pnpm/workspace.read-manifest':
         specifier: 'catalog:'
-        version: 1000.2.10
+        version: 1000.3.0
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
@@ -1161,7 +1155,7 @@ importers:
         version: 3.0.0
       tar:
         specifier: 'catalog:'
-        version: 7.5.10
+        version: 7.5.11
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.15
@@ -6970,7 +6964,7 @@ importers:
         version: safe-execa@0.2.0
       tar:
         specifier: 'catalog:'
-        version: 7.5.10
+        version: 7.5.11
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -7330,7 +7324,7 @@ importers:
         version: 7.0.1
       tar:
         specifier: 'catalog:'
-        version: 7.5.10
+        version: 7.5.11
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -9067,7 +9061,7 @@ importers:
         version: link:../fs/symlink-dependency
       '@rushstack/worker-pool':
         specifier: 'catalog:'
-        version: 0.7.1(@types/node@25.3.5)
+        version: 0.7.1(@types/node@25.4.0)
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -9799,8 +9793,8 @@ packages:
   '@cspell/dict-bash@4.2.2':
     resolution: {integrity: sha512-kyWbwtX3TsCf5l49gGQIZkRLaB/P8g73GDRm41Zu8Mv51kjl2H7Au0TsEvHv7jzcsRLS6aUYaZv6Zsvk1fOz+Q==}
 
-  '@cspell/dict-companies@3.2.10':
-    resolution: {integrity: sha512-bJ1qnO1DkTn7JYGXvxp8FRQc4yq6tRXnrII+jbP8hHmq5TX5o1Wu+rdfpoUQaMWTl6balRvcMYiINDesnpR9Bw==}
+  '@cspell/dict-companies@3.2.11':
+    resolution: {integrity: sha512-0cmafbcz2pTHXLd59eLR1gvDvN6aWAOM0+cIL4LLF9GX9yB2iKDNrKsvs4tJRqutoaTdwNFBbV0FYv+6iCtebQ==}
 
   '@cspell/dict-cpp@6.0.15':
     resolution: {integrity: sha512-N7MKK3llRNoBncygvrnLaGvmjo4xzVr5FbtAc9+MFGHK6/LeSySBupr1FM72XDaVSIsmBEe7sDYCHHwlI9Jb2w==}
@@ -9811,8 +9805,8 @@ packages:
   '@cspell/dict-csharp@4.0.8':
     resolution: {integrity: sha512-qmk45pKFHSxckl5mSlbHxmDitSsGMlk/XzFgt7emeTJWLNSTUK//MbYAkBNRtfzB4uD7pAFiKgpKgtJrTMRnrQ==}
 
-  '@cspell/dict-css@4.1.0':
-    resolution: {integrity: sha512-bfuvlTeGoK5QgXzzjn+PvqXU5J6mwraIdESNDSvPyplr/EbGFSuvgW3TOuoVNqW4WdDI7eM4tmoP5Dn1ZVgLag==}
+  '@cspell/dict-css@4.1.1':
+    resolution: {integrity: sha512-y/Vgo6qY08e1t9OqR56qjoFLBCpi4QfWMf2qzD1l9omRZwvSMQGRPz4x0bxkkkU4oocMAeztjzCsmLew//c/8w==}
 
   '@cspell/dict-dart@2.3.2':
     resolution: {integrity: sha512-sUiLW56t9gfZcu8iR/5EUg+KYyRD83Cjl3yjDEA2ApVuJvK1HhX+vn4e4k4YfjpUQMag8XO2AaRhARE09+/rqw==}
@@ -9835,20 +9829,20 @@ packages:
   '@cspell/dict-en-common-misspellings@2.1.12':
     resolution: {integrity: sha512-14Eu6QGqyksqOd4fYPuRb58lK1Va7FQK9XxFsRKnZU8LhL3N+kj7YKDW+7aIaAN/0WGEqslGP6lGbQzNti8Akw==}
 
-  '@cspell/dict-en-gb-mit@3.1.19':
-    resolution: {integrity: sha512-Ni8eobxohZjVnzpUufMK2oLLRTUwFY4tF7pE2clAmM8ELgBaAheXlm5U52SpWmyhumz/c9fzburEYXKHG4spzQ==}
+  '@cspell/dict-en-gb-mit@3.1.20':
+    resolution: {integrity: sha512-rcWEKb1mwgK13CSHu6GwwFA/sWLRkB0twTzSfPxUOULJkhcUrL93ixohk416SBa0BVxixub+lOpTXKcCTbTXsA==}
 
-  '@cspell/dict-en_us@4.4.30':
-    resolution: {integrity: sha512-+eVO/VNw8IzQpDIL/SCj+ytd5WbzbHZdU+GAM8eUY2ZU1KTxRw6BoDO+hEFB4cGkD9x+BXm0OKVGSWHNCSGdVw==}
+  '@cspell/dict-en_us@4.4.31':
+    resolution: {integrity: sha512-MdV6mbrSkyIqn9+6F5poCyHIPqWB3H/wlDL9LXfjgAxNFBdYRE767xJtIYunzUqhUiJHSJgZajEFdTtMDw441Q==}
 
-  '@cspell/dict-filetypes@3.0.16':
-    resolution: {integrity: sha512-SyrtuK2/sx+cr94jOp2/uOAb43ngZEVISUTRj4SR6SfoGULVV1iJS7Drqn7Ul9HJ731QDttwWlOUgcQ+yMRblg==}
+  '@cspell/dict-filetypes@3.0.17':
+    resolution: {integrity: sha512-6f1gZf9o60fGQXGi/fZaryISUNDRmmJwGyr4QU1UvgUgOdpDHLVJtv/0wSL9q5F0wAkYhbXo/fNG8CcUTaf7Ww==}
 
   '@cspell/dict-flutter@1.1.1':
     resolution: {integrity: sha512-UlOzRcH2tNbFhZmHJN48Za/2/MEdRHl2BMkCWZBYs+30b91mWvBfzaN4IJQU7dUZtowKayVIF9FzvLZtZokc5A==}
 
-  '@cspell/dict-fonts@4.0.5':
-    resolution: {integrity: sha512-BbpkX10DUX/xzHs6lb7yzDf/LPjwYIBJHJlUXSBXDtK/1HaeS+Wqol4Mlm2+NAgZ7ikIE5DQMViTgBUY3ezNoQ==}
+  '@cspell/dict-fonts@4.0.6':
+    resolution: {integrity: sha512-aR/0csY01dNb0A1tw/UmN9rKgHruUxsYsvXu6YlSBJFu60s26SKr/k1o4LavpHTQ+lznlYMqAvuxGkE4Flliqw==}
 
   '@cspell/dict-fsharp@1.1.1':
     resolution: {integrity: sha512-imhs0u87wEA4/cYjgzS0tAyaJpwG7vwtC8UyMFbwpmtw+/bgss+osNfyqhYRyS/ehVCWL17Ewx2UPkexjKyaBA==}
@@ -9874,8 +9868,8 @@ packages:
   '@cspell/dict-html-symbol-entities@4.0.5':
     resolution: {integrity: sha512-429alTD4cE0FIwpMucvSN35Ld87HCyuM8mF731KU5Rm4Je2SG6hmVx7nkBsLyrmH3sQukTcr1GaiZsiEg8svPA==}
 
-  '@cspell/dict-html@4.0.14':
-    resolution: {integrity: sha512-2bf7n+kS92g+cMKV0wr9o/Oq9n8JzU7CcrB96gIh2GHgnF+0xDOqO2W/1KeFAqOfqosoOVE48t+4dnEMkkoJ2Q==}
+  '@cspell/dict-html@4.0.15':
+    resolution: {integrity: sha512-GJYnYKoD9fmo2OI0aySEGZOjThnx3upSUvV7mmqUu8oG+mGgzqm82P/f7OqsuvTaInZZwZbo+PwJQd/yHcyFIw==}
 
   '@cspell/dict-java@5.0.12':
     resolution: {integrity: sha512-qPSNhTcl7LGJ5Qp6VN71H8zqvRQK04S08T67knMq9hTA8U7G1sTKzLmBaDOFhq17vNX/+rT+rbRYp+B5Nwza1A==}
@@ -9901,11 +9895,11 @@ packages:
   '@cspell/dict-makefile@1.0.5':
     resolution: {integrity: sha512-4vrVt7bGiK8Rx98tfRbYo42Xo2IstJkAF4tLLDMNQLkQ86msDlYSKG1ZCk8Abg+EdNcFAjNhXIiNO+w4KflGAQ==}
 
-  '@cspell/dict-markdown@2.0.15':
-    resolution: {integrity: sha512-xz3LJfFCIJaxHu5Msu9UUSev1R1urVkERb5h1Yc5lJyNOkk/SQTSlNyME0Oma1sXlp6dLnIekL8GyeXJYszQ2w==}
+  '@cspell/dict-markdown@2.0.16':
+    resolution: {integrity: sha512-976RRqKv6cwhrxdFCQP2DdnBVB86BF57oQtPHy4Zbf4jF/i2Oy29MCrxirnOBalS1W6KQeto7NdfDXRAwkK4PQ==}
     peerDependencies:
-      '@cspell/dict-css': ^4.1.0
-      '@cspell/dict-html': ^4.0.14
+      '@cspell/dict-css': ^4.1.1
+      '@cspell/dict-html': ^4.0.15
       '@cspell/dict-html-symbol-entities': ^4.0.5
       '@cspell/dict-typescript': ^3.2.3
 
@@ -9915,8 +9909,8 @@ packages:
   '@cspell/dict-node@5.0.9':
     resolution: {integrity: sha512-hO+ga+uYZ/WA4OtiMEyKt5rDUlUyu3nXMf8KVEeqq2msYvAPdldKBGH7lGONg6R/rPhv53Rb+0Y1SLdoK1+7wQ==}
 
-  '@cspell/dict-npm@5.2.36':
-    resolution: {integrity: sha512-QeoanpVt8QrSxDQVseXn+qk4sy79TAkbgB0G7q3klsZAByr61gXd1yDQ/0wp8xXsyPx+M/BIj5Qd6B8GnozFLA==}
+  '@cspell/dict-npm@5.2.37':
+    resolution: {integrity: sha512-dYKrD0bI08YgebJcbjsIDpTMK6EH0wTkEyQLsaH0T4tmsLJE95coTYb3eE7giRRGJADvBqrjH4fz5+INd85QqQ==}
 
   '@cspell/dict-php@4.1.1':
     resolution: {integrity: sha512-EXelI+4AftmdIGtA8HL8kr4WlUE11OqCSVlnIgZekmTkEGSZdYnkFdiJ5IANSALtlQ1mghKjz+OFqVs6yowgWA==}
@@ -9933,8 +9927,8 @@ packages:
   '@cspell/dict-r@2.1.1':
     resolution: {integrity: sha512-71Ka+yKfG4ZHEMEmDxc6+blFkeTTvgKbKAbwiwQAuKl3zpqs1Y0vUtwW2N4b3LgmSPhV3ODVY0y4m5ofqDuKMw==}
 
-  '@cspell/dict-ruby@5.1.0':
-    resolution: {integrity: sha512-9PJQB3cfkBULrMLp5kSAcFPpzf8oz9vFN+QYZABhQwWkGbuzCIXSorHrmWSASlx4yejt3brjaWS57zZ/YL5ZQQ==}
+  '@cspell/dict-ruby@5.1.1':
+    resolution: {integrity: sha512-LHrp84oEV6q1ZxPPyj4z+FdKyq1XAKYPtmGptrd+uwHbrF/Ns5+fy6gtSi7pS+uc0zk3JdO9w/tPK+8N1/7WUA==}
 
   '@cspell/dict-rust@4.1.2':
     resolution: {integrity: sha512-O1FHrumYcO+HZti3dHfBPUdnDFkI+nbYK3pxYmiM1sr+G0ebOd6qchmswS0Wsc6ZdEVNiPYJY/gZQR6jfW3uOg==}
@@ -9945,8 +9939,8 @@ packages:
   '@cspell/dict-shell@1.1.2':
     resolution: {integrity: sha512-WqOUvnwcHK1X61wAfwyXq04cn7KYyskg90j4lLg3sGGKMW9Sq13hs91pqrjC44Q+lQLgCobrTkMDw9Wyl9nRFA==}
 
-  '@cspell/dict-software-terms@5.1.24':
-    resolution: {integrity: sha512-Y+5b5mw8lnovcoyuiVJJX5PpNPMbdpNyILR4wJDsUMWPK2ZVcl0yyG2UYJmevY7jq/+LY48Ai9RSp0ARAlDzEQ==}
+  '@cspell/dict-software-terms@5.2.0':
+    resolution: {integrity: sha512-jyucc8KKxH5ClC4FPICISgcKAZU7UwgFdPkuuuK5nYIw0+l1umnUSn9IKCcOaurvXujvVP6mBfclXpUtmT6Vrw==}
 
   '@cspell/dict-sql@2.2.1':
     resolution: {integrity: sha512-qDHF8MpAYCf4pWU8NKbnVGzkoxMNrFqBHyG/dgrlic5EQiKANCLELYtGlX5auIMDLmTf1inA0eNtv74tyRJ/vg==}
@@ -10185,8 +10179,8 @@ packages:
     resolution: {integrity: sha512-EriSTlt5OC9/7SXkRSCAhfSxxoSUgBm33OH+IkwbdpgoqsSsUg7y3uh+IICI/Qg4BBWr3U2i39RpmycbxMq4ew==}
     engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
 
-  '@eslint/config-array@0.21.1':
-    resolution: {integrity: sha512-aw1gNayWpdI/jSYVgzN5pL0cfzU02GT3NBpeT/DXbx1/1x7ZKxFPd9bwrzygx/qiwIQiJ1sw/zD8qY/kRvlGHA==}
+  '@eslint/config-array@0.21.2':
+    resolution: {integrity: sha512-nJl2KGTlrf9GjLimgIru+V/mzgSK0ABCDQRvxw5BjURL7WfH5uoWmizbH7QB6MmnMBd8cIC9uceWnezL1VZWWw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@eslint/config-helpers@0.4.2':
@@ -10197,12 +10191,12 @@ packages:
     resolution: {integrity: sha512-yL/sLrpmtDaFEiUj1osRP4TI2MDz1AddJL+jZ7KSqvBuliN4xqYY54IfdN8qD8Toa6g1iloph1fxQNkjOxrrpQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@eslint/eslintrc@3.3.4':
-    resolution: {integrity: sha512-4h4MVF8pmBsncB60r0wSJiIeUKTSD4m7FmTFThG8RHlsg9ajqckLm9OraguFGZE4vVdpiI1Q4+hFnisopmG6gQ==}
+  '@eslint/eslintrc@3.3.5':
+    resolution: {integrity: sha512-4IlJx0X0qftVsN5E+/vGujTRIFtwuLbNsVUe7TO6zYPDR1O6nFwvwhIKEKSrl6dZchmYBITazxKoUYOjdtjlRg==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@eslint/js@9.39.3':
-    resolution: {integrity: sha512-1B1VkCq6FuUNlQvlBYb+1jDu/gV297TIs/OeiaSR9l1H27SVW55ONE1e1Vp16NqP683+xEGzxYtv4XCiDPaQiw==}
+  '@eslint/js@9.39.4':
+    resolution: {integrity: sha512-nE7DEIchvtiFTwBw4Lfbu59PG+kCofhjsKaCWzxTpt4lfRjRMqG6uMBzKXuEcyXhOHoUp9riAm7/aWYGhXZ9cw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@eslint/object-schema@2.1.7':
@@ -10525,26 +10519,26 @@ packages:
     resolution: {integrity: sha512-qD1hvOZktx7zs9L5J/4tkMNoaLJ3PqSLDH/nXzpS0DtNa/Ok7/evsncM2pr6IFto566fZ02Oumdy9IdiR7r7EQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/cli-utils@1001.3.7':
-    resolution: {integrity: sha512-NOPaGfceJm1kjar6mvHVzjlCnyO2bidV8IDZZZLBb0yKMs6wHchJZqrZiNoX+Fcy5JruUy1ZD59CrcK3X4DMdQ==}
+  '@pnpm/cli-utils@1001.3.8':
+    resolution: {integrity: sha512-qPmkRpw2he8SBAizwR+7q1qPYhdzWO5zwJIBa2jIMgYrW9i6VDwe5Id5Ekgs/4h+gYq42dLqnCn3QwIoy6INrQ==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
 
-  '@pnpm/client@1001.1.21':
-    resolution: {integrity: sha512-wuQkvMLWFR8CzUZ+AsY9pkJF72mk6D21SJibyWsRWMXdVv5YHDFbu4TTuA2rr3Bl5AG71Vau118qWysozr7t5g==}
+  '@pnpm/client@1001.1.22':
+    resolution: {integrity: sha512-6ANb265/lS/qdoUIR6oVXBI7EHQ49k3HojdhrJAADVu34RC6xo7RKYZFC+veupJ8njdoGg84MW07/j3BtqnCAw==}
     engines: {node: '>=18.12'}
 
   '@pnpm/colorize-semver-diff@1.0.1':
     resolution: {integrity: sha512-qP4E7mzmCBhB4so6szszeIdVDrcKGTTCxBazCKoiPUG34xLha6r57zJuFBkTmD65i3TB7++lf3BwpQruUwf/BQ==}
     engines: {node: '>=10'}
 
-  '@pnpm/config.config-writer@1000.1.1':
-    resolution: {integrity: sha512-ZQewE8xplwBUyjJloolXmWgTlw1qOEqihI7fBxwiggFJyJuG9f6nGreh/Lr+cJdE5fjyoEkboI5Jln0ZOz9LQQ==}
+  '@pnpm/config.config-writer@1000.1.2':
+    resolution: {integrity: sha512-iIAdVA+RBuVbp7GnfaA62ja/DtiQsrZPCoKX5rTYTtuIq7PcnFNd1ZYC5Y94oWjh3pSPHlCMM1NxMuXUNJsORw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/config.deps-installer@1000.1.3':
-    resolution: {integrity: sha512-3QhXUpN8azmL95hRlUfcygeZHa0DX6TH7iWRLwCtlAYF3pjjnNnCYL2UCCeUAK+9wsDa2NkMqtatWgwCFJNzNA==}
+  '@pnpm/config.deps-installer@1000.1.4':
+    resolution: {integrity: sha512-UeV5dmKsrh8bivRnZlqqt478/SFDalIBZLhvHh2BICM8NRzAcrtVVcKKFRRuE5rv7r4EoxQDUGZ7Hhm08vvvuA==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
@@ -10561,8 +10555,8 @@ packages:
     resolution: {integrity: sha512-03d2l21gAyzGVr9SR6rS5pvCTnZ4HaNdi8jB2Y/UGvszzrNbA+AJVObVw6SulNQ1Eah3SHB9wCezJwtP+jYIcA==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/config@1004.10.2':
-    resolution: {integrity: sha512-ou47rL3nFTygnsvVjZlNP26qSnWUIP7ix+BBSKHPP9ux6z+e1ga/cDs9pdVf4L6SIpd0H6XVBPSd+HkgRXi4yQ==}
+  '@pnpm/config@1004.10.3':
+    resolution: {integrity: sha512-MB+ufKx+kzd5ISyI5yrpD2IPEascuPGghFf2ZiUiff6E/HqAf7qHkQV1OcutzpzlBqbxgv5hQUuvxZxlj/rBDw==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
@@ -10577,8 +10571,8 @@ packages:
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
 
-  '@pnpm/create-cafs-store@1000.0.31':
-    resolution: {integrity: sha512-UOrXGszVzR8bXmSmsZHq6WheamGpOOd0t8tOPtHVnW3G2BQPwHd0DczbJd2Gr2E4NyGdGtdg+cZHrHZT3ky9Nw==}
+  '@pnpm/create-cafs-store@1000.0.32':
+    resolution: {integrity: sha512-TQtVkMGHd9mwlx7eR1P6iHSx0UR2OPeYWAF7bI6ie72/D79r6xAIC2i8RDjzok93/wL0lRK863WIgTi89M+yiw==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
@@ -10603,14 +10597,14 @@ packages:
     resolution: {integrity: sha512-+d8Q576BxRZgt03O+JZXK3C1xVJeAr4Hs35Y8SCl01KpQ0Z7xzfJWahpee7iFc5jELiwjCQg2sISTwtZZQFltA==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/default-reporter@1002.1.11':
-    resolution: {integrity: sha512-2dU4nbSxzyXFb96JY6eyo+a3aD0j3s+vOyuDGRs1+8jKmyf1rOaiBPl2MTTbFhFsFlTFsInxca02KtgEw+ym9A==}
+  '@pnpm/default-reporter@1002.1.12':
+    resolution: {integrity: sha512-eoBLsFEEMtpirVKf0J7wviwsDGLt6pFnkRHuDHw9A2UKXwfg0HLA/Y63VgJoRUN8AUavbAvw5tBA/ChHevGxyQ==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
 
-  '@pnpm/default-resolver@1002.3.5':
-    resolution: {integrity: sha512-yg4ihuMRAsmePU4BkaXcLsJM81wbd2Ug0m8mI3l+Hsnv4hut8fS9NL/dEvimILpNtoVKA8/brY4coRnY7it0ZA==}
+  '@pnpm/default-resolver@1002.3.6':
+    resolution: {integrity: sha512-8JyaiZ5nzE2/pq1K3b5y6Ai2MarJAio7QKWb+vy9/opL/jI6Bi8WUieCBcmbb6FknQKNLWk6bQCQx+HRca6JWA==}
     engines: {node: '>=18.12'}
 
   '@pnpm/dependency-path@1001.1.10':
@@ -10673,8 +10667,8 @@ packages:
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
 
-  '@pnpm/fs.indexed-pkg-importer@1000.1.24':
-    resolution: {integrity: sha512-U7qHF9uOAPM2HNAnvlkHVxN6qFScX0ElsCQvxa+z2nmv5qbdK2a6Z6Q98gwMo7QnXnCnHY0Urs+5oxv5TykYVw==}
+  '@pnpm/fs.indexed-pkg-importer@1000.1.25':
+    resolution: {integrity: sha512-G8fZHO2llFeo4r4/Pdxzocrxxu0Ew0RXEp3BMyRGaOkDP+sXR7/v2fz7qPP0Lr4r6dlHx1RaRa27CvRqWM9adQ==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
@@ -10779,12 +10773,12 @@ packages:
     resolution: {integrity: sha512-eYwrzhKUBGFdq78rJStGjaHTUHA2VH+Avr//CVx/T+EJkI7hnFmOy6YghvcB2clj8HpO4V8tXRNuFNfRX08ayw==}
     engines: {node: ^10.17 || >=12.3}
 
-  '@pnpm/node.fetcher@1001.0.24':
-    resolution: {integrity: sha512-sT5dl2TqZEtFwpuXPN9sKQ04v5nVjBzhNA99oKJA0PuAMv8h1BMf0Q7lKtCygvS8BwRFY/Bpl/ggBPObry4Etg==}
+  '@pnpm/node.fetcher@1001.0.25':
+    resolution: {integrity: sha512-K7ZwPndk+xax5h54IqYPasisUhaGvSJw5mwpk3hSp16U3QpJsOzfr59e5PFa9xkefVqeBfXNGWOIiF2QZAaiQw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/node.resolver@1001.0.20':
-    resolution: {integrity: sha512-z69mACqwYJuXa+/RoGLo2P5kWczc/atwu/cbDZUENEzcvWugPW8+EYSixhs9p/9yJj56rn+HDK+VKyIrGotIzA==}
+  '@pnpm/node.resolver@1001.0.21':
+    resolution: {integrity: sha512-eqVuPrDiVqO8/Yq5REpbCdCFzIrZoJmb9Ts09tMxo/Iz5obWcXYskkI251o2AksrAE6zqcRKTMnEhVVqZdWdKA==}
     engines: {node: '>=18.12'}
 
   '@pnpm/nopt@0.3.1':
@@ -10804,8 +10798,8 @@ packages:
     resolution: {integrity: sha512-429x8dFMgxZoeYUTUPAMC09IeM5yQ86X1LyYEQF1P4uyvhLSCh44QKkiprX9qdwBsV9QxjeNad2QoDZy1RSeRw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/npm-resolver@1005.2.1':
-    resolution: {integrity: sha512-1ON+1LUVjw8d3n/AeZ2xCssGuHOTnl1gumwHf5nrGR42eLMEPBd2QRvQ80xMx0LunjdbkIR/d48PfKNfoSOr5w==}
+  '@pnpm/npm-resolver@1005.2.2':
+    resolution: {integrity: sha512-+msICPF2Amtm9IAFc4m1iniguOdzAVtb677ijDVan9fRf+3QmPB3Pj48ihLPKZBToo2+KvmTsVsap2VxsGsgZQ==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
@@ -10843,12 +10837,12 @@ packages:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
       '@pnpm/worker': ^1000.6.5
 
-  '@pnpm/package-store@1007.1.4':
-    resolution: {integrity: sha512-bLCYkPBFtg+VHItj/CA9iezOr5mXK9Wig8f/nA6WnKHBkSh/a71EBwsN340Z1B9hvD21CbbKqNkKjLMubvcRVg==}
+  '@pnpm/package-store@1007.1.5':
+    resolution: {integrity: sha512-b1kpa9o2BIRTALsg0+0lrbTUCYrZngsFaml5W68EeYKDe7J4XOl+SaDmGSvOaIx0dWsxrOEi0RTqJ2lUm5eCdw==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
-      '@pnpm/worker': ^1000.6.5
+      '@pnpm/worker': ^1000.6.6
 
   '@pnpm/parse-wanted-dependency@1001.0.0':
     resolution: {integrity: sha512-cIZao+Jdu/4znu76d3ttAWBycDj6GWKiDVNlx1GVgqYgS/Qn7ak3Lm0FGIMAIHr5oOnX63jwzKIhW35AHNaTjQ==}
@@ -10927,17 +10921,17 @@ packages:
     resolution: {integrity: sha512-47zGgACkbZWLOmM61kaE0nkqxiYx63C6DJ4wzDsdj0iXDZJ9SJEl+T035pkhquHe8XEh3YxvwMg2BRyZSgmZ9Q==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/resolving.bun-resolver@1005.0.8':
-    resolution: {integrity: sha512-09wYnB12gwNAEYsYuHrlh+uxcS/47g4P3rAgVJoOVg3XJVeTwQb5HZewinNmXkgcuuOHntvQ7LPknbtrybQBAQ==}
+  '@pnpm/resolving.bun-resolver@1005.0.9':
+    resolution: {integrity: sha512-MpctUtxBeENIzT0vll0XjS0v5JdT4Qmp8eTlQ/gIRqiJzqXbMoS6hHRer/nY30R6oOwFryKM8kbQns1bzmKUAw==}
     engines: {node: '>=18.12'}
     peerDependencies:
-      '@pnpm/worker': ^1000.6.5
+      '@pnpm/worker': ^1000.6.6
 
-  '@pnpm/resolving.deno-resolver@1005.0.8':
-    resolution: {integrity: sha512-V/Xhf36i6XD+Cm87PQv4Eq99iW+/0EE0A1BcrPMyIKor/qjTChQmMw4EcxEW93y47V6/AVo3nia+MAJRw1ri6w==}
+  '@pnpm/resolving.deno-resolver@1005.0.9':
+    resolution: {integrity: sha512-rezgnWGcIXnZcOJoKiGj6iTbr4aGpXt/yA3Mhq8maxe4MWF5NyWvn+xw7sTKJF3zBf+qE5bvA3ng+ktFM8SkPw==}
     engines: {node: '>=18.12'}
     peerDependencies:
-      '@pnpm/worker': ^1000.6.5
+      '@pnpm/worker': ^1000.6.6
 
   '@pnpm/resolving.jsr-specifier-parser@1000.0.3':
     resolution: {integrity: sha512-VaGXRwSez71iZ65nOat/B0oPViWyLzAdgAfNJjmt1eDoNZ0Npu+9lrI0ZNRVZ0NDH3U+TQ8LVesCZOdvr0+5SQ==}
@@ -10965,8 +10959,8 @@ packages:
   '@pnpm/slice-ansi@1.1.3':
     resolution: {integrity: sha512-xrWctjDAHXzIths7OmtW8dZUFR8aX/9zdwi4QRhCU7XFJJHl2JJqZoh2zD2wSMjWW7z2CiXeWWvfqftniM3dTg==}
 
-  '@pnpm/store-connection-manager@1002.3.16':
-    resolution: {integrity: sha512-5FS8WDunT7nD0SxNCMfq2rmxrsaQRpGrFbSnsQwS3af5Qssfx18V/n9V8g8QdSG8OqcIyeGb0K7zAfN71ZYLvQ==}
+  '@pnpm/store-connection-manager@1002.3.17':
+    resolution: {integrity: sha512-uOADhAd6emJn6g7lYKc0ufnZntZZDG1yftfrtxF3i3O1L0mepvztuKmXc1ptjgiiUsDX81aGMyqvYQlCVudsmQ==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
@@ -11032,24 +11026,24 @@ packages:
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
     hasBin: true
 
-  '@pnpm/worker@1000.6.5':
-    resolution: {integrity: sha512-xood4PKhLQUtRCpaVxMfuap1DpmVOP5PDN2arx1CKR9JnBuE0bQvBOGZDUf6lp7qccq+8iYryLoigibr5YMVVw==}
+  '@pnpm/worker@1000.6.6':
+    resolution: {integrity: sha512-yIO8jiT5hbeox/DE3ZmO7TVyCys0eMi3EaBzMOOMgEdPY/AOVJxkBL+zxUvVB6xEXmg3Y+WD1WPH9Y4mhfv+9w==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
 
-  '@pnpm/workspace.find-packages@1000.0.62':
-    resolution: {integrity: sha512-V2UJSUu7NzmhRo3YwzDDNBJORDI9Dhf8r7x5uDchiNYHQSc3BZkIGqYjosgOETP8wcmDfL+b0WKTep2ejT9GoA==}
+  '@pnpm/workspace.find-packages@1000.0.63':
+    resolution: {integrity: sha512-kJ/aJj5R/DpgnjNA4+stsYjJdMaNcPNyPRARbjXaoLr/St+nqoFMc3mJ8EWOYS5GoEpIudxyYoI7ysIkzX2uMw==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
 
-  '@pnpm/workspace.manifest-writer@1001.2.0':
-    resolution: {integrity: sha512-YUuHA9yZ8lgctjMHwbxllCXAT5TsifQ1/8K1hmBIvzd7T4aLoitG9niVg2Af8IaECtpMq5RaPYUHStsCXSxMAA==}
+  '@pnpm/workspace.manifest-writer@1001.3.0':
+    resolution: {integrity: sha512-WlEnAekdAGUr8gOodboao1aCpUYDYieSiwHwfO1H9WnOL7v45KoBNvAC5h2O9noC8Acwb2bzJDHRpmKBHWN5aw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/workspace.read-manifest@1000.2.10':
-    resolution: {integrity: sha512-SnKM53rRYwpgrNI/LQ/4wa0BP9hkc29kQt2c9bBE1daDQP89z61v3LCkchnthgdE1s530JmaJRAf9tHtqRQ0jA==}
+  '@pnpm/workspace.read-manifest@1000.3.0':
+    resolution: {integrity: sha512-aBTT6pViHvR+ARJYpMpxbs5+OcIq/9HKQLvYxyTm6ozoRoVgrNogWTRNDnnQptc02h1EvdVSoR36cCB+aoKkLw==}
     engines: {node: '>=18.12'}
 
   '@pnpm/workspace.spec-parser@1000.0.0':
@@ -11058,6 +11052,10 @@ packages:
 
   '@pnpm/write-project-manifest@1000.0.16':
     resolution: {integrity: sha512-zG68fk03ryot7TWUl9S/ShQ91uHWzIL9sVr2aQCuNHJo8G9kjsG6S0p58Zj/voahdDQeakZYYBSJ0mjNZeiJnw==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/yaml.document-sync@1000.0.0':
+    resolution: {integrity: sha512-aEmCtfPJejq9I/q7pIYNo3Q0ryPrUoR57noCJbU+f0zNmg8JKG5YVVfCVvo5KNnG3LlN/MDyWvSHTeqy+HCoWA==}
     engines: {node: '>=18.12'}
 
   '@postman/form-data@3.1.1':
@@ -11303,8 +11301,8 @@ packages:
   '@types/node@22.19.15':
     resolution: {integrity: sha512-F0R/h2+dsy5wJAUe3tAU6oqa2qbWY5TpNfL/RGmo1y38hiyO1w3x2jPtt76wmuaJI4DQnOBu21cNXQ2STIUUWg==}
 
-  '@types/node@25.3.5':
-    resolution: {integrity: sha512-oX8xrhvpiyRCQkG1MFchB09f+cXftgIXb3a7UUa4Y3wpmZPw5tyZGTLWhlESOLq1Rq6oDlc8npVU2/9xiCuXMA==}
+  '@types/node@25.4.0':
+    resolution: {integrity: sha512-9wLpoeWuBlcbBpOY3XmzSTG3oscB6xjBEEtn+pYXTfhyXhIxC5FsBer2KTopBlvKEiW9l13po9fq+SJY/5lkhw==}
 
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
@@ -11393,63 +11391,63 @@ packages:
   '@types/yarnpkg__lockfile@1.1.9':
     resolution: {integrity: sha512-GD4Fk15UoP5NLCNor51YdfL9MSdldKCqOC9EssrRw3HVfar9wUZ5y8Lfnp+qVD6hIinLr8ygklDYnmlnlQo12Q==}
 
-  '@typescript-eslint/eslint-plugin@8.56.1':
-    resolution: {integrity: sha512-Jz9ZztpB37dNC+HU2HI28Bs9QXpzCz+y/twHOwhyrIRdbuVDxSytJNDl6z/aAKlaRIwC7y8wJdkBv7FxYGgi0A==}
+  '@typescript-eslint/eslint-plugin@8.57.0':
+    resolution: {integrity: sha512-qeu4rTHR3/IaFORbD16gmjq9+rEs9fGKdX0kF6BKSfi+gCuG3RCKLlSBYzn/bGsY9Tj7KE/DAQStbp8AHJGHEQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
-      '@typescript-eslint/parser': ^8.56.1
+      '@typescript-eslint/parser': ^8.57.0
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.0.0'
 
-  '@typescript-eslint/parser@8.56.1':
-    resolution: {integrity: sha512-klQbnPAAiGYFyI02+znpBRLyjL4/BrBd0nyWkdC0s/6xFLkXYQ8OoRrSkqacS1ddVxf/LDyODIKbQ5TgKAf/Fg==}
-    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-    peerDependencies:
-      eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
-      typescript: '>=4.8.4 <6.0.0'
-
-  '@typescript-eslint/project-service@8.56.1':
-    resolution: {integrity: sha512-TAdqQTzHNNvlVFfR+hu2PDJrURiwKsUvxFn1M0h95BB8ah5jejas08jUWG4dBA68jDMI988IvtfdAI53JzEHOQ==}
-    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-    peerDependencies:
-      typescript: '>=4.8.4 <6.0.0'
-
-  '@typescript-eslint/scope-manager@8.56.1':
-    resolution: {integrity: sha512-YAi4VDKcIZp0O4tz/haYKhmIDZFEUPOreKbfdAN3SzUDMcPhJ8QI99xQXqX+HoUVq8cs85eRKnD+rne2UAnj2w==}
-    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-
-  '@typescript-eslint/tsconfig-utils@8.56.1':
-    resolution: {integrity: sha512-qOtCYzKEeyr3aR9f28mPJqBty7+DBqsdd63eO0yyDwc6vgThj2UjWfJIcsFeSucYydqcuudMOprZ+x1SpF3ZuQ==}
-    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-    peerDependencies:
-      typescript: '>=4.8.4 <6.0.0'
-
-  '@typescript-eslint/type-utils@8.56.1':
-    resolution: {integrity: sha512-yB/7dxi7MgTtGhZdaHCemf7PuwrHMenHjmzgUW1aJpO+bBU43OycnM3Wn+DdvDO/8zzA9HlhaJ0AUGuvri4oGg==}
+  '@typescript-eslint/parser@8.57.0':
+    resolution: {integrity: sha512-XZzOmihLIr8AD1b9hL9ccNMzEMWt/dE2u7NyTY9jJG6YNiNthaD5XtUHVF2uCXZ15ng+z2hT3MVuxnUYhq6k1g==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.0.0'
 
-  '@typescript-eslint/types@8.56.1':
-    resolution: {integrity: sha512-dbMkdIUkIkchgGDIv7KLUpa0Mda4IYjo4IAMJUZ+3xNoUXxMsk9YtKpTHSChRS85o+H9ftm51gsK1dZReY9CVw==}
-    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-
-  '@typescript-eslint/typescript-estree@8.56.1':
-    resolution: {integrity: sha512-qzUL1qgalIvKWAf9C1HpvBjif+Vm6rcT5wZd4VoMb9+Km3iS3Cv9DY6dMRMDtPnwRAFyAi7YXJpTIEXLvdfPxg==}
+  '@typescript-eslint/project-service@8.57.0':
+    resolution: {integrity: sha512-pR+dK0BlxCLxtWfaKQWtYr7MhKmzqZxuii+ZjuFlZlIGRZm22HnXFqa2eY+90MUz8/i80YJmzFGDUsi8dMOV5w==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       typescript: '>=4.8.4 <6.0.0'
 
-  '@typescript-eslint/utils@8.56.1':
-    resolution: {integrity: sha512-HPAVNIME3tABJ61siYlHzSWCGtOoeP2RTIaHXFMPqjrQKCGB9OgUVdiNgH7TJS2JNIQ5qQ4RsAUDuGaGme/KOA==}
+  '@typescript-eslint/scope-manager@8.57.0':
+    resolution: {integrity: sha512-nvExQqAHF01lUM66MskSaZulpPL5pgy5hI5RfrxviLgzZVffB5yYzw27uK/ft8QnKXI2X0LBrHJFr1TaZtAibw==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@typescript-eslint/tsconfig-utils@8.57.0':
+    resolution: {integrity: sha512-LtXRihc5ytjJIQEH+xqjB0+YgsV4/tW35XKX3GTZHpWtcC8SPkT/d4tqdf1cKtesryHm2bgp6l555NYcT2NLvA==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    peerDependencies:
+      typescript: '>=4.8.4 <6.0.0'
+
+  '@typescript-eslint/type-utils@8.57.0':
+    resolution: {integrity: sha512-yjgh7gmDcJ1+TcEg8x3uWQmn8ifvSupnPfjP21twPKrDP/pTHlEQgmKcitzF/rzPSmv7QjJ90vRpN4U+zoUjwQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.0.0'
 
-  '@typescript-eslint/visitor-keys@8.56.1':
-    resolution: {integrity: sha512-KiROIzYdEV85YygXw6BI/Dx4fnBlFQu6Mq4QE4MOH9fFnhohw6wX/OAvDY2/C+ut0I3RSPKenvZJIVYqJNkhEw==}
+  '@typescript-eslint/types@8.57.0':
+    resolution: {integrity: sha512-dTLI8PEXhjUC7B9Kre+u0XznO696BhXcTlOn0/6kf1fHaQW8+VjJAVHJ3eTI14ZapTxdkOmc80HblPQLaEeJdg==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@typescript-eslint/typescript-estree@8.57.0':
+    resolution: {integrity: sha512-m7faHcyVg0BT3VdYTlX8GdJEM7COexXxS6KqGopxdtkQRvBanK377QDHr4W/vIPAR+ah9+B/RclSW5ldVniO1Q==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    peerDependencies:
+      typescript: '>=4.8.4 <6.0.0'
+
+  '@typescript-eslint/utils@8.57.0':
+    resolution: {integrity: sha512-5iIHvpD3CZe06riAsbNxxreP+MuYgVUsV0n4bwLH//VJmgtt54sQeY2GszntJ4BjYCpMzrfVh2SBnUQTtys2lQ==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    peerDependencies:
+      eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
+      typescript: '>=4.8.4 <6.0.0'
+
+  '@typescript-eslint/visitor-keys@8.57.0':
+    resolution: {integrity: sha512-zm6xx8UT/Xy2oSr2ZXD0pZo7Jx2XsCoID2IUh9YSTFRu7z+WdwYTRk6LhUftm1crwqbuoF6I8zAFeCMw0YjwDg==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260216.1':
@@ -12968,8 +12966,8 @@ packages:
     resolution: {integrity: sha512-tD40eHxA35h0PEIZNeIjkHoDR4YjjJp34biM0mDvplBe//mB+IHCqHDGV7pxF+7MklTvighcCPPZC7ynWyjdTA==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  eslint@9.39.3:
-    resolution: {integrity: sha512-VmQ+sifHUbI/IcSopBCF/HO3YiHQx/AVd3UVyYL6weuwW+HvON9VYn5l6Zl1WZzPWXPNZrSQpxwkkZ/VuvJZzg==}
+  eslint@9.39.4:
+    resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     hasBin: true
     peerDependencies:
@@ -13188,8 +13186,8 @@ packages:
     resolution: {integrity: sha512-f7ccFPK3SXFHpx15UIGyRJ/FJQctuKZ0zVuN3frBo4HnK3cay9VEW0R6yPYFHC0AgqhukPzKjq22t5DmAyqGyw==}
     engines: {node: '>=16'}
 
-  flatted@3.3.4:
-    resolution: {integrity: sha512-3+mMldrTAPdta5kjX2G2J7iX4zxtnwpdA8Tr2ZSjkyPSanvbZAcy6flmtnXbEybHrDcU9641lxrMfFuUxVz9vA==}
+  flatted@3.4.1:
+    resolution: {integrity: sha512-IxfVbRFVlV8V/yRaGzk0UVIcsKKHMSfYw66T/u4nTwlWteQePsxe//LjudR1AMX4tZW3WFCh3Zqa/sjlqpbURQ==}
 
   flush-write-stream@1.1.1:
     resolution: {integrity: sha512-3Z4XhFZ3992uIq0XOqb9AreonueSYphE6oYbpt5+3u06JWklbsPkNv3ZKkP9Bz/r+1MWCaMoSQ28P85+1Yc77w==}
@@ -16105,8 +16103,8 @@ packages:
   tar-stream@3.1.8:
     resolution: {integrity: sha512-U6QpVRyCGHva435KoNWy9PRoi2IFYCgtEhq9nmrPPpbRacPs9IH4aJ3gbrFC8dPcXvdSZ4XXfXT5Fshbp2MtlQ==}
 
-  tar@7.5.10:
-    resolution: {integrity: sha512-8mOPs1//5q/rlkNSPcCegA6hiHJYDmSLEI8aMH/CdSQJNWztHC9WHNam5zdQlfpTwB9Xp7IBEsHfV5LKMJGVAw==}
+  tar@7.5.11:
+    resolution: {integrity: sha512-ChjMH33/KetonMTAtpYdgUFr0tbz69Fp2v7zWxQfYZX4g5ZN2nOBXm1R2xyA+lMIKrLKIoKAwFj93jE/avX9cQ==}
     engines: {node: '>=18'}
 
   teex@1.0.1:
@@ -16347,8 +16345,8 @@ packages:
   types-ramda@0.29.10:
     resolution: {integrity: sha512-5PJiW/eiTPyXXBYGZOYGezMl6qj7keBiZheRwfjJZY26QPHsNrjfJnz0mru6oeqqoTHOni893Jfd6zyUXfQRWg==}
 
-  typescript-eslint@8.56.1:
-    resolution: {integrity: sha512-U4lM6pjmBX7J5wk4szltF7I1cGBHXZopnAXCMXb3+fZ3B/0Z3hq3wS/CCUB2NZBNAExK92mCU2tEohWuwVMsDQ==}
+  typescript-eslint@8.57.0:
+    resolution: {integrity: sha512-W8GcigEMEeB07xEZol8oJ26rigm3+bfPHxHvwbYUlu1fUDsGuQ7Hiskx5xGW/xM4USc9Ephe3jtv7ZYPQntHeA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
@@ -17249,11 +17247,11 @@ snapshots:
       '@cspell/dict-al': 1.1.1
       '@cspell/dict-aws': 4.0.17
       '@cspell/dict-bash': 4.2.2
-      '@cspell/dict-companies': 3.2.10
+      '@cspell/dict-companies': 3.2.11
       '@cspell/dict-cpp': 6.0.15
       '@cspell/dict-cryptocurrencies': 5.0.5
       '@cspell/dict-csharp': 4.0.8
-      '@cspell/dict-css': 4.1.0
+      '@cspell/dict-css': 4.1.1
       '@cspell/dict-dart': 2.3.2
       '@cspell/dict-data-science': 2.0.13
       '@cspell/dict-django': 4.1.6
@@ -17261,11 +17259,11 @@ snapshots:
       '@cspell/dict-dotnet': 5.0.12
       '@cspell/dict-elixir': 4.0.8
       '@cspell/dict-en-common-misspellings': 2.1.12
-      '@cspell/dict-en-gb-mit': 3.1.19
-      '@cspell/dict-en_us': 4.4.30
-      '@cspell/dict-filetypes': 3.0.16
+      '@cspell/dict-en-gb-mit': 3.1.20
+      '@cspell/dict-en_us': 4.4.31
+      '@cspell/dict-filetypes': 3.0.17
       '@cspell/dict-flutter': 1.1.1
-      '@cspell/dict-fonts': 4.0.5
+      '@cspell/dict-fonts': 4.0.6
       '@cspell/dict-fsharp': 1.1.1
       '@cspell/dict-fullstack': 3.2.8
       '@cspell/dict-gaming-terms': 1.1.2
@@ -17273,7 +17271,7 @@ snapshots:
       '@cspell/dict-golang': 6.0.26
       '@cspell/dict-google': 1.0.9
       '@cspell/dict-haskell': 4.0.6
-      '@cspell/dict-html': 4.0.14
+      '@cspell/dict-html': 4.0.15
       '@cspell/dict-html-symbol-entities': 4.0.5
       '@cspell/dict-java': 5.0.12
       '@cspell/dict-julia': 1.1.1
@@ -17283,20 +17281,20 @@ snapshots:
       '@cspell/dict-lorem-ipsum': 4.0.5
       '@cspell/dict-lua': 4.0.8
       '@cspell/dict-makefile': 1.0.5
-      '@cspell/dict-markdown': 2.0.15(@cspell/dict-css@4.1.0)(@cspell/dict-html-symbol-entities@4.0.5)(@cspell/dict-html@4.0.14)(@cspell/dict-typescript@3.2.3)
+      '@cspell/dict-markdown': 2.0.16(@cspell/dict-css@4.1.1)(@cspell/dict-html-symbol-entities@4.0.5)(@cspell/dict-html@4.0.15)(@cspell/dict-typescript@3.2.3)
       '@cspell/dict-monkeyc': 1.0.12
       '@cspell/dict-node': 5.0.9
-      '@cspell/dict-npm': 5.2.36
+      '@cspell/dict-npm': 5.2.37
       '@cspell/dict-php': 4.1.1
       '@cspell/dict-powershell': 5.0.15
       '@cspell/dict-public-licenses': 2.0.16
       '@cspell/dict-python': 4.2.25
       '@cspell/dict-r': 2.1.1
-      '@cspell/dict-ruby': 5.1.0
+      '@cspell/dict-ruby': 5.1.1
       '@cspell/dict-rust': 4.1.2
       '@cspell/dict-scala': 5.0.9
       '@cspell/dict-shell': 1.1.2
-      '@cspell/dict-software-terms': 5.1.24
+      '@cspell/dict-software-terms': 5.2.0
       '@cspell/dict-sql': 2.2.1
       '@cspell/dict-svelte': 1.0.7
       '@cspell/dict-swift': 2.0.6
@@ -17328,7 +17326,7 @@ snapshots:
     dependencies:
       '@cspell/dict-shell': 1.1.2
 
-  '@cspell/dict-companies@3.2.10': {}
+  '@cspell/dict-companies@3.2.11': {}
 
   '@cspell/dict-cpp@6.0.15': {}
 
@@ -17336,7 +17334,7 @@ snapshots:
 
   '@cspell/dict-csharp@4.0.8': {}
 
-  '@cspell/dict-css@4.1.0': {}
+  '@cspell/dict-css@4.1.1': {}
 
   '@cspell/dict-dart@2.3.2': {}
 
@@ -17352,15 +17350,15 @@ snapshots:
 
   '@cspell/dict-en-common-misspellings@2.1.12': {}
 
-  '@cspell/dict-en-gb-mit@3.1.19': {}
+  '@cspell/dict-en-gb-mit@3.1.20': {}
 
-  '@cspell/dict-en_us@4.4.30': {}
+  '@cspell/dict-en_us@4.4.31': {}
 
-  '@cspell/dict-filetypes@3.0.16': {}
+  '@cspell/dict-filetypes@3.0.17': {}
 
   '@cspell/dict-flutter@1.1.1': {}
 
-  '@cspell/dict-fonts@4.0.5': {}
+  '@cspell/dict-fonts@4.0.6': {}
 
   '@cspell/dict-fsharp@1.1.1': {}
 
@@ -17378,7 +17376,7 @@ snapshots:
 
   '@cspell/dict-html-symbol-entities@4.0.5': {}
 
-  '@cspell/dict-html@4.0.14': {}
+  '@cspell/dict-html@4.0.15': {}
 
   '@cspell/dict-java@5.0.12': {}
 
@@ -17396,10 +17394,10 @@ snapshots:
 
   '@cspell/dict-makefile@1.0.5': {}
 
-  '@cspell/dict-markdown@2.0.15(@cspell/dict-css@4.1.0)(@cspell/dict-html-symbol-entities@4.0.5)(@cspell/dict-html@4.0.14)(@cspell/dict-typescript@3.2.3)':
+  '@cspell/dict-markdown@2.0.16(@cspell/dict-css@4.1.1)(@cspell/dict-html-symbol-entities@4.0.5)(@cspell/dict-html@4.0.15)(@cspell/dict-typescript@3.2.3)':
     dependencies:
-      '@cspell/dict-css': 4.1.0
-      '@cspell/dict-html': 4.0.14
+      '@cspell/dict-css': 4.1.1
+      '@cspell/dict-html': 4.0.15
       '@cspell/dict-html-symbol-entities': 4.0.5
       '@cspell/dict-typescript': 3.2.3
 
@@ -17407,7 +17405,7 @@ snapshots:
 
   '@cspell/dict-node@5.0.9': {}
 
-  '@cspell/dict-npm@5.2.36': {}
+  '@cspell/dict-npm@5.2.37': {}
 
   '@cspell/dict-php@4.1.1': {}
 
@@ -17421,7 +17419,7 @@ snapshots:
 
   '@cspell/dict-r@2.1.1': {}
 
-  '@cspell/dict-ruby@5.1.0': {}
+  '@cspell/dict-ruby@5.1.1': {}
 
   '@cspell/dict-rust@4.1.2': {}
 
@@ -17429,7 +17427,7 @@ snapshots:
 
   '@cspell/dict-shell@1.1.2': {}
 
-  '@cspell/dict-software-terms@5.1.24': {}
+  '@cspell/dict-software-terms@5.2.0': {}
 
   '@cspell/dict-sql@2.2.1': {}
 
@@ -17578,14 +17576,14 @@ snapshots:
   '@esbuild/win32-x64@0.25.12':
     optional: true
 
-  '@eslint-community/eslint-utils@4.9.1(eslint@9.39.3(jiti@2.6.1))':
+  '@eslint-community/eslint-utils@4.9.1(eslint@9.39.4(jiti@2.6.1))':
     dependencies:
-      eslint: 9.39.3(jiti@2.6.1)
+      eslint: 9.39.4(jiti@2.6.1)
       eslint-visitor-keys: 3.4.3
 
   '@eslint-community/regexpp@4.12.2': {}
 
-  '@eslint/config-array@0.21.1':
+  '@eslint/config-array@0.21.2':
     dependencies:
       '@eslint/object-schema': 2.1.7
       debug: 4.4.3
@@ -17601,7 +17599,7 @@ snapshots:
     dependencies:
       '@types/json-schema': 7.0.15
 
-  '@eslint/eslintrc@3.3.4':
+  '@eslint/eslintrc@3.3.5':
     dependencies:
       ajv: 6.14.0
       debug: 4.4.3
@@ -17615,7 +17613,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@eslint/js@9.39.3': {}
+  '@eslint/js@9.39.4': {}
 
   '@eslint/object-schema@2.1.7': {}
 
@@ -17718,7 +17716,7 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 30.0.5
       '@jest/types': 30.0.5
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       jest-mock: 30.0.5
 
   '@jest/environment@30.2.0':
@@ -17754,7 +17752,7 @@ snapshots:
     dependencies:
       '@jest/types': 30.0.5
       '@sinonjs/fake-timers': 13.0.5
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       jest-message-util: 30.0.5
       jest-mock: 30.0.5
       jest-util: 30.0.5
@@ -17913,7 +17911,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -17923,7 +17921,7 @@ snapshots:
       '@jest/schemas': 30.0.5
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -18087,19 +18085,19 @@ snapshots:
       '@pnpm/types': 1001.3.0
       load-json-file: 6.2.0
 
-  '@pnpm/cli-utils@1001.3.7(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/cli-utils@1001.3.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
       '@pnpm/cli-meta': 1000.0.16
-      '@pnpm/config': 1004.10.2(@pnpm/logger@1001.0.1)
-      '@pnpm/config.deps-installer': 1000.1.3(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
-      '@pnpm/default-reporter': 1002.1.11(@pnpm/logger@1001.0.1)
+      '@pnpm/config': 1004.10.3(@pnpm/logger@1001.0.1)
+      '@pnpm/config.deps-installer': 1000.1.4(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
+      '@pnpm/default-reporter': 1002.1.12(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.0.5
       '@pnpm/logger': 1001.0.1
       '@pnpm/manifest-utils': 1002.0.4(@pnpm/logger@1001.0.1)
       '@pnpm/package-is-installable': 1000.0.20(@pnpm/logger@1001.0.1)
       '@pnpm/pnpmfile': 1002.1.12(@pnpm/logger@1001.0.1)
       '@pnpm/read-project-manifest': 1001.2.5(@pnpm/logger@1001.0.1)
-      '@pnpm/store-connection-manager': 1002.3.16(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/store-connection-manager': 1002.3.17(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
       '@pnpm/types': 1001.3.0
       '@pnpm/util.lex-comparator': 3.0.2
       chalk: 4.1.2
@@ -18110,19 +18108,19 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/cli-utils@1001.3.7(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)':
+  '@pnpm/cli-utils@1001.3.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)':
     dependencies:
       '@pnpm/cli-meta': 1000.0.16
-      '@pnpm/config': 1004.10.2(@pnpm/logger@1001.0.1)
-      '@pnpm/config.deps-installer': 1000.1.3(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))
-      '@pnpm/default-reporter': 1002.1.11(@pnpm/logger@1001.0.1)
+      '@pnpm/config': 1004.10.3(@pnpm/logger@1001.0.1)
+      '@pnpm/config.deps-installer': 1000.1.4(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))
+      '@pnpm/default-reporter': 1002.1.12(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.0.5
       '@pnpm/logger': 1001.0.1
       '@pnpm/manifest-utils': 1002.0.4(@pnpm/logger@1001.0.1)
       '@pnpm/package-is-installable': 1000.0.20(@pnpm/logger@1001.0.1)
       '@pnpm/pnpmfile': 1002.1.12(@pnpm/logger@1001.0.1)
       '@pnpm/read-project-manifest': 1001.2.5(@pnpm/logger@1001.0.1)
-      '@pnpm/store-connection-manager': 1002.3.16(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
+      '@pnpm/store-connection-manager': 1002.3.17(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
       '@pnpm/types': 1001.3.0
       '@pnpm/util.lex-comparator': 3.0.2
       chalk: 4.1.2
@@ -18133,18 +18131,18 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/client@1001.1.21(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/client@1001.1.22(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
-      '@pnpm/default-resolver': 1002.3.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/default-resolver': 1002.3.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
       '@pnpm/directory-fetcher': 1000.1.23(@pnpm/logger@1001.0.1)
       '@pnpm/fetch': 1001.0.0(@pnpm/logger@1001.0.1)
       '@pnpm/fetching-types': 1000.2.1
-      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
-      '@pnpm/git-fetcher': 1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
+      '@pnpm/git-fetcher': 1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
       '@pnpm/network.auth-header': 1000.0.6
-      '@pnpm/node.fetcher': 1001.0.24(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/node.fetcher': 1001.0.25(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
       '@pnpm/resolver-base': 1005.4.1
-      '@pnpm/tarball-fetcher': 1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/tarball-fetcher': 1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
       '@pnpm/types': 1001.3.0
       ramda: '@pnpm/ramda@0.28.1'
     transitivePeerDependencies:
@@ -18154,18 +18152,18 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/client@1001.1.21(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)':
+  '@pnpm/client@1001.1.22(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)':
     dependencies:
-      '@pnpm/default-resolver': 1002.3.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
+      '@pnpm/default-resolver': 1002.3.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
       '@pnpm/directory-fetcher': 1000.1.23(@pnpm/logger@1001.0.1)
       '@pnpm/fetch': 1001.0.0(@pnpm/logger@1001.0.1)
       '@pnpm/fetching-types': 1000.2.1
-      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))
-      '@pnpm/git-fetcher': 1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
+      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))
+      '@pnpm/git-fetcher': 1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
       '@pnpm/network.auth-header': 1000.0.6
-      '@pnpm/node.fetcher': 1001.0.24(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
+      '@pnpm/node.fetcher': 1001.0.25(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
       '@pnpm/resolver-base': 1005.4.1
-      '@pnpm/tarball-fetcher': 1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
+      '@pnpm/tarball-fetcher': 1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
       '@pnpm/types': 1001.3.0
       ramda: '@pnpm/ramda@0.28.1'
     transitivePeerDependencies:
@@ -18179,25 +18177,25 @@ snapshots:
     dependencies:
       chalk: 4.1.2
 
-  '@pnpm/config.config-writer@1000.1.1(@pnpm/logger@1001.0.1)':
+  '@pnpm/config.config-writer@1000.1.2(@pnpm/logger@1001.0.1)':
     dependencies:
       '@pnpm/read-project-manifest': 1001.2.5(@pnpm/logger@1001.0.1)
       '@pnpm/types': 1001.3.0
-      '@pnpm/workspace.manifest-writer': 1001.2.0
+      '@pnpm/workspace.manifest-writer': 1001.3.0
       ramda: '@pnpm/ramda@0.28.1'
     transitivePeerDependencies:
       - '@pnpm/logger'
 
-  '@pnpm/config.deps-installer@1000.1.3(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))':
+  '@pnpm/config.deps-installer@1000.1.4(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))':
     dependencies:
-      '@pnpm/config.config-writer': 1000.1.1(@pnpm/logger@1001.0.1)
+      '@pnpm/config.config-writer': 1000.1.2(@pnpm/logger@1001.0.1)
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.0.5
       '@pnpm/fetch': 1001.0.0(@pnpm/logger@1001.0.1)
       '@pnpm/logger': 1001.0.1
       '@pnpm/network.auth-header': 1000.0.6
-      '@pnpm/npm-resolver': 1005.2.1(@pnpm/logger@1001.0.1)
-      '@pnpm/package-store': 1007.1.4(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
+      '@pnpm/npm-resolver': 1005.2.2(@pnpm/logger@1001.0.1)
+      '@pnpm/package-store': 1007.1.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
       '@pnpm/parse-wanted-dependency': 1001.0.0
       '@pnpm/pick-registry-for-package': 1000.0.16
       '@pnpm/read-modules-dir': 1000.0.0
@@ -18210,16 +18208,16 @@ snapshots:
       - domexception
       - supports-color
 
-  '@pnpm/config.deps-installer@1000.1.3(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))':
+  '@pnpm/config.deps-installer@1000.1.4(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))':
     dependencies:
-      '@pnpm/config.config-writer': 1000.1.1(@pnpm/logger@1001.0.1)
+      '@pnpm/config.config-writer': 1000.1.2(@pnpm/logger@1001.0.1)
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.0.5
       '@pnpm/fetch': 1001.0.0(@pnpm/logger@1001.0.1)
       '@pnpm/logger': 1001.0.1
       '@pnpm/network.auth-header': 1000.0.6
-      '@pnpm/npm-resolver': 1005.2.1(@pnpm/logger@1001.0.1)
-      '@pnpm/package-store': 1007.1.4(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))
+      '@pnpm/npm-resolver': 1005.2.2(@pnpm/logger@1001.0.1)
+      '@pnpm/package-store': 1007.1.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))
       '@pnpm/parse-wanted-dependency': 1001.0.0
       '@pnpm/pick-registry-for-package': 1000.0.16
       '@pnpm/read-modules-dir': 1000.0.0
@@ -18238,7 +18236,7 @@ snapshots:
 
   '@pnpm/config.nerf-dart@1.0.1': {}
 
-  '@pnpm/config@1004.10.2(@pnpm/logger@1001.0.1)':
+  '@pnpm/config@1004.10.3(@pnpm/logger@1001.0.1)':
     dependencies:
       '@pnpm/catalogs.config': 1000.0.5
       '@pnpm/catalogs.types': 1000.0.0
@@ -18252,7 +18250,7 @@ snapshots:
       '@pnpm/pnpmfile': 1002.1.12(@pnpm/logger@1001.0.1)
       '@pnpm/read-project-manifest': 1001.2.5(@pnpm/logger@1001.0.1)
       '@pnpm/types': 1001.3.0
-      '@pnpm/workspace.read-manifest': 1000.2.10
+      '@pnpm/workspace.read-manifest': 1000.3.0
       better-path-resolve: 1.0.0
       camelcase: 6.3.0
       camelcase-keys: 6.2.2
@@ -18276,11 +18274,11 @@ snapshots:
       '@pnpm/logger': 1001.0.1
       '@pnpm/types': 1001.3.0
 
-  '@pnpm/create-cafs-store@1000.0.31(@pnpm/logger@1001.0.1)':
+  '@pnpm/create-cafs-store@1000.0.32(@pnpm/logger@1001.0.1)':
     dependencies:
       '@pnpm/exec.pkg-requires-build': 1000.0.16
       '@pnpm/fetcher-base': 1001.2.2
-      '@pnpm/fs.indexed-pkg-importer': 1000.1.24(@pnpm/logger@1001.0.1)
+      '@pnpm/fs.indexed-pkg-importer': 1000.1.25(@pnpm/logger@1001.0.1)
       '@pnpm/logger': 1001.0.1
       '@pnpm/store-controller-types': 1004.5.1
       '@pnpm/store.cafs': 1000.1.4
@@ -18312,10 +18310,10 @@ snapshots:
 
   '@pnpm/dedupe.types@1000.0.0': {}
 
-  '@pnpm/default-reporter@1002.1.11(@pnpm/logger@1001.0.1)':
+  '@pnpm/default-reporter@1002.1.12(@pnpm/logger@1001.0.1)':
     dependencies:
       '@pnpm/cli-meta': 1000.0.16
-      '@pnpm/config': 1004.10.2(@pnpm/logger@1001.0.1)
+      '@pnpm/config': 1004.10.3(@pnpm/logger@1001.0.1)
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
       '@pnpm/dedupe.issues-renderer': 1000.0.2
       '@pnpm/dedupe.types': 1000.0.0
@@ -18337,17 +18335,17 @@ snapshots:
       stacktracey: 2.1.8
       string-length: 4.0.2
 
-  '@pnpm/default-resolver@1002.3.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/default-resolver@1002.3.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
       '@pnpm/error': 1000.0.5
       '@pnpm/fetching-types': 1000.2.1
       '@pnpm/git-resolver': 1001.2.1(@pnpm/logger@1001.0.1)
       '@pnpm/local-resolver': 1002.1.12(@pnpm/logger@1001.0.1)
-      '@pnpm/node.resolver': 1001.0.20(@pnpm/logger@1001.0.1)
-      '@pnpm/npm-resolver': 1005.2.1(@pnpm/logger@1001.0.1)
+      '@pnpm/node.resolver': 1001.0.21(@pnpm/logger@1001.0.1)
+      '@pnpm/npm-resolver': 1005.2.2(@pnpm/logger@1001.0.1)
       '@pnpm/resolver-base': 1005.4.1
-      '@pnpm/resolving.bun-resolver': 1005.0.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
-      '@pnpm/resolving.deno-resolver': 1005.0.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/resolving.bun-resolver': 1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/resolving.deno-resolver': 1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
       '@pnpm/tarball-resolver': 1002.2.1
     transitivePeerDependencies:
       - '@pnpm/logger'
@@ -18356,17 +18354,17 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/default-resolver@1002.3.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)':
+  '@pnpm/default-resolver@1002.3.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)':
     dependencies:
       '@pnpm/error': 1000.0.5
       '@pnpm/fetching-types': 1000.2.1
       '@pnpm/git-resolver': 1001.2.1(@pnpm/logger@1001.0.1)
       '@pnpm/local-resolver': 1002.1.12(@pnpm/logger@1001.0.1)
-      '@pnpm/node.resolver': 1001.0.20(@pnpm/logger@1001.0.1)
-      '@pnpm/npm-resolver': 1005.2.1(@pnpm/logger@1001.0.1)
+      '@pnpm/node.resolver': 1001.0.21(@pnpm/logger@1001.0.1)
+      '@pnpm/npm-resolver': 1005.2.2(@pnpm/logger@1001.0.1)
       '@pnpm/resolver-base': 1005.4.1
-      '@pnpm/resolving.bun-resolver': 1005.0.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
-      '@pnpm/resolving.deno-resolver': 1005.0.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
+      '@pnpm/resolving.bun-resolver': 1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
+      '@pnpm/resolving.deno-resolver': 1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
       '@pnpm/tarball-resolver': 1002.2.1
     transitivePeerDependencies:
       - '@pnpm/logger'
@@ -18437,12 +18435,12 @@ snapshots:
     transitivePeerDependencies:
       - domexception
 
-  '@pnpm/fetching.binary-fetcher@1005.0.3(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))':
+  '@pnpm/fetching.binary-fetcher@1005.0.3(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))':
     dependencies:
       '@pnpm/error': 1000.0.5
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fetching-types': 1000.2.1
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
       adm-zip: 0.5.16
       is-subdir: 1.2.0
       rename-overwrite: 6.0.6
@@ -18451,12 +18449,12 @@ snapshots:
     transitivePeerDependencies:
       - domexception
 
-  '@pnpm/fetching.binary-fetcher@1005.0.3(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))':
+  '@pnpm/fetching.binary-fetcher@1005.0.3(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))':
     dependencies:
       '@pnpm/error': 1000.0.5
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fetching-types': 1000.2.1
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0)
       adm-zip: 0.5.16
       is-subdir: 1.2.0
       rename-overwrite: 6.0.6
@@ -18487,7 +18485,7 @@ snapshots:
       path-temp: 2.1.1
       rename-overwrite: 6.0.6
 
-  '@pnpm/fs.indexed-pkg-importer@1000.1.24(@pnpm/logger@1001.0.1)':
+  '@pnpm/fs.indexed-pkg-importer@1000.1.25(@pnpm/logger@1001.0.1)':
     dependencies:
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
       '@pnpm/graceful-fs': 1000.1.0
@@ -18506,28 +18504,28 @@ snapshots:
     dependencies:
       npm-packlist: 5.1.3
 
-  '@pnpm/git-fetcher@1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/git-fetcher@1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
       '@pnpm/error': 1000.0.5
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fs.packlist': 1000.0.0
       '@pnpm/logger': 1001.0.1
       '@pnpm/prepare-package': 1001.0.6(@pnpm/logger@1001.0.1)(typanion@3.14.0)
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
       '@zkochan/rimraf': 3.0.2
       execa: safe-execa@0.1.2
     transitivePeerDependencies:
       - supports-color
       - typanion
 
-  '@pnpm/git-fetcher@1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)':
+  '@pnpm/git-fetcher@1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)':
     dependencies:
       '@pnpm/error': 1000.0.5
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fs.packlist': 1000.0.0
       '@pnpm/logger': 1001.0.1
       '@pnpm/prepare-package': 1001.0.6(@pnpm/logger@1001.0.1)(typanion@3.14.0)
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0)
       '@zkochan/rimraf': 3.0.2
       execa: safe-execa@0.1.2
     transitivePeerDependencies:
@@ -18647,9 +18645,9 @@ snapshots:
       '@pnpm/find-workspace-dir': 1000.1.4
       '@pnpm/logger': 1001.0.1
       '@pnpm/types': 1000.9.0
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
-      '@pnpm/workspace.find-packages': 1000.0.62(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
-      '@pnpm/workspace.read-manifest': 1000.2.10
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
+      '@pnpm/workspace.find-packages': 1000.0.63(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/workspace.read-manifest': 1000.3.0
       load-json-file: 7.0.1
       meow: 11.0.0
       print-diff: 2.0.0
@@ -18699,15 +18697,15 @@ snapshots:
     transitivePeerDependencies:
       - domexception
 
-  '@pnpm/node.fetcher@1001.0.24(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/node.fetcher@1001.0.25(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
-      '@pnpm/create-cafs-store': 1000.0.31(@pnpm/logger@1001.0.1)
+      '@pnpm/create-cafs-store': 1000.0.32(@pnpm/logger@1001.0.1)
       '@pnpm/crypto.shasums-file': 1001.0.4
       '@pnpm/error': 1000.0.5
       '@pnpm/fetching-types': 1000.2.1
-      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
-      '@pnpm/node.resolver': 1001.0.20(@pnpm/logger@1001.0.1)
-      '@pnpm/tarball-fetcher': 1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
+      '@pnpm/node.resolver': 1001.0.21(@pnpm/logger@1001.0.1)
+      '@pnpm/tarball-fetcher': 1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
       detect-libc: 2.1.2
     transitivePeerDependencies:
       - '@pnpm/logger'
@@ -18716,15 +18714,15 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/node.fetcher@1001.0.24(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)':
+  '@pnpm/node.fetcher@1001.0.25(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)':
     dependencies:
-      '@pnpm/create-cafs-store': 1000.0.31(@pnpm/logger@1001.0.1)
+      '@pnpm/create-cafs-store': 1000.0.32(@pnpm/logger@1001.0.1)
       '@pnpm/crypto.shasums-file': 1001.0.4
       '@pnpm/error': 1000.0.5
       '@pnpm/fetching-types': 1000.2.1
-      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))
-      '@pnpm/node.resolver': 1001.0.20(@pnpm/logger@1001.0.1)
-      '@pnpm/tarball-fetcher': 1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
+      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))
+      '@pnpm/node.resolver': 1001.0.21(@pnpm/logger@1001.0.1)
+      '@pnpm/tarball-fetcher': 1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
       detect-libc: 2.1.2
     transitivePeerDependencies:
       - '@pnpm/logger'
@@ -18733,9 +18731,9 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/node.resolver@1001.0.20(@pnpm/logger@1001.0.1)':
+  '@pnpm/node.resolver@1001.0.21(@pnpm/logger@1001.0.1)':
     dependencies:
-      '@pnpm/config': 1004.10.2(@pnpm/logger@1001.0.1)
+      '@pnpm/config': 1004.10.3(@pnpm/logger@1001.0.1)
       '@pnpm/constants': 1001.3.1
       '@pnpm/crypto.shasums-file': 1001.0.4
       '@pnpm/error': 1000.0.5
@@ -18780,7 +18778,7 @@ snapshots:
       semver: 7.7.4
       validate-npm-package-name: 4.0.0
 
-  '@pnpm/npm-resolver@1005.2.1(@pnpm/logger@1001.0.1)':
+  '@pnpm/npm-resolver@1005.2.2(@pnpm/logger@1001.0.1)':
     dependencies:
       '@pnpm/constants': 1001.3.1
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
@@ -18854,7 +18852,7 @@ snapshots:
       mem: 8.1.1
       semver: 7.7.4
 
-  '@pnpm/package-requester@1011.2.3(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))':
+  '@pnpm/package-requester@1011.2.3(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))':
     dependencies:
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
       '@pnpm/dependency-path': 1001.1.10
@@ -18869,7 +18867,7 @@ snapshots:
       '@pnpm/store-controller-types': 1004.5.1
       '@pnpm/store.cafs': 1000.1.4
       '@pnpm/types': 1001.3.0
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
       detect-libc: 2.1.2
       p-defer: 3.0.0
       p-limit: 3.1.0
@@ -18879,7 +18877,7 @@ snapshots:
       semver: 7.7.4
       ssri: 10.0.5
 
-  '@pnpm/package-requester@1011.2.3(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))':
+  '@pnpm/package-requester@1011.2.3(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))':
     dependencies:
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
       '@pnpm/dependency-path': 1001.1.10
@@ -18894,7 +18892,7 @@ snapshots:
       '@pnpm/store-controller-types': 1004.5.1
       '@pnpm/store.cafs': 1000.1.4
       '@pnpm/types': 1001.3.0
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0)
       detect-libc: 2.1.2
       p-defer: 3.0.0
       p-limit: 3.1.0
@@ -18904,19 +18902,19 @@ snapshots:
       semver: 7.7.4
       ssri: 10.0.5
 
-  '@pnpm/package-store@1007.1.4(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))':
+  '@pnpm/package-store@1007.1.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))':
     dependencies:
-      '@pnpm/create-cafs-store': 1000.0.31(@pnpm/logger@1001.0.1)
+      '@pnpm/create-cafs-store': 1000.0.32(@pnpm/logger@1001.0.1)
       '@pnpm/crypto.hash': 1000.2.2
       '@pnpm/error': 1000.0.5
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/logger': 1001.0.1
-      '@pnpm/package-requester': 1011.2.3(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
+      '@pnpm/package-requester': 1011.2.3(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
       '@pnpm/resolver-base': 1005.4.1
       '@pnpm/store-controller-types': 1004.5.1
       '@pnpm/store.cafs': 1000.1.4
       '@pnpm/types': 1001.3.0
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
       '@zkochan/rimraf': 3.0.2
       is-subdir: 1.2.0
       load-json-file: 6.2.0
@@ -18924,19 +18922,19 @@ snapshots:
       ssri: 10.0.5
       symlink-dir: 6.0.5
 
-  '@pnpm/package-store@1007.1.4(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))':
+  '@pnpm/package-store@1007.1.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))':
     dependencies:
-      '@pnpm/create-cafs-store': 1000.0.31(@pnpm/logger@1001.0.1)
+      '@pnpm/create-cafs-store': 1000.0.32(@pnpm/logger@1001.0.1)
       '@pnpm/crypto.hash': 1000.2.2
       '@pnpm/error': 1000.0.5
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/logger': 1001.0.1
-      '@pnpm/package-requester': 1011.2.3(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))
+      '@pnpm/package-requester': 1011.2.3(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))
       '@pnpm/resolver-base': 1005.4.1
       '@pnpm/store-controller-types': 1004.5.1
       '@pnpm/store.cafs': 1000.1.4
       '@pnpm/types': 1001.3.0
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0)
       '@zkochan/rimraf': 3.0.2
       is-subdir: 1.2.0
       load-json-file: 6.2.0
@@ -19068,20 +19066,20 @@ snapshots:
     dependencies:
       '@pnpm/types': 1001.3.0
 
-  '@pnpm/resolving.bun-resolver@1005.0.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/resolving.bun-resolver@1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
       '@pnpm/constants': 1001.3.1
       '@pnpm/crypto.shasums-file': 1001.0.4
       '@pnpm/error': 1000.0.5
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fetching-types': 1000.2.1
-      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
-      '@pnpm/node.fetcher': 1001.0.24(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
-      '@pnpm/npm-resolver': 1005.2.1(@pnpm/logger@1001.0.1)
+      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
+      '@pnpm/node.fetcher': 1001.0.25(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/npm-resolver': 1005.2.2(@pnpm/logger@1001.0.1)
       '@pnpm/resolver-base': 1005.4.1
       '@pnpm/types': 1001.3.0
       '@pnpm/util.lex-comparator': 3.0.2
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
       semver: 7.7.4
     transitivePeerDependencies:
       - '@pnpm/logger'
@@ -19089,20 +19087,20 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/resolving.bun-resolver@1005.0.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)':
+  '@pnpm/resolving.bun-resolver@1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)':
     dependencies:
       '@pnpm/constants': 1001.3.1
       '@pnpm/crypto.shasums-file': 1001.0.4
       '@pnpm/error': 1000.0.5
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fetching-types': 1000.2.1
-      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))
-      '@pnpm/node.fetcher': 1001.0.24(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
-      '@pnpm/npm-resolver': 1005.2.1(@pnpm/logger@1001.0.1)
+      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))
+      '@pnpm/node.fetcher': 1001.0.25(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
+      '@pnpm/npm-resolver': 1005.2.2(@pnpm/logger@1001.0.1)
       '@pnpm/resolver-base': 1005.4.1
       '@pnpm/types': 1001.3.0
       '@pnpm/util.lex-comparator': 3.0.2
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0)
       semver: 7.7.4
     transitivePeerDependencies:
       - '@pnpm/logger'
@@ -19110,20 +19108,20 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/resolving.deno-resolver@1005.0.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/resolving.deno-resolver@1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
       '@pnpm/constants': 1001.3.1
       '@pnpm/crypto.shasums-file': 1001.0.4
       '@pnpm/error': 1000.0.5
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fetching-types': 1000.2.1
-      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
-      '@pnpm/node.fetcher': 1001.0.24(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
-      '@pnpm/npm-resolver': 1005.2.1(@pnpm/logger@1001.0.1)
+      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
+      '@pnpm/node.fetcher': 1001.0.25(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/npm-resolver': 1005.2.2(@pnpm/logger@1001.0.1)
       '@pnpm/resolver-base': 1005.4.1
       '@pnpm/types': 1001.3.0
       '@pnpm/util.lex-comparator': 3.0.2
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
       semver: 7.7.4
     transitivePeerDependencies:
       - '@pnpm/logger'
@@ -19131,20 +19129,20 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/resolving.deno-resolver@1005.0.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)':
+  '@pnpm/resolving.deno-resolver@1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)':
     dependencies:
       '@pnpm/constants': 1001.3.1
       '@pnpm/crypto.shasums-file': 1001.0.4
       '@pnpm/error': 1000.0.5
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fetching-types': 1000.2.1
-      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))
-      '@pnpm/node.fetcher': 1001.0.24(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
-      '@pnpm/npm-resolver': 1005.2.1(@pnpm/logger@1001.0.1)
+      '@pnpm/fetching.binary-fetcher': 1005.0.3(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))
+      '@pnpm/node.fetcher': 1001.0.25(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
+      '@pnpm/npm-resolver': 1005.2.2(@pnpm/logger@1001.0.1)
       '@pnpm/resolver-base': 1005.4.1
       '@pnpm/types': 1001.3.0
       '@pnpm/util.lex-comparator': 3.0.2
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0)
       semver: 7.7.4
     transitivePeerDependencies:
       - '@pnpm/logger'
@@ -19181,14 +19179,14 @@ snapshots:
     dependencies:
       grapheme-splitter: 1.0.4
 
-  '@pnpm/store-connection-manager@1002.3.16(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/store-connection-manager@1002.3.17(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
       '@pnpm/cli-meta': 1000.0.16
-      '@pnpm/client': 1001.1.21(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
-      '@pnpm/config': 1004.10.2(@pnpm/logger@1001.0.1)
+      '@pnpm/client': 1001.1.22(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/config': 1004.10.3(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.0.5
       '@pnpm/logger': 1001.0.1
-      '@pnpm/package-store': 1007.1.4(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
+      '@pnpm/package-store': 1007.1.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))
       '@pnpm/server': 1001.0.20(@pnpm/logger@1001.0.1)
       '@pnpm/store-path': 1000.0.5
       '@zkochan/diable': 1.0.2
@@ -19200,14 +19198,14 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/store-connection-manager@1002.3.16(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)':
+  '@pnpm/store-connection-manager@1002.3.17(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)':
     dependencies:
       '@pnpm/cli-meta': 1000.0.16
-      '@pnpm/client': 1001.1.21(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
-      '@pnpm/config': 1004.10.2(@pnpm/logger@1001.0.1)
+      '@pnpm/client': 1001.1.22(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
+      '@pnpm/config': 1004.10.3(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.0.5
       '@pnpm/logger': 1001.0.1
-      '@pnpm/package-store': 1007.1.4(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))
+      '@pnpm/package-store': 1007.1.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))
       '@pnpm/server': 1001.0.20(@pnpm/logger@1001.0.1)
       '@pnpm/store-path': 1000.0.5
       '@zkochan/diable': 1.0.2
@@ -19265,7 +19263,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@pnpm/tarball-fetcher@1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/tarball-fetcher@1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.0.5
@@ -19276,7 +19274,7 @@ snapshots:
       '@pnpm/logger': 1001.0.1
       '@pnpm/prepare-package': 1001.0.6(@pnpm/logger@1001.0.1)(typanion@3.14.0)
       '@pnpm/types': 1001.3.0
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15)
       '@zkochan/retry': 0.2.0
       lodash.throttle: 4.1.1
       p-map-values: 1.0.0
@@ -19288,7 +19286,7 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/tarball-fetcher@1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)':
+  '@pnpm/tarball-fetcher@1006.0.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)':
     dependencies:
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.0.5
@@ -19299,7 +19297,7 @@ snapshots:
       '@pnpm/logger': 1001.0.1
       '@pnpm/prepare-package': 1001.0.6(@pnpm/logger@1001.0.1)(typanion@3.14.0)
       '@pnpm/types': 1001.3.0
-      '@pnpm/worker': 1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5)
+      '@pnpm/worker': 1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0)
       '@zkochan/retry': 0.2.0
       lodash.throttle: 4.1.1
       p-map-values: 1.0.0
@@ -19336,10 +19334,10 @@ snapshots:
     dependencies:
       isexe: 2.0.0
 
-  '@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15)':
+  '@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15)':
     dependencies:
       '@pnpm/cafs-types': 1000.1.0
-      '@pnpm/create-cafs-store': 1000.0.31(@pnpm/logger@1001.0.1)
+      '@pnpm/create-cafs-store': 1000.0.32(@pnpm/logger@1001.0.1)
       '@pnpm/crypto.polyfill': 1000.1.0
       '@pnpm/error': 1000.0.5
       '@pnpm/exec.pkg-requires-build': 1000.0.16
@@ -19355,10 +19353,10 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5)':
+  '@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0)':
     dependencies:
       '@pnpm/cafs-types': 1000.1.0
-      '@pnpm/create-cafs-store': 1000.0.31(@pnpm/logger@1001.0.1)
+      '@pnpm/create-cafs-store': 1000.0.32(@pnpm/logger@1001.0.1)
       '@pnpm/crypto.polyfill': 1000.1.0
       '@pnpm/error': 1000.0.5
       '@pnpm/exec.pkg-requires-build': 1000.0.16
@@ -19367,16 +19365,16 @@ snapshots:
       '@pnpm/logger': 1001.0.1
       '@pnpm/store.cafs': 1000.1.4
       '@pnpm/symlink-dependency': 1000.0.17(@pnpm/logger@1001.0.1)
-      '@rushstack/worker-pool': 0.4.9(@types/node@25.3.5)
+      '@rushstack/worker-pool': 0.4.9(@types/node@25.4.0)
       is-windows: 1.0.2
       load-json-file: 6.2.0
       p-limit: 3.1.0
     transitivePeerDependencies:
       - '@types/node'
 
-  '@pnpm/workspace.find-packages@1000.0.62(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/workspace.find-packages@1000.0.63(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
-      '@pnpm/cli-utils': 1001.3.7(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/cli-utils': 1001.3.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
       '@pnpm/constants': 1001.3.1
       '@pnpm/fs.find-packages': 1000.0.23(@pnpm/logger@1001.0.1)
       '@pnpm/logger': 1001.0.1
@@ -19388,9 +19386,9 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/workspace.find-packages@1000.0.62(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)':
+  '@pnpm/workspace.find-packages@1000.0.63(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)':
     dependencies:
-      '@pnpm/cli-utils': 1001.3.7(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.5(@pnpm/logger@1001.0.1)(@types/node@25.3.5))(typanion@3.14.0)
+      '@pnpm/cli-utils': 1001.3.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@25.4.0))(typanion@3.14.0)
       '@pnpm/constants': 1001.3.1
       '@pnpm/fs.find-packages': 1000.0.23(@pnpm/logger@1001.0.1)
       '@pnpm/logger': 1001.0.1
@@ -19402,18 +19400,20 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/workspace.manifest-writer@1001.2.0':
+  '@pnpm/workspace.manifest-writer@1001.3.0':
     dependencies:
       '@pnpm/catalogs.types': 1000.0.0
       '@pnpm/constants': 1001.3.1
       '@pnpm/lockfile.types': 1002.0.9
       '@pnpm/object.key-sorting': 1000.0.1
       '@pnpm/types': 1001.3.0
-      '@pnpm/workspace.read-manifest': 1000.2.10
+      '@pnpm/workspace.read-manifest': 1000.3.0
+      '@pnpm/yaml.document-sync': 1000.0.0
       ramda: '@pnpm/ramda@0.28.1'
-      write-yaml-file: 5.0.0
+      write-file-atomic: 5.0.1
+      yaml: 2.8.2
 
-  '@pnpm/workspace.read-manifest@1000.2.10':
+  '@pnpm/workspace.read-manifest@1000.3.0':
     dependencies:
       '@pnpm/constants': 1001.3.1
       '@pnpm/error': 1000.0.5
@@ -19429,6 +19429,10 @@ snapshots:
       json5: 2.2.3
       write-file-atomic: 5.0.1
       write-yaml-file: 5.0.0
+
+  '@pnpm/yaml.document-sync@1000.0.0':
+    dependencies:
+      yaml: 2.8.2
 
   '@postman/form-data@3.1.1':
     dependencies:
@@ -19472,13 +19476,13 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.19.15
 
-  '@rushstack/worker-pool@0.4.9(@types/node@25.3.5)':
+  '@rushstack/worker-pool@0.4.9(@types/node@25.4.0)':
     optionalDependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
-  '@rushstack/worker-pool@0.7.1(@types/node@25.3.5)':
+  '@rushstack/worker-pool@0.7.1(@types/node@25.4.0)':
     optionalDependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@sigstore/bundle@4.0.0':
     dependencies:
@@ -19528,10 +19532,10 @@ snapshots:
     dependencies:
       '@sinonjs/commons': 3.0.1
 
-  '@stylistic/eslint-plugin@4.4.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)':
+  '@stylistic/eslint-plugin@4.4.1(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)':
     dependencies:
-      '@typescript-eslint/utils': 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
-      eslint: 9.39.3(jiti@2.6.1)
+      '@typescript-eslint/utils': 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
+      eslint: 9.39.4(jiti@2.6.1)
       eslint-visitor-keys: 4.2.1
       espree: 10.4.0
       estraverse: 5.3.0
@@ -19558,7 +19562,7 @@ snapshots:
 
   '@types/adm-zip@0.5.7':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@types/archy@0.0.36': {}
 
@@ -19589,18 +19593,18 @@ snapshots:
 
   '@types/byline@4.2.36':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@types/cacheable-request@6.0.3':
     dependencies:
       '@types/http-cache-semantics': 4.2.0
       '@types/keyv': 3.1.4
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       '@types/responselike': 1.0.3
 
   '@types/cross-spawn@6.0.6':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@types/emscripten@1.41.5': {}
 
@@ -19608,11 +19612,11 @@ snapshots:
 
   '@types/fs-extra@9.0.13':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@types/graceful-fs@4.1.9':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@types/hosted-git-info@3.0.5': {}
 
@@ -19620,7 +19624,7 @@ snapshots:
 
   '@types/http-proxy@1.17.17':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@types/ini@1.3.31': {}
 
@@ -19653,7 +19657,7 @@ snapshots:
 
   '@types/keyv@3.1.4':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@types/libnpmpublish@9.0.1':
     dependencies:
@@ -19683,7 +19687,7 @@ snapshots:
 
   '@types/node-fetch@2.6.13':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       form-data: 4.0.5
 
   '@types/node@12.20.55': {}
@@ -19696,7 +19700,7 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
-  '@types/node@25.3.5':
+  '@types/node@25.4.0':
     dependencies:
       undici-types: 7.18.2
 
@@ -19708,7 +19712,7 @@ snapshots:
 
   '@types/npm-registry-fetch@8.0.9':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       '@types/node-fetch': 2.6.13
       '@types/npm-package-arg': 6.1.4
       '@types/npmlog': 7.0.0
@@ -19716,7 +19720,7 @@ snapshots:
 
   '@types/npmlog@7.0.0':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@types/object-hash@3.0.6': {}
 
@@ -19736,7 +19740,7 @@ snapshots:
 
   '@types/responselike@1.0.3':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@types/retry@0.12.5': {}
 
@@ -19746,7 +19750,7 @@ snapshots:
 
   '@types/ssri@7.1.5':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@types/stack-utils@2.0.3': {}
 
@@ -19754,11 +19758,11 @@ snapshots:
 
   '@types/tar-stream@2.2.3':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@types/tar@6.1.13':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       minipass: 4.2.8
 
   '@types/touch@3.1.5':
@@ -19775,7 +19779,7 @@ snapshots:
 
   '@types/write-file-atomic@4.0.3':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
 
   '@types/yargs-parser@21.0.3': {}
 
@@ -19785,15 +19789,15 @@ snapshots:
 
   '@types/yarnpkg__lockfile@1.1.9': {}
 
-  '@typescript-eslint/eslint-plugin@8.56.1(@typescript-eslint/parser@8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)':
+  '@typescript-eslint/eslint-plugin@8.57.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)':
     dependencies:
       '@eslint-community/regexpp': 4.12.2
-      '@typescript-eslint/parser': 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
-      '@typescript-eslint/scope-manager': 8.56.1
-      '@typescript-eslint/type-utils': 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
-      '@typescript-eslint/utils': 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
-      '@typescript-eslint/visitor-keys': 8.56.1
-      eslint: 9.39.3(jiti@2.6.1)
+      '@typescript-eslint/parser': 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/scope-manager': 8.57.0
+      '@typescript-eslint/type-utils': 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/utils': 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/visitor-keys': 8.57.0
+      eslint: 9.39.4(jiti@2.6.1)
       ignore: 7.0.5
       natural-compare: 1.4.0
       ts-api-utils: 2.4.0(typescript@5.9.2)
@@ -19801,56 +19805,56 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/parser@8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)':
+  '@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)':
     dependencies:
-      '@typescript-eslint/scope-manager': 8.56.1
-      '@typescript-eslint/types': 8.56.1
-      '@typescript-eslint/typescript-estree': 8.56.1(typescript@5.9.2)
-      '@typescript-eslint/visitor-keys': 8.56.1
+      '@typescript-eslint/scope-manager': 8.57.0
+      '@typescript-eslint/types': 8.57.0
+      '@typescript-eslint/typescript-estree': 8.57.0(typescript@5.9.2)
+      '@typescript-eslint/visitor-keys': 8.57.0
       debug: 4.4.3
-      eslint: 9.39.3(jiti@2.6.1)
+      eslint: 9.39.4(jiti@2.6.1)
       typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/project-service@8.56.1(typescript@5.9.2)':
+  '@typescript-eslint/project-service@8.57.0(typescript@5.9.2)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.56.1(typescript@5.9.2)
-      '@typescript-eslint/types': 8.56.1
+      '@typescript-eslint/tsconfig-utils': 8.57.0(typescript@5.9.2)
+      '@typescript-eslint/types': 8.57.0
       debug: 4.4.3
       typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/scope-manager@8.56.1':
+  '@typescript-eslint/scope-manager@8.57.0':
     dependencies:
-      '@typescript-eslint/types': 8.56.1
-      '@typescript-eslint/visitor-keys': 8.56.1
+      '@typescript-eslint/types': 8.57.0
+      '@typescript-eslint/visitor-keys': 8.57.0
 
-  '@typescript-eslint/tsconfig-utils@8.56.1(typescript@5.9.2)':
+  '@typescript-eslint/tsconfig-utils@8.57.0(typescript@5.9.2)':
     dependencies:
       typescript: 5.9.2
 
-  '@typescript-eslint/type-utils@8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)':
+  '@typescript-eslint/type-utils@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)':
     dependencies:
-      '@typescript-eslint/types': 8.56.1
-      '@typescript-eslint/typescript-estree': 8.56.1(typescript@5.9.2)
-      '@typescript-eslint/utils': 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/types': 8.57.0
+      '@typescript-eslint/typescript-estree': 8.57.0(typescript@5.9.2)
+      '@typescript-eslint/utils': 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
       debug: 4.4.3
-      eslint: 9.39.3(jiti@2.6.1)
+      eslint: 9.39.4(jiti@2.6.1)
       ts-api-utils: 2.4.0(typescript@5.9.2)
       typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/types@8.56.1': {}
+  '@typescript-eslint/types@8.57.0': {}
 
-  '@typescript-eslint/typescript-estree@8.56.1(typescript@5.9.2)':
+  '@typescript-eslint/typescript-estree@8.57.0(typescript@5.9.2)':
     dependencies:
-      '@typescript-eslint/project-service': 8.56.1(typescript@5.9.2)
-      '@typescript-eslint/tsconfig-utils': 8.56.1(typescript@5.9.2)
-      '@typescript-eslint/types': 8.56.1
-      '@typescript-eslint/visitor-keys': 8.56.1
+      '@typescript-eslint/project-service': 8.57.0(typescript@5.9.2)
+      '@typescript-eslint/tsconfig-utils': 8.57.0(typescript@5.9.2)
+      '@typescript-eslint/types': 8.57.0
+      '@typescript-eslint/visitor-keys': 8.57.0
       debug: 4.4.3
       minimatch: 10.2.4
       semver: 7.7.4
@@ -19860,20 +19864,20 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/utils@8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)':
+  '@typescript-eslint/utils@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)':
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.3(jiti@2.6.1))
-      '@typescript-eslint/scope-manager': 8.56.1
-      '@typescript-eslint/types': 8.56.1
-      '@typescript-eslint/typescript-estree': 8.56.1(typescript@5.9.2)
-      eslint: 9.39.3(jiti@2.6.1)
+      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.4(jiti@2.6.1))
+      '@typescript-eslint/scope-manager': 8.57.0
+      '@typescript-eslint/types': 8.57.0
+      '@typescript-eslint/typescript-estree': 8.57.0(typescript@5.9.2)
+      eslint: 9.39.4(jiti@2.6.1)
       typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/visitor-keys@8.56.1':
+  '@typescript-eslint/visitor-keys@8.57.0':
     dependencies:
-      '@typescript-eslint/types': 8.56.1
+      '@typescript-eslint/types': 8.57.0
       eslint-visitor-keys: 5.0.1
 
   '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260216.1':
@@ -20149,7 +20153,7 @@ snapshots:
       p-limit: 2.3.0
       semver: 7.7.4
       strip-ansi: 6.0.1
-      tar: 7.5.10
+      tar: 7.5.11
       tinylogic: 2.0.0
       treeify: 1.1.0
       tslib: 2.8.1
@@ -20181,7 +20185,7 @@ snapshots:
       p-limit: 2.3.0
       semver: 7.7.4
       strip-ansi: 6.0.1
-      tar: 7.5.10
+      tar: 7.5.11
       tinylogic: 2.0.0
       treeify: 1.1.0
       tslib: 2.8.1
@@ -20745,7 +20749,7 @@ snapshots:
       minipass-pipeline: 1.2.4
       p-map: 7.0.4
       ssri: 12.0.0
-      tar: 7.5.10
+      tar: 7.5.11
       unique-filename: 4.0.0
 
   cacache@20.0.3:
@@ -21190,7 +21194,7 @@ snapshots:
       cspell-io: 9.2.0
       cspell-lib: 9.2.0
       fast-json-stable-stringify: 2.1.0
-      flatted: 3.3.4
+      flatted: 3.4.1
       semver: 7.7.4
       tinyglobby: 0.2.15
 
@@ -21543,9 +21547,9 @@ snapshots:
 
   escape-string-regexp@5.0.0: {}
 
-  eslint-compat-utils@0.5.1(eslint@9.39.3(jiti@2.6.1)):
+  eslint-compat-utils@0.5.1(eslint@9.39.4(jiti@2.6.1)):
     dependencies:
-      eslint: 9.39.3(jiti@2.6.1)
+      eslint: 9.39.4(jiti@2.6.1)
       semver: 7.7.4
 
   eslint-import-context@0.1.9(unrs-resolver@1.11.1):
@@ -21555,19 +21559,19 @@ snapshots:
     optionalDependencies:
       unrs-resolver: 1.11.1
 
-  eslint-plugin-es-x@7.8.0(eslint@9.39.3(jiti@2.6.1)):
+  eslint-plugin-es-x@7.8.0(eslint@9.39.4(jiti@2.6.1)):
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.3(jiti@2.6.1))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.4(jiti@2.6.1))
       '@eslint-community/regexpp': 4.12.2
-      eslint: 9.39.3(jiti@2.6.1)
-      eslint-compat-utils: 0.5.1(eslint@9.39.3(jiti@2.6.1))
+      eslint: 9.39.4(jiti@2.6.1)
+      eslint-compat-utils: 0.5.1(eslint@9.39.4(jiti@2.6.1))
 
-  eslint-plugin-import-x@4.16.1(@typescript-eslint/utils@8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.3(jiti@2.6.1)):
+  eslint-plugin-import-x@4.16.1(@typescript-eslint/utils@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.4(jiti@2.6.1)):
     dependencies:
-      '@typescript-eslint/types': 8.56.1
+      '@typescript-eslint/types': 8.57.0
       comment-parser: 1.4.5
       debug: 4.4.3
-      eslint: 9.39.3(jiti@2.6.1)
+      eslint: 9.39.4(jiti@2.6.1)
       eslint-import-context: 0.1.9(unrs-resolver@1.11.1)
       is-glob: 4.0.3
       minimatch: 10.2.4
@@ -21575,27 +21579,27 @@ snapshots:
       stable-hash-x: 0.2.0
       unrs-resolver: 1.11.1
     optionalDependencies:
-      '@typescript-eslint/utils': 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/utils': 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-jest@29.15.0(@typescript-eslint/eslint-plugin@8.56.1(@typescript-eslint/parser@8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.3(jiti@2.6.1))(jest@30.2.0(@babel/types@7.29.0)(@types/node@22.19.15))(typescript@5.9.2):
+  eslint-plugin-jest@29.15.0(@typescript-eslint/eslint-plugin@8.57.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.4(jiti@2.6.1))(jest@30.2.0(@babel/types@7.29.0)(@types/node@22.19.15))(typescript@5.9.2):
     dependencies:
-      '@typescript-eslint/utils': 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
-      eslint: 9.39.3(jiti@2.6.1)
+      '@typescript-eslint/utils': 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
+      eslint: 9.39.4(jiti@2.6.1)
     optionalDependencies:
-      '@typescript-eslint/eslint-plugin': 8.56.1(@typescript-eslint/parser@8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/eslint-plugin': 8.57.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
       jest: 30.2.0(@babel/types@7.29.0)(@types/node@22.19.15)
       typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-n@17.24.0(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2):
+  eslint-plugin-n@17.24.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2):
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.3(jiti@2.6.1))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.4(jiti@2.6.1))
       enhanced-resolve: 5.20.0
-      eslint: 9.39.3(jiti@2.6.1)
-      eslint-plugin-es-x: 7.8.0(eslint@9.39.3(jiti@2.6.1))
+      eslint: 9.39.4(jiti@2.6.1)
+      eslint-plugin-es-x: 7.8.0(eslint@9.39.4(jiti@2.6.1))
       get-tsconfig: 4.13.6
       globals: 15.15.0
       globrex: 0.1.2
@@ -21605,17 +21609,17 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  eslint-plugin-promise@7.2.1(eslint@9.39.3(jiti@2.6.1)):
+  eslint-plugin-promise@7.2.1(eslint@9.39.4(jiti@2.6.1)):
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.3(jiti@2.6.1))
-      eslint: 9.39.3(jiti@2.6.1)
+      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.4(jiti@2.6.1))
+      eslint: 9.39.4(jiti@2.6.1)
 
-  eslint-plugin-regexp@2.10.0(eslint@9.39.3(jiti@2.6.1)):
+  eslint-plugin-regexp@2.10.0(eslint@9.39.4(jiti@2.6.1)):
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.3(jiti@2.6.1))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.4(jiti@2.6.1))
       '@eslint-community/regexpp': 4.12.2
       comment-parser: 1.4.5
-      eslint: 9.39.3(jiti@2.6.1)
+      eslint: 9.39.4(jiti@2.6.1)
       jsdoc-type-pratt-parser: 4.8.0
       refa: 0.12.1
       regexp-ast-analysis: 0.7.1
@@ -21632,15 +21636,15 @@ snapshots:
 
   eslint-visitor-keys@5.0.1: {}
 
-  eslint@9.39.3(jiti@2.6.1):
+  eslint@9.39.4(jiti@2.6.1):
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.3(jiti@2.6.1))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.4(jiti@2.6.1))
       '@eslint-community/regexpp': 4.12.2
-      '@eslint/config-array': 0.21.1
+      '@eslint/config-array': 0.21.2
       '@eslint/config-helpers': 0.4.2
       '@eslint/core': 0.17.0
-      '@eslint/eslintrc': 3.3.4
-      '@eslint/js': 9.39.3
+      '@eslint/eslintrc': 3.3.5
+      '@eslint/js': 9.39.4
       '@eslint/plugin-kit': 0.4.1
       '@humanfs/node': 0.16.7
       '@humanwhocodes/module-importer': 1.0.1
@@ -21914,10 +21918,10 @@ snapshots:
 
   flat-cache@4.0.1:
     dependencies:
-      flatted: 3.3.4
+      flatted: 3.4.1
       keyv: 4.5.4
 
-  flatted@3.3.4: {}
+  flatted@3.4.1: {}
 
   flush-write-stream@1.1.1:
     dependencies:
@@ -22910,7 +22914,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@types/graceful-fs': 4.1.9
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22925,7 +22929,7 @@ snapshots:
   jest-haste-map@30.0.5:
     dependencies:
       '@jest/types': 30.0.5
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22998,7 +23002,7 @@ snapshots:
   jest-mock@30.0.5:
     dependencies:
       '@jest/types': 30.0.5
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       jest-util: 30.0.5
 
   jest-mock@30.2.0:
@@ -23160,7 +23164,7 @@ snapshots:
   jest-util@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -23169,7 +23173,7 @@ snapshots:
   jest-util@30.0.5:
     dependencies:
       '@jest/types': 30.0.5
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -23215,14 +23219,14 @@ snapshots:
 
   jest-worker@29.7.0:
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       jest-util: 29.7.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
   jest-worker@30.0.5:
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.4.0
       '@ungap/structured-clone': 1.3.0
       jest-util: 30.0.5
       merge-stream: 2.0.0
@@ -23843,7 +23847,7 @@ snapshots:
       nopt: 8.1.0
       proc-log: 5.0.0
       semver: 7.7.4
-      tar: 7.5.10
+      tar: 7.5.11
       tinyglobby: 0.2.15
       which: 5.0.0
     transitivePeerDependencies:
@@ -25288,7 +25292,7 @@ snapshots:
       - bare-buffer
       - react-native-b4a
 
-  tar@7.5.10:
+  tar@7.5.11:
     dependencies:
       '@isaacs/fs-minipass': 4.0.1
       chownr: 3.0.0
@@ -25532,13 +25536,13 @@ snapshots:
     dependencies:
       ts-toolbelt: 9.6.0
 
-  typescript-eslint@8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2):
+  typescript-eslint@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2):
     dependencies:
-      '@typescript-eslint/eslint-plugin': 8.56.1(@typescript-eslint/parser@8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
-      '@typescript-eslint/parser': 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
-      '@typescript-eslint/typescript-estree': 8.56.1(typescript@5.9.2)
-      '@typescript-eslint/utils': 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.2)
-      eslint: 9.39.3(jiti@2.6.1)
+      '@typescript-eslint/eslint-plugin': 8.57.0(@typescript-eslint/parser@8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/parser': 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript-eslint/typescript-estree': 8.57.0(typescript@5.9.2)
+      '@typescript-eslint/utils': 8.57.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
+      eslint: 9.39.4(jiti@2.6.1)
       typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
