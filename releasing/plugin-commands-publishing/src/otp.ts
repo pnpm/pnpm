@@ -17,8 +17,12 @@ export interface OtpWebAuthFetchOptions {
 }
 
 export interface OtpWebAuthFetchResponse {
+  readonly headers: {
+    get: (name: string) => string | null
+  }
   readonly json: (this: this) => Promise<unknown>
   readonly ok: boolean
+  readonly status: number
 }
 
 export interface OtpPublishResponse {
@@ -76,9 +80,15 @@ interface OtpErrorBody {
   doneUrl?: string
 }
 
+interface OtpErrorHeaders {
+  'www-authenticate'?: string[]
+  'npm-notice'?: string[]
+}
+
 interface OtpError {
   code: string
   body?: OtpErrorBody
+  headers?: OtpErrorHeaders
 }
 
 const isOtpError = (error: unknown): error is OtpError =>
@@ -87,8 +97,25 @@ const isOtpError = (error: unknown): error is OtpError =>
   'code' in error &&
   error.code === 'EOTP'
 
+const URL_IN_NOTICE_RE = /https?:\/\/[^\s]+/i
+
 /**
- * Publish a package, handling OTP challenges (classic OTP prompt and webauth browser flow).
+ * Extract a URL from an npm-notice header message.
+ *
+ * For example, given:
+ *   "Open https://www.npmjs.com/login/abc-123 to use your security key for authentication"
+ * Returns:
+ *   "https://www.npmjs.com/login/abc-123"
+ */
+export function extractUrlFromNotice (notice: string): string | undefined {
+  return URL_IN_NOTICE_RE.exec(notice)?.[0]
+}
+
+/**
+ * Publish a package, handling OTP challenges:
+ * - Web auth flow (authUrl/doneUrl in error body with doneUrl polling)
+ * - npm-notice flow (URL in npm-notice header with QR code display, then OTP prompt)
+ * - Classic OTP prompt (manual code entry)
  *
  * @throws {@link OtpWebAuthTimeoutError} if the webauth browser flow times out.
  * @throws {@link OtpNonInteractiveError} if OTP is required but the terminal is not interactive.
@@ -96,6 +123,7 @@ const isOtpError = (error: unknown): error is OtpError =>
  * @throws the original error if OTP handling is not applicable.
  *
  * @see https://github.com/npm/cli/blob/7d900c46/lib/utils/otplease.js for npm's implementation.
+ * @see https://github.com/npm/npm-profile/blob/main/lib/index.js for the webauth polling flow.
  */
 export async function publishWithOtpHandling ({
   context = SHARED_CONTEXT,
@@ -123,8 +151,12 @@ export async function publishWithOtpHandling ({
     }
     let otp: string | undefined
     if (error.body?.authUrl && error.body?.doneUrl) {
+      // Web auth flow: display authUrl with QR code, poll doneUrl for token
       otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, context, fetchOptions)
     } else {
+      // Display npm-notice URL with QR code if available
+      await displayNpmNotice(error, context)
+      // Prompt for manual OTP entry
       const enquirerResponse = await context.enquirer.prompt({
         message: 'This operation requires a one-time password.\nEnter OTP:',
         name: 'otp',
@@ -147,6 +179,24 @@ export async function publishWithOtpHandling ({
   return response
 }
 
+/**
+ * If the OTP error contains npm-notice headers with a URL, display the
+ * notice messages and a QR code for the URL.
+ */
+async function displayNpmNotice (error: OtpError, context: OtpContext): Promise<void> {
+  const notices = error.headers?.['npm-notice']
+  if (!notices?.length) return
+
+  for (const notice of notices) {
+    context.globalInfo(notice)
+    const url = extractUrlFromNotice(notice)
+    if (url) {
+      const qrCode = await generateQrCode(url)
+      context.globalInfo(`\n${qrCode}`)
+    }
+  }
+}
+
 async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext, fetchOptions: OtpWebAuthFetchOptions): Promise<string> {
   const qrCode = await generateQrCode(authUrl)
   context.globalInfo(`Authenticate your account at:\n${authUrl}\n\n${qrCode}`)
@@ -166,17 +216,31 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
     } catch {
       continue
     }
-    if (!response.ok) continue
-    let body: { done?: boolean; token?: string }
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      body = await response.json() as { done?: boolean; token?: string }
-    } catch {
-      continue
+
+    if (response.status === 200) {
+      let body: { token?: string }
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        body = await response.json() as { token?: string }
+      } catch {
+        continue
+      }
+      if (body.token) {
+        return body.token
+      }
+    } else if (response.status === 202) {
+      // Registry is still waiting for authentication.
+      // Respect Retry-After header if present.
+      const retryAfter = response.headers.get('retry-after')
+      if (retryAfter) {
+        const retryMs = Number(retryAfter) * 1000
+        if (retryMs > 0) {
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise<void>(resolve => context.setTimeout(resolve, retryMs))
+        }
+      }
     }
-    if (body.done && body.token) {
-      return body.token
-    }
+    // Any other status: retry after the default interval (loop continues with 1s wait)
   }
 }
 
