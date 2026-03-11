@@ -2,7 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
 import { writeJsonFileSync } from 'write-json-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { execPnpmSync } from './utils/index.js'
 import isWindows from 'is-windows'
 
@@ -23,7 +23,7 @@ test('do not switch to the pnpm version specified in the packageManager field of
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     managePackageManagerVersions: false,
   })
   writeJsonFileSync('package.json', {

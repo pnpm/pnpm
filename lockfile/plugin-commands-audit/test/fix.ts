@@ -1,7 +1,7 @@
 import path from 'path'
 import { fixtures } from '@pnpm/test-fixtures'
 import { audit } from '@pnpm/plugin-commands-audit'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import nock from 'nock'
 import * as responses from './utils/responses/index.js'
 
@@ -34,7 +34,7 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)
 
-  const manifest = readYamlFile<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
   expect(manifest.overrides?.['axios@<=0.18.0']).toBe('>=0.18.1')
   expect(manifest.overrides?.['sync-exec@>=0.0.0']).toBeFalsy()
 })
@@ -89,7 +89,7 @@ test('CVEs found in the allow list are not added as overrides', async () => {
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)
 
-  const manifest = readYamlFile<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
   expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
   expect(manifest.overrides?.['axios@<0.21.1']).toBeFalsy()
   expect(manifest.overrides?.['minimist@<0.2.1']).toBeFalsy()

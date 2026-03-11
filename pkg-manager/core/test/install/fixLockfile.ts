@@ -2,8 +2,8 @@ import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, type MutatedProject, mutateModules } from '@pnpm/core'
-import { sync as writeYamlFile } from 'write-yaml-file'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import type { LockfileFile, PackageSnapshots } from '@pnpm/lockfile.fs'
 import type { ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from '../utils/index.js'
@@ -11,7 +11,7 @@ import { testDefaults } from '../utils/index.js'
 test('fix broken lockfile with --fix-lockfile', async () => {
   prepareEmpty()
 
-  writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFileSync(WANTED_LOCKFILE, {
     dependencies: {
       '@types/semver': {
         specifier: '^5.3.31',
@@ -49,7 +49,7 @@ test('fix broken lockfile with --fix-lockfile', async () => {
     },
   }, testDefaults({ fixLockfile: true }))
 
-  const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileFile = readYamlFileSync(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.packages as PackageSnapshots)).toHaveLength(2)
   expect(lockfile.packages?.['@types/semver@5.3.31']).toBeTruthy()
   expect(lockfile.packages?.['@types/semver@5.3.31']?.resolution).toEqual({
@@ -97,7 +97,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
    * and @babel/runtime-corejs3@7.15.3 depends on core-js-pure@3.17.2 while @babel/runtime-corejs3@7.15.4 depends on core-js-pure@3.17.3
    * --fix-lockfile should not change the locked dependency version and only adding missing fields in this scene
    */
-  writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFileSync(WANTED_LOCKFILE, {
     lockfileVersion: LOCKFILE_VERSION,
     importers: {
       '.': {},
@@ -203,7 +203,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
     ],
   }))
 
-  const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileFile = readYamlFileSync(WANTED_LOCKFILE)
 
   expect(Object.keys(lockfile.packages as PackageSnapshots)).toHaveLength(5)
 

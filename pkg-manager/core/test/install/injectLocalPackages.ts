@@ -4,7 +4,7 @@ import { assertProject } from '@pnpm/assert-project'
 import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import { writeJsonFileSync } from 'write-json-file'
 import { testDefaults } from '../utils/index.js'
 
@@ -157,10 +157,10 @@ test('inject local packages', async () => {
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
 
-  rimraf('node_modules')
-  rimraf('project-1/node_modules')
-  rimraf('project-2/node_modules')
-  rimraf('project-3/node_modules')
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-2/node_modules')
+  rimrafSync('project-3/node_modules')
 
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
@@ -353,10 +353,10 @@ test('inject local packages using the injectWorkspacePackages setting', async ()
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
 
-  rimraf('node_modules')
-  rimraf('project-1/node_modules')
-  rimraf('project-2/node_modules')
-  rimraf('project-3/node_modules')
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-2/node_modules')
+  rimrafSync('project-3/node_modules')
 
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
@@ -559,10 +559,10 @@ test('inject local packages declared via file protocol', async () => {
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
 
-  rimraf('node_modules')
-  rimraf('project-1/node_modules')
-  rimraf('project-2/node_modules')
-  rimraf('project-3/node_modules')
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-2/node_modules')
+  rimrafSync('project-3/node_modules')
 
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
@@ -749,10 +749,10 @@ test('inject local packages when the file protocol is used', async () => {
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
 
-  rimraf('node_modules')
-  rimraf('project-1/node_modules')
-  rimraf('project-2/node_modules')
-  rimraf('project-3/node_modules')
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-2/node_modules')
+  rimrafSync('project-3/node_modules')
 
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
@@ -903,10 +903,10 @@ test('inject local packages and relink them after build', async () => {
     },
   })
 
-  rimraf('node_modules')
-  rimraf('project-1/main.js')
-  rimraf('project-1/node_modules')
-  rimraf('project-2/node_modules')
+  rimrafSync('node_modules')
+  rimrafSync('project-1/main.js')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-2/node_modules')
 
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
@@ -1011,10 +1011,10 @@ test('inject local packages and relink them after build (file protocol is used)'
     },
   })
 
-  rimraf('node_modules')
-  rimraf('project-1/main.js')
-  rimraf('project-1/node_modules')
-  rimraf('project-2/node_modules')
+  rimrafSync('node_modules')
+  rimrafSync('project-1/main.js')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-2/node_modules')
 
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
@@ -1970,10 +1970,10 @@ test('injected local packages are deduped', async () => {
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
   }
 
-  rimraf('node_modules')
-  rimraf('project-1/node_modules')
-  rimraf('project-2/node_modules')
-  rimraf('project-3/node_modules')
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-2/node_modules')
+  rimrafSync('project-3/node_modules')
 
   await mutateModules(importers, testDefaults({
     autoInstallPeers: true,

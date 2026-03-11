@@ -19,7 +19,7 @@ import type {
   ProjectRootDir,
   ProjectRootDirRealPath,
 } from '@pnpm/types'
-import pathAbsolute from 'path-absolute'
+import { pathAbsolute } from 'path-absolute'
 import { clone } from 'ramda'
 import { registerProject } from '@pnpm/package-store'
 import { readLockfiles } from './readLockfiles.js'

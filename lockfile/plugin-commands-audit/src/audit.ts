@@ -9,7 +9,7 @@ import type { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
 import { difference, pick, pickBy } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import { fix } from './fix.js'
 import { ignore } from './ignore.js'
 

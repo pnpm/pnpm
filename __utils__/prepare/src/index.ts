@@ -3,8 +3,8 @@ import path from 'path'
 import { assertProject, type Modules, type Project } from '@pnpm/assert-project'
 import type { ProjectManifest } from '@pnpm/types'
 import { tempDir } from '@pnpm/prepare-temp-dir'
-import { sync as writeJson5File } from 'write-json5-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeJson5FileSync } from 'write-json5-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { writePackageSync } from 'write-package'
 
 export type { Modules, Project }
@@ -61,10 +61,10 @@ export function prepare (
       writePackageSync(dir, { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
     break
   case 'JSON5':
-      writeJson5File(path.join(dir, 'package.json5'), { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
+      writeJson5FileSync(path.join(dir, 'package.json5'), { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
     break
   case 'YAML':
-      writeYamlFile(path.join(dir, 'package.yaml'), { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
+      writeYamlFileSync(path.join(dir, 'package.yaml'), { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
     break
   }
   process.chdir(dir)

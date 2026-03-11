@@ -2,7 +2,7 @@ import path from 'path'
 import { types as allTypes } from '@pnpm/config'
 import { docsUrl } from '@pnpm/cli-utils'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
 

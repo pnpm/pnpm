@@ -6,8 +6,8 @@ import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import type { AllowBuild, PackageManifest } from '@pnpm/types'
-import rimraf from '@zkochan/rimraf'
-import preferredPM from 'preferred-pm'
+import { rimraf } from '@zkochan/rimraf'
+import { preferredPM } from 'preferred-pm'
 import { omit } from 'ramda'
 
 // We don't run prepublishOnly to prepare the dependency.

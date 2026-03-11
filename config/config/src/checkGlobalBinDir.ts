@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import util from 'util'
 import { PnpmError } from '@pnpm/error'
-import { sync as canWriteToDir } from 'can-write-to-dir'
+import { canWriteToDirSync } from 'can-write-to-dir'
 import PATH from 'path-name'
 
 export async function checkGlobalBinDir (
@@ -33,7 +33,7 @@ const areDirsEqual = (dir1: string, dir2: string): boolean =>
 
 function canWriteToDirAndExists (dir: string): boolean {
   try {
-    return canWriteToDir(dir)
+    return canWriteToDirSync(dir)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err

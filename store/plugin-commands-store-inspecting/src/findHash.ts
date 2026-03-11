@@ -6,7 +6,7 @@ import { StoreIndex } from '@pnpm/store.index'
 import { getStorePath } from '@pnpm/store-path'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 
 export const PACKAGE_INFO_CLR = chalk.greenBright
 export const INDEX_PATH_CLR = chalk.hex('#078487')

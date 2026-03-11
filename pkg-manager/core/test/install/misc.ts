@@ -19,14 +19,14 @@ import {
   UnexpectedStoreError,
   UnexpectedVirtualStoreDirError,
 } from '@pnpm/core'
-import { sync as rimraf } from '@zkochan/rimraf'
-import execa from 'execa'
+import { rimrafSync } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
 import semver from 'semver'
 import { jest } from '@jest/globals'
 import deepRequireCwd from 'deep-require-cwd'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -389,7 +389,7 @@ test('forcing', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults({ fastUnpack: false }))
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
-  rimraf(distPath)
+  rimrafSync(distPath)
 
   await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], testDefaults({ fastUnpack: false, force: true }))
 
@@ -402,7 +402,7 @@ test('argumentless forcing', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults({ fastUnpack: false }))
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
-  rimraf(distPath)
+  rimrafSync(distPath)
 
   await install(manifest, testDefaults({ fastUnpack: false, force: true }))
 
@@ -415,7 +415,7 @@ test('no forcing', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults())
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
-  rimraf(distPath)
+  rimrafSync(distPath)
 
   await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], testDefaults())
 
@@ -428,8 +428,8 @@ test('refetch package to store if it has been modified', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults({ fastUnpack: false }))
 
   const distPathInStore = project.resolve('magic-hook', '2.0.0', 'dist')
-  rimraf(distPathInStore)
-  rimraf('node_modules')
+  rimrafSync(distPathInStore)
+  rimrafSync('node_modules')
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
 
   await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], testDefaults({ fastUnpack: false }))
@@ -453,7 +453,7 @@ test.skip('relink package to project if the dependency is not linked from store'
 
   // rewriting package.json, to destroy the link
   const pkgJson = fs.readFileSync(pkgJsonPath, 'utf8')
-  rimraf(pkgJsonPath)
+  rimrafSync(pkgJsonPath)
   fs.writeFileSync(pkgJsonPath, pkgJson, 'utf8')
 
   expect(storeInode).not.toEqual(getInode())
@@ -709,7 +709,7 @@ test('lockfile locks npm dependencies', async () => {
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   reporter.mockClear()
   await install(manifest, testDefaults({ reporter }))
@@ -745,7 +745,7 @@ test('install on project with lockfile and no node_modules', async () => {
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative'], testDefaults())
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await addDependenciesToPackage(manifest, ['is-positive'], testDefaults())
 
@@ -831,9 +831,9 @@ test('reinstalls missing packages to node_modules', async () => {
 
   expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining(missingDepLog))
 
-  rimraf('pnpm-lock.yaml')
-  rimraf('node_modules/is-positive')
-  rimraf(depLocation)
+  rimrafSync('pnpm-lock.yaml')
+  rimrafSync('node_modules/is-positive')
+  rimrafSync(depLocation)
 
   project.hasNot('is-positive')
 
@@ -861,8 +861,8 @@ test('reinstalls missing packages to node_modules during headless install', asyn
 
   expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining(missingDepLog))
 
-  rimraf('node_modules/is-positive')
-  rimraf(depLocation)
+  rimrafSync('node_modules/is-positive')
+  rimrafSync(depLocation)
 
   project.hasNot('is-positive')
 
@@ -908,7 +908,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults())
 
-  writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+  writeYamlFileSync(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
       '@pnpm.e2e/foobarqar': {
         specifier: '1.0.1',
@@ -997,7 +997,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     ]
   )
 
-  writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+  writeYamlFileSync(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
       '@pnpm.e2e/parent-of-pkg-with-1-dep': {
         specifier: '1.0.0',
@@ -1239,7 +1239,7 @@ test('a package should be able to be a dependency of itself', async () => {
     expect(pkg.version).toBe('1.0.0')
   }
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true }))
 
   {

@@ -4,7 +4,7 @@ import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingle
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
 import { testDefaults } from '../utils/index.js'
 
@@ -211,7 +211,7 @@ test('automatically install root peer dependencies', async () => {
   }
 
   // Automatically install the peer dependency when the lockfile is up to date
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await install(manifest, testDefaults({ autoInstallPeers: true, frozenLockfile: true }))
 

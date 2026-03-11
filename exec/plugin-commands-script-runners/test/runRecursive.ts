@@ -6,8 +6,8 @@ import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import type { PnpmError } from '@pnpm/error'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import execa from 'execa'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { safeExeca as execa } from 'execa'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
@@ -740,7 +740,7 @@ test('`pnpm run -r` should avoid infinite recursion', async () => {
       },
     },
   ])
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**'],
   })
 

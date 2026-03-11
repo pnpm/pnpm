@@ -5,7 +5,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { loadJsonFileSync } from 'load-json-file'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import nock from 'nock'
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -38,7 +38,7 @@ test('saveCatalogName creates new workspace manifest with the new catalogs', asy
     '@pnpm.e2e/foo': 'catalog:',
   })
 
-  expect(readYamlFile('pnpm-workspace.yaml')).toHaveProperty(['catalog'], {
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toHaveProperty(['catalog'], {
     '@pnpm.e2e/foo': '^100.1.0',
   })
 
@@ -95,7 +95,7 @@ test('saveCatalogName works with different protocols', async () => {
     'is-positive': 'catalog:',
   })
 
-  expect(readYamlFile('pnpm-workspace.yaml')).toHaveProperty(['catalog'], {
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toHaveProperty(['catalog'], {
     '@pnpm.e2e/foo': '100.1.0',
     '@rus/greet': 'jsr:0.0.3',
     'is-positive': 'github:kevva/is-positive#97edff6',
@@ -171,8 +171,8 @@ test('saveCatalogName does not work with local dependencies', async () => {
 
   expect(fs.existsSync('pnpm-workspace.yaml')).toBe(false)
 
-  expect(readYamlFile('pnpm-lock.yaml')).not.toHaveProperty(['catalog'])
-  expect(readYamlFile('pnpm-lock.yaml')).not.toHaveProperty(['catalogs'])
+  expect(readYamlFileSync('pnpm-lock.yaml')).not.toHaveProperty(['catalog'])
+  expect(readYamlFileSync('pnpm-lock.yaml')).not.toHaveProperty(['catalogs'])
 })
 
 test('saveCatalogName with non-default name', async () => {
@@ -190,7 +190,7 @@ test('saveCatalogName with non-default name', async () => {
     '@pnpm.e2e/foo': 'catalog:my-catalog',
   })
 
-  expect(readYamlFile('pnpm-workspace.yaml')).toHaveProperty(['catalogs', 'my-catalog'], {
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toHaveProperty(['catalogs', 'my-catalog'], {
     '@pnpm.e2e/foo': '^100.1.0',
   })
 

@@ -13,9 +13,9 @@ import type { ProjectRootDir, ProjectId } from '@pnpm/types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeJsonFileSync } from 'write-json-file'
 import { testDefaults } from '../utils/index.js'
 
@@ -79,16 +79,16 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true }))
-  const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileFile = readYamlFileSync(WANTED_LOCKFILE)
   expect(lockfile.importers?.['project-1'].dependencies?.['external-1']).toBeUndefined()
   expect(lockfile.importers?.['project-2'].dependencies?.['external-2']).toBeUndefined()
 
   expect(fs.existsSync(path.resolve('project-1/node_modules/external-1/index.js'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('project-2/node_modules/external-2/index.js'))).toBeTruthy()
 
-  rimraf('node_modules')
-  rimraf('project-1/node_modules')
-  rimraf('project-2/node_modules')
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-2/node_modules')
 
   await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true, frozenLockfile: true }))
   expect(lockfile.importers?.['project-1'].dependencies?.['external-1']).toBeUndefined()
@@ -97,9 +97,9 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
   expect(fs.existsSync(path.resolve('project-1/node_modules/external-1/index.js'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('project-2/node_modules/external-2/index.js'))).toBeTruthy()
 
-  rimraf('node_modules')
-  rimraf('project-1/node_modules')
-  rimraf('project-2/node_modules')
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-2/node_modules')
 
   await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true, frozenLockfile: false, preferFrozenLockfile: false }))
   expect(lockfile.importers?.['project-1'].dependencies?.['external-1']).toBeUndefined()
@@ -137,7 +137,7 @@ test('local file using absolute path is correctly installed on repeat install', 
   }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true, excludeLinksFromLockfile: true }))
   {
     const m = project.requireModule('local-pkg')
@@ -213,7 +213,7 @@ test('update the lockfile when a new project is added to the workspace but do no
   })
   await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true, frozenLockfile: true }))
 
-  const lockfile: LockfileObject = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileObject = readYamlFileSync(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
   expect(Object.keys(lockfile.importers['project-1' as ProjectId].dependencies ?? {})).toStrictEqual(['is-positive'])
 })
@@ -287,7 +287,7 @@ test('links resolved from workspace protocol dependencies are not removed', asyn
     lockfileOnly: true,
   }))
 
-  const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileFile = readYamlFileSync(WANTED_LOCKFILE)
   expect(lockfile.importers?.['project-1'].dependencies?.['project-2']).toStrictEqual({
     specifier: 'workspace:*',
     version: 'link:../project-2',

@@ -1,5 +1,5 @@
 import path from 'path'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import type { Config } from '@pnpm/config'
 import { preparePackages } from '@pnpm/prepare'
 import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
@@ -37,7 +37,7 @@ test.skip('recursive update --latest should update deps with correct specs', asy
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['*'],
     packageConfigs: {
       'project-2': { saveExact: true },

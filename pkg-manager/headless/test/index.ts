@@ -21,7 +21,7 @@ import { getIntegrity } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { jest } from '@jest/globals'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 import { testDefaults } from './utils/testDefaults.js'
 
@@ -759,7 +759,7 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
   const cacheBuildDir = path.join(opts.storeDir, `diskusage@1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   fs.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
-  rimraf(path.join(lockfileDir, 'node_modules'))
+  rimrafSync(path.join(lockfileDir, 'node_modules'))
   await headlessInstall(opts)
 
   expect(fs.existsSync(path.join(lockfileDir, 'node_modules/.pnpm/node_modules/diskusage/build/new-file.txt'))).toBeTruthy()

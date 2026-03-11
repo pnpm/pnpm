@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import { jest } from '@jest/globals'
 
 const debug = jest.fn()
@@ -115,9 +115,9 @@ describe('fetch resolves symlinked files to their real locations', () => {
   const srcPath = f.find('simple-pkg')
   beforeAll(async () => {
     process.chdir(f.find('pkg-with-symlinked-dir-and-files'))
-    rimraf('index.js')
+    rimrafSync('index.js')
     fs.symlinkSync(indexJsPath, path.resolve('index.js'), 'file')
-    rimraf('src')
+    rimrafSync('src')
     fs.symlinkSync(srcPath, path.resolve('src'), 'dir')
   })
   test('fetch resolves symlinked files to their real locations', async () => {

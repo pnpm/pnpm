@@ -13,10 +13,10 @@ import type { ProjectRootDir } from '@pnpm/types'
 import { glob } from 'tinyglobby'
 import normalizePath from 'normalize-path'
 import { pick, equals } from 'ramda'
-import execa from 'safe-execa'
+import { safeExeca as execa } from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
-import makeEmptyDir from 'make-empty-dir'
-import renderHelp from 'render-help'
+import { makeEmptyDir } from 'make-empty-dir'
+import { renderHelp } from 'render-help'
 import { type WritePackageOptions, writePackage } from './writePackage.js'
 import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency.js'
@@ -174,11 +174,11 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
       },
       stripFinalNewline: false,
     })
-    stdout = result.stdout
-    stderr = result.stderr
+    stdout = result.stdout as string
+    stderr = result.stderr as string
   } catch (err: any) { // eslint-disable-line
-    stdout = err.stdout
-    stderr = err.stderr
+    stdout = err.stdout as string
+    stderr = err.stderr as string
   }
   // we cannot rely on exit code, because --no-index implies --exit-code
   // i.e. git diff will exit with 1 if there were differences

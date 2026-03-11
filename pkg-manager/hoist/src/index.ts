@@ -7,8 +7,8 @@ import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import type { DepPath, HoistedDependencies, ProjectId, DependenciesField } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import isSubdir from 'is-subdir'
-import resolveLinkTarget from 'resolve-link-target'
+import { isSubdir } from 'is-subdir'
+import { resolveLinkTarget } from 'resolve-link-target'
 import symlinkDir from 'symlink-dir'
 
 export interface DependenciesGraphNode<T extends string> {

@@ -3,8 +3,8 @@ import path from 'path'
 import PATH_NAME from 'path-name'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { sync as rimraf } from '@zkochan/rimraf'
-import execa from 'execa'
+import { rimrafSync } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
 import isWindows from 'is-windows'
 import {
   execPnpm,
@@ -52,7 +52,7 @@ test('pnpm import does not move modules created by npm', async () => {
 
 test('pass through to npm with all the args', async () => {
   prepare()
-  rimraf('package.json')
+  rimrafSync('package.json')
 
   const result = execPnpmSync(['dist-tag', 'ls', 'pnpm'])
 

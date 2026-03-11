@@ -1,7 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { dedupeDiffCheck } from '@pnpm/dedupe.check'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import { type InstallCommandOptions, rcOptionsTypes as installCommandRcOptionsTypes } from './install.js'
 import { installDeps } from './installDeps.js'
 import { omit } from 'ramda'

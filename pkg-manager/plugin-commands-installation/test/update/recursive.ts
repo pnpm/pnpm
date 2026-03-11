@@ -6,7 +6,7 @@ import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { addDistTag } from '@pnpm/registry-mock'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { DEFAULT_OPTS } from '../utils/index.js'
 
 test('recursive update', async () => {
@@ -109,7 +109,7 @@ test('recursive update prod dependencies only', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = readYamlFile<LockfileObject>('./pnpm-lock.yaml')
+  const lockfile = readYamlFileSync<LockfileObject>('./pnpm-lock.yaml')
   expect(
     Object.keys(lockfile.packages ?? {})
   ).toStrictEqual(
@@ -314,7 +314,7 @@ test('recursive update --latest foo should only update projects that have foo', 
     workspaceDir: process.cwd(),
   }, ['@zkochan/async-regex-replace', '@pnpm.e2e/foo'])
 
-  const lockfile = readYamlFile<LockfileObject>('./pnpm-lock.yaml')
+  const lockfile = readYamlFileSync<LockfileObject>('./pnpm-lock.yaml')
 
   expect(Object.keys(lockfile.packages ?? {}).sort()).toStrictEqual([
     '@zkochan/async-regex-replace@0.2.0',

@@ -1,7 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
 

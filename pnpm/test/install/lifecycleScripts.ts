@@ -4,7 +4,7 @@ import { prepare } from '@pnpm/prepare'
 import type { PackageManifest, ProjectManifest } from '@pnpm/types'
 import PATH from 'path-name'
 import { loadJsonFileSync } from 'load-json-file'
-import writeYamlFile from 'write-yaml-file'
+import { writeYamlFile } from 'write-yaml-file'
 import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 

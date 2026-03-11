@@ -6,7 +6,7 @@ import {
   mutateModules,
 } from '@pnpm/core'
 import type { ProjectRootDir } from '@pnpm/types'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
 
 test('installing to a custom modules directory', async () => {
@@ -20,7 +20,7 @@ test('installing to a custom modules directory', async () => {
 
   project.has('is-positive', 'pnpm_modules')
 
-  rimraf('pnpm_modules')
+  rimrafSync('pnpm_modules')
   project.hasNot('is-positive', 'pnpm_modules')
 
   await install({

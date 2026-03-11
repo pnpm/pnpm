@@ -11,11 +11,11 @@ import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
-import dirIsCaseSensitive from 'dir-is-case-sensitive'
-import { sync as readYamlFile } from 'read-yaml-file'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { dirIsCaseSensitive } from 'dir-is-case-sensitive'
+import { readYamlFileSync } from 'read-yaml-file'
+import { rimrafSync } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import crossSpawn from 'cross-spawn'
 import {
   execPnpm,
@@ -80,7 +80,7 @@ test('write to stderr when --use-stderr is used', async () => {
 test('install with lockfile being false in pnpm-workspace.yaml', async () => {
   const project = prepare()
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     lockfile: false,
   })
 
@@ -113,7 +113,7 @@ test('install with external lockfile directory', async () => {
 
   project.has('is-positive')
 
-  const lockfile = readYamlFile<LockfileObject>(path.resolve('..', WANTED_LOCKFILE))
+  const lockfile = readYamlFileSync<LockfileObject>(path.resolve('..', WANTED_LOCKFILE))
 
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project'])
 })
@@ -177,7 +177,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
-  if (await dirIsCaseSensitive.default(storeDir)) {
+  if (await dirIsCaseSensitive(storeDir)) {
     expect([...files].sort(lexCompare)).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
     expect([...files].map((f) => f.toLowerCase()).sort(lexCompare)).toStrictEqual(['foo.js', 'package.json'])
@@ -410,8 +410,8 @@ test('using a custom virtual-store-dir location', async () => {
   expect(fs.existsSync('node_modules/.pnpm/lock.yaml')).toBeTruthy()
   expect(fs.existsSync('.pnpm/node_modules/once/package.json')).toBeTruthy()
 
-  rimraf('node_modules')
-  rimraf('.pnpm')
+  rimrafSync('node_modules')
+  rimrafSync('.pnpm')
 
   await execPnpm(['install', '--virtual-store-dir=.pnpm', '--frozen-lockfile'])
 
@@ -442,7 +442,7 @@ test('installing in a CI environment', async () => {
 
   await execPnpm(['install', '--no-frozen-lockfile'], { env: { CI: 'true' } })
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   project.writePackageJson({
     dependencies: { rimraf: '2' },
   })
@@ -526,7 +526,7 @@ test('installation fails when the stored package name and version do not match t
     manifest: { ...cacheIntegrity.manifest, name: 'foo' },
   })
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await expect(
     execPnpm(['install', ...settings])
   ).rejects.toThrow()

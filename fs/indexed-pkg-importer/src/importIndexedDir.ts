@@ -3,11 +3,11 @@ import util from 'util'
 import fsx from 'fs-extra'
 import path from 'path'
 import { globalWarn, logger } from '@pnpm/logger'
-import { sync as rimraf } from '@zkochan/rimraf'
-import { sync as makeEmptyDir } from 'make-empty-dir'
+import { rimrafSync } from '@zkochan/rimraf'
+import { makeEmptyDirSync } from 'make-empty-dir'
 import sanitizeFilename from 'sanitize-filename'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import renameOverwrite from 'rename-overwrite'
+import { renameOverwriteSync } from 'rename-overwrite'
 import gfs from '@pnpm/graceful-fs'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
@@ -31,7 +31,7 @@ export function importIndexedDir (
     }
   } catch (err: unknown) {
     try {
-      rimraf(stage)
+      rimrafSync(stage)
     } catch {} // eslint-disable-line:no-empty
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
       const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
@@ -62,14 +62,14 @@ They were renamed.`)
     throw err
   }
   try {
-    renameOverwrite.sync(stage, newDir)
+    renameOverwriteSync(stage, newDir)
   } catch (renameErr: unknown) {
     // When enableGlobalVirtualStore is true, multiple worker threads may import
     // the same package to the same global store location concurrently. Their
     // rename operations can race. If the rename fails but the target already
     // has the expected content, another thread completed the import.
     try {
-      rimraf(stage)
+      rimrafSync(stage)
     } catch {} // eslint-disable-line:no-empty
     if (util.types.isNativeError(renameErr) && 'code' in renameErr && (renameErr.code === 'ENOTEMPTY' || renameErr.code === 'EEXIST')) {
       const firstFile = filenames.keys().next().value
@@ -112,7 +112,7 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
 }
 
 function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Map<string, string>): void {
-  makeEmptyDir(newDir, { recursive: true })
+  makeEmptyDirSync(newDir, { recursive: true })
   const allDirs = new Set<string>()
   for (const f of filenames.keys()) {
     const dir = path.dirname(f)

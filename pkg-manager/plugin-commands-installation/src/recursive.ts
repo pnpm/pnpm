@@ -45,7 +45,7 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/core'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
