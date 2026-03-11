@@ -43,12 +43,14 @@
     "@pnpm/headless": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:",
     "render-help": "catalog:",
+    "semver": "catalog:",
     "symlink-dir": "catalog:"
   },
   "peerDependencies": {
@@ -61,6 +63,7 @@
     "@pnpm/tools.plugin-commands-self-updater": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
     "cross-spawn": "catalog:",
     "nock": "catalog:"
   },

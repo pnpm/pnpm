@@ -1,5 +1,6 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type {
+  EngineDependency,
   Finder,
   Project,
   ProjectManifest,
@@ -14,10 +15,6 @@ import type { AuthInfo } from './parseAuthInfo.js'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
-export interface WantedPackageManager {
-  name: string
-  version?: string
-}
 
 export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
 
@@ -89,7 +86,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
     name: string
     version: string
   }
-  wantedPackageManager?: WantedPackageManager
+  wantedPackageManager?: EngineDependency
   preferOffline?: boolean
   sideEffectsCache?: boolean // for backward compatibility
   sideEffectsCacheReadonly?: boolean // for backward compatibility

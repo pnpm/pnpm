@@ -9,7 +9,10 @@ import { linkBins } from '@pnpm/link-bins'
 import { globalWarn } from '@pnpm/logger'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { whichVersionIsPinned } from '@pnpm/npm-resolver'
+import type { PinnedVersion } from '@pnpm/types'
 import { pick } from 'ramda'
+import semver from 'semver'
 import { renderHelp } from 'render-help'
 import { installPnpm } from './installPnpm.js'
 
@@ -24,6 +27,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
 }
 
 export const commandNames = ['self-update']
+
+export const skipPackageManagerCheck = true
 
 export function help (): string {
   return renderHelp({
@@ -68,18 +73,37 @@ export async function handler (
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
   }
 
-  if (opts.wantedPackageManager?.name === packageManager.name && opts.managePackageManagerVersions) {
+  if (opts.wantedPackageManager?.name === packageManager.name) {
     if (opts.wantedPackageManager?.version !== resolution.manifest.version) {
       const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
-      manifest.packageManager = `pnpm@${resolution.manifest.version}`
-      await writeProjectManifest(manifest)
-      const store = await createStoreController(opts)
-      await resolvePackageManagerIntegrities(resolution.manifest.version, {
-        registries: opts.registries,
-        rootDir: opts.rootProjectManifestDir,
-        storeController: store.ctrl,
-        storeDir: store.dir,
-      })
+      if (manifest.devEngines?.packageManager) {
+        if (Array.isArray(manifest.devEngines.packageManager)) {
+          const pnpmEntry = manifest.devEngines.packageManager.find((e) => e.name === 'pnpm')
+          if (pnpmEntry) {
+            const updated = updateVersionConstraint(pnpmEntry.version, resolution.manifest.version)
+            if (updated !== pnpmEntry.version) {
+              pnpmEntry.version = updated
+              await writeProjectManifest(manifest)
+            }
+          }
+        } else if (manifest.devEngines.packageManager.name === 'pnpm') {
+          const updated = updateVersionConstraint(manifest.devEngines.packageManager.version, resolution.manifest.version)
+          if (updated !== manifest.devEngines.packageManager.version) {
+            manifest.devEngines.packageManager.version = updated
+            await writeProjectManifest(manifest)
+          }
+        }
+        const store = await createStoreController(opts)
+        await resolvePackageManagerIntegrities(resolution.manifest.version, {
+          registries: opts.registries,
+          rootDir: opts.rootProjectManifestDir,
+          storeController: store.ctrl,
+          storeDir: store.dir,
+        })
+      } else {
+        manifest.packageManager = `pnpm@${resolution.manifest.version}`
+        await writeProjectManifest(manifest)
+      }
       return `The current project has been updated to use pnpm v${resolution.manifest.version}`
     } else {
       return `The current project is already set to use pnpm v${resolution.manifest.version}`
@@ -113,4 +137,35 @@ export async function handler (
     return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
   }
   return undefined
+}
+
+/**
+ * Returns the updated version constraint for devEngines.packageManager.
+ * - Exact versions and simple ranges (^, ~) are updated to the new version,
+ *   preserving the range operator.
+ * - Ranges that still satisfy the new version are returned unchanged
+ *   (the exact version will be pinned in the lockfile instead).
+ * - Complex ranges (>=x <y, etc.) that no longer satisfy the new version
+ *   fall back to a caret range with the new version (`^${newVersion}`).
+ */
+function updateVersionConstraint (current: string | undefined, newVersion: string): string | undefined {
+  if (current == null) return newVersion
+  // Range that still satisfies the new version — leave it as-is (lockfile handles pinning)
+  if (semver.satisfies(newVersion, current, { includePrerelease: true })) return current
+  // Determine the pinning style of the current specifier
+  const pinnedVersion = whichVersionIsPinned(current)
+  if (pinnedVersion == null) {
+    // Complex range that can't be updated while preserving its structure — fall back to ^version
+    return `^${newVersion}`
+  }
+  return versionSpecFromPinned(newVersion, pinnedVersion)
+}
+
+function versionSpecFromPinned (version: string, pinnedVersion: PinnedVersion): string {
+  switch (pinnedVersion) {
+  case 'none':
+  case 'major': return `^${version}`
+  case 'minor': return `~${version}`
+  case 'patch': return version
+  }
 }

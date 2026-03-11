@@ -2023,6 +2023,9 @@ importers:
       realpath-missing:
         specifier: 'catalog:'
         version: 2.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
       which:
         specifier: 'catalog:'
         version: '@pnpm/which@3.0.1'
@@ -2048,6 +2051,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
       '@types/which':
         specifier: 'catalog:'
         version: 2.0.2
@@ -8980,6 +8986,9 @@ importers:
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
+      '@pnpm/npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store
@@ -8998,6 +9007,9 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 2.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
       symlink-dir:
         specifier: 'catalog:'
         version: 7.1.0
@@ -9020,6 +9032,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
       cross-spawn:
         specifier: 'catalog:'
         version: 7.0.6

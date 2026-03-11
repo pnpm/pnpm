@@ -115,6 +115,7 @@ export {
   type RegistryPackageSpec,
   RegistryResponseError,
 }
+export { whichVersionIsPinned } from './whichVersionIsPinned.js'
 
 export interface ResolverFactoryOptions {
   cacheDir: string

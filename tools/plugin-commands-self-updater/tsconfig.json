@@ -58,6 +58,9 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
+      "path": "../../resolving/npm-resolver"
+    },
+    {
       "path": "../../store/package-store"
     },
     {

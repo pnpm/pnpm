@@ -60,6 +60,7 @@
     "ramda": "catalog:",
     "read-ini-file": "catalog:",
     "realpath-missing": "catalog:",
+    "semver": "catalog:",
     "which": "catalog:"
   },
   "peerDependencies": {
@@ -73,6 +74,7 @@
     "@types/is-windows": "catalog:",
     "@types/lodash.kebabcase": "catalog:",
     "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
     "@types/which": "catalog:",
     "symlink-dir": "catalog:",
     "write-yaml-file": "catalog:"
