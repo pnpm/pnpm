@@ -67,7 +67,7 @@ export const DEFAULT_OPTS = {
 }
 
 describe('plugin-commands-audit', () => {
-  const hasVulnerabilitiesDir = f.find('has-vulnerabilities')
+  const hasVulnerabilitiesDir = f.prepare('has-vulnerabilities')
   beforeAll(async () => {
     await install.handler({
       ...DEFAULT_OPTS,
