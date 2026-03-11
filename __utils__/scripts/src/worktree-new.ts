@@ -1,26 +1,38 @@
 import { execSync } from 'child_process'
 import path from 'path'
 
-const branch = process.argv[2]
-if (!branch) {
-  console.error('Usage: pnpm worktree:new <branch-name>')
+const arg = process.argv[2]
+if (!arg) {
+  console.error('Usage: pnpm worktree:new <branch-name|pr-number>')
   process.exit(1)
 }
 
 const repoRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim()
-const safeBranch = branch.replace(/\//g, '-')
-const worktreePath = path.join(path.dirname(repoRoot), safeBranch)
 
-// Git output goes to stderr so stdout carries only the path (enables: cd $(pnpm worktree:new <branch>))
+// Git output goes to stderr so stdout carries only the path (enables: cd $(pnpm worktree:new <arg>))
 const gitStdio = ['inherit', process.stderr, process.stderr] as const
 
-try {
-  // Checkout existing branch
-  execSync(`git worktree add "${worktreePath}" "${branch}"`, { stdio: gitStdio, cwd: repoRoot })
-} catch {
-  // Branch doesn't exist yet — create it from main
-  execSync(`git worktree add -b "${branch}" "${worktreePath}" main`, { stdio: gitStdio, cwd: repoRoot })
+let localBranch: string
+let worktreePath: string
+
+if (/^\d+$/.test(arg)) {
+  // PR number — fetch via GitHub's pull request ref (works for forks too)
+  localBranch = `pr-${arg}`
+  worktreePath = path.join(path.dirname(repoRoot), localBranch)
+  execSync(`git fetch origin "pull/${arg}/head:${localBranch}"`, { stdio: gitStdio, cwd: repoRoot })
+  execSync(`git worktree add "${worktreePath}" "${localBranch}"`, { stdio: gitStdio, cwd: repoRoot })
+} else {
+  // Branch name — slashes replaced with dashes for the directory name
+  localBranch = arg
+  worktreePath = path.join(path.dirname(repoRoot), arg.replace(/\//g, '-'))
+  try {
+    // Checkout existing branch
+    execSync(`git worktree add "${worktreePath}" "${localBranch}"`, { stdio: gitStdio, cwd: repoRoot })
+  } catch {
+    // Branch doesn't exist yet — create it from main
+    execSync(`git worktree add -b "${localBranch}" "${worktreePath}" main`, { stdio: gitStdio, cwd: repoRoot })
+  }
 }
 
-// Print path to stdout — allows: cd $(pnpm worktree:new <branch>)
+// Print path to stdout — allows: cd $(pnpm worktree:new <arg>)
 process.stdout.write(worktreePath + '\n')

@@ -74,18 +74,19 @@ wt fix/4444
 wt feat/my-feature
 
 # Create a worktree for a GitHub PR (works for forks too) and switch to it
-wt-pr 10000
+wt 10000
 ```
 
-`wt-pr` fetches the PR via `git fetch origin pull/<number>/head` and creates a local branch
-named `pr-<number>`, so it works for both same-repo branches and forks.
+Passing a number is interpreted as a PR number. The PR is fetched via
+`git fetch origin pull/<number>/head` into a local branch named `pr-<number>`, so it works
+for both same-repo branches and forks.
 
 If you only need the worktree path (e.g. to open it in an editor) without switching directories,
-run the underlying scripts directly:
+run the underlying script directly:
 
 ```shell
 pnpm worktree:new feat/my-feature
-pnpm worktree:pr 10000
+pnpm worktree:new 10000
 ```
 
 ## Running Tests
