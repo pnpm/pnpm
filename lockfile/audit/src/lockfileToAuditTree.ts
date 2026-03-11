@@ -1,4 +1,5 @@
 import path from 'path'
+import { parse as parseDepPath, refToRelative, removeSuffix } from '@pnpm/dependency-path'
 import type { EnvLockfile, LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
@@ -110,14 +111,21 @@ function envLockfileToAuditNodes (envLockfile: EnvLockfile): {
   packageManagerDeps: Record<string, AuditNode>
 } {
   const importer = envLockfile.importers['.']
+  const visited = new Set<string>()
   const configDeps: Record<string, AuditNode> = {}
   for (const [name, { version }] of Object.entries(importer.configDependencies)) {
-    configDeps[name] = envLockfileDepToAuditNode(envLockfile, name, version)
+    const depPath = refToRelative(version, name)
+    if (depPath) {
+      configDeps[name] = envLockfileDepToAuditNode(envLockfile, depPath, visited)
+    }
   }
   const packageManagerDeps: Record<string, AuditNode> = {}
   if (importer.packageManagerDependencies) {
     for (const [name, { version }] of Object.entries(importer.packageManagerDependencies)) {
-      packageManagerDeps[name] = envLockfileDepToAuditNode(envLockfile, name, version)
+      const depPath = refToRelative(version, name)
+      if (depPath) {
+        packageManagerDeps[name] = envLockfileDepToAuditNode(envLockfile, depPath, visited)
+      }
     }
   }
   return { configDeps, packageManagerDeps }
@@ -125,26 +133,37 @@ function envLockfileToAuditNodes (envLockfile: EnvLockfile): {
 
 function envLockfileDepToAuditNode (
   envLockfile: EnvLockfile,
-  name: string,
-  version: string
+  depPath: string,
+  visited: Set<string>
 ): AuditNode {
-  const pkgId = `${name}@${version}`
-  const pkgInfo = envLockfile.packages[pkgId]
-  const snapshot = envLockfile.snapshots[pkgId]
+  const depPathWithoutSuffix = removeSuffix(depPath)
+  const pkgInfo = envLockfile.packages[depPathWithoutSuffix] ?? envLockfile.packages[depPath]
+  const snapshot = envLockfile.snapshots[depPath] ?? envLockfile.snapshots[depPathWithoutSuffix]
+  const version = parseDepPath(depPathWithoutSuffix).version ?? depPath
   const node: AuditNode = {
     dev: false,
     integrity: (pkgInfo?.resolution as { integrity?: string } | undefined)?.integrity,
     version,
   }
+  if (visited.has(depPath)) {
+    return node
+  }
+  visited.add(depPath)
   const subdeps: Record<string, AuditNode> = {}
   if (snapshot?.dependencies) {
     for (const [depName, depVersion] of Object.entries(snapshot.dependencies)) {
-      subdeps[depName] = envLockfileDepToAuditNode(envLockfile, depName, depVersion)
+      const subDepPath = refToRelative(depVersion, depName)
+      if (subDepPath) {
+        subdeps[depName] = envLockfileDepToAuditNode(envLockfile, subDepPath, visited)
+      }
     }
   }
   if (snapshot?.optionalDependencies) {
     for (const [depName, depVersion] of Object.entries(snapshot.optionalDependencies)) {
-      subdeps[depName] = envLockfileDepToAuditNode(envLockfile, depName, depVersion)
+      const subDepPath = refToRelative(depVersion, depName)
+      if (subDepPath) {
+        subdeps[depName] = envLockfileDepToAuditNode(envLockfile, subDepPath, visited)
+      }
     }
   }
   if (Object.keys(subdeps).length > 0) {

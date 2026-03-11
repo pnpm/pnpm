@@ -3738,6 +3738,9 @@ importers:
 
   lockfile/audit:
     dependencies:
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
