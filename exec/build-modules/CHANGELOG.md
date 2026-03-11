@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 1007.0.10
+
+### Patch Changes
+
+- Updated dependencies [5163697]
+  - @pnpm/config@1004.10.4
+
 ## 1007.0.9
 
 ### Patch Changes

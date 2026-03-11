@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 1016.1.12
+
+### Patch Changes
+
+- @pnpm/build-modules@1007.0.10
+- @pnpm/plugin-commands-rebuild@1008.0.12
+- @pnpm/headless@1010.1.9
+- @pnpm/package-requester@1011.2.3
+
 ## 1016.1.11
 
 ### Patch Changes
