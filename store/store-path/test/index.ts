@@ -15,14 +15,14 @@ jest.unstable_mockModule('root-link-target', () => {
   }
 
   return {
-    default: async function (file: string): Promise<string> {
+    rootLinkTarget: async function (file: string): Promise<string> {
       return MAPPINGS[file]
     },
   }
 })
 jest.unstable_mockModule('path-temp', () => {
   return {
-    default: function (dir: string): string {
+    pathTemp: function (dir: string): string {
       return path.join(dir, 'tmp')
     },
   }
@@ -46,7 +46,7 @@ jest.unstable_mockModule('can-link', () => {
   ])
 
   return {
-    default: function (existingPath: string, newPath: string): boolean {
+    canLink: function (existingPath: string, newPath: string): boolean {
       return CAN_LINK.has(`${existingPath}=>${newPath}`)
     },
   }
