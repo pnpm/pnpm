@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import type { PackageFiles, PackageFileInfo, SideEffects, FilesMap } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import type { BundledManifest } from '@pnpm/types'
-import { rimraf, rimrafSync } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 
 export interface Integrity {
