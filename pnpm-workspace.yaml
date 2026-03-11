@@ -443,6 +443,7 @@ patchedDependencies:
   '@pnpm/npm-lifecycle': __patches__/@pnpm__npm-lifecycle.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
+  npm-package-arg@13.0.2: __patches__/npm-package-arg@13.0.2.patch
 
 patchesDir: __patches__
 

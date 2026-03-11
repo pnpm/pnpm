@@ -1,0 +1,13 @@
+diff --git a/lib/npa.js b/lib/npa.js
+index a25c0a5368941f5a2382aca4e6c450efb79547fb..e85bf2df28704c5c676eefd2e88583f54dd8e2bd 100644
+--- a/lib/npa.js
++++ b/lib/npa.js
+@@ -185,7 +185,7 @@ class Result {
+     this.name = name
+     this.scope = name[0] === '@' ? name.slice(0, name.indexOf('/')) : undefined
+     // scoped packages in couch must have slash url-encoded, e.g. @foo%2Fbar
+-    this.escapedName = name.replace('/', '%2f')
++    this.escapedName = name.replace('/', '%2F')
+     return this
+   }
+ 
