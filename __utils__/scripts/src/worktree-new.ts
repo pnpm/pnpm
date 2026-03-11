@@ -1,4 +1,5 @@
 import { execSync } from 'child_process'
+import fs from 'fs'
 import path from 'path'
 
 const arg = process.argv[2]
@@ -32,6 +33,14 @@ if (/^\d+$/.test(arg)) {
     // Branch doesn't exist yet — create it from main
     execSync(`git worktree add -b "${localBranch}" "${worktreePath}" main`, { stdio: gitStdio, cwd: repoRoot })
   }
+}
+
+// Symlink .claude from the new worktree to the main worktree so Claude Code
+// settings and approved commands are shared across all worktrees.
+const mainClaudeDir = fs.realpathSync(path.join(repoRoot, '.claude'))
+const newClaudeDir = path.join(worktreePath, '.claude')
+if (fs.existsSync(mainClaudeDir) && !fs.existsSync(newClaudeDir)) {
+  fs.symlinkSync(mainClaudeDir, newClaudeDir)
 }
 
 // Print path to stdout — allows: cd $(pnpm worktree:new <arg>)
