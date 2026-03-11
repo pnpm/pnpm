@@ -12,6 +12,7 @@ import {
   type ProjectRootDir,
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
+import { isCI } from 'ci-info'
 import enquirer from 'enquirer'
 import { equals } from 'ramda'
 import { checkCompatibility } from './checkCompatibility/index.js'
@@ -146,22 +147,30 @@ async function purgeModulesDirsOfImporters (
   },
   importers: ImporterToPurge[]
 ): Promise<void> {
-  if (opts.confirmModulesPurge ?? true) {
-    if (!process.stdin.isTTY) {
-      throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_NO_TTY', 'Aborted removal of modules directory due to no TTY', {
-        hint: 'If you are running pnpm in CI, set the CI environment variable to "true".',
+  const shouldConfirm = opts.confirmModulesPurge ?? true
+
+  if (shouldConfirm) {
+    const isInteractive = process.stdin.isTTY && !isCI
+
+    if (isInteractive) {
+      const confirmed = await enquirer.prompt<{ question: boolean }>({
+        type: 'confirm',
+        name: 'question',
+        message: importers.length === 1
+          ? `The modules directory at "${importers[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
+          : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
+        initial: true,
       })
-    }
-    const confirmed = await enquirer.prompt<{ question: boolean }>({
-      type: 'confirm',
-      name: 'question',
-      message: importers.length === 1
-        ? `The modules directory at "${importers[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
-        : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
-      initial: true,
-    })
-    if (!confirmed.question) {
-      throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
+      if (!confirmed.question) {
+        throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
+      }
+    } else {
+      for (const importer of importers) {
+        logger.info({
+          message: `Non-interactive terminal detected. Automatically proceeding with modules directory purge for "${importer.modulesDir}".`,
+          prefix: importer.rootDir,
+        })
+      }
     }
   }
   await Promise.all(importers.map(async (importer) => {
