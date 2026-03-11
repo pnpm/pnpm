@@ -1,4 +1,4 @@
-import { execSync } from 'child_process'
+import { execSync, type StdioOptions } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
@@ -11,7 +11,7 @@ if (!arg) {
 const repoRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim()
 
 // Git output goes to stderr so stdout carries only the path (enables: cd $(pnpm worktree:new <arg>))
-const gitStdio = ['inherit', process.stderr, process.stderr] as const
+const gitStdio: StdioOptions = ['inherit', process.stderr, process.stderr]
 
 let localBranch: string
 let worktreePath: string
@@ -42,7 +42,8 @@ const sharedClaudeDir = path.resolve(repoRoot, gitCommonDir, '.claude')
 const newClaudeDir = path.join(worktreePath, '.claude')
 fs.mkdirSync(sharedClaudeDir, { recursive: true })
 if (!fs.existsSync(newClaudeDir)) {
-  fs.symlinkSync(sharedClaudeDir, newClaudeDir)
+  // 'junction' works without elevated privileges on Windows; ignored on Unix
+  fs.symlinkSync(sharedClaudeDir, newClaudeDir, 'junction')
 }
 
 // Print path to stdout — allows: cd $(pnpm worktree:new <arg>)
