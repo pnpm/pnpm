@@ -44,7 +44,15 @@ function copyAndRename (src: string, dest: string): void {
     // Use lstatSync to avoid following symlinks - this prevents ENOENT errors
     // when symlink targets haven't been copied yet (e.g., when copying directories
     // in alphabetical order where a symlink points to a directory that comes later)
-    const stats = fs.lstatSync(srcPath)
+    let stats: fs.Stats
+    try {
+      stats = fs.lstatSync(srcPath)
+    } catch (err: unknown) {
+      // The entry may disappear between readdirSync and lstatSync (e.g. temp
+      // files created by antivirus or another process on Windows CI)
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue
+      throw err
+    }
 
     if (stats.isSymbolicLink()) {
       // Recreate symlinks to preserve the pnpm node_modules structure
