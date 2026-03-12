@@ -126,7 +126,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       }
     }
     config = await installConfigDepsAndLoadHooks(config) as typeof config
-    if (isDlxOrCreateCommand) {
+    if (isDlxOrCreateCommand || cmd === 'sbom') {
       config.useStderr = true
     }
     config.argv = argv
