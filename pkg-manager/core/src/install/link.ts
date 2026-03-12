@@ -46,6 +46,7 @@ export interface LinkPackagesOptions {
   disableRelinkLocalDirDeps?: boolean
   force: boolean
   depsStateCache: DepsStateCache
+  enableGlobalVirtualStore: boolean
   extraNodePaths: string[]
   hoistedDependencies: HoistedDependencies
   hoistedModulesDir: string
@@ -146,6 +147,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     {
       allowBuild: opts.allowBuild,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       force: opts.force,
       depsStateCache: opts.depsStateCache,
       ignoreScripts: opts.ignoreScripts,
@@ -317,6 +319,7 @@ interface LinkNewPackagesOptions {
   allowBuild?: AllowBuild
   depsStateCache: DepsStateCache
   disableRelinkLocalDirDeps?: boolean
+  enableGlobalVirtualStore: boolean
   force: boolean
   optional: boolean
   ignoreScripts: boolean
@@ -397,6 +400,7 @@ async function linkNewPackages (
       depGraph,
       depsStateCache: opts.depsStateCache,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       force: opts.force,
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
@@ -451,6 +455,7 @@ async function linkAllPkgs (
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
+    enableGlobalVirtualStore: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
@@ -475,6 +480,7 @@ async function linkAllPkgs (
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         filesResponse: files,
         force: opts.force,
+        safeToSkip: opts.enableGlobalVirtualStore,
         sideEffectsCacheKey,
         requiresBuild: depNode.patch != null || depNode.requiresBuild,
       })
