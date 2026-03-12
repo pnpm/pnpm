@@ -112,7 +112,6 @@ jobs:
         fi
     - name: Run tests (${{ steps.test-scope.outputs.scope }})
       timeout-minutes: 70
-      run: cd pnpm && npx jest test/dlx.ts --verbose -t "parallel dlx"
+      run: pnpm run ${{ steps.test-scope.outputs.script }}
       env:
-        NODE_OPTIONS: ${{ env.NODE_OPTIONS }} --experimental-vm-modules
         PNPM_WORKERS: 3
