@@ -5,6 +5,8 @@
 
 Handle OTP and webauth authentication flows when publishing packages [#10591](https://github.com/pnpm/pnpm/issues/10591).
 
+Sends the `npm-auth-type: web` header during publish, matching npm CLI behavior since npm 9. This enables the registry to return a web-based authentication challenge (passkey/security key) instead of only the classic OTP prompt.
+
 When `libnpmpublish` throws an `EOTP` error (requiring two-factor authentication), pnpm now properly handles all three flows:
 - **Web auth (authUrl/doneUrl)**: prints the authentication URL with a scannable QR code and polls the `doneUrl` until the authentication is complete, respecting the `Retry-After` header
 - **npm-notice flow**: when the error contains `npm-notice` headers with a URL (e.g. for security key authentication), displays the notice message and a QR code for the URL, then prompts for OTP

@@ -259,8 +259,10 @@ describe('publishWithOtpHandling', () => {
         },
       })
       await publishWithOtpHandling({ context, manifest, publishOptions, tarballData })
-      // First setTimeout is the default 1s poll interval, second is the 5s Retry-After
-      expect(setTimeoutDelays).toContain(5000)
+      // First setTimeout is the default 1s poll interval,
+      // second is the additional delay (5s Retry-After minus the 1s already waited),
+      // third is the default 1s poll interval for the next iteration.
+      expect(setTimeoutDelays).toStrictEqual([1000, 4000, 1000])
     })
 
     it('throws OtpWebAuthTimeoutError after 5 minutes', async () => {

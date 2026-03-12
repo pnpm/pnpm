@@ -93,12 +93,14 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
 
   const publishOptions: PublishOptions = {
     access,
+    authType: 'web',
     defaultTag,
     fetchRetries,
     fetchRetryFactor,
     fetchRetryMaxtimeout,
     fetchRetryMintimeout,
     isFromCI,
+    npmCommand: 'publish',
     otp,
     timeout,
     provenance,
@@ -111,7 +113,7 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     token: auth && extractToken(auth),
     username: auth?.authUserPass?.username,
     password: auth?.authUserPass?.password,
-  }
+  } as PublishOptions
 
   // This is necessary because getNetworkConfigs initialized them as { cert: '', key: '' }
   // which may be a problem.

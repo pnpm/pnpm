@@ -231,13 +231,15 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
       }
     } else if (response.status === 202) {
       // Registry is still waiting for authentication.
-      // Respect Retry-After header if present.
+      // Respect Retry-After header if present by waiting the additional time
+      // beyond the default 1s poll interval already elapsed above.
       const retryAfter = response.headers.get('retry-after')
       if (retryAfter) {
         const retryMs = Number(retryAfter) * 1000
-        if (retryMs > 0) {
+        const additionalMs = retryMs - 1000
+        if (additionalMs > 0) {
           // eslint-disable-next-line no-await-in-loop
-          await new Promise<void>(resolve => context.setTimeout(resolve, retryMs))
+          await new Promise<void>(resolve => context.setTimeout(resolve, additionalMs))
         }
       }
     }
