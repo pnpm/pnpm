@@ -64,25 +64,21 @@ They were renamed.`)
   }
   if (opts.requiresOverwrite === false) {
     // Content-addressable target (e.g. global virtual store): if the target
-    // already exists and was recently created, it has the correct content
-    // (a concurrent process just wrote it). Use a plain rename and skip on
-    // ENOTEMPTY instead of doing a swap-rename that temporarily removes the
-    // target directory — which breaks junctions read by other processes.
-    // If the target is older than 1 minute, it may be stale from a previous
-    // failed run, so fall through to renameOverwriteSync to replace it.
+    // already exists and has all expected files, it has the correct content.
+    // Skip instead of doing a swap-rename that temporarily removes the target
+    // directory — which breaks junctions read by other processes.
     try {
       fs.renameSync(stage, newDir)
     } catch (err: unknown) {
       if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST')) {
-        try {
-          const stats = fs.statSync(newDir)
-          if (Date.now() - stats.mtimeMs < 60_000) {
+        if (allFilesExist(newDir, filenames)) {
+          try {
             rimrafSync(stage)
-            return
-          }
-        } catch {} // eslint-disable-line:no-empty
+          } catch {} // eslint-disable-line:no-empty
+          return
+        }
       }
-      // Target is old or stat failed — fall through to renameOverwriteSync
+      // Files missing or other error — fall through to renameOverwriteSync
     }
   }
   try {
@@ -93,6 +89,15 @@ They were renamed.`)
     } catch {} // eslint-disable-line:no-empty
     throw renameErr
   }
+}
+
+function allFilesExist (dir: string, filenames: Map<string, string>): boolean {
+  for (const f of filenames.keys()) {
+    if (!fs.existsSync(path.join(dir, f))) {
+      return false
+    }
+  }
+  return true
 }
 
 interface SanitizeFilenamesResult {
