@@ -142,69 +142,74 @@ export async function handler (
     allowBuild: opts.allowBuild,
     supportedArchitectures: opts.supportedArchitectures,
   })
-  let effectiveCacheDir = cachedDir
   if (!cacheExists) {
     fs.mkdirSync(cachedDir, { recursive: true })
+    await add.handler({
+      ...opts,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
+      bin: path.join(cachedDir, 'node_modules/.bin'),
+      dir: cachedDir,
+      lockfileDir: cachedDir,
+      allowBuilds: Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true])),
+      rootProjectManifestDir: cachedDir,
+      saveProd: true, // dlx will be looking for the package in the "dependencies" field!
+      saveDev: false,
+      saveOptional: false,
+      savePeer: false,
+      symlink: true,
+      workspaceDir: undefined,
+    }, resolvedPkgs)
     try {
-      await add.handler({
-        ...opts,
-        enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
-        bin: path.join(cachedDir, 'node_modules/.bin'),
-        dir: cachedDir,
-        lockfileDir: cachedDir,
-        allowBuilds: Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true])),
-        rootProjectManifestDir: cachedDir,
-        saveProd: true, // dlx will be looking for the package in the "dependencies" field!
-        saveDev: false,
-        saveOptional: false,
-        savePeer: false,
-        symlink: true,
-        workspaceDir: undefined,
-      }, resolvedPkgs)
-    } catch (err) {
-      // When multiple dlx processes install the same package concurrently with
-      // enableGlobalVirtualStore, the install can fail (e.g. link-bins fails
-      // with ENOENT because a GVS entry is being written by another process).
-      // Check if a concurrent process has already completed and created the
-      // cache symlink — if so, use that instead of failing.
-      const concurrentCacheDir = getValidCacheDir(cacheLink, opts.dlxCacheMaxAge)
-      if (concurrentCacheDir == null) {
-        throw err
-      }
-      effectiveCacheDir = concurrentCacheDir
-    }
-    if (effectiveCacheDir === cachedDir) {
-      try {
-        await symlinkDir(cachedDir, cacheLink, { overwrite: true })
-      } catch (error) {
-        // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
-        // Similarly, EEXIST means that another dlx process has created the cache link before this process.
-        // The link created by the other process is just as up-to-date as the link the current process was attempting
-        // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
-        // the other link stay. The current process should yield.
-        if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
-          throw error
-        }
+      await symlinkDir(cachedDir, cacheLink, { overwrite: true })
+    } catch (error) {
+      // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
+      // Similarly, EEXIST means that another dlx process has created the cache link before this process.
+      // The link created by the other process is just as up-to-date as the link the current process was attempting
+      // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
+      // the other link stay. The current process should yield.
+      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
+        throw error
       }
     }
   }
-  const binsDir = path.join(effectiveCacheDir, 'node_modules/.bin')
+  return runDlx(cachedDir, { command, args, opts, cacheLink })
+}
+
+async function runDlx (
+  cachedDir: string,
+  ctx: {
+    command: string
+    args: string[]
+    opts: DlxCommandOptions
+    cacheLink: string
+  }
+): Promise<{ exitCode: number, output?: string }> {
+  const binsDir = path.join(cachedDir, 'node_modules/.bin')
   const env = makeEnv({
-    userAgent: opts.userAgent,
-    prependPaths: [binsDir, ...opts.extraBinPaths],
+    userAgent: ctx.opts.userAgent,
+    prependPaths: [binsDir, ...ctx.opts.extraBinPaths],
   })
-  const binName = opts.package
-    ? command
-    : await getBinName(effectiveCacheDir, opts)
+  const binName = ctx.opts.package
+    ? ctx.command
+    : await getBinName(cachedDir, ctx.opts)
   try {
-    await execa(binName, args, {
+    await execa(binName, ctx.args, {
       cwd: process.cwd(),
       env,
       stdio: 'inherit',
-      shell: opts.shellMode ?? false,
+      shell: ctx.opts.shellMode ?? false,
     })
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'exitCode' in err && err.exitCode != null) {
+      // When concurrent dlx processes install the same package with
+      // enableGlobalVirtualStore, the global store entries may be written
+      // concurrently, leaving the current installation in a broken state
+      // (e.g. missing modules). If another process has already completed
+      // and updated the cache symlink, retry from that cache.
+      const concurrentCacheDir = getValidCacheDir(ctx.cacheLink, ctx.opts.dlxCacheMaxAge)
+      if (concurrentCacheDir != null && concurrentCacheDir !== cachedDir) {
+        return runDlx(concurrentCacheDir, ctx)
+      }
       return {
         exitCode: err.exitCode as number,
       }
