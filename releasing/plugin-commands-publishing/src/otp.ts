@@ -16,10 +16,12 @@ export interface OtpWebAuthFetchOptions {
   timeout?: number
 }
 
+export interface OtpWebAuthFetchResponseHeaders {
+  get: (name: 'retry-after') => string | null
+}
+
 export interface OtpWebAuthFetchResponse {
-  readonly headers: {
-    get: (name: string) => string | null
-  }
+  readonly headers: OtpWebAuthFetchResponseHeaders
   readonly json: (this: this) => Promise<unknown>
   readonly ok: boolean
   readonly status: number
