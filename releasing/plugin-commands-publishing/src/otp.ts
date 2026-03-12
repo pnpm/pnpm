@@ -204,12 +204,14 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
   const startTime = context.Date.now()
   const timeout = 5 * 60 * 1000 // 5 minutes
 
+  const pollIntervalMs = 1000
+
   while (true) {
     if (context.Date.now() - startTime > timeout) {
       throw new OtpWebAuthTimeoutError(context.Date.now(), startTime, timeout)
     }
     // eslint-disable-next-line no-await-in-loop
-    await new Promise<void>(resolve => context.setTimeout(resolve, 1000))
+    await new Promise<void>(resolve => context.setTimeout(resolve, pollIntervalMs))
     let response: OtpWebAuthFetchResponse
     try {
       // eslint-disable-next-line no-await-in-loop
@@ -232,18 +234,17 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
     } else if (response.status === 202) {
       // Registry is still waiting for authentication.
       // Respect Retry-After header if present by waiting the additional time
-      // beyond the default 1s poll interval already elapsed above.
-      const retryAfter = response.headers.get('retry-after')
-      if (retryAfter) {
-        const retryMs = Number(retryAfter) * 1000
-        const additionalMs = retryMs - 1000
+      // beyond the default poll interval already elapsed above.
+      const retryAfterSeconds = Number(response.headers.get('retry-after'))
+      if (Number.isFinite(retryAfterSeconds)) {
+        const additionalMs = retryAfterSeconds * 1000 - pollIntervalMs
         if (additionalMs > 0) {
           // eslint-disable-next-line no-await-in-loop
           await new Promise<void>(resolve => context.setTimeout(resolve, additionalMs))
         }
       }
     }
-    // Any other status: retry after the default interval (loop continues with 1s wait)
+    // Any other status: retry after the default interval (loop continues with poll wait)
   }
 }
 
