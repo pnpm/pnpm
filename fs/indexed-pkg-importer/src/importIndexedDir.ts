@@ -71,7 +71,7 @@ They were renamed.`)
       fs.renameSync(stage, newDir)
       return
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST')) {
+      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST' || err.code === 'EPERM')) {
         if (allFilesMatch(newDir, filenames)) {
           try {
             rimrafSync(stage)
