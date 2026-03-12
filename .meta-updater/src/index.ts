@@ -269,6 +269,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-script-runners':
   case '@pnpm/plugin-commands-store':
   case '@pnpm/plugin-commands-deploy':
+  case '@pnpm/plugin-commands-audit':
   case CLI_PKG_NAME:
   case '@pnpm/core': {
     preset = '@pnpm/jest-config/with-registry'
