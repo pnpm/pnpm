@@ -202,7 +202,7 @@ describe('publishWithOtpHandling', () => {
             return {
               headers: { get: () => '1' },
               json: async () => ({}),
-              ok: false,
+              ok: true,
               status: 202,
             }
           }
@@ -246,7 +246,7 @@ describe('publishWithOtpHandling', () => {
             return {
               headers: { get: (name: string) => name === 'retry-after' ? '5' : null },
               json: async () => ({}),
-              ok: false,
+              ok: true,
               status: 202,
             }
           }
@@ -285,7 +285,7 @@ describe('publishWithOtpHandling', () => {
         fetch: async (): Promise<OtpWebAuthFetchResponse> => ({
           headers: { get: () => null },
           json: async () => ({}),
-          ok: false,
+          ok: true,
           status: 202,
         }),
       })
