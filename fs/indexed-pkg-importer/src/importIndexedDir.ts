@@ -62,6 +62,20 @@ They were renamed.`)
     }
     throw err
   }
+  if (opts.safeToSkip && process.platform === 'win32') {
+    // On Windows, renameOverwriteSync is destructive — it rimrafs the target
+    // directory when rename fails, which breaks concurrent processes that are
+    // reading from it. Use a simple rename instead: if it fails, the target
+    // was already placed by another process.
+    try {
+      fs.renameSync(stage, newDir)
+      return
+    } catch {} // eslint-disable-line:no-empty
+    try {
+      rimrafSync(stage)
+    } catch {} // eslint-disable-line:no-empty
+    return
+  }
   try {
     renameOverwriteSync(stage, newDir)
   } catch (renameErr: unknown) {
@@ -72,7 +86,7 @@ They were renamed.`)
     // dlx calls sharing a global virtual store), the rename can race. If the target
     // already has the expected content, another process completed the import.
     const errCode = util.types.isNativeError(renameErr) && 'code' in renameErr ? renameErr.code : undefined
-    if (errCode === 'ENOTEMPTY' || errCode === 'EEXIST' || errCode === 'EPERM') {
+    if (errCode === 'ENOTEMPTY' || errCode === 'EEXIST') {
       const firstFile = filenames.keys().next().value
       if (firstFile) {
         const targetFile = path.join(newDir, firstFile)
@@ -86,7 +100,9 @@ They were renamed.`)
         }
       }
     }
-    throw renameErr
+    // TEMPORARY: embed safeToSkip value in error for diagnostics
+    const origMsg = util.types.isNativeError(renameErr) ? renameErr.message : String(renameErr)
+    throw new Error(`[importIndexedDir] safeToSkip=${opts.safeToSkip}, platform=${process.platform}. ${origMsg}`)
   }
 }
 
