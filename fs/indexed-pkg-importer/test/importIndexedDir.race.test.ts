@@ -17,7 +17,7 @@ beforeEach(() => {
   renameOverwriteSyncMock.mockReset()
 })
 
-test('safeToSkip skips when target already exists (content-addressed)', () => {
+test('safeToSkip skips when target has matching content (hardlink)', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'package.json')
   const newDir = path.join(tmp, 'dest')
@@ -32,14 +32,55 @@ test('safeToSkip skips when target already exists (content-addressed)', () => {
 
   const filenames = new Map([['package.json', srcFile]])
 
-  // Should skip — target exists, path is content-addressed so content is correct
+  // Should skip — target has matching content
   importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'package.json'))).toBe(true)
   expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
 })
 
-test('safeToSkip skips even when target has different content (trusts content-addressed hash)', () => {
+test('safeToSkip skips when target has matching content (copy)', () => {
+  const tmp = tempDir()
+  const srcFile = path.join(tmp, 'src', 'index.js')
+  const newDir = path.join(tmp, 'dest')
+
+  // Create source file in CAS
+  fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
+  fs.writeFileSync(srcFile, 'module.exports = true')
+
+  // Pre-create target with a copy of the same content (not a hardlink)
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'index.js'), 'module.exports = true')
+
+  const filenames = new Map([['index.js', srcFile]])
+
+  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
+
+  expect(fs.existsSync(path.join(newDir, 'index.js'))).toBe(true)
+  expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
+})
+
+test('safeToSkip falls back to renameOverwriteSync when files are missing', () => {
+  const tmp = tempDir()
+  const srcFile = path.join(tmp, 'src', 'index.js')
+  const newDir = path.join(tmp, 'dest')
+
+  // Create source file
+  fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
+  fs.writeFileSync(srcFile, 'content')
+
+  // Target exists but does NOT have the expected file (incomplete)
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'other-file.txt'), 'other')
+
+  const filenames = new Map([['index.js', srcFile]])
+
+  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
+
+  expect(renameOverwriteSyncMock).toHaveBeenCalled()
+})
+
+test('safeToSkip falls back to renameOverwriteSync when content differs', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'index.js')
   const newDir = path.join(tmp, 'dest')
@@ -48,8 +89,7 @@ test('safeToSkip skips even when target has different content (trusts content-ad
   fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
   fs.writeFileSync(srcFile, 'new content')
 
-  // Target exists with different content — but in a content-addressed store,
-  // the hash guarantees correctness, so we trust the existing dir.
+  // Target exists with different content
   fs.mkdirSync(newDir, { recursive: true })
   fs.writeFileSync(path.join(newDir, 'index.js'), 'old content')
 
@@ -57,8 +97,7 @@ test('safeToSkip skips even when target has different content (trusts content-ad
 
   importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
 
-  // Should NOT call renameOverwriteSync — never do destructive swap in GVS mode
-  expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
+  expect(renameOverwriteSyncMock).toHaveBeenCalled()
 })
 
 test('safeToSkip creates dir when target does not exist', () => {

@@ -2,7 +2,7 @@ import fs from 'fs'
 import util from 'util'
 import fsx from 'fs-extra'
 import path from 'path'
-import { globalWarn, logger } from '@pnpm/logger'
+import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import { rimrafSync } from '@zkochan/rimraf'
 import { makeEmptyDirSync } from 'make-empty-dir'
 import sanitizeFilename from 'sanitize-filename'
@@ -64,22 +64,22 @@ They were renamed.`)
   }
   if (opts.safeToSkip) {
     // Content-addressable target (e.g. global virtual store): if the target
-    // already exists, it has the correct content (same hash = same content).
-    // Never do a swap-rename that temporarily removes the target directory,
-    // as that breaks junctions read by other concurrent processes.
+    // already exists and has all expected files, it has the correct content.
+    // Skip instead of doing a swap-rename that temporarily removes the target
+    // directory — which breaks junctions read by other processes.
     try {
       fs.renameSync(stage, newDir)
       return
     } catch (err: unknown) {
       if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST' || err.code === 'EPERM')) {
-        // Target already exists — since the path is content-addressed,
-        // the existing directory is correct. Clean up staging and skip.
-        try {
-          rimrafSync(stage)
-        } catch {} // eslint-disable-line:no-empty
-        return
+        if (allFilesMatch(newDir, filenames)) {
+          try {
+            rimrafSync(stage)
+          } catch {} // eslint-disable-line:no-empty
+          return
+        }
       }
-      // Unexpected error (not a "target exists" error) — fall through to renameOverwriteSync
+      // Files missing or other error — fall through to renameOverwriteSync
     }
   }
   try {
@@ -90,6 +90,31 @@ They were renamed.`)
     } catch {} // eslint-disable-line:no-empty
     throw renameErr
   }
+}
+
+function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
+  for (const [f, src] of filenames) {
+    const target = path.join(dir, f)
+    try {
+      const targetStat = gfs.statSync(target)
+      const srcStat = gfs.statSync(src)
+      // Fast path: hardlinks share the same inode
+      if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) continue
+      // Copy path: compare size first, then content
+      if (targetStat.size !== srcStat.size) {
+        globalInfo(`Re-importing "${dir}" because file "${f}" has a different size`)
+        return false
+      }
+      if (!gfs.readFileSync(target).equals(gfs.readFileSync(src))) {
+        globalInfo(`Re-importing "${dir}" because file "${f}" has different content`)
+        return false
+      }
+    } catch {
+      globalInfo(`Re-importing "${dir}" because file "${f}" is missing or unreadable`)
+      return false
+    }
+  }
+  return true
 }
 
 interface SanitizeFilenamesResult {
