@@ -220,18 +220,7 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
       continue
     }
 
-    if (response.status === 200) {
-      let body: { token?: string }
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        body = await response.json() as { token?: string }
-      } catch {
-        continue
-      }
-      if (body.token) {
-        return body.token
-      }
-    } else if (response.status === 202) {
+    if (response.status === 202) {
       // Registry is still waiting for authentication.
       // Respect Retry-After header if present by waiting the additional time
       // beyond the default poll interval already elapsed above.
@@ -243,8 +232,20 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
           await new Promise<void>(resolve => context.setTimeout(resolve, additionalMs))
         }
       }
+    } else if (response.ok) {
+      // Treat any other 2xx the same as 200: try to extract a token from the body.
+      let body: { token?: string }
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        body = await response.json() as { token?: string }
+      } catch {
+        continue
+      }
+      if (body.token) {
+        return body.token
+      }
     }
-    // Any other status: retry after the default interval (loop continues with poll wait)
+    // Non-ok status (4xx, 5xx, etc.): retry after the default interval
   }
 }
 
