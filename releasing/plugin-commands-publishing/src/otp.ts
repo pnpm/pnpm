@@ -188,22 +188,21 @@ export async function publishWithOtpHandling ({
  * If the OTP error contains npm-notice headers with URLs, display the
  * notice messages and a QR code for each URL.
  */
-async function displayNpmNotice (error: OtpError, context: OtpContext): Promise<void> {
+function displayNpmNotice (error: OtpError, context: OtpContext): void {
   const notices = error.headers?.['npm-notice']
   if (!notices?.length) return
 
   for (const notice of notices) {
     context.globalInfo(notice)
     for (const url of extractUrlsFromString(notice)) {
-      // eslint-disable-next-line no-await-in-loop
-      const qrCode = await generateQrCode(url)
+      const qrCode = generateQrCode(url)
       context.globalInfo(`\n${qrCode}\n`)
     }
   }
 }
 
 async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext, fetchOptions: OtpWebAuthFetchOptions): Promise<string> {
-  const qrCode = await generateQrCode(authUrl)
+  const qrCode = generateQrCode(authUrl)
   context.globalInfo(`Authenticate your account at:\n${authUrl}\n\n${qrCode}`)
   const startTime = context.Date.now()
   const timeout = 5 * 60 * 1000 // 5 minutes
@@ -256,10 +255,13 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
   }
 }
 
-function generateQrCode (url: string): Promise<string> {
-  return new Promise(resolve => {
-    qrcodeTerminal.generate(url, { small: true }, resolve)
+function generateQrCode (text: string): string {
+  let qrCode: string | undefined
+  qrcodeTerminal.generate(text, { small: true }, (code: string) => {
+    qrCode = code
   })
+  if (qrCode != null) return qrCode
+  throw new Error('we were expecting qrcode-terminal to be fully synchronous, but it fails to execute the callback')
 }
 
 export class OtpWebAuthTimeoutError extends PnpmError {
