@@ -232,8 +232,11 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
           await new Promise<void>(resolve => context.setTimeout(resolve, additionalMs))
         }
       }
-    } else if (response.ok) {
-      // Treat any other 2xx the same as 200: try to extract a token from the body.
+      continue
+    }
+
+    if (response.ok) {
+      // Treat any 2xx (other than 202) the same: try to extract a token from the body.
       let body: { token?: string }
       try {
         // eslint-disable-next-line no-await-in-loop
