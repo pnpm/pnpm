@@ -4,7 +4,7 @@ import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { whyForPackages } from '@pnpm/list'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import { computeInclude, resolveFinders, determineReportAs, SHARED_CLI_HELP_OPTIONS, BASE_RC_OPTION_KEYS } from './common.js'
 import { type ListCommandOptions, EXCLUDE_PEERS_HELP } from './list.js'
 

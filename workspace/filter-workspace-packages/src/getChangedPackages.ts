@@ -3,7 +3,7 @@ import path from 'path'
 import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import * as micromatch from 'micromatch'
-import execa from 'execa'
+import { safeExeca as execa } from 'execa'
 import { findUp } from 'find-up'
 import type { ProjectRootDir } from '@pnpm/types'
 
@@ -68,7 +68,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
         '--',
         workingDir,
       ], { cwd: workingDir })
-    ).stdout
+    ).stdout as string
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
     throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${'stderr' in err ? err.stderr as string : ''}`)

@@ -4,10 +4,10 @@ import { prepare, preparePackages, prepareEmpty } from '@pnpm/prepare'
 import { isExecutable, assertProject } from '@pnpm/assert-project'
 import { fixtures } from '@pnpm/test-fixtures'
 import PATH from 'path-name'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writePackageSync } from 'write-package'
 import { jest } from '@jest/globals'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const original = await import('@pnpm/logger')
@@ -102,7 +102,7 @@ test('relative link', async () => {
 
   project.isExecutable('.bin/hello-world-js-bin')
 
-  const manifest = readYamlFile<{ overrides?: Record<string, string> }>('pnpm-workspace.yaml')
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>('pnpm-workspace.yaml')
   expect(manifest.overrides?.['@pnpm.e2e/hello-world-js-bin']).toBe('link:../hello-world-js-bin')
 
   const wantedLockfile = project.readLockfile()
@@ -275,7 +275,7 @@ test('relative link from workspace package', async () => {
   }
   writePackageSync('workspace/packages/project', rootProjectManifest)
   const workspaceDir = path.resolve('workspace')
-  writeYamlFile(path.join(workspaceDir, 'pnpm-workspace.yaml'), { packages: ['packages/*'] })
+  writeYamlFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), { packages: ['packages/*'] })
 
   f.copy('hello-world-js-bin', 'hello-world-js-bin')
 
@@ -296,7 +296,7 @@ test('relative link from workspace package', async () => {
     workspacePackagePatterns: ['packages/*'],
   }, ['../../../hello-world-js-bin'])
 
-  const manifest = readYamlFile<{ overrides?: Record<string, string> }>(path.join(workspaceDir, 'pnpm-workspace.yaml'))
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(workspaceDir, 'pnpm-workspace.yaml'))
   expect(manifest.overrides?.['@pnpm.e2e/hello-world-js-bin']).toBe('link:../hello-world-js-bin')
 
   const workspace = assertProject(workspaceDir)

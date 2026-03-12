@@ -1,4 +1,5 @@
 import path from 'path'
+import { buildProjects } from '@pnpm/building.after-install'
 import {
   readProjectManifestOnly,
   tryReadProjectManifest,
@@ -11,7 +12,6 @@ import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import type {
   IncludedDependencies,
@@ -408,7 +408,7 @@ when running add/update with the --workspace option')
 
     if (opts.ignoreScripts) return
 
-    await rebuildProjects(
+    await buildProjects(
       [
         {
           buildIndex: 0,

@@ -7,7 +7,7 @@ import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import type { Hooks } from '@pnpm/pnpmfile'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
 import { omit } from 'ramda'
-import pMapValues from 'p-map-values'
+import { pMapValues } from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig.js'
 import { type ExportedManifest, transform } from './transform/index.js'
 
@@ -105,8 +105,8 @@ async function makePublishDependencies (
   { modulesDir, convertDependencyForPublish }: MakePublishDependenciesOpts
 ): Promise<Dependencies | undefined> {
   if (dependencies == null) return dependencies
-  const publishDependencies = await pMapValues.default(
-    async (depSpec, depName) => convertDependencyForPublish(depName, depSpec, dir, modulesDir),
+  const publishDependencies = await pMapValues(
+    async (depSpec: string, depName: string) => convertDependencyForPublish(depName, depSpec, dir, modulesDir),
     dependencies
   )
   return publishDependencies

@@ -3,7 +3,7 @@ import { promises as fs } from 'fs'
 import { rootLogger } from '@pnpm/core-loggers'
 import { removeBin, removeBinsOfDependency } from '@pnpm/remove-bins'
 import type { DependenciesField, ProjectRootDir } from '@pnpm/types'
-import rimraf from '@zkochan/rimraf'
+import { rimraf } from '@zkochan/rimraf'
 
 export async function removeDirectDependency (
   dependency: {

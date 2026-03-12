@@ -50,7 +50,7 @@ import type { PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
 import { pathExists } from 'path-exists'
 import pDefer from 'p-defer'
-import pShare from 'promise-share'
+import { pShare } from 'promise-share'
 import { pickBy, omit, zipWith } from 'ramda'
 import semver from 'semver'
 import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
@@ -1480,7 +1480,7 @@ async function resolveDependency (
   const patch = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
   if (patch) {
     ctx.appliedPatches.add(patch.key)
-    pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.file.hash})` as PkgIdWithPatchHash
+    pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.hash})` as PkgIdWithPatchHash
   }
 
   // We are building the dependency tree only until there are new packages

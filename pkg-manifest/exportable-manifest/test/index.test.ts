@@ -2,7 +2,7 @@
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { type MakePublishManifestOptions, createExportableManifest } from '@pnpm/exportable-manifest'
 import { preparePackages } from '@pnpm/prepare'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
 import path from 'path'
@@ -157,7 +157,7 @@ test('workspace deps are replaced', async () => {
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   crossSpawn.sync(pnpmBin, ['install', '--store-dir=store'])
 
@@ -221,7 +221,7 @@ test('catalog deps are replaced', async () => {
       },
     },
   }
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   crossSpawn.sync(pnpmBin, ['install', '--store-dir=store'])
 

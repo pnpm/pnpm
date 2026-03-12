@@ -1,5 +1,5 @@
 import { temporaryDirectory } from 'tempy'
-import execa from 'execa'
+import { safeExeca as execa } from 'execa'
 import fs from 'fs'
 import path from 'path'
 import { getCurrentBranch, isGitRepo, isWorkingTreeClean } from '@pnpm/git-utils'

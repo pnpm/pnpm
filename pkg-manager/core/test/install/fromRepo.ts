@@ -9,7 +9,7 @@ import {
 } from '@pnpm/core'
 import { fixtures } from '@pnpm/test-fixtures'
 import { assertProject } from '@pnpm/assert-project'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
 import nock from 'nock'
 import { jest } from '@jest/globals'
@@ -235,15 +235,15 @@ test.skip('from a github repo that needs to be built. isolated node linker is us
 
   project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install(manifest, testDefaults({ preferFrozenLockfile: false }))
   project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true }))
   project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true, ignoreScripts: true }, { ignoreScripts: true }))
   project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 })
@@ -259,15 +259,15 @@ test.skip('from a github repo that needs to be built. hoisted node linker is  us
 
   project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install(manifest, testDefaults({ preferFrozenLockfile: false, nodeLinker: 'hoisted' }))
   project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true, nodeLinker: 'hoisted' }))
   project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true, ignoreScripts: true, nodeLinker: 'hoisted' }, { ignoreScripts: true }))
   project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 })

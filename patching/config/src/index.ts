@@ -1,6 +1,5 @@
 export {
   type ExtendedPatchInfo,
-  type PatchFile,
   type PatchInfo,
   type PatchGroup,
   type PatchGroupRangeItem,

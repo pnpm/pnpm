@@ -4,8 +4,8 @@ import { rootLogger } from '@pnpm/core-loggers'
 import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { omit } from 'ramda'
 import { readModulesDir } from '@pnpm/read-modules-dir'
-import rimraf from '@zkochan/rimraf'
-import resolveLinkTarget from 'resolve-link-target'
+import { rimraf } from '@zkochan/rimraf'
+import { resolveLinkTarget } from 'resolve-link-target'
 
 export interface LinkedDirectDep {
   alias: string

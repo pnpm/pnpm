@@ -3,7 +3,7 @@ import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
@@ -56,7 +56,7 @@ test('single dependency', async () => {
     manifests.bar,
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   // attempting to execute a script in root without installing dependencies should fail
   {
@@ -342,7 +342,7 @@ test('multiple lockfiles', async () => {
     manifests.bar,
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   const config = [
     ...CONFIG,
@@ -608,7 +608,7 @@ test('filtered install', async () => {
     manifests.bar,
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   // attempting to execute a script without installing dependencies should fail
   {
@@ -678,7 +678,7 @@ test('no dependencies', async () => {
     manifests.bar,
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   // attempting to execute a script without `pnpm install` should fail
   {
@@ -759,7 +759,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
     projects[name].writePackageJson(manifests[name])
   }
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     // verifyDepsBeforeRun: 'error',
   })
@@ -859,7 +859,7 @@ test('should check for outdated catalogs', async () => {
     } as Record<string, string>,
     packages: ['**', '!store/**'],
   }
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   // attempting to execute a script without installing dependencies should fail
   {
@@ -897,7 +897,7 @@ test('should check for outdated catalogs', async () => {
   }
 
   workspaceManifest.catalog.foo = '=100.1.0'
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   // attempting to execute a script without updating dependencies should fail
   {
@@ -958,7 +958,7 @@ test('failed to install dependencies', async () => {
     manifests.bar,
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm([...CONFIG, 'install'])
 

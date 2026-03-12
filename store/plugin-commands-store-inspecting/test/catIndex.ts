@@ -6,7 +6,7 @@ import { getConfig } from '@pnpm/config'
 import { catIndex } from '@pnpm/plugin-commands-store-inspecting'
 import type { PnpmError } from '@pnpm/error'
 
-import execa from 'execa'
+import { safeExeca as execa } from 'execa'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 

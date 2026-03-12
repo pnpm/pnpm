@@ -4,7 +4,7 @@ import path from 'path'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { install } from '@pnpm/plugin-commands-installation'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import type { PatchCommandOptions, PatchRemoveCommandOptions } from '@pnpm/plugin-commands-patching'
 import { temporaryDirectory } from 'tempy'
@@ -1000,7 +1000,7 @@ describe('patch and commit in workspaces', () => {
       dir: process.cwd(),
       storeDir,
     }
-    writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
+    writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
   })
 
   test('patch commit should work in workspaces', async () => {

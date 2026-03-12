@@ -9,7 +9,8 @@ import { tempDir } from '@pnpm/prepare'
 // repeatedly recreating the target, which can't be reproduced deterministically.
 const renameOverwriteSyncMock = jest.fn()
 jest.unstable_mockModule('rename-overwrite', () => ({
-  default: { sync: renameOverwriteSyncMock },
+  renameOverwrite: jest.fn(),
+  renameOverwriteSync: renameOverwriteSyncMock,
 }))
 
 const { importIndexedDir } = await import('../src/importIndexedDir.js')

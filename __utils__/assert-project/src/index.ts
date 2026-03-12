@@ -7,7 +7,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import type { Modules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writePackageSync } from 'write-package'
 import isExecutable from './isExecutable.js'
 
@@ -141,7 +141,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     },
     readCurrentLockfile () {
       try {
-        return readYamlFile(path.join(getVirtualStoreDir(), 'lock.yaml'))
+        return readYamlFileSync(path.join(getVirtualStoreDir(), 'lock.yaml'))
       } catch (err: unknown) {
         if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
         throw err
@@ -150,7 +150,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     readModulesManifest: () => readModulesManifest(modules),
     readLockfile (lockfileName: string = WANTED_LOCKFILE) {
       try {
-        return readYamlFile(path.join(projectPath, lockfileName))
+        return readYamlFileSync(path.join(projectPath, lockfileName))
       } catch (err: unknown) {
         if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
         throw err
@@ -164,7 +164,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
 
 function readModulesManifest (modulesDir: string): Modules {
   try {
-    return readYamlFile<Modules>(path.join(modulesDir, '.modules.yaml'))
+    return readYamlFileSync<Modules>(path.join(modulesDir, '.modules.yaml'))
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
     throw err

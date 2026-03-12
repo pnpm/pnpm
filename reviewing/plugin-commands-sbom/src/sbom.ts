@@ -14,7 +14,7 @@ import {
   type SbomComponentType,
 } from '@pnpm/sbom'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 
 export type SbomCommandOptions = {
   sbomFormat?: string

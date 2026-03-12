@@ -1,4 +1,4 @@
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import { getCompletionScript, SUPPORTED_SHELLS } from '@pnpm/tabtab'
 import { getShellFromParams } from './getShell.js'
 

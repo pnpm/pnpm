@@ -6,7 +6,7 @@ import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-upda
 import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
 import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 import { loadJsonFileSync } from 'load-json-file'
 import semver from 'semver'
 import normalizePath from 'normalize-path'
@@ -34,7 +34,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         return manifest
       }
       if (manifest.name === 'monorepo-root') {
-        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${nextTag} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${nextTag} --access=public`
+        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${nextTag} --access=public --provenance && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pnpm publish --filter=pnpm --tag=${nextTag} --access=public --provenance`
         return sortKeysInManifest(manifest)
       }
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
@@ -253,7 +253,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/lockfile.types':
     scripts = { ...manifest.scripts }
     break
-  case '@pnpm/exec.build-commands':
+  case '@pnpm/building.policy-commands':
   case '@pnpm/config.deps-installer':
   case '@pnpm/headless':
   case '@pnpm/outdated':
@@ -265,7 +265,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-outdated':
   case '@pnpm/plugin-commands-patching':
   case '@pnpm/plugin-commands-publishing':
-  case '@pnpm/plugin-commands-rebuild':
+  case '@pnpm/building.build-commands':
   case '@pnpm/plugin-commands-script-runners':
   case '@pnpm/plugin-commands-store':
   case '@pnpm/plugin-commands-deploy':

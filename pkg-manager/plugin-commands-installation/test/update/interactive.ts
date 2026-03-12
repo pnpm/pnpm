@@ -4,7 +4,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
 import { jest } from '@jest/globals'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import chalk from 'chalk'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
@@ -268,7 +268,7 @@ test('interactive update of dev dependencies only', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = readYamlFile<LockfileObject>('pnpm-lock.yaml')
+  const lockfile = readYamlFileSync<LockfileObject>('pnpm-lock.yaml')
 
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
     'is-negative@1.0.1',

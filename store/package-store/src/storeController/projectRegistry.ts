@@ -5,7 +5,7 @@ import { createShortHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import symlinkDir from 'symlink-dir'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 
 const PROJECTS_DIR = 'projects'
 

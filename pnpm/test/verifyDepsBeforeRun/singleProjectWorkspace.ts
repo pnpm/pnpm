@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
@@ -199,7 +199,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
     fs.writeFileSync(require.resolve('./package.json'), jsonText)
     console.log('manifest mutated')
   `)
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     verifyDepsBeforeRun: 'error',
   })
 

@@ -9,9 +9,9 @@ import {
 } from '@pnpm/plugin-commands-script-runners'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import execa from 'execa'
+import { safeExeca as execa } from 'execa'
 import isWindows from 'is-windows'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
@@ -334,7 +334,7 @@ test('"pnpm run" prints the list of available commands, including commands of th
       },
     },
   ])
-  writeYamlFile('pnpm-workspace.yaml', {})
+  writeYamlFileSync('pnpm-workspace.yaml', {})
   const workspaceDir = process.cwd()
 
   const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
@@ -425,7 +425,7 @@ test('if a script is not found but is present in the root, print an info message
       version: '1.0.0',
     },
   ])
-  writeYamlFile('pnpm-workspace.yaml', {})
+  writeYamlFileSync('pnpm-workspace.yaml', {})
 
   await execa(pnpmBin, [
     'install',

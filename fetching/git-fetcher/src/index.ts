@@ -8,8 +8,8 @@ import { preparePackage } from '@pnpm/prepare-package'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
 import { PnpmError } from '@pnpm/error'
-import rimraf from '@zkochan/rimraf'
-import execa from 'execa'
+import { rimraf } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
 import { URL } from 'url'
 
 export interface CreateGitFetcherOptions {
@@ -96,5 +96,5 @@ function prefixGitArgs (): string[] {
 async function execGit (args: string[], opts?: object): Promise<string> {
   const fullArgs = prefixGitArgs().concat(args || [])
   const { stdout } = await execa('git', fullArgs, opts)
-  return stdout
+  return stdout as string
 }

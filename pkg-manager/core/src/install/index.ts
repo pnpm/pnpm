@@ -1,6 +1,7 @@
 import path from 'path'
-import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
-import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { buildSelectedPkgs } from '@pnpm/building.after-install'
+import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -48,7 +49,6 @@ import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { type PatchGroupRecord, groupPatchedDependencies } from '@pnpm/patching.config'
-import { rebuildSelectedPkgs } from '@pnpm/plugin-commands-rebuild'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   getWantedDependencies,
@@ -75,7 +75,7 @@ import type {
   ProjectRootDir,
 } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import { map as mapValues, clone, isEmpty, pipeWith, props } from 'ramda'
 import { parseWantedDependencies } from '../parseWantedDependencies.js'
@@ -425,14 +425,18 @@ export async function mutateModules (
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
-      : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies, opts.lockfileDir) : {})
-    const patchedDependenciesWithResolvedPath = patchedDependencies
-      ? mapValues((patchFile) => ({
-        hash: patchFile.hash,
-        path: path.join(opts.lockfileDir, patchFile.path),
-      }), patchedDependencies)
-      : undefined
-    const patchGroups = patchedDependenciesWithResolvedPath && groupPatchedDependencies(patchedDependenciesWithResolvedPath)
+      : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies) : {})
+    const patchGroupInput = opts.patchedDependencies
+      ? Object.fromEntries(
+        Object.entries(patchedDependencies ?? {}).map(([key, hash]) => {
+          const patchFilePath = opts.patchedDependencies![key]
+            ? path.resolve(opts.lockfileDir, opts.patchedDependencies![key])
+            : undefined
+          return [key, { hash, patchFilePath }]
+        })
+      )
+      : patchedDependencies
+    const patchGroups = patchGroupInput ? groupPatchedDependencies(patchGroupInput) : undefined
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
@@ -910,7 +914,7 @@ async function runUnignoredDependencyBuilds (
     }
   }
   if (pkgsToBuild.length) {
-    return (await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
+    return (await buildSelectedPkgs(opts.allProjects, pkgsToBuild, {
       ...opts,
       reporter: undefined, // We don't want to attach the reporter again, it was already attached.
       rootProjectManifestDir: opts.lockfileDir,

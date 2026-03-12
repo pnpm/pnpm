@@ -7,12 +7,12 @@ const { fetchWithAgent: fetchWithAgentOriginal } = await import('@pnpm/fetch')
 jest.unstable_mockModule('@pnpm/fetch', () => ({
   fetchWithAgent: jest.fn(),
 }))
-const { default: gitOriginal } = await import('graceful-git')
+const { gracefulGit: gitOriginal } = await import('graceful-git')
 jest.unstable_mockModule('graceful-git', () => ({
-  default: jest.fn(),
+  gracefulGit: jest.fn(),
 }))
 const { fetchWithAgent } = await import('@pnpm/fetch')
-const { default: git } = await import('graceful-git')
+const { gracefulGit: git } = await import('graceful-git')
 const { createGitResolver } = await import('@pnpm/git-resolver')
 
 const resolveFromGit = createGitResolver({})

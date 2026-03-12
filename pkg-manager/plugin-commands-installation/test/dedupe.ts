@@ -8,7 +8,7 @@ import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { diff } from 'jest-diff'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -157,7 +157,7 @@ async function testFixture (fixtureName: string) {
     resolutionMode: 'highest' as const, // TODO: this should work with the default resolution mode (TODOv8)
   }
 
-  const readProjectLockfile = () => readYamlFile<LockfileObject>(path.join(project.dir(), './pnpm-lock.yaml'))
+  const readProjectLockfile = () => readYamlFileSync<LockfileObject>(path.join(project.dir(), './pnpm-lock.yaml'))
 
   const originalLockfile = readProjectLockfile()
 

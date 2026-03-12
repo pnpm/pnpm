@@ -2,7 +2,7 @@ import path from 'path'
 import { fixtures } from '@pnpm/test-fixtures'
 import { audit } from '@pnpm/plugin-commands-audit'
 import nock from 'nock'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import * as responses from './utils/responses/index.js'
 import { AUDIT_REGISTRY_OPTS, AUDIT_REGISTRY } from './utils/options.js'
 
@@ -27,7 +27,7 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
   expect(exitCode).toBe(0)
   expect(output).toContain('2 new vulnerabilities were ignored')
 
-  const manifest = readYamlFile<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
+  const manifest = readYamlFileSync<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
   const cveList = manifest.auditConfig?.ignoreCves
   expect(cveList?.length).toBe(2)
   expect(cveList).toStrictEqual(expect.arrayContaining(['CVE-2017-16115', 'CVE-2017-16024']))
@@ -52,7 +52,7 @@ test('the specified vulnerabilities are ignored', async () => {
   expect(exitCode).toBe(0)
   expect(output).toContain('1 new vulnerabilities were ignored')
 
-  const manifest = readYamlFile<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
+  const manifest = readYamlFileSync<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
   expect(manifest.auditConfig?.ignoreCves).toStrictEqual(['CVE-2017-16115'])
 })
 
@@ -103,6 +103,6 @@ test('ignored CVEs are not duplicated', async () => {
   expect(exitCode).toBe(0)
   expect(output).toBe('No new vulnerabilities were ignored')
 
-  const manifest = readYamlFile<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
+  const manifest = readYamlFileSync<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
   expect(manifest.auditConfig?.ignoreCves).toStrictEqual(expect.arrayContaining(existingCves))
 })

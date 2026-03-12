@@ -1,6 +1,6 @@
 import path from 'path'
 import fs from 'fs'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { PnpmError } from '@pnpm/error'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -206,7 +206,7 @@ test('overrides with local file and link specs', async () => {
     },
   })
 
-  const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+  const lockfile = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
 
   expect(lockfile.importers?.['packages/direct']).toStrictEqual({
     dependencies: {
