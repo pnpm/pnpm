@@ -919,8 +919,8 @@ async function linkAllPkgs (
         force: depNode.forceImportPackage ?? opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         requiresBuild: depNode.patch != null || depNode.requiresBuild,
+        safeToSkip: opts.enableGlobalVirtualStore,
         sideEffectsCacheKey,
-        safeToSkip: opts.enableGlobalVirtualStore === true || undefined,
       })
       if (importMethod) {
         progressLogger.debug({
