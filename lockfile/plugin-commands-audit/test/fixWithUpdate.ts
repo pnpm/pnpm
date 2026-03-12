@@ -9,6 +9,7 @@ import type { DepPath } from '@pnpm/types'
 import { addDistTag } from '@pnpm/registry-mock'
 import chalk from 'chalk'
 import nock from 'nock'
+import { readYamlFileSync } from 'read-yaml-file'
 import { MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
 
 const f = fixtures(import.meta.dirname)
@@ -614,5 +615,181 @@ The fixed vulnerabilities are:
       if (pkgId === originalDepPkgId) continue
       expect(packagesArray).toContain(pkgId)
     }
+  })
+
+  test('top-level pinned workspace catalog vulnerability is fixed by updating the catalog entry', async () => {
+    const tmp = f.prepare('update-workspace-catalog-pinned')
+
+    const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+
+    const subPkgDir = join(tmp, 'packages', 'sub-pkg')
+
+    // Verify the sub-package uses catalog: protocol
+    const { manifest: originalManifest } = await readProjectManifest(subPkgDir)
+    expect(originalManifest).toBeTruthy()
+    expect(originalManifest.dependencies).toBeDefined()
+    expect(originalManifest.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('catalog:')
+
+    // Verify the workspace catalog has the pinned version
+    const originalWorkspaceManifest = readYamlFileSync<{ catalog?: Record<string, string> }>(join(tmp, 'pnpm-workspace.yaml'))
+    expect(originalWorkspaceManifest.catalog?.['@pnpm.e2e/pkg-with-1-dep']).toBe('100.0.0')
+
+    const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(originalLockfile).toBeTruthy()
+    expect(originalLockfile!.packages).toBeDefined()
+    expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
+    expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
+
+    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    expect(mockResponse).toBeTruthy()
+
+    nock(MOCK_REGISTRY, { allowUnmocked: true })
+      .post('/-/npm/v1/security/audits/quick')
+      .reply(200, mockResponse)
+
+    const {
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    } = await filterPackagesFromDir(tmp, [], {
+      workspaceDir: tmp,
+      prefix: tmp,
+    })
+    expect(allProjects).toHaveLength(2)
+    expect(new Set(allProjects.map(p => p.manifest.name))).toEqual(new Set(['update-workspace-catalog-pinned', 'sub-pkg']))
+    expect(allProjectsGraph).toBeTruthy()
+    expect(selectedProjectsGraph).toEqual(allProjectsGraph)
+
+    const { exitCode, output } = await audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      workspaceDir: tmp,
+      lockfileDir: tmp,
+      rootProjectManifestDir: tmp,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      catalogs: {
+        default: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
+      },
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+    })
+
+    expect(output).toBe(`${chalk.green(1)} vulnerability was fixed, ${chalk.red(0)} vulnerabilities remain.
+
+The fixed vulnerabilities are:
+- (${chalk.green('high')}) "${chalk.green('Title: mock vulnerability in @pnpm.e2e/pkg-with-1-dep')}" ${chalk.blue('@pnpm.e2e/pkg-with-1-dep')}
+`)
+    expect(exitCode).toBe(0)
+
+    // The sub-package manifest should still use catalog: protocol
+    const { manifest } = await readProjectManifest(subPkgDir)
+    expect(manifest).toBeTruthy()
+    expect(manifest.dependencies).toBeDefined()
+    expect(manifest.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('catalog:')
+
+    // The workspace catalog should be updated to the fixed version
+    const workspaceManifest = readYamlFileSync<{ catalog?: Record<string, string> }>(join(tmp, 'pnpm-workspace.yaml'))
+    expect(workspaceManifest.catalog?.['@pnpm.e2e/pkg-with-1-dep']).toBe('100.1.0')
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(lockfile!.packages).toBeDefined()
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    // The vulnerable dependency should be updated
+    expect(packagesArray).not.toContain(originalPkgId)
+    expect(packagesArray).toContain(expectedPkgId)
+  })
+
+  test('top-level workspace catalog vulnerability is fixed by updating the catalog entry', async () => {
+    const tmp = f.prepare('update-workspace-catalog')
+
+    const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+
+    const subPkgDir = join(tmp, 'packages', 'sub-pkg')
+
+    // Verify the sub-package uses catalog: protocol
+    const { manifest: originalManifest } = await readProjectManifest(subPkgDir)
+    expect(originalManifest).toBeTruthy()
+    expect(originalManifest.dependencies).toBeDefined()
+    expect(originalManifest.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('catalog:')
+
+    // Verify the workspace catalog has the ranged version
+    const originalWorkspaceManifest = readYamlFileSync<{ catalog?: Record<string, string> }>(join(tmp, 'pnpm-workspace.yaml'))
+    expect(originalWorkspaceManifest.catalog?.['@pnpm.e2e/pkg-with-1-dep']).toBe('^100.0.0')
+
+    const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(originalLockfile).toBeTruthy()
+    expect(originalLockfile!.packages).toBeDefined()
+    expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
+    expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
+
+    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    expect(mockResponse).toBeTruthy()
+
+    nock(MOCK_REGISTRY, { allowUnmocked: true })
+      .post('/-/npm/v1/security/audits/quick')
+      .reply(200, mockResponse)
+
+    const {
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    } = await filterPackagesFromDir(tmp, [], {
+      workspaceDir: tmp,
+      prefix: tmp,
+    })
+    expect(allProjects).toHaveLength(2)
+    expect(new Set(allProjects.map(p => p.manifest.name))).toEqual(new Set(['update-workspace-catalog', 'sub-pkg']))
+    expect(allProjectsGraph).toBeTruthy()
+    expect(selectedProjectsGraph).toEqual(allProjectsGraph)
+
+    const { exitCode, output } = await audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      workspaceDir: tmp,
+      lockfileDir: tmp,
+      rootProjectManifestDir: tmp,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      catalogs: {
+        default: { '@pnpm.e2e/pkg-with-1-dep': '^100.0.0' },
+      },
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+    })
+
+    expect(output).toBe(`${chalk.green(1)} vulnerability was fixed, ${chalk.red(0)} vulnerabilities remain.
+
+The fixed vulnerabilities are:
+- (${chalk.green('high')}) "${chalk.green('Title: mock vulnerability in @pnpm.e2e/pkg-with-1-dep')}" ${chalk.blue('@pnpm.e2e/pkg-with-1-dep')}
+`)
+    expect(exitCode).toBe(0)
+
+    // The sub-package manifest should still use catalog: protocol
+    const { manifest } = await readProjectManifest(subPkgDir)
+    expect(manifest).toBeTruthy()
+    expect(manifest.dependencies).toBeDefined()
+    expect(manifest.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('catalog:')
+
+    // The workspace catalog should be updated, preserving the ^ range style
+    const workspaceManifest = readYamlFileSync<{ catalog?: Record<string, string> }>(join(tmp, 'pnpm-workspace.yaml'))
+    expect(workspaceManifest.catalog?.['@pnpm.e2e/pkg-with-1-dep']).toBe('^100.1.0')
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(lockfile!.packages).toBeDefined()
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    // The vulnerable dependency should be updated
+    expect(packagesArray).not.toContain(originalPkgId)
+    expect(packagesArray).toContain(expectedPkgId)
   })
 })

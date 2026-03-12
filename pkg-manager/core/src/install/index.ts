@@ -559,12 +559,36 @@ export async function mutateModules (
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
       if (opts.packageVulnerabilityAudit) {
         for (const dep of wantedDependencies) {
-          const validVersion = semver.valid(dep.bareSpecifier)
+          let specifier: string | undefined = dep.bareSpecifier
+          const catalogName = specifier ? parseCatalogProtocol(specifier) : null
+          if (catalogName != null) {
+            const catalogResult = resolveFromCatalog(opts.catalogs, { alias: dep.alias, bareSpecifier: specifier! })
+            specifier = matchCatalogResolveResult(catalogResult, pickCatalogSpecifier)
+          }
+          const validVersion = semver.valid(specifier)
+          // Only proceed if the specifier is a pinned version, not a range
           if (!validVersion) continue
           if (opts.packageVulnerabilityAudit.isVulnerable(dep.alias, validVersion)) {
             // If the current version is pinned and vulnerable, expand the specifier to a range
             // that will allow updating to a non-vulnerable, semver-compatible version, if available.
-            dep.bareSpecifier = '^' + validVersion
+            if (catalogName != null && opts.catalogs?.[catalogName]) {
+              // If a catalog is used, update the catalog entry so the resolver can find a
+              // non-vulnerable version. The package.json keeps "catalog:" and the workspace manifest
+              // gets updated.
+              opts.catalogs = {
+                ...opts.catalogs,
+                [catalogName]: {
+                  ...opts.catalogs[catalogName],
+                  [dep.alias]: '^' + validVersion,
+                },
+              }
+              // Set prevSpecifier to the original catalog specifier so the resolver
+              // preserves the original pinning style (i.e. pinned stays pinned).
+              dep.prevSpecifier = specifier
+            } else {
+              // If no catalog is used, we directly update the specifier.
+              dep.bareSpecifier = '^' + validVersion
+            }
           }
         }
       }
