@@ -2,7 +2,7 @@ import fs from 'fs'
 import util from 'util'
 import fsx from 'fs-extra'
 import path from 'path'
-import { globalInfo, globalWarn, logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import { rimrafSync } from '@zkochan/rimraf'
 import { makeEmptyDirSync } from 'make-empty-dir'
 import sanitizeFilename from 'sanitize-filename'
@@ -63,24 +63,21 @@ They were renamed.`)
     throw err
   }
   if (opts.safeToSkip) {
-    // Content-addressable target (e.g. global virtual store): if the target
-    // already exists and has all expected files, it has the correct content.
-    // Skip instead of doing a swap-rename that temporarily removes the target
-    // directory — which breaks junctions read by other processes.
+    // Content-addressable target (e.g. global virtual store): the path includes
+    // a content hash, so if the target already exists it was placed by another
+    // process and has the correct content. Never fall through to
+    // renameOverwriteSync — its swap-rename temporarily removes the target
+    // directory, breaking junctions read by other concurrent processes.
     try {
       fs.renameSync(stage, newDir)
       return
-    } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST' || err.code === 'EPERM')) {
-        if (canSkipImport(newDir, filenames)) {
-          try {
-            rimrafSync(stage)
-          } catch {} // eslint-disable-line:no-empty
-          return
-        }
-      }
-      // Files missing or other error — fall through to renameOverwriteSync
-    }
+    } catch {} // eslint-disable-line:no-empty
+    // Target already exists. Since the path is content-addressed (same hash =
+    // same content), the existing directory is correct. Clean up staging.
+    try {
+      rimrafSync(stage)
+    } catch {} // eslint-disable-line:no-empty
+    return
   }
   try {
     renameOverwriteSync(stage, newDir)
@@ -90,33 +87,6 @@ They were renamed.`)
     } catch {} // eslint-disable-line:no-empty
     throw renameErr
   }
-}
-
-function canSkipImport (dir: string, filenames: Map<string, string>): boolean {
-  for (const [f, src] of filenames) {
-    const target = path.join(dir, f)
-    try {
-      const targetStat = gfs.statSync(target)
-      const srcStat = gfs.statSync(src)
-      // Fast path: hardlinks share the same inode
-      if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) continue
-      // Copy path: compare size first, then content
-      if (targetStat.size !== srcStat.size) {
-        globalInfo(`Re-importing "${dir}" because file "${f}" has a different size`)
-        return false
-      }
-      if (!gfs.readFileSync(target).equals(gfs.readFileSync(src))) {
-        globalInfo(`Re-importing "${dir}" because file "${f}" has different content`)
-        return false
-      }
-    } catch {
-      // File may be temporarily locked by another process (common on Windows).
-      // Since the path is content-addressed, trust that the existing dir is correct.
-      globalWarn(`Could not verify "${f}" in "${dir}" (file may be locked by another process), skipping re-import`)
-      return true
-    }
-  }
-  return true
 }
 
 interface SanitizeFilenamesResult {
