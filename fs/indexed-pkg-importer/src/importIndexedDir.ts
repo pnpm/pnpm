@@ -63,7 +63,7 @@ They were renamed.`)
     throw err
   }
   if (opts.safeToSkip && process.platform === 'win32') {
-    // On Windows, renameOverwriteSync is destructive — it rimrafs the target
+    // On Windows, renameOverwriteSync is destructive — it removes the target
     // directory when rename fails, which breaks concurrent processes that are
     // reading from it. Use a simple rename instead: if it fails, the target
     // was already placed by another process.
