@@ -20,7 +20,7 @@ export function importIndexedDir (
   filenames: Map<string, string>,
   opts: {
     keepModulesDir?: boolean
-    requiresOverwrite?: boolean
+    safeToSkip?: boolean
   }
 ): void {
   const stage = pathTemp(newDir)
@@ -62,7 +62,7 @@ They were renamed.`)
     }
     throw err
   }
-  if (opts.requiresOverwrite === false) {
+  if (opts.safeToSkip) {
     // Content-addressable target (e.g. global virtual store): if the target
     // already exists and has all expected files, it has the correct content.
     // Skip instead of doing a swap-rename that temporarily removes the target

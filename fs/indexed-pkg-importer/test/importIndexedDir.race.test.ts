@@ -17,7 +17,7 @@ beforeEach(() => {
   renameOverwriteSyncMock.mockReset()
 })
 
-test('requiresOverwrite=false skips when target has matching content (hardlink)', () => {
+test('safeToSkip skips when target has matching content (hardlink)', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'package.json')
   const newDir = path.join(tmp, 'dest')
@@ -33,13 +33,13 @@ test('requiresOverwrite=false skips when target has matching content (hardlink)'
   const filenames = new Map([['package.json', srcFile]])
 
   // Should skip — target has matching content
-  importIndexedDir(fs.copyFileSync, newDir, filenames, { requiresOverwrite: false })
+  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'package.json'))).toBe(true)
   expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
 })
 
-test('requiresOverwrite=false skips when target has matching content (copy)', () => {
+test('safeToSkip skips when target has matching content (copy)', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'index.js')
   const newDir = path.join(tmp, 'dest')
@@ -54,13 +54,13 @@ test('requiresOverwrite=false skips when target has matching content (copy)', ()
 
   const filenames = new Map([['index.js', srcFile]])
 
-  importIndexedDir(fs.copyFileSync, newDir, filenames, { requiresOverwrite: false })
+  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'index.js'))).toBe(true)
   expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
 })
 
-test('requiresOverwrite=false falls back to renameOverwriteSync when files are missing', () => {
+test('safeToSkip falls back to renameOverwriteSync when files are missing', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'index.js')
   const newDir = path.join(tmp, 'dest')
@@ -75,12 +75,12 @@ test('requiresOverwrite=false falls back to renameOverwriteSync when files are m
 
   const filenames = new Map([['index.js', srcFile]])
 
-  importIndexedDir(fs.copyFileSync, newDir, filenames, { requiresOverwrite: false })
+  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
 
   expect(renameOverwriteSyncMock).toHaveBeenCalled()
 })
 
-test('requiresOverwrite=false falls back to renameOverwriteSync when content differs', () => {
+test('safeToSkip falls back to renameOverwriteSync when content differs', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'index.js')
   const newDir = path.join(tmp, 'dest')
@@ -95,7 +95,7 @@ test('requiresOverwrite=false falls back to renameOverwriteSync when content dif
 
   const filenames = new Map([['index.js', srcFile]])
 
-  importIndexedDir(fs.copyFileSync, newDir, filenames, { requiresOverwrite: false })
+  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
 
   expect(renameOverwriteSyncMock).toHaveBeenCalled()
 })

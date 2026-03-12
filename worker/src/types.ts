@@ -33,7 +33,7 @@ export interface LinkPkgMessage {
   force: boolean
   keepModulesDir?: boolean
   disableRelinkLocalDirDeps?: boolean
-  requiresOverwrite?: boolean
+  safeToSkip?: boolean
 }
 
 export interface SymlinkAllModulesMessage {

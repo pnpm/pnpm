@@ -920,7 +920,7 @@ async function linkAllPkgs (
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         requiresBuild: depNode.patch != null || depNode.requiresBuild,
         sideEffectsCacheKey,
-        requiresOverwrite: opts.enableGlobalVirtualStore ? false : undefined,
+        safeToSkip: opts.enableGlobalVirtualStore === true || undefined,
       })
       if (importMethod) {
         progressLogger.debug({
