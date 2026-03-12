@@ -942,6 +942,31 @@ test('error is thrown when package needs authorization', async () => {
     )
 })
 
+test('error is thrown when registry returns 400 Bad Request', async () => {
+  nock(registries.default)
+    .get('/bad-pkg')
+    .reply(400)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  await expect(resolveFromNpm({ alias: 'bad-pkg', bareSpecifier: '1.0.0' }, {})).rejects
+    .toThrow(
+      new RegistryResponseError(
+        {
+          url: `${registries.default}bad-pkg`,
+        },
+        {
+          status: 400,
+          statusText: '',
+        },
+        'bad-pkg'
+      )
+    )
+})
+
 test('error is thrown when there is no package found for the requested range', async () => {
   nock(registries.default)
     .get('/is-positive')

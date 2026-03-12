@@ -88,7 +88,7 @@ export async function fetchMetadataFromFromRegistry (
         reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt }))
         return
       }
-      if (response.status > 400) {
+      if (response.status >= 400) {
         const request = {
           authHeaderValue,
           url: uri,
