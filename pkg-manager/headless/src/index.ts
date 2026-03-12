@@ -919,6 +919,7 @@ async function linkAllPkgs (
         force: depNode.forceImportPackage ?? opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         requiresBuild: depNode.patch != null || depNode.requiresBuild,
+        safeToSkip: opts.enableGlobalVirtualStore,
         sideEffectsCacheKey,
       })
       if (importMethod) {
