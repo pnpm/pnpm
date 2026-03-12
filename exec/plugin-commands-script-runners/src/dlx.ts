@@ -142,44 +142,60 @@ export async function handler (
     allowBuild: opts.allowBuild,
     supportedArchitectures: opts.supportedArchitectures,
   })
+  let effectiveCacheDir = cachedDir
   if (!cacheExists) {
     fs.mkdirSync(cachedDir, { recursive: true })
-    await add.handler({
-      ...opts,
-      enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
-      bin: path.join(cachedDir, 'node_modules/.bin'),
-      dir: cachedDir,
-      lockfileDir: cachedDir,
-      allowBuilds: Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true])),
-      rootProjectManifestDir: cachedDir,
-      saveProd: true, // dlx will be looking for the package in the "dependencies" field!
-      saveDev: false,
-      saveOptional: false,
-      savePeer: false,
-      symlink: true,
-      workspaceDir: undefined,
-    }, resolvedPkgs)
     try {
-      await symlinkDir(cachedDir, cacheLink, { overwrite: true })
-    } catch (error) {
-      // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
-      // Similarly, EEXIST means that another dlx process has created the cache link before this process.
-      // The link created by the other process is just as up-to-date as the link the current process was attempting
-      // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
-      // the other link stay. The current process should yield.
-      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
-        throw error
+      await add.handler({
+        ...opts,
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
+        bin: path.join(cachedDir, 'node_modules/.bin'),
+        dir: cachedDir,
+        lockfileDir: cachedDir,
+        allowBuilds: Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true])),
+        rootProjectManifestDir: cachedDir,
+        saveProd: true, // dlx will be looking for the package in the "dependencies" field!
+        saveDev: false,
+        saveOptional: false,
+        savePeer: false,
+        symlink: true,
+        workspaceDir: undefined,
+      }, resolvedPkgs)
+    } catch (err) {
+      // When multiple dlx processes install the same package concurrently with
+      // enableGlobalVirtualStore, the install can fail (e.g. link-bins fails
+      // with ENOENT because a GVS entry is being written by another process).
+      // Check if a concurrent process has already completed and created the
+      // cache symlink — if so, use that instead of failing.
+      const concurrentCacheDir = getValidCacheDir(cacheLink, opts.dlxCacheMaxAge)
+      if (concurrentCacheDir == null) {
+        throw err
+      }
+      effectiveCacheDir = concurrentCacheDir
+    }
+    if (effectiveCacheDir === cachedDir) {
+      try {
+        await symlinkDir(cachedDir, cacheLink, { overwrite: true })
+      } catch (error) {
+        // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
+        // Similarly, EEXIST means that another dlx process has created the cache link before this process.
+        // The link created by the other process is just as up-to-date as the link the current process was attempting
+        // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
+        // the other link stay. The current process should yield.
+        if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
+          throw error
+        }
       }
     }
   }
-  const binsDir = path.join(cachedDir, 'node_modules/.bin')
+  const binsDir = path.join(effectiveCacheDir, 'node_modules/.bin')
   const env = makeEnv({
     userAgent: opts.userAgent,
     prependPaths: [binsDir, ...opts.extraBinPaths],
   })
   const binName = opts.package
     ? command
-    : await getBinName(cachedDir, opts)
+    : await getBinName(effectiveCacheDir, opts)
   try {
     await execa(binName, args, {
       cwd: process.cwd(),
