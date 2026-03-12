@@ -100,9 +100,7 @@ They were renamed.`)
         }
       }
     }
-    // TEMPORARY: embed safeToSkip value in error for diagnostics
-    const origMsg = util.types.isNativeError(renameErr) ? renameErr.message : String(renameErr)
-    throw new Error(`[importIndexedDir] safeToSkip=${opts.safeToSkip}, platform=${process.platform}. ${origMsg}`)
+    throw renameErr
   }
 }
 
