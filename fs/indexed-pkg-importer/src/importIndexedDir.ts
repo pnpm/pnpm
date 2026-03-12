@@ -62,39 +62,26 @@ They were renamed.`)
     }
     throw err
   }
-  if (opts.safeToSkip && process.platform === 'win32') {
-    // On Windows, never use renameOverwriteSync for content-addressed paths.
-    // Its rimrafSync(target) fails with EPERM when another process has files
-    // open, breaking concurrent GVS access. The path is content-addressed
-    // (same hash = same content), so trust the existing directory.
-    try {
-      fs.renameSync(stage, newDir)
-      return
-    } catch {} // eslint-disable-line:no-empty
-    try {
-      rimrafSync(stage)
-    } catch {} // eslint-disable-line:no-empty
-    return
-  }
   try {
     renameOverwriteSync(stage, newDir)
   } catch (renameErr: unknown) {
     try {
       rimrafSync(stage)
     } catch {} // eslint-disable-line:no-empty
-    if (opts.safeToSkip) {
-      const errCode = util.types.isNativeError(renameErr) && 'code' in renameErr ? renameErr.code : undefined
-      if (errCode === 'ENOTEMPTY' || errCode === 'EEXIST' || errCode === 'EPERM') {
-        const firstFile = filenames.keys().next().value
-        if (firstFile) {
-          const targetFile = path.join(newDir, firstFile)
-          for (let attempt = 0; attempt < 4; attempt++) {
-            if (attempt > 0) {
-              Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50)
-            }
-            if (fs.existsSync(targetFile)) {
-              return
-            }
+    // When multiple processes install the same package concurrently (e.g. parallel
+    // dlx calls sharing a global virtual store), the rename can race. If the target
+    // already has the expected content, another process completed the import.
+    const errCode = util.types.isNativeError(renameErr) && 'code' in renameErr ? renameErr.code : undefined
+    if (errCode === 'ENOTEMPTY' || errCode === 'EEXIST' || errCode === 'EPERM') {
+      const firstFile = filenames.keys().next().value
+      if (firstFile) {
+        const targetFile = path.join(newDir, firstFile)
+        for (let attempt = 0; attempt < 4; attempt++) {
+          if (attempt > 0) {
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50)
+          }
+          if (fs.existsSync(targetFile)) {
+            return
           }
         }
       }
