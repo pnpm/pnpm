@@ -17,7 +17,7 @@ beforeEach(() => {
   renameOverwriteSyncMock.mockReset()
 })
 
-test('safeToSkip skips when target has matching content (hardlink)', () => {
+test('safeToSkip skips when target already exists (content-addressed)', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'package.json')
   const newDir = path.join(tmp, 'dest')
@@ -32,55 +32,14 @@ test('safeToSkip skips when target has matching content (hardlink)', () => {
 
   const filenames = new Map([['package.json', srcFile]])
 
-  // Should skip — target has matching content
+  // Should skip — target exists, path is content-addressed so content is correct
   importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'package.json'))).toBe(true)
   expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
 })
 
-test('safeToSkip skips when target has matching content (copy)', () => {
-  const tmp = tempDir()
-  const srcFile = path.join(tmp, 'src', 'index.js')
-  const newDir = path.join(tmp, 'dest')
-
-  // Create source file in CAS
-  fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
-  fs.writeFileSync(srcFile, 'module.exports = true')
-
-  // Pre-create target with a copy of the same content (not a hardlink)
-  fs.mkdirSync(newDir, { recursive: true })
-  fs.writeFileSync(path.join(newDir, 'index.js'), 'module.exports = true')
-
-  const filenames = new Map([['index.js', srcFile]])
-
-  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
-
-  expect(fs.existsSync(path.join(newDir, 'index.js'))).toBe(true)
-  expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
-})
-
-test('safeToSkip falls back to renameOverwriteSync when files are missing', () => {
-  const tmp = tempDir()
-  const srcFile = path.join(tmp, 'src', 'index.js')
-  const newDir = path.join(tmp, 'dest')
-
-  // Create source file
-  fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
-  fs.writeFileSync(srcFile, 'content')
-
-  // Target exists but does NOT have the expected file (incomplete)
-  fs.mkdirSync(newDir, { recursive: true })
-  fs.writeFileSync(path.join(newDir, 'other-file.txt'), 'other')
-
-  const filenames = new Map([['index.js', srcFile]])
-
-  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
-
-  expect(renameOverwriteSyncMock).toHaveBeenCalled()
-})
-
-test('safeToSkip falls back to renameOverwriteSync when content differs', () => {
+test('safeToSkip skips even when target has different content (trusts content-addressed hash)', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'index.js')
   const newDir = path.join(tmp, 'dest')
@@ -89,7 +48,8 @@ test('safeToSkip falls back to renameOverwriteSync when content differs', () => 
   fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
   fs.writeFileSync(srcFile, 'new content')
 
-  // Target exists with different content
+  // Target exists with different content — but in a content-addressed store,
+  // the hash guarantees correctness, so we trust the existing dir.
   fs.mkdirSync(newDir, { recursive: true })
   fs.writeFileSync(path.join(newDir, 'index.js'), 'old content')
 
@@ -97,5 +57,24 @@ test('safeToSkip falls back to renameOverwriteSync when content differs', () => 
 
   importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
 
-  expect(renameOverwriteSyncMock).toHaveBeenCalled()
+  // Should NOT call renameOverwriteSync — never do destructive swap in GVS mode
+  expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
+})
+
+test('safeToSkip creates dir when target does not exist', () => {
+  const tmp = tempDir()
+  const srcFile = path.join(tmp, 'src', 'index.js')
+  const newDir = path.join(tmp, 'dest')
+
+  // Create source file
+  fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
+  fs.writeFileSync(srcFile, 'content')
+
+  const filenames = new Map([['index.js', srcFile]])
+
+  // Target doesn't exist — should create it via rename
+  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
+
+  expect(fs.existsSync(path.join(newDir, 'index.js'))).toBe(true)
+  expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
 })
