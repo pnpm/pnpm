@@ -1,6 +1,12 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage } from '@pnpm/core'
 import { testDefaults } from '../utils/index.js'
+import nock from 'nock'
+
+afterEach(() => {
+  nock.abortPendingRequests()
+  nock.cleanAll()
+})
 
 test('blockExoticSubdeps disallows git dependencies in subdependencies', async () => {
   prepareEmpty()
@@ -13,6 +19,13 @@ test('blockExoticSubdeps disallows git dependencies in subdependencies', async (
 })
 
 test('blockExoticSubdeps allows git dependencies in direct dependencies', async () => {
+  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes to check if the repo is public.
+  // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
+  // resolving via the codeload tarball URL.
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/kevva/is-negative')
+    .reply(200)
+
   const project = prepareEmpty()
 
   // Direct git dependency should be allowed even when blockExoticSubdeps is enabled
@@ -27,6 +40,8 @@ test('blockExoticSubdeps allows git dependencies in direct dependencies', async 
   expect(manifest.dependencies).toStrictEqual({
     'is-negative': 'github:kevva/is-negative#1.0.0',
   })
+
+  githubNock.done()
 })
 
 test('blockExoticSubdeps allows registry dependencies in subdependencies', async () => {
