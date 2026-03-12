@@ -69,6 +69,7 @@ They were renamed.`)
     // directory — which breaks junctions read by other processes.
     try {
       fs.renameSync(stage, newDir)
+      return
     } catch (err: unknown) {
       if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST')) {
         if (allFilesMatch(newDir, filenames)) {
