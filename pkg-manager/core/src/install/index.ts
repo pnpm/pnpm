@@ -75,7 +75,7 @@ import type {
   ProjectRootDir,
 } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import { map as mapValues, clone, isEmpty, pipeWith, props } from 'ramda'
 import { parseWantedDependencies } from '../parseWantedDependencies.js'
@@ -557,6 +557,41 @@ export async function mutateModules (
         includeDirect: opts.includeDirect,
       })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
+      if (opts.packageVulnerabilityAudit) {
+        for (const dep of wantedDependencies) {
+          let specifier: string | undefined = dep.bareSpecifier
+          const catalogName = specifier ? parseCatalogProtocol(specifier) : null
+          if (catalogName != null) {
+            const catalogResult = resolveFromCatalog(opts.catalogs, { alias: dep.alias, bareSpecifier: specifier! })
+            specifier = matchCatalogResolveResult(catalogResult, pickCatalogSpecifier)
+          }
+          const validVersion = semver.valid(specifier)
+          // Only proceed if the specifier is a pinned version, not a range
+          if (!validVersion) continue
+          if (opts.packageVulnerabilityAudit.isVulnerable(dep.alias, validVersion)) {
+            // If the current version is pinned and vulnerable, expand the specifier to a range
+            // that will allow updating to a non-vulnerable, semver-compatible version, if available.
+            if (catalogName != null && opts.catalogs?.[catalogName]) {
+              // If a catalog is used, update the catalog entry so the resolver can find a
+              // non-vulnerable version. The package.json keeps "catalog:" and the workspace manifest
+              // gets updated.
+              opts.catalogs = {
+                ...opts.catalogs,
+                [catalogName]: {
+                  ...opts.catalogs[catalogName],
+                  [dep.alias]: '^' + validVersion,
+                },
+              }
+              // Set prevSpecifier to the original catalog specifier so the resolver
+              // preserves the original pinning style (i.e. pinned stays pinned).
+              dep.prevSpecifier = specifier
+            } else {
+              // If no catalog is used, we directly update the specifier.
+              dep.bareSpecifier = '^' + validVersion
+            }
+          }
+        }
+      }
 
       if (ctx.wantedLockfile?.importers) {
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
@@ -1311,6 +1346,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         dependenciesByProjectId,
         depsStateCache,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         extraNodePaths: ctx.extraNodePaths,
         force: opts.force,
         hoistedDependencies: ctx.hoistedDependencies,

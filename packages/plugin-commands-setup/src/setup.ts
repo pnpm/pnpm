@@ -9,7 +9,7 @@ import {
   type ConfigReport,
   type PathExtenderReport,
 } from '@pnpm/os.env.path-extender'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 

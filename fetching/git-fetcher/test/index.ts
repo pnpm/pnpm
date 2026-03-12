@@ -12,7 +12,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
     return {
       __esModule: true,
       ...originalModule,
-      default: jest.fn(originalModule.default),
+      safeExeca: jest.fn(originalModule.safeExeca),
     }
   })
 }
@@ -27,7 +27,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 }
 
 const { globalWarn } = await import('@pnpm/logger')
-const { default: execa } = await import('execa')
+const { safeExeca: execa } = await import('execa')
 const { createGitFetcher } = await import('@pnpm/git-fetcher')
 
 const storeIndexes: StoreIndex[] = []

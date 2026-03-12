@@ -11,7 +11,7 @@ import {
 import { groupStart } from '@pnpm/log.group'
 import { sortPackages } from '@pnpm/sort-packages'
 import pLimit from 'p-limit'
-import realpathMissing from 'realpath-missing'
+import { realpathMissing } from 'realpath-missing'
 import { existsInDir } from './existsInDir.js'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec.js'
 import { type RunScriptOptions, runScript } from './run.js'

@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
-import writeYamlFile from 'write-yaml-file'
+import { writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const debug = jest.fn()

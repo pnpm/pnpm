@@ -4,9 +4,9 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import { prepare, preparePackages } from '@pnpm/prepare'
 
-import execa from 'execa'
+import { safeExeca as execa } from 'execa'
 import { stripVTControlCharacters as stripAnsi } from 'util'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
@@ -90,7 +90,7 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     sharedWorkspaceLockfile: true,
     packages: ['**', '!store/**'],
   })

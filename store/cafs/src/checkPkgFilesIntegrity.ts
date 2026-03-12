@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import type { PackageFiles, PackageFileInfo, SideEffects, FilesMap } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import type { BundledManifest } from '@pnpm/types'
-import rimraf from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 
 export interface Integrity {
@@ -157,7 +157,7 @@ function verifyFile (
   if (currentFile == null) return false
   if (currentFile.isModified) {
     if (currentFile.size !== fstat.size) {
-      rimraf.sync(filename)
+      rimrafSync(filename)
       return false
     }
     return verifyFileIntegrity(filename, { digest: fstat.digest, algorithm })

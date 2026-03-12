@@ -13,7 +13,7 @@ import { linkBinsOfPackages } from '@pnpm/link-bins'
 import { readPackageJsonFromDirRawSync } from '@pnpm/read-package-json'
 import { removeBin } from '@pnpm/remove-bins'
 import type { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 import symlinkDir from 'symlink-dir'
 import { installGlobalPackages } from './installGlobalPackages.js'
 

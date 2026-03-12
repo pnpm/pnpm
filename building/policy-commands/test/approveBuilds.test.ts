@@ -10,9 +10,9 @@ import { jest } from '@jest/globals'
 import { omit } from 'ramda'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { writePackageSync } from 'write-package'
-import { sync as readYamlFile } from 'read-yaml-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
-import execa from 'execa'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+import { safeExeca as execa } from 'execa'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 const { default: enquirer } = await import('enquirer')
@@ -94,7 +94,7 @@ test('approve selected build', async () => {
 
   await approveSomeBuilds()
 
-  const workspaceManifest = readYamlFile<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
   expect(workspaceManifest.allowBuilds).toStrictEqual({
     '@pnpm.e2e/install-script-example': false,
     '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
@@ -115,7 +115,7 @@ test('approve no builds', async () => {
 
   await approveNoBuilds()
 
-  const manifest = readYamlFile<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  const manifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
   // allowBuilds is now the unified setting
   expect(Object.keys(manifest.allowBuilds ?? {}).sort()).toStrictEqual([
     '@pnpm.e2e/install-script-example',
@@ -148,7 +148,7 @@ test("works when root project manifest doesn't exist in a workspace", async () =
 
   const workspaceDir = path.resolve('../..')
   const workspaceManifestFile = path.join(workspaceDir, 'pnpm-workspace.yaml')
-  writeYamlFile(workspaceManifestFile, { packages: ['packages/*'] })
+  writeYamlFileSync(workspaceManifestFile, { packages: ['packages/*'] })
 
   const config = await getApproveBuildsConfig()
   prompt.mockResolvedValueOnce({
@@ -157,7 +157,7 @@ test("works when root project manifest doesn't exist in a workspace", async () =
   prompt.mockResolvedValueOnce({ build: true })
   await approveBuilds.handler({ ...config, workspaceDir, rootProjectManifestDir: workspaceDir })
 
-  expect(readYamlFile(workspaceManifestFile)).toStrictEqual({
+  expect(readYamlFileSync(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],
     allowBuilds: {
       '@pnpm.e2e/install-script-example': false,
@@ -179,10 +179,10 @@ test('should approve builds with package.json that has no allowBuilds field defi
   })
 
   const workspaceManifestFile = path.join(temp, 'pnpm-workspace.yaml')
-  writeYamlFile(workspaceManifestFile, { packages: ['packages/*'] })
+  writeYamlFileSync(workspaceManifestFile, { packages: ['packages/*'] })
   await approveSomeBuilds({ workspaceDir: temp, rootProjectManifestDir: temp })
 
-  expect(readYamlFile(workspaceManifestFile)).toStrictEqual({
+  expect(readYamlFileSync(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],
     allowBuilds: {
       '@pnpm.e2e/install-script-example': false,
@@ -207,7 +207,7 @@ test('approve all builds with --all flag', async () => {
 
   expect(prompt).not.toHaveBeenCalled()
 
-  const workspaceManifest = readYamlFile<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
   expect(workspaceManifest.allowBuilds).toStrictEqual({
     '@pnpm.e2e/install-script-example': true,
     '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
@@ -236,7 +236,7 @@ test('should retain existing allowBuilds entries when approving builds', async (
   await execPnpmInstall()
 
   const workspaceManifestFile = path.join(temp, 'pnpm-workspace.yaml')
-  writeYamlFile(workspaceManifestFile, {
+  writeYamlFileSync(workspaceManifestFile, {
     packages: ['packages/*'],
     allowBuilds: {
       '@pnpm.e2e/test': false,
@@ -259,7 +259,7 @@ test('should retain existing allowBuilds entries when approving builds', async (
     },
   })
 
-  expect(readYamlFile(workspaceManifestFile)).toStrictEqual({
+  expect(readYamlFileSync(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],
     allowBuilds: {
       '@pnpm.e2e/install-script-example': false,

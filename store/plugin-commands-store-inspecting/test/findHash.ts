@@ -6,7 +6,7 @@ import { getConfig } from '@pnpm/config'
 import { findHash } from '@pnpm/plugin-commands-store-inspecting'
 import type { PnpmError } from '@pnpm/error'
 
-import execa from 'execa'
+import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')

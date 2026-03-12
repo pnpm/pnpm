@@ -6,7 +6,7 @@ import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-upda
 import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
 import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 import { loadJsonFileSync } from 'load-json-file'
 import semver from 'semver'
 import normalizePath from 'normalize-path'
@@ -269,6 +269,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-script-runners':
   case '@pnpm/plugin-commands-store':
   case '@pnpm/plugin-commands-deploy':
+  case '@pnpm/plugin-commands-audit':
   case CLI_PKG_NAME:
   case '@pnpm/core': {
     preset = '@pnpm/jest-config/with-registry'

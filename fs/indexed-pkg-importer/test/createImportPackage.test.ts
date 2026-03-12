@@ -23,7 +23,7 @@ jest.unstable_mockModule('@pnpm/graceful-fs', () => {
   }
 })
 jest.unstable_mockModule('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))
-jest.unstable_mockModule('rename-overwrite', () => ({ default: { sync: jest.fn() } }))
+jest.unstable_mockModule('rename-overwrite', () => ({ renameOverwrite: jest.fn(), renameOverwriteSync: jest.fn() }))
 jest.unstable_mockModule('fs-extra', () => ({
   default: {
     copySync: jest.fn(),

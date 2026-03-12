@@ -6,8 +6,8 @@ import type { BinaryFetcher, FetchFunction, FetchResult } from '@pnpm/fetcher-ba
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
-import isSubdir from 'is-subdir'
-import renameOverwrite from 'rename-overwrite'
+import { isSubdir } from 'is-subdir'
+import { renameOverwrite } from 'rename-overwrite'
 import { temporaryDirectory } from 'tempy'
 import ssri from 'ssri'
 

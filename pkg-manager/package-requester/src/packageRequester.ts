@@ -52,7 +52,7 @@ import {
 import { familySync } from 'detect-libc'
 import PQueue from 'p-queue'
 import pDefer, { type DeferredPromise } from 'p-defer'
-import pShare from 'promise-share'
+import { pShare } from 'promise-share'
 import { pick } from 'ramda'
 import ssri from 'ssri'
 

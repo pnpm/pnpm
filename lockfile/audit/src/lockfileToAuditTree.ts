@@ -1,5 +1,6 @@
 import path from 'path'
-import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
+import { convertToLockfileObject } from '@pnpm/lockfile.fs'
+import type { EnvLockfile, LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { detectDepTypes, type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
@@ -25,6 +26,7 @@ export interface AuditTree extends AuditNode {
 export async function lockfileToAuditTree (
   lockfile: LockfileObject,
   opts: {
+    envLockfile?: EnvLockfile | null
     include?: { [dependenciesField in DependenciesField]: boolean }
     lockfileDir: string
   }
@@ -47,6 +49,16 @@ export async function lockfileToAuditTree (
       }
     })
   )
+  if (opts.envLockfile) {
+    const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
+    const envDepTypes = detectDepTypes(envLockfileObject)
+    for (const { importerId, step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
+      const deps = lockfileToAuditNode(envDepTypes, step)
+      if (Object.keys(deps).length > 0) {
+        dependencies[importerId] = wrapDepsGroup(deps)
+      }
+    }
+  }
   const auditTree: AuditTree = {
     name: undefined,
     version: undefined,
@@ -83,4 +95,30 @@ function lockfileToAuditNode (depTypes: DepTypes, step: LockfileWalkerStep): Rec
 
 function toRequires (auditNodesByDepName: Record<string, AuditNode>): Record<string, string> {
   return mapValues((auditNode) => auditNode.version!, auditNodesByDepName)
+}
+
+function wrapDepsGroup (deps: Record<string, AuditNode>): AuditNode {
+  return {
+    dependencies: deps,
+    dev: false,
+    requires: toRequires(deps),
+    version: '0.0.0',
+  }
+}
+
+function envLockfileToLockfileObject (envLockfile: EnvLockfile): LockfileObject {
+  const envImporter = envLockfile.importers['.']
+  const importers: Record<string, { dependencies?: Record<string, { specifier: string, version: string }> }> = {}
+  if (Object.keys(envImporter.configDependencies).length > 0) {
+    importers['configDependencies'] = { dependencies: envImporter.configDependencies }
+  }
+  if (envImporter.packageManagerDependencies) {
+    importers['packageManagerDependencies'] = { dependencies: envImporter.packageManagerDependencies }
+  }
+  return convertToLockfileObject({
+    lockfileVersion: envLockfile.lockfileVersion,
+    importers,
+    packages: envLockfile.packages,
+    snapshots: envLockfile.snapshots,
+  })
 }

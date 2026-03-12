@@ -8,7 +8,7 @@ import type {
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import chalk from 'chalk'
 import terminalLink from 'terminal-link'
 import { PnpmError } from '@pnpm/error'

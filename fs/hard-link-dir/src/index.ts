@@ -4,8 +4,8 @@ import util from 'util'
 import fs from 'fs'
 import { globalWarn } from '@pnpm/logger'
 import gfs from '@pnpm/graceful-fs'
-import { sync as renameOverwrite } from 'rename-overwrite'
-import pathTemp from 'path-temp'
+import { renameOverwriteSync } from 'rename-overwrite'
+import { pathTemp } from 'path-temp'
 
 export function hardLinkDir (src: string, destDirs: string[]): void {
   if (destDirs.length === 0) return
@@ -21,7 +21,7 @@ export function hardLinkDir (src: string, destDirs: string[]): void {
   }
   _hardLinkDir(src, tempDestDirs, true)
   for (let i = 0; i < filteredDestDirs.length; i++) {
-    renameOverwrite(tempDestDirs[i], filteredDestDirs[i])
+    renameOverwriteSync(tempDestDirs[i], filteredDestDirs[i])
   }
 }
 

@@ -1,6 +1,6 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import { createProjectManifestWriter } from './createProjectManifestWriter.js'
 import * as install from './install.js'
 

@@ -15,14 +15,14 @@ jest.unstable_mockModule('root-link-target', () => {
   }
 
   return {
-    default: async function (file: string): Promise<string> {
+    rootLinkTarget: async function (file: string): Promise<string> {
       return MAPPINGS[file]
     },
   }
 })
 jest.unstable_mockModule('path-temp', () => {
   return {
-    default: function (dir: string): string {
+    pathTemp: function (dir: string): string {
       return path.join(dir, 'tmp')
     },
   }
@@ -32,13 +32,25 @@ jest.unstable_mockModule('os', () => ({
     homedir: () => '/home/user',
   },
 }))
-jest.unstable_mockModule('fs', () => ({
+const fsMock = {
+  default: {
+    promises: {
+      mkdir: () => {},
+      unlink: () => {},
+      rmdir: () => {},
+      rm: () => {},
+    },
+    rmSync: () => {},
+  },
   promises: {
     mkdir: () => {},
     unlink: () => {},
     rmdir: () => {},
+    rm: () => {},
   },
-}))
+}
+jest.unstable_mockModule('fs', () => fsMock)
+jest.unstable_mockModule('node:fs', () => fsMock)
 jest.unstable_mockModule('can-link', () => {
   const CAN_LINK = new Set([
     '/can-link-to-homedir/tmp=>/home/user/tmp',
@@ -46,7 +58,7 @@ jest.unstable_mockModule('can-link', () => {
   ])
 
   return {
-    default: function (existingPath: string, newPath: string): boolean {
+    canLink: function (existingPath: string, newPath: string): boolean {
       return CAN_LINK.has(`${existingPath}=>${newPath}`)
     },
   }

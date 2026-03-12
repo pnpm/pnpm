@@ -11,7 +11,7 @@ import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 
 export const skipPackageManagerCheck = true
 

@@ -4,7 +4,7 @@ import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -24,7 +24,7 @@ test('configuration dependency is resolved', async () => {
   })
 
   // Workspace manifest should have a clean specifier (no integrity)
-  const workspaceManifest = readYamlFile<{ configDependencies: Record<string, string> }>('pnpm-workspace.yaml')
+  const workspaceManifest = readYamlFileSync<{ configDependencies: Record<string, string> }>('pnpm-workspace.yaml')
   expect(workspaceManifest.configDependencies).toStrictEqual({
     '@pnpm.e2e/foo': '100.0.0',
   })

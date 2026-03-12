@@ -1,5 +1,5 @@
 import path from 'path'
-import pathAbsolute from 'path-absolute'
+import { pathAbsolute } from 'path-absolute'
 import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
 import { depPathToFilename } from '@pnpm/dependency-path'

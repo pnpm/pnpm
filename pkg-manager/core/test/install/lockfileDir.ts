@@ -3,10 +3,10 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
 import type { ProjectRootDir, DepPath } from '@pnpm/types'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -18,7 +18,7 @@ test.skip('subsequent installation uses same lockfile directory by default', asy
 
   await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], testDefaults())
 
-  const lockfile = readYamlFile<LockfileObject>(path.resolve('..', WANTED_LOCKFILE))
+  const lockfile = readYamlFileSync<LockfileObject>(path.resolve('..', WANTED_LOCKFILE))
 
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['is-negative/1.0.0', 'is-positive/1.0.0'])
 })
@@ -54,11 +54,11 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ lockfileDir }))
 
-  const lockfile = readYamlFile<LockfileObject>(path.resolve('..', WANTED_LOCKFILE))
+  const lockfile = readYamlFileSync<LockfileObject>(path.resolve('..', WANTED_LOCKFILE))
   expect(lockfile.packages!['tar-pkg-with-dep@file:project/pkg.tgz' as DepPath]).toBeTruthy()
   expect(lockfile.packages!['tar-pkg-with-dep@file:project/pkg.tgz' as DepPath].resolution).toHaveProperty(['tarball'], 'file:project/pkg.tgz')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await mutateModulesInSingleProject({
     manifest,

@@ -13,7 +13,7 @@ import type {
   ImportPackageFunctionAsync,
 } from '@pnpm/store-controller-types'
 import memoize from 'memoize'
-import pathTemp from 'path-temp'
+import { pathTemp } from 'path-temp'
 
 export { type CafsLocker }
 
@@ -42,6 +42,7 @@ export function createPackageImporterAsync (
       resolvedFrom: opts.filesResponse.resolvedFrom,
       force: opts.force,
       keepModulesDir: Boolean(opts.keepModulesDir),
+      safeToSkip: opts.safeToSkip,
     })
     return { importMethod, isBuilt }
   }
@@ -72,6 +73,7 @@ function createPackageImporter (
       resolvedFrom: opts.filesResponse.resolvedFrom,
       force: opts.force,
       keepModulesDir: Boolean(opts.keepModulesDir),
+      safeToSkip: opts.safeToSkip,
     })
     return { importMethod, isBuilt }
   }

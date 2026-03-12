@@ -14,9 +14,9 @@ import {
   mutateModulesInSingleProject,
   type ProjectOptions,
 } from '@pnpm/core'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
 import { testDefaults } from '../utils/index.js'
 
@@ -87,7 +87,7 @@ test('local directory with no package.json', async () => {
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
   project.has('pkg')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await install(manifest, testDefaults({ frozenLockfile: true }))
   project.has('pkg')
@@ -331,7 +331,7 @@ test('frozen-lockfile: installation fails if the integrity of a tarball dependen
   f.copy('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['../tar.tgz'], testDefaults())
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   f.copy('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
 
@@ -374,7 +374,7 @@ test('deep local', async () => {
   process.chdir('project-1')
   await install(manifest1, testDefaults())
 
-  const lockfile = readYamlFile<LockfileFile>('pnpm-lock.yaml')
+  const lockfile = readYamlFileSync<LockfileFile>('pnpm-lock.yaml')
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['project-2@file:../project-2', 'project-3@file:../project-2/project-3'])
 })
 

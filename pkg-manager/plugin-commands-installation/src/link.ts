@@ -15,7 +15,7 @@ import type {
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
 import { pick, partition } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import { createProjectManifestWriter } from './createProjectManifestWriter.js'
 import { getSaveType } from './getSaveType.js'
 import * as install from './install.js'

@@ -2,7 +2,7 @@
 import fs from 'fs'
 import net from 'net'
 import path from 'path'
-import execa from 'execa'
+import { safeExeca as execa } from 'execa'
 import { setTimeout } from 'timers/promises'
 import { promisify } from 'util'
 import { prepare } from '@pnpm/prepare'

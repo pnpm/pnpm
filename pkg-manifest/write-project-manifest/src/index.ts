@@ -4,7 +4,7 @@ import { insertComments, type CommentSpecifier } from '@pnpm/text.comments-parse
 import type { ProjectManifest } from '@pnpm/types'
 import JSON5 from 'json5'
 import writeFileAtomic from 'write-file-atomic'
-import writeYamlFile from 'write-yaml-file'
+import { writeYamlFile } from 'write-yaml-file'
 
 const YAML_FORMAT = {
   noCompatMode: true,

@@ -16,7 +16,7 @@ import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/
 import type { DependenciesField, ProjectRootDir, Project } from '@pnpm/types'
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import { pick, without } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import { getSaveType } from './getSaveType.js'
 import { recursive } from './recursive.js'
 

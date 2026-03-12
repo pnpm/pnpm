@@ -50,7 +50,7 @@ import type { PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
 import { pathExists } from 'path-exists'
 import pDefer from 'p-defer'
-import pShare from 'promise-share'
+import { pShare } from 'promise-share'
 import { pickBy, omit, zipWith } from 'ramda'
 import semver from 'semver'
 import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
@@ -268,7 +268,7 @@ type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'option
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
-export type UpdateMatchingFunction = (pkgName: string) => boolean
+export type UpdateMatchingFunction = (pkgName: string, version?: string) => boolean
 
 interface ResolvedDependenciesOptions {
   currentDepth: number
@@ -836,7 +836,7 @@ async function resolveDependenciesOfDependency (
       (options.updateMatching == null) ||
       (
         extendedWantedDep.infoFromLockfile?.name != null &&
-        options.updateMatching(extendedWantedDep.infoFromLockfile.name)
+        options.updateMatching(extendedWantedDep.infoFromLockfile.name, extendedWantedDep.infoFromLockfile.version)
       )
     )
   const update = updateRequested ||

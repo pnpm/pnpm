@@ -8,7 +8,7 @@ import {
   type GlobalPackageInfo,
 } from '@pnpm/global.packages'
 import { removeBin } from '@pnpm/remove-bins'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 
 export async function handleGlobalRemove (
   opts: {

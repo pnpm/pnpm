@@ -11,7 +11,7 @@ import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { pick } from 'ramda'
 import semver from 'semver'
-import renameOverwrite from 'rename-overwrite'
+import { renameOverwrite } from 'rename-overwrite'
 import { toRaw } from './toRaw.js'
 import type { FetchMetadataResult } from './fetch.js'
 import {

@@ -5,7 +5,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import { loadJsonFileSync } from 'load-json-file'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -130,7 +130,7 @@ test('migration: installs from old inline integrity format and creates env lockf
   }
 
   // Verify pnpm-lock.env.yaml was created with expected content
-  const envLockfile = readYamlFile<EnvLockfile>('pnpm-lock.env.yaml')
+  const envLockfile = readYamlFileSync<EnvLockfile>('pnpm-lock.env.yaml')
   expect(envLockfile.lockfileVersion).toBeDefined()
   expect(envLockfile.importers['.'].configDependencies['@pnpm.e2e/foo']).toEqual({
     specifier: '100.0.0',

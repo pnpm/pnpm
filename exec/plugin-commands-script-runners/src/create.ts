@@ -1,4 +1,4 @@
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import { docsUrl } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
 import * as dlx from './dlx.js'

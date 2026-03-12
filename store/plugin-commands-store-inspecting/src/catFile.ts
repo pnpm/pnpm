@@ -6,7 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/graceful-fs'
 import { getStorePath } from '@pnpm/store-path'
 
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 
 const INTEGRITY_REGEX: RegExp = /^[^-]+-([a-z0-9+/=]+)$/i
 

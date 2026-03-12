@@ -11,11 +11,12 @@ import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { PnpmError } from '@pnpm/error'
-import type { IncludedDependencies, ProjectRootDir } from '@pnpm/types'
+import type { IncludedDependencies, ProjectRootDir, PackageVulnerabilityAudit } from '@pnpm/types'
+import type { UpdateMatchingFunction } from '@pnpm/core'
 import enquirer from 'enquirer'
 import chalk from 'chalk'
 import { pick, pluck, unnest } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import type { InstallCommandOptions } from '../install.js'
 import { installDeps } from '../installDeps.js'
 import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
@@ -163,6 +164,7 @@ dependencies is not found inside the workspace',
 export type UpdateCommandOptions = InstallCommandOptions & {
   interactive?: boolean
   latest?: boolean
+  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
 export async function handler (
@@ -295,6 +297,15 @@ async function update (
     optionalDependencies: opts.rawConfig.optional !== false,
   }
   const depth = opts.depth ?? Infinity
+  let updateMatching: UpdateMatchingFunction | undefined
+  if (opts.packageVulnerabilityAudit != null) {
+    const { packageVulnerabilityAudit } = opts
+    updateMatching = (pkgName: string, version?: string) => version != null && packageVulnerabilityAudit.isVulnerable(pkgName, version)
+  } else if (
+    (dependencies.length > 0) && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
+  ) {
+    updateMatching = createMatcher(dependencies)
+  }
   return installDeps({
     ...opts,
     allowNew: false,
@@ -304,9 +315,7 @@ async function update (
     include,
     update: true,
     updateToLatest: opts.latest,
-    updateMatching: (dependencies.length > 0) && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
-      ? createMatcher(dependencies)
-      : undefined,
+    updateMatching,
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
   }, dependencies)

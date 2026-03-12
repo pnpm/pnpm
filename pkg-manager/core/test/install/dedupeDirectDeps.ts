@@ -3,7 +3,7 @@ import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { mutateModules, type MutatedProject } from '@pnpm/core'
 import type { ProjectRootDir } from '@pnpm/types'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
 
 test('dedupe direct dependencies', async () => {
@@ -170,7 +170,7 @@ test('dedupe direct dependencies after public hoisting', async () => {
   expect(fs.existsSync('project-2/node_modules')).toBeFalsy()
 
   // Test the same with headless install
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await mutateModules(importers, { ...opts, frozenLockfile: true })
   projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   projects['project-2'].hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')

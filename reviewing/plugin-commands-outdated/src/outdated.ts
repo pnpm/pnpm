@@ -19,7 +19,7 @@ import type { DependenciesField, PackageManifest, ProjectManifest, ProjectRootDi
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { pick, sortWith } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import {
   DEFAULT_COMPARATORS,

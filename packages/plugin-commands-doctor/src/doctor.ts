@@ -1,4 +1,4 @@
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import { docsUrl } from '@pnpm/cli-utils'
 import { logger } from '@pnpm/logger'
 import type { Config } from '@pnpm/config'

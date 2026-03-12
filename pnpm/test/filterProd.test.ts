@@ -1,4 +1,4 @@
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 import { execPnpm } from './utils/index.js'
 import {
   preparePackages,
@@ -49,7 +49,7 @@ test.each([
   ]
   preparePackages(projects)
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['install'])
 
   await execPnpm([filter, '...project-3', 'test'])

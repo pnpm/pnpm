@@ -3,11 +3,11 @@ import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.unstable_mockModule('execa', () => ({
-  default: jest.fn(),
+  safeExeca: jest.fn(),
   sync: jest.fn(),
 }))
 
-const { default: execa } = await import('execa')
+const { safeExeca: execa } = await import('execa')
 const { exec } = await import('@pnpm/plugin-commands-script-runners')
 
 beforeEach(() => jest.mocked(execa).mockClear())
