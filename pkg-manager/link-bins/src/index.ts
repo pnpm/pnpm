@@ -353,11 +353,18 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       nodeExecPath: cmd.nodeExecPath,
     })
   } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
-      throw err
+    if (err.code === 'ENOENT' || err.code === 'EISDIR') {
+      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      return
     }
-    globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
-    return
+    // On Windows, EPERM during bin creation can happen when another process
+    // (e.g. a parallel dlx call) is writing to the same shared bin directory.
+    // The other process will finish creating the bin, so we can safely skip.
+    if (IS_WINDOWS && err.code === 'EPERM') {
+      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      return
+    }
+    throw err
   }
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line
