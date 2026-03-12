@@ -433,6 +433,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         allowBuild,
         force: opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         depGraph: graph,
         depsStateCache,
         ignoreScripts: opts.ignoreScripts,
@@ -865,6 +866,7 @@ async function linkAllPkgs (
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
+    enableGlobalVirtualStore?: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
@@ -897,6 +899,7 @@ async function linkAllPkgs (
         force: depNode.forceImportPackage ?? opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         requiresBuild: depNode.patch != null || depNode.requiresBuild,
+        safeToSkip: opts.enableGlobalVirtualStore,
         sideEffectsCacheKey,
       })
       if (importMethod) {

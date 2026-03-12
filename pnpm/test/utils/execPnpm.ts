@@ -22,18 +22,34 @@ export async function execPnpm (
   }
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const proc = spawnPnpm(args, opts)
+    const proc = crossSpawn.spawn(process.execPath, [pnpmBinLocation, ...args], {
+      env: {
+        ...createEnv(),
+        ...opts?.env,
+      } as NodeJS.ProcessEnv,
+      stdio: ['inherit', 'pipe', 'pipe'],
+    })
 
     const timeout = opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT
     const timeoutId = registerProcessTimeout(proc, timeout, reject)
 
+    const output: Buffer[] = []
+    proc.stdout!.on('data', (chunk: Buffer) => {
+      output.push(chunk); process.stdout.write(chunk)
+    })
+    proc.stderr!.on('data', (chunk: Buffer) => {
+      output.push(chunk); process.stderr.write(chunk)
+    })
+
     proc.on('error', reject)
 
-    proc.on('close', (code: number) => {
+    proc.on('close', (code: number | null, signal: string | null) => {
       clearTimeout(timeoutId)
 
-      if (code > 0) {
-        reject(new Error(`Exit code ${code}`))
+      if (signal) {
+        reject(new Error(`Killed by signal ${signal}\n\n${Buffer.concat(output).toString()}`))
+      } else if (code) {
+        reject(new Error(`Exit code ${code}\n\n${Buffer.concat(output).toString()}`))
       } else {
         resolve()
       }

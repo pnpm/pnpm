@@ -222,7 +222,7 @@ export async function importPackage (
       localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         workerPool!.checkinWorker(localWorker)
         if (status === 'error') {
-          reject(new PnpmError(error.code ?? 'LINKING_FAILED', error.message as string))
+          reject(new PnpmError(error.code ?? 'LINKING_FAILED', `[importPackage ${opts.targetDir}] ${error.message as string}`))
           return
         }
         resolve(value)
@@ -247,7 +247,7 @@ export async function symlinkAllModules (
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         const hint = opts.deps?.[0]?.modules != null ? createErrorHint(error, opts.deps[0].modules) : undefined
-        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string, { hint }))
+        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', `[symlinkAllModules] ${error.message as string}`, { hint }))
         return
       }
       resolve(value)

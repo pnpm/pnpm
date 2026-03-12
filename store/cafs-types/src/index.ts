@@ -39,6 +39,7 @@ export interface ImportPackageOpts {
   filesResponse: PackageFilesResponse
   force: boolean
   keepModulesDir?: boolean
+  safeToSkip?: boolean
 }
 
 export type ImportPackageFunction = (
