@@ -1,5 +1,5 @@
 import fs from 'fs/promises'
-import { type PublishOptions } from 'libnpmpublish'
+import { type PublishOptions as _PublishOptions } from 'libnpmpublish'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
@@ -73,6 +73,11 @@ export async function publishPackedPkg (
   throw await createFailedToPublishError(packResult, response)
 }
 
+interface PublishOptions extends _PublishOptions {
+  authType: 'web'
+  npmCommand: 'publish'
+}
+
 async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
   const { registry, auth, ssl } = findAuthSslInfo(manifest, options)
 
@@ -91,6 +96,11 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     userAgent,
   } = options
 
+  const headers: PublishOptions['headers'] = {
+    'npm-auth-type': 'web',
+    'npm-command': 'publish',
+  }
+
   const publishOptions: PublishOptions = {
     access,
     defaultTag,
@@ -98,6 +108,7 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     fetchRetryFactor,
     fetchRetryMaxtimeout,
     fetchRetryMintimeout,
+    headers,
     isFromCI,
     otp,
     timeout,
@@ -105,9 +116,11 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     provenanceFile,
     registry,
     userAgent,
+    authType: 'web',
     ca: ssl?.ca,
     cert: Array.isArray(ssl?.cert) ? ssl.cert.join('\n') : ssl?.cert,
     key: ssl?.key,
+    npmCommand: 'publish',
     token: auth && extractToken(auth),
     username: auth?.authUserPass?.username,
     password: auth?.authUserPass?.password,
