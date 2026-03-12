@@ -2,7 +2,7 @@ import fs from 'fs'
 import util from 'util'
 import fsx from 'fs-extra'
 import path from 'path'
-import { globalWarn, logger } from '@pnpm/logger'
+import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import { rimrafSync } from '@zkochan/rimraf'
 import { makeEmptyDirSync } from 'make-empty-dir'
 import sanitizeFilename from 'sanitize-filename'
@@ -62,19 +62,25 @@ They were renamed.`)
     }
     throw err
   }
-  if (opts.safeToSkip && process.platform === 'win32') {
-    // On Windows, renameOverwriteSync is destructive — it removes the target
-    // directory when rename fails, which breaks concurrent processes that are
-    // reading from it. Use a simple rename instead: if it fails, the target
-    // was already placed by another process.
+  if (opts.safeToSkip) {
+    // Content-addressable target (e.g. global virtual store): if the target
+    // already exists and has all expected files, it has the correct content.
+    // Skip instead of doing a swap-rename that temporarily removes the target
+    // directory — which breaks junctions read by other processes.
     try {
       fs.renameSync(stage, newDir)
       return
-    } catch {} // eslint-disable-line:no-empty
-    try {
-      rimrafSync(stage)
-    } catch {} // eslint-disable-line:no-empty
-    return
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST' || err.code === 'EPERM')) {
+        if (allFilesMatch(newDir, filenames)) {
+          try {
+            rimrafSync(stage)
+          } catch {} // eslint-disable-line:no-empty
+          return
+        }
+      }
+      // Files missing or other error — fall through to renameOverwriteSync
+    }
   }
   try {
     renameOverwriteSync(stage, newDir)
@@ -82,26 +88,33 @@ They were renamed.`)
     try {
       rimrafSync(stage)
     } catch {} // eslint-disable-line:no-empty
-    // When multiple processes install the same package concurrently (e.g. parallel
-    // dlx calls sharing a global virtual store), the rename can race. If the target
-    // already has the expected content, another process completed the import.
-    const errCode = util.types.isNativeError(renameErr) && 'code' in renameErr ? renameErr.code : undefined
-    if (errCode === 'ENOTEMPTY' || errCode === 'EEXIST') {
-      const firstFile = filenames.keys().next().value
-      if (firstFile) {
-        const targetFile = path.join(newDir, firstFile)
-        for (let attempt = 0; attempt < 4; attempt++) {
-          if (attempt > 0) {
-            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50)
-          }
-          if (fs.existsSync(targetFile)) {
-            return
-          }
-        }
-      }
-    }
     throw renameErr
   }
+}
+
+function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
+  for (const [f, src] of filenames) {
+    const target = path.join(dir, f)
+    try {
+      const targetStat = gfs.statSync(target)
+      const srcStat = gfs.statSync(src)
+      // Fast path: hardlinks share the same inode
+      if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) continue
+      // Copy path: compare size first, then content
+      if (targetStat.size !== srcStat.size) {
+        globalInfo(`Re-importing "${dir}" because file "${f}" has a different size`)
+        return false
+      }
+      if (!gfs.readFileSync(target).equals(gfs.readFileSync(src))) {
+        globalInfo(`Re-importing "${dir}" because file "${f}" has different content`)
+        return false
+      }
+    } catch {
+      globalInfo(`Re-importing "${dir}" because file "${f}" is missing or unreadable`)
+      return false
+    }
+  }
+  return true
 }
 
 interface SanitizeFilenamesResult {
