@@ -45,7 +45,6 @@ export type PublishPackedPkgOptions = Pick<Config,
 | 'userAgent'
 > & {
   access?: 'public' | 'restricted'
-  ci?: boolean
   otp?: string // NOTE: There is no existing test for the One-time Password feature
   provenance?: boolean
   provenanceFile?: string // NOTE: This field is currently not supported
@@ -78,7 +77,6 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
 
   const {
     access,
-    ci: isFromCI,
     fetchRetries,
     fetchRetryFactor,
     fetchRetryMaxtimeout,
@@ -93,14 +91,15 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
 
   const publishOptions: PublishOptions = {
     access,
-    authType: 'web',
     defaultTag,
     fetchRetries,
     fetchRetryFactor,
     fetchRetryMaxtimeout,
     fetchRetryMintimeout,
-    isFromCI,
-    npmCommand: 'publish',
+    headers: {
+      'npm-auth-type': 'web',
+      'npm-command': 'publish',
+    },
     otp,
     timeout,
     provenance,
@@ -113,7 +112,7 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     token: auth && extractToken(auth),
     username: auth?.authUserPass?.username,
     password: auth?.authUserPass?.password,
-  } as PublishOptions
+  }
 
   // This is necessary because getNetworkConfigs initialized them as { cert: '', key: '' }
   // which may be a problem.
