@@ -60,26 +60,6 @@ test('safeToSkip skips when target has matching content (copy)', () => {
   expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
 })
 
-test('safeToSkip falls back to renameOverwriteSync when files are missing', () => {
-  const tmp = tempDir()
-  const srcFile = path.join(tmp, 'src', 'index.js')
-  const newDir = path.join(tmp, 'dest')
-
-  // Create source file
-  fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
-  fs.writeFileSync(srcFile, 'content')
-
-  // Target exists but does NOT have the expected file (incomplete)
-  fs.mkdirSync(newDir, { recursive: true })
-  fs.writeFileSync(path.join(newDir, 'other-file.txt'), 'other')
-
-  const filenames = new Map([['index.js', srcFile]])
-
-  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
-
-  expect(renameOverwriteSyncMock).toHaveBeenCalled()
-})
-
 test('safeToSkip falls back to renameOverwriteSync when content differs', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'index.js')

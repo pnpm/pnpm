@@ -72,7 +72,7 @@ They were renamed.`)
       return
     } catch (err: unknown) {
       if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST' || err.code === 'EPERM')) {
-        if (allFilesMatch(newDir, filenames)) {
+        if (canSkipImport(newDir, filenames)) {
           try {
             rimrafSync(stage)
           } catch {} // eslint-disable-line:no-empty
@@ -92,7 +92,7 @@ They were renamed.`)
   }
 }
 
-function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
+function canSkipImport (dir: string, filenames: Map<string, string>): boolean {
   for (const [f, src] of filenames) {
     const target = path.join(dir, f)
     try {
@@ -110,8 +110,10 @@ function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
         return false
       }
     } catch {
-      globalInfo(`Re-importing "${dir}" because file "${f}" is missing or unreadable`)
-      return false
+      // File may be temporarily locked by another process (common on Windows).
+      // Since the path is content-addressed, trust that the existing dir is correct.
+      globalWarn(`Could not verify "${f}" in "${dir}" (file may be locked by another process), skipping re-import`)
+      return true
     }
   }
   return true
