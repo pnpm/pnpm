@@ -65,22 +65,25 @@ They were renamed.`)
   if (opts.safeToSkip) {
     // Content-addressable target (e.g. global virtual store): the path includes
     // a content hash, so if the target already exists it was placed by another
-    // process and has the correct content. Never fall through to
-    // renameOverwriteSync — its swap-rename temporarily removes the target
-    // directory, breaking junctions read by other concurrent processes.
+    // process and has the correct content.
     try {
       fs.renameSync(stage, newDir)
       return
     } catch (err: unknown) {
       const errCode = util.types.isNativeError(err) && 'code' in err ? err.code : undefined
-      const diag = getContentMismatchDiag(newDir, filenames)
-      // TEMPORARY: rethrow with diagnostics embedded in the message so Jest shows them.
-      const msg = `[importIndexedDir] rename to "${newDir}" failed (${errCode}). ${diag}`
-      const wrapped = new Error(msg)
-      if (util.types.isNativeError(err)) {
-        wrapped.cause = err
+      if (process.platform === 'win32') {
+        // On Windows, never fall through to renameOverwriteSync — its
+        // rimrafSync(target) fails with EPERM when another process has files
+        // open, breaking concurrent GVS access. Trust the hash instead.
+        try {
+          rimrafSync(stage)
+        } catch {} // eslint-disable-line:no-empty
+        return
       }
-      throw wrapped
+      // On POSIX, renameOverwriteSync is safe (unlink works with open handles).
+      // Check content for diagnostics before falling through.
+      const diag = getContentMismatchDiag(newDir, filenames)
+      console.warn(`[importIndexedDir] rename to "${newDir}" failed (${errCode}). ${diag}`)
     }
   }
   try {
