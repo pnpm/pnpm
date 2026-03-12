@@ -32,33 +32,14 @@ test('safeToSkip skips when target already exists (content-addressed)', () => {
 
   const filenames = new Map([['package.json', srcFile]])
 
-  // Should skip — target exists, path is content-addressed so content is correct
+  // Should not throw — target exists, path is content-addressed so content is correct
   importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'package.json'))).toBe(true)
-  expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
-})
-
-test('safeToSkip never calls renameOverwriteSync (even with different content)', () => {
-  const tmp = tempDir()
-  const srcFile = path.join(tmp, 'src', 'index.js')
-  const newDir = path.join(tmp, 'dest')
-
-  // Create source file
-  fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
-  fs.writeFileSync(srcFile, 'new content')
-
-  // Target exists with different content — but in a content-addressed store,
-  // the hash guarantees correctness, so we trust the existing dir and never
-  // use the destructive renameOverwriteSync.
-  fs.mkdirSync(newDir, { recursive: true })
-  fs.writeFileSync(path.join(newDir, 'index.js'), 'old content')
-
-  const filenames = new Map([['index.js', srcFile]])
-
-  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
-
-  expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
+  if (process.platform === 'win32') {
+    // On Windows, the hard barrier skips renameOverwriteSync entirely
+    expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
+  }
 })
 
 test('safeToSkip creates dir when target does not exist', () => {
@@ -72,9 +53,8 @@ test('safeToSkip creates dir when target does not exist', () => {
 
   const filenames = new Map([['index.js', srcFile]])
 
-  // Target doesn't exist — should create it via rename
+  // Target doesn't exist — should create it
   importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'index.js'))).toBe(true)
-  expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
 })

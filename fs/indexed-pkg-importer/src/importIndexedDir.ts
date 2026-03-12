@@ -62,29 +62,19 @@ They were renamed.`)
     }
     throw err
   }
-  if (opts.safeToSkip) {
-    // Content-addressable target (e.g. global virtual store): the path includes
-    // a content hash, so if the target already exists it was placed by another
-    // process and has the correct content.
+  if (opts.safeToSkip && process.platform === 'win32') {
+    // On Windows, never use renameOverwriteSync for content-addressed paths.
+    // Its rimrafSync(target) fails with EPERM when another process has files
+    // open, breaking concurrent GVS access. The path is content-addressed
+    // (same hash = same content), so trust the existing directory.
     try {
       fs.renameSync(stage, newDir)
       return
-    } catch (err: unknown) {
-      const errCode = util.types.isNativeError(err) && 'code' in err ? err.code : undefined
-      if (process.platform === 'win32') {
-        // On Windows, never fall through to renameOverwriteSync — its
-        // rimrafSync(target) fails with EPERM when another process has files
-        // open, breaking concurrent GVS access. Trust the hash instead.
-        try {
-          rimrafSync(stage)
-        } catch {} // eslint-disable-line:no-empty
-        return
-      }
-      // On POSIX, renameOverwriteSync is safe (unlink works with open handles).
-      // Check content for diagnostics before falling through.
-      const diag = getContentMismatchDiag(newDir, filenames)
-      console.warn(`[importIndexedDir] rename to "${newDir}" failed (${errCode}). ${diag}`)
-    }
+    } catch {} // eslint-disable-line:no-empty
+    try {
+      rimrafSync(stage)
+    } catch {} // eslint-disable-line:no-empty
+    return
   }
   try {
     renameOverwriteSync(stage, newDir)
@@ -92,33 +82,25 @@ They were renamed.`)
     try {
       rimrafSync(stage)
     } catch {} // eslint-disable-line:no-empty
+    if (opts.safeToSkip) {
+      const errCode = util.types.isNativeError(renameErr) && 'code' in renameErr ? renameErr.code : undefined
+      if (errCode === 'ENOTEMPTY' || errCode === 'EEXIST' || errCode === 'EPERM') {
+        const firstFile = filenames.keys().next().value
+        if (firstFile) {
+          const targetFile = path.join(newDir, firstFile)
+          for (let attempt = 0; attempt < 4; attempt++) {
+            if (attempt > 0) {
+              Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50)
+            }
+            if (fs.existsSync(targetFile)) {
+              return
+            }
+          }
+        }
+      }
+    }
     throw renameErr
   }
-}
-
-function getContentMismatchDiag (dir: string, filenames: Map<string, string>): string {
-  const lines: string[] = []
-  for (const [f, src] of filenames) {
-    const target = path.join(dir, f)
-    try {
-      const targetStat = gfs.statSync(target)
-      const srcStat = gfs.statSync(src)
-      if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) continue
-      if (targetStat.size !== srcStat.size) {
-        lines.push(`"${f}" size mismatch: target=${targetStat.size}, source=${srcStat.size}`)
-        return lines.join('; ')
-      }
-      if (!gfs.readFileSync(target).equals(gfs.readFileSync(src))) {
-        lines.push(`"${f}" content mismatch despite same size`)
-        return lines.join('; ')
-      }
-    } catch (err: unknown) {
-      const code = util.types.isNativeError(err) && 'code' in err ? err.code : undefined
-      lines.push(`"${f}" unreadable (${code})`)
-      return lines.join('; ')
-    }
-  }
-  return 'all files match — target already exists'
 }
 
 interface SanitizeFilenamesResult {
