@@ -64,29 +64,34 @@ They were renamed.`)
   }
   if (opts.requiresOverwrite === false) {
     // Content-addressable target (e.g. global virtual store): if the target
-    // already exists, it has the correct content. Use a plain rename and skip
-    // on ENOTEMPTY instead of doing a swap-rename that temporarily removes the
+    // already exists and was recently created, it has the correct content
+    // (a concurrent process just wrote it). Use a plain rename and skip on
+    // ENOTEMPTY instead of doing a swap-rename that temporarily removes the
     // target directory — which breaks junctions read by other processes.
+    // If the target is older than 1 minute, it may be stale from a previous
+    // failed run, so fall through to renameOverwriteSync to replace it.
     try {
       fs.renameSync(stage, newDir)
     } catch (err: unknown) {
-      try {
-        rimrafSync(stage)
-      } catch {} // eslint-disable-line:no-empty
       if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST')) {
-        return
+        try {
+          const stats = fs.statSync(newDir)
+          if (Date.now() - stats.mtimeMs < 60_000) {
+            rimrafSync(stage)
+            return
+          }
+        } catch {} // eslint-disable-line:no-empty
       }
-      throw err
+      // Target is old or stat failed — fall through to renameOverwriteSync
     }
-  } else {
+  }
+  try {
+    renameOverwriteSync(stage, newDir)
+  } catch (renameErr: unknown) {
     try {
-      renameOverwriteSync(stage, newDir)
-    } catch (renameErr: unknown) {
-      try {
-        rimrafSync(stage)
-      } catch {} // eslint-disable-line:no-empty
-      throw renameErr
-    }
+      rimrafSync(stage)
+    } catch {} // eslint-disable-line:no-empty
+    throw renameErr
   }
 }
 
