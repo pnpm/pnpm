@@ -36,10 +36,9 @@ test('safeToSkip skips when target already exists (content-addressed)', () => {
   importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'package.json'))).toBe(true)
-  if (process.platform === 'win32') {
-    // On Windows, the hard barrier skips renameOverwriteSync entirely
-    expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
-  }
+  // When safeToSkip is true and the target already exists with matching content,
+  // renameOverwriteSync should not be called on any platform.
+  expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
 })
 
 test('safeToSkip creates dir when target does not exist', () => {

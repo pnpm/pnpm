@@ -46,10 +46,12 @@ export async function execPnpm (
 
     proc.on('error', reject)
 
-    proc.on('close', (code: number) => {
+    proc.on('close', (code: number | null, signal: string | null) => {
       clearTimeout(timeoutId)
 
-      if (code > 0) {
+      if (signal) {
+        reject(new Error(`Killed by signal ${signal}\n\n${Buffer.concat(output).toString()}`))
+      } else if (code) {
         reject(new Error(`Exit code ${code}\n\n${Buffer.concat(output).toString()}`))
       } else {
         resolve()
