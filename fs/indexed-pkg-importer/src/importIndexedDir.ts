@@ -77,13 +77,10 @@ They were renamed.`)
       // in worker threads, unlike globalWarn which uses bole with no listeners).
       console.warn(`[importIndexedDir] rename to "${newDir}" failed (${errCode}), checking existing content`)
       logContentMismatch(newDir, filenames)
+      // TEMPORARY: rethrow so the test fails and CI shows all diagnostic output.
+      // Remove this once we've collected diagnostics.
+      throw err
     }
-    // Target already exists. Since the path is content-addressed (same hash =
-    // same content), the existing directory is correct. Clean up staging.
-    try {
-      rimrafSync(stage)
-    } catch {} // eslint-disable-line:no-empty
-    return
   }
   try {
     renameOverwriteSync(stage, newDir)

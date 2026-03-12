@@ -112,6 +112,6 @@ jobs:
         fi
     - name: Run tests (${{ steps.test-scope.outputs.scope }})
       timeout-minutes: 70
-      run: pnpm run ${{ steps.test-scope.outputs.script }}
+      run: pnpm --filter pnpm run _test -- --testPathPattern=dlx --verbose -t "parallel dlx"
       env:
         PNPM_WORKERS: 3
