@@ -71,7 +71,7 @@ They were renamed.`)
       fs.renameSync(stage, newDir)
     } catch (err: unknown) {
       if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST')) {
-        if (allFilesExist(newDir, filenames)) {
+        if (allFilesMatch(newDir, filenames)) {
           try {
             rimrafSync(stage)
           } catch {} // eslint-disable-line:no-empty
@@ -91,9 +91,18 @@ They were renamed.`)
   }
 }
 
-function allFilesExist (dir: string, filenames: Map<string, string>): boolean {
-  for (const f of filenames.keys()) {
-    if (!fs.existsSync(path.join(dir, f))) {
+function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
+  for (const [f, src] of filenames) {
+    const target = path.join(dir, f)
+    try {
+      const targetStat = fs.statSync(target)
+      const srcStat = fs.statSync(src)
+      // Fast path: hardlinks share the same inode
+      if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) continue
+      // Copy path: compare size first, then content
+      if (targetStat.size !== srcStat.size) return false
+      if (!fs.readFileSync(target).equals(fs.readFileSync(src))) return false
+    } catch {
       return false
     }
   }
