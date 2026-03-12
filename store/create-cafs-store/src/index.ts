@@ -42,6 +42,7 @@ export function createPackageImporterAsync (
       resolvedFrom: opts.filesResponse.resolvedFrom,
       force: opts.force,
       keepModulesDir: Boolean(opts.keepModulesDir),
+      requiresOverwrite: opts.requiresOverwrite,
     })
     return { importMethod, isBuilt }
   }
@@ -72,6 +73,7 @@ function createPackageImporter (
       resolvedFrom: opts.filesResponse.resolvedFrom,
       force: opts.force,
       keepModulesDir: Boolean(opts.keepModulesDir),
+      requiresOverwrite: opts.requiresOverwrite,
     })
     return { importMethod, isBuilt }
   }

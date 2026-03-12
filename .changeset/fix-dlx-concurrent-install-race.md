@@ -1,5 +1,6 @@
 ---
+"@pnpm/fs.indexed-pkg-importer": patch
 "pnpm": patch
 ---
 
-Fixed intermittent `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` when multiple `pnpm dlx` calls run concurrently for the same package. When the install fails due to a concurrent global virtual store write, dlx now checks if another process has already completed the install and uses that cache instead of failing.
+Fixed intermittent failures when multiple `pnpm dlx` calls run concurrently for the same package. When the global virtual store is enabled, the importer now skips instead of doing a swap-rename when the target directory already exists, since GVS paths are content-addressed and existing targets always have the correct content.

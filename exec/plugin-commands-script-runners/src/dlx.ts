@@ -172,44 +172,23 @@ export async function handler (
       }
     }
   }
-  return runDlx(cachedDir, { command, args, opts, cacheLink })
-}
-
-async function runDlx (
-  cachedDir: string,
-  ctx: {
-    command: string
-    args: string[]
-    opts: DlxCommandOptions
-    cacheLink: string
-  }
-): Promise<{ exitCode: number, output?: string }> {
   const binsDir = path.join(cachedDir, 'node_modules/.bin')
   const env = makeEnv({
-    userAgent: ctx.opts.userAgent,
-    prependPaths: [binsDir, ...ctx.opts.extraBinPaths],
+    userAgent: opts.userAgent,
+    prependPaths: [binsDir, ...opts.extraBinPaths],
   })
-  const binName = ctx.opts.package
-    ? ctx.command
-    : await getBinName(cachedDir, ctx.opts)
+  const binName = opts.package
+    ? command
+    : await getBinName(cachedDir, opts)
   try {
-    await execa(binName, ctx.args, {
+    await execa(binName, args, {
       cwd: process.cwd(),
       env,
       stdio: 'inherit',
-      shell: ctx.opts.shellMode ?? false,
+      shell: opts.shellMode ?? false,
     })
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'exitCode' in err && err.exitCode != null) {
-      // When concurrent dlx processes install the same package with
-      // enableGlobalVirtualStore, the global store entries may be written
-      // concurrently, leaving the current installation in a broken state
-      // (e.g. missing modules). If another process has already completed
-      // and updated the cache symlink, retry from that cache.
-      const concurrentCacheDir = getValidCacheDir(ctx.cacheLink, ctx.opts.dlxCacheMaxAge)
-      if (concurrentCacheDir != null && concurrentCacheDir !== cachedDir) {
-        return runDlx(concurrentCacheDir, ctx)
-      }
       return {
         exitCode: err.exitCode as number,
       }

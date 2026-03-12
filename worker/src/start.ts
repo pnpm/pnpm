@@ -421,6 +421,7 @@ function importPackage ({
   force,
   keepModulesDir,
   disableRelinkLocalDirDeps,
+  requiresOverwrite,
 }: LinkPkgMessage): ImportPackageResult {
   const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
   if (!cafsStoreCache.has(cacheKey)) {
@@ -434,6 +435,7 @@ function importPackage ({
     requiresBuild,
     sideEffectsCacheKey,
     keepModulesDir,
+    requiresOverwrite,
   })
   return { status: 'success', value: { isBuilt, importMethod } }
 }

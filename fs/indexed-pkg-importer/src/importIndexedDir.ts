@@ -20,6 +20,7 @@ export function importIndexedDir (
   filenames: Map<string, string>,
   opts: {
     keepModulesDir?: boolean
+    requiresOverwrite?: boolean
   }
 ): void {
   const stage = pathTemp(newDir)
@@ -61,35 +62,31 @@ They were renamed.`)
     }
     throw err
   }
-  try {
-    renameOverwriteSync(stage, newDir)
-  } catch (renameErr: unknown) {
-    // When enableGlobalVirtualStore is true, multiple worker threads may import
-    // the same package to the same global store location concurrently. Their
-    // rename operations can race. If the rename fails but the target already
-    // has the expected content, another thread completed the import.
+  if (opts.requiresOverwrite === false) {
+    // Content-addressable target (e.g. global virtual store): if the target
+    // already exists, it has the correct content. Use a plain rename and skip
+    // on ENOTEMPTY instead of doing a swap-rename that temporarily removes the
+    // target directory — which breaks junctions read by other processes.
     try {
-      rimrafSync(stage)
-    } catch {} // eslint-disable-line:no-empty
-    if (util.types.isNativeError(renameErr) && 'code' in renameErr && (renameErr.code === 'ENOTEMPTY' || renameErr.code === 'EEXIST')) {
-      const firstFile = filenames.keys().next().value
-      if (firstFile) {
-        const targetFile = path.join(newDir, firstFile)
-        // Retry with short delays. With 3+ concurrent workers, a third thread
-        // may have rimrafed the target (inside its own renameOverwrite) but not
-        // yet completed its own rename. A short wait lets it finish.
-        for (let attempt = 0; attempt < 4; attempt++) {
-          if (attempt > 0) {
-            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50)
-          }
-          if (fs.existsSync(targetFile)) {
-            logger('_virtual-store-race').debug({ target: newDir })
-            return
-          }
-        }
+      fs.renameSync(stage, newDir)
+    } catch (err: unknown) {
+      try {
+        rimrafSync(stage)
+      } catch {} // eslint-disable-line:no-empty
+      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST')) {
+        return
       }
+      throw err
     }
-    throw renameErr
+  } else {
+    try {
+      renameOverwriteSync(stage, newDir)
+    } catch (renameErr: unknown) {
+      try {
+        rimrafSync(stage)
+      } catch {} // eslint-disable-line:no-empty
+      throw renameErr
+    }
   }
 }
 

@@ -167,6 +167,7 @@ export interface ImportOptions {
   force: boolean
   resolvedFrom: ResolvedFrom
   keepModulesDir?: boolean
+  requiresOverwrite?: boolean
 }
 
 export type ImportIndexedPackage = (to: string, opts: ImportOptions) => string | undefined
