@@ -73,13 +73,14 @@ They were renamed.`)
       return
     } catch (err: unknown) {
       const errCode = util.types.isNativeError(err) && 'code' in err ? err.code : undefined
-      // Log the rename failure reason for diagnostics (console.warn works
-      // in worker threads, unlike globalWarn which uses bole with no listeners).
-      console.warn(`[importIndexedDir] rename to "${newDir}" failed (${errCode}), checking existing content`)
-      logContentMismatch(newDir, filenames)
-      // TEMPORARY: rethrow so the test fails and CI shows all diagnostic output.
-      // Remove this once we've collected diagnostics.
-      throw err
+      const diag = getContentMismatchDiag(newDir, filenames)
+      // TEMPORARY: rethrow with diagnostics embedded in the message so Jest shows them.
+      const msg = `[importIndexedDir] rename to "${newDir}" failed (${errCode}). ${diag}`
+      const wrapped = new Error(msg)
+      if (util.types.isNativeError(err)) {
+        wrapped.cause = err
+      }
+      throw wrapped
     }
   }
   try {
@@ -92,7 +93,8 @@ They were renamed.`)
   }
 }
 
-function logContentMismatch (dir: string, filenames: Map<string, string>): void {
+function getContentMismatchDiag (dir: string, filenames: Map<string, string>): string {
+  const lines: string[] = []
   for (const [f, src] of filenames) {
     const target = path.join(dir, f)
     try {
@@ -100,20 +102,20 @@ function logContentMismatch (dir: string, filenames: Map<string, string>): void 
       const srcStat = gfs.statSync(src)
       if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) continue
       if (targetStat.size !== srcStat.size) {
-        console.warn(`[importIndexedDir]   "${f}" size mismatch: target=${targetStat.size}, source=${srcStat.size}`)
-        return
+        lines.push(`"${f}" size mismatch: target=${targetStat.size}, source=${srcStat.size}`)
+        return lines.join('; ')
       }
       if (!gfs.readFileSync(target).equals(gfs.readFileSync(src))) {
-        console.warn(`[importIndexedDir]   "${f}" content mismatch despite same size`)
-        return
+        lines.push(`"${f}" content mismatch despite same size`)
+        return lines.join('; ')
       }
     } catch (err: unknown) {
       const code = util.types.isNativeError(err) && 'code' in err ? err.code : undefined
-      console.warn(`[importIndexedDir]   "${f}" unreadable (${code})`)
-      return
+      lines.push(`"${f}" unreadable (${code})`)
+      return lines.join('; ')
     }
   }
-  console.warn('[importIndexedDir]   all files match — skipping')
+  return 'all files match — target already exists'
 }
 
 interface SanitizeFilenamesResult {
