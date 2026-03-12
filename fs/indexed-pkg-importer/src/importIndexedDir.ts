@@ -71,7 +71,13 @@ They were renamed.`)
     try {
       fs.renameSync(stage, newDir)
       return
-    } catch {} // eslint-disable-line:no-empty
+    } catch (err: unknown) {
+      const errCode = util.types.isNativeError(err) && 'code' in err ? err.code : undefined
+      // Log the rename failure reason for diagnostics (console.warn works
+      // in worker threads, unlike globalWarn which uses bole with no listeners).
+      console.warn(`[importIndexedDir] rename to "${newDir}" failed (${errCode}), checking existing content`)
+      logContentMismatch(newDir, filenames)
+    }
     // Target already exists. Since the path is content-addressed (same hash =
     // same content), the existing directory is correct. Clean up staging.
     try {
@@ -87,6 +93,30 @@ They were renamed.`)
     } catch {} // eslint-disable-line:no-empty
     throw renameErr
   }
+}
+
+function logContentMismatch (dir: string, filenames: Map<string, string>): void {
+  for (const [f, src] of filenames) {
+    const target = path.join(dir, f)
+    try {
+      const targetStat = gfs.statSync(target)
+      const srcStat = gfs.statSync(src)
+      if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) continue
+      if (targetStat.size !== srcStat.size) {
+        console.warn(`[importIndexedDir]   "${f}" size mismatch: target=${targetStat.size}, source=${srcStat.size}`)
+        return
+      }
+      if (!gfs.readFileSync(target).equals(gfs.readFileSync(src))) {
+        console.warn(`[importIndexedDir]   "${f}" content mismatch despite same size`)
+        return
+      }
+    } catch (err: unknown) {
+      const code = util.types.isNativeError(err) && 'code' in err ? err.code : undefined
+      console.warn(`[importIndexedDir]   "${f}" unreadable (${code})`)
+      return
+    }
+  }
+  console.warn('[importIndexedDir]   all files match — skipping')
 }
 
 interface SanitizeFilenamesResult {
