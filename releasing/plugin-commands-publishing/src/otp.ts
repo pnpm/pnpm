@@ -97,18 +97,21 @@ const isOtpError = (error: unknown): error is OtpError =>
   'code' in error &&
   error.code === 'EOTP'
 
-const URL_IN_NOTICE_RE = /https?:\/\/\S+/i
+const URL_IN_STRING_RE = /https?:\/\/\S+/gi
 
 /**
- * Extract a URL from an npm-notice header message.
+ * Extract all URLs from a string.
  *
  * For example, given:
- *   "Open https://www.npmjs.com/login/abc-123 to use your security key for authentication"
- * Returns:
+ *   "Open https://www.npmjs.com/login/abc-123 or visit https://example.com for help"
+ * Yields:
  *   "https://www.npmjs.com/login/abc-123"
+ *   "https://example.com"
  */
-export function extractUrlFromNotice (notice: string): string | undefined {
-  return URL_IN_NOTICE_RE.exec(notice)?.[0]
+export function * extractUrlsFromString (text: string): Generator<string> {
+  for (const match of text.matchAll(URL_IN_STRING_RE)) {
+    yield match[0]
+  }
 }
 
 /**
@@ -180,8 +183,8 @@ export async function publishWithOtpHandling ({
 }
 
 /**
- * If the OTP error contains npm-notice headers with a URL, display the
- * notice messages and a QR code for the URL.
+ * If the OTP error contains npm-notice headers with URLs, display the
+ * notice messages and a QR code for each URL.
  */
 async function displayNpmNotice (error: OtpError, context: OtpContext): Promise<void> {
   const notices = error.headers?.['npm-notice']
@@ -189,11 +192,10 @@ async function displayNpmNotice (error: OtpError, context: OtpContext): Promise<
 
   for (const notice of notices) {
     context.globalInfo(notice)
-    const url = extractUrlFromNotice(notice)
-    if (url) {
+    for (const url of extractUrlsFromString(notice)) {
       // eslint-disable-next-line no-await-in-loop
       const qrCode = await generateQrCode(url)
-      context.globalInfo(`\n${qrCode}`)
+      context.globalInfo(`\n${qrCode}\n`)
     }
   }
 }

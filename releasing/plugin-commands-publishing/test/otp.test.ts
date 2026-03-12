@@ -6,7 +6,7 @@ import {
   OtpNonInteractiveError,
   OtpSecondChallengeError,
   OtpWebAuthTimeoutError,
-  extractUrlFromNotice,
+  extractUrlsFromString,
   publishWithOtpHandling,
 } from '../src/otp.js'
 
@@ -32,29 +32,29 @@ function createMockContext (overrides?: Partial<OtpContext>): OtpContext {
   }
 }
 
-describe('extractUrlFromNotice', () => {
-  it('extracts an HTTPS URL from a notice message', () => {
-    const notice = 'Open https://www.npmjs.com/login/abc-123-def to use your security key for authentication'
-    expect(extractUrlFromNotice(notice)).toBe('https://www.npmjs.com/login/abc-123-def')
+describe('extractUrlsFromString', () => {
+  it('extracts an HTTPS URL from a string', () => {
+    const text = 'Open https://www.npmjs.com/login/abc-123-def to use your security key for authentication'
+    expect([...extractUrlsFromString(text)]).toStrictEqual(['https://www.npmjs.com/login/abc-123-def'])
   })
 
   it('extracts an HTTP URL', () => {
-    const notice = 'Visit http://registry.example.com/auth/token for authentication'
-    expect(extractUrlFromNotice(notice)).toBe('http://registry.example.com/auth/token')
+    const text = 'Visit http://registry.example.com/auth/token for authentication'
+    expect([...extractUrlsFromString(text)]).toStrictEqual(['http://registry.example.com/auth/token'])
   })
 
-  it('returns undefined when no URL is present', () => {
-    expect(extractUrlFromNotice('No URL here')).toBeUndefined()
+  it('yields nothing when no URL is present', () => {
+    expect([...extractUrlsFromString('No URL here')]).toStrictEqual([])
   })
 
-  it('extracts the first URL when multiple are present', () => {
-    const notice = 'Go to https://first.example.com or https://second.example.com'
-    expect(extractUrlFromNotice(notice)).toBe('https://first.example.com')
+  it('extracts all URLs when multiple are present', () => {
+    const text = 'Go to https://first.example.com or https://second.example.com'
+    expect([...extractUrlsFromString(text)]).toStrictEqual(['https://first.example.com', 'https://second.example.com'])
   })
 
   it('handles URLs with path segments and query strings', () => {
-    const notice = 'Open https://www.npmjs.com/login/a1b2c3d4-e5f6-7890?redirect=true for auth'
-    expect(extractUrlFromNotice(notice)).toBe('https://www.npmjs.com/login/a1b2c3d4-e5f6-7890?redirect=true')
+    const text = 'Open https://www.npmjs.com/login/a1b2c3d4-e5f6-7890?redirect=true for auth'
+    expect([...extractUrlsFromString(text)]).toStrictEqual(['https://www.npmjs.com/login/a1b2c3d4-e5f6-7890?redirect=true'])
   })
 })
 
