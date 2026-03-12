@@ -96,6 +96,11 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     userAgent,
   } = options
 
+  const headers: PublishOptions['headers'] = {
+    'npm-auth-type': 'web',
+    'npm-command': 'publish',
+  }
+
   const publishOptions: PublishOptions = {
     access,
     defaultTag,
@@ -103,10 +108,7 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     fetchRetryFactor,
     fetchRetryMaxtimeout,
     fetchRetryMintimeout,
-    headers: {
-      'npm-auth-type': 'web',
-      'npm-command': 'publish',
-    },
+    headers,
     isFromCI,
     otp,
     timeout,
