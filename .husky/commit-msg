@@ -1,3 +1,1 @@
-#!/bin/sh
-# Skip in CI environments without pnpm in PATH
-command -v pnpm >/dev/null 2>&1 && pnpm commitlint --edit --config=commitlint.config.cjs || true
+pnpm commitlint --edit --config=commitlint.config.cjs

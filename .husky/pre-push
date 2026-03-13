@@ -1,2 +1,1 @@
-#!/bin/sh
-command -v pnpm >/dev/null 2>&1 && pnpm run lint --quiet || true
+pnpm run lint --quiet
