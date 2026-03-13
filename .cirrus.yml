@@ -1,0 +1,83 @@
+env:
+  PNPM_VERSION: "11.0.0-alpha.14"
+
+compile_and_lint_task:
+  name: Compile & Lint
+  container:
+    image: node:24-slim
+    cpu: 4
+    memory: 8G
+  install_pnpm_script:
+    - corepack enable
+    - corepack prepare pnpm@${PNPM_VERSION} --activate
+  setup_node_script:
+    - pnpm runtime -g set node 24.6.0
+  install_script:
+    - pnpm install
+  compile_script:
+    - pnpm run compile-only
+  lint_script:
+    - pnpm run lint
+  package_artifacts_script:
+    - tar -czf compiled.tar.gz --exclude='node_modules' $(find . -type d -name lib -not -path '*/node_modules/*') $(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*') pnpm/dist
+  compiled_artifacts:
+    path: compiled.tar.gz
+
+test_task:
+  name: "Test ${PLATFORM} / Node.js ${NODE_MAJOR}"
+  depends_on: Compile & Lint
+  env:
+    PNPM_WORKERS: "3"
+    matrix:
+      - NODE_VERSION: "22.13.0"
+        NODE_MAJOR: "22"
+      - NODE_VERSION: "24.0.0"
+        NODE_MAJOR: "24"
+      - NODE_VERSION: "25.0.0"
+        NODE_MAJOR: "25"
+  matrix:
+    - name: "Test Linux / Node.js ${NODE_MAJOR}"
+      container:
+        image: node:24-slim
+        cpu: 4
+        memory: 8G
+      env:
+        PLATFORM: linux
+    - name: "Test Windows / Node.js ${NODE_MAJOR}"
+      windows_container:
+        image: cirrusci/windowsservercore:2019
+        cpu: 4
+        memory: 8G
+      env:
+        PLATFORM: windows
+  configure_git_script:
+    - git config --global core.autocrlf false
+    - git config --global user.name "xyz"
+    - git config --global user.email "x@y.z"
+  install_pnpm_script:
+    - corepack enable
+    - corepack prepare pnpm@${PNPM_VERSION} --activate
+  setup_node_script:
+    - pnpm runtime -g set node ${NODE_VERSION}
+  verify_npm_script:
+    - npm --version
+  install_script:
+    - pnpm install
+  download_artifacts_script:
+    - curl -L https://api.cirrus-ci.com/v1/artifact/build/$CIRRUS_BUILD_ID/Compile%20%26%20Lint/compiled/compiled.tar.gz -o compiled.tar.gz
+    - tar -xzf compiled.tar.gz
+  determine_test_scope_script:
+    - |
+      if [ "$CIRRUS_BRANCH" = "main" ] || [ "$CIRRUS_BRANCH" = "chore/update-lockfile" ]; then
+        echo "CI_TEST_SCRIPT=ci:test-all" >> $CIRRUS_ENV
+      else
+        git remote set-branches --add origin main && git fetch origin main --depth=1
+        if [ -n "$(git diff --name-only origin/main HEAD -- pnpm-workspace.yaml)" ]; then
+          echo "CI_TEST_SCRIPT=ci:test-all" >> $CIRRUS_ENV
+        else
+          echo "CI_TEST_SCRIPT=ci:test-branch" >> $CIRRUS_ENV
+        fi
+      fi
+  run_tests_script:
+    - pnpm run ${CI_TEST_SCRIPT}
+  timeout_in: 70m
