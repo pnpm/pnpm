@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 import { stripVTControlCharacters } from 'node:util'
+
 import { list, listForPackages } from '@pnpm/list'
 
 /** Normalize dep paths so tests pass whether implementation returns absolute or relative node_modules/.pnpm paths. */
