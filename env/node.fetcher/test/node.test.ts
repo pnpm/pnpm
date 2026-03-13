@@ -1,5 +1,5 @@
-import path from 'path'
-import { Readable } from 'stream'
+import path from 'node:path'
+import { Readable } from 'node:stream'
 
 import { jest } from '@jest/globals'
 import type { FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'

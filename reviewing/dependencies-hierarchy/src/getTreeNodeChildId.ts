@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { refToRelative } from '@pnpm/dependency-path'
 import { getLockfileImporterId, type ProjectSnapshot } from '@pnpm/lockfile.fs'

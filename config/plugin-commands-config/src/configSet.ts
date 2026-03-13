@@ -1,5 +1,5 @@
-import path from 'path'
-import util from 'util'
+import path from 'node:path'
+import util from 'node:util'
 
 import { type ConfigFileKey, isConfigFileKey, types } from '@pnpm/config'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'

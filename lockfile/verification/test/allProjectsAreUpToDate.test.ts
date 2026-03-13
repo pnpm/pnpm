@@ -1,6 +1,6 @@
-import { createWriteStream } from 'fs'
-import { mkdir, writeFile } from 'fs/promises'
-import { pipeline } from 'stream/promises'
+import { createWriteStream } from 'node:fs'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { pipeline } from 'node:stream/promises'
 
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'

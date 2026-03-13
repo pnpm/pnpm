@@ -1,7 +1,7 @@
-import crypto from 'crypto'
-import fs from 'fs'
-import path from 'path'
-import { parentPort } from 'worker_threads'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import { parentPort } from 'node:worker_threads'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/cafs-types'

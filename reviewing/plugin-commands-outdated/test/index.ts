@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import fs from 'fs'
-import path from 'path'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import fs from 'node:fs'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'

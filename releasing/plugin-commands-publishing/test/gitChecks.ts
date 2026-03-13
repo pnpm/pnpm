@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'node:fs'
 
 import { jest } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'

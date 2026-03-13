@@ -1,7 +1,7 @@
 // cspell:ignore checkin
-import { execSync } from 'child_process'
-import os from 'os'
-import path from 'path'
+import { execSync } from 'node:child_process'
+import os from 'node:os'
+import path from 'node:path'
 
 import type { FilesMap, PackageFilesResponse } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'

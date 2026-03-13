@@ -1,6 +1,6 @@
-import crypto from 'crypto'
-import fs from 'fs'
-import util from 'util'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import util from 'node:util'
 
 import type { FilesMap, PackageFileInfo, PackageFiles, SideEffects } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'

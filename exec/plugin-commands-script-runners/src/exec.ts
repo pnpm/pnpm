@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { docsUrl, readProjectManifestOnly, type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'

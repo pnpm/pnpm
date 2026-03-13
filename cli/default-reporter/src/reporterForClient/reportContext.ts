@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import type { ContextLog, PackageImportMethodLog } from '@pnpm/core-loggers'
 import normalize from 'normalize-path'

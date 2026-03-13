@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 import type { LockfileObject } from '@pnpm/lockfile.fs'

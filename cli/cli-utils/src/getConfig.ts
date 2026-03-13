@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli-meta'
 import { type CliOptions, type Config, getConfig as _getConfig } from '@pnpm/config'

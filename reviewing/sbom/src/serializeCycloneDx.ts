@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 
 import { integrityToHashes } from './integrity.js'
 import { classifyLicense } from './license.js'

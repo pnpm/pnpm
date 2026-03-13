@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { createRequire } from 'module'
-import path from 'path'
+import { createRequire } from 'node:module'
+import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { resolveFromLocal } from '@pnpm/local-resolver'

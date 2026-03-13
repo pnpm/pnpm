@@ -1,7 +1,7 @@
-import fs from 'fs'
-import path from 'path'
-import util from 'util'
-import workerThreads from 'worker_threads'
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+import workerThreads from 'node:worker_threads'
 
 import { renameOverwriteSync } from 'rename-overwrite'
 

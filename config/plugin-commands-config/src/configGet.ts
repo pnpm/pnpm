@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { types } from '@pnpm/config'
 import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'

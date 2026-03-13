@@ -1,5 +1,5 @@
-import path from 'path'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import type { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/plugin-commands-installation'

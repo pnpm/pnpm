@@ -1,6 +1,6 @@
-import assert from 'assert/strict'
-import fs from 'fs'
-import path from 'path'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'

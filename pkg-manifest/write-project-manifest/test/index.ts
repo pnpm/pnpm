@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
-import { promisify } from 'util'
+import fs from 'node:fs'
+import path from 'node:path'
+import { promisify } from 'node:util'
 
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import { temporaryDirectory } from 'tempy'

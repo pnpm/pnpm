@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'node:fs'
 
 import { addDependenciesToPackage } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'

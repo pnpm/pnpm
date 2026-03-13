@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { resolveConfigDeps } from '@pnpm/config.deps-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'

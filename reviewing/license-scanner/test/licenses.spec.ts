@@ -1,6 +1,6 @@
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'

@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { readIniFileSync } from 'read-ini-file'
 import { readYamlFileSync } from 'read-yaml-file'

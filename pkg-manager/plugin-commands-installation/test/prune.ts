@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { add, install, prune } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'

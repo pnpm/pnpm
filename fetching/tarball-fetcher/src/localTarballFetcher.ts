@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import type { Cafs } from '@pnpm/cafs-types'
 import type { FetchFunction, FetchOptions } from '@pnpm/fetcher-base'

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import type { DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'

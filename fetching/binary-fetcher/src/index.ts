@@ -1,5 +1,5 @@
-import fsPromises from 'fs/promises'
-import path from 'path'
+import fsPromises from 'node:fs/promises'
+import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
 import type { BinaryFetcher, FetchFunction, FetchResult } from '@pnpm/fetcher-base'

@@ -1,5 +1,5 @@
-import path from 'path'
-import url from 'url'
+import path from 'node:path'
+import url from 'node:url'
 
 import * as dp from '@pnpm/dependency-path'
 import type {

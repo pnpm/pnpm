@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import type { MutatedProject, MutateModulesOptions, ProjectOptions } from '@pnpm/core'

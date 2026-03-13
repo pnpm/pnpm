@@ -1,6 +1,6 @@
-import fs from 'fs'
-import path from 'path'
-import stream from 'stream'
+import fs from 'node:fs'
+import path from 'node:path'
+import stream from 'node:stream'
 
 import * as execa from 'execa'
 import { makeEmptyDir } from 'make-empty-dir'

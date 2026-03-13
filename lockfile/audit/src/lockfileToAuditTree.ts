@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'

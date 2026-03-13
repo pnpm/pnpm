@@ -1,4 +1,4 @@
-import { stripVTControlCharacters } from 'util'
+import { stripVTControlCharacters } from 'node:util'
 
 import chalk from 'chalk'
 

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode, type TreeNodeGroup } from '@pnpm/text.tree-renderer'

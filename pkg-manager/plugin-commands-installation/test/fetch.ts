@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { STORE_VERSION } from '@pnpm/constants'
 import { fetch, install } from '@pnpm/plugin-commands-installation'

@@ -47,7 +47,7 @@ export default tseslint.config(
       'simple-import-sort/imports': ['error', {
         groups: [
           // Node.js builtins
-          ['^node:', '^(assert|buffer|child_process|crypto|dns|events|fs|http|https|net|os|path|readline|stream|string_decoder|timers|tls|url|util|vm|zlib|async_hooks|cluster|console|constants|dgram|diagnostics_channel|domain|http2|inspector|module|perf_hooks|process|punycode|querystring|repl|sys|trace_events|tty|v8|wasi|worker_threads)(/|$|\\u0000)'],
+          ['^node:'],
           // External packages
           ['^@?\\w'],
           // Relative imports
@@ -204,6 +204,7 @@ export default tseslint.config(
       // Node plugin
       'n/no-missing-import': 'off', // TypeScript handles this
       'n/no-unsupported-features/node-builtins': 'off',
+      'n/prefer-node-protocol': 'error',
     },
   },
   // Test file configuration

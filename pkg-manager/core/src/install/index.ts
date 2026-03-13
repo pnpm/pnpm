@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'

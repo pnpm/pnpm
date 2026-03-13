@@ -1,5 +1,5 @@
 import { setTimeout } from 'node:timers/promises'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import type { Config } from '@pnpm/config'
 import { updateCheckLogger } from '@pnpm/core-loggers'

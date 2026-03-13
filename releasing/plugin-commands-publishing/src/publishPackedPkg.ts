@@ -1,4 +1,4 @@
-import fs from 'fs/promises'
+import fs from 'node:fs/promises'
 
 import type { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'

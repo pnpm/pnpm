@@ -1,4 +1,4 @@
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import semverDiff from '@pnpm/semver-diff'

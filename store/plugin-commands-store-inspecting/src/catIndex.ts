@@ -1,4 +1,4 @@
-import util from 'util'
+import util from 'node:util'
 
 import { createResolver } from '@pnpm/client'
 import type { Config } from '@pnpm/config'

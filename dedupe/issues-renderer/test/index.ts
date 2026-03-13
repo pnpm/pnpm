@@ -1,4 +1,4 @@
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { renderDedupeCheckIssues } from '@pnpm/dedupe.issues-renderer'
 

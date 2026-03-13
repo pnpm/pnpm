@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'

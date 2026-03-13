@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'

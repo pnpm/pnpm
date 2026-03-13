@@ -1,5 +1,5 @@
-import { readFile } from 'fs/promises'
-import { join } from 'path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
 import type { Catalogs } from '@pnpm/catalogs.types'

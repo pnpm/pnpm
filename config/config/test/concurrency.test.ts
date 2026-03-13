@@ -1,4 +1,4 @@
-import os, { cpus } from 'os'
+import os, { cpus } from 'node:os'
 
 import { jest } from '@jest/globals'
 

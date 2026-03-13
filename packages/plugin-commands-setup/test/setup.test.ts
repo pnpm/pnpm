@@ -6,7 +6,7 @@ jest.unstable_mockModule('@pnpm/os.env.path-extender', () => ({
   addDirToEnvPath: jest.fn(),
 }))
 
-const actualFs = await import('fs')
+const actualFs = await import('node:fs')
 jest.unstable_mockModule('fs', () => {
   return {
     ...actualFs,

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import fs from '@pnpm/graceful-fs'
 import type {

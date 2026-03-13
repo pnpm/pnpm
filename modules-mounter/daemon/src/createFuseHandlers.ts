@@ -1,5 +1,5 @@
 // cspell:ignore ents
-import fs from 'fs'
+import fs from 'node:fs'
 
 import { type LockfileObject, type PackageSnapshot, readWantedLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import {

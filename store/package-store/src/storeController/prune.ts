@@ -1,6 +1,6 @@
-import { type Dirent, promises as fs } from 'fs'
-import path from 'path'
-import util from 'util'
+import { type Dirent, promises as fs } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
 
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'

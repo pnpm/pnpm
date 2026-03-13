@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import type { PackageSelector, VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
 import { isValidPeerRange } from '@pnpm/semver.peer-range'

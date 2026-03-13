@@ -1,6 +1,6 @@
-import fs from 'fs/promises'
-import path from 'path'
-import util from 'util'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import util from 'node:util'
 
 import npmPacklist from 'npm-packlist'
 

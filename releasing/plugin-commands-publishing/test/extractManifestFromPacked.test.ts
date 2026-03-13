@@ -1,5 +1,5 @@
-import fs from 'fs'
-import { createGzip } from 'zlib'
+import fs from 'node:fs'
+import { createGzip } from 'node:zlib'
 
 import type { ExportedManifest } from '@pnpm/exportable-manifest'
 import { prepareEmpty } from '@pnpm/prepare'

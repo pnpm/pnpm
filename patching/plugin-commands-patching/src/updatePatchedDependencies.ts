@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { writeSettings, type WriteSettingsOptions } from '@pnpm/config.config-writer'
 import normalizePath from 'normalize-path'

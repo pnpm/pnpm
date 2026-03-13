@@ -1,5 +1,5 @@
-import type { SpawnSyncReturns } from 'child_process'
-import path from 'path'
+import type { SpawnSyncReturns } from 'node:child_process'
+import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli-meta'
 import { getConfig, types as allTypes } from '@pnpm/config'

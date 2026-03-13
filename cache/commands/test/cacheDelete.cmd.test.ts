@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { cache } from '@pnpm/cache.commands'
 import { prepare } from '@pnpm/prepare'

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import * as dp from '@pnpm/dependency-path'
 import type { LockfileObject } from '@pnpm/lockfile.fs'

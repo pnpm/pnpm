@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'

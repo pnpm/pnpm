@@ -1,7 +1,7 @@
-import assert from 'assert'
-import fs from 'fs/promises'
-import path from 'path'
-import util from 'util'
+import assert from 'node:assert'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import util from 'node:util'
 
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { getWorkspaceConcurrency } from '@pnpm/config'

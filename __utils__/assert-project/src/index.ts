@@ -1,14 +1,13 @@
-import fs from 'fs'
-import { createRequire } from 'module'
-import path from 'path'
-import util from 'util'
-
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import type { Modules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import fs from 'fs'
+import { createRequire } from 'module'
+import path from 'path'
 import { readYamlFileSync } from 'read-yaml-file'
+import util from 'util'
 import { writePackageSync } from 'write-package'
 
 import isExecutable from './isExecutable.js'

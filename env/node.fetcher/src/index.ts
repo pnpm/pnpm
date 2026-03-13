@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import type { Cafs } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'

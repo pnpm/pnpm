@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { getCurrentBranch, isGitRepo, isWorkingTreeClean } from '@pnpm/git-utils'
 import { safeExeca as execa } from 'execa'

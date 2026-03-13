@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { formatIntegrity } from '@pnpm/crypto.integrity'
 import * as dp from '@pnpm/dependency-path'

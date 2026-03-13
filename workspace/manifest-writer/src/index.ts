@@ -1,6 +1,6 @@
-import fs from 'fs'
-import path from 'path'
-import util from 'util'
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'

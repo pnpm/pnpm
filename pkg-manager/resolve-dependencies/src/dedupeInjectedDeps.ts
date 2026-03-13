@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import type { DepPath, PkgResolutionId } from '@pnpm/types'
 import normalize from 'normalize-path'

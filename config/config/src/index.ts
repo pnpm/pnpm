@@ -1,6 +1,6 @@
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'

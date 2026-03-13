@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/normalize-registries'
 import type { Registries } from '@pnpm/types'

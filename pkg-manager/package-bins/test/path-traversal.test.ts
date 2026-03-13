@@ -1,6 +1,6 @@
 
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { temporaryDirectory } from 'tempy'

@@ -1,5 +1,4 @@
 import fs from 'fs'
-
 import isWindows from 'is-windows'
 import isExe from 'isexe'
 

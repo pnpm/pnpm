@@ -1,5 +1,5 @@
-import fs from 'fs/promises'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'

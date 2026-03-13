@@ -1,6 +1,6 @@
-import fs from 'fs'
-import { createRequire } from 'module'
-import path from 'path'
+import fs from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { prependDirsToPath } from '@pnpm/env.path'

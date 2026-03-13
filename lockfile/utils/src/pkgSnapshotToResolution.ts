@@ -1,4 +1,4 @@
-import url from 'url'
+import url from 'node:url'
 
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'

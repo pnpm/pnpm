@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import type { LifecycleLog } from '@pnpm/core-loggers'
 import chalk from 'chalk'
