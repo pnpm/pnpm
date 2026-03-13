@@ -124,7 +124,7 @@ export async function resolveDependencies (
     lockfileIncludeTarballUrl?: boolean
     allowUnusedPatches?: boolean
     enableGlobalVirtualStore?: boolean
-    allProjectIds?: string[]
+    allProjectIds: string[]
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -217,7 +217,7 @@ export async function resolveDependencies (
     resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
     resolvedImporters,
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
-    workspaceProjectIds: new Set(opts.allProjectIds ?? Object.keys(opts.wantedLockfile.importers)),
+    workspaceProjectIds: new Set(opts.allProjectIds),
   })
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}

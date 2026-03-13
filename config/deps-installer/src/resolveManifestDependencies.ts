@@ -82,6 +82,7 @@ export async function resolveManifestDependencies (
       wantedLockfile: emptyLockfile,
       workspacePackages: new Map(),
       peersSuffixMaxLength: 1000,
+      allProjectIds: ['.'],
     }
   )
   await waitTillAllFetchingsFinish()

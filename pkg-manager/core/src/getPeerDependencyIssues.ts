@@ -98,6 +98,7 @@ export async function getPeerDependencyIssues (
       workspacePackages: ctx.workspacePackages ?? new Map(),
       supportedArchitectures: opts.supportedArchitectures,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
+      allProjectIds: Object.values(ctx.projects).map((p) => p.id),
     }
   )
 
