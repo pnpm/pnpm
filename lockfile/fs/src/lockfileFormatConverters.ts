@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { removeSuffix } from '@pnpm/dependency-path'
+import { refToRelative, removeSuffix } from '@pnpm/dependency-path'
 import type {
   LockfileFile,
   LockfileFileProjectResolvedDependencies,
@@ -122,22 +122,6 @@ function pruneTimeInLockfile (time: Record<string, string>, importers: Record<st
     }
   }
   return pickBy((_, depPath) => rootDepPaths.has(depPath), time)
-}
-
-function refToRelative (
-  reference: string,
-  pkgName: string
-): string | null {
-  if (reference.startsWith('link:')) {
-    return null
-  }
-  if (reference.startsWith('file:')) {
-    return reference
-  }
-  if (!reference.includes('/') || !reference.replace(/(?:\([^)]+\))+$/, '').includes('/')) {
-    return `/${pkgName}@${reference}`
-  }
-  return reference
 }
 
 export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject {
