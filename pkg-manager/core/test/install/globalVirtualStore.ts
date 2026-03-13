@@ -772,6 +772,63 @@ test('virtualStoreOnly with frozenLockfile populates virtual store without impor
 
   // Importer-level symlinks should NOT exist
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()
+  // No hoisted deps
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeFalsy()
+  // No bin links
+  expect(fs.existsSync(path.resolve('node_modules/.bin'))).toBeFalsy()
+})
+
+test('virtualStoreOnly with frozenLockfile populates standard virtual store without importer symlinks', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  // First install to generate lockfile
+  await install(manifest, testDefaults())
+
+  // Remove node_modules, then reinstall with frozenLockfile + virtualStoreOnly
+  rimrafSync('node_modules')
+
+  await install(manifest, testDefaults({
+    virtualStoreOnly: true,
+    frozenLockfile: true,
+  }))
+
+  // Standard virtual store should be populated
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+
+  // Importer-level symlinks should NOT exist
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()
+  // No hoisted deps
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeFalsy()
+  // No bin links
+  expect(fs.existsSync(path.resolve('node_modules/.bin'))).toBeFalsy()
+})
+
+test('virtualStoreOnly suppresses hoisting even with explicit hoistPattern', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  await install(manifest, testDefaults({
+    virtualStoreOnly: true,
+    hoistPattern: ['*'],
+    publicHoistPattern: ['*'],
+  }))
+
+  // Virtual store should be populated
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+
+  // Hoisted deps should NOT exist despite hoistPattern: ['*']
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeFalsy()
+
+  // Importer-level symlinks should NOT exist
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()
 })
 
 test('virtualStoreOnly skips lifecycle scripts', async () => {

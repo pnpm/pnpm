@@ -1402,7 +1402,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             result.newDepPaths.filter((depPath) => dependenciesGraph[depPath].requiresBuild)
           )
       }
-      if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
+      if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && !opts.virtualStoreOnly) {
         // postinstall hooks
         const depPaths = Object.keys(dependenciesGraph) as DepPath[]
         const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
@@ -1559,7 +1559,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         })
       })(),
     ])
-    if (!opts.ignoreScripts) {
+    if (!opts.ignoreScripts && !opts.virtualStoreOnly) {
       if (opts.enablePnp) {
         opts.scriptsOpts.extraEnv = {
           ...opts.scriptsOpts.extraEnv,

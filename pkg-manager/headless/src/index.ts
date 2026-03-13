@@ -248,7 +248,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR',
       'Cannot use virtualStoreOnly when enableModulesDir is false')
   }
-  const skipPostImportLinking = opts.virtualStoreOnly ?? false
+  const skipPostImportLinking = opts.virtualStoreOnly === true
 
   const skipped = opts.skipped || new Set<DepPath>()
   const filterOpts = {

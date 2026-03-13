@@ -319,6 +319,10 @@ export function extendOptions (
   }
   if (extendedOpts.virtualStoreOnly) {
     extendedOpts.ignoreScripts = true
+    // Ensure .modules.yaml records empty hoist patterns so a subsequent
+    // normal install knows hoisting must be redone from scratch.
+    extendedOpts.hoistPattern = []
+    extendedOpts.publicHoistPattern = []
   }
   if (extendedOpts.lockfileOnly) {
     extendedOpts.ignoreScripts = true
