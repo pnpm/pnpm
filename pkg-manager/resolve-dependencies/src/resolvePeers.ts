@@ -91,7 +91,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     dedupeInjectedDeps?: boolean
     resolvedImporters: ResolvedImporters
     peersSuffixMaxLength: number
-    workspacePackages?: Set<string>
+    workspaceProjectIds?: Set<string>
   }
 ): Promise<{
     dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<T>
@@ -181,7 +181,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       pathsByNodeId,
       lockfileDir: opts.lockfileDir,
       resolvedImporters: opts.resolvedImporters,
-      workspacePackages: opts.workspacePackages ?? new Set(),
+      workspaceProjectIds: opts.workspaceProjectIds ?? new Set(),
     })
   }
   if (opts.dedupePeerDependents) {
