@@ -1,5 +1,6 @@
 env:
   PNPM_VERSION: "11.0.0-alpha.14"
+  SHELL: /bin/bash
 
 compile_and_lint_task:
   name: Compile & Lint
