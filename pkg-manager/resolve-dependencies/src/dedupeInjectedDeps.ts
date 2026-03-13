@@ -20,7 +20,7 @@ export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {
   pathsByNodeId: Map<NodeId, DepPath>
   projects: ProjectToResolve[]
   resolvedImporters: ResolvedImporters
-  workspacePackages: string[]
+  workspacePackages: Set<string>
 }
 
 export function dedupeInjectedDeps<T extends PartialResolvedPackage> (
@@ -42,7 +42,7 @@ function getInjectedDepsByProjects<T extends PartialResolvedPackage> (
       const depPath = opts.pathsByNodeId.get(nodeId)!
       if (!opts.depGraph[depPath].id.startsWith('file:')) continue
       const id = opts.depGraph[depPath].id.substring(5)
-      if (opts.workspacePackages.includes(id)) {
+      if (opts.workspacePackages.has(id)) {
         if (!injectedDepsByProjects.has(project.id)) injectedDepsByProjects.set(project.id, new Map())
         injectedDepsByProjects.get(project.id)!.set(alias, { depPath, id })
       }
