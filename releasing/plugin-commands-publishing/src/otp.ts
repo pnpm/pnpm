@@ -286,6 +286,8 @@ export class OtpNonInteractiveError extends PnpmError {
 
 export class OtpSecondChallengeError extends PnpmError {
   constructor () {
-    super('OTP_SECOND_CHALLENGE', 'The registry requested a one-time password (OTP) a second time after one was already provided. This is unexpected behavior from the registry.')
+    super('OTP_SECOND_CHALLENGE', 'The registry requested a one-time password (OTP) a second time after one was already provided', {
+      hint: 'This is unexpected behavior from the registry, you can do nothing about it, sorry',
+    })
   }
 }
