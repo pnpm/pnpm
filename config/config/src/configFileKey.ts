@@ -139,6 +139,7 @@ export const excludedPnpmKeys = [
   'verify-store-integrity',
   'virtual-store-dir',
   'virtual-store-dir-max-length',
+  'virtual-store-only',
   'peers-suffix-max-length',
   'workspace-concurrency',
   'workspace-packages',

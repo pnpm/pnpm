@@ -23,6 +23,7 @@ import {
   lockfileToDepGraph,
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
+import { PnpmError } from '@pnpm/error'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import {
   makeNodeRequireOption,
@@ -176,6 +177,7 @@ export interface HeadlessOptions {
   resolveSymlinksInInjectedDirs?: boolean
   skipped: Set<DepPath>
   enableModulesDir?: boolean
+  virtualStoreOnly?: boolean
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
   useGitBranchLockfile?: boolean
   useLockfile?: boolean
@@ -241,6 +243,12 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     storeController: opts.storeController,
     unsafePerm: opts.unsafePerm || false,
   }
+
+  if (opts.virtualStoreOnly && !opts.enableModulesDir) {
+    throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR',
+      'Cannot use virtualStoreOnly when enableModulesDir is false')
+  }
+  const skipPostImportLinking = opts.virtualStoreOnly ?? false
 
   const skipped = opts.skipped || new Set<DepPath>()
   const filterOpts = {
@@ -406,15 +414,18 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       stage: 'importing_done',
     })
 
-    linkedToRoot = await symlinkDirectDependencies({
-      directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
-      dedupe: Boolean(opts.dedupeDirectDeps),
-      filteredLockfile,
-      lockfileDir,
-      projects: selectedProjects,
-      registries: opts.registries,
-      symlink: opts.symlink,
-    })
+    if (!skipPostImportLinking) {
+      linkedToRoot = await symlinkDirectDependencies({
+        directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
+        dedupe: Boolean(opts.dedupeDirectDeps),
+        filteredLockfile,
+        lockfileDir,
+        projects: selectedProjects,
+        registries: opts.registries,
+        symlink: opts.symlink,
+      })
+    }
+    newHoistedDependencies = {}
   } else if (opts.enableModulesDir !== false) {
     await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
     await Promise.all([
@@ -442,7 +453,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       stage: 'importing_done',
     })
 
-    if (opts.ignorePackageManifest !== true && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
+    if (opts.ignorePackageManifest !== true && !skipPostImportLinking && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
       newHoistedDependencies = {
         ...opts.hoistedDependencies,
         ...await hoist({
@@ -478,19 +489,21 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       newHoistedDependencies = {}
     }
 
-    await linkAllBins(graph, {
-      extraNodePaths: opts.extraNodePaths,
-      optional: opts.include.optionalDependencies,
-      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-      warn,
-    })
+    if (!skipPostImportLinking) {
+      await linkAllBins(graph, {
+        extraNodePaths: opts.extraNodePaths,
+        optional: opts.include.optionalDependencies,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        warn,
+      })
+    }
 
     if ((currentLockfile != null) && !equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
       Object.assign(filteredLockfile.packages!, currentLockfile.packages)
     }
 
     /** Skip linking and due to no project manifest */
-    if (!opts.ignorePackageManifest) {
+    if (!opts.ignorePackageManifest && !skipPostImportLinking) {
       linkedToRoot = await symlinkDirectDependencies({
         dedupe: Boolean(opts.dedupeDirectDeps),
         directDependenciesByImporterId,
@@ -523,7 +536,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       )
   }
   let ignoredBuilds: IgnoredBuilds | undefined
-  if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
+  if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false && !skipPostImportLinking) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
       const directDependencies = directDependenciesByImporterId[id]
@@ -581,7 +594,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   if (opts.enableModulesDir !== false) {
     const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
     /** Skip linking and due to no project manifest */
-    if (!opts.ignorePackageManifest) {
+    if (!opts.ignorePackageManifest && !skipPostImportLinking) {
       await Promise.all(selectedProjects.map(async (project) => {
         if (opts.nodeLinker === 'hoisted' || opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
           await linkBinsOfImporter(project, {
@@ -671,7 +684,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 
   summaryLogger.debug({ prefix: lockfileDir })
 
-  if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
+  if (!opts.ignoreScripts && !opts.ignorePackageManifest && !skipPostImportLinking) {
     await runLifecycleHooksConcurrently(
       ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
       projectsToBeBuilt,

@@ -131,6 +131,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   stateDir: string
   storeDir?: string
   virtualStoreDir?: string
+  virtualStoreOnly?: boolean
   globalVirtualStoreDir?: string
   enableGlobalVirtualStore?: boolean
   verifyStoreIntegrity?: boolean

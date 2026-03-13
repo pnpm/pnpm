@@ -123,6 +123,7 @@ export interface StrictInstallOptions {
   dir: string
   symlink: boolean
   enableModulesDir: boolean
+  virtualStoreOnly: boolean
   modulesCacheMaxAge: number
   peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
@@ -265,6 +266,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     verifyStoreIntegrity: true,
     enableModulesDir: true,
+    virtualStoreOnly: false,
     modulesCacheMaxAge: 7 * 24 * 60,
     resolveSymlinksInInjectedDirs: false,
     dedupeDirectDeps: true,
@@ -311,6 +313,13 @@ export function extendOptions (
     packageExtensions: extendedOpts.packageExtensions,
     ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,
   })
+  if (extendedOpts.virtualStoreOnly && !extendedOpts.enableModulesDir) {
+    throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR',
+      'Cannot use virtualStoreOnly when enableModulesDir is false')
+  }
+  if (extendedOpts.virtualStoreOnly) {
+    extendedOpts.ignoreScripts = true
+  }
   if (extendedOpts.lockfileOnly) {
     extendedOpts.ignoreScripts = true
     if (!extendedOpts.useLockfile) {

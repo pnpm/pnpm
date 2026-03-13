@@ -70,6 +70,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'dev'
 | 'enableGlobalVirtualStore'
 | 'globalVirtualStoreDir'
+| 'virtualStoreOnly'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
 | 'global'

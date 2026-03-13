@@ -1374,6 +1374,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         wantedLockfile: newLockfile,
         wantedToBeSkippedPackageIds,
         hoistWorkspacePackages: opts.hoistWorkspacePackages,
+        virtualStoreOnly: opts.virtualStoreOnly,
       }
     )
     stats = result.stats
@@ -1450,7 +1451,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     const binWarn = (prefix: string, message: string) => {
       logger.info({ message, prefix })
     }
-    if (result.newDepPaths?.length) {
+    if (result.newDepPaths?.length && !opts.virtualStoreOnly) {
       const newPkgs = props<DepPath, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
       await linkAllBins(newPkgs, dependenciesGraph, {
         extraNodePaths: ctx.extraNodePaths,
@@ -1459,7 +1460,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       })
     }
 
-    await Promise.all(projects.map(async (project, index) => {
+    if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project, index) => {
       let linkedPackages!: string[]
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {

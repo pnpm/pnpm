@@ -66,6 +66,9 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
     ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     ignorePackageManifest: true,
     ignoreLocalPackages: true,
+    // virtualStoreOnly skips post-import linking (symlinks, bins, hoisting, scripts)
+    // even if ignorePackageManifest handling changes in the future.
+    virtualStoreOnly: true,
     include,
     modulesCacheMaxAge: 0,
     pruneStore: true,

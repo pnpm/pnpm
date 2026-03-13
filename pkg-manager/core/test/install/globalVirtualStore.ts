@@ -673,3 +673,126 @@ test('symlinked globalVirtualStoreDir resolves correctly', async () => {
   // Packages should also exist in the real directory
   expect(fs.existsSync(path.join(realDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))).toBeTruthy()
 })
+
+test('virtualStoreOnly populates standard virtual store without importer symlinks', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  await install(manifest, testDefaults({
+    virtualStoreOnly: true,
+  }))
+
+  // Standard virtual store should be populated
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+
+  // Importer-level symlinks should NOT exist
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()
+})
+
+test('virtualStoreOnly with enableModulesDir=false throws config error', async () => {
+  prepareEmpty()
+  await expect(
+    install({}, testDefaults({
+      virtualStoreOnly: true,
+      enableModulesDir: false,
+    }))
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR',
+    message: 'Cannot use virtualStoreOnly when enableModulesDir is false',
+  })
+})
+
+test('virtualStoreOnly with GVS populates global virtual store without importer links', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('gvs')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    globalVirtualStoreDir,
+    virtualStoreOnly: true,
+  }))
+
+  // GVS should be populated
+  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0')
+  expect(fs.existsSync(pkgDir)).toBeTruthy()
+  const hashes = fs.readdirSync(pkgDir)
+  expect(hashes).toHaveLength(1)
+  expect(fs.existsSync(path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+
+  // Importer-level links should NOT exist
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()
+  // No hoisted deps either
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeFalsy()
+  // No bin links should be created
+  expect(fs.existsSync(path.resolve('node_modules/.bin'))).toBeFalsy()
+})
+
+test('virtualStoreOnly with frozenLockfile populates virtual store without importer symlinks', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('gvs-frozen')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  // First install to generate lockfile
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    globalVirtualStoreDir,
+  }))
+
+  // Remove node_modules and GVS, then reinstall with frozenLockfile + virtualStoreOnly
+  rimrafSync('node_modules')
+  rimrafSync(globalVirtualStoreDir)
+
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    globalVirtualStoreDir,
+    virtualStoreOnly: true,
+    frozenLockfile: true,
+  }))
+
+  // GVS should be populated
+  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0')
+  expect(fs.existsSync(pkgDir)).toBeTruthy()
+  const hashes = fs.readdirSync(pkgDir)
+  expect(hashes).toHaveLength(1)
+  expect(fs.existsSync(path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  // Transitive dependency should also be in GVS
+  expect(fs.existsSync(path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+
+  // Importer-level symlinks should NOT exist
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()
+})
+
+test('virtualStoreOnly skips lifecycle scripts', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  }
+  await install(manifest, testDefaults({
+    virtualStoreOnly: true,
+    fastUnpack: false,
+  }))
+
+  // The package should be in the virtual store
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/package.json'))).toBeTruthy()
+
+  // Lifecycle script artifacts should NOT exist — scripts should not have run
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeFalsy()
+
+  // Importer-level symlinks should NOT exist
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example'))).toBeFalsy()
+})
