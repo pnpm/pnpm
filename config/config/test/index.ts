@@ -100,7 +100,7 @@ test('nodeVersion from devEngines.runtime works with version ranges', async () =
   expect(config.nodeVersion).toBe('22.0.0')
 })
 
-test('nodeVersion is not set from devEngines.runtime when onFail is not download', async () => {
+test('nodeVersion is set from devEngines.runtime regardless of onFail value', async () => {
   prepare({
     devEngines: {
       runtime: {
@@ -119,7 +119,7 @@ test('nodeVersion is not set from devEngines.runtime when onFail is not download
     },
   })
 
-  expect(config.nodeVersion).toBeUndefined()
+  expect(config.nodeVersion).toBe('22.20.0')
 })
 
 test('nodeVersion from config takes priority over devEngines.runtime', async () => {
