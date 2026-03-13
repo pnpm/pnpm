@@ -1,5 +1,6 @@
 import assert from 'assert'
 import fs from 'fs'
+import { createRequire } from 'module'
 import path from 'path'
 import { pathToFileURL } from 'url'
 import util from 'util'
@@ -9,7 +10,6 @@ import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
 import type { Finder, PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
-import { createRequire } from 'module'
 
 import type { Hooks } from './Hooks.js'
 

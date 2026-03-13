@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
+import { parentPort } from 'worker_threads'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/cafs-types'
@@ -22,7 +23,6 @@ import {
 import { packForStorage, StoreIndex } from '@pnpm/store.index'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
-import { parentPort } from 'worker_threads'
 
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import type {

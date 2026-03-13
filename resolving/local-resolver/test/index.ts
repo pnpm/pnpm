@@ -1,11 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import { createRequire } from 'module'
 import path from 'path'
 
 import { jest } from '@jest/globals'
 import { resolveFromLocal } from '@pnpm/local-resolver'
 import { logger } from '@pnpm/logger'
 import type { DirectoryResolution } from '@pnpm/resolver-base'
-import { createRequire } from 'module'
 import normalize from 'normalize-path'
 
 const require = createRequire(import.meta.dirname)

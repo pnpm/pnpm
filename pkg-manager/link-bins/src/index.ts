@@ -1,4 +1,5 @@
 import { existsSync, promises as fs } from 'fs'
+import { createRequire } from 'module'
 import path from 'path'
 
 import { getBunBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getNodeBinLocationForCurrentOS } from '@pnpm/constants'
@@ -15,7 +16,6 @@ import { rimraf } from '@zkochan/rimraf'
 import fixBin from 'bin-links/lib/fix-bin.js'
 import { isSubdir } from 'is-subdir'
 import isWindows from 'is-windows'
-import { createRequire } from 'module'
 import normalizePath from 'normalize-path'
 import { groupBy, isEmpty, partition, unnest } from 'ramda'
 import semver from 'semver'

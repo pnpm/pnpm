@@ -1,11 +1,11 @@
 import fs from 'fs'
+import { createRequire } from 'module'
 import path from 'path'
 
 import { jest } from '@jest/globals'
 import { prependDirsToPath } from '@pnpm/env.path'
 import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
 import spawn from 'cross-spawn'
-import { createRequire } from 'module'
 import nock from 'nock'
 
 const require = createRequire(import.meta.dirname)
