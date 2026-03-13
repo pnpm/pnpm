@@ -1,6 +1,7 @@
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { jest } from '@jest/globals'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
+import { StoreIndex } from '@pnpm/store.index'
 import { clearDispatcherCache, createFetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -14,6 +15,8 @@ import type { AtomicResolution } from '@pnpm/resolver-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 
 const f = fixtures(import.meta.dirname)
+const storeDir = temporaryDirectory()
+const storeIndex = new StoreIndex(storeDir)
 
 let originalDispatcher: Dispatcher
 
@@ -22,6 +25,7 @@ beforeAll(() => {
 })
 
 afterAll(() => {
+  storeIndex.close()
   setGlobalDispatcher(originalDispatcher)
 })
 
@@ -297,7 +301,7 @@ describe('custom fetcher implementation examples', () => {
         const tarballFetchers = createTarballFetcher(
           fetchFromRegistry,
           () => undefined,
-          { rawConfig: {} }
+          { rawConfig: {}, storeIndex }
         )
 
         // Custom fetcher that maps custom URLs to tarballs
@@ -348,7 +352,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {} }
+        { rawConfig: {}, storeIndex }
       )
 
       // Custom fetcher that maps custom local paths to tarballs
@@ -405,7 +409,7 @@ describe('custom fetcher implementation examples', () => {
         const tarballFetchers = createTarballFetcher(
           fetchFromRegistry,
           () => undefined,
-          { rawConfig: {} }
+          { rawConfig: {}, storeIndex }
         )
 
         // Custom fetcher that transforms custom resolution to tarball URL
@@ -457,7 +461,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {}, ignoreScripts: true }
+        { rawConfig: {}, storeIndex, ignoreScripts: true }
       )
 
       // Custom fetcher that maps custom git resolution to git-hosted tarball

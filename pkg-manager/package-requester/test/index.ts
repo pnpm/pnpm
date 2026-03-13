@@ -2,6 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex } from '@pnpm/store.index'
 import { createClient } from '@pnpm/client'
 import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { streamParser } from '@pnpm/logger'
@@ -52,12 +53,21 @@ const registries = { default: registry }
 
 const authConfig = { registry }
 
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
+
+const topStoreIndex = new StoreIndex('.store')
+storeIndexes.push(topStoreIndex)
+
 const { resolve, fetchers } = createClient({
   authConfig,
   cacheDir: '.store',
   storeDir: '.store',
   rawConfig: {},
   registries,
+  storeIndex: topStoreIndex,
 })
 
 test('request package', async () => {
@@ -587,6 +597,8 @@ test('fetchPackageToStore() does not cache errors', async () => {
     headers: { 'content-length': String(tarballContent.length) },
   })
 
+  const noRetryStoreIndex = new StoreIndex('.store')
+  storeIndexes.push(noRetryStoreIndex)
   const noRetry = createClient({
     authConfig,
     rawConfig: {},
@@ -594,6 +606,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     cacheDir: '.pnpm',
     storeDir: '.store',
     registries,
+    storeIndex: noRetryStoreIndex,
   })
 
   const storeDir = temporaryDirectory()

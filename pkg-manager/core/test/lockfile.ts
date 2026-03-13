@@ -23,7 +23,6 @@ import {
 } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
-import sinon from 'sinon'
 import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from './utils/index.js'
@@ -57,6 +56,18 @@ function getMockAgent (): MockAgent | null {
 }
 
 const f = fixtures(import.meta.dirname)
+
+function calledWithMatch (mockFn: jest.Mock, matcher: object): boolean {
+  const expected = expect.objectContaining(matcher)
+  return mockFn.mock.calls.some(([arg]) => {
+    try {
+      expect(arg).toEqual(expected)
+      return true
+    } catch {
+      return false
+    }
+  })
+}
 
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
@@ -253,7 +264,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
     },
   }, { lineWidth: 1000 })
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await install({
     devDependencies: {
       'is-negative': '^2.1.0',
@@ -263,11 +274,11 @@ test('lockfile is fixed when it does not match package.json', async () => {
     },
   }, testDefaults({ reporter }))
 
-  const progress = sinon.match({
+  const progressMatcher = expect.objectContaining({
     name: 'pnpm:progress',
     status: 'resolving',
   })
-  expect(reporter.withArgs(progress).callCount).toBe(0)
+  expect(reporter.mock.calls.filter(([arg]) => progressMatcher.asymmetricMatch(arg))).toHaveLength(0)
 
   const lockfile = project.readLockfile()
 
@@ -315,7 +326,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
     },
   }, { lineWidth: 1000 })
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({
     dependencies: {
@@ -326,15 +337,15 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
   }, ['is-positive'], testDefaults({ reporter }))
   await install(manifest, testDefaults({ reporter }))
 
-  expect(reporter.calledWithMatch(LOCKFILE_WARN_LOG)).toBeFalsy()
+  expect(calledWithMatch(reporter,LOCKFILE_WARN_LOG)).toBeFalsy()
 
   project.has('is-negative')
 })
 
 test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
-  // const fooProgress = sinon.match({
+  const reporter = jest.fn()
+  // const fooProgress = expect.objectContaining({
   //   name: 'pnpm:progress',
   //   status: 'resolving',
   //   manifest: {
@@ -362,7 +373,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   rimraf('node_modules')
   rimraf(path.join('..', '.store'))
 
-  reporter.resetHistory()
+  reporter.mockClear()
 
   // shouldn't care about what the registry in npmrc is
   // the one in lockfile should be used
@@ -581,7 +592,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await install({
     devDependencies: {
       '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.1.0',
@@ -594,7 +605,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
   expect(importer.devDependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
   expect(importer.devDependencies).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep'])
 
-  expect(reporter.calledWithMatch({
+  expect(calledWithMatch(reporter,{
     added: {
       dependencyType: 'dev',
       name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
@@ -603,7 +614,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  expect(calledWithMatch(reporter,{
     added: {
       dependencyType: 'dev',
       name: '@pnpm.e2e/pkg-with-1-dep',
@@ -665,11 +676,11 @@ test('optional properties are correctly updated on named install', async () => {
 
 test('no lockfile', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDependenciesToPackage({}, ['is-positive'], testDefaults({ useLockfile: false, reporter }))
 
-  expect(reporter.calledWithMatch(LOCKFILE_WARN_LOG)).toBeFalsy()
+  expect(calledWithMatch(reporter,LOCKFILE_WARN_LOG)).toBeFalsy()
 
   project.has('is-positive')
 
@@ -697,7 +708,7 @@ test('lockfile is ignored when lockfile = false', async () => {
     },
   }, { lineWidth: 1000 })
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await install({
     dependencies: {
@@ -705,7 +716,7 @@ test('lockfile is ignored when lockfile = false', async () => {
     },
   }, testDefaults({ useLockfile: false, reporter }))
 
-  expect(reporter.calledWithMatch(LOCKFILE_WARN_LOG)).toBeTruthy()
+  expect(calledWithMatch(reporter,LOCKFILE_WARN_LOG)).toBeTruthy()
 
   project.has('is-negative')
 
@@ -717,15 +728,15 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
 
   let manifest!: ProjectManifest
   {
-    const reporter = sinon.spy()
+    const reporter = jest.fn()
 
     manifest = (await addDependenciesToPackage({}, ['is-positive'], testDefaults({ reporter }))).updatedManifest
 
-    expect(reporter.calledWithMatch(LOCKFILE_WARN_LOG)).toBeFalsy()
+    expect(calledWithMatch(reporter,LOCKFILE_WARN_LOG)).toBeFalsy()
   }
 
   {
-    const reporter = sinon.spy()
+    const reporter = jest.fn()
 
     await mutateModulesInSingleProject({
       dependencyNames: ['is-positive'],
@@ -734,7 +745,7 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
       rootDir: process.cwd() as ProjectRootDir,
     }, testDefaults({ useLockfile: false, reporter }))
 
-    expect(reporter.calledWithMatch(LOCKFILE_WARN_LOG)).toBeTruthy()
+    expect(calledWithMatch(reporter,LOCKFILE_WARN_LOG)).toBeTruthy()
   }
 
   project.hasNot('is-positive')

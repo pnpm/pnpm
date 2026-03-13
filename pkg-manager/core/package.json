@@ -153,6 +153,7 @@
     "execa": "catalog:",
     "exists-link": "catalog:",
     "is-windows": "catalog:",
+    "nock": "catalog:",
     "path-name": "catalog:",
     "read-yaml-file": "catalog:",
     "resolve-link-target": "catalog:",

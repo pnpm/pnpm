@@ -7,6 +7,7 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { StoreIndex } from '@pnpm/store.index'
 import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
@@ -52,6 +53,11 @@ afterAll(() => {
 const storeDir = temporaryDirectory()
 const filesIndexFile = path.join(storeDir, 'index.json')
 const cafs = createCafsStore(storeDir)
+const storeIndex = new StoreIndex(storeDir)
+
+afterAll(() => {
+  storeIndex.close()
+})
 
 const f = fixtures(import.meta.dirname)
 const tarballPath = f.find('babel-helper-hoist-variables-6.24.1.tgz')
@@ -61,6 +67,7 @@ const registry = 'http://example.com'
 const fetchFromRegistry = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
   rawConfig: {},
   retry: {
     maxTimeout: 100,
@@ -264,6 +271,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
   }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     offline: true,
     rawConfig: {},
     retry: {
@@ -291,6 +299,7 @@ test('fail when trying to fetch a non-local tarball in offline mode', async () =
   }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     offline: true,
     rawConfig: {},
     retry: {
@@ -417,6 +426,7 @@ test('accessing private packages', async () => {
 
   const getAuthHeader = () => 'Bearer ofjergrg349gj3f2'
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     rawConfig: {},
     retry: {
       maxTimeout: 100,
@@ -534,6 +544,7 @@ test('do not build the package when scripts are ignored', async () => {
   const resolution = { tarball }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     ignoreScripts: true,
     rawConfig: {},
     retry: {
@@ -582,6 +593,7 @@ test('use the subfolder when path is present', async () => {
   }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     ignoreScripts: true,
     rawConfig: {},
     retry: {
@@ -611,6 +623,7 @@ test('prevent directory traversal attack when path is present', async () => {
   const resolution = { tarball, path }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     ignoreScripts: true,
     rawConfig: {},
     retry: {
@@ -638,6 +651,7 @@ test('fail when path is not exists', async () => {
   const resolution = { tarball, path }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     ignoreScripts: true,
     rawConfig: {},
     retry: {

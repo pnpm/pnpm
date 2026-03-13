@@ -4035,6 +4035,9 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
+      nock:
+        specifier: 'catalog:'
+        version: 13.3.4
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0
@@ -5248,6 +5251,9 @@ importers:
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
+      nock:
+        specifier: 'catalog:'
+        version: 13.3.4
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -5781,6 +5787,9 @@ importers:
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -7625,6 +7634,9 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/fs.msgpack-file':
+        specifier: workspace:*
+        version: link:../../fs/msgpack-file
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -18562,7 +18574,7 @@ snapshots:
       '@pnpm/store-controller-types': 1004.1.0
       '@pnpm/store.cafs': 1000.0.19
       mem: 8.1.1
-      path-temp: 2.1.0
+      path-temp: 2.1.1
       ramda: '@pnpm/ramda@0.28.1'
 
   '@pnpm/crypto.hash@1000.1.1':
@@ -18733,8 +18745,8 @@ snapshots:
       fs-extra: 11.3.3
       make-empty-dir: 3.0.2
       p-limit: 3.1.0
-      path-temp: 2.1.0
-      rename-overwrite: 6.0.3
+      path-temp: 2.1.1
+      rename-overwrite: 6.0.6
       sanitize-filename: 1.6.3
 
   '@pnpm/fs.indexed-pkg-importer@1000.1.8(@pnpm/logger@1001.0.0)':
@@ -19380,7 +19392,7 @@ snapshots:
       '@zkochan/rimraf': 3.0.2
       is-gzip: 2.0.0
       p-limit: 3.1.0
-      rename-overwrite: 6.0.3
+      rename-overwrite: 6.0.6
       ssri: 10.0.5
       strip-bom: 4.0.0
 
