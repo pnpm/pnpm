@@ -35,7 +35,7 @@ export interface OtpPublishResponse {
 }
 
 export interface OtpEnquirer {
-  prompt: (this: this, options: OtpEnquirerOptions) => Promise<OtpEnquirerResponse>
+  prompt: (this: this, options: OtpEnquirerOptions) => Promise<OtpEnquirerResponse | undefined>
 }
 
 export interface OtpEnquirerOptions {
@@ -176,7 +176,7 @@ export async function publishWithOtpHandling ({
         type: 'input',
       })
       // Use || (not ??) so that empty-string input is treated as "no OTP provided"
-      otp = enquirerResponse.otp || undefined
+      otp = enquirerResponse?.otp || undefined
     }
     if (otp != null) {
       try {
