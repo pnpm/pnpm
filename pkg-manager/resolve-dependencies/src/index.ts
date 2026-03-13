@@ -217,7 +217,7 @@ export async function resolveDependencies (
     resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
     resolvedImporters,
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
-    workspaceProjectIds: new Set(opts.allProjectIds),
+    workspaceProjectIds: new Set([...opts.allProjectIds, ...Object.keys(opts.wantedLockfile.importers)]),
   })
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}

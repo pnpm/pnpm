@@ -63,10 +63,16 @@ function getDedupeMap<T extends PartialResolvedPackage> (
     for (const [alias, dep] of deps.entries()) {
       // Check for subgroup not equal.
       // The injected project in the workspace may have dev deps
+      const children = Object.entries(opts.depGraph[dep.depPath].children)
       const targetProjectDeps = opts.dependenciesByProjectId[dep.id]
-      if (!targetProjectDeps) continue
-      const isSubset = Object.entries(opts.depGraph[dep.depPath].children)
-        .every(([alias, depPath]) => targetProjectDeps.get(alias) === depPath)
+      // When the target project wasn't part of the current resolution (e.g. single-project
+      // operation), its dependencies aren't available. We can only deduplicate safely when the
+      // injected dep has no children (the empty set is always a subset).
+      if (!targetProjectDeps) {
+        if (children.length > 0) continue
+      }
+      const isSubset = children
+        .every(([alias, depPath]) => targetProjectDeps?.get(alias) === depPath)
       if (isSubset) {
         dedupedInjectedDeps.set(alias, dep.id)
       }

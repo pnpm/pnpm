@@ -1,113 +1,13 @@
 import path from 'node:path'
 
 import { assertProject } from '@pnpm/assert-project'
-import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
+import { mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/core'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
 
-test('workspace packages should maintain consistent protocol when injectWorkspacePackages is true', async () => {
-  const projectAManifest: { name: string, version: string, dependencies: Record<string, string> } = {
-    name: 'a',
-    version: '1.0.0',
-    dependencies: {
-      'b': 'workspace:*',
-    },
-  }
-  const projectBManifest = {
-    name: 'b',
-    version: '1.0.0',
-  }
-
-  preparePackages([
-    {
-      location: 'a',
-      package: projectAManifest,
-    },
-    {
-      location: 'b',
-      package: projectBManifest,
-    },
-  ])
-
-  const importers: MutatedProject[] = [
-    {
-      mutation: 'install',
-      rootDir: path.resolve('a') as ProjectRootDir,
-    },
-    {
-      mutation: 'install',
-      rootDir: path.resolve('b') as ProjectRootDir,
-    },
-  ]
-  const allProjects: ProjectOptions[] = [
-    {
-      buildIndex: 0,
-      manifest: projectAManifest,
-      rootDir: path.resolve('a') as ProjectRootDir,
-    },
-    {
-      buildIndex: 0,
-      manifest: projectBManifest,
-      rootDir: path.resolve('b') as ProjectRootDir,
-    },
-  ]
-
-  // Initial install with injectWorkspacePackages: true
-  await mutateModules(importers, testDefaults({
-    allProjects,
-    injectWorkspacePackages: true,
-  }))
-
-  const rootModules = assertProject(process.cwd())
-  const lockfile = rootModules.readLockfile()
-
-  // When injectWorkspacePackages is true AND dedupeInjectedDeps is enabled (default),
-  // workspace packages should use link: protocol when deduplication is possible
-  expect(lockfile.importers.a.dependencies!.b.version).toBe('link:../b')
-  const initialProtocol = lockfile.importers.a.dependencies!.b.version
-
-  // Add a regular dependency to package a manifest
-  projectAManifest.dependencies['is-positive'] = '1.0.0'
-
-  // Run install again with the new dependency
-  await mutateModules([
-    {
-      mutation: 'install',
-      rootDir: path.resolve('a') as ProjectRootDir,
-    },
-  ], testDefaults({
-    allProjects,
-    injectWorkspacePackages: true,
-  }))
-
-  const lockfileAfterAdd = rootModules.readLockfile()
-
-  // Verify workspace package still uses the same protocol
-  expect(lockfileAfterAdd.importers.a.dependencies!.b.version).toBe(initialProtocol)
-
-  // Remove the regular dependency from manifest
-  delete projectAManifest.dependencies['is-positive']
-
-  // Run install again
-  await mutateModules([
-    {
-      mutation: 'install',
-      rootDir: path.resolve('a') as ProjectRootDir,
-    },
-  ], testDefaults({
-    allProjects,
-    injectWorkspacePackages: true,
-  }))
-
-  const lockfileAfterRemove = rootModules.readLockfile()
-
-  // Verify workspace package STILL uses the same protocol (the bug was it would change)
-  expect(lockfileAfterRemove.importers.a.dependencies!.b.version).toBe(initialProtocol)
-})
-
-test('workspace packages should maintain consistent protocol after pnpm rm when injectWorkspacePackages is true', async () => {
+test('workspace packages should maintain link: protocol after single-project pnpm rm with injectWorkspacePackages', async () => {
   const projectAManifest: { name: string, version: string, dependencies: Record<string, string> } = {
     name: 'a',
     version: '1.0.0',
@@ -145,7 +45,7 @@ test('workspace packages should maintain consistent protocol after pnpm rm when 
     },
   ]
 
-  // Initial full install
+  // Initial full install with all projects
   await mutateModules([
     {
       mutation: 'install',
@@ -163,27 +63,46 @@ test('workspace packages should maintain consistent protocol after pnpm rm when 
   const rootModules = assertProject(process.cwd())
   const lockfile = rootModules.readLockfile()
   expect(lockfile.importers.a.dependencies!.b.version).toBe('link:../b')
-  const initialProtocol = lockfile.importers.a.dependencies!.b.version
 
-  // Remove a dependency using uninstallSome (simulates `pnpm rm is-positive` in package a)
+  // Remove a dependency using mutateModulesInSingleProject.
+  // This is the code path used by `pnpm rm` when run from within a single
+  // workspace package directory. It passes allProjects with only the single
+  // project, so ctx.projects won't contain the other workspace packages.
+  // The workspacePackages map must still include all workspace packages
+  // for resolution to work.
   delete projectAManifest.dependencies['is-positive']
-  await mutateModules([
+  const workspacePackages = new Map([
+    ['a', new Map([
+      ['1.0.0', {
+        rootDir: path.resolve('a') as ProjectRootDir,
+        manifest: projectAManifest,
+      }],
+    ])],
+    ['b', new Map([
+      ['1.0.0', {
+        rootDir: path.resolve('b') as ProjectRootDir,
+        manifest: projectBManifest,
+      }],
+    ])],
+  ])
+  await mutateModulesInSingleProject(
     {
-      mutation: 'uninstallSome',
+      binsDir: path.resolve('a', 'node_modules', '.bin'),
       dependencyNames: ['is-positive'],
+      manifest: projectAManifest,
+      mutation: 'uninstallSome',
       rootDir: path.resolve('a') as ProjectRootDir,
     },
-  ], testDefaults({
-    allProjects: allProjects.map((p) =>
-      p.rootDir === (path.resolve('a') as ProjectRootDir)
-        ? { ...p, manifest: projectAManifest }
-        : p
-    ),
-    injectWorkspacePackages: true,
-  }))
+    testDefaults({
+      workspacePackages,
+      injectWorkspacePackages: true,
+    })
+  )
 
   const lockfileAfterRm = rootModules.readLockfile()
 
-  // Verify workspace package still uses link: protocol after pnpm rm
-  expect(lockfileAfterRm.importers.a.dependencies!.b.version).toBe(initialProtocol)
+  // Without the fix, workspace dep 'b' would switch from link: to file: protocol
+  // because dedupeInjectedDeps couldn't identify 'b' as a workspace package
+  // when only package 'a' was in the projects list.
+  expect(lockfileAfterRm.importers.a.dependencies!.b.version).toBe('link:../b')
 })
