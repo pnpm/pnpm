@@ -7,11 +7,14 @@ compile_and_lint_task:
     image: debian:bookworm-slim
     cpu: 4
     memory: 8G
+  env:
+    PNPM_HOME: /root/.local/share/pnpm
   install_deps_script:
     - apt-get update && apt-get install -y curl git libatomic1
+  setup_path_script:
+    - echo "PATH=$PNPM_HOME:$PATH" >> $CIRRUS_ENV
   install_pnpm_script:
     - curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=${PNPM_VERSION} sh -
-    - export PNPM_HOME="$HOME/.local/share/pnpm" && echo "PATH=$PNPM_HOME:$PATH" >> $CIRRUS_ENV
   setup_node_script:
     - pnpm runtime -g set node 24.6.0
   install_script:
@@ -33,6 +36,7 @@ test_linux_task:
     cpu: 4
     memory: 8G
   env:
+    PNPM_HOME: /root/.local/share/pnpm
     PNPM_WORKERS: "3"
     matrix:
       - NODE_VERSION: "22.13.0"
@@ -47,9 +51,10 @@ test_linux_task:
     - git config --global core.autocrlf false
     - git config --global user.name "xyz"
     - git config --global user.email "x@y.z"
+  setup_path_script:
+    - echo "PATH=$PNPM_HOME:$PATH" >> $CIRRUS_ENV
   install_pnpm_script:
     - curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=${PNPM_VERSION} sh -
-    - export PNPM_HOME="$HOME/.local/share/pnpm" && echo "PATH=$PNPM_HOME:$PATH" >> $CIRRUS_ENV
   setup_node_script:
     - pnpm runtime -g set node ${NODE_VERSION}
   verify_npm_script:
