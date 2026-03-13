@@ -56,13 +56,17 @@ test('getConfig()', async () => {
   expect(config.nodeVersion).toBeUndefined()
 })
 
-test('nodeVersion is set from devEngines.runtime when onFail is download', async () => {
+test.each([
+  { version: '22.20.0', onFail: 'download' as const, expected: '22.20.0', desc: 'exact version with onFail download' },
+  { version: '22.20.0', onFail: 'error' as const, expected: '22.20.0', desc: 'exact version with onFail error' },
+  { version: '^22.0.0', onFail: 'download' as const, expected: '22.0.0', desc: 'version range resolves to minimum' },
+])('nodeVersion from devEngines.runtime: $desc', async ({ version, onFail, expected }) => {
   prepare({
     devEngines: {
       runtime: {
         name: 'node',
-        version: '22.20.0',
-        onFail: 'download',
+        version,
+        onFail,
       },
     },
   })
@@ -75,51 +79,7 @@ test('nodeVersion is set from devEngines.runtime when onFail is download', async
     },
   })
 
-  expect(config.nodeVersion).toBe('22.20.0')
-})
-
-test('nodeVersion from devEngines.runtime works with version ranges', async () => {
-  prepare({
-    devEngines: {
-      runtime: {
-        name: 'node',
-        version: '^22.0.0',
-        onFail: 'download',
-      },
-    },
-  })
-
-  const { config } = await getConfig({
-    cliOptions: {},
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-
-  expect(config.nodeVersion).toBe('22.0.0')
-})
-
-test('nodeVersion is set from devEngines.runtime regardless of onFail value', async () => {
-  prepare({
-    devEngines: {
-      runtime: {
-        name: 'node',
-        version: '22.20.0',
-        onFail: 'error',
-      },
-    },
-  })
-
-  const { config } = await getConfig({
-    cliOptions: {},
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-
-  expect(config.nodeVersion).toBe('22.20.0')
+  expect(config.nodeVersion).toBe(expected)
 })
 
 test('nodeVersion from config takes priority over devEngines.runtime', async () => {
