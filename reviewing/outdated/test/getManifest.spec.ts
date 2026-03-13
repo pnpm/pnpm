@@ -100,27 +100,6 @@ test('getManifest() does not convert non-latest specifiers', async () => {
   expect(resolve).toHaveBeenCalledTimes(1)
 })
 
-test('getManifest() handles NO_MATCHING_VERSION error gracefully', async () => {
-  const opts = {
-    dir: '',
-    lockfileDir: '',
-    rawConfig: {},
-  }
-
-  const publishedBy = new Date(Date.now() - 10080 * 60 * 1000)
-
-  const resolve: ResolveFunction = jest.fn(async function () {
-    const error = new Error('No matching version found') as Error & { code?: string }
-    error.code = 'ERR_PNPM_NO_MATURE_MATCHING_VERSION'
-    throw error
-  })
-
-  const result = await getManifest({ ...opts, resolve, publishedBy }, 'foo', 'latest')
-
-  // Should return null when no version matches minimumReleaseAge
-  expect(result).toBeNull()
-})
-
 // https://github.com/pnpm/pnpm/issues/10605
 test('getManifest() returns null for NO_MATCHING_VERSION when publishedBy is set', async () => {
   const opts = {
