@@ -1,4 +1,7 @@
+import util from 'node:util'
+
 import { envReplace } from '@pnpm/config.env-replace'
+import { PnpmError } from '@pnpm/error'
 import type { PnpmSettings } from '@pnpm/types'
 
 export interface ReplaceEnvInSettingsOptions {
@@ -19,7 +22,7 @@ export function replaceEnvInSettings (
 ): PnpmSettings {
   const newSettings: PnpmSettings = {}
   for (const [key, value] of Object.entries(settings)) {
-    const newKey = envReplace(key, process.env)
+    const newKey = safeEnvReplace(key)
     if (typeof value === 'string' && isGatedRequestScalar(newKey, value, opts)) continue
     newSettings[newKey as keyof PnpmSettings] = replaceEnvInSettingValue(newKey, value, opts) as never
   }
@@ -31,7 +34,7 @@ function isGatedRequestScalar (key: string, value: string, opts: ReplaceEnvInSet
 }
 
 function replaceEnvInSettingValue (key: string, value: unknown, opts: ReplaceEnvInSettingsOptions): unknown {
-  if (typeof value === 'string') return envReplace(value, process.env)
+  if (typeof value === 'string') return safeEnvReplace(value)
   if (key === 'namedRegistries' || (key === 'registries' && isScopeRouteMap(value))) {
     return opts.expandRequestDestinationEnv
       ? replaceEnvInStringValues(value)
@@ -45,6 +48,17 @@ function replaceEnvInSettingValue (key: string, value: unknown, opts: ReplaceEnv
       : copyEntriesWithoutEnvPlaceholderKeys(value)
   }
   return value
+}
+
+function safeEnvReplace (str: string): string {
+  try {
+    return envReplace(str, process.env)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err)) {
+      throw new PnpmError('CONFIG_UNRESOLVED_ENV_VAR', err.message)
+    }
+    throw err
+  }
 }
 
 /**
@@ -66,7 +80,7 @@ function replaceEnvInStringValues (value: unknown): unknown {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
   const out: Record<string, unknown> = {}
   for (const [entryKey, entryValue] of Object.entries(value as Record<string, unknown>)) {
-    out[entryKey] = typeof entryValue === 'string' ? envReplace(entryValue, process.env) : entryValue
+    out[entryKey] = typeof entryValue === 'string' ? safeEnvReplace(entryValue) : entryValue
   }
   return out
 }
@@ -85,7 +99,7 @@ function replaceEnvInKeys (value: unknown): unknown {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
   const out: Record<string, unknown> = {}
   for (const [entryKey, entryValue] of Object.entries(value as Record<string, unknown>)) {
-    out[envReplace(entryKey, process.env)] = entryValue
+    out[safeEnvReplace(entryKey)] = entryValue
   }
   return out
 }
