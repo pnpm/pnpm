@@ -175,6 +175,7 @@ export async function publishWithOtpHandling ({
         name: 'otp',
         type: 'input',
       })
+      // Use || (not ??) so that empty-string input is treated as "no OTP provided"
       otp = enquirerResponse?.otp || undefined
     }
     if (otp != null) {
