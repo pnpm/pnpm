@@ -40,6 +40,9 @@
       "path": "../../packages/calc-dep-state"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/error"
     },
     {

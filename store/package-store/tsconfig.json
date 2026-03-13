@@ -22,6 +22,9 @@
       "path": "../../hooks/types"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/error"
     },
     {
