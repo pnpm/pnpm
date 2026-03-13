@@ -1,10 +1,11 @@
 import { PnpmError } from '@pnpm/error'
 import { type AgentOptions, fetchWithAgent, type RetryTimeoutOptions } from '@pnpm/fetch'
-import { type GetAuthHeader } from '@pnpm/fetching-types'
-import { type LockfileObject } from '@pnpm/lockfile.types'
-import { type DependenciesField } from '@pnpm/types'
+import type { GetAuthHeader } from '@pnpm/fetching-types'
+import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
+import type { DependenciesField } from '@pnpm/types'
+
 import { lockfileToAuditTree } from './lockfileToAuditTree.js'
-import { type AuditReport } from './types.js'
+import type { AuditReport } from './types.js'
 
 export * from './types.js'
 
@@ -13,6 +14,7 @@ export async function audit (
   getAuthHeader: GetAuthHeader,
   opts: {
     agentOptions?: AgentOptions
+    envLockfile?: EnvLockfile | null
     include?: { [dependenciesField in DependenciesField]: boolean }
     lockfileDir: string
     registry: string
@@ -21,7 +23,7 @@ export async function audit (
     virtualStoreDirMaxLength: number
   }
 ): Promise<AuditReport> {
-  const auditTree = await lockfileToAuditTree(lockfile, { include: opts.include, lockfileDir: opts.lockfileDir })
+  const auditTree = await lockfileToAuditTree(lockfile, { envLockfile: opts.envLockfile, include: opts.include, lockfileDir: opts.lockfileDir })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/audits`
   const quickAuditUrl = `${registry}-/npm/v1/security/audits/quick`

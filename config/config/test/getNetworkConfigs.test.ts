@@ -1,6 +1,8 @@
-import fs from 'fs'
+import fs from 'node:fs'
+
 import { prepareEmpty } from '@pnpm/prepare'
-import { type NetworkConfigs, getNetworkConfigs } from '../src/getNetworkConfigs.js'
+
+import { getNetworkConfigs, type NetworkConfigs } from '../src/getNetworkConfigs.js'
 
 test('without files', () => {
   expect(getNetworkConfigs({})).toStrictEqual({

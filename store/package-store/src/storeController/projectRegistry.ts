@@ -1,11 +1,12 @@
-import { type Dirent, promises as fs } from 'fs'
-import util from 'util'
-import path from 'path'
+import { type Dirent, promises as fs } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
 import { createShortHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
+import { isSubdir } from 'is-subdir'
 import symlinkDir from 'symlink-dir'
-import isSubdir from 'is-subdir'
 
 const PROJECTS_DIR = 'projects'
 

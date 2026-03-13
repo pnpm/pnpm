@@ -22,16 +22,34 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/deps-installer"
+    },
+    {
       "path": "../../env/path"
     },
     {
-      "path": "../../exec/pnpm-cli-runner"
+      "path": "../../global/commands"
+    },
+    {
+      "path": "../../global/packages"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../packages/calc-dep-state"
     },
     {
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../pkg-manager/client"
+    },
+    {
+      "path": "../../pkg-manager/headless"
     },
     {
       "path": "../../pkg-manager/link-bins"
@@ -40,7 +58,13 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
-      "path": "../path"
+      "path": "../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../store/package-store"
+    },
+    {
+      "path": "../../store/store-connection-manager"
     }
   ]
 }

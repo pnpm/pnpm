@@ -1,8 +1,8 @@
-import { type VerifyDepsBeforeRun } from '@pnpm/config'
+import type { VerifyDepsBeforeRun } from '@pnpm/config'
+import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { globalWarn } from '@pnpm/logger'
-import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import enquirer from 'enquirer'
 
 export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions {

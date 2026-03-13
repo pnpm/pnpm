@@ -1,28 +1,30 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
-import { hashObject } from '@pnpm/crypto.object-hasher'
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
-import {
-  type PackageManifestLog,
-  type RootLog,
-  type StageLog,
-  type StatsLog,
+import type {
+  PackageManifestLog,
+  RootLog,
+  StageLog,
+  StatsLog,
 } from '@pnpm/core-loggers'
-import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { hashObject } from '@pnpm/crypto.object-hasher'
 import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
-import { type DepPath } from '@pnpm/types'
 import { getIntegrity } from '@pnpm/registry-mock'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { jest } from '@jest/globals'
-import { sync as rimraf } from '@zkochan/rimraf'
+import type { DepPath } from '@pnpm/types'
+import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
+
 import { testDefaults } from './utils/testDefaults.js'
 
 const f = fixtures(import.meta.dirname)
@@ -759,7 +761,7 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
   const cacheBuildDir = path.join(opts.storeDir, `diskusage@1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   fs.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
-  rimraf(path.join(lockfileDir, 'node_modules'))
+  rimrafSync(path.join(lockfileDir, 'node_modules'))
   await headlessInstall(opts)
 
   expect(fs.existsSync(path.join(lockfileDir, 'node_modules/.pnpm/node_modules/diskusage/build/new-file.txt'))).toBeTruthy()

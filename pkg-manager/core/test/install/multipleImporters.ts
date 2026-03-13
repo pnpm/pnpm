@@ -1,23 +1,25 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { readCurrentLockfile } from '@pnpm/lockfile.fs'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
-import { type ProjectManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import {
   addDependenciesToPackage,
   type MutatedProject,
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import { sync as rimraf } from '@zkochan/rimraf'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
+import { readCurrentLockfile } from '@pnpm/lockfile.fs'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
+import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
-import { sync as readYamlFile } from 'read-yaml-file'
-import { jest } from '@jest/globals'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 test('install only the dependencies of the specified importer', async () => {
@@ -78,7 +80,7 @@ test('install only the dependencies of the specified importer', async () => {
   rootModules.has('.pnpm/is-positive@1.0.0')
   rootModules.hasNot('.pnpm/is-negative@1.0.0')
 
-  const lockfile: any = readYamlFile(WANTED_LOCKFILE) // eslint-disable-line
+  const lockfile: any = readYamlFileSync(WANTED_LOCKFILE) // eslint-disable-line
   expect(lockfile.importers?.['project-2' as ProjectId].dependencies?.['is-negative'].version).toBe('1.0.0')
 })
 
@@ -137,7 +139,7 @@ test('install only the dependencies of the specified importer, when node-linker 
   rootModules.has('is-positive')
   // rootModules.hasNot('is-negative') // TODO: fix
 
-  const lockfile: any = readYamlFile(WANTED_LOCKFILE) // eslint-disable-line
+  const lockfile: any = readYamlFileSync(WANTED_LOCKFILE) // eslint-disable-line
   expect(lockfile.importers?.['project-2' as ProjectId].dependencies?.['is-negative'].version).toBe('1.0.0')
 })
 
@@ -199,7 +201,7 @@ test('install only the dependencies of the specified importer, when no lockfile 
   rootModules.has('.pnpm/is-positive@1.0.0')
   rootModules.hasNot('.pnpm/is-negative@1.0.0')
 
-  const lockfile: any = readYamlFile(path.resolve('node_modules/.pnpm/lock.yaml')) // eslint-disable-line
+  const lockfile: any = readYamlFileSync(path.resolve('node_modules/.pnpm/lock.yaml')) // eslint-disable-line
   expect(lockfile.importers?.['project-2' as ProjectId]).toStrictEqual({})
 })
 
@@ -797,7 +799,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
     ],
   }))
 
-  writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+  writeYamlFileSync(path.resolve('pnpm-lock.yaml'), {
     importers: {
       'project-1': {
         dependencies: {
@@ -896,7 +898,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
     ],
   }))
 
-  writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+  writeYamlFileSync(path.resolve('pnpm-lock.yaml'), {
     importers: {
       'project-1': {
         dependencies: {
@@ -1473,7 +1475,7 @@ test('resolve a subdependency from the workspace', async () => {
   const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   // Testing that headless installation does not fail with links in subdeps
   await mutateModules(importers, testDefaults({
@@ -1616,7 +1618,7 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
   const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   // Testing that headless installation does not fail with links in subdeps
   await mutateModules(importers, testDefaults({
@@ -1828,7 +1830,7 @@ test('symlink local package from the location described in its publishConfig.dir
   const lockfile = project.readLockfile()
   expect(lockfile.importers['project-1'].publishDirectory).toBe('dist')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))
 
   {
@@ -1951,9 +1953,9 @@ require("fs").writeFileSync("created-by-prepare", "", "utf8")`)
 
   expect(fs.existsSync('project-1/created-by-prepare')).toBeTruthy()
 
-  rimraf('node_modules')
-  rimraf('project-1/node_modules')
-  rimraf('project-2/node_modules')
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-2/node_modules')
   fs.renameSync('project-2/bin.js', 'project-2/__bin.js')
 
   await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))

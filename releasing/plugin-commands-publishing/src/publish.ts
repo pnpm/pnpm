@@ -1,22 +1,24 @@
-import path from 'path'
+import path from 'node:path'
+
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
-import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
+import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
+import type { ProjectManifest } from '@pnpm/types'
+import { rimraf } from '@zkochan/rimraf'
 import enquirer from 'enquirer'
-import rimraf from '@zkochan/rimraf'
 import { pick } from 'ramda'
-import realpathMissing from 'realpath-missing'
-import renderHelp from 'render-help'
+import { realpathMissing } from 'realpath-missing'
+import { renderHelp } from 'render-help'
 import { temporaryDirectory } from 'tempy'
+
 import { extractManifestFromPacked, isTarballPath } from './extractManifestFromPacked.js'
 import { optionsWithOtpEnv } from './otpEnv.js'
 import * as pack from './pack.js'
 import { publishPackedPkg } from './publishPackedPkg.js'
-import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish.js'
+import { type PublishRecursiveOpts, recursivePublish } from './recursivePublish.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([

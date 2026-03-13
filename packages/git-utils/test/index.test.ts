@@ -1,8 +1,9 @@
-import { temporaryDirectory } from 'tempy'
-import execa from 'execa'
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { getCurrentBranch, isGitRepo, isWorkingTreeClean } from '@pnpm/git-utils'
+import { safeExeca as execa } from 'execa'
+import { temporaryDirectory } from 'tempy'
 
 test('isGitRepo', async () => {
   const tempDir = temporaryDirectory()

@@ -1,36 +1,38 @@
-import crypto from 'crypto'
-import path from 'path'
-import fs from 'fs'
-import { PnpmError } from '@pnpm/error'
-import { type Cafs, type PackageFiles, type SideEffectsDiff, type FilesMap } from '@pnpm/cafs-types'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import { parentPort } from 'node:worker_threads'
+
+import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
+import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
-import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
-import { StoreIndex, packForStorage } from '@pnpm/store.index'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
+import { PnpmError } from '@pnpm/error'
+import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
+  buildFileMapsFromIndex,
   type CafsFunctions,
   checkPkgFilesIntegrity,
-  buildFileMapsFromIndex,
   createCafs,
+  type FilesIndex,
   HASH_ALGORITHM,
   normalizeBundledManifest,
   type PackageFilesIndex,
-  type FilesIndex,
   type VerifyResult,
 } from '@pnpm/store.cafs'
+import { packForStorage, StoreIndex } from '@pnpm/store.index'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
-import { type BundledManifest, type DependencyManifest } from '@pnpm/types'
-import { parentPort } from 'worker_threads'
+import type { BundledManifest, DependencyManifest } from '@pnpm/types'
+
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
-import {
-  type AddDirToStoreMessage,
-  type ReadPkgFromCafsMessage,
-  type LinkPkgMessage,
-  type SymlinkAllModulesMessage,
-  type TarballExtractMessage,
-  type HardLinkDirMessage,
-  type InitStoreMessage,
+import type {
+  AddDirToStoreMessage,
+  HardLinkDirMessage,
+  InitStoreMessage,
+  LinkPkgMessage,
+  ReadPkgFromCafsMessage,
+  SymlinkAllModulesMessage,
+  TarballExtractMessage,
 } from './types.js'
 
 export function startWorker (): void {
@@ -421,6 +423,7 @@ function importPackage ({
   force,
   keepModulesDir,
   disableRelinkLocalDirDeps,
+  safeToSkip,
 }: LinkPkgMessage): ImportPackageResult {
   const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
   if (!cafsStoreCache.has(cacheKey)) {
@@ -434,6 +437,7 @@ function importPackage ({
     requiresBuild,
     sideEffectsCacheKey,
     keepModulesDir,
+    safeToSkip,
   })
   return { status: 'success', value: { isBuilt, importMethod } }
 }

@@ -1,11 +1,12 @@
-import path from 'path'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
+import { logger } from '@pnpm/logger'
 import {
-  findWorkspacePackagesNoCheck,
   findWorkspacePackages,
+  findWorkspacePackagesNoCheck,
 } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
-import { logger } from '@pnpm/logger'
-import { jest } from '@jest/globals'
 
 beforeEach(() => {
   jest.spyOn(logger, 'warn')

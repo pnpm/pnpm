@@ -32,6 +32,8 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/building.after-install": "workspace:*",
+    "@pnpm/building.build-commands": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/colorize-semver-diff": "catalog:",
@@ -57,7 +59,6 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
-    "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",

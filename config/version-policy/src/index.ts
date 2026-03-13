@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { createMatcher, type Matcher } from '@pnpm/matcher'
-import { type PackageVersionPolicy } from '@pnpm/types'
+import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
 export function createPackageVersionPolicy (patterns: string[]): PackageVersionPolicy {

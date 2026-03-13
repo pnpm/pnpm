@@ -1,5 +1,5 @@
-import type { BaseManifest, ReadPackageHook } from '@pnpm/types'
 import { createMatcher } from '@pnpm/matcher'
+import type { BaseManifest, ReadPackageHook } from '@pnpm/types'
 
 export function createOptionalDependenciesRemover (toBeRemoved: string[]): ReadPackageHook {
   if (!toBeRemoved.length) return <Manifest extends BaseManifest>(manifest: Manifest) => manifest

@@ -1,8 +1,9 @@
-import { promises as fs } from 'fs'
-import { createClient, type ClientOptions } from '@pnpm/client'
-import { type Config } from '@pnpm/config'
-import { createPackageStore, type CafsLocker, type StoreController } from '@pnpm/package-store'
+import { promises as fs } from 'node:fs'
+
 import { packageManager } from '@pnpm/cli-meta'
+import { type ClientOptions, createClient } from '@pnpm/client'
+import type { Config } from '@pnpm/config'
+import { type CafsLocker, createPackageStore, type StoreController } from '@pnpm/package-store'
 import { StoreIndex } from '@pnpm/store.index'
 
 type CreateResolverOptions = Pick<Config,

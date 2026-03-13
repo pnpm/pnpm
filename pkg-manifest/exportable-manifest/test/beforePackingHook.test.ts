@@ -1,8 +1,9 @@
-import fs from 'fs'
+import fs from 'node:fs'
+
 import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/exportable-manifest'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { prepare } from '@pnpm/prepare'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 const defaultOpts: MakePublishManifestOptions = {
   catalogs: {},
@@ -82,7 +83,7 @@ module.exports = {
     },
   },
 }`, 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { pnpmfile: pnpmfiles })
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmfile: pnpmfiles })
 
   const { hooks } = await requireHooks(process.cwd(), { pnpmfiles })
   expect(await createExportableManifest(process.cwd(), {

@@ -1,17 +1,19 @@
-import fs from 'fs/promises'
-import { type PublishOptions, publish } from 'libnpmpublish'
-import { type Config } from '@pnpm/config'
+import fs from 'node:fs/promises'
+
+import type { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { type ExportedManifest } from '@pnpm/exportable-manifest'
+import type { ExportedManifest } from '@pnpm/exportable-manifest'
 import { globalInfo, globalWarn } from '@pnpm/logger'
+import { publish, type PublishOptions } from 'libnpmpublish'
+
 import { displayError } from './displayError.js'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
 import { AuthTokenError, fetchAuthToken } from './oidc/authToken.js'
-import { IdTokenError, getIdToken } from './oidc/idToken.js'
-import { ProvenanceError, determineProvenance } from './oidc/provenance.js'
-import { type PackResult } from './pack.js'
-import { type NormalizedRegistryUrl, allRegistryConfigKeys, parseSupportedRegistryUrl } from './registryConfigKeys.js'
+import { getIdToken, IdTokenError } from './oidc/idToken.js'
+import { determineProvenance, ProvenanceError } from './oidc/provenance.js'
+import type { PackResult } from './pack.js'
+import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 
 type AuthConfigKey =
 | 'authToken'

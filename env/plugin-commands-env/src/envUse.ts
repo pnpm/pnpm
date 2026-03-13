@@ -1,7 +1,8 @@
 import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { globalWarn } from '@pnpm/logger'
-import { type NvmNodeCommandOptions } from './node.js'
+
+import type { NvmNodeCommandOptions } from './node.js'
 
 export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Promise<void> {
   globalWarn('"pnpm env use" is deprecated. Use "pnpm runtime set node <version> -g" instead.')

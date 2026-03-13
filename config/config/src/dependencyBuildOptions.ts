@@ -1,4 +1,4 @@
-import { type Config } from './Config.js'
+import type { Config } from './Config.js'
 
 export const DEPS_BUILD_CONFIG_KEYS = [
   'dangerouslyAllowAllBuilds',

@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+
 import { checkGlobalBinConflicts } from '@pnpm/global.commands'
-import { type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 import symlinkDir from 'symlink-dir'
 
 function makeTempDir (): string {
@@ -37,7 +38,8 @@ function createExistingGlobalPackage (
     JSON.stringify({ name: pkgName, version: '1.0.0', bin: opts.bins })
   )
   // Create hash symlink so scanGlobalPackages discovers it
-  symlinkDir.sync(installDir, path.join(globalDir, `fakehash-${opts.alias}`))
+  const safeAlias = opts.alias.replace(/\//g, '-')
+  symlinkDir.sync(installDir, path.join(globalDir, `fakehash-${safeAlias}`))
 }
 
 function makeNewPkg (
@@ -257,6 +259,53 @@ describe('checkGlobalBinConflicts', () => {
         shouldSkip: () => false,
       })
     ).resolves.toEqual(new Set(['npm', 'npx']))
+  })
+
+  it('throws when @pnpm/exe conflicts with existing pnpm package', async () => {
+    const globalDir = makeTempDir()
+    const globalBinDir = makeTempDir()
+
+    createExistingGlobalPackage(globalDir, {
+      alias: 'pnpm',
+      bins: { pnpm: './bin/pnpm.mjs', pnpx: './bin/pnpx.mjs' },
+    })
+    fs.writeFileSync(path.join(globalBinDir, 'pnpm'), '')
+    fs.writeFileSync(path.join(globalBinDir, 'pnpx'), '')
+
+    const newPkg = makeNewPkg('@pnpm/exe', { pnpm: './pnpm', pnpx: './pnpx' })
+
+    await expect(
+      checkGlobalBinConflicts({
+        globalDir,
+        globalBinDir,
+        newPkgs: [newPkg],
+        shouldSkip: () => false,
+      })
+    ).rejects.toThrow('would conflict')
+  })
+
+  it('throws when pnpm conflicts with existing @pnpm/exe package', async () => {
+    const globalDir = makeTempDir()
+    const globalBinDir = makeTempDir()
+
+    createExistingGlobalPackage(globalDir, {
+      alias: '@pnpm/exe',
+      name: '@pnpm/exe',
+      bins: { pnpm: './pnpm', pnpx: './pnpx' },
+    })
+    fs.writeFileSync(path.join(globalBinDir, 'pnpm'), '')
+    fs.writeFileSync(path.join(globalBinDir, 'pnpx'), '')
+
+    const newPkg = makeNewPkg('pnpm', { pnpm: './bin/pnpm.mjs', pnpx: './bin/pnpx.mjs' })
+
+    await expect(
+      checkGlobalBinConflicts({
+        globalDir,
+        globalBinDir,
+        newPkgs: [newPkg],
+        shouldSkip: () => false,
+      })
+    ).rejects.toThrow('would conflict')
   })
 
   it('returns bins to skip when existing package owns conflicting bins', async () => {

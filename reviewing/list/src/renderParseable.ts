@@ -1,6 +1,7 @@
-import { type DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
-import { sortBy, prop } from 'ramda'
-import { type PackageDependencyHierarchy } from './types.js'
+import type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { prop, sortBy } from 'ramda'
+
+import type { PackageDependencyHierarchy } from './types.js'
 
 const sortPackages = sortBy(prop('name'))
 

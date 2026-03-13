@@ -6,20 +6,24 @@ declare const global: Global
 if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
-import loudRejection from 'loud-rejection'
-import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
-import { getConfig } from '@pnpm/cli-utils'
-import { type Config, type WantedPackageManager } from '@pnpm/config'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
+
+import { isExecutedByCorepack, packageManager } from '@pnpm/cli-meta'
+import { getConfig, installConfigDepsAndLoadHooks } from '@pnpm/cli-utils'
+import type { Config } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
-import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
+import type { ParsedCliArgs } from '@pnpm/parse-cli-args'
+import type { EngineDependency } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
-import path from 'path'
+import loudRejection from 'loud-rejection'
 import { isEmpty } from 'ramda'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import semver from 'semver'
+
 import { checkForUpdates } from './checkForUpdates.js'
 import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
@@ -112,17 +116,19 @@ export async function main (inputArgv: string[]): Promise<void> {
       ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
     }) as typeof config
     if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
-      if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm' && cmd !== 'self-update') {
+      const pm = config.wantedPackageManager
+      if (pm.onFail === 'download' && pm.name === 'pnpm' && cmd !== 'self-update') {
         await switchCliVersion(config)
-      } else if (!cmd || !skipPackageManagerCheckForCommand.has(cmd)) {
+      } else if (pm.onFail !== 'ignore' && (!cmd || !skipPackageManagerCheckForCommand.has(cmd))) {
         if (cliOptions.global) {
           globalWarn('Using --global skips the package manager check for this project')
         } else {
-          checkPackageManager(config.wantedPackageManager, config)
+          checkPackageManager(pm)
         }
       }
     }
-    if (isDlxOrCreateCommand) {
+    config = await installConfigDepsAndLoadHooks(config) as typeof config
+    if (isDlxOrCreateCommand || cmd === 'sbom') {
       config.useStderr = true
     }
     config.argv = argv
@@ -180,7 +186,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   }
 
   if (
-    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds') &&
+    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds' || cmd === 'audit') &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true
@@ -333,23 +339,24 @@ function printError (message: string, hint?: string): void {
   }
 }
 
-function checkPackageManager (pm: WantedPackageManager, config: Config): void {
+function checkPackageManager (pm: EngineDependency): void {
   if (!pm.name) return
+  const shouldError = pm.onFail === 'error' || pm.onFail === 'download'
   if (pm.name !== 'pnpm') {
     const msg = `This project is configured to use ${pm.name}`
-    if (config.packageManagerStrict) {
+    if (shouldError) {
       throw new PnpmError('OTHER_PM_EXPECTED', msg)
     }
     globalWarn(msg)
-  } else {
+  } else if (pm.version) {
     const currentPnpmVersion = packageManager.name === 'pnpm'
       ? packageManager.version
       : undefined
-    if (currentPnpmVersion && config.packageManagerStrictVersion && pm.version && pm.version !== currentPnpmVersion) {
-      const msg = `This project is configured to use v${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
-      if (config.packageManagerStrict) {
+    if (currentPnpmVersion && !semver.satisfies(currentPnpmVersion, pm.version, { includePrerelease: true })) {
+      const msg = `This project is configured to use ${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
+      if (shouldError) {
         throw new PnpmError('BAD_PM_VERSION', msg, {
-          hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
+          hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0". If using "devEngines.packageManager", you can set its "onFail" to "warn" or "ignore"',
         })
       } else {
         globalWarn(msg)

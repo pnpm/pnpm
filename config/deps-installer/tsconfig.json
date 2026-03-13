@@ -16,10 +16,28 @@
       "path": "../../fs/read-modules-dir"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/pruner"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
       "path": "../../network/auth-header"
     },
     {
       "path": "../../network/fetch"
+    },
+    {
+      "path": "../../packages/calc-dep-state"
+    },
+    {
+      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/core-loggers"
@@ -34,6 +52,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../pkg-manager/resolve-dependencies"
+    },
+    {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
@@ -43,7 +64,13 @@
       "path": "../../store/package-store"
     },
     {
+      "path": "../../store/store-controller-types"
+    },
+    {
       "path": "../../testing/temp-store"
+    },
+    {
+      "path": "../../worker"
     },
     {
       "path": "../config-writer"

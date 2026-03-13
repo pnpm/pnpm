@@ -1,9 +1,9 @@
-import { type Config } from '@pnpm/config'
-import { type IgnoredScriptsLog } from '@pnpm/core-loggers'
+import type { Config } from '@pnpm/config'
+import type { IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import boxen from 'boxen'
 import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'
-import boxen from 'boxen'
 
 export function reportIgnoredBuilds (
   log$: {

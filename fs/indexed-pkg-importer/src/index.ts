@@ -1,14 +1,16 @@
-import assert from 'assert'
-import { constants, type Stats, existsSync } from 'fs'
-import util from 'util'
-import fs from '@pnpm/graceful-fs'
-import path from 'path'
-import { globalInfo, globalWarn } from '@pnpm/logger'
-import { packageImportMethodLogger } from '@pnpm/core-loggers'
-import { type FilesMap, type ImportOptions, type ImportIndexedPackage } from '@pnpm/store-controller-types'
-import { importIndexedDir, type ImportFile } from './importIndexedDir.js'
+import assert from 'node:assert'
+import { constants, existsSync, type Stats } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
 
-export { type FilesMap, type ImportOptions, type ImportIndexedPackage }
+import { packageImportMethodLogger } from '@pnpm/core-loggers'
+import fs from '@pnpm/graceful-fs'
+import { globalInfo, globalWarn } from '@pnpm/logger'
+import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store-controller-types'
+
+import { type ImportFile, importIndexedDir } from './importIndexedDir.js'
+
+export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
 
 export type PackageImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
 

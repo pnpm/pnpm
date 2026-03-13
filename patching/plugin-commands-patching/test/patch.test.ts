@@ -1,18 +1,20 @@
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
-import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { install } from '@pnpm/plugin-commands-installation'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { sync as writeYamlFile } from 'write-yaml-file'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import type { PatchCommandOptions, PatchRemoveCommandOptions } from '@pnpm/plugin-commands-patching'
-import { temporaryDirectory } from 'tempy'
+import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { DEFAULT_OPTS } from './utils/index.js'
 import { fixtures } from '@pnpm/test-fixtures'
-import { jest } from '@jest/globals'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { temporaryDirectory } from 'tempy'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 const { default: enquirer } = await import('enquirer')
@@ -1000,7 +1002,7 @@ describe('patch and commit in workspaces', () => {
       dir: process.cwd(),
       storeDir,
     }
-    writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
+    writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
   })
 
   test('patch commit should work in workspaces', async () => {

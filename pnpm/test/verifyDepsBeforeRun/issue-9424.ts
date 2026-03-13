@@ -1,9 +1,11 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { preparePackages } from '@pnpm/prepare'
-import { type ProjectManifest } from '@pnpm/types'
-import { type WorkspaceState, loadWorkspaceState } from '@pnpm/workspace.state'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import type { ProjectManifest } from '@pnpm/types'
+import { loadWorkspaceState, type WorkspaceState } from '@pnpm/workspace.state'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm, execPnpmSync } from '../utils/index.js'
 
 test('hoisted node linker and node_modules not exist (#9424)', async () => {
@@ -35,7 +37,7 @@ test('hoisted node linker and node_modules not exist (#9424)', async () => {
 
   preparePackages([manifests['has-deps'], manifests['has-no-deps']])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   // attempting to execute a script recursively without installing dependencies should fail
   {

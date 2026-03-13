@@ -1,19 +1,18 @@
-import { logger } from '@pnpm/logger'
+import * as dp from '@pnpm/dependency-path'
 import {
   type LockfileObject,
-  type LockfileResolution,
   type PackageSnapshot,
   pruneSharedLockfile,
 } from '@pnpm/lockfile.pruner'
-import { type Resolution } from '@pnpm/resolver-base'
-import { type DepPath, type Registries } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
-import getNpmTarballUrl from 'get-npm-tarball-url'
-import { type KeyValuePair } from 'ramda'
+import { toLockfileResolution } from '@pnpm/lockfile.utils'
+import { logger } from '@pnpm/logger'
+import type { DepPath, Registries } from '@pnpm/types'
+import type { KeyValuePair } from 'ramda'
 import { partition } from 'ramda'
+
 import { depPathToRef } from './depPathToRef.js'
-import { type ResolvedPackage } from './resolveDependencies.js'
-import { type DependenciesGraph } from './index.js'
+import type { DependenciesGraph } from './index.js'
+import type { ResolvedPackage } from './resolveDependencies.js'
 
 export function updateLockfile (
   { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {
@@ -178,45 +177,3 @@ function updateResolvedDeps (
   )
 }
 
-function toLockfileResolution (
-  pkg: {
-    name: string
-    version: string
-  },
-  resolution: Resolution,
-  registry: string,
-  lockfileIncludeTarballUrl?: boolean
-): LockfileResolution {
-  if (resolution.type !== undefined || !resolution['integrity']) {
-    return resolution as LockfileResolution
-  }
-  if (lockfileIncludeTarballUrl) {
-    return {
-      integrity: resolution['integrity'],
-      tarball: resolution['tarball'],
-    }
-  }
-  if (lockfileIncludeTarballUrl === false) {
-    return {
-      integrity: resolution['integrity'],
-    }
-  }
-  // Sometimes packages are hosted under non-standard tarball URLs.
-  // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
-  // Or in other weird cases, like https://github.com/pnpm/pnpm/issues/1072
-  const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
-  const actualTarball = resolution['tarball'].replace('%2f', '/')
-  if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {
-    return {
-      integrity: resolution['integrity'],
-      tarball: resolution['tarball'],
-    }
-  }
-  return {
-    integrity: resolution['integrity'],
-  }
-}
-
-function removeProtocol (url: string): string {
-  return url.split('://')[1]
-}

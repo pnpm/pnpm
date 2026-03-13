@@ -1,28 +1,31 @@
-import path from 'path'
+import path from 'node:path'
+
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
-import { type ProjectOptions } from '@pnpm/get-context'
-import { type HoistingLimits } from '@pnpm/headless'
+import type { ProjectOptions } from '@pnpm/get-context'
+import type { HoistingLimits } from '@pnpm/headless'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
-import { type IncludedDependencies } from '@pnpm/modules-yaml'
-import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
-import { type WorkspacePackages } from '@pnpm/resolver-base'
-import { type StoreController } from '@pnpm/store-controller-types'
-import {
-  type SupportedArchitectures,
-  type AllowedDeprecatedVersions,
-  type PackageExtension,
-  type PeerDependencyRules,
-  type ReadPackageHook,
-  type Registries,
-  type TrustPolicy,
-} from '@pnpm/types'
-import { type CustomResolver, type CustomFetcher, type PreResolutionHookContext } from '@pnpm/hooks.types'
+import type { CustomFetcher, CustomResolver, PreResolutionHookContext } from '@pnpm/hooks.types'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { IncludedDependencies } from '@pnpm/modules-yaml'
+import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/normalize-registries'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
+import type { WorkspacePackages } from '@pnpm/resolver-base'
+import type { StoreController } from '@pnpm/store-controller-types'
+import type {
+  AllowedDeprecatedVersions,
+  PackageExtension,
+  PackageVulnerabilityAudit,
+  PeerDependencyRules,
+  ReadPackageHook,
+  Registries,
+  SupportedArchitectures,
+  TrustPolicy,
+} from '@pnpm/types'
+
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
-import { type ReporterFunction } from '../types.js'
+import type { ReporterFunction } from '../types.js'
 
 export interface StrictInstallOptions {
   autoConfirmAllPrompts: boolean
@@ -174,6 +177,7 @@ export interface StrictInstallOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
+  packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
 }
 

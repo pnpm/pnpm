@@ -1,13 +1,14 @@
-import type { PreResolutionHookContext, PreResolutionHookLogger, CustomResolver, CustomFetcher } from '@pnpm/hooks.types'
-import { PnpmError } from '@pnpm/error'
 import { hookLogger } from '@pnpm/core-loggers'
 import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
-import pathAbsolute from 'path-absolute'
-import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
-import { type ReadPackageHook, type BeforePackingHook, type BaseManifest } from '@pnpm/types'
-import { type LockfileObject } from '@pnpm/lockfile.types'
-import { requirePnpmfile, type Pnpmfile, type Finders } from './requirePnpmfile.js'
-import { type Hooks, type HookContext } from './Hooks.js'
+import { PnpmError } from '@pnpm/error'
+import type { CustomFetcher, CustomResolver, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
+import type { BaseManifest, BeforePackingHook, ReadPackageHook } from '@pnpm/types'
+import { pathAbsolute } from 'path-absolute'
+
+import type { HookContext, Hooks } from './Hooks.js'
+import { type Finders, type Pnpmfile, requirePnpmfile } from './requirePnpmfile.js'
 
 // eslint-disable-next-line
 type Cook<T extends (...args: any[]) => any> = (

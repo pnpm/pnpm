@@ -1,4 +1,5 @@
-import { promises as fs } from 'fs'
+import { promises as fs } from 'node:fs'
+
 import which from 'which'
 
 export async function getNodeExecPath (): Promise<string> {

@@ -1,5 +1,6 @@
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
+
 import { renderPeerIssues } from '@pnpm/render-peer-issues'
-import { stripVTControlCharacters as stripAnsi } from 'util'
 
 test('renderPeerIssues()', () => {
   expect(stripAnsi(renderPeerIssues({

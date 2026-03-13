@@ -1,10 +1,11 @@
-import { prepareEmpty } from '@pnpm/prepare'
 import {
-  mutateModules,
   type MutatedProject,
+  mutateModules,
 } from '@pnpm/core'
-import { type ProjectRootDir } from '@pnpm/types'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { prepareEmpty } from '@pnpm/prepare'
+import type { ProjectRootDir } from '@pnpm/types'
+import { rimrafSync } from '@zkochan/rimraf'
+
 import { testDefaults } from '../utils/index.js'
 
 test('spec not specified in package.json.dependencies', async () => {
@@ -36,7 +37,7 @@ test('spec not specified in package.json.dependencies', async () => {
     expect(stats.removed).toBe(0)
     expect(stats.linkedToRoot).toBe(1)
   }
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   {
     const { stats } = await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))
     expect(stats.added).toBe(1)

@@ -1,6 +1,7 @@
-import path from 'path'
-import url from 'url'
-import { type ConfigPair, type GetSchema, type Schema, parseEnvVars } from '../src/env.js'
+import path from 'node:path'
+import url from 'node:url'
+
+import { type ConfigPair, type GetSchema, parseEnvVars, type Schema } from '../src/env.js'
 
 function assertSchemaKey (key: string): void {
   const strictlyKebabCase = key

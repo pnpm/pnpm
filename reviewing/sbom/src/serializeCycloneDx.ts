@@ -1,8 +1,9 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
+
 import { integrityToHashes } from './integrity.js'
 import { classifyLicense } from './license.js'
 import { encodePurlName } from './purl.js'
-import { type SbomResult } from './types.js'
+import type { SbomResult } from './types.js'
 
 export interface CycloneDxOptions {
   pnpmVersion?: string

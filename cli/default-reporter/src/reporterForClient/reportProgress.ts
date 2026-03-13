@@ -1,6 +1,7 @@
-import { type ProgressLog, type StageLog } from '@pnpm/core-loggers'
+import type { ProgressLog, StageLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
-import { filter, map, mapTo, takeWhile, startWith, take } from 'rxjs/operators'
+import { filter, map, mapTo, startWith, take, takeWhile } from 'rxjs/operators'
+
 import { hlValue } from './outputConstants.js'
 import { zoomOut } from './utils/zooming.js'
 

@@ -1,19 +1,21 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { approveBuilds } from '@pnpm/building.policy-commands'
 import {
   cleanOrphanedInstallDirs,
   createInstallDir,
   getHashLink,
   getInstalledBinNames,
-  scanGlobalPackages,
   type GlobalPackageInfo,
+  scanGlobalPackages,
 } from '@pnpm/global.packages'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import { removeBin } from '@pnpm/remove-bins'
-import isSubdir from 'is-subdir'
+import type { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { isSubdir } from 'is-subdir'
 import symlinkDir from 'symlink-dir'
-import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { approveBuilds } from '@pnpm/exec.build-commands'
+
 import { installGlobalPackages } from './installGlobalPackages.js'
 
 type ApproveBuildsHandlerOpts = Parameters<typeof approveBuilds.handler>[0]

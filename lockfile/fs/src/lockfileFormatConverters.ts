@@ -1,18 +1,18 @@
-import { removeSuffix } from '@pnpm/dependency-path'
-import {
-  type LockfileObject,
-  type ProjectSnapshot,
-  type LockfilePackageSnapshot,
-  type ResolvedDependencies,
-  type LockfileFile,
-  type LockfileFileProjectSnapshot,
-  type LockfileFileProjectResolvedDependencies,
-  type LockfilePackageInfo,
-  type PackageSnapshots,
-} from '@pnpm/lockfile.types'
-import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { isEmpty, map as _mapValues, omit, pickBy, pick } from 'ramda'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { removeSuffix } from '@pnpm/dependency-path'
+import type {
+  LockfileFile,
+  LockfileFileProjectResolvedDependencies,
+  LockfileFileProjectSnapshot,
+  LockfileObject,
+  LockfilePackageInfo,
+  LockfilePackageSnapshot,
+  PackageSnapshots,
+  ProjectSnapshot,
+  ResolvedDependencies,
+} from '@pnpm/lockfile.types'
+import { DEPENDENCIES_FIELDS, type DepPath } from '@pnpm/types'
+import { isEmpty, map as _mapValues, omit, pick, pickBy } from 'ramda'
 
 export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
   const packages: Record<string, LockfilePackageInfo> = {}
@@ -150,9 +150,19 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
   }
   return {
     ...omit(['snapshots'], rest),
+    patchedDependencies: migratePatchedDependencies(rest.patchedDependencies),
     packages,
     importers: mapValues(importers ?? {}, revertProjectSnapshot),
   }
+}
+
+function migratePatchedDependencies (patchedDependencies: Record<string, string | { hash: string }> | undefined): Record<string, string> | undefined {
+  if (!patchedDependencies) return undefined
+  const result: Record<string, string> = {}
+  for (const [key, value] of Object.entries(patchedDependencies)) {
+    result[key] = typeof value === 'string' ? value : value.hash
+  }
+  return result
 }
 
 function convertProjectSnapshotToInlineSpecifiersFormat (

@@ -1,7 +1,8 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { addDependenciesToPackage } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag, getIntegrity } from '@pnpm/registry-mock'
-import { addDependenciesToPackage } from '@pnpm/core'
+
 import { testDefaults } from '../utils/index.js'
 
 test('installing aliased dependency', async () => {

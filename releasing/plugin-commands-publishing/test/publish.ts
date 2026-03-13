@@ -1,17 +1,19 @@
-import fs from 'fs'
-import path from 'path'
-import { temporaryDirectory } from 'tempy'
-import execa from 'execa'
-import { isCI } from 'ci-info'
-import isWindows from 'is-windows'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { isCI } from 'ci-info'
 import crossSpawn from 'cross-spawn'
-import { sync as writeYamlFile } from 'write-yaml-file'
-import { DEFAULT_OPTS, checkPkgExists } from './utils/index.js'
+import { safeExeca as execa } from 'execa'
+import isWindows from 'is-windows'
+import { temporaryDirectory } from 'tempy'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
 const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 
@@ -105,7 +107,7 @@ skipOnWindowsCI('pack packages with workspace LICENSE if no own LICENSE is prese
   ], { manifestFormat: 'YAML' })
 
   const workspaceDir = process.cwd()
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   fs.writeFileSync('LICENSE', 'workspace license', 'utf8')
   fs.writeFileSync('project-2/LICENSE', 'project-2 license', 'utf8')
 
@@ -165,7 +167,7 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
   ], { manifestFormat: 'YAML' })
 
   const workspaceDir = process.cwd()
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   fs.writeFileSync('LICENSE', 'workspace license', 'utf8')
   fs.writeFileSync('project-200/LICENSE', 'project-200 license', 'utf8')
 
@@ -380,7 +382,7 @@ test.skip('publish package that calls executable from the workspace .bin folder 
   ])
 
   const workspaceDir = process.cwd()
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('test-publish-scripts')
   await publish.handler({
@@ -484,7 +486,7 @@ test.skip('convert specs with workspace protocols to regular version ranges', as
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('workspace-protocol-package')
 
@@ -589,7 +591,7 @@ test.skip('convert specs with relative workspace protocols to regular version ra
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('relative-workspace-protocol-package')
 
@@ -657,7 +659,7 @@ describe('catalog protocol converted when publishing', () => {
       packages: ['**', '!store/**'],
       catalog: { 'is-positive': '1.0.0' },
     }
-    writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+    writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
     process.chdir(testPackageName)
 
@@ -719,7 +721,7 @@ describe('catalog protocol converted when publishing', () => {
         qux: { 'is-positive': '1.0.0' },
       },
     }
-    writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+    writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
     process.chdir(testPackageName)
 

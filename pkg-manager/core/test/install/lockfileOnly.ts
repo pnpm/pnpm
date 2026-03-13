@@ -1,13 +1,15 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { assertStore } from '@pnpm/assert-store'
-import { prepareEmpty } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
   install,
 } from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+
 import { testDefaults } from '../utils/index.js'
 
 test('install with lockfileOnly = true', async () => {

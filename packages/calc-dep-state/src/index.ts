@@ -1,8 +1,9 @@
 import { ENGINE_NAME } from '@pnpm/constants'
+import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
-import { type AllowBuild, type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
-import { hashObjectWithoutSorting, hashObject } from '@pnpm/crypto.object-hasher'
-import { type LockfileResolution, type LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileObject, LockfileResolution, PackageSnapshot } from '@pnpm/lockfile.types'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import type { AllowBuild, DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
 export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
 
@@ -133,16 +134,49 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   // so they survive Node.js upgrades and architecture changes.
   const includeEngine = builtDepPaths === undefined ||
     transitivelyRequiresBuild(graph, builtDepPaths, buildRequiredCache ??= {}, depPath, new Set())
-  const state = {
-    engine: includeEngine ? ENGINE_NAME : null,
-    deps: calcDepGraphHash(graph, cache, new Set(), depPath),
-  }
-  const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
-  // Use @/ prefix for unscoped packages to maintain uniform 4-level directory depth
-  // Scoped: @scope/pkg/version/hash
-  // Unscoped: @/pkg/version/hash
+  const engine = includeEngine ? ENGINE_NAME : null
+  const deps = calcDepGraphHash(graph, cache, new Set(), depPath)
+  const hexDigest = hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
+  return formatGlobalVirtualStorePath(name, version, hexDigest)
+}
+
+export function calcLeafGlobalVirtualStorePath (fullPkgId: string, name: string, version: string): string {
+  const depsHash = hashObject({ id: fullPkgId, deps: {} })
+  const hexDigest = hashObjectWithoutSorting({ engine: null, deps: depsHash }, { encoding: 'hex' })
+  return formatGlobalVirtualStorePath(name, version, hexDigest)
+}
+
+// Use @/ prefix for unscoped packages to maintain uniform 4-level directory depth
+// Scoped: @scope/pkg/version/hash
+// Unscoped: @/pkg/version/hash
+function formatGlobalVirtualStorePath (name: string, version: string, hexDigest: string): string {
   const prefix = name.startsWith('@') ? '' : '@/'
   return `${prefix}${name}/${version}/${hexDigest}`
+}
+
+export interface PkgMetaAndSnapshot extends PkgMeta {
+  pkgSnapshot: PackageSnapshot
+  pkgIdWithPatchHash: PkgIdWithPatchHash
+}
+
+export function * iteratePkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>): PkgMetaIterator<PkgMetaAndSnapshot> {
+  if (lockfile.packages == null) {
+    return
+  }
+  for (const depPath in lockfile.packages) {
+    if (!Object.hasOwn(lockfile.packages, depPath)) {
+      continue
+    }
+    const pkgSnapshot = lockfile.packages[depPath as DepPath]
+    const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+    yield {
+      name,
+      version,
+      depPath: depPath as DepPath,
+      pkgIdWithPatchHash: graph[depPath as DepPath]?.pkgIdWithPatchHash ?? getPkgIdWithPatchHash(depPath as DepPath),
+      pkgSnapshot,
+    }
+  }
 }
 
 export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath> {

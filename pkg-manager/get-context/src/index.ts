@@ -1,27 +1,29 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
 import { contextLogger, packageManifestLogger } from '@pnpm/core-loggers'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
-import {
-  type IncludedDependencies,
-  type Modules,
+import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type {
+  IncludedDependencies,
+  Modules,
 } from '@pnpm/modules-yaml'
-import { readProjectsContext } from '@pnpm/read-projects-context'
-import { type WorkspacePackages } from '@pnpm/resolver-base'
-import {
-  type DepPath,
-  type HoistedDependencies,
-  type ProjectId,
-  type ProjectManifest,
-  type ReadPackageHook,
-  type Registries,
-  type DependencyManifest,
-  type ProjectRootDir,
-  type ProjectRootDirRealPath,
-} from '@pnpm/types'
-import pathAbsolute from 'path-absolute'
-import { clone } from 'ramda'
 import { registerProject } from '@pnpm/package-store'
+import { readProjectsContext } from '@pnpm/read-projects-context'
+import type { WorkspacePackages } from '@pnpm/resolver-base'
+import type {
+  DependencyManifest,
+  DepPath,
+  HoistedDependencies,
+  ProjectId,
+  ProjectManifest,
+  ProjectRootDir,
+  ProjectRootDirRealPath,
+  ReadPackageHook,
+  Registries,
+} from '@pnpm/types'
+import { pathAbsolute } from 'path-absolute'
+import { clone } from 'ramda'
+
 import { readLockfiles } from './readLockfiles.js'
 
 /**

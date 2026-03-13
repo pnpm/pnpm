@@ -1,21 +1,23 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import {
   createNpmResolver,
-  RegistryResponseError,
   NoMatchingVersionError,
+  RegistryResponseError,
 } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type Registries, type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir, Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import { omit } from 'ramda'
 import { temporaryDirectory } from 'tempy'
+
 import { delay, retryLoadJsonFile } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -691,6 +693,32 @@ test('prefer the version that has bigger weight in preferred selectors', async (
   expect(resolveResult!.id).toBe('is-positive@3.0.0')
 })
 
+test('versions without selector weights should have higher priority than negatively weighted versions', async () => {
+  nock(registries.default)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': {
+        // Penalize 3.0.0, but don't mention 3.1.0
+        '3.0.0': { selectorType: 'version', weight: -1 },
+      },
+    },
+  })
+
+  // 3.1.0 should be selected because it has default weight 0, higher than 3.0.0's -1
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
 test('offline resolution fails when package meta not found in the store', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
@@ -912,6 +940,31 @@ test('error is thrown when package needs authorization', async () => {
           statusText: '',
         },
         'needs-auth'
+      )
+    )
+})
+
+test('error is thrown when registry returns 400 Bad Request', async () => {
+  nock(registries.default)
+    .get('/bad-pkg')
+    .reply(400)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  await expect(resolveFromNpm({ alias: 'bad-pkg', bareSpecifier: '1.0.0' }, {})).rejects
+    .toThrow(
+      new RegistryResponseError(
+        {
+          url: `${registries.default}bad-pkg`,
+        },
+        {
+          status: 400,
+          statusText: '',
+        },
+        'bad-pkg'
       )
     )
 })

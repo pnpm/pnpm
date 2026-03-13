@@ -1,11 +1,13 @@
-import fs from 'fs'
-import path from 'path'
-import { type LockfileFile } from '@pnpm/lockfile.types'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { sync as readYamlFile } from 'read-yaml-file'
 import { loadJsonFileSync } from 'load-json-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import {
   addDistTag,
   execPnpm,
@@ -233,7 +235,7 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
   `
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-1'] })
 
   const storeDir = path.resolve('store')
 
@@ -248,7 +250,7 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
 
   process.chdir('..')
 
-  const lockfile = readYamlFile<LockfileFile>('pnpm-lock.yaml')
+  const lockfile = readYamlFileSync<LockfileFile>('pnpm-lock.yaml')
   expect(lockfile.snapshots!['is-positive@1.0.0'].dependencies).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
   })
@@ -589,7 +591,7 @@ test('readPackage hook is used during removal inside a workspace', async () => {
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['project-1'],
     autoInstallPeers: false,
   })
@@ -614,7 +616,7 @@ test('readPackage hook is used during removal inside a workspace', async () => {
   await execPnpm(['uninstall', 'is-positive', '--no-strict-peer-dependencies'])
 
   process.chdir('..')
-  const lockfile = readYamlFile<LockfileFile>('pnpm-lock.yaml')
+  const lockfile = readYamlFileSync<LockfileFile>('pnpm-lock.yaml')
   expect(lockfile.packages!['@pnpm.e2e/abc@1.0.0'].peerDependencies!['is-negative']).toBe('1.0.0')
 })
 
@@ -633,7 +635,7 @@ test('preResolution hook', async () => {
   const npmrc = '@foo:registry=https://foo.com'
   fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     globalPnpmfile: '.pnpmfile.cjs',
   })
 
@@ -672,7 +674,7 @@ test('pass readPackage with shared lockfile', async () => {
       },
     },
   ])
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['*'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   fs.writeFileSync('.pnpmfile.cjs', `
 module.exports = {
   hooks: {

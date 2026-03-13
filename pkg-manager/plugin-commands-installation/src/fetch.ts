@@ -1,10 +1,11 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/core'
-import { type ProjectRootDir } from '@pnpm/types'
-import renderHelp from 'render-help'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import type { ProjectRootDir } from '@pnpm/types'
+import { renderHelp } from 'render-help'
+
 import { cliOptionsTypes } from './install.js'
 
 export const rcOptionsTypes = cliOptionsTypes

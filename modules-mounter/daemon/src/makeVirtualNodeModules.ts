@@ -1,8 +1,9 @@
-import path from 'path'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
-import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import path from 'node:path'
+
 import * as dp from '@pnpm/dependency-path'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import normalize from 'normalize-path'
 
 interface DirDirEntry {

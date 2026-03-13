@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 
 /**
  * Returns the node_modules paths relevant to a binary in the virtual store layout.

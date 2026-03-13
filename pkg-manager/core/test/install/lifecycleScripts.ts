@@ -1,23 +1,25 @@
-import * as path from 'path'
-import fs from 'fs'
+import fs from 'node:fs'
+import * as path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
-import { type LifecycleLog } from '@pnpm/core-loggers'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,
-  mutateModulesInSingleProject,
   type MutatedProject,
   mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
+import type { LifecycleLog } from '@pnpm/core-loggers'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import { restartWorkerPool } from '@pnpm/worker'
-import { jest } from '@jest/globals'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
 import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
+
 import { testDefaults } from '../utils/index.js'
 
 const testOnNonWindows = isWindows() ? test.skip : test
@@ -40,7 +42,7 @@ test('run pre/postinstall scripts', async () => {
     expect(typeof generatedByPostinstall).toBe('function')
   }
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   // testing that the packages are not installed even though they are in lockfile
   // and that their scripts are not tried to be executed
@@ -336,7 +338,7 @@ test('lifecycle scripts run before linking bins', async () => {
   project.isExecutable('.bin/cmd1')
   project.isExecutable('.bin/cmd2')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await mutateModulesInSingleProject({
     manifest,
@@ -357,7 +359,7 @@ test('hoisting does not fail on commands that will be created by lifecycle scrip
   // project.isExecutable('.pnpm/node_modules/.bin/cmd2')
 
   // Testing the same with headless installation
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await mutateModulesInSingleProject({
     manifest,
@@ -389,7 +391,7 @@ test('bins are linked even if lifecycle scripts are ignored', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/package.json')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await mutateModulesInSingleProject({
     manifest,
@@ -454,7 +456,7 @@ test('selectively ignore scripts in some dependencies by allowBuilds (not others
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: true, allowBuilds }))
 
@@ -482,7 +484,7 @@ test('selectively allow scripts in some dependencies by allowBuilds', async () =
   }
   reporter.mockClear()
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await install(manifest, testDefaults({
     fastUnpack: false,
@@ -520,7 +522,7 @@ test('selectively allow scripts in some dependencies by allowBuilds using exact 
   }
   reporter.mockClear()
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await install(manifest, testDefaults({
     fastUnpack: false,
@@ -565,7 +567,7 @@ test('lifecycle scripts run after linking root dependencies', async () => {
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ fastUnpack: false, allowBuilds: { '@pnpm.e2e/postinstall-requires-is-positive': true } }))
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await mutateModulesInSingleProject({
     manifest,
@@ -598,7 +600,7 @@ test('ignore-dep-scripts', async () => {
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   server1.clear()
   server2.clear()
   await install(manifest, testDefaults({ fastUnpack: false, ignoreDepScripts: true }))

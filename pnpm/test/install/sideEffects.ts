@@ -1,8 +1,10 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
+
 import { execPnpm } from '../utils/index.js'
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
@@ -38,7 +40,7 @@ test.skip('using side effects cache', async function () {
   const cacheBuildDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   fs.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await execPnpm(['add', 'diskusage@1.1.3', '--side-effects-cache', '--no-verify-store-integrity', '--package-import-method', 'copy'])
 
   expect(fs.existsSync('node_modules/diskusage/build/new-file.txt')).toBeTruthy()
@@ -54,12 +56,12 @@ test.skip('readonly side effects cache', async function () {
   const cacheBuildDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.2/side_effects/${ENGINE_DIR}/package/build`)
   fs.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await execPnpm(['add', 'diskusage@1.1.2', '--side-effects-cache-readonly', '--no-verify-store-integrity', '--package-import-method', 'copy'])
 
   expect(fs.existsSync('node_modules/diskusage/build/new-file.txt')).toBeTruthy()
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   // changing version to make sure we don't create the cache
   await execPnpm(['add', 'diskusage@1.1.3', '--side-effects-cache-readonly', '--no-verify-store-integrity', '--package-import-method', 'copy'])
 

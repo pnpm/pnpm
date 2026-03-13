@@ -1,15 +1,16 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import * as dp from '@pnpm/dependency-path'
 import { LockfileMissingDependencyError } from '@pnpm/error'
-import {
-  type LockfileObject,
-  type PackageSnapshots,
+import type {
+  LockfileObject,
+  PackageSnapshots,
 } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type DepPath, type SupportedArchitectures, type DependenciesField, type ProjectId } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
+import type { DependenciesField, DepPath, ProjectId, SupportedArchitectures } from '@pnpm/types'
 import { map as mapValues, pickBy, unnest } from 'ramda'
+
 import { filterImporter } from './filterImporter.js'
 
 const lockfileLogger = logger('lockfile')

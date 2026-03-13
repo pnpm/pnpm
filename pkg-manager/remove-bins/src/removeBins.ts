@@ -1,12 +1,13 @@
-import path from 'path'
+import path from 'node:path'
+
 import {
   removalLogger,
 } from '@pnpm/core-loggers'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DependencyManifest } from '@pnpm/types'
-import rimraf from '@zkochan/rimraf'
-import CMD_EXTENSION from 'cmd-extension'
+import type { DependencyManifest } from '@pnpm/types'
+import { rimraf } from '@zkochan/rimraf'
+import { cmdExtension as CMD_EXTENSION } from 'cmd-extension'
 import isWindows from 'is-windows'
 
 async function removeOnWin (cmd: string): Promise<void> {

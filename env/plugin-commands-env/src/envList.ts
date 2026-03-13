@@ -1,6 +1,7 @@
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import { resolveNodeVersions, parseNodeSpecifier, getNodeMirror } from '@pnpm/node.resolver'
-import { type NvmNodeCommandOptions } from './node.js'
+import { getNodeMirror, parseNodeSpecifier, resolveNodeVersions } from '@pnpm/node.resolver'
+
+import type { NvmNodeCommandOptions } from './node.js'
 
 export async function envList (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   const nodeVersionList = await listRemoteVersions(opts, params[0])

@@ -1,11 +1,12 @@
-import assert from 'assert'
-import path from 'path'
-import util from 'util'
+import assert from 'node:assert'
+import path from 'node:path'
+import util from 'node:util'
+
 import { PnpmError } from '@pnpm/error'
-import * as micromatch from 'micromatch'
-import execa from 'execa'
+import type { ProjectRootDir } from '@pnpm/types'
+import { safeExeca as execa } from 'execa'
 import { findUp } from 'find-up'
-import { type ProjectRootDir } from '@pnpm/types'
+import * as micromatch from 'micromatch'
 
 type ChangeType = 'source' | 'test'
 
@@ -68,7 +69,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
         '--',
         workingDir,
       ], { cwd: workingDir })
-    ).stdout
+    ).stdout as string
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
     throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${'stderr' in err ? err.stderr as string : ''}`)

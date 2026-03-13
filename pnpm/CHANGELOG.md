@@ -1,6 +1,6 @@
 # pnpm
 
-## 11.0.0-alpha.13
+## 11.0.0-alpha.14
 
 ### Major Changes
 
@@ -65,6 +65,10 @@
       modulesDir: "node_modules"
       saveExact: true
   ```
+
+#### Lockfile
+
+- Simplified `patchedDependencies` lockfile format from `Record<string, { path: string, hash: string }>` to `Record<string, string>` (selector to hash). Existing lockfiles with the old format are automatically migrated [#10911](https://github.com/pnpm/pnpm/pull/10911).
 
 #### Other
 
@@ -137,6 +141,8 @@
 
 ### Minor Changes
 
+- Config dependencies are now installed into the global virtual store (`{storeDir}/links/`) and symlinked into `node_modules/.pnpm-config/`. This allows config dependencies to be shared across projects that use the same store, avoiding redundant fetches and imports [#10910](https://github.com/pnpm/pnpm/pull/10910).
+- Store config dependency and package manager integrity info in a separate `pnpm-lock.env.yaml` lockfile instead of inlining it in `pnpm-workspace.yaml`. The workspace manifest now contains only clean version specifiers for `configDependencies`, while the resolved versions, integrity hashes, and tarball URLs are recorded in the new env lockfile. The env lockfile also stores `packageManagerDependencies` resolved during version switching and self-update. Projects using the old inline-hash format are automatically migrated on install [#10912](https://github.com/pnpm/pnpm/pull/10912).
 - 7fab2a2: Load environment variables whose names start with `pnpm_config_` into config. These environment variables override settings from `pnpm-workspace.yaml` but not the CLI arguments.
 - cb367b9: Support reading `allowBuilds` from `pnpm-workspace.yaml` in the global package directory for global installs.
 - 075aa99: Add support for a global YAML config file named `config.yaml`.
@@ -182,6 +188,7 @@
 
 ### Patch Changes
 
+- Fixed global install output showing `???` instead of the linked package path when linking from the current directory [#10899](https://github.com/pnpm/pnpm/pull/10899).
 - Check if a package is installable for non npm-hosted packages (e.g., git or tarball dependencies) after the manifest has been fetched.
 - Explicitly tell `npm` the path to the global `rc` config file.
 - Fix YAML formatting preservation in `pnpm-workspace.yaml` when running commands like `pnpm update`. Previously, quotes and other formatting were lost even when catalog values didn't change.

@@ -1,5 +1,6 @@
-import path from 'path'
-import { type Config } from '../src/Config.js'
+import path from 'node:path'
+
+import type { Config } from '../src/Config.js'
 import { transformPath, transformPathKeys } from '../src/transformPath.js'
 
 describe('transformPath', () => {

@@ -1,9 +1,10 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
+
 import { envList } from './envList.js'
 import { envUse } from './envUse.js'
-import { type NvmNodeCommandOptions } from './node.js'
+import type { NvmNodeCommandOptions } from './node.js'
 
 export const skipPackageManagerCheck = true
 

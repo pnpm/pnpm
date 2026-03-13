@@ -1,10 +1,10 @@
-import { type PatchFile } from '@pnpm/patching.types'
-import { type DependenciesMeta, type DepPath, type ProjectId } from '@pnpm/types'
-import { type PlatformAssetTarget } from '@pnpm/resolver-base'
+import type { PlatformAssetTarget } from '@pnpm/resolver-base'
+import type { DependenciesMeta, DepPath, ProjectId } from '@pnpm/types'
 
-export type { PatchFile, ProjectId }
+export type { ProjectId }
 
 export * from './lockfileFileTypes.js'
+import type { SpecifierAndResolution } from './lockfileFileTypes.js'
 
 export interface LockfileSettings {
   autoInstallPeers?: boolean
@@ -19,7 +19,7 @@ export interface LockfileBase {
   lockfileVersion: string
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
-  patchedDependencies?: Record<string, PatchFile>
+  patchedDependencies?: Record<string, string>
   pnpmfileChecksum?: string
   settings?: LockfileSettings
   time?: Record<string, string>
@@ -164,6 +164,18 @@ export type PackageBin = string | { [name: string]: string }
  * }
  */
 export type ResolvedDependencies = Record<string, string>
+
+export interface EnvLockfile {
+  lockfileVersion: string
+  importers: {
+    '.': {
+      configDependencies: Record<string, SpecifierAndResolution>
+      packageManagerDependencies?: Record<string, SpecifierAndResolution>
+    }
+  }
+  packages: Record<string, LockfilePackageInfo>
+  snapshots: Record<string, LockfilePackageSnapshot>
+}
 
 export interface CatalogSnapshots {
   [catalogName: string]: { [dependencyName: string]: ResolvedCatalogEntry }

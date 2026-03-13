@@ -1,4 +1,4 @@
-import { createServer } from 'net'
+import { createServer } from 'node:net'
 
 export const isPortInUse = (port: number): Promise<boolean> => new Promise((resolve, reject) => {
   const server = createServer()

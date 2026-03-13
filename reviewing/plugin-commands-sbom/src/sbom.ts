@@ -1,20 +1,20 @@
+import { packageManager } from '@pnpm/cli-meta'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
-import { type Config, types as allTypes } from '@pnpm/config'
 import { FILTERING } from '@pnpm/common-cli-options-help'
+import { type Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
-import { getStorePath } from '@pnpm/store-path'
-import { packageManager } from '@pnpm/cli-meta'
 import {
   collectSbomComponents,
+  type SbomComponentType,
+  type SbomFormat,
   serializeCycloneDx,
   serializeSpdx,
-  type SbomFormat,
-  type SbomComponentType,
 } from '@pnpm/sbom'
+import { getStorePath } from '@pnpm/store-path'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 
 export type SbomCommandOptions = {
   sbomFormat?: string

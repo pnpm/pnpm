@@ -1,13 +1,14 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
-import { runLifecycleHook, runLifecycleHooksConcurrently, runPostinstallHooks } from '@pnpm/lifecycle'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
-import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { fixtures } from '@pnpm/test-fixtures'
+import { runLifecycleHook, runLifecycleHooksConcurrently, runPostinstallHooks } from '@pnpm/lifecycle'
 import { tempDir } from '@pnpm/prepare'
-import { type ProjectRootDir } from '@pnpm/types'
-import { type StoreController } from '@pnpm/store-controller-types'
+import type { StoreController } from '@pnpm/store-controller-types'
+import { fixtures } from '@pnpm/test-fixtures'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import type { ProjectRootDir } from '@pnpm/types'
 import isWindows from 'is-windows'
 
 const skipOnWindows = isWindows() ? test.skip : test

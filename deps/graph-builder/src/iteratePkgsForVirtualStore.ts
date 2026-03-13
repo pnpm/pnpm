@@ -1,20 +1,21 @@
-import path from 'path'
+import path from 'node:path'
+
 import {
-  iterateHashedGraphNodes,
-  lockfileToDepGraph,
   calcGraphNodeHash,
-  type PkgMeta,
   type DepsGraph,
-  type PkgMetaIterator,
-  type HashedDepPath,
   type DepsStateCache,
+  type HashedDepPath,
+  iterateHashedGraphNodes,
+  iteratePkgMeta,
+  lockfileToDepGraph,
+  type PkgMetaAndSnapshot,
 } from '@pnpm/calc-dep-state'
-import { type LockfileObject, type PackageSnapshot } from '@pnpm/lockfile.fs'
+import * as dp from '@pnpm/dependency-path'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import { type AllowBuild, type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
+import type { AllowBuild, DepPath } from '@pnpm/types'
 
 interface PkgSnapshotWithLocation {
   pkgMeta: PkgMetaAndSnapshot
@@ -69,32 +70,7 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   }
 }
 
-interface PkgMetaAndSnapshot extends PkgMeta {
-  pkgSnapshot: PackageSnapshot
-  pkgIdWithPatchHash: PkgIdWithPatchHash
-}
-
 function hashDependencyPaths (lockfile: LockfileObject, allowBuild?: AllowBuild): IterableIterator<HashedDepPath<PkgMetaAndSnapshot>> {
   const graph = lockfileToDepGraph(lockfile)
   return iterateHashedGraphNodes(graph, iteratePkgMeta(lockfile, graph), allowBuild)
-}
-
-function * iteratePkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>): PkgMetaIterator<PkgMetaAndSnapshot> {
-  if (lockfile.packages == null) {
-    return
-  }
-  for (const depPath in lockfile.packages) {
-    if (!Object.hasOwn(lockfile.packages, depPath)) {
-      continue
-    }
-    const pkgSnapshot = lockfile.packages[depPath as DepPath]
-    const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-    yield {
-      name,
-      version,
-      depPath: depPath as DepPath,
-      pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash ?? dp.getPkgIdWithPatchHash(depPath as DepPath),
-      pkgSnapshot,
-    }
-  }
 }

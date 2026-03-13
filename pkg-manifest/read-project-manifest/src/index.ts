@@ -1,14 +1,16 @@
-import { promises as fs, type Stats } from 'fs'
-import path from 'path'
+import { promises as fs, type Stats } from 'node:fs'
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
-import { type ProjectManifest, type EngineDependency } from '@pnpm/types'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
-import { extractComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
+import { type CommentSpecifier, extractComments } from '@pnpm/text.comments-parser'
+import type { EngineDependency, ProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
-import readYamlFile from 'read-yaml-file'
 import detectIndent from 'detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
+import { readYamlFile } from 'read-yaml-file'
+
 import {
   readJson5File,
   readJsonFile,
@@ -188,7 +190,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
 
 async function readPackageYaml (filePath: string): Promise<ProjectManifest> {
   try {
-    return await readYamlFile.default<ProjectManifest>(filePath)
+    return await readYamlFile<ProjectManifest>(filePath)
   } catch (err: any) { // eslint-disable-line
     if (err.name !== 'YAMLException') throw err
     err.message = `${err.message as string}\nin ${filePath}`

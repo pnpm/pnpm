@@ -1,15 +1,17 @@
-import path from 'path'
-import pathAbsolute from 'path-absolute'
-import { readFile } from 'fs/promises'
-import { readPackageJson } from '@pnpm/read-package-json'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+
 import { depPathToFilename } from '@pnpm/dependency-path'
-import pLimit from 'p-limit'
-import { type PackageManifest, type Registries } from '@pnpm/types'
-import { type StoreIndex } from '@pnpm/store.index'
-import { readPackageFileMap } from '@pnpm/store.pkg-finder'
 import { PnpmError } from '@pnpm/error'
-import type { LicensePackage } from './licenses.js'
 import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
+import { readPackageJson } from '@pnpm/read-package-json'
+import type { StoreIndex } from '@pnpm/store.index'
+import { readPackageFileMap } from '@pnpm/store.pkg-finder'
+import type { PackageManifest, Registries } from '@pnpm/types'
+import pLimit from 'p-limit'
+import { pathAbsolute } from 'path-absolute'
+
+import type { LicensePackage } from './licenses.js'
 
 const limitPkgReads = pLimit(4)
 

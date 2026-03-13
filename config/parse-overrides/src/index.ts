@@ -1,7 +1,7 @@
+import { matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import { matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
-import { type Catalogs } from '@pnpm/catalogs.types'
 
 const DELIMITER_REGEX = /[^ |@]>/
 

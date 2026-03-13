@@ -1,12 +1,14 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { pack } from '@pnpm/plugin-commands-publishing'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
-import * as tar from 'tar'
-import chalk from 'chalk'
-import { sync as writeYamlFile } from 'write-yaml-file'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { type PackResultJson } from '../src/pack.js'
+import chalk from 'chalk'
+import * as tar from 'tar'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import type { PackResultJson } from '../src/pack.js'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 test('pack: package with package.json', async () => {
@@ -638,7 +640,7 @@ test('pack: recursive pack and display in json format', async () => {
     tempDir: path.join(dir, 'project'),
   })
 
-  writeYamlFile(path.join(dir, 'pnpm-workspace.yaml'), { packages: pkgs.filter(pkg => pkg).map(pkg => pkg.name) })
+  writeYamlFileSync(path.join(dir, 'pnpm-workspace.yaml'), { packages: pkgs.filter(pkg => pkg).map(pkg => pkg.name) })
 
   const { selectedProjectsGraph } = await filterPackagesFromDir(dir, [])
 
@@ -723,7 +725,7 @@ test('pack: recursive pack with filter', async () => {
     tempDir: path.join(dir, 'project'),
   })
 
-  writeYamlFile(path.join(dir, 'pnpm-workspace.yaml'), { packages: pkgs.filter(pkg => pkg).map(pkg => pkg.name) })
+  writeYamlFileSync(path.join(dir, 'pnpm-workspace.yaml'), { packages: pkgs.filter(pkg => pkg).map(pkg => pkg.name) })
 
   const { selectedProjectsGraph } = await filterPackagesFromDir(dir, [{ namePattern: '@pnpmtest/*' }])
 

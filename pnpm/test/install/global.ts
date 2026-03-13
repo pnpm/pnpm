@@ -1,10 +1,12 @@
-import path from 'path'
-import PATH_NAME from 'path-name'
-import fs from 'fs'
-import { prepare } from '@pnpm/prepare'
-import { type ProjectManifest } from '@pnpm/types'
-import isWindows from 'is-windows'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
+import { prepare } from '@pnpm/prepare'
+import type { ProjectManifest } from '@pnpm/types'
+import isWindows from 'is-windows'
+import PATH_NAME from 'path-name'
+
 import {
   addDistTag,
   execPnpm,

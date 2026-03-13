@@ -1,11 +1,13 @@
-import path from 'path'
+import path from 'node:path'
+
 import { assertProject } from '@pnpm/assert-project'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject, type PackageManifest } from '@pnpm/core'
+import { createPeerDepGraphHash } from '@pnpm/dependency-path'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type ProjectRootDir } from '@pnpm/types'
-import { sync as rimraf } from '@zkochan/rimraf'
-import { createPeerDepGraphHash } from '@pnpm/dependency-path'
+import type { ProjectRootDir } from '@pnpm/types'
+import { rimrafSync } from '@zkochan/rimraf'
+
 import { testDefaults } from '../utils/index.js'
 
 test('auto install non-optional peer dependencies', async () => {
@@ -211,7 +213,7 @@ test('automatically install root peer dependencies', async () => {
   }
 
   // Automatically install the peer dependency when the lockfile is up to date
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await install(manifest, testDefaults({ autoInstallPeers: true, frozenLockfile: true }))
 

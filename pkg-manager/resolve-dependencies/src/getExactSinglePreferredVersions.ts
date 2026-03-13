@@ -1,5 +1,6 @@
-import { type PreferredVersions } from '@pnpm/resolver-base'
-import { type WantedDependency } from './getWantedDependencies.js'
+import type { PreferredVersions } from '@pnpm/resolver-base'
+
+import type { WantedDependency } from './getWantedDependencies.js'
 import { unwrapPackageName } from './unwrapPackageName.js'
 
 /**

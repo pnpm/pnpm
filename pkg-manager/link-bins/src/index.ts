@@ -1,24 +1,26 @@
-import { promises as fs, existsSync } from 'fs'
-import { createRequire } from 'module'
-import path from 'path'
-import { getNodeBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getBunBinLocationForCurrentOS } from '@pnpm/constants'
+import { existsSync, promises as fs } from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+
+import { getBunBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { logger, globalWarn } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { type Command, getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type EngineDependency, type DependencyManifest, type ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, EngineDependency, ProjectManifest } from '@pnpm/types'
 import cmdShim from '@zkochan/cmd-shim'
-import rimraf from '@zkochan/rimraf'
-import isSubdir from 'is-subdir'
+import { rimraf } from '@zkochan/rimraf'
+import fixBin from 'bin-links/lib/fix-bin.js'
+import { isSubdir } from 'is-subdir'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
-import { isEmpty, unnest, groupBy, partition } from 'ramda'
+import { groupBy, isEmpty, partition, unnest } from 'ramda'
 import semver from 'semver'
 import symlinkDir from 'symlink-dir'
-import fixBin from 'bin-links/lib/fix-bin.js'
+
 import { getBinNodePaths } from './getBinNodePaths.js'
 
 const binsConflictLogger = logger('bins-conflict')
@@ -353,11 +355,18 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       nodeExecPath: cmd.nodeExecPath,
     })
   } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
-      throw err
+    if (err.code === 'ENOENT' || err.code === 'EISDIR') {
+      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      return
     }
-    globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
-    return
+    // On Windows, EPERM during bin creation can happen when another process
+    // (e.g. a parallel dlx call) is writing to the same shared bin directory.
+    // The other process will finish creating the bin, so we can safely skip.
+    if (IS_WINDOWS && err.code === 'EPERM') {
+      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      return
+    }
+    throw err
   }
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line

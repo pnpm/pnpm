@@ -33,6 +33,7 @@
     "eslint-plugin-import-x": "catalog:",
     "eslint-plugin-n": "catalog:",
     "eslint-plugin-promise": "catalog:",
+    "eslint-plugin-simple-import-sort": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"
   },

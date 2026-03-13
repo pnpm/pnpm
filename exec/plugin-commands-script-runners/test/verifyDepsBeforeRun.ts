@@ -1,8 +1,10 @@
-import path from 'path'
-import fs from 'fs'
-import { type VerifyDepsBeforeRun } from '@pnpm/config'
-import { prepare } from '@pnpm/prepare'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
+import type { VerifyDepsBeforeRun } from '@pnpm/config'
+import { prepare } from '@pnpm/prepare'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const originalModule = await import('@pnpm/logger')

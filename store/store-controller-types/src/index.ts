@@ -1,30 +1,30 @@
-import {
-  type PkgResolutionId,
-  type DirectoryResolution,
-  type PreferredVersions,
-  type Resolution,
-  type WantedDependency,
-  type WorkspacePackages,
-} from '@pnpm/resolver-base'
-import {
-  type FilesMap,
-  type ImportPackageFunction,
-  type ImportPackageFunctionAsync,
-  type PackageFileInfo,
-  type PackageFilesResponse,
-  type ResolvedFrom,
+import type {
+  FilesMap,
+  ImportPackageFunction,
+  ImportPackageFunctionAsync,
+  PackageFileInfo,
+  PackageFilesResponse,
+  ResolvedFrom,
 } from '@pnpm/cafs-types'
-import {
-  type AllowBuild,
-  type BundledManifest,
-  type SupportedArchitectures,
-  type PackageManifest,
-  type PinnedVersion,
-  type PackageVersionPolicy,
-  type TrustPolicy,
+import type {
+  DirectoryResolution,
+  PkgResolutionId,
+  PreferredVersions,
+  Resolution,
+  WantedDependency,
+  WorkspacePackages,
+} from '@pnpm/resolver-base'
+import type {
+  AllowBuild,
+  BundledManifest,
+  PackageManifest,
+  PackageVersionPolicy,
+  PinnedVersion,
+  SupportedArchitectures,
+  TrustPolicy,
 } from '@pnpm/types'
 
-export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync, FilesMap }
+export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse }
 
 export * from '@pnpm/resolver-base'
 export type { BundledManifest }
@@ -167,6 +167,7 @@ export interface ImportOptions {
   force: boolean
   resolvedFrom: ResolvedFrom
   keepModulesDir?: boolean
+  safeToSkip?: boolean
 }
 
 export type ImportIndexedPackage = (to: string, opts: ImportOptions) => string | undefined

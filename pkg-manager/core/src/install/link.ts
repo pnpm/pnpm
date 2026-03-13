@@ -1,40 +1,42 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   progressLogger,
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
+import type { InstallationResultStats } from '@pnpm/headless'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import {
   filterLockfileByImporters,
 } from '@pnpm/lockfile.filtering'
-import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
-import { type InstallationResultStats } from '@pnpm/headless'
-import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
-import { type IncludedDependencies } from '@pnpm/modules-yaml'
-import {
-  type DependenciesGraph,
-  type DependenciesGraphNode,
-  type LinkedDependency,
+import type { IncludedDependencies } from '@pnpm/modules-yaml'
+import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
+import type {
+  DependenciesGraph,
+  DependenciesGraphNode,
+  LinkedDependency,
 } from '@pnpm/resolve-dependencies'
-import { type StoreController, type TarballResolution } from '@pnpm/store-controller-types'
+import type { StoreController, TarballResolution } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
-import {
-  type AllowBuild,
-  type DepPath,
-  type HoistedDependencies,
-  type Registries,
-  type ProjectId,
+import type {
+  AllowBuild,
+  DepPath,
+  HoistedDependencies,
+  ProjectId,
+  Registries,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
-import { equals, isEmpty, difference, pick, pickBy, props } from 'ramda'
-import { type ImporterToUpdate } from './index.js'
+import { difference, equals, isEmpty, pick, pickBy, props } from 'ramda'
+
+import type { ImporterToUpdate } from './index.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -46,6 +48,7 @@ export interface LinkPackagesOptions {
   disableRelinkLocalDirDeps?: boolean
   force: boolean
   depsStateCache: DepsStateCache
+  enableGlobalVirtualStore: boolean
   extraNodePaths: string[]
   hoistedDependencies: HoistedDependencies
   hoistedModulesDir: string
@@ -146,6 +149,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     {
       allowBuild: opts.allowBuild,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       force: opts.force,
       depsStateCache: opts.depsStateCache,
       ignoreScripts: opts.ignoreScripts,
@@ -317,6 +321,7 @@ interface LinkNewPackagesOptions {
   allowBuild?: AllowBuild
   depsStateCache: DepsStateCache
   disableRelinkLocalDirDeps?: boolean
+  enableGlobalVirtualStore: boolean
   force: boolean
   optional: boolean
   ignoreScripts: boolean
@@ -397,6 +402,7 @@ async function linkNewPackages (
       depGraph,
       depsStateCache: opts.depsStateCache,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       force: opts.force,
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
@@ -451,6 +457,7 @@ async function linkAllPkgs (
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
+    enableGlobalVirtualStore: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
@@ -467,7 +474,7 @@ async function linkAllPkgs (
         if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
-            patchFileHash: depNode.patch?.file.hash,
+            patchFileHash: depNode.patch?.hash,
           })
         }
       }
@@ -475,6 +482,7 @@ async function linkAllPkgs (
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         filesResponse: files,
         force: opts.force,
+        safeToSkip: opts.enableGlobalVirtualStore,
         sideEffectsCacheKey,
         requiresBuild: depNode.patch != null || depNode.requiresBuild,
       })

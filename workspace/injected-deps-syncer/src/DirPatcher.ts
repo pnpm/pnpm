@@ -1,7 +1,8 @@
-import fs from 'fs'
-import path from 'path'
-import util from 'util'
-import { type FetchFromDirOptions, fetchFromDir } from '@pnpm/directory-fetcher'
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
+import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/directory-fetcher'
 import { PnpmError } from '@pnpm/error'
 
 export const DIR: unique symbol = Symbol('Path is a directory')

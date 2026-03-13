@@ -1,10 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { fixtures } from '@pnpm/test-fixtures'
-import { buildDependenciesTree, type DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { depPathToFilename } from '@pnpm/dependency-path'
+import { buildDependenciesTree, type DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { fixtures } from '@pnpm/test-fixtures'
 
 const virtualStoreDirMaxLength = process.platform === 'win32' ? 60 : 120
 const f = fixtures(import.meta.dirname)

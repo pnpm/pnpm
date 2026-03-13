@@ -1,12 +1,13 @@
-import assert from 'assert'
-import util from 'util'
-import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
-import { type Cafs, type FilesMap } from '@pnpm/cafs-types'
+import assert from 'node:assert'
+import util from 'node:util'
+
+import type { Cafs, FilesMap } from '@pnpm/cafs-types'
+import type { FetchFunction, FetchOptions } from '@pnpm/fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
-import { type StoreIndex } from '@pnpm/store.index'
-import { type BundledManifest } from '@pnpm/types'
+import type { StoreIndex } from '@pnpm/store.index'
+import type { BundledManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
 
 interface Resolution {

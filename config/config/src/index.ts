@@ -1,70 +1,70 @@
-import path from 'path'
-import fs from 'fs'
-import os from 'os'
-import { isCI } from 'ci-info'
-import { omit } from 'ramda'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { getCurrentBranch } from '@pnpm/git-utils'
+import { createMatcher } from '@pnpm/matcher'
 import { isCamelCase } from '@pnpm/naming-cases'
 import loadNpmConf from '@pnpm/npm-conf'
 import type npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { getCurrentBranch } from '@pnpm/git-utils'
-import { createMatcher } from '@pnpm/matcher'
-import { type ProjectManifest } from '@pnpm/types'
-import betterPathResolve from 'better-path-resolve'
+import type { DevEngines, EngineDependency, ProjectManifest } from '@pnpm/types'
+import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { betterPathResolve } from 'better-path-resolve'
 import camelcase from 'camelcase'
+import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
 import kebabCase from 'lodash.kebabcase'
 import normalizeRegistryUrl from 'normalize-registry-url'
-import realpathMissing from 'realpath-missing'
-import pathAbsolute from 'path-absolute'
+import { pathAbsolute } from 'path-absolute'
+import { omit } from 'ramda'
+import { realpathMissing } from 'realpath-missing'
+import semver from 'semver'
 import which from 'which'
-import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
-import { isConfigFileKey } from './configFileKey.js'
-import { checkGlobalBinDir } from './checkGlobalBinDir.js'
-import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
-import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
-import { transformPathKeys } from './transformPath.js'
-import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
-import {
-  type Config,
-  type ConfigWithDeprecatedSettings,
-  type ProjectConfig,
-  type UniversalOptions,
-  type VerifyDepsBeforeRun,
-  type WantedPackageManager,
-} from './Config.js'
-import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
-import { parseEnvVars } from './env.js'
-import { type WorkspaceManifest, readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
-import { types } from './types.js'
+import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
+import { checkGlobalBinDir } from './checkGlobalBinDir.js'
+import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
+import type {
+  Config,
+  ConfigWithDeprecatedSettings,
+  ProjectConfig,
+  UniversalOptions,
+  VerifyDepsBeforeRun,
+} from './Config.js'
+import { isConfigFileKey } from './configFileKey.js'
+import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
+import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
+import { parseEnvVars } from './env.js'
+import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
 } from './overrideSupportedArchitecturesWithCLI.js'
+import { transformPathKeys } from './transformPath.js'
+import { types } from './types.js'
 export { types }
 
-export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
-
+export { getOptionsFromPnpmSettings, getOptionsFromRootManifest, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 export {
+  createProjectConfigRecord,
+  type CreateProjectConfigRecordOptions,
   ProjectConfigInvalidValueTypeError,
   ProjectConfigIsNotAnObjectError,
-  ProjectConfigUnsupportedFieldError,
   ProjectConfigsArrayItemIsNotAnObjectError,
   ProjectConfigsArrayItemMatchIsNotAnArrayError,
   ProjectConfigsArrayItemMatchIsNotDefinedError,
   ProjectConfigsIsNeitherObjectNorArrayError,
   ProjectConfigsMatchItemIsNotAStringError,
-  type CreateProjectConfigRecordOptions,
-  createProjectConfigRecord,
+  ProjectConfigUnsupportedFieldError,
 } from './projectConfig.js'
 
-export type { Config, ProjectConfig, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
+export type { Config, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
 
 export { isIniConfigKey } from './auth.js'
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
@@ -394,9 +394,11 @@ export async function getConfig (opts: {
       if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
         warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
       }
-      if (pnpmConfig.rootProjectManifest.packageManager) {
-        pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
+      const wantedPmResult = getWantedPackageManager(pnpmConfig.rootProjectManifest)
+      if (wantedPmResult.pm) {
+        pnpmConfig.wantedPackageManager = wantedPmResult.pm
       }
+      warnings.push(...wantedPmResult.warnings)
       if (pnpmConfig.rootProjectManifest) {
         Object.assign(pnpmConfig, getOptionsFromRootManifest(pnpmConfig.rootProjectManifestDir, pnpmConfig.rootProjectManifest))
       }
@@ -623,6 +625,20 @@ export async function getConfig (opts: {
 
   transformPathKeys(pnpmConfig, os.homedir())
 
+  // For the legacy packageManager field, derive onFail from config settings.
+  // devEngines.packageManager already has onFail set during parsing.
+  if (pnpmConfig.wantedPackageManager && pnpmConfig.wantedPackageManager.onFail == null) {
+    if (pnpmConfig.packageManagerStrict === false) {
+      pnpmConfig.wantedPackageManager.onFail = 'warn'
+    } else if (pnpmConfig.managePackageManagerVersions) {
+      pnpmConfig.wantedPackageManager.onFail = 'download'
+    } else if (pnpmConfig.packageManagerStrictVersion) {
+      pnpmConfig.wantedPackageManager.onFail = 'error'
+    } else {
+      pnpmConfig.wantedPackageManager.onFail = 'ignore'
+    }
+  }
+
   return { config: pnpmConfig, warnings }
 }
 
@@ -630,6 +646,36 @@ function getProcessEnv (env: string): string | undefined {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
+}
+
+function getWantedPackageManager (manifest: ProjectManifest): { pm?: EngineDependency, warnings: string[] } {
+  const warnings: string[] = []
+  const pmFromDevEngines = parseDevEnginesPackageManager(manifest.devEngines)
+  if (pmFromDevEngines) {
+    if (pmFromDevEngines.version != null && !semver.validRange(pmFromDevEngines.version)) {
+      warnings.push(`Cannot use devEngines.packageManager version "${pmFromDevEngines.version}": not a valid version or range`)
+      pmFromDevEngines.version = undefined
+    }
+    if (manifest.packageManager) {
+      warnings.push('Cannot use both "packageManager" and "devEngines.packageManager" in package.json. "packageManager" will be ignored')
+    }
+    return { pm: pmFromDevEngines, warnings }
+  }
+  if (manifest.packageManager) {
+    const pm = parsePackageManager(manifest.packageManager)
+    if (pm.version != null) {
+      const cleanVersion = semver.valid(pm.version)
+      if (!cleanVersion) {
+        warnings.push(`Cannot use packageManager "${manifest.packageManager}": "${pm.version}" is not a valid exact version`)
+        pm.version = undefined
+      } else if (cleanVersion !== pm.version) {
+        warnings.push(`Cannot use packageManager "${manifest.packageManager}": you need to specify the version as "${cleanVersion}"`)
+        pm.version = undefined
+      }
+    }
+    return { pm, warnings }
+  }
+  return { warnings }
 }
 
 function parsePackageManager (packageManager: string): { name: string, version: string | undefined } {
@@ -642,6 +688,36 @@ function parsePackageManager (packageManager: string): { name: string, version: 
   return {
     name,
     version,
+  }
+}
+
+function parseDevEnginesPackageManager (devEngines?: DevEngines): EngineDependency | undefined {
+  if (!devEngines?.packageManager) return undefined
+  let pmEngine: EngineDependency | undefined
+  let onFail: 'ignore' | 'warn' | 'error' | 'download'
+  if (Array.isArray(devEngines.packageManager)) {
+    const engines = devEngines.packageManager
+    if (engines.length === 0) return undefined
+    const pnpmIndex = engines.findIndex((engine) => engine.name === 'pnpm')
+    if (pnpmIndex !== -1) {
+      pmEngine = engines[pnpmIndex]
+      // In array notation, default onFail is 'error' for the last element, 'ignore' for others.
+      onFail = pmEngine.onFail ?? (pnpmIndex === engines.length - 1 ? 'error' : 'ignore')
+    } else {
+      pmEngine = engines[0]
+      // No pnpm entry found — use the last element's onFail for the overall failure behavior.
+      const lastEngine = engines[engines.length - 1]
+      onFail = lastEngine.onFail ?? 'error'
+    }
+  } else {
+    pmEngine = devEngines.packageManager
+    onFail = pmEngine.onFail ?? 'error'
+  }
+  if (!pmEngine?.name) return undefined
+  return {
+    name: pmEngine.name,
+    version: pmEngine.version,
+    onFail,
   }
 }
 

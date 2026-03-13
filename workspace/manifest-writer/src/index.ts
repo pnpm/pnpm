@@ -1,18 +1,19 @@
-import fs from 'fs'
-import path from 'path'
-import util from 'util'
-import { type Catalogs } from '@pnpm/catalogs.types'
-import { type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
-import { validateWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
+import { sortKeysByPriority } from '@pnpm/object.key-sorting'
+import type {
+  Project,
+} from '@pnpm/types'
+import { validateWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { patchDocument } from '@pnpm/yaml.document-sync'
 import { equals } from 'ramda'
-import yaml from 'yaml'
 import writeFileAtomic from 'write-file-atomic'
-import { sortKeysByPriority } from '@pnpm/object.key-sorting'
-import {
-  type Project,
-} from '@pnpm/types'
+import yaml from 'yaml'
 
 export type FileName =
   | typeof GLOBAL_CONFIG_YAML_FILENAME

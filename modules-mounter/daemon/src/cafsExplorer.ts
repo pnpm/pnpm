@@ -1,4 +1,4 @@
-import { type PackageFiles } from '@pnpm/store.cafs'
+import type { PackageFiles } from '@pnpm/store.cafs'
 
 export function readdir (index: { files: PackageFiles }, dir: string): string[] {
   const dirs = new Set<string>()

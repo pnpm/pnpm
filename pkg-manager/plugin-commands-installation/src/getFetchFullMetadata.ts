@@ -1,4 +1,4 @@
-import { type InstallCommandOptions } from './install.js'
+import type { InstallCommandOptions } from './install.js'
 
 export type GetFetchFullMetadataOptions = Pick<InstallCommandOptions, 'supportedArchitectures' | 'rootProjectManifest'>
 

@@ -1,6 +1,7 @@
-import { type Config } from '@pnpm/config'
-import { type StoreController } from '@pnpm/package-store'
+import type { Config } from '@pnpm/config'
+import type { StoreController } from '@pnpm/package-store'
 import { getStorePath } from '@pnpm/store-path'
+
 import { createNewStoreController, type CreateNewStoreControllerOptions } from './createNewStoreController.js'
 
 export { createNewStoreController }

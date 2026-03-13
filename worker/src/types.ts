@@ -1,5 +1,5 @@
-import { type PackageFilesResponse } from '@pnpm/cafs-types'
-import { type DependencyManifest } from '@pnpm/types'
+import type { PackageFilesResponse } from '@pnpm/cafs-types'
+import type { DependencyManifest } from '@pnpm/types'
 
 export interface PkgNameVersion {
   name?: string
@@ -33,6 +33,7 @@ export interface LinkPkgMessage {
   force: boolean
   keepModulesDir?: boolean
   disableRelinkLocalDirDeps?: boolean
+  safeToSkip?: boolean
 }
 
 export interface SymlinkAllModulesMessage {

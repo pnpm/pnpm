@@ -3,7 +3,7 @@ import {
   type Logger,
   logger,
 } from '@pnpm/logger'
-import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
+import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
 
 export const peerDependencyIssuesLogger = logger('peer-dependency-issues') as Logger<PeerDependencyIssuesMessage>
 
