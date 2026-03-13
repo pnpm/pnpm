@@ -3,7 +3,7 @@ import { fetch } from '@pnpm/fetch'
 import { globalInfo } from '@pnpm/logger'
 import enquirer from 'enquirer'
 import { type ExportedManifest } from '@pnpm/exportable-manifest'
-import { publish, type PublishOptions } from 'libnpmpublish'
+import { publish as _publish, type PublishOptions } from 'libnpmpublish'
 import { type AuthTokenContext } from '../oidc/authToken.js'
 import { type IdTokenContext } from '../oidc/idToken.js'
 import { type ProvenanceContext } from '../oidc/provenance.js'
@@ -16,7 +16,8 @@ type PublishWithExportedManifest = (
   manifest: ExportedManifest,
   tarballData: Buffer,
   options: PublishOptions
-) => ReturnType<typeof publish>
+) => ReturnType<typeof _publish>
+const publish = _publish as PublishWithExportedManifest as OtpPublishFn
 
 type SharedContext =
 & AuthTokenContext
@@ -31,6 +32,6 @@ export const SHARED_CONTEXT: SharedContext = {
   fetch,
   globalInfo,
   process,
-  publish: publish as PublishWithExportedManifest as OtpPublishFn,
+  publish,
   setTimeout,
 }
