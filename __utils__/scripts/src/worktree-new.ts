@@ -17,11 +17,42 @@ let localBranch: string
 let worktreePath: string
 
 if (/^\d+$/.test(arg)) {
-  // PR number — fetch via GitHub's pull request ref (works for forks too)
+  // PR number — fetch and set up remote tracking so `git push` works (even for forks)
   localBranch = `pr-${arg}`
   worktreePath = path.join(path.dirname(repoRoot), localBranch)
-  execSync(`git fetch origin "pull/${arg}/head:${localBranch}"`, { stdio: gitStdio, cwd: repoRoot })
+
+  // Get PR metadata to determine the source repo and branch
+  const prJson = execSync(`gh pr view ${arg} --json headRefName,headRepositoryOwner,headRepository`, {
+    encoding: 'utf8',
+    cwd: repoRoot,
+  })
+  const pr = JSON.parse(prJson) as {
+    headRefName: string
+    headRepositoryOwner: { login: string }
+    headRepository: { name: string }
+  }
+  const forkOwner = pr.headRepositoryOwner.login
+  const forkRepo = pr.headRepository.name
+  const remoteBranch = pr.headRefName
+
+  // Use "origin" if the PR is from the same repo, otherwise add the fork as a remote
+  const originUrl = execSync('git remote get-url origin', { encoding: 'utf8', cwd: repoRoot }).trim()
+  const isFromOrigin = originUrl.includes(`/${forkOwner}/${forkRepo}`)
+  const remoteName = isFromOrigin ? 'origin' : forkOwner
+
+  if (!isFromOrigin) {
+    try {
+      execSync(`git remote get-url "${remoteName}"`, { encoding: 'utf8', cwd: repoRoot })
+    } catch {
+      execSync(`git remote add "${remoteName}" "https://github.com/${forkOwner}/${forkRepo}.git"`, { stdio: gitStdio, cwd: repoRoot })
+    }
+  }
+
+  execSync(`git fetch "${remoteName}" "${remoteBranch}:${localBranch}"`, { stdio: gitStdio, cwd: repoRoot })
   execSync(`git worktree add "${worktreePath}" "${localBranch}"`, { stdio: gitStdio, cwd: repoRoot })
+
+  // Set upstream so `git push` targets the correct fork and branch
+  execSync(`git -C "${worktreePath}" branch --set-upstream-to="${remoteName}/${remoteBranch}" "${localBranch}"`)
 } else {
   // Branch name — slashes replaced with dashes for the directory name
   localBranch = arg
