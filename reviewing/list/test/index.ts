@@ -1,22 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'node:path'
-import { stripVTControlCharacters } from 'node:util'
-
+import path from 'path'
 import { list, listForPackages } from '@pnpm/list'
 import { fixtures } from '@pnpm/test-fixtures'
 import chalk from 'chalk'
-
-import { renderParseable } from '../lib/renderParseable.js'
 import { renderTree } from '../lib/renderTree.js'
-
-/** Normalize dep paths so tests pass whether the implementation returns absolute or relative .pnpm paths. */
-function normalizeDepPaths (lockfileDir: string, text: string): string {
-  const prefix = path.join(lockfileDir, 'node_modules', '.pnpm')
-  let result = text.split(prefix).join('.pnpm')
-  const prefixJson = lockfileDir.replace(/\\/g, '\\\\') + '\\\\node_modules\\\\.pnpm'
-  result = result.split(prefixJson).join('.pnpm')
-  return result
-}
+import { renderParseable } from '../lib/renderParseable.js'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color
@@ -244,31 +232,47 @@ ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 })
 
 test('list in long format', async () => {
-  const output = await list([fixture], { long: true, lockfileDir: fixture, virtualStoreDirMaxLength: 0 })
-  const stripped = stripVTControlCharacters(output)
-  expect(stripped).toContain('fixture@1.0.0')
-  expect(stripped).toContain('write-json-file@2.3.0')
-  expect(stripped).toContain('is-positive@3.1.0')
-  expect(stripped).toContain('is-negative@2.1.0')
+  expect(await list([fixture], { long: true, lockfileDir: fixture, virtualStoreDirMaxLength: 0 })).toBe(`${LEGEND}
+
+${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
+│
+│   ${DEPENDENCIES}
+├── write-json-file${VERSION_CLR('@2.3.0')}
+│   Stringify and write JSON to a file atomically
+│   git+https://github.com/sindresorhus/write-json-file.git
+│   https://github.com/sindresorhus/write-json-file#readme
+│   ${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}
+│
+│   ${DEV_DEPENDENCIES}
+├── ${DEV_DEP_ONLY_CLR('is-positive')}${VERSION_CLR('@3.1.0')}
+│   Check if something is a positive number
+│   git+https://github.com/kevva/is-positive.git
+│   https://github.com/kevva/is-positive#readme
+│   ${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}
+│
+│   ${OPTIONAL_DEPENDENCIES}
+└── ${OPTIONAL_DEP_CLR('is-negative')}${VERSION_CLR('@2.1.0')}
+    Check if something is a negative number
+    git+https://github.com/kevva/is-negative.git
+    https://github.com/kevva/is-negative#readme
+    ${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative')}`)
 })
 
 test('parseable list in workspace with private package', async () => {
-  const output = await list([
+  expect(await list([
     path.join(workspaceWithPrivatePkgs, 'packages/private'),
     path.join(workspaceWithPrivatePkgs, 'packages/public'),
   ], {
     reportAs: 'parseable',
     lockfileDir: workspaceWithPrivatePkgs,
     virtualStoreDirMaxLength: 120,
-  })
-  const expected = `${path.join(workspaceWithPrivatePkgs, 'packages/private')}
+  })).toBe(`${path.join(workspaceWithPrivatePkgs, 'packages/private')}
 ${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}
-${path.join(workspaceWithPrivatePkgs, 'packages/public')}`
-  expect(normalizeDepPaths(workspaceWithPrivatePkgs, output)).toBe(normalizeDepPaths(workspaceWithPrivatePkgs, expected))
+${path.join(workspaceWithPrivatePkgs, 'packages/public')}`)
 })
 
 test('long parseable list in workspace with private package', async () => {
-  const output = await list([
+  expect(await list([
     path.join(workspaceWithPrivatePkgs, 'packages/private'),
     path.join(workspaceWithPrivatePkgs, 'packages/public'),
   ], {
@@ -276,58 +280,55 @@ test('long parseable list in workspace with private package', async () => {
     long: true,
     lockfileDir: workspaceWithPrivatePkgs,
     virtualStoreDirMaxLength: 120,
-  })
-  const expected = `${path.join(workspaceWithPrivatePkgs, 'packages/private')}:private@1.0.0:PRIVATE
+  })).toBe(`${path.join(workspaceWithPrivatePkgs, 'packages/private')}:private@1.0.0:PRIVATE
 ${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}:is-positive@1.0.0
-${path.join(workspaceWithPrivatePkgs, 'packages/public')}:public@1.0.0`
-  expect(normalizeDepPaths(workspaceWithPrivatePkgs, output)).toBe(normalizeDepPaths(workspaceWithPrivatePkgs, expected))
+${path.join(workspaceWithPrivatePkgs, 'packages/public')}:public@1.0.0`)
 })
 
 test('JSON list in workspace with private package', async () => {
-  const output = await list([
+  expect(await list([
     path.join(workspaceWithPrivatePkgs, 'packages/private'),
     path.join(workspaceWithPrivatePkgs, 'packages/public'),
   ], {
     reportAs: 'json',
     lockfileDir: workspaceWithPrivatePkgs,
     virtualStoreDirMaxLength: 120,
-  })
-  const expected = JSON.stringify([
-    {
-      name: 'private',
-      version: '1.0.0',
-      path: path.join(workspaceWithPrivatePkgs, 'packages/private'),
-      private: true,
-      dependencies: {
-        'is-positive': {
-          from: 'is-positive',
-          version: '1.0.0',
-          resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-          path: path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
+  })).toBe(
+    JSON.stringify([
+      {
+        name: 'private',
+        version: '1.0.0',
+        path: path.join(workspaceWithPrivatePkgs, 'packages/private'),
+        private: true,
+        dependencies: {
+          'is-positive': {
+            from: 'is-positive',
+            version: '1.0.0',
+            resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+            path: path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
+          },
         },
       },
-    },
-    {
-      name: 'public',
-      version: '1.0.0',
-      path: path.join(workspaceWithPrivatePkgs, 'packages/public'),
-      private: false,
-      dependencies: {
-        'is-positive': {
-          from: 'is-positive',
-          version: '1.0.0',
-          resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-          path: path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
+      {
+        name: 'public',
+        version: '1.0.0',
+        path: path.join(workspaceWithPrivatePkgs, 'packages/public'),
+        private: false,
+        dependencies: {
+          'is-positive': {
+            from: 'is-positive',
+            version: '1.0.0',
+            resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+            path: path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
+          },
         },
       },
-    },
-  ], null, 2)
-  expect(normalizeDepPaths(workspaceWithPrivatePkgs, output)).toBe(normalizeDepPaths(workspaceWithPrivatePkgs, expected))
+    ], null, 2)
+  )
 })
 
 test('parseable list with depth 1', async () => {
-  const output = await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture, virtualStoreDirMaxLength: 120 })
-  const expected = `${fixture}
+  expect(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture, virtualStoreDirMaxLength: 120 })).toBe(`${fixture}
 ${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent')}
 ${path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2/node_modules/graceful-fs')}
 ${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative')}
@@ -336,13 +337,11 @@ ${path.join(fixture, 'node_modules/.pnpm/make-dir@1.3.0/node_modules/make-dir')}
 ${path.join(fixture, 'node_modules/.pnpm/pify@3.0.0/node_modules/pify')}
 ${path.join(fixture, 'node_modules/.pnpm/sort-keys@2.0.0/node_modules/sort-keys')}
 ${path.join(fixture, 'node_modules/.pnpm/write-file-atomic@2.4.3/node_modules/write-file-atomic')}
-${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}`
-  expect(normalizeDepPaths(fixture, output)).toBe(normalizeDepPaths(fixture, expected))
+${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}`)
 })
 
 test('JSON list with depth 1', async () => {
-  const output = await list([fixture], { reportAs: 'json', depth: 1, lockfileDir: fixture, virtualStoreDirMaxLength: 120 })
-  const expected = JSON.stringify([{
+  expect(await list([fixture], { reportAs: 'json', depth: 1, lockfileDir: fixture, virtualStoreDirMaxLength: 120 })).toBe(JSON.stringify([{
     name: 'fixture',
     version: '1.0.0',
     path: fixture,
@@ -419,14 +418,34 @@ test('JSON list with depth 1', async () => {
         path: path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative'),
       },
     },
-  }], null, 2)
-  expect(normalizeDepPaths(fixture, output)).toBe(normalizeDepPaths(fixture, expected))
+  }], null, 2))
 })
 
 test('JSON list with aliased dep', async () => {
-  const output = await list([fixtureWithAliasedDep], { reportAs: 'json', lockfileDir: fixtureWithAliasedDep, virtualStoreDirMaxLength: 120 })
-  const expected = JSON.stringify([
-    {
+  expect(
+    await list([fixtureWithAliasedDep], { reportAs: 'json', lockfileDir: fixtureWithAliasedDep, virtualStoreDirMaxLength: 120 })
+  ).toBe(
+    JSON.stringify([
+      {
+        name: 'with-aliased-dep',
+        version: '1.0.0',
+        path: fixtureWithAliasedDep,
+        private: false,
+        dependencies: {
+          positive: {
+            from: 'is-positive',
+            version: '1.0.0',
+            resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+            path: path.join(fixtureWithAliasedDep, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
+          },
+        },
+      },
+    ], null, 2)
+  )
+  expect(
+    await list([fixtureWithAliasedDep], { lockfileDir: fixtureWithAliasedDep, long: true, reportAs: 'json', virtualStoreDirMaxLength: 120 })
+  ).toBe(
+    JSON.stringify([{
       name: 'with-aliased-dep',
       version: '1.0.0',
       path: fixtureWithAliasedDep,
@@ -435,38 +454,41 @@ test('JSON list with aliased dep', async () => {
         positive: {
           from: 'is-positive',
           version: '1.0.0',
+
           resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+
+          description: 'Test if a number is positive',
+          license: 'MIT',
+          author: {
+            name: 'Kevin Martensson',
+            email: 'kevinmartensson@gmail.com',
+            url: 'github.com/kevva',
+          },
+          homepage: 'https://github.com/kevva/is-positive#readme',
+          repository: 'git+https://github.com/kevva/is-positive.git',
           path: path.join(fixtureWithAliasedDep, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
         },
       },
-    },
-  ], null, 2)
-  expect(normalizeDepPaths(fixtureWithAliasedDep, output)).toBe(normalizeDepPaths(fixtureWithAliasedDep, expected))
-  const outputLong = await list([fixtureWithAliasedDep], { lockfileDir: fixtureWithAliasedDep, long: true, reportAs: 'json', virtualStoreDirMaxLength: 120 })
-  const parsed = JSON.parse(normalizeDepPaths(fixtureWithAliasedDep, outputLong))
-  expect(parsed).toHaveLength(1)
-  expect(parsed[0].dependencies.positive).toMatchObject({
-    from: 'is-positive',
-    version: '1.0.0',
-    resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-  })
+    }], null, 2)
+  )
 })
 
 test('parseable list with depth 1 and dev only', async () => {
-  const output = await list([fixture], {
-    depth: 1,
-    include: { dependencies: false, devDependencies: true, optionalDependencies: false },
-    lockfileDir: fixture,
-    reportAs: 'parseable',
-    virtualStoreDirMaxLength: 120,
-  })
-  const expected = `${fixture}
+  expect(
+    await list([fixture], {
+      depth: 1,
+      include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+      lockfileDir: fixture,
+      reportAs: 'parseable',
+      virtualStoreDirMaxLength: 120,
+    })
+  ).toBe(`${fixture}
 ${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}`
-  expect(normalizeDepPaths(fixture, output)).toBe(normalizeDepPaths(fixture, expected))
+  )
 })
 
 test('parseable list with depth 1 without unnecessary empty newlines', async () => {
-  const output = await listForPackages(
+  expect(await listForPackages(
     ['is-positive'],
     [
       path.join(workspaceWithDifferentDeps, 'packages/bar'),
@@ -478,15 +500,13 @@ test('parseable list with depth 1 without unnecessary empty newlines', async () 
       reportAs: 'parseable',
       virtualStoreDirMaxLength: 120,
     }
-  )
-  const expected = `${path.join(workspaceWithDifferentDeps, 'packages/bar')}
+  )).toBe(`${path.join(workspaceWithDifferentDeps, 'packages/bar')}
 ${path.join(workspaceWithDifferentDeps, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}`
-  expect(normalizeDepPaths(workspaceWithDifferentDeps, output)).toBe(normalizeDepPaths(workspaceWithDifferentDeps, expected))
+  )
 })
 
 test('long parseable list with depth 1', async () => {
-  const output = await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture, long: true, virtualStoreDirMaxLength: 120 })
-  const expected = `${fixture}:fixture@1.0.0
+  expect(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture, long: true, virtualStoreDirMaxLength: 120 })).toBe(`${fixture}:fixture@1.0.0
 ${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent')}:detect-indent@5.0.0
 ${path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2/node_modules/graceful-fs')}:graceful-fs@4.2.2
 ${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative')}:is-negative@2.1.0
@@ -495,13 +515,12 @@ ${path.join(fixture, 'node_modules/.pnpm/make-dir@1.3.0/node_modules/make-dir')}
 ${path.join(fixture, 'node_modules/.pnpm/pify@3.0.0/node_modules/pify')}:pify@3.0.0
 ${path.join(fixture, 'node_modules/.pnpm/sort-keys@2.0.0/node_modules/sort-keys')}:sort-keys@2.0.0
 ${path.join(fixture, 'node_modules/.pnpm/write-file-atomic@2.4.3/node_modules/write-file-atomic')}:write-file-atomic@2.4.3
-${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}:write-json-file@2.3.0`
-  expect(normalizeDepPaths(fixture, output)).toBe(normalizeDepPaths(fixture, expected))
+${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}:write-json-file@2.3.0`)
 })
 
 test('long parseable list with depth 1 when package has no version', async () => {
-  const output = await list([fixtureWithNoPkgVersion], { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgVersion, long: true, virtualStoreDirMaxLength: 120 })
-  const expected = `${fixtureWithNoPkgVersion}:fixture
+  expect(await list([fixtureWithNoPkgVersion], { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgVersion, long: true, virtualStoreDirMaxLength: 120 })).toBe(`\
+${fixtureWithNoPkgVersion}:fixture
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent')}:detect-indent@5.0.0
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/graceful-fs@4.2.2/node_modules/graceful-fs')}:graceful-fs@4.2.2
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative')}:is-negative@2.1.0
@@ -510,16 +529,16 @@ ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/make-dir@1.3.0/node_mod
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/pify@3.0.0/node_modules/pify')}:pify@3.0.0
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/sort-keys@2.0.0/node_modules/sort-keys')}:sort-keys@2.0.0
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/write-file-atomic@2.4.3/node_modules/write-file-atomic')}:write-file-atomic@2.4.3
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}:write-json-file@2.3.0`
-  expect(normalizeDepPaths(fixtureWithNoPkgVersion, output)).toBe(normalizeDepPaths(fixtureWithNoPkgVersion, expected))
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}:write-json-file@2.3.0`)
 })
 
 test('long parseable list with depth 1 when package has no name and no version', async () => {
-  const output = await list(
-    [fixtureWithNoPkgNameAndNoVersion],
-    { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgNameAndNoVersion, long: true, virtualStoreDirMaxLength: 120 }
-  )
-  const expected = `${fixtureWithNoPkgNameAndNoVersion}
+  expect(
+    await list(
+      [fixtureWithNoPkgNameAndNoVersion],
+      { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgNameAndNoVersion, long: true, virtualStoreDirMaxLength: 120 }
+    )
+  ).toBe(`${fixtureWithNoPkgNameAndNoVersion}
 ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent')}:detect-indent@5.0.0
 ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/graceful-fs@4.2.2/node_modules/graceful-fs')}:graceful-fs@4.2.2
 ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative')}:is-negative@2.1.0
@@ -529,7 +548,7 @@ ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/pify@3.0.0/nod
 ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/sort-keys@2.0.0/node_modules/sort-keys')}:sort-keys@2.0.0
 ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/write-file-atomic@2.4.3/node_modules/write-file-atomic')}:write-file-atomic@2.4.3
 ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}:write-json-file@2.3.0`
-  expect(normalizeDepPaths(fixtureWithNoPkgNameAndNoVersion, output)).toBe(normalizeDepPaths(fixtureWithNoPkgNameAndNoVersion, expected))
+  )
 })
 
 test('print empty', async () => {
