@@ -274,7 +274,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
   }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-  storeIndex,
+    storeIndex,
     offline: true,
     rawConfig: {},
     storeIndex,
@@ -303,7 +303,7 @@ test('fail when trying to fetch a non-local tarball in offline mode', async () =
   }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-  storeIndex,
+    storeIndex,
     offline: true,
     rawConfig: {},
     storeIndex,
@@ -431,7 +431,7 @@ test('accessing private packages', async () => {
 
   const getAuthHeader = () => 'Bearer ofjergrg349gj3f2'
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-  storeIndex,
+    storeIndex,
     rawConfig: {},
     storeIndex,
     retry: {
@@ -550,7 +550,7 @@ test('do not build the package when scripts are ignored', async () => {
   const resolution = { tarball }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-  storeIndex,
+    storeIndex,
     ignoreScripts: true,
     rawConfig: {},
     storeIndex,
@@ -600,7 +600,7 @@ test('use the subfolder when path is present', async () => {
   }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-  storeIndex,
+    storeIndex,
     ignoreScripts: true,
     rawConfig: {},
     storeIndex,
@@ -631,7 +631,7 @@ test('prevent directory traversal attack when path is present', async () => {
   const resolution = { tarball, path }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-  storeIndex,
+    storeIndex,
     ignoreScripts: true,
     rawConfig: {},
     storeIndex,
@@ -660,7 +660,7 @@ test('fail when path is not exists', async () => {
   const resolution = { tarball, path }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-  storeIndex,
+    storeIndex,
     ignoreScripts: true,
     rawConfig: {},
     storeIndex,

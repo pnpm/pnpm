@@ -5805,6 +5805,9 @@ importers:
       detect-libc:
         specifier: 'catalog:'
         version: 2.0.3
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
       p-defer:
         specifier: 'catalog:'
         version: 4.0.1
@@ -5872,9 +5875,6 @@ importers:
       delay:
         specifier: 'catalog:'
         version: 6.0.0
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
