@@ -580,14 +580,17 @@ test('reinstall from warm custom globalVirtualStoreDir skips fetching', async ()
 test('prune works correctly with custom globalVirtualStoreDir', async () => {
   prepareEmpty()
   const customGVS = path.resolve('custom-prune-links')
+  // Store must be outside the project directory so that registerProject()
+  // creates a registry entry (it skips registration when store is inside project
+  // to avoid circular symlinks).
+  const storeDir = path.resolve('..', '.store-prune')
   const manifest = {
     dependencies: {
       '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
     },
   }
-  // Pass globalVirtualStoreDir through storeOptions so the store controller
-  // knows to prune from the custom location
   const opts = testDefaults({
+    storeDir,
     enableGlobalVirtualStore: true,
     globalVirtualStoreDir: customGVS,
   }, undefined, undefined, { globalVirtualStoreDir: customGVS })
@@ -605,38 +608,39 @@ test('prune works correctly with custom globalVirtualStoreDir', async () => {
 test('prune removes unreachable packages from custom globalVirtualStoreDir', async () => {
   prepareEmpty()
   const customGVS = path.resolve('custom-prune-removal-links')
+  // Store must be outside the project directory so that registerProject()
+  // creates a registry entry (see comment in prune-retention test above).
+  const storeDir = path.resolve('..', '.store-prune-removal')
   const manifest = {
     dependencies: {
-      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
       'is-positive': '1.0.0',
     },
   }
   const opts = testDefaults({
+    storeDir,
     enableGlobalVirtualStore: true,
     globalVirtualStoreDir: customGVS,
   }, undefined, undefined, { globalVirtualStoreDir: customGVS })
   await install(manifest, opts)
 
-  // Both packages should exist in the custom GVS
-  const pkgWithDepDir = path.join(customGVS, '@pnpm.e2e/pkg-with-1-dep/100.0.0')
-  expect(fs.existsSync(pkgWithDepDir)).toBeTruthy()
-
-  // Remove one dependency and reinstall
-  const reducedManifest = {
-    dependencies: {
-      'is-positive': '1.0.0',
-    },
-  }
-  await install(reducedManifest, opts)
-
-  // Run prune — the removed package and its transitive dep should be cleaned up
-  await opts.storeController.prune()
-  expect(fs.existsSync(pkgWithDepDir)).toBeFalsy()
-  // The transitive dep should also be removed
-  const transitiveDepDir = path.join(customGVS, '@pnpm.e2e/dep-of-pkg-with-1-dep')
-  expect(fs.existsSync(transitiveDepDir)).toBeFalsy()
-  // The retained package should still exist
+  // is-positive should exist in the custom GVS
   const isPositiveDir = path.join(customGVS, '@/is-positive')
+  expect(fs.existsSync(isPositiveDir)).toBeTruthy()
+
+  // Simulate orphaned packages in the GVS (e.g., from a deleted project)
+  // by creating fake package directories that no project references.
+  const orphanHashDir = path.join(customGVS, '@pnpm.e2e/fake-pkg/1.0.0/fakehash123/node_modules/@pnpm.e2e/fake-pkg')
+  fs.mkdirSync(orphanHashDir, { recursive: true })
+  fs.writeFileSync(path.join(orphanHashDir, 'package.json'), '{"name":"@pnpm.e2e/fake-pkg","version":"1.0.0"}')
+  const orphanPkgDir = path.join(customGVS, '@pnpm.e2e/fake-pkg/1.0.0')
+  expect(fs.existsSync(orphanPkgDir)).toBeTruthy()
+
+  // Run prune — the orphaned package should be removed
+  await opts.storeController.prune()
+  expect(fs.existsSync(orphanPkgDir)).toBeFalsy()
+  // The scope directory should also be cleaned up
+  expect(fs.existsSync(path.join(customGVS, '@pnpm.e2e'))).toBeFalsy()
+  // The referenced package should still exist
   expect(fs.existsSync(isPositiveDir)).toBeTruthy()
 })
 

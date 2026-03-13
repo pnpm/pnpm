@@ -116,11 +116,11 @@ async function findAllNodeModulesDirs (projectDir: string): Promise<string[]> {
 
 /**
  * Recursively walk symlinks from a directory, marking any that point
- * into the global virtual store's links directory.
+ * into the global virtual store directory.
  */
 async function walkSymlinksToStore (
   dir: string,
-  linksDir: string,
+  gvsDir: string,
   reachable: Set<string>,
   visited: Set<string>
 ): Promise<void> {
@@ -153,10 +153,10 @@ async function walkSymlinksToStore (
             : path.resolve(dir, target)
           // Resolve symlinks in the target path so that isSubdir comparisons
           // are symmetric with the realpath-resolved GVS directory.
-          // Falls back to the raw path on ENOENT (dangling symlink) or other
-          // errors (e.g., permission issues on intermediate path components).
-          // This is safe because an unresolved target will fail the isSubdir
-          // check conservatively, keeping the package marked as reachable.
+          // Falls back to the raw path on ENOENT (dangling symlink); other
+          // errors (e.g., permission issues) are rethrown.
+          // A dangling symlink's raw path will typically fail the isSubdir
+          // check, so the package will NOT be marked as reachable.
           let absoluteTarget: string
           try {
             absoluteTarget = await fs.realpath(rawTarget)
@@ -169,13 +169,13 @@ async function walkSymlinksToStore (
           }
 
           // Check if this symlink points into the global virtual store
-          if (isSubdir(linksDir, absoluteTarget)) {
+          if (isSubdir(gvsDir, absoluteTarget)) {
             // Mark the package directory as reachable
             // The path structure is:
-            //   - Scoped:   {linksDir}/{scope}/{pkgName}/{version}/{hash}/node_modules/{pkgName}
-            //   - Unscoped: {linksDir}/@/{pkgName}/{version}/{hash}/node_modules/{pkgName}
+            //   - Scoped:   {gvsDir}/{scope}/{pkgName}/{version}/{hash}/node_modules/{pkgName}
+            //   - Unscoped: {gvsDir}/@/{pkgName}/{version}/{hash}/node_modules/{pkgName}
             // We want to mark the {hash} directory
-            const relPath = path.relative(linksDir, absoluteTarget)
+            const relPath = path.relative(gvsDir, absoluteTarget)
             const parts = relPath.split(path.sep)
             // Find the hash directory (the one containing node_modules)
             const nodeModulesIdx = parts.indexOf('node_modules')
@@ -184,8 +184,8 @@ async function walkSymlinksToStore (
               const relativePath = parts.slice(0, nodeModulesIdx).join(path.sep)
               reachable.add(relativePath)
               // Also walk into the package's node_modules for transitive deps
-              const pkgNodeModules = path.join(linksDir, relativePath, 'node_modules')
-              await walkSymlinksToStore(pkgNodeModules, linksDir, reachable, visited)
+              const pkgNodeModules = path.join(gvsDir, relativePath, 'node_modules')
+              await walkSymlinksToStore(pkgNodeModules, gvsDir, reachable, visited)
             }
           }
         } catch (err: unknown) {
@@ -197,7 +197,7 @@ async function walkSymlinksToStore (
         }
       } else if (entry.isDirectory() && entry.name !== '.pnpm') {
         // Recurse into directories (but not .pnpm which is the local virtual store)
-        await walkSymlinksToStore(entryPath, linksDir, reachable, visited)
+        await walkSymlinksToStore(entryPath, gvsDir, reachable, visited)
       }
     })
   )
@@ -229,20 +229,20 @@ async function getRealPathHash (p: string): Promise<string> {
  * Returns the count of removed packages.
  *
  * Directory structure is uniform 4-level:
- * - Scoped: {linksDir}/{scope}/{pkgName}/{version}/{hash}/
- * - Unscoped: {linksDir}/@/{pkgName}/{version}/{hash}/
+ * - Scoped: {gvsDir}/{scope}/{pkgName}/{version}/{hash}/
+ * - Unscoped: {gvsDir}/@/{pkgName}/{version}/{hash}/
  */
 async function removeUnreachablePackages (
-  linksDir: string,
+  gvsDir: string,
   reachable: Set<string>
 ): Promise<number> {
   // First level is always a scope (either @scope or @ for unscoped packages)
-  const scopes = await getSubdirsSafely(linksDir)
+  const scopes = await getSubdirsSafely(gvsDir)
   let count = 0
 
   await Promise.all(
     scopes.map(async (scope) => {
-      const scopePath = path.join(linksDir, scope)
+      const scopePath = path.join(gvsDir, scope)
       const pkgNames = await getSubdirsSafely(scopePath)
       let removedPkgs = 0
 
