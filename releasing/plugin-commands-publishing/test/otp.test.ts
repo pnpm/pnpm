@@ -121,6 +121,44 @@ describe('publishWithOtpHandling', () => {
       await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
         .rejects.toBeInstanceOf(OtpSecondChallengeError)
     })
+
+    it('throws non-OTP errors from the retry publish as-is', async () => {
+      let callCount = 0
+      const retryError = new Error('server error')
+      const context = createMockContext({
+        publish: async () => {
+          callCount++
+          if (callCount === 1) {
+            throw Object.assign(new Error('otp'), { code: 'EOTP' })
+          }
+          throw retryError
+        },
+      })
+      await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
+        .rejects.toBe(retryError)
+    })
+
+    it('re-throws the original OTP error when enquirer returns no OTP', async () => {
+      const context = createMockContext({
+        publish: async () => {
+          throw Object.assign(new Error('otp'), { code: 'EOTP' })
+        },
+        enquirer: { prompt: async () => ({ otp: '' }) },
+      })
+      await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
+        .rejects.toMatchObject({ code: 'EOTP' })
+    })
+
+    it('re-throws the original OTP error when enquirer returns undefined', async () => {
+      const context = createMockContext({
+        publish: async () => {
+          throw Object.assign(new Error('otp'), { code: 'EOTP' })
+        },
+        enquirer: { prompt: async () => undefined },
+      })
+      await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
+        .rejects.toMatchObject({ code: 'EOTP' })
+    })
   })
 
   describe('npm-notice flow', () => {
@@ -262,6 +300,126 @@ describe('publishWithOtpHandling', () => {
       // second is the additional delay (5s Retry-After minus the 1s already waited),
       // third is the default 1s poll interval for the next iteration.
       expect(setTimeoutDelays).toStrictEqual([1000, 4000, 1000])
+    })
+
+    it('continues polling when fetch throws', async () => {
+      let publishCallCount = 0
+      let fetchCallCount = 0
+      const context = createMockContext({
+        publish: async (_m, _t, opts) => {
+          publishCallCount++
+          if (publishCallCount === 1) {
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: {
+                authUrl: 'https://registry.npmjs.org/auth/abc',
+                doneUrl: 'https://registry.npmjs.org/auth/abc/done',
+              },
+            })
+          }
+          expect(opts.otp).toBe('tok')
+          return createOkResponse()
+        },
+        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+          fetchCallCount++
+          if (fetchCallCount === 1) {
+            throw new Error('network failure')
+          }
+          return {
+            headers: { get: () => null },
+            json: async () => ({ token: 'tok' }),
+            ok: true,
+            status: 200,
+          }
+        },
+      })
+      const result = await publishWithOtpHandling({ context, manifest, publishOptions, tarballData })
+      expect(result.ok).toBe(true)
+      expect(fetchCallCount).toBe(2)
+    })
+
+    it('continues polling when response is not ok', async () => {
+      let publishCallCount = 0
+      let fetchCallCount = 0
+      const context = createMockContext({
+        publish: async (_m, _t, opts) => {
+          publishCallCount++
+          if (publishCallCount === 1) {
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: {
+                authUrl: 'https://registry.npmjs.org/auth/abc',
+                doneUrl: 'https://registry.npmjs.org/auth/abc/done',
+              },
+            })
+          }
+          expect(opts.otp).toBe('tok')
+          return createOkResponse()
+        },
+        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+          fetchCallCount++
+          if (fetchCallCount === 1) {
+            return {
+              headers: { get: () => null },
+              json: async () => ({}),
+              ok: false,
+              status: 404,
+            }
+          }
+          return {
+            headers: { get: () => null },
+            json: async () => ({ token: 'tok' }),
+            ok: true,
+            status: 200,
+          }
+        },
+      })
+      const result = await publishWithOtpHandling({ context, manifest, publishOptions, tarballData })
+      expect(result.ok).toBe(true)
+      expect(fetchCallCount).toBe(2)
+    })
+
+    it('continues polling when response.json() throws', async () => {
+      let publishCallCount = 0
+      let fetchCallCount = 0
+      const context = createMockContext({
+        publish: async (_m, _t, opts) => {
+          publishCallCount++
+          if (publishCallCount === 1) {
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: {
+                authUrl: 'https://registry.npmjs.org/auth/abc',
+                doneUrl: 'https://registry.npmjs.org/auth/abc/done',
+              },
+            })
+          }
+          expect(opts.otp).toBe('tok')
+          return createOkResponse()
+        },
+        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+          fetchCallCount++
+          if (fetchCallCount === 1) {
+            return {
+              headers: { get: () => null },
+              json: async () => {
+                throw new Error('invalid json')
+              },
+              ok: true,
+              status: 200,
+            }
+          }
+          return {
+            headers: { get: () => null },
+            json: async () => ({ token: 'tok' }),
+            ok: true,
+            status: 200,
+          }
+        },
+      })
+      const result = await publishWithOtpHandling({ context, manifest, publishOptions, tarballData })
+      expect(result.ok).toBe(true)
+      expect(fetchCallCount).toBe(2)
     })
 
     it('throws OtpWebAuthTimeoutError after 5 minutes', async () => {
