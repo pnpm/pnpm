@@ -223,6 +223,8 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
       continue
     }
 
+    if (!response.ok) continue
+
     if (response.status === 202) {
       // Registry is still waiting for authentication.
       // Respect Retry-After header if present by waiting the additional time
@@ -237,8 +239,6 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
       }
       continue
     }
-
-    if (!response.ok) continue
 
     let body: { token?: string }
     try {
