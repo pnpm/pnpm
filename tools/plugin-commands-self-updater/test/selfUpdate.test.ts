@@ -1,12 +1,13 @@
-import fs from 'fs'
-import { createRequire } from 'module'
-import path from 'path'
+import fs from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { prependDirsToPath } from '@pnpm/env.path'
 import { clearDispatcherCache } from '@pnpm/fetch'
-import { tempDir, prepare as prepareWithPkg } from '@pnpm/prepare'
-import { jest } from '@jest/globals'
+import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
 import spawn from 'cross-spawn'
-import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 const require = createRequire(import.meta.dirname)
 const pnpmTarballPath = require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-9.1.0.tgz')
@@ -87,6 +88,7 @@ function prepareOptions (dir: string) {
     pnpmfile: '',
     rawConfig: {},
     cacheDir: path.join(dir, '.cache'),
+    globalPkgDir: path.join(dir, 'global', 'v11'),
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     dir,
     managePackageManagerVersions: false,

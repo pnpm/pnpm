@@ -1,4 +1,5 @@
-import path from 'path'
+import path from 'node:path'
+
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 
 test('getBinsFromPackageManifest()', async () => {

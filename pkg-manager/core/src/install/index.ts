@@ -1,13 +1,15 @@
-import path from 'path'
-import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
-import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import path from 'node:path'
+
+import { buildSelectedPkgs } from '@pnpm/building.after-install'
+import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
-import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
+import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   LAYOUT_VERSION,
-  LOCKFILE_VERSION,
   LOCKFILE_MAJOR_VERSION,
+  LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -17,11 +19,6 @@ import {
 } from '@pnpm/core-loggers'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import * as dp from '@pnpm/dependency-path'
-import {
-  calcPatchHashes,
-  createOverridesMapFromParsed,
-  getOutdatedLockfileSetting,
-} from '@pnpm/lockfile.settings-checker'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
 import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/headless'
@@ -33,27 +30,31 @@ import {
 } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
-  type ProjectSnapshot,
+  type CatalogSnapshots,
+  cleanGitBranchLockfiles,
   type LockfileObject,
+  type ProjectSnapshot,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
-  cleanGitBranchLockfiles,
-  type CatalogSnapshots,
 } from '@pnpm/lockfile.fs'
-import { writePnpFile } from '@pnpm/lockfile-to-pnp'
-import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
-import { logger, globalInfo, streamParser } from '@pnpm/logger'
+import {
+  calcPatchHashes,
+  createOverridesMapFromParsed,
+  getOutdatedLockfileSetting,
+} from '@pnpm/lockfile.settings-checker'
+import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
+import { writePnpFile } from '@pnpm/lockfile-to-pnp'
+import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
-import { type PatchGroupRecord, groupPatchedDependencies } from '@pnpm/patching.config'
-import { rebuildSelectedPkgs } from '@pnpm/plugin-commands-rebuild'
+import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
-  getWantedDependencies,
   type DependenciesGraph,
   type DependenciesGraphNode,
+  getWantedDependencies,
   type PinnedVersion,
   resolveDependencies,
   type UpdateMatchingFunction,
@@ -63,23 +64,26 @@ import type {
   PreferredVersions,
 } from '@pnpm/resolver-base'
 import type {
-  DepPath,
   AllowBuild,
   DependenciesField,
   DependencyManifest,
+  DepPath,
   IgnoredBuilds,
   PeerDependencyIssues,
   ProjectId,
   ProjectManifest,
-  ReadPackageHook,
   ProjectRootDir,
+  ReadPackageHook,
 } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import isSubdir from 'is-subdir'
+import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
-import { map as mapValues, clone, isEmpty, pipeWith, props } from 'ramda'
+import { clone, isEmpty, map as mapValues, pipeWith, props } from 'ramda'
+import semver from 'semver'
+
 import { parseWantedDependencies } from '../parseWantedDependencies.js'
 import { removeDeps } from '../uninstall/removeDeps.js'
+import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError.js'
 import { checkCustomResolverForceResolve } from './checkCustomResolverForceResolve.js'
 import {
   extendOptions,
@@ -89,8 +93,6 @@ import {
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
-import semver from 'semver'
-import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError.js'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -557,6 +559,41 @@ export async function mutateModules (
         includeDirect: opts.includeDirect,
       })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
+      if (opts.packageVulnerabilityAudit) {
+        for (const dep of wantedDependencies) {
+          let specifier: string | undefined = dep.bareSpecifier
+          const catalogName = specifier ? parseCatalogProtocol(specifier) : null
+          if (catalogName != null) {
+            const catalogResult = resolveFromCatalog(opts.catalogs, { alias: dep.alias, bareSpecifier: specifier! })
+            specifier = matchCatalogResolveResult(catalogResult, pickCatalogSpecifier)
+          }
+          const validVersion = semver.valid(specifier)
+          // Only proceed if the specifier is a pinned version, not a range
+          if (!validVersion) continue
+          if (opts.packageVulnerabilityAudit.isVulnerable(dep.alias, validVersion)) {
+            // If the current version is pinned and vulnerable, expand the specifier to a range
+            // that will allow updating to a non-vulnerable, semver-compatible version, if available.
+            if (catalogName != null && opts.catalogs?.[catalogName]) {
+              // If a catalog is used, update the catalog entry so the resolver can find a
+              // non-vulnerable version. The package.json keeps "catalog:" and the workspace manifest
+              // gets updated.
+              opts.catalogs = {
+                ...opts.catalogs,
+                [catalogName]: {
+                  ...opts.catalogs[catalogName],
+                  [dep.alias]: '^' + validVersion,
+                },
+              }
+              // Set prevSpecifier to the original catalog specifier so the resolver
+              // preserves the original pinning style (i.e. pinned stays pinned).
+              dep.prevSpecifier = specifier
+            } else {
+              // If no catalog is used, we directly update the specifier.
+              dep.bareSpecifier = '^' + validVersion
+            }
+          }
+        }
+      }
 
       if (ctx.wantedLockfile?.importers) {
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
@@ -903,7 +940,7 @@ async function runUnignoredDependencyBuilds (
     }
   }
   if (pkgsToBuild.length) {
-    return (await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
+    return (await buildSelectedPkgs(opts.allProjects, pkgsToBuild, {
       ...opts,
       reporter: undefined, // We don't want to attach the reporter again, it was already attached.
       rootProjectManifestDir: opts.lockfileDir,
@@ -1311,6 +1348,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         dependenciesByProjectId,
         depsStateCache,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         extraNodePaths: ctx.extraNodePaths,
         force: opts.force,
         hoistedDependencies: ctx.hoistedDependencies,

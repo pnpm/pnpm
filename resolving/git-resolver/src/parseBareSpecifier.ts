@@ -1,8 +1,8 @@
 // cspell:ignore sshurl
-import urlLib, { URL } from 'url'
-import { fetchWithDispatcher, type DispatcherOptions } from '@pnpm/fetch'
+import urlLib, { URL } from 'node:url'
 
-import git from 'graceful-git'
+import { type DispatcherOptions, fetchWithDispatcher } from '@pnpm/fetch'
+import { gracefulGit as git } from 'graceful-git'
 import HostedGit from 'hosted-git-info'
 
 export interface HostedPackageSpec {

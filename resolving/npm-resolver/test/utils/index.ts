@@ -1,6 +1,6 @@
-import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { clearDispatcherCache } from '@pnpm/fetch'
-import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
+import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 let originalDispatcher: Dispatcher | null = null
 let currentMockAgent: MockAgent | null = null

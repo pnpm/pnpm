@@ -1,10 +1,10 @@
-import type {
-  Resolution,
-  GitResolution,
-  DirectoryResolution,
-  BinaryResolution,
-} from '@pnpm/resolver-base'
 import type { Cafs, FilesMap } from '@pnpm/cafs-types'
+import type {
+  BinaryResolution,
+  DirectoryResolution,
+  GitResolution,
+  Resolution,
+} from '@pnpm/resolver-base'
 import type { AllowBuild, BundledManifest, DependencyManifest } from '@pnpm/types'
 
 export interface PkgNameVersion {

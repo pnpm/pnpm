@@ -1,7 +1,9 @@
-import fs, { promises as fsPromises } from 'fs'
-import path from 'path'
-import { getBinNodePaths } from '../src/getBinNodePaths.js'
+import fs, { promises as fsPromises } from 'node:fs'
+import path from 'node:path'
+
 import { temporaryDirectory } from 'tempy'
+
+import { getBinNodePaths } from '../src/getBinNodePaths.js'
 
 // On Windows, temporaryDirectory() may return 8.3 short paths (e.g., RUNNER~1)
 // but getBinNodePaths resolves these via fs.promises.realpath (the native

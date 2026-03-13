@@ -1,6 +1,7 @@
-import { createRequire } from 'module'
-import fs from 'fs'
+import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
+
 import { Packr } from 'msgpackr'
 
 // Use createRequire to load node:sqlite because it is a prefix-only builtin

@@ -1,10 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { sync as rimraf } from '@zkochan/rimraf'
-import { jest } from '@jest/globals'
+import { rimrafSync } from '@zkochan/rimraf'
 
 const debug = jest.fn()
 jest.unstable_mockModule('@pnpm/logger', () => {
@@ -115,9 +116,9 @@ describe('fetch resolves symlinked files to their real locations', () => {
   const srcPath = f.find('simple-pkg')
   beforeAll(async () => {
     process.chdir(f.find('pkg-with-symlinked-dir-and-files'))
-    rimraf('index.js')
+    rimrafSync('index.js')
     fs.symlinkSync(indexJsPath, path.resolve('index.js'), 'file')
-    rimraf('src')
+    rimrafSync('src')
     fs.symlinkSync(srcPath, path.resolve('src'), 'dir')
   })
   test('fetch resolves symlinked files to their real locations', async () => {

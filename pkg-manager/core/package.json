@@ -56,8 +56,9 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/build-modules": "workspace:*",
-    "@pnpm/builder.policy": "workspace:*",
+    "@pnpm/building.after-install": "workspace:*",
+    "@pnpm/building.during-install": "workspace:*",
+    "@pnpm/building.policy": "workspace:*",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/catalogs.protocol-parser": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
@@ -96,7 +97,6 @@
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
-    "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",

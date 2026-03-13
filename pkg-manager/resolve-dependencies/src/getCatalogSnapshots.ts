@@ -1,5 +1,6 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CatalogSnapshots } from '@pnpm/lockfile.types'
+
 import type { ResolvedDirectDependency } from './resolveDependencyTree.js'
 
 export function getCatalogSnapshots (

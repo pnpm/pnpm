@@ -1,11 +1,12 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { packageManager } from '@pnpm/cli-meta'
-import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
-import { formatWarn } from '@pnpm/default-reporter'
-import { createStoreController } from '@pnpm/store-connection-manager'
+import { type CliOptions, type Config, getConfig as _getConfig } from '@pnpm/config'
 import { installConfigDeps } from '@pnpm/config.deps-installer'
+import { formatWarn } from '@pnpm/default-reporter'
 import { requireHooks } from '@pnpm/pnpmfile'
+import { createStoreController } from '@pnpm/store-connection-manager'
 import type { ConfigDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
@@ -30,6 +31,20 @@ export async function getConfig (
     ignoreNonAuthSettingsFromLocal: opts.ignoreNonAuthSettingsFromLocal,
   })
   config.cliOptions = cliOptions
+  applyDerivedConfig(config)
+
+  if (opts.excludeReporter) {
+    delete config.reporter // This is a silly workaround because @pnpm/core expects a function as opts.reporter
+  }
+
+  if (warnings.length > 0) {
+    console.warn(warnings.map((warning) => formatWarn(warning)).join('\n'))
+  }
+
+  return config
+}
+
+export async function installConfigDepsAndLoadHooks (config: Config): Promise<Config> {
   if (config.configDependencies) {
     const store = await createStoreController(config)
     await installConfigDeps(config.configDependencies, {
@@ -61,16 +76,6 @@ export async function getConfig (
       }
     }
   }
-  applyDerivedConfig(config)
-
-  if (opts.excludeReporter) {
-    delete config.reporter // This is a silly workaround because @pnpm/core expects a function as opts.reporter
-  }
-
-  if (warnings.length > 0) {
-    console.warn(warnings.map((warning) => formatWarn(warning)).join('\n'))
-  }
-
   return config
 }
 

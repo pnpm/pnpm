@@ -1,11 +1,13 @@
-import fs from 'fs'
-import delay from 'delay'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { STORE_VERSION } from '@pnpm/constants'
 import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
+import delay from 'delay'
 import { loadJsonFileSync } from 'load-json-file'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
@@ -46,7 +48,7 @@ test('install with no store integrity validation', async () => {
   const readmePath = path.join(DEFAULT_OPTS.storeDir, STORE_VERSION, 'files/9a/f6af85f55c111108eddf1d7ef7ef224b812e7c7bfabae41c79cf8bc9a910352536963809463e0af2799abacb975f22418a35a1d170055ef3fdc3b2a46ef1c5')
   fs.writeFileSync(readmePath, 'modified', 'utf8')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   await install.handler({
     ...DEFAULT_OPTS,

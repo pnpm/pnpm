@@ -1,5 +1,5 @@
-import { PnpmError } from '@pnpm/error'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { PnpmError } from '@pnpm/error'
 import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 export function getCatalogsFromWorkspaceManifest (

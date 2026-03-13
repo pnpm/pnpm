@@ -1,15 +1,17 @@
-import path from 'path'
-import type { RootLog } from '@pnpm/core-loggers'
-import { prepareEmpty } from '@pnpm/prepare'
-import { fixtures } from '@pnpm/test-fixtures'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import {
   addDependenciesToPackage,
   install,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
+import type { RootLog } from '@pnpm/core-loggers'
+import { prepareEmpty } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectRootDir } from '@pnpm/types'
-import { jest } from '@jest/globals'
 import symlinkDir from 'symlink-dir'
+
 import { testDefaults } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)

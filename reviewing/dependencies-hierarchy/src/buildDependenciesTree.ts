@@ -1,4 +1,6 @@
-import path from 'path'
+import path from 'node:path'
+
+import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import {
   getLockfileImporterId,
   type LockfileObject,
@@ -7,19 +9,19 @@ import {
   readWantedLockfile,
   type ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
-import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
-import { StoreIndex } from '@pnpm/store.index'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DependenciesField, type Finder, DEPENDENCIES_FIELDS, type Registries } from '@pnpm/types'
+import { StoreIndex } from '@pnpm/store.index'
+import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'
-import realpathMissing from 'realpath-missing'
-import resolveLinkTarget from 'resolve-link-target'
-import type { DependencyNode } from './DependencyNode.js'
+import { realpathMissing } from 'realpath-missing'
+import { resolveLinkTarget } from 'resolve-link-target'
+
 import { buildDependencyGraph } from './buildDependencyGraph.js'
-import { getTree, type BaseTreeOpts, type MaterializationCache } from './getTree.js'
+import type { DependencyNode } from './DependencyNode.js'
+import { type BaseTreeOpts, getTree, type MaterializationCache } from './getTree.js'
 import type { TreeNodeId } from './TreeNodeId.js'
 
 export interface DependenciesTree {
@@ -64,7 +66,7 @@ export async function buildDependenciesTree (
 
   const result = {} as { [projectDir: string]: DependenciesTree }
 
-  const lockfileToUse = maybeOpts.checkWantedLockfileOnly ? wantedLockfile : currentLockfile
+  const lockfileToUse = maybeOpts.checkWantedLockfileOnly ? wantedLockfile : (currentLockfile ?? wantedLockfile)
 
   if (!lockfileToUse) {
     for (const projectPath of projectPaths) {
@@ -110,6 +112,7 @@ export async function buildDependenciesTree (
     importers: lockfileToUse.importers,
     include: opts.include,
     lockfileDir: opts.lockfileDir,
+    onlyProjects: opts.onlyProjects,
   })
   const sharedMaterializationCache: MaterializationCache = new Map()
   const sharedDepTypes = detectDepTypes(lockfileToUse)

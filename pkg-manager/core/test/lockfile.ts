@@ -1,30 +1,32 @@
-import fs from 'fs'
-import path from 'path'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import type { RootLog } from '@pnpm/core-loggers'
-import type { PnpmError } from '@pnpm/error'
-import { clearDispatcherCache } from '@pnpm/fetch'
-import { fixtures } from '@pnpm/test-fixtures'
-import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.fs'
-import type { LockfileFile } from '@pnpm/lockfile.types'
-import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import type { DepPath, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
   install,
+  type MutatedProject,
   mutateModules,
   mutateModulesInSingleProject,
-  type MutatedProject,
   type ProjectOptions,
 } from '@pnpm/core'
-import { sync as rimraf } from '@zkochan/rimraf'
+import type { RootLog } from '@pnpm/core-loggers'
+import type { PnpmError } from '@pnpm/error'
+import { clearDispatcherCache } from '@pnpm/fetch'
+import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.fs'
+import type { LockfileFile } from '@pnpm/lockfile.types'
+import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { fixtures } from '@pnpm/test-fixtures'
+import type { DepPath, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import { rimrafSync as rimraf } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
-import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { readYamlFileSync as readYamlFile } from 'read-yaml-file'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+import { writeYamlFileSync as writeYamlFile } from 'write-yaml-file'
+
 import { testDefaults } from './utils/index.js'
 
 let originalDispatcher: Dispatcher | null = null
@@ -337,7 +339,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
   }, ['is-positive'], testDefaults({ reporter }))
   await install(manifest, testDefaults({ reporter }))
 
-  expect(calledWithMatch(reporter,LOCKFILE_WARN_LOG)).toBeFalsy()
+  expect(calledWithMatch(reporter, LOCKFILE_WARN_LOG)).toBeFalsy()
 
   project.has('is-negative')
 })
@@ -605,7 +607,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
   expect(importer.devDependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
   expect(importer.devDependencies).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep'])
 
-  expect(calledWithMatch(reporter,{
+  expect(calledWithMatch(reporter, {
     added: {
       dependencyType: 'dev',
       name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
@@ -614,7 +616,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog)).toBeTruthy()
-  expect(calledWithMatch(reporter,{
+  expect(calledWithMatch(reporter, {
     added: {
       dependencyType: 'dev',
       name: '@pnpm.e2e/pkg-with-1-dep',
@@ -680,7 +682,7 @@ test('no lockfile', async () => {
 
   await addDependenciesToPackage({}, ['is-positive'], testDefaults({ useLockfile: false, reporter }))
 
-  expect(calledWithMatch(reporter,LOCKFILE_WARN_LOG)).toBeFalsy()
+  expect(calledWithMatch(reporter, LOCKFILE_WARN_LOG)).toBeFalsy()
 
   project.has('is-positive')
 
@@ -716,7 +718,7 @@ test('lockfile is ignored when lockfile = false', async () => {
     },
   }, testDefaults({ useLockfile: false, reporter }))
 
-  expect(calledWithMatch(reporter,LOCKFILE_WARN_LOG)).toBeTruthy()
+  expect(calledWithMatch(reporter, LOCKFILE_WARN_LOG)).toBeTruthy()
 
   project.has('is-negative')
 
@@ -732,7 +734,7 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
 
     manifest = (await addDependenciesToPackage({}, ['is-positive'], testDefaults({ reporter }))).updatedManifest
 
-    expect(calledWithMatch(reporter,LOCKFILE_WARN_LOG)).toBeFalsy()
+    expect(calledWithMatch(reporter, LOCKFILE_WARN_LOG)).toBeFalsy()
   }
 
   {
@@ -745,7 +747,7 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
       rootDir: process.cwd() as ProjectRootDir,
     }, testDefaults({ useLockfile: false, reporter }))
 
-    expect(calledWithMatch(reporter,LOCKFILE_WARN_LOG)).toBeTruthy()
+    expect(calledWithMatch(reporter, LOCKFILE_WARN_LOG)).toBeTruthy()
   }
 
   project.hasNot('is-positive')

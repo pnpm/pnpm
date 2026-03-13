@@ -3,11 +3,11 @@ import {
   depPathToFilename,
   getPkgIdWithPatchHash,
   isAbsolute,
+  isRuntimeDepPath,
   parse,
   refToRelative,
-  tryGetPackageId,
-  isRuntimeDepPath,
   removeSuffix,
+  tryGetPackageId,
 } from '@pnpm/dependency-path'
 import type { DepPath } from '@pnpm/types'
 

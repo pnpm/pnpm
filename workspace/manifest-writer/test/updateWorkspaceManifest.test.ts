@@ -1,19 +1,20 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
-import { sync as readYamlFile } from 'read-yaml-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 test('updateWorkspaceManifest adds a new setting', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, { packages: ['*'], allowBuilds: {} })
+  writeYamlFileSync(filePath, { packages: ['*'], allowBuilds: {} })
   await updateWorkspaceManifest(dir, {
     updatedFields: { allowBuilds: {} },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     packages: ['*'],
     allowBuilds: {},
   })
@@ -22,11 +23,11 @@ test('updateWorkspaceManifest adds a new setting', async () => {
 test('updateWorkspaceManifest removes an existing setting', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, { packages: ['*'], overrides: { foo: '2' } })
+  writeYamlFileSync(filePath, { packages: ['*'], overrides: { foo: '2' } })
   await updateWorkspaceManifest(dir, {
     updatedFields: { overrides: undefined },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     packages: ['*'],
   })
 })
@@ -34,11 +35,11 @@ test('updateWorkspaceManifest removes an existing setting', async () => {
 test('updateWorkspaceManifest updates an existing setting', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, { packages: ['*'], overrides: { foo: '2' } })
+  writeYamlFileSync(filePath, { packages: ['*'], overrides: { foo: '2' } })
   await updateWorkspaceManifest(dir, {
     updatedFields: { overrides: { bar: '3' } },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     packages: ['*'],
     overrides: { bar: '3' },
   })
@@ -86,11 +87,11 @@ overrides:
 test('updateWorkspaceManifest updates allowBuilds', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, { packages: ['*'], allowBuilds: { qar: 'warn' } })
+  writeYamlFileSync(filePath, { packages: ['*'], allowBuilds: { qar: 'warn' } })
   await updateWorkspaceManifest(dir, {
     updatedFields: { allowBuilds: { foo: true, bar: false } },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     packages: ['*'],
     allowBuilds: {
       bar: false,
@@ -102,11 +103,11 @@ test('updateWorkspaceManifest updates allowBuilds', async () => {
 test('updateWorkspaceManifest with updatedOverrides adds overrides when none exist', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, { packages: ['*'] })
+  writeYamlFileSync(filePath, { packages: ['*'] })
   await updateWorkspaceManifest(dir, {
     updatedOverrides: { foo: '1.0.0', bar: '2.0.0' },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     packages: ['*'],
     overrides: {
       bar: '2.0.0',
@@ -118,11 +119,11 @@ test('updateWorkspaceManifest with updatedOverrides adds overrides when none exi
 test('updateWorkspaceManifest with updatedOverrides merges into existing overrides', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, { packages: ['*'], overrides: { existing: '1.0.0' } })
+  writeYamlFileSync(filePath, { packages: ['*'], overrides: { existing: '1.0.0' } })
   await updateWorkspaceManifest(dir, {
     updatedOverrides: { newPkg: '2.0.0' },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     packages: ['*'],
     overrides: {
       existing: '1.0.0',
@@ -134,11 +135,11 @@ test('updateWorkspaceManifest with updatedOverrides merges into existing overrid
 test('updateWorkspaceManifest with updatedOverrides updates existing override values', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, { packages: ['*'], overrides: { foo: '1.0.0', bar: '1.0.0' } })
+  writeYamlFileSync(filePath, { packages: ['*'], overrides: { foo: '1.0.0', bar: '1.0.0' } })
   await updateWorkspaceManifest(dir, {
     updatedOverrides: { foo: '2.0.0' },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     packages: ['*'],
     overrides: {
       bar: '1.0.0',
@@ -202,7 +203,7 @@ test('updateWorkspaceManifest adds a new catalog', async () => {
     },
   })
 
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     packages: ['*'],
     catalog: { foo: '1.0.0' },
   })

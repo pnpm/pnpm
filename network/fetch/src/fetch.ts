@@ -1,6 +1,6 @@
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
-import { fetch as undiciFetch, type Dispatcher } from 'undici'
+import { type Dispatcher, fetch as undiciFetch } from 'undici'
 
 export { type RetryTimeoutOptions }
 

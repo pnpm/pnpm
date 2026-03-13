@@ -1,11 +1,11 @@
 import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
-import mem from 'memoize'
 import * as execa from 'execa'
+import mem from 'memoize'
 
 export function getSystemNodeVersionNonCached (): string | undefined {
   if (detectIfCurrentPkgIsExecutable()) {
     try {
-      return execa.sync('node', ['--version']).stdout.toString()
+      return execa.sync('node', ['--version']).stdout?.toString()
     } catch {
       // Node.js is not installed on the system
       return undefined

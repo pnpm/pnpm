@@ -1,4 +1,5 @@
 import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
+
 import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
 
@@ -32,6 +33,7 @@ export function buildDependencyGraph (
       optionalDependencies?: boolean
     }
     lockfileDir: string
+    onlyProjects?: boolean
   }
 ): DependencyGraph {
   const graph: DependencyGraph = { nodes: new Map() }
@@ -75,13 +77,22 @@ export function buildDependencyGraph (
     const edges: DependencyEdge[] = []
     if (deps != null) {
       for (const alias in deps) {
-        const ref = deps[alias]
+        const rawRef = deps[alias]
+        // Lockfile may expose ref as string (version) or inline { version, specifier }
+        const ref = typeof rawRef === 'string'
+          ? rawRef
+          : (rawRef as { version?: string } | null)?.version
+        if (ref == null) continue
         const targetNodeId = getTreeNodeChildId({
           parentId: nodeId,
           dep: { alias, ref },
           lockfileDir: opts.lockfileDir,
           importers: opts.importers,
         })
+        // When onlyProjects is true, only follow edges to workspace importers
+        if (opts.onlyProjects && targetNodeId?.type !== 'importer') {
+          continue
+        }
         const target = targetNodeId != null
           ? { id: serializeTreeNodeId(targetNodeId), nodeId: targetNodeId }
           : undefined

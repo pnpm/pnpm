@@ -22,7 +22,10 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../builder/policy"
+      "path": "../../building/during-install"
+    },
+    {
+      "path": "../../building/policy"
     },
     {
       "path": "../../config/package-is-installable"
@@ -32,9 +35,6 @@
     },
     {
       "path": "../../deps/graph-builder"
-    },
-    {
-      "path": "../../exec/build-modules"
     },
     {
       "path": "../../exec/lifecycle"

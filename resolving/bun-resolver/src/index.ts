@@ -2,6 +2,7 @@ import { getBunBinLocationForCurrentOS } from '@pnpm/constants'
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching-types'
+import type { NpmResolver } from '@pnpm/npm-resolver'
 import type {
   BinaryResolution,
   PlatformAssetResolution,
@@ -12,7 +13,6 @@ import type {
   WantedDependency,
 } from '@pnpm/resolver-base'
 import type { PkgResolutionId } from '@pnpm/types'
-import type { NpmResolver } from '@pnpm/npm-resolver'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export interface BunRuntimeResolveResult extends ResolveResult {

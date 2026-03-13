@@ -1,13 +1,15 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
-import type { Registries } from '@pnpm/types'
 import { fixtures } from '@pnpm/test-fixtures'
+import type { Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
-import { setupMockAgent, teardownMockAgent, getMockAgent } from './utils/index.js'
+
+import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 

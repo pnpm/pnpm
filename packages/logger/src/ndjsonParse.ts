@@ -1,6 +1,6 @@
 // From https://www.npmjs.com/package/ndjson, but with updated deps, only parse and hardcoded options
 
-import type { Transform } from 'stream'
+import type { Transform } from 'node:stream'
 
 import split from 'split2'
 

@@ -1,13 +1,14 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { prepare, tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { stripVTControlCharacters as stripAnsi } from 'util'
 import symlinkDir from 'symlink-dir'
 
 const f = fixtures(import.meta.dirname)

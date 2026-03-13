@@ -1,13 +1,14 @@
-import { promises as fs } from 'fs'
+import { promises as fs } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { STORE_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import rimraf from '@zkochan/rimraf'
-import canLink from 'can-link'
-import os from 'os'
-import path from 'path'
-import pathAbsolute from 'path-absolute'
-import pathTemp from 'path-temp'
-import rootLinkTarget from 'root-link-target'
+import { rimraf } from '@zkochan/rimraf'
+import { canLink } from 'can-link'
+import { pathAbsolute } from 'path-absolute'
+import { pathTemp } from 'path-temp'
+import { rootLinkTarget } from 'root-link-target'
 import touch from 'touch'
 
 export function getStorePath (

@@ -1,6 +1,7 @@
 import { setTimeout } from 'node:timers/promises'
-import { executionTimeLogger } from '@pnpm/core-loggers'
+
 import { packageManager } from '@pnpm/cli-meta'
+import { executionTimeLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'

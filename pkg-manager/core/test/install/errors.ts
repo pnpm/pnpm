@@ -1,13 +1,15 @@
-import fs from 'fs'
+import fs from 'node:fs'
+
+import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
 import type { PnpmError } from '@pnpm/error'
 import { clearDispatcherCache } from '@pnpm/fetch'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
-import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+
 import { testDefaults } from '../utils/index.js'
 
 let originalDispatcher: Dispatcher | null = null

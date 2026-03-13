@@ -1,7 +1,9 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { preparePackages, tempDir } from '@pnpm/prepare'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpmSync } from './utils/index.js'
 
 test('pnpm clean removes pnpm entries and packages but preserves non-pnpm hidden files', () => {
@@ -80,7 +82,7 @@ test('pnpm clean works in a workspace', () => {
   ])
 
   fs.writeFileSync('package.json', JSON.stringify({ name: 'root', version: '1.0.0' }))
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['*'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
 
   // Set up fake node_modules in root and each project
   for (const dir of ['.', 'project-a', 'project-b']) {
@@ -150,7 +152,7 @@ test('pnpm clean --lockfile removes lockfiles in workspace', () => {
   ])
 
   fs.writeFileSync('package.json', JSON.stringify({ name: 'root', version: '1.0.0' }))
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['*'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
 
   // Set up lockfiles and node_modules
   for (const dir of ['.', 'project-a', 'project-b']) {

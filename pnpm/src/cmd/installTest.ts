@@ -1,7 +1,8 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { install } from '@pnpm/plugin-commands-installation'
 import { run } from '@pnpm/plugin-commands-script-runners'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
+
 import type { PnpmOptions } from '../types.js'
 
 export const cliOptionsTypes = install.cliOptionsTypes

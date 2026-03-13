@@ -1,21 +1,23 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import {
   createNpmResolver,
-  RegistryResponseError,
   NoMatchingVersionError,
+  RegistryResponseError,
 } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
-import type { Registries, ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir, Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { omit } from 'ramda'
 import { temporaryDirectory } from 'tempy'
-import { delay, retryLoadMsgpackFile, setupMockAgent, teardownMockAgent, getMockAgent } from './utils/index.js'
+
+import { delay, getMockAgent, retryLoadMsgpackFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */

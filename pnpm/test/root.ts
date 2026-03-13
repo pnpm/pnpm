@@ -1,8 +1,10 @@
-import fs from 'fs'
-import path from 'path'
-import PATH_NAME from 'path-name'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
+import PATH_NAME from 'path-name'
+
 import { execPnpmSync } from './utils/index.js'
 
 test('pnpm root', async () => {

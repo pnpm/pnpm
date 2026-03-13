@@ -1,7 +1,9 @@
-import fs from 'fs'
-import path from 'path'
-import { prepareEmpty } from '@pnpm/prepare'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
+import { prepareEmpty } from '@pnpm/prepare'
+
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 
 const { getSystemNodeVersion: originalGetSystemNodeVersion } = await import('@pnpm/env.system-node-version')

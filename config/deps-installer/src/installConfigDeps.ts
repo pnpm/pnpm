@@ -1,14 +1,21 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { calcLeafGlobalVirtualStorePath } from '@pnpm/calc-dep-state'
 import { installingConfigDepsLogger } from '@pnpm/core-loggers'
-import { readModulesDir } from '@pnpm/read-modules-dir'
-import rimraf from '@zkochan/rimraf'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { PnpmError } from '@pnpm/error'
+import { type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import type { StoreController } from '@pnpm/package-store'
+import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import { readModulesDir } from '@pnpm/read-modules-dir'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import type { ConfigDependencies, Registries } from '@pnpm/types'
+import { rimraf } from '@zkochan/rimraf'
+import getNpmTarballUrl from 'get-npm-tarball-url'
 import symlinkDir from 'symlink-dir'
-import { normalizeConfigDeps } from './normalizeConfigDeps.js'
+
+import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
+import type { NormalizedConfigDep } from './parseIntegrity.js'
 
 export interface InstallConfigDepsOpts {
   registries: Registries
@@ -17,21 +24,28 @@ export interface InstallConfigDepsOpts {
   storeDir: string
 }
 
-export async function installConfigDeps (configDeps: ConfigDependencies, opts: InstallConfigDepsOpts): Promise<void> {
+/**
+ * Install config dependencies using the env lockfile.
+ * Accepts either a EnvLockfile directly (from resolveConfigDeps) or
+ * ConfigDependencies from the workspace manifest (legacy/migration).
+ */
+export async function installConfigDeps (
+  configDepsOrLockfile: ConfigDependencies | EnvLockfile,
+  opts: InstallConfigDepsOpts
+): Promise<void> {
+  const normalizedDeps = await normalizeForInstall(configDepsOrLockfile, opts)
   const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
+
   const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
   const existingConfigDeps: string[] = await readModulesDir(configModulesDir) ?? []
   await Promise.all(existingConfigDeps.map(async (existingConfigDep) => {
-    if (!configDeps[existingConfigDep]) {
+    if (!normalizedDeps[existingConfigDep]) {
       await rimraf(path.join(configModulesDir, existingConfigDep))
     }
   }))
 
   const installedConfigDeps: Array<{ name: string, version: string }> = []
-  const normalizedConfigDeps = normalizeConfigDeps(configDeps, {
-    registries: opts.registries,
-  })
-  await Promise.all(Object.entries(normalizedConfigDeps).map(async ([pkgName, pkg]) => {
+  await Promise.all(Object.entries(normalizedDeps).map(async ([pkgName, pkg]) => {
     const configDepPath = path.join(configModulesDir, pkgName)
     const existingPkgJson = existingConfigDeps.includes(pkgName)
       ? await safeReadPackageJsonFromDir(configDepPath)
@@ -72,4 +86,72 @@ export async function installConfigDeps (configDeps: ConfigDependencies, opts: I
   if (installedConfigDeps.length) {
     installingConfigDepsLogger.debug({ status: 'done', deps: installedConfigDeps })
   }
+}
+
+async function normalizeForInstall (
+  configDepsOrLockfile: ConfigDependencies | EnvLockfile,
+  opts: InstallConfigDepsOpts
+): Promise<Record<string, NormalizedConfigDep>> {
+  // If it's a EnvLockfile object (has lockfileVersion), use it directly
+  if (isEnvLockfile(configDepsOrLockfile)) {
+    return normalizeFromLockfile(configDepsOrLockfile, opts.registries)
+  }
+
+  // It's ConfigDependencies from workspace manifest.
+  // Try to read the env lockfile first.
+  const envLockfile = await readEnvLockfile(opts.rootDir)
+  if (envLockfile) {
+    return normalizeFromLockfile(envLockfile, opts.registries)
+  }
+
+  // No env lockfile yet — migrate from old inline integrity format
+  return migrateConfigDepsToLockfile(configDepsOrLockfile, opts)
+}
+
+function isEnvLockfile (obj: ConfigDependencies | EnvLockfile): obj is EnvLockfile {
+  return 'lockfileVersion' in obj &&
+    'importers' in obj &&
+    obj.importers != null &&
+    typeof obj.importers === 'object' &&
+    'packages' in obj &&
+    obj.packages != null &&
+    typeof obj.packages === 'object' &&
+    'snapshots' in obj &&
+    obj.snapshots != null &&
+    typeof obj.snapshots === 'object'
+}
+
+function normalizeFromLockfile (
+  lockfile: EnvLockfile,
+  registries: Registries
+): Record<string, NormalizedConfigDep> {
+  const deps: Record<string, NormalizedConfigDep> = {}
+  const configDeps = lockfile.importers['.']?.configDependencies ?? {}
+  for (const [pkgName, { version }] of Object.entries(configDeps)) {
+    const pkgKey = `${pkgName}@${version}`
+    const pkgInfo = lockfile.packages[pkgKey]
+    if (!pkgInfo) {
+      throw new PnpmError(
+        'ENV_LOCKFILE_CORRUPTED',
+        `pnpm-lock.env.yaml is corrupted or incomplete: missing packages entry for "${pkgKey}" ` +
+        'referenced from importers[\'.\'].configDependencies'
+      )
+    }
+    const resolution = pkgInfo.resolution as { integrity?: string; tarball?: string }
+    if (!resolution.integrity) {
+      throw new PnpmError(
+        'ENV_LOCKFILE_CORRUPTED',
+        `pnpm-lock.env.yaml is corrupted or incomplete: missing integrity for "${pkgKey}"`
+      )
+    }
+    const registry = pickRegistryForPackage(registries, pkgName)
+    deps[pkgName] = {
+      version,
+      resolution: {
+        integrity: resolution.integrity,
+        tarball: resolution.tarball ?? getNpmTarballUrl(pkgName, version, { registry }),
+      },
+    }
+  }
+  return deps
 }

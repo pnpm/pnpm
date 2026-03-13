@@ -3,7 +3,8 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
 import type { Registries } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
-import { setupMockAgent, teardownMockAgent, getMockAgent } from './utils/index.js'
+
+import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const registries = {
   default: 'https://registry.npmjs.org/',

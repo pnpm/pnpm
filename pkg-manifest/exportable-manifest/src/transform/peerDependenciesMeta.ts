@@ -1,4 +1,5 @@
 import type { ProjectManifest } from '@pnpm/types'
+
 import type { ExportedManifest } from './index.js'
 
 type Input = Pick<ProjectManifest, 'peerDependenciesMeta'>

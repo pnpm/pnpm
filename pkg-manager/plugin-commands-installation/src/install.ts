@@ -5,7 +5,8 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
+
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 import { installDeps, type InstallDepsOptions } from './installDeps.js'
 

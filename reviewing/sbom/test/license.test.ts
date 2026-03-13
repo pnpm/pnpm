@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
+
 import { classifyLicense } from '../src/license.js'
 
 describe('classifyLicense', () => {

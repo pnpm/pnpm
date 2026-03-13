@@ -1,22 +1,23 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import fs from 'fs'
-import path from 'path'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
-import { StoreIndex } from '@pnpm/store.index'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { createClient } from '@pnpm/client'
+import { createCafsStore } from '@pnpm/create-cafs-store'
+import { depPathToFilename } from '@pnpm/dependency-path'
+import { clearDispatcherCache } from '@pnpm/fetch'
 import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
-import { createCafsStore } from '@pnpm/create-cafs-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
-import delay from 'delay'
-import { depPathToFilename } from '@pnpm/dependency-path'
 import { restartWorkerPool } from '@pnpm/worker'
-import { jest } from '@jest/globals'
-import { clearDispatcherCache } from '@pnpm/fetch'
-import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
+import delay from 'delay'
 import normalize from 'normalize-path'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 let originalDispatcher: Dispatcher | null = null
 let currentMockAgent: MockAgent | null = null
@@ -42,8 +43,8 @@ async function teardownMockAgent (): Promise<void> {
   }
 }
 
+import type { PkgRequestFetchResult, PkgResolutionId, RequestPackageOptions } from '@pnpm/store-controller-types'
 import { temporaryDirectory } from 'tempy'
-import type { PkgResolutionId, PkgRequestFetchResult, RequestPackageOptions } from '@pnpm/store-controller-types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(import.meta.dirname)

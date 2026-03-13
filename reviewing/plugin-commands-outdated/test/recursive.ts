@@ -1,9 +1,11 @@
-import path from 'path'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
+
 import { install } from '@pnpm/plugin-commands-installation'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { preparePackages } from '@pnpm/prepare'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+
 import { DEFAULT_OPTS, DEFAULT_OUTDATED_OPTS } from './utils/index.js'
 
 test('pnpm recursive outdated', async () => {

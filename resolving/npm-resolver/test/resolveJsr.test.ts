@@ -1,4 +1,5 @@
-import path from 'path'
+import path from 'node:path'
+
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
@@ -6,7 +7,8 @@ import { fixtures } from '@pnpm/test-fixtures'
 import type { Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
-import { retryLoadMsgpackFile, setupMockAgent, teardownMockAgent, getMockAgent } from './utils/index.js'
+
+import { getMockAgent, retryLoadMsgpackFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */

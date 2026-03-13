@@ -1,8 +1,10 @@
-import assert from 'assert'
-import util from 'util'
+import assert from 'node:assert'
+import util from 'node:util'
+
 import type { Config } from '@pnpm/config'
 import { logger } from '@pnpm/logger'
 import type { IncludedDependencies, Project } from '@pnpm/types'
+
 import { render } from './list.js'
 
 export async function listRecursive (
@@ -15,6 +17,7 @@ export async function listRecursive (
     parseable?: boolean
     lockfileDir?: string
     checkWantedLockfileOnly?: boolean
+    onlyProjects?: boolean
   }
 ): Promise<string> {
   const depth = opts.depth ?? 0

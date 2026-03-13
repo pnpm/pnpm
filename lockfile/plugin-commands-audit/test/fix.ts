@@ -1,9 +1,12 @@
-import path from 'path'
+import path from 'node:path'
+
 import { clearDispatcherCache } from '@pnpm/fetch'
-import { fixtures } from '@pnpm/test-fixtures'
 import { audit } from '@pnpm/plugin-commands-audit'
-import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { fixtures } from '@pnpm/test-fixtures'
+import { readYamlFileSync as readYamlFile } from 'read-yaml-file'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+
+import { DEFAULT_OPTS } from './index.js'
 import * as responses from './utils/responses/index.js'
 
 let originalDispatcher: Dispatcher | null = null
@@ -58,14 +61,11 @@ test('overrides are added for vulnerable dependencies', async () => {
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
+    ...DEFAULT_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: true,
-    userConfig: {},
-    rawConfig,
-    registries,
-    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   })
 
   expect(exitCode).toBe(0)
@@ -84,14 +84,11 @@ test('no overrides are added if no vulnerabilities are found', async () => {
     .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
+    ...DEFAULT_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: true,
-    userConfig: {},
-    rawConfig,
-    registries,
-    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   })
 
   expect(exitCode).toBe(0)
@@ -106,6 +103,7 @@ test('CVEs found in the allow list are not added as overrides', async () => {
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
+    ...DEFAULT_OPTS,
     auditLevel: 'moderate',
     auditConfig: {
       ignoreCves: [
@@ -118,10 +116,6 @@ test('CVEs found in the allow list are not added as overrides', async () => {
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: true,
-    userConfig: {},
-    rawConfig,
-    registries,
-    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   })
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)

@@ -1,11 +1,13 @@
-import path from 'path'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
+
+import { AuditEndpointNotExistsError } from '@pnpm/audit'
 import { clearDispatcherCache } from '@pnpm/fetch'
-import { fixtures } from '@pnpm/test-fixtures'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { install } from '@pnpm/plugin-commands-installation'
-import { AuditEndpointNotExistsError } from '@pnpm/audit'
-import { stripVTControlCharacters as stripAnsi } from 'util'
-import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
+import { fixtures } from '@pnpm/test-fixtures'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+
 import * as responses from './utils/responses/index.js'
 
 let originalDispatcher: Dispatcher | null = null
@@ -116,12 +118,9 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
-      userConfig: {},
-      rawConfig,
-      registries,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
     expect(exitCode).toBe(1)
     expect(stripAnsi(output)).toMatchSnapshot()
@@ -133,14 +132,11 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { output, exitCode } = await audit.handler({
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
       production: false,
-      userConfig: {},
-      rawConfig,
-      registries,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
 
     expect(exitCode).toBe(1)
@@ -153,13 +149,10 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
+      ...DEFAULT_OPTS,
       auditLevel: 'moderate',
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
-      userConfig: {},
-      rawConfig,
-      registries,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
 
     expect(exitCode).toBe(1)
@@ -172,12 +165,9 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.NO_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
-      userConfig: {},
-      rawConfig,
-      registries,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
 
     expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
@@ -190,13 +180,10 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       json: true,
-      userConfig: {},
-      rawConfig,
-      registries,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
 
     const json = JSON.parse(output)
@@ -210,14 +197,11 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { output, exitCode } = await audit.handler({
+      ...DEFAULT_OPTS,
       auditLevel: 'high',
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
-      userConfig: {},
-      rawConfig,
       dev: true,
-      registries,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
 
     expect(exitCode).toBe(0)
@@ -231,15 +215,12 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { exitCode, output } = await audit.handler({
+      ...DEFAULT_OPTS,
       auditLevel: 'critical',
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       json: true,
-      userConfig: {},
-      rawConfig,
       dev: true,
-      registries,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
 
     expect(exitCode).toBe(0)
@@ -253,15 +234,12 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { exitCode, output } = await audit.handler({
+      ...DEFAULT_OPTS,
       auditLevel: 'high',
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       json: true,
-      userConfig: {},
-      rawConfig,
       dev: true,
-      registries,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
 
     expect(exitCode).toBe(1)
@@ -282,16 +260,13 @@ describe('plugin-commands-audit', () => {
       .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
       .reply(500, { message: 'Fallback failed too' })
     const { output, exitCode } = await audit.handler({
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
       fetchRetries: 0,
       ignoreRegistryErrors: true,
       production: false,
-      userConfig: {},
-      rawConfig,
-      registries,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
 
     expect(exitCode).toBe(0)
@@ -308,15 +283,13 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.NO_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
-      userConfig: {},
       rawConfig: {
         registry: registries.default,
         [`${registries.default.replace(/^https?:/, '')}:_authToken`]: '123',
       },
-      registries,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
 
     expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
@@ -332,16 +305,13 @@ describe('plugin-commands-audit', () => {
       .reply(404, {})
 
     await expect(audit.handler({
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
       fetchRetries: 0,
       ignoreRegistryErrors: false,
       production: false,
-      userConfig: {},
-      rawConfig,
-      registries,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })).rejects.toThrow(AuditEndpointNotExistsError)
   })
 
@@ -353,12 +323,10 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { exitCode, output } = await audit.handler({
+      ...DEFAULT_OPTS,
       auditLevel: 'moderate',
       dir: tmp,
       rootProjectManifestDir: tmp,
-      userConfig: {},
-      rawConfig,
-      registries,
       rootProjectManifest: {},
       auditConfig: {
         ignoreCves: [
@@ -368,7 +336,6 @@ describe('plugin-commands-audit', () => {
           'CVE-2020-7598',
         ],
       },
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
 
     expect(exitCode).toBe(1)
@@ -383,12 +350,10 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { exitCode, output } = await audit.handler({
+      ...DEFAULT_OPTS,
       auditLevel: 'moderate',
       dir: tmp,
       rootProjectManifestDir: tmp,
-      userConfig: {},
-      rawConfig,
-      registries,
       rootProjectManifest: {},
       auditConfig: {
         ignoreGhsas: [
@@ -398,7 +363,6 @@ describe('plugin-commands-audit', () => {
           'GHSA-vh95-rmgr-6w4m',
         ],
       },
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
 
     expect(exitCode).toBe(1)
@@ -413,13 +377,11 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { exitCode, output } = await audit.handler({
+      ...DEFAULT_OPTS,
       auditLevel: 'moderate',
       dir: tmp,
       rootProjectManifestDir: tmp,
       json: true,
-      userConfig: {},
-      rawConfig,
-      registries,
       rootProjectManifest: {},
       auditConfig: {
         ignoreCves: [
@@ -429,7 +391,6 @@ describe('plugin-commands-audit', () => {
           'CVE-2020-7598',
         ],
       },
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
 
     expect(exitCode).toBe(1)

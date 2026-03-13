@@ -1,6 +1,6 @@
+import * as dp from '@pnpm/dependency-path'
 import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import type { DependenciesField, DepPath, ProjectId } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
 
 export interface LockedDependency {
   depPath: DepPath

@@ -1,9 +1,11 @@
-import path from 'path'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import path from 'node:path'
+
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { install, remove } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { readYamlFileSync } from 'read-yaml-file'
+
 import { DEFAULT_OPTS } from '../utils/index.js'
 
 test('remove --filter only changes the specified dependency, when run with link-workspace-packages=false', async () => {
@@ -71,7 +73,7 @@ test('remove --filter only changes the specified dependency, when run with link-
   projects['project-2'].hasNot('is-negative')
 
   // The lockfile agrees with the above
-  const lockfile = readYamlFile<LockfileFile>('./pnpm-lock.yaml')
+  const lockfile = readYamlFileSync<LockfileFile>('./pnpm-lock.yaml')
 
   expect(lockfile.importers?.['project-1'].dependencies?.['is-negative']).toStrictEqual({
     specifier: '1.0.0',
@@ -151,7 +153,7 @@ test('remove from within a workspace package dir only affects the specified depe
   projects['project-2'].hasNot('is-negative')
 
   // The lockfile agrees with the above
-  const lockfile = readYamlFile<LockfileFile>('./pnpm-lock.yaml')
+  const lockfile = readYamlFileSync<LockfileFile>('./pnpm-lock.yaml')
 
   expect(lockfile.importers?.['project-1'].dependencies?.['is-negative']).toStrictEqual({
     specifier: '1.0.0',

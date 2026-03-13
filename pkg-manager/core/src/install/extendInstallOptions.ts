@@ -1,26 +1,29 @@
-import path from 'path'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import path from 'node:path'
+
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { ProjectOptions } from '@pnpm/get-context'
 import type { HoistingLimits } from '@pnpm/headless'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
+import type { CustomFetcher, CustomResolver, PreResolutionHookContext } from '@pnpm/hooks.types'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { IncludedDependencies } from '@pnpm/modules-yaml'
-import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
+import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/normalize-registries'
+import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
 import type { WorkspacePackages } from '@pnpm/resolver-base'
 import type { StoreController } from '@pnpm/store-controller-types'
 import type {
-  SupportedArchitectures,
   AllowedDeprecatedVersions,
   PackageExtension,
+  PackageVulnerabilityAudit,
   PeerDependencyRules,
   ReadPackageHook,
   Registries,
+  SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
-import type { CustomResolver, CustomFetcher, PreResolutionHookContext } from '@pnpm/hooks.types'
-import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
+
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import type { ReporterFunction } from '../types.js'
 
@@ -174,6 +177,7 @@ export interface StrictInstallOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
+  packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
 }
 

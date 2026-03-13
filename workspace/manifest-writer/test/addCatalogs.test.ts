@@ -1,10 +1,11 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
-import { sync as readYamlFile } from 'read-yaml-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 test('addCatalogs does not write new workspace manifest for empty catalogs', async () => {
   const dir = tempDir(false)
@@ -39,36 +40,36 @@ test('addCatalogs does not write new workspace manifest for empty any-named cata
 test('addCatalogs does not add empty catalogs', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, {})
+  writeYamlFileSync(filePath, {})
   await updateWorkspaceManifest(dir, {
     updatedCatalogs: {},
   })
-  expect(readYamlFile(filePath)).toStrictEqual({})
+  expect(readYamlFileSync(filePath)).toStrictEqual({})
 })
 
 test('addCatalogs does not add empty default catalogs', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, {})
+  writeYamlFileSync(filePath, {})
   await updateWorkspaceManifest(dir, {
     updatedCatalogs: {
       default: {},
     },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({})
+  expect(readYamlFileSync(filePath)).toStrictEqual({})
 })
 
 test('addCatalogs does not add empty any-named catalogs', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, {})
+  writeYamlFileSync(filePath, {})
   await updateWorkspaceManifest(dir, {
     updatedCatalogs: {
       foo: {},
       bar: {},
     },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({})
+  expect(readYamlFileSync(filePath)).toStrictEqual({})
 })
 
 test('addCatalogs adds `default` catalogs to the `catalog` object by default', async () => {
@@ -81,7 +82,7 @@ test('addCatalogs adds `default` catalogs to the `catalog` object by default', a
       },
     },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     catalog: {
       foo: '^0.1.2',
     },
@@ -91,7 +92,7 @@ test('addCatalogs adds `default` catalogs to the `catalog` object by default', a
 test('addCatalogs adds `default` catalogs to the `catalog` object if it exists', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, {
+  writeYamlFileSync(filePath, {
     catalog: {
       bar: '3.2.1',
     },
@@ -103,7 +104,7 @@ test('addCatalogs adds `default` catalogs to the `catalog` object if it exists',
       },
     },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     catalog: {
       bar: '3.2.1',
       foo: '^0.1.2',
@@ -114,7 +115,7 @@ test('addCatalogs adds `default` catalogs to the `catalog` object if it exists',
 test('addCatalogs adds `default` catalogs to the `catalogs.default` object if it exists', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, {
+  writeYamlFileSync(filePath, {
     catalogs: {
       default: {
         bar: '3.2.1',
@@ -128,7 +129,7 @@ test('addCatalogs adds `default` catalogs to the `catalogs.default` object if it
       },
     },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     catalogs: {
       default: {
         bar: '3.2.1',
@@ -151,7 +152,7 @@ test('addCatalogs creates a `catalogs` object for any-named catalogs', async () 
       },
     },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     catalogs: {
       foo: {
         abc: '0.1.2',
@@ -166,7 +167,7 @@ test('addCatalogs creates a `catalogs` object for any-named catalogs', async () 
 test('addCatalogs add any-named catalogs to the `catalogs` object if it already exists', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  writeYamlFile(filePath, {
+  writeYamlFileSync(filePath, {
     catalogs: {
       foo: {
         ghi: '7.8.9',
@@ -183,7 +184,7 @@ test('addCatalogs add any-named catalogs to the `catalogs` object if it already 
       },
     },
   })
-  expect(readYamlFile(filePath)).toStrictEqual({
+  expect(readYamlFileSync(filePath)).toStrictEqual({
     catalogs: {
       foo: {
         abc: '0.1.2',

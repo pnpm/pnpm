@@ -1,1 +1,1 @@
-export { type LicensePackage, findDependencyLicenses } from './licenses.js'
+export { findDependencyLicenses, type LicensePackage } from './licenses.js'

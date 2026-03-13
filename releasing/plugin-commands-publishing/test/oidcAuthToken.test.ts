@@ -1,9 +1,10 @@
 import { jest } from '@jest/globals'
+
 import {
   type AuthTokenContext,
-  type AuthTokenFetchOptions,
-  AuthTokenFetchError,
   AuthTokenExchangeError,
+  AuthTokenFetchError,
+  type AuthTokenFetchOptions,
   AuthTokenJsonInterruptedError,
   AuthTokenMalformedJsonError,
   fetchAuthToken,

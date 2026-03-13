@@ -1,9 +1,12 @@
-import path from 'path'
+import path from 'node:path'
+
 import { clearDispatcherCache } from '@pnpm/fetch'
-import { fixtures } from '@pnpm/test-fixtures'
 import { audit } from '@pnpm/plugin-commands-audit'
-import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { fixtures } from '@pnpm/test-fixtures'
+import { readYamlFileSync as readYamlFile } from 'read-yaml-file'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+
+import { DEFAULT_OPTS } from './index.js'
 import * as responses from './utils/responses/index.js'
 
 let originalDispatcher: Dispatcher | null = null
@@ -58,14 +61,11 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
+    ...DEFAULT_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: false,
-    userConfig: {},
-    rawConfig,
-    registries,
-    virtualStoreDirMaxLength: 120,
     ignoreUnfixable: true,
   })
 
@@ -86,14 +86,11 @@ test('the specified vulnerabilities are ignored', async () => {
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
+    ...DEFAULT_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: false,
-    userConfig: {},
-    rawConfig,
-    registries,
-    virtualStoreDirMaxLength: 120,
     ignore: ['CVE-2017-16115'],
   })
 
@@ -112,14 +109,11 @@ test('no ignores are added if no vulnerabilities are found', async () => {
     .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
+    ...DEFAULT_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: false,
-    userConfig: {},
-    rawConfig,
-    registries,
-    virtualStoreDirMaxLength: 120,
     ignoreUnfixable: true,
   })
 
@@ -141,6 +135,7 @@ test('ignored CVEs are not duplicated', async () => {
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
+    ...DEFAULT_OPTS,
     auditLevel: 'moderate',
     auditConfig: {
       ignoreCves: existingCves,
@@ -148,10 +143,6 @@ test('ignored CVEs are not duplicated', async () => {
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: false,
-    userConfig: {},
-    rawConfig,
-    registries,
-    virtualStoreDirMaxLength: 120,
     ignoreUnfixable: true,
   })
   expect(exitCode).toBe(0)

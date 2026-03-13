@@ -1,16 +1,18 @@
-import fs from 'fs'
-import path from 'path'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { install } from '@pnpm/core'
 import type { IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
-import { jest } from '@jest/globals'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
+
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -74,7 +76,7 @@ test('patch package with exact version', async () => {
   expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -86,7 +88,7 @@ test('patch package with exact version', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -171,7 +173,7 @@ test('patch package with version range', async () => {
   expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -183,7 +185,7 @@ test('patch package with version range', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -340,7 +342,7 @@ test('patch package when scripts are ignored', async () => {
   expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -352,7 +354,7 @@ test('patch package when scripts are ignored', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -430,7 +432,7 @@ test('patch package when the package is not in allowBuilds list', async () => {
   expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -442,7 +444,7 @@ test('patch package when the package is not in allowBuilds list', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',

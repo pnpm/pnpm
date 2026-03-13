@@ -1,16 +1,17 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import { writeSettings } from '@pnpm/config.config-writer'
 import { resolveConfigDeps } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalAdd } from '@pnpm/global.commands'
 import { createStoreController } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
+
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
-import { writeSettings } from '@pnpm/config.config-writer'
 
 export const shorthands: Record<string, string> = {
   'save-catalog': '--save-catalog-name=default',

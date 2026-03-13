@@ -3,7 +3,8 @@ import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { DepPath, ProjectId } from '@pnpm/types'
-import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+
 import { lockfileToAuditTree } from '../lib/lockfileToAuditTree.js'
 
 let mockAgent: MockAgent

@@ -1,21 +1,23 @@
 // cspell:ignore checkin
-import path from 'path'
-import os from 'os'
-import { WorkerPool } from '@rushstack/worker-pool'
+import { execSync } from 'node:child_process'
+import os from 'node:os'
+import path from 'node:path'
+
+import type { FilesMap, PackageFilesResponse } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
-import { execSync } from 'child_process'
-import isWindows from 'is-windows'
-import type { PackageFilesResponse, FilesMap } from '@pnpm/cafs-types'
-import type { BundledManifest } from '@pnpm/types'
-import pLimit from 'p-limit'
 import { globalWarn } from '@pnpm/logger'
 import type { StoreIndex } from '@pnpm/store.index'
+import type { BundledManifest } from '@pnpm/types'
+import { WorkerPool } from '@rushstack/worker-pool'
+import isWindows from 'is-windows'
+import pLimit from 'p-limit'
+
 import type {
-  TarballExtractMessage,
   AddDirToStoreMessage,
+  HardLinkDirMessage,
   LinkPkgMessage,
   SymlinkAllModulesMessage,
-  HardLinkDirMessage,
+  TarballExtractMessage,
 } from './types.js'
 
 let workerPool: WorkerPool | undefined
@@ -260,7 +262,7 @@ export async function importPackage (
       localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         workerPool!.checkinWorker(localWorker)
         if (status === 'error') {
-          reject(new PnpmError(error.code ?? 'LINKING_FAILED', error.message as string))
+          reject(new PnpmError(error.code ?? 'LINKING_FAILED', `[importPackage ${opts.targetDir}] ${error.message as string}`))
           return
         }
         resolve(value)
@@ -285,7 +287,7 @@ export async function symlinkAllModules (
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         const hint = opts.deps?.[0]?.modules != null ? createErrorHint(error, opts.deps[0].modules) : undefined
-        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string, { hint }))
+        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', `[symlinkAllModules] ${error.message as string}`, { hint }))
         return
       }
       resolve(value)

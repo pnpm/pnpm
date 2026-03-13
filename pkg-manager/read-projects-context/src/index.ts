@@ -1,19 +1,20 @@
-import { promises as fs } from 'fs'
-import util from 'util'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
 import { getLockfileImporterId } from '@pnpm/lockfile.fs'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import type {
-  DepPath,
   DependenciesField,
+  DepPath,
   HoistedDependencies,
   ProjectId,
-  Registries,
   ProjectRootDir,
   ProjectRootDirRealPath,
+  Registries,
 } from '@pnpm/types'
-import realpathMissing from 'realpath-missing'
+import { realpathMissing } from 'realpath-missing'
 
 export interface ProjectOptions {
   binsDir?: string

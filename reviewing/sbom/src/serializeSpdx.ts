@@ -1,4 +1,5 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
+
 import { integrityToHashes } from './integrity.js'
 import { encodePurlName } from './purl.js'
 import type { SbomResult } from './types.js'
