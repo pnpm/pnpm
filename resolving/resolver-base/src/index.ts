@@ -1,9 +1,9 @@
 import type {
-  ProjectRootDir,
   DependencyManifest,
-  PkgResolutionId,
-  PinnedVersion,
   PackageVersionPolicy,
+  PinnedVersion,
+  PkgResolutionId,
+  ProjectRootDir,
   TrustPolicy,
 } from '@pnpm/types'
 

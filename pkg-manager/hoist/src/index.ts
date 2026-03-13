@@ -1,14 +1,15 @@
-import fs from 'fs'
-import path from 'path'
-import { linkLogger } from '@pnpm/core-loggers'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { linkLogger } from '@pnpm/core-loggers'
 import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
-import type { DepPath, HoistedDependencies, ProjectId, DependenciesField } from '@pnpm/types'
+import type { DependenciesField, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import isSubdir from 'is-subdir'
-import resolveLinkTarget from 'resolve-link-target'
+import { isSubdir } from 'is-subdir'
+import { resolveLinkTarget } from 'resolve-link-target'
 import symlinkDir from 'symlink-dir'
 
 export interface DependenciesGraphNode<T extends string> {

@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
-import { stripVTControlCharacters } from 'util'
+import path from 'node:path'
+import { stripVTControlCharacters } from 'node:util'
 import { list, listForPackages } from '@pnpm/list'
 
 /** Normalize dep paths so tests pass whether implementation returns absolute or relative node_modules/.pnpm paths. */
@@ -14,8 +14,9 @@ function normalizeDepPaths (lockfileDir: string, text: string): string {
 }
 import { fixtures } from '@pnpm/test-fixtures'
 import chalk from 'chalk'
-import { renderTree } from '../lib/renderTree.js'
+
 import { renderParseable } from '../lib/renderParseable.js'
+import { renderTree } from '../lib/renderTree.js'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color

@@ -1,6 +1,7 @@
-import kebabCase from 'lodash.kebabcase'
 import { isIniConfigKey } from '@pnpm/config'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import kebabCase from 'lodash.kebabcase'
+
 import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
 
 export type ConfigFileName =

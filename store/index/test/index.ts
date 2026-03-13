@@ -1,5 +1,6 @@
+import path from 'node:path'
+
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
-import path from 'path'
 import { temporaryDirectory } from 'tempy'
 
 test('StoreIndex round-trips data via SQLite key', () => {

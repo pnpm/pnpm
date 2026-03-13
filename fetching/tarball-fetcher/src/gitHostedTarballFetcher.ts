@@ -1,7 +1,8 @@
-import assert from 'assert'
-import util from 'util'
-import type { FetchFunction, FetchOptions } from '@pnpm/fetcher-base'
+import assert from 'node:assert'
+import util from 'node:util'
+
 import type { Cafs, FilesMap } from '@pnpm/cafs-types'
+import type { FetchFunction, FetchOptions } from '@pnpm/fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'

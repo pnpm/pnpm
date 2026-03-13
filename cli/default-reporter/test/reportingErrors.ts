@@ -1,15 +1,16 @@
-import path from 'path'
+import path from 'node:path'
+
 import { toOutput$ } from '@pnpm/default-reporter'
 import { PnpmError } from '@pnpm/error'
 import {
   createStreamParser,
   logger,
 } from '@pnpm/logger'
-import { firstValueFrom } from 'rxjs'
-import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import { loadJsonFileSync } from 'load-json-file'
 import normalizeNewline from 'normalize-newline'
+import { firstValueFrom } from 'rxjs'
+import { map, take } from 'rxjs/operators'
 import StackTracey from 'stacktracey'
 
 interface Exception extends NodeJS.ErrnoException {

@@ -1,6 +1,7 @@
-import path from 'path'
-import normalizePath from 'normalize-path'
+import path from 'node:path'
+
 import { writeSettings, type WriteSettingsOptions } from '@pnpm/config.config-writer'
+import normalizePath from 'normalize-path'
 
 export async function updatePatchedDependencies (
   patchedDependencies: Record<string, string>,

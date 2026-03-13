@@ -1,6 +1,8 @@
-import fs from 'fs'
+import fs from 'node:fs'
+
 import { preparePackages } from '@pnpm/prepare'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from '../utils/index.js'
 
 // Covers https://github.com/pnpm/pnpm/issues/8959
@@ -27,7 +29,7 @@ test('restores deleted modules dir of a workspace package', async () => {
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
 
   await execPnpm(['install'])
   expect(fs.readdirSync('node_modules')).toContain('.pnpm-workspace-state-v1.json')

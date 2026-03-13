@@ -1,11 +1,12 @@
+import path from 'node:path'
+import { Readable } from 'node:stream'
+
+import { jest } from '@jest/globals'
+import type { FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
+import { tempDir } from '@pnpm/prepare'
+import { StoreIndex } from '@pnpm/store.index'
 import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
-import path from 'path'
-import { Readable } from 'stream'
-import type { FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
-import { StoreIndex } from '@pnpm/store.index'
-import { tempDir } from '@pnpm/prepare'
-import { jest } from '@jest/globals'
 
 jest.unstable_mockModule('detect-libc', () => ({
   isNonGlibcLinux: jest.fn(),

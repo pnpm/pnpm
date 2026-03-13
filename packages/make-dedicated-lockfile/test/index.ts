@@ -1,7 +1,9 @@
-import path from 'path'
-import execa from 'execa'
+import path from 'node:path'
+
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
+import { safeExeca as execa } from 'execa'
+
 import { makeDedicatedLockfile } from '../lib/index.js'
 
 const f = fixtures(import.meta.dirname)

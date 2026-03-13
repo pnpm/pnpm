@@ -1,6 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { globalWarn } from '@pnpm/logger'
+
 import type { NvmNodeCommandOptions } from './node.js'
 
 export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Promise<void> {

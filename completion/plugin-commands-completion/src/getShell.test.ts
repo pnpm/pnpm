@@ -1,4 +1,4 @@
-import { getShellFromString, getShellFromParams } from './getShell.js'
+import { getShellFromParams, getShellFromString } from './getShell.js'
 
 test('getShellFromString errors on undefined', () => {
   expect(() => getShellFromString()).toThrow('`pnpm completion` requires a shell name')

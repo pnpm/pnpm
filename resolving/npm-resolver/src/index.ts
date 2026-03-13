@@ -1,4 +1,5 @@
-import path from 'path'
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
 import type {
   FetchFromRegistry,
@@ -6,7 +7,7 @@ import type {
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import type { PackageMeta, PackageInRegistry } from '@pnpm/registry.types'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import type {
   DirectoryResolution,
@@ -20,9 +21,6 @@ import type {
   WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
 import { storeIndexKey } from '@pnpm/store.index'
-import {
-  readPkgFromCafs,
-} from '@pnpm/worker'
 import type {
   DependencyManifest,
   PackageVersionPolicy,
@@ -30,6 +28,9 @@ import type {
   Registries,
   TrustPolicy,
 } from '@pnpm/types'
+import {
+  readPkgFromCafs,
+} from '@pnpm/worker'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
@@ -37,23 +38,24 @@ import { clone } from 'ramda'
 import semver from 'semver'
 import ssri from 'ssri'
 import versionSelectorType from 'version-selector-type'
+
+import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
+import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
-  type PackageMetaCache,
-  type PickPackageOptions,
-  pickPackage,
-} from './pickPackage.js'
-import {
-  parseJsrSpecifierToRegistryPackageSpec,
-  parseBareSpecifier,
   type JsrRegistryPackageSpec,
+  parseBareSpecifier,
+  parseJsrSpecifierToRegistryPackageSpec,
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
-import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
-import { workspacePrefToNpm } from './workspacePrefToNpm.js'
-import { whichVersionIsPinned } from './whichVersionIsPinned.js'
+import {
+  type PackageMetaCache,
+  pickPackage,
+  type PickPackageOptions,
+} from './pickPackage.js'
 import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
-import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
+import { whichVersionIsPinned } from './whichVersionIsPinned.js'
+import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
@@ -108,13 +110,14 @@ function formatTimeAgo (date: Date): string {
 }
 
 export {
-  parseBareSpecifier,
-  workspacePrefToNpm,
   type PackageMeta,
   type PackageMetaCache,
+  parseBareSpecifier,
   type RegistryPackageSpec,
   RegistryResponseError,
+  workspacePrefToNpm,
 }
+export { whichVersionIsPinned } from './whichVersionIsPinned.js'
 
 export interface ResolverFactoryOptions {
   cacheDir: string

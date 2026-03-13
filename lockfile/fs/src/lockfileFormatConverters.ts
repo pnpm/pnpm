@@ -1,18 +1,18 @@
-import { removeSuffix } from '@pnpm/dependency-path'
-import type {
-  LockfileObject,
-  ProjectSnapshot,
-  LockfilePackageSnapshot,
-  ResolvedDependencies,
-  LockfileFile,
-  LockfileFileProjectSnapshot,
-  LockfileFileProjectResolvedDependencies,
-  LockfilePackageInfo,
-  PackageSnapshots,
-} from '@pnpm/lockfile.types'
-import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { isEmpty, map as _mapValues, omit, pickBy, pick } from 'ramda'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { refToRelative, removeSuffix } from '@pnpm/dependency-path'
+import type {
+  LockfileFile,
+  LockfileFileProjectResolvedDependencies,
+  LockfileFileProjectSnapshot,
+  LockfileObject,
+  LockfilePackageInfo,
+  LockfilePackageSnapshot,
+  PackageSnapshots,
+  ProjectSnapshot,
+  ResolvedDependencies,
+} from '@pnpm/lockfile.types'
+import { DEPENDENCIES_FIELDS, type DepPath } from '@pnpm/types'
+import { isEmpty, map as _mapValues, omit, pick, pickBy } from 'ramda'
 
 export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
   const packages: Record<string, LockfilePackageInfo> = {}
@@ -122,22 +122,6 @@ function pruneTimeInLockfile (time: Record<string, string>, importers: Record<st
     }
   }
   return pickBy((_, depPath) => rootDepPaths.has(depPath), time)
-}
-
-function refToRelative (
-  reference: string,
-  pkgName: string
-): string | null {
-  if (reference.startsWith('link:')) {
-    return null
-  }
-  if (reference.startsWith('file:')) {
-    return reference
-  }
-  if (!reference.includes('/') || !reference.replace(/(?:\([^)]+\))+$/, '').includes('/')) {
-    return `/${pkgName}@${reference}`
-  }
-  return reference
 }
 
 export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject {

@@ -1,11 +1,13 @@
-import fs from 'fs'
-import path from 'path'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { testDefaults } from '../utils/index.js'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import type { ProjectRootDir, ProjectManifest } from '@pnpm/types'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import { testDefaults } from '../utils/index.js'
 
 jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
@@ -137,7 +139,7 @@ test('install with --merge-git-branch-lockfiles', async () => {
   jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
 
   const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
-  writeYamlFile(otherLockfilePath, {
+  writeYamlFileSync(otherLockfilePath, {
     whatever: 'whatever',
   })
 
@@ -162,7 +164,7 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   const project = prepareEmpty()
 
   // @types/semver installed in the main branch
-  writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFileSync(WANTED_LOCKFILE, {
     importers: {
       '.': {
         dependencies: {
@@ -224,7 +226,7 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
       'is-positive@3.1.0': {},
     },
   }
-  writeYamlFile(otherLockfilePath, otherLockfileContent, { lineWidth: 1000 })
+  writeYamlFileSync(otherLockfilePath, otherLockfileContent, { lineWidth: 1000 })
 
   // the other branch merged to the main branch
   const projectManifest: ProjectManifest = {

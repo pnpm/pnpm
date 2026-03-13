@@ -1,4 +1,4 @@
-import execa from 'execa'
+import { safeExeca as execa } from 'execa'
 
 // git checks logic is from https://github.com/sindresorhus/np/blob/master/source/git-tasks.js
 
@@ -14,7 +14,7 @@ export async function isGitRepo (): Promise<boolean> {
 export async function getCurrentBranch (): Promise<string | null> {
   try {
     const { stdout } = await execa('git', ['symbolic-ref', '--short', 'HEAD'])
-    return stdout
+    return stdout as string
   } catch {
     // Command will fail with code 1 if the HEAD is detached.
     return null

@@ -1,5 +1,6 @@
-import { getManifestFromResponse, type WantedDependency } from '../lib/resolveDependencies.js'
 import type { PackageResponse } from '@pnpm/store-controller-types'
+
+import { getManifestFromResponse, type WantedDependency } from '../lib/resolveDependencies.js'
 
 test('getManifestFromResponse returns manifest from pkgResponse when available', () => {
   const pkgResponse = {

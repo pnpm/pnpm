@@ -1,7 +1,7 @@
-import path from 'path'
+import path from 'node:path'
+
 import { formatIntegrity } from '@pnpm/crypto.integrity'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
-import { storeIndexKey, gitHostedStoreIndexKey } from '@pnpm/store.index'
+import * as dp from '@pnpm/dependency-path'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
   nameVerFromPkgSnapshot,
@@ -9,16 +9,18 @@ import {
   type PackageSnapshot,
 } from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
-import * as dp from '@pnpm/dependency-path'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
 import { StoreIndex } from '@pnpm/store.index'
+import type { TarballResolution } from '@pnpm/store-controller-types'
 import type { DepPath } from '@pnpm/types'
 import dint from 'dint'
 import pFilter from 'p-filter'
+
 import {
   extendStoreStatusOptions,
   type StoreStatusOptions,
 } from './extendStoreStatusOptions.js'
-import type { TarballResolution } from '@pnpm/store-controller-types'
 
 export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<string[]> {
   const reporter = maybeOpts?.reporter

@@ -1,10 +1,11 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
 import nock from 'nock'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 afterEach(() => {
@@ -157,7 +158,7 @@ test('installing Deno runtime', async () => {
     },
   })
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true }, {
     offline: true, // We want to verify that Deno is resolved from cache.
   }))
@@ -221,7 +222,7 @@ test('installing Deno runtime fails if offline mode is used and Deno not found l
 test('installing Deno runtime fails if integrity check fails', async () => {
   prepareEmpty()
 
-  writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFileSync(WANTED_LOCKFILE, {
     settings: {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,

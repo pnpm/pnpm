@@ -1,12 +1,14 @@
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
+import type { MutatedProject, MutateModulesOptions, ProjectOptions } from '@pnpm/core'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
-import type { ProjectRootDir, ProjectId, ProjectManifest } from '@pnpm/types'
+import type { CatalogSnapshots } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import type { MutatedProject, ProjectOptions, MutateModulesOptions } from '@pnpm/core'
-import type { CatalogSnapshots } from '@pnpm/lockfile.types'
-import { jest } from '@jest/globals'
+import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
-import path from 'path'
+
 import { testDefaults } from './utils/index.js'
 
 const originalModule = await import('@pnpm/logger')

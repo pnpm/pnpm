@@ -1,7 +1,9 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 test('ls --filter=not-exist --json should prints an empty array (#9672)', async () => {
@@ -16,7 +18,7 @@ test('ls --filter=not-exist --json should prints an empty array (#9672)', async 
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['packages/*'],
   })
 
@@ -49,7 +51,7 @@ test('pnpm list returns correct paths with global virtual store', async () => {
       '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
     },
   })
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     enableGlobalVirtualStore: true,
     storeDir: path.resolve('store'),
     privateHoistPattern: '*',

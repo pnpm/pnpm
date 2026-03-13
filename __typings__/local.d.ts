@@ -64,8 +64,7 @@ declare module 'ansi-diff' {
 }
 
 declare module 'better-path-resolve' {
-  const anything: any
-  export = anything
+  export const betterPathResolve: (...args: any[]) => any
 }
 
 // cspell:disable-next-line
@@ -85,13 +84,12 @@ declare module 'exists-link' {
 }
 
 declare module 'graceful-git' {
-  const anything: any
-  export = anything
+  export const gracefulGit: any
+  export const noRetry: any
 }
 
 declare module 'is-inner-link' {
-  const anything: any
-  export = anything
+  export function isInnerLink (parent: string, relativePathToLink: string): Promise<{ isInner: boolean, target: string }>
 }
 
 declare module 'read-package-json' {

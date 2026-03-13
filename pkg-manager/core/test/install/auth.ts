@@ -1,8 +1,10 @@
-import path from 'path'
+import path from 'node:path'
+
+import { addDependenciesToPackage, install } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { addDependenciesToPackage, install } from '@pnpm/core'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
+
 import { testDefaults } from '../utils/index.js'
 
 const skipOnNode17 = ['v14', 'v16'].includes(process.version.split('.')[0]) ? test : test.skip
@@ -30,8 +32,8 @@ test('a package that need authentication', async () => {
 
   // should work when a lockfile is available
   // and the registry in .npmrc is not the same as the one in lockfile
-  rimraf('node_modules')
-  rimraf(path.join('..', '.store'))
+  rimrafSync('node_modules')
+  rimrafSync(path.join('..', '.store'))
 
   authConfig = {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
@@ -118,8 +120,8 @@ test('a scoped package that need authentication specific to scope', async () => 
   project.has('@private/foo')
 
   // should work when a lockfile is available
-  rimraf('node_modules')
-  rimraf(path.join('..', '.store'))
+  rimrafSync('node_modules')
+  rimrafSync(path.join('..', '.store'))
 
   // Recreating options to have a new storeController with clean cache
   opts = testDefaults({}, {
@@ -158,8 +160,8 @@ test('a scoped package that need legacy authentication specific to scope', async
   project.has('@private/foo')
 
   // should work when a lockfile is available
-  rimraf('node_modules')
-  rimraf(path.join('..', '.store'))
+  rimrafSync('node_modules')
+  rimrafSync(path.join('..', '.store'))
 
   // Recreating options to have a new storeController with clean cache
   opts = testDefaults({}, {
@@ -226,9 +228,9 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], opts)
 
-  rimraf('node_modules')
-  rimraf(path.join('..', '.registry'))
-  rimraf(path.join('..', '.store'))
+  rimrafSync('node_modules')
+  rimrafSync(path.join('..', '.registry'))
+  rimrafSync(path.join('..', '.store'))
 
   // Recreating options to clean store cache
   opts = testDefaults({

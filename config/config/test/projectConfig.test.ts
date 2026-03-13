@@ -1,4 +1,5 @@
 import { omit } from 'ramda'
+
 import type {
   Config,
   ProjectConfig,

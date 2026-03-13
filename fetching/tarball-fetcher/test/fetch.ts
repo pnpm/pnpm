@@ -1,13 +1,14 @@
 /// <reference path="../../../__typings__/index.d.ts" />
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
-import fs from 'fs'
-import path from 'path'
+import { createCafsStore } from '@pnpm/create-cafs-store'
 import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import { createCafsStore } from '@pnpm/create-cafs-store'
+import { StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { StoreIndex } from '@pnpm/store.index'
 import nock from 'nock'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'

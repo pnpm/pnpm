@@ -5,7 +5,7 @@
   ],
   "ignoreDeps": [
     "@pnpm/assert-project",
-    "@pnpm/build-modules",
+    "@pnpm/building.during-install",
     "@pnpm/config",
     "@pnpm/constants",
     "@pnpm/core-loggers",

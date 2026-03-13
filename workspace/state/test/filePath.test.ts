@@ -1,5 +1,7 @@
-import path from 'path'
+import path from 'node:path'
+
 import { prepareEmpty } from '@pnpm/prepare'
+
 import { getFilePath } from '../src/filePath.js'
 
 test('getFilePath()', () => {

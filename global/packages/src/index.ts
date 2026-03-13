@@ -9,7 +9,7 @@ export {
   findGlobalPackage,
   getGlobalPackageDetails,
   getInstalledBinNames,
-  scanGlobalPackages,
   type GlobalPackageInfo,
   type InstalledGlobalPackage,
+  scanGlobalPackages,
 } from './scanGlobalPackages.js'

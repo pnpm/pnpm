@@ -1,6 +1,6 @@
-import url from 'url'
+import url from 'node:url'
+
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { globalWarn } from '@pnpm/logger'
 import {
   FetchError,
   type FetchErrorRequest,
@@ -8,6 +8,7 @@ import {
   PnpmError,
 } from '@pnpm/error'
 import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
+import { globalWarn } from '@pnpm/logger'
 import type { PackageMeta } from '@pnpm/registry.types'
 import * as retry from '@zkochan/retry'
 
@@ -88,7 +89,7 @@ export async function fetchMetadataFromFromRegistry (
         reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt }))
         return
       }
-      if (response.status > 400) {
+      if (response.status >= 400) {
         const request = {
           authHeaderValue,
           url: uri,

@@ -1,6 +1,6 @@
+import type { Log } from '@pnpm/core-loggers'
 import type { PreResolutionHook } from '@pnpm/hooks.types'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import type { Log } from '@pnpm/core-loggers'
 import type { ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
 
 export interface HookContext {

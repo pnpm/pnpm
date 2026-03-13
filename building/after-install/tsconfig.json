@@ -1,0 +1,85 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
+      "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../lockfile/walker"
+    },
+    {
+      "path": "../../packages/calc-dep-state"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/get-context"
+    },
+    {
+      "path": "../../pkg-manager/link-bins"
+    },
+    {
+      "path": "../../pkg-manager/modules-yaml"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/index"
+    },
+    {
+      "path": "../../store/store-connection-manager"
+    },
+    {
+      "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../worker"
+    },
+    {
+      "path": "../pkg-requires-build"
+    },
+    {
+      "path": "../policy"
+    }
+  ]
+}

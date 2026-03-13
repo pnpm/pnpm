@@ -1,4 +1,4 @@
-import { hashObject, hashObjectWithoutSorting, hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
+import { hashObject, hashObjectNullableWithPrefix, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 
 describe('hashObject', () => {
   const hash = hashObject

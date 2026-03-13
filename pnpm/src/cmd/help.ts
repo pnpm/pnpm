@@ -1,6 +1,7 @@
-import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
+import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli-meta'
 import { docsUrl } from '@pnpm/cli-utils'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
+
 import type { CommandDefinition } from './index.js'
 
 type HelpByCommandName = Record<string, () => string>

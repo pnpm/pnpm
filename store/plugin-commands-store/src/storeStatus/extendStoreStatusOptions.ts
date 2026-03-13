@@ -1,6 +1,8 @@
-import path from 'path'
-import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
+import path from 'node:path'
+
+import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/normalize-registries'
 import type { Registries } from '@pnpm/types'
+
 import type { ReporterFunction } from '../types.js'
 
 export interface StrictStoreStatusOptions {

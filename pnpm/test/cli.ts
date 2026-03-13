@@ -1,11 +1,12 @@
-import fs from 'fs'
-import path from 'path'
-import PATH_NAME from 'path-name'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { sync as rimraf } from '@zkochan/rimraf'
-import execa from 'execa'
-import isWindows from 'is-windows'
+import { rimrafSync } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
+import PATH_NAME from 'path-name'
+
 import {
   execPnpm,
   execPnpmSync,
@@ -52,7 +53,7 @@ test('pnpm import does not move modules created by npm', async () => {
 
 test('pass through to npm with all the args', async () => {
   prepare()
-  rimraf('package.json')
+  rimrafSync('package.json')
 
   const result = execPnpmSync(['dist-tag', 'ls', 'pnpm'])
 
@@ -64,7 +65,7 @@ test('pnpm fails when an unsupported command is used', async () => {
 
   const { status } = execPnpmSync(['unsupported-command'])
 
-  expect(status).toBe(isWindows() ? 1 : 254)
+  expect(status).toBe(1)
 })
 
 test('pnpm fails when no command is specified', async () => {

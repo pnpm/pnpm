@@ -1,14 +1,15 @@
+import { jest } from '@jest/globals'
+import {
+  addDependenciesToPackage,
+  mutateModulesInSingleProject,
+} from '@pnpm/core'
 import type {
   PackageManifestLog,
   StatsLog,
 } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
-import {
-  addDependenciesToPackage,
-  mutateModulesInSingleProject,
-} from '@pnpm/core'
 import type { ProjectRootDir } from '@pnpm/types'
-import { jest } from '@jest/globals'
+
 import { testDefaults } from './../utils/index.js'
 
 test('uninstall package with no dependencies', async () => {

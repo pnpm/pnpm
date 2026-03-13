@@ -2,6 +2,7 @@ import { refToRelative } from '@pnpm/dependency-path'
 import type { PackageSnapshots } from '@pnpm/lockfile.fs'
 import type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import type { DepPath, Finder } from '@pnpm/types'
+
 import { buildDependencyGraph } from '../lib/buildDependencyGraph.js'
 import { getTree, type MaterializationCache } from '../lib/getTree.js'
 import type { TreeNodeId } from '../lib/TreeNodeId.js'

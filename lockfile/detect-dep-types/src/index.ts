@@ -1,5 +1,5 @@
-import type { LockfileObject, PackageSnapshots, ResolvedDependencies } from '@pnpm/lockfile.types'
 import * as dp from '@pnpm/dependency-path'
+import type { LockfileObject, PackageSnapshots, ResolvedDependencies } from '@pnpm/lockfile.types'
 import type { DepPath } from '@pnpm/types'
 
 export const DepType = {

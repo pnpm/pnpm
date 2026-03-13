@@ -1,10 +1,12 @@
-import path from 'path'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import path from 'node:path'
+
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { add } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectId } from '@pnpm/types'
-import { sync as readYamlFile } from 'read-yaml-file'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { readYamlFileSync } from 'read-yaml-file'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles', async () => {
@@ -160,7 +162,7 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
     )
   }
 
-  const lockfile = readYamlFile<LockfileObject>('./pnpm-lock.yaml')
+  const lockfile = readYamlFileSync<LockfileObject>('./pnpm-lock.yaml')
   expect(
     lockfile.importers['project-1' as ProjectId].devDependencies
   ).toEqual(

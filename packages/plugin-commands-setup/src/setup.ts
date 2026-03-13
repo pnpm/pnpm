@@ -1,5 +1,7 @@
-import fs from 'fs'
-import path from 'path'
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli-meta'
 import { docsUrl } from '@pnpm/cli-utils'
 import { logger } from '@pnpm/logger'
@@ -8,9 +10,7 @@ import {
   type ConfigReport,
   type PathExtenderReport,
 } from '@pnpm/os.env.path-extender'
-import renderHelp from 'render-help'
-import rimraf from '@zkochan/rimraf'
-import cmdShim from '@zkochan/cmd-shim'
+import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
@@ -53,32 +53,50 @@ function getExecPath (): string {
 }
 
 /**
- * Copy the CLI into a directory on the PATH and create a command shim to run it.
- * Without the shim, `pnpm self-update` on Windows cannot replace the running executable
- * and fails with: `EPERM: operation not permitted, unlink 'C:\Users\<user>\AppData\Local\pnpm\pnpm.exe'`.
- * Related issue: https://github.com/pnpm/pnpm/issues/5700
+ * Install the CLI as a global package using `pnpm add -g file:<dir>`.
+ * This places pnpm in the standard global directory alongside other
+ * globally installed packages.
  */
-async function copyCli (currentLocation: string, targetDir: string): Promise<void> {
-  const toolsDir = path.join(targetDir, '.tools/pnpm-exe', packageManager.version)
-  const newExecPath = path.join(toolsDir, path.basename(currentLocation))
-  if (path.relative(newExecPath, currentLocation) === '') return
+function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
+  const execDir = path.dirname(execPath)
+  const execName = path.basename(execPath)
+  const pkgJsonPath = path.join(execDir, 'package.json')
+
+  // Write a package.json if one doesn't already exist.
+  // (Updated tarballs on GitHub Pages will ship with package.json already.)
+  let createdPkgJson = false
+  if (!fs.existsSync(pkgJsonPath)) {
+    fs.writeFileSync(pkgJsonPath, JSON.stringify({
+      name: '@pnpm/exe',
+      version: packageManager.version,
+      bin: { pnpm: execName },
+    }))
+    createdPkgJson = true
+  }
+
   logger.info({
-    message: `Copying pnpm CLI from ${currentLocation} to ${newExecPath}`,
+    message: `Installing pnpm CLI globally from ${execDir}`,
     prefix: process.cwd(),
   })
-  fs.mkdirSync(toolsDir, { recursive: true })
-  rimraf.sync(newExecPath)
-  fs.copyFileSync(currentLocation, newExecPath)
-  // For SEA binaries, also copy the dist/ directory that lives alongside the binary.
-  const distSrc = path.join(path.dirname(currentLocation), 'dist')
-  if (fs.existsSync(distSrc)) {
-    const distDest = path.join(toolsDir, 'dist')
-    fs.rmSync(distDest, { recursive: true, force: true })
-    fs.cpSync(distSrc, distDest, { recursive: true })
+
+  try {
+    const { status, error } = spawnSync(execPath, ['add', '-g', `file:${execDir}`], {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        PNPM_HOME: pnpmHomeDir,
+      },
+    })
+
+    if (error) throw error
+    if (status !== 0) {
+      throw new Error(`Failed to install pnpm globally (exit code ${status})`)
+    }
+  } finally {
+    if (createdPkgJson) {
+      fs.unlinkSync(pkgJsonPath)
+    }
   }
-  await cmdShim(newExecPath, path.join(targetDir, 'pnpm'), {
-    createPwshFile: false,
-  })
 }
 
 function createPnpxScripts (targetDir: string): void {
@@ -118,7 +136,7 @@ export async function handler (
 ): Promise<string> {
   const execPath = getExecPath()
   if (execPath.match(/\.[cm]?js$/) == null) {
-    await copyCli(execPath, opts.pnpmHomeDir)
+    installCliGlobally(execPath, opts.pnpmHomeDir)
     createPnpxScripts(opts.pnpmHomeDir)
   }
   try {

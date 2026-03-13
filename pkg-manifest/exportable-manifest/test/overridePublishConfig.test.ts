@@ -1,4 +1,5 @@
 import type { PackageManifest, PublishConfig } from '@pnpm/types'
+
 import { overridePublishConfig } from '../lib/overridePublishConfig.js'
 
 test('publish config to be overridden', async () => {

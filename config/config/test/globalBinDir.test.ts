@@ -1,11 +1,12 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import { tempDir } from '@pnpm/prepare'
+import fs from 'node:fs'
+import { homedir } from 'node:os'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
-import path from 'path'
+import { tempDir } from '@pnpm/prepare'
 import pathName from 'path-name'
 import symlinkDir from 'symlink-dir'
-import { homedir } from 'os'
 
 const globalBinDir = path.join(homedir(), '.local', 'pnpm')
 const isWindows = process.platform === 'win32'

@@ -1,8 +1,8 @@
-import type { PackageManifest, Registries } from '@pnpm/types'
+import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
+import { readPackageJson } from '@pnpm/read-package-json'
 import type { StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
-import { readPackageJson } from '@pnpm/read-package-json'
-import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
+import type { PackageManifest, Registries } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 const limitMetadataReads = pLimit(4)

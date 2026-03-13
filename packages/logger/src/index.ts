@@ -1,4 +1,3 @@
-export { type LogLevel } from './LogLevel.js'
 export {
   type LogBase,
   type LogBaseDebug,
@@ -7,15 +6,16 @@ export {
   type LogBaseWarn,
 } from './LogBase.js'
 export {
-  type Logger,
-  logger,
   globalInfo,
   globalWarn,
+  type Logger,
+  logger,
 } from './logger.js'
+export { type LogLevel } from './LogLevel.js'
 export {
+  createStreamParser,
   type Reporter,
   type StreamParser,
-  createStreamParser,
   streamParser,
 } from './streamParser.js'
 export { writeToConsole } from './writeToConsole.js'
