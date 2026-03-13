@@ -1,4 +1,4 @@
-import { type RetryTimeoutOptions } from '@zkochan/retry'
+import type { RetryTimeoutOptions } from '@zkochan/retry'
 
 export type { RetryTimeoutOptions }
 

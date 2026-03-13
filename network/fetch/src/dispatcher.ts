@@ -1,7 +1,7 @@
 import { URL } from 'url'
 import { Agent, ProxyAgent, type Dispatcher } from 'undici'
 import { LRUCache } from 'lru-cache'
-import { type SslConfig } from '@pnpm/types'
+import type { SslConfig } from '@pnpm/types'
 
 const DEFAULT_MAX_SOCKETS = 50
 

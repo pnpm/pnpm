@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex } from '@pnpm/store.index'
 import { createClient } from '@pnpm/client'
 import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
@@ -43,7 +43,7 @@ async function teardownMockAgent (): Promise<void> {
 }
 
 import { temporaryDirectory } from 'tempy'
-import { type PkgResolutionId, type PkgRequestFetchResult, type RequestPackageOptions } from '@pnpm/store-controller-types'
+import type { PkgResolutionId, PkgRequestFetchResult, RequestPackageOptions } from '@pnpm/store-controller-types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(import.meta.dirname)

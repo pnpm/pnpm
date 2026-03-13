@@ -1,8 +1,8 @@
 import { PnpmError } from '@pnpm/error'
 import { type DispatcherOptions, fetchWithDispatcher, type RetryTimeoutOptions } from '@pnpm/fetch'
-import { type GetAuthHeader } from '@pnpm/fetching-types'
-import { type LockfileObject } from '@pnpm/lockfile.types'
-import { type DependenciesField } from '@pnpm/types'
+import type { GetAuthHeader } from '@pnpm/fetching-types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { DependenciesField } from '@pnpm/types'
 import { lockfileToAuditTree } from './lockfileToAuditTree.js'
 import type { AuditReport } from './types.js'
 
