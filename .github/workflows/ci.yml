@@ -43,7 +43,6 @@ jobs:
 
   test-smoke:
     needs: compile-and-lint
-    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile' }}
     uses: ./.github/workflows/test.yml
     with:
       node: '24.0.0'
@@ -51,7 +50,6 @@ jobs:
 
   test:
     needs: test-smoke
-    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile' }}
     strategy:
       fail-fast: false
       matrix:
