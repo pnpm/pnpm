@@ -1,5 +1,6 @@
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from '../utils/index.js'
 
 test('hoist the dependency graph', async () => {
@@ -56,7 +57,7 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     shamefullyHoist: true,
   })
@@ -92,7 +93,7 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     shamefullyHoist: true,
     dedupeDirectDeps: true,

@@ -1,8 +1,10 @@
-import util from 'util'
-import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import { type PnpmSettings } from '@pnpm/types'
 import path from 'node:path'
-import readYamlFile from 'read-yaml-file'
+import util from 'node:util'
+
+import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import type { PnpmSettings } from '@pnpm/types'
+import { readYamlFile } from 'read-yaml-file'
+
 import {
   assertValidWorkspaceManifestCatalog,
   assertValidWorkspaceManifestCatalogs,
@@ -40,7 +42,7 @@ export async function readWorkspaceManifest (dir: string, cfgFileName: ConfigFil
 
 async function readManifestRaw (dir: string, cfgFileName: ConfigFileName): Promise<unknown> {
   try {
-    return await readYamlFile.default<WorkspaceManifest>(path.join(dir, cfgFileName))
+    return await readYamlFile<WorkspaceManifest>(path.join(dir, cfgFileName))
   } catch (err: unknown) {
     // File not exists is the same as empty file (undefined)
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {

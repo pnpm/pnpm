@@ -1,15 +1,17 @@
-import path from 'path'
-import { type RootLog } from '@pnpm/core-loggers'
-import { prepareEmpty } from '@pnpm/prepare'
-import { fixtures } from '@pnpm/test-fixtures'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import {
   addDependenciesToPackage,
   install,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import { type ProjectRootDir } from '@pnpm/types'
-import sinon from 'sinon'
+import type { RootLog } from '@pnpm/core-loggers'
+import { prepareEmpty } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
+import type { ProjectRootDir } from '@pnpm/types'
 import symlinkDir from 'symlink-dir'
+
 import { testDefaults } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -30,7 +32,7 @@ test('prune removes extraneous packages', async () => {
   delete manifest.dependencies!['is-positive']
   delete manifest.dependencies!['@zkochan/logger']
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await mutateModulesInSingleProject({
     manifest,
@@ -43,15 +45,14 @@ test('prune removes extraneous packages', async () => {
     reporter,
   })
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:root',
-    removed: {
-      dependencyType: undefined,
+    removed: expect.objectContaining({
       name: '@pnpm.e2e/hello-world-js-bin',
       version: '1.0.0',
-    },
-  } as RootLog)).toBeTruthy()
+    }),
+  } as RootLog))
 
   project.hasNot('@pnpm.e2e/hello-world-js-bin') // external link pruned
 

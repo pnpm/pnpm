@@ -1,23 +1,25 @@
-import fs from 'fs'
-import path from 'path'
-import { pick } from 'ramda'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { docsUrl } from '@pnpm/cli-utils'
+import { FILTERING } from '@pnpm/common-cli-options-help'
 import { type Config, types as configTypes } from '@pnpm/config'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
+import { PnpmError } from '@pnpm/error'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
-import { install } from '@pnpm/plugin-commands-installation'
-import { FILTERING } from '@pnpm/common-cli-options-help'
-import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
-import rimraf from '@zkochan/rimraf'
-import renderHelp from 'render-help'
-import writeYamlFile from 'write-yaml-file'
-import { deployHook } from './deployHook.js'
-import { logger, globalWarn } from '@pnpm/logger'
-import { type Project } from '@pnpm/types'
+import { globalWarn, logger } from '@pnpm/logger'
+import { install } from '@pnpm/plugin-commands-installation'
+import type { Project } from '@pnpm/types'
+import { rimraf } from '@zkochan/rimraf'
+import { pick } from 'ramda'
+import { renderHelp } from 'render-help'
+import { writeYamlFile } from 'write-yaml-file'
+
 import { createDeployFiles } from './createDeployFiles.js'
+import { deployHook } from './deployHook.js'
 
 const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes
 
@@ -170,6 +172,9 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     // the deploy directory. It's also just weird to include empty importers
     // that don't matter to the filtered lockfile generated for pnpm deploy.
     pruneLockfileImporters: true,
+    // The node_modules for a pnpm deploy should be self-contained. The global
+    // virtual store would create symlinks outside of the deploy directory.
+    enableGlobalVirtualStore: false,
     depth: Infinity,
     hooks: {
       ...opts.hooks,
@@ -266,6 +271,9 @@ async function deployFromSharedLockfile (
       allProjectsGraph: undefined,
       selectedProjectsGraph: undefined,
       rootProjectManifest: deployFiles.manifest,
+      // The node_modules for a pnpm deploy should be self-contained. The global
+      // virtual store would create symlinks outside of the deploy directory.
+      enableGlobalVirtualStore: false,
       rootProjectManifestDir: deployDir,
       dir: deployDir,
       lockfileDir: deployDir,

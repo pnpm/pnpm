@@ -1,25 +1,27 @@
-import path from 'path'
-import {
-  type DeprecationLog,
-  type PackageManifestLog,
-  type RootLog,
-  type SummaryLog,
+import path from 'node:path'
+
+import type { Config } from '@pnpm/config'
+import type {
+  DeprecationLog,
+  PackageManifestLog,
+  RootLog,
+  SummaryLog,
 } from '@pnpm/core-loggers'
-import { type Config } from '@pnpm/config'
+import chalk from 'chalk'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
-import chalk from 'chalk'
 import semver from 'semver'
+
 import { EOL } from '../constants.js'
+import {
+  ADDED_CHAR,
+  REMOVED_CHAR,
+} from './outputConstants.js'
 import {
   getPkgsDiff,
   type PackageDiff,
   propertyByDependencyType,
 } from './pkgsDiff.js'
-import {
-  ADDED_CHAR,
-  REMOVED_CHAR,
-} from './outputConstants.js'
 
 type DepType = 'prod' | 'optional' | 'peer' | 'dev' | 'nodeModulesOnly'
 
@@ -46,7 +48,7 @@ export function reportSummary (
     pnpmConfig?: Config
   }
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {
-  const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
+  const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.pnpmConfig?.global ? undefined : opts.cwd })
 
   const summaryLog$ = log$.summary.pipe(take(1))
   const _printDiffs = printDiffs.bind(null, { cmd: opts.cmd, prefix: opts.cwd, pnpmConfig: opts.pnpmConfig })
@@ -68,11 +70,7 @@ export function reportSummary (
           }
           if (diffs.length > 0) {
             msg += EOL
-            if (opts.pnpmConfig?.global) {
-              msg += chalk.cyanBright(`${opts.cwd}:`)
-            } else {
-              msg += chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)
-            }
+            msg += chalk.cyanBright(opts.pnpmConfig?.global ? 'global:' : `${propertyByDependencyType[depType] as string}:`)
             msg += EOL
             msg += _printDiffs(diffs, depType)
             msg += EOL
@@ -122,7 +120,7 @@ function printDiffs (
       result += ` ${chalk.red('deprecated')}`
     }
     if (pkg.from) {
-      result += ` ${chalk.grey(`<- ${pkg.from && path.relative(opts.prefix, pkg.from) || '???'}`)}`
+      result += ` ${chalk.grey(`<- ${path.relative(opts.prefix, pkg.from) || pkg.from}`)}`
     }
     if (pkg.added && depType === 'dev' && opts.pnpmConfig?.saveDev === false && opts.cmd === 'add') {
       result += `${chalk.yellow(' already in devDependencies, was not moved to dependencies.')}`

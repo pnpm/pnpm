@@ -1,4 +1,5 @@
-import fs from 'fs'
+import fs from 'node:fs'
+
 import isWindows from 'is-windows'
 import isExe from 'isexe'
 
@@ -7,7 +8,11 @@ const IS_WINDOWS = isWindows()
 // eslint-disable-next-line
 export default (ok: (value: any, comment: string) => void, filePath: string): void => {
   if (IS_WINDOWS) {
-    ok(isExe.sync(`${filePath}.cmd`), `${filePath}.cmd is executable`)
+    if (fs.existsSync(`${filePath}.cmd`)) {
+      ok(isExe.sync(`${filePath}.cmd`), `${filePath}.cmd is executable`)
+    } else {
+      ok(isExe.sync(`${filePath}.exe`), `${filePath}.exe is executable`)
+    }
     return
   }
 

@@ -1,7 +1,8 @@
-import path from 'path'
-import { type DependencyManifest, type PackageBin } from '@pnpm/types'
+import path from 'node:path'
+
+import type { DependencyManifest, PackageBin } from '@pnpm/types'
+import { isSubdir } from 'is-subdir'
 import { glob } from 'tinyglobby'
-import isSubdir from 'is-subdir'
 
 export interface Command {
   name: string

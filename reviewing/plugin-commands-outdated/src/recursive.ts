@@ -4,15 +4,16 @@ import {
   outdatedDepsOfProjects,
   type OutdatedPackage,
 } from '@pnpm/outdated'
-import {
-  type DependenciesField,
-  type IncludedDependencies,
-  type ProjectManifest,
-  type ProjectRootDir,
+import type {
+  DependenciesField,
+  IncludedDependencies,
+  ProjectManifest,
+  ProjectRootDir,
 } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { isEmpty, sortWith } from 'ramda'
+
 import {
   getCellWidth,
   type OutdatedCommandOptions,

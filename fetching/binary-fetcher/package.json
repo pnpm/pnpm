@@ -34,6 +34,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "adm-zip": "catalog:",
     "is-subdir": "catalog:",
     "rename-overwrite": "catalog:",
@@ -51,7 +52,7 @@
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

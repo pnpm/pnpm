@@ -1,12 +1,14 @@
-import path from 'path'
-import fs from 'fs/promises'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
 import { docsUrl } from '@pnpm/cli-utils'
-import { install } from '@pnpm/plugin-commands-installation'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import renderHelp from 'render-help'
+import { install } from '@pnpm/plugin-commands-installation'
 import enquirer from 'enquirer'
 import { pick } from 'ramda'
+import { renderHelp } from 'render-help'
+
 import { updatePatchedDependencies } from './updatePatchedDependencies.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {

@@ -1,16 +1,18 @@
-import fs from 'fs'
-import path from 'path'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { streamParser } from '@pnpm/logger'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type ProjectManifest } from '@pnpm/types'
-import { jest } from '@jest/globals'
-import execa from 'execa'
+import type { ProjectManifest } from '@pnpm/types'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import crossSpawn from 'cross-spawn'
+import { safeExeca as execa } from 'execa'
 import { loadJsonFileSync } from 'load-json-file'
-import { DEFAULT_OPTS, checkPkgExists } from './utils/index.js'
+
+import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
 const CREDENTIALS = `\
 registry=http://localhost:${REGISTRY_MOCK_PORT}/
@@ -113,7 +115,7 @@ test('recursive publish', async () => {
 
   {
     const { stdout } = await execa('npm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
-    expect(stdout.toString()).toContain('next: 2.0.0')
+    expect(stdout?.toString()).toContain('next: 2.0.0')
   }
 })
 
@@ -280,7 +282,7 @@ test('recursive publish writes publish summary', async () => {
   }
 })
 
-test('when publish some package throws an error, exit code should be non-zero', async () => {
+test('errors on fake registry', async () => {
   preparePackages([
     {
       name: '@pnpmtest/test-recursive-publish-project-5',
@@ -292,16 +294,26 @@ test('when publish some package throws an error, exit code should be non-zero', 
     },
   ])
 
-  // Throw ENEEDAUTH error when publish.
-  fs.writeFileSync('.npmrc', 'registry=https://__fake_npm_registry__.com', 'utf8')
+  const fakeRegistry = 'https://__fake_npm_registry__.com'
 
-  const result = await publish.handler({
+  const promise = publish.handler({
     ...DEFAULT_OPTS,
     ...await filterPackagesFromDir(process.cwd(), []),
+    rawConfig: {
+      ...DEFAULT_OPTS.rawConfig,
+      registry: fakeRegistry,
+    },
+    registries: {
+      ...DEFAULT_OPTS.registries,
+      default: fakeRegistry,
+    },
     dir: process.cwd(),
     recursive: true,
     force: true,
   }, [])
 
-  expect(result?.exitCode).toBe(1)
+  // NOTE: normally this should be a PnpmError, but we'd like to keep the code
+  //       simple so we just let the internal functions throw error for now.
+  await expect(promise).rejects.toHaveProperty(['code'], 'ENOTFOUND')
+  await expect(promise).rejects.toHaveProperty(['hostname'], '__fake_npm_registry__.com')
 })

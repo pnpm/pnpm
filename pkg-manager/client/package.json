@@ -43,6 +43,7 @@
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:"
@@ -53,7 +54,7 @@
     "@types/ramda": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

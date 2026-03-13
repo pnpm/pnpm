@@ -1,12 +1,13 @@
+import { jest } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
-import { prepareEmpty } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
   type PackageManifest,
 } from '@pnpm/core'
-import { jest } from '@jest/globals'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
+import { prepareEmpty } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
+
 import { testDefaults } from '../utils/index.js'
 
 test('readPackage, afterAllResolved hooks', async () => {

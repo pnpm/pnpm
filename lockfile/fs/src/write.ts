@@ -1,34 +1,28 @@
-import { promises as fs } from 'fs'
-import path from 'path'
-import { type LockfileObject, type LockfileFile } from '@pnpm/lockfile.types'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import rimraf from '@zkochan/rimraf'
+import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
+import { rimraf } from '@zkochan/rimraf'
 import yaml from 'js-yaml'
 import { isEmpty } from 'ramda'
-import writeFileAtomicCB from 'write-file-atomic'
+import writeFileAtomic from 'write-file-atomic'
+
+import { convertToLockfileFile } from './lockfileFormatConverters.js'
+import { getWantedLockfileName } from './lockfileName.js'
 import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
-import { getWantedLockfileName } from './lockfileName.js'
-import { convertToLockfileFile } from './lockfileFormatConverters.js'
-
-async function writeFileAtomic (filename: string, data: string): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    writeFileAtomicCB(filename, data, {}, (err?: Error) => {
-      if (err != null) {
-        reject(err)
-      } else {
-        resolve()
-      }
-    })
-  })
-}
 
 const LOCKFILE_YAML_FORMAT = {
   blankLines: true,
-  lineWidth: -1, // This is setting line width to never wrap
+  lineWidth: -1,
   noCompatMode: true,
   noRefs: true,
   sortKeys: false,
+}
+
+export function lockfileYamlDump (obj: object): string {
+  return yaml.dump(obj, LOCKFILE_YAML_FORMAT)
 }
 
 export async function writeWantedLockfile (
@@ -77,7 +71,7 @@ export function writeLockfileFile (
 
 function yamlStringify (lockfile: LockfileFile) {
   const sortedLockfile = sortLockfileKeys(lockfile as LockfileFile)
-  return yaml.dump(sortedLockfile, LOCKFILE_YAML_FORMAT)
+  return lockfileYamlDump(sortedLockfile)
 }
 
 export function isEmptyLockfile (lockfile: LockfileObject): boolean {

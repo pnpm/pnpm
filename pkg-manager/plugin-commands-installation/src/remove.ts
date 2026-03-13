@@ -3,19 +3,21 @@ import {
   readDepNameCompletions,
   readProjectManifest,
 } from '@pnpm/cli-utils'
-import { type CompletionFunc } from '@pnpm/command'
+import type { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
+import { mutateModulesInSingleProject } from '@pnpm/core'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
+import { handleGlobalRemove } from '@pnpm/global.commands'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type DependenciesField, type ProjectRootDir, type Project } from '@pnpm/types'
-import { mutateModulesInSingleProject } from '@pnpm/core'
+import type { DependenciesField, Project, ProjectRootDir } from '@pnpm/types'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { pick, without } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
+
 import { getSaveType } from './getSaveType.js'
 import { recursive } from './recursive.js'
 
@@ -154,10 +156,18 @@ export async function handler (
   > & {
     recursive?: boolean
     pnpmfile: string[]
-  },
+  } & Partial<Pick<Config, 'global' | 'globalPkgDir'>>,
   params: string[]
 ): Promise<void> {
   if (params.length === 0) throw new PnpmError('MUST_REMOVE_SOMETHING', 'At least one dependency name should be specified for removal')
+  if (opts.global) {
+    if (!opts.bin) {
+      throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
+        hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
+      })
+    }
+    return handleGlobalRemove(opts, params)
+  }
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,

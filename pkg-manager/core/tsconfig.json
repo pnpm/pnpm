@@ -25,7 +25,13 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../builder/policy"
+      "path": "../../building/after-install"
+    },
+    {
+      "path": "../../building/during-install"
+    },
+    {
+      "path": "../../building/policy"
     },
     {
       "path": "../../catalogs/protocol-parser"
@@ -55,13 +61,7 @@
       "path": "../../deps/graph-sequencer"
     },
     {
-      "path": "../../exec/build-modules"
-    },
-    {
       "path": "../../exec/lifecycle"
-    },
-    {
-      "path": "../../exec/plugin-commands-rebuild"
     },
     {
       "path": "../../fs/msgpack-file"
@@ -152,6 +152,9 @@
     },
     {
       "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/index"
     },
     {
       "path": "../../store/store-controller-types"

@@ -1,11 +1,12 @@
 import * as dp from '@pnpm/dependency-path'
-import { type ProjectSnapshot } from '@pnpm/lockfile.types'
+import type { ProjectSnapshot } from '@pnpm/lockfile.types'
 import {
   DEPENDENCIES_FIELDS,
   type ProjectManifest,
 } from '@pnpm/types'
-import { equals, pickBy, omit } from 'ramda'
+import { equals, omit, pickBy } from 'ramda'
 import semver from 'semver'
+
 import { type Diff, diffFlatRecords, isEqual } from './diffFlatRecords.js'
 
 export function satisfiesPackageManifest (

@@ -1,9 +1,10 @@
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import execa from 'execa'
+import { safeExeca as execa } from 'execa'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 export const DEFAULT_OPTS = {
+  authInfos: {},
   argv: {
     original: [],
   },
@@ -41,6 +42,7 @@ export const DEFAULT_OPTS = {
   sort: true,
   cacheDir: '../cache',
   strictSsl: false,
+  sslConfigs: {},
   userAgent: 'pnpm',
   userConfig: {},
   useRunningStoreServer: false,
@@ -51,6 +53,6 @@ export const DEFAULT_OPTS = {
 
 export async function checkPkgExists (packageName: string, expectedVersion: string): Promise<void> {
   const { stdout } = await execa('npm', ['view', packageName, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-  const output = JSON.parse(stdout.toString())
+  const output = JSON.parse(stdout?.toString() ?? '')
   expect(Array.isArray(output) ? output[0] : output).toStrictEqual(expectedVersion)
 }

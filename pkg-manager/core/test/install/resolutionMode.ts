@@ -1,6 +1,7 @@
+import { addDependenciesToPackage, install } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { addDependenciesToPackage, install } from '@pnpm/core'
+
 import { testDefaults } from '../utils/index.js'
 
 test('time-based resolution mode', async () => {

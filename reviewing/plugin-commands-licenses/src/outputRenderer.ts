@@ -1,10 +1,11 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
-import { type LicensePackage } from '@pnpm/license-scanner'
-import chalk from 'chalk'
+import type { LicensePackage } from '@pnpm/license-scanner'
 import { table } from '@zkochan/table'
-import { groupBy, sortWith, omit, pick } from 'ramda'
+import chalk from 'chalk'
+import { groupBy, omit, pick, sortWith } from 'ramda'
 import semver from 'semver'
-import { type LicensesCommandResult } from './LicensesCommandResult.js'
+
+import type { LicensesCommandResult } from './LicensesCommandResult.js'
 
 function sortLicensesPackages (licensePackages: readonly LicensePackage[]): LicensePackage[] {
   return sortWith(

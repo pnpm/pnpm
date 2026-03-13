@@ -102,7 +102,7 @@ export interface BaseManifest {
     email?: string
   }
   scripts?: PackageScripts
-  config?: object
+  config?: Record<string, unknown>
   engines?: {
     node?: string
     npm?: string
@@ -143,10 +143,24 @@ export type AllowedDeprecatedVersions = Record<string, string>
 
 type VersionWithIntegrity = string
 
+/**
+ * Old format (inline integrity in pnpm-workspace.yaml):
+ *   "@my-org/cfg": "1.2.0+sha512-XYZ"
+ *   or { tarball: "...", integrity: "1.2.0+sha512-XYZ" }
+ *
+ * New format (plain specifiers in pnpm-workspace.yaml, integrity in pnpm-lock.env.yaml):
+ *   "@my-org/cfg": "^1.2.0"
+ */
 export type ConfigDependencies = Record<string, VersionWithIntegrity | {
   tarball?: string
   integrity: VersionWithIntegrity
 }>
+
+/**
+ * Clean specifiers for configDependencies in pnpm-workspace.yaml (new format).
+ * Integrity info is stored in pnpm-lock.env.yaml instead.
+ */
+export type ConfigDependencySpecifiers = Record<string, string>
 
 export interface AuditConfig {
   ignoreCves?: string[]
@@ -173,7 +187,7 @@ export interface PnpmSettings {
 
 export interface ProjectManifest extends BaseManifest {
   packageManager?: string
-  workspaces?: string[]
+  workspaces?: string[] // TODO: add Record<string, string> to represent npm (to be compatible with @npm/types)
   pnpm?: PnpmSettings
   private?: boolean
   resolutions?: Record<string, string>
@@ -182,6 +196,30 @@ export interface ProjectManifest extends BaseManifest {
 export interface PackageManifest extends DependencyManifest {
   deprecated?: string
 }
+
+/**
+ * Subset of package.json fields cached in the store index.
+ * Used for bin linking, build scripts, runtime selection, and dependency resolution.
+ */
+export type BundledManifest = Pick<
+  BaseManifest,
+| 'bin'
+| 'bundledDependencies'
+| 'bundleDependencies'
+| 'cpu'
+| 'dependencies'
+| 'devDependencies'
+| 'directories'
+| 'engines'
+| 'libc'
+| 'name'
+| 'optionalDependencies'
+| 'os'
+| 'peerDependencies'
+| 'peerDependenciesMeta'
+| 'scripts'
+| 'version'
+>
 
 export interface SupportedArchitectures {
   os?: string[]

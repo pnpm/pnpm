@@ -1,8 +1,9 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
-import { readModulesManifest, writeModulesManifest, type StrictModules } from '@pnpm/modules-yaml'
-import { sync as readYamlFile } from 'read-yaml-file'
+import path from 'node:path'
+
+import { readModulesManifest, type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
 import isWindows from 'is-windows'
+import { readYamlFileSync } from 'read-yaml-file'
 import { temporaryDirectory } from 'tempy'
 
 test('writeModulesManifest() and readModulesManifest()', async () => {
@@ -32,7 +33,7 @@ test('writeModulesManifest() and readModulesManifest()', async () => {
   await writeModulesManifest(modulesDir, modulesYaml)
   expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
 
-  const raw = readYamlFile<any>(path.join(modulesDir, '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const raw = readYamlFileSync<any>(path.join(modulesDir, '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(raw.virtualStoreDir).toBeDefined()
   expect(path.isAbsolute(raw.virtualStoreDir)).toEqual(isWindows())
 })

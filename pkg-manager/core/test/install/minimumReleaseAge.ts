@@ -1,5 +1,6 @@
-import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage } from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
+
 import { testDefaults } from '../utils/index.js'
 
 const isOdd011ReleaseDate = new Date(2016, 11, 7 - 2) // 0.1.1 was released at 2016-12-07T07:18:01.205Z

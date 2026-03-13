@@ -1,9 +1,10 @@
-import fs from 'fs'
-import { createRequire } from 'module'
-import path from 'path'
-import { prependDirsToPath } from '@pnpm/env.path'
-import { tempDir, prepare as prepareWithPkg } from '@pnpm/prepare'
+import fs from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
+import { prependDirsToPath } from '@pnpm/env.path'
+import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
 import spawn from 'cross-spawn'
 import nock from 'nock'
 
@@ -20,7 +21,7 @@ jest.unstable_mockModule('@pnpm/cli-meta', () => {
     },
   }
 })
-const { selfUpdate } = await import('@pnpm/tools.plugin-commands-self-updater')
+const { selfUpdate, installPnpm } = await import('@pnpm/tools.plugin-commands-self-updater')
 
 afterEach(() => {
   nock.cleanAll()
@@ -31,8 +32,9 @@ beforeEach(() => {
   nock.enableNetConnect()
 })
 
-function prepare () {
+function prepare (manifest: object = {}) {
   const dir = tempDir(false)
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(manifest), 'utf8')
   return prepareOptions(dir)
 }
 
@@ -45,6 +47,7 @@ function prepareOptions (dir: string) {
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     bail: true,
+    globalPkgDir: path.join(dir, 'global', 'v11'),
     pnpmHomeDir: dir,
     preferWorkspacePackages: true,
     registries: {
@@ -86,18 +89,62 @@ function createMetadata (latest: string, registry: string, otherVersions: string
   }
 }
 
+function createExeMetadata (version: string, registry: string) {
+  return {
+    name: '@pnpm/exe',
+    'dist-tags': { latest: version },
+    versions: {
+      [version]: {
+        name: '@pnpm/exe',
+        version,
+        dist: {
+          shasum: 'abcdef1234567890',
+          tarball: `${registry}@pnpm/exe/-/exe-${version}.tgz`,
+          integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+        },
+      },
+    },
+  }
+}
+
+/**
+ * Mock @pnpm/exe metadata for tests that call resolvePackageManagerIntegrities.
+ * This prevents install() from making real HTTP requests for @pnpm/exe.
+ */
+function mockExeMetadata (registry: string, version: string) {
+  nock(registry)
+    .get('/@pnpm%2Fexe') // cspell:disable-line
+    .reply(200, createExeMetadata(version, registry))
+}
+
+/**
+ * Mock all registry requests needed for a full self-update flow.
+ * This includes: initial resolution, resolvePackageManagerIntegrities, and handleGlobalAdd.
+ */
+function mockRegistryForUpdate (registry: string, version: string, metadata: object) {
+  // Use persist for metadata since multiple components request it
+  nock(registry)
+    .persist()
+    .get('/pnpm')
+    .reply(200, metadata)
+  mockExeMetadata(registry, version)
+  nock(registry)
+    .get(`/pnpm/-/pnpm-${version}.tgz`)
+    .replyWithFile(200, pnpmTarballPath)
+}
+
 test('self-update', async () => {
   const opts = prepare()
-  nock(opts.registries.default)
-    .get('/pnpm')
-    .reply(200, createMetadata('9.1.0', opts.registries.default))
-  nock(opts.registries.default)
-    .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, pnpmTarballPath)
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
 
   await selfUpdate.handler(opts, [])
 
-  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(opts.pnpmHomeDir, '.tools/pnpm/9.1.0/node_modules/pnpm/package.json'), 'utf8'))
+  // Verify the package was installed in the global dir
+  const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
+  const entries = fs.readdirSync(globalDir)
+  const installDirName = entries.find((e) => fs.statSync(path.join(globalDir, e)).isDirectory())
+  expect(installDirName).toBeDefined()
+  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(globalDir, installDirName!, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
 
   const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
@@ -113,16 +160,24 @@ test('self-update', async () => {
 
 test('self-update by exact version', async () => {
   const opts = prepare()
+  const metadata = createMetadata('9.2.0', opts.registries.default, ['9.1.0'])
   nock(opts.registries.default)
+    .persist()
     .get('/pnpm')
-    .reply(200, createMetadata('9.2.0', opts.registries.default, ['9.1.0']))
+    .reply(200, metadata)
+  mockExeMetadata(opts.registries.default, '9.1.0')
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
     .replyWithFile(200, pnpmTarballPath)
 
   await selfUpdate.handler(opts, ['9.1.0'])
 
-  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(opts.pnpmHomeDir, '.tools/pnpm/9.1.0/node_modules/pnpm/package.json'), 'utf8'))
+  // Verify the package was installed in the global dir
+  const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
+  const entries = fs.readdirSync(globalDir)
+  const installDirName = entries.find((e) => fs.statSync(path.join(globalDir, e)).isDirectory())
+  expect(installDirName).toBeDefined()
+  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(globalDir, installDirName!, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
 
   const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
@@ -193,22 +248,175 @@ test('should not update packageManager field when current version matches latest
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
-test('self-update links pnpm that is already present on the disk', async () => {
-  const opts = prepare()
+test('should update devEngines.packageManager version when a newer pnpm version is available', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '8.0.0' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
   nock(opts.registries.default)
+    .persist()
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.devEngines.packageManager.version).toBe('9.0.0')
+  expect(pkgJson.packageManager).toBeUndefined()
+})
+
+test('should update pnpm entry in devEngines.packageManager array', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: [
+        { name: 'npm', version: '10.0.0' },
+        { name: 'pnpm', version: '8.0.0' },
+      ],
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  nock(opts.registries.default)
+    .persist()
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.devEngines.packageManager[1].version).toBe('9.0.0')
+  expect(pkgJson.devEngines.packageManager[0].version).toBe('10.0.0')
+  expect(pkgJson.packageManager).toBeUndefined()
+})
+
+test('should not modify devEngines.packageManager range when resolved version still satisfies it', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '>=8.0.0' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  nock(opts.registries.default)
+    .persist()
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '>=8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  // The range should remain unchanged — the exact version is pinned in the lockfile
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.devEngines.packageManager.version).toBe('>=8.0.0')
+  // The lockfile should be written with the resolved exact version
+  const lockfile = fs.readFileSync(path.join(opts.dir, 'pnpm-lock.env.yaml'), 'utf8')
+  expect(lockfile).toContain('9.0.0')
+})
+
+test('should fall back to ^version when complex range cannot accommodate the new version', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '>=8.0.0 <9.0.0' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  nock(opts.registries.default)
+    .persist()
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '>=8.0.0 <9.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.devEngines.packageManager.version).toBe('^9.0.0')
+})
+
+test('should update devEngines.packageManager range when resolved version no longer satisfies it', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '^8' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  nock(opts.registries.default)
+    .persist()
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '^8',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  // Range operator preserved, version updated
+  expect(pkgJson.devEngines.packageManager.version).toBe('^9.0.0')
+})
+
+test('self-update finds pnpm that is already in the global dir', async () => {
+  const opts = prepare()
+  const globalDir = opts.globalPkgDir
+
+  // Pre-create a pnpm package in the global dir with a hash symlink
+  const installDir = path.join(globalDir, 'test-install')
+  const pkgDir = path.join(installDir, 'node_modules', 'pnpm')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { pnpm: '9.2.0' } }), 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '9.2.0', bin: { pnpm: 'bin.js' } }), 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'bin.js'), `#!/usr/bin/env node
+console.log('9.2.0')`, 'utf8')
+  // Create a hash symlink pointing to the install dir (like handleGlobalAdd does)
+  fs.symlinkSync(installDir, path.join(globalDir, 'fake-hash'))
+
+  nock(opts.registries.default)
+    .persist()
     .get('/pnpm')
     .reply(200, createMetadata('9.2.0', opts.registries.default))
+  mockExeMetadata(opts.registries.default, '9.2.0')
 
-  const baseDir = path.join(opts.pnpmHomeDir, '.tools/pnpm/9.2.0')
-  fs.mkdirSync(path.join(baseDir, 'bin'), { recursive: true })
-  const latestPnpmDir = path.join(baseDir, 'node_modules/pnpm')
-  fs.mkdirSync(latestPnpmDir, { recursive: true })
-  fs.writeFileSync(path.join(latestPnpmDir, 'package.json'), JSON.stringify({ name: 'pnpm', bin: 'bin.js' }), 'utf8')
-  fs.writeFileSync(path.join(latestPnpmDir, 'bin.js'), `#!/usr/bin/env node
-console.log('9.2.0')`, 'utf8')
   const output = await selfUpdate.handler(opts, [])
 
-  expect(output).toBe(`The latest version, v9.2.0, is already present on the system. It was activated by linking it from ${path.join(latestPnpmDir, '../..')}.`)
+  expect(output).toBe(`The latest version, v9.2.0, is already present on the system. It was activated by linking it from ${installDir}.`)
 
   const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
   const { status, stdout } = spawn.sync('pnpm', ['-v'], {
@@ -219,6 +427,45 @@ console.log('9.2.0')`, 'utf8')
   })
   expect(status).toBe(0)
   expect(stdout.toString().trim()).toBe('9.2.0')
+})
+
+test('self-update works globally without package.json', async () => {
+  const dir = tempDir(false)
+  // No package.json in this directory
+  const pnpmHomeDir = path.join(dir, 'pnpm-home')
+  fs.mkdirSync(pnpmHomeDir, { recursive: true })
+  const opts = {
+    ...prepareOptions(dir),
+    globalPkgDir: path.join(pnpmHomeDir, 'global', 'v11'),
+    pnpmHomeDir,
+    bin: pnpmHomeDir,
+  }
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
+
+  await selfUpdate.handler(opts, [])
+
+  // Verify no package.json was created
+  expect(fs.existsSync(path.join(dir, 'package.json'))).toBe(false)
+
+  // Verify pnpm-lock.env.yaml was written to pnpmHomeDir
+  expect(fs.existsSync(path.join(pnpmHomeDir, 'pnpm-lock.env.yaml'))).toBe(true)
+
+  // Verify the package was installed in the global dir
+  const globalDir = path.join(pnpmHomeDir, 'global', 'v11')
+  const globalEntries = fs.readdirSync(globalDir)
+  const globalInstallDir = globalEntries.find((e) => fs.statSync(path.join(globalDir, e)).isDirectory())
+  expect(globalInstallDir).toBeDefined()
+  expect(fs.existsSync(path.join(globalDir, globalInstallDir!, 'node_modules', 'pnpm', 'package.json'))).toBe(true)
+
+  const pnpmEnv = prependDirsToPath([pnpmHomeDir])
+  const { status, stdout } = spawn.sync('pnpm', ['-v'], {
+    env: {
+      ...process.env,
+      [pnpmEnv.name]: pnpmEnv.value,
+    },
+  })
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe('9.1.0')
 })
 
 test('self-update updates the packageManager field in package.json', async () => {
@@ -236,9 +483,6 @@ test('self-update updates the packageManager field in package.json', async () =>
   nock(opts.registries.default)
     .get('/pnpm')
     .reply(200, createMetadata('9.1.0', opts.registries.default))
-  nock(opts.registries.default)
-    .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, pnpmTarballPath)
 
   const output = await selfUpdate.handler(opts, [])
 
@@ -246,4 +490,22 @@ test('self-update updates the packageManager field in package.json', async () =>
 
   const pkgJson = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'))
   expect(pkgJson.packageManager).toBe('pnpm@9.1.0')
+})
+
+test('installPnpm without env lockfile uses resolution path', async () => {
+  const opts = prepare()
+  nock(opts.registries.default)
+    .persist()
+    .get('/pnpm')
+    .reply(200, createMetadata('9.1.0', opts.registries.default))
+  nock(opts.registries.default)
+    .get('/pnpm/-/pnpm-9.1.0.tgz')
+    .replyWithFile(200, pnpmTarballPath)
+
+  const result = await installPnpm('9.1.0', opts)
+
+  expect(result.alreadyExisted).toBe(false)
+  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(result.baseDir, 'node_modules/pnpm/package.json'), 'utf8'))
+  expect(pnpmPkgJson.version).toBe('9.1.0')
+  expect(fs.existsSync(result.binDir)).toBe(true)
 })

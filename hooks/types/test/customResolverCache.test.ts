@@ -1,9 +1,9 @@
 import {
-  getCustomResolverCacheKey,
-  getCachedCanResolve,
-  setCachedCanResolve,
   checkCustomResolverCanResolve,
   type CustomResolver,
+  getCachedCanResolve,
+  getCustomResolverCacheKey,
+  setCachedCanResolve,
 } from '../src/index.js'
 
 describe('customResolverCache', () => {

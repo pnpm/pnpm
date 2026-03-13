@@ -1,7 +1,8 @@
-import path from 'path'
-import url from 'url'
-import kebabCase from 'lodash.kebabcase'
+import path from 'node:path'
+import url from 'node:url'
+
 import camelcase from 'camelcase'
+import kebabCase from 'lodash.kebabcase'
 
 const PREFIX = 'pnpm_config_'
 

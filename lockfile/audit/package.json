@@ -36,6 +36,7 @@
     "@pnpm/fetch": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
@@ -49,14 +50,13 @@
   "devDependencies": {
     "@pnpm/audit": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",
     "nock": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

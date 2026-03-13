@@ -1,15 +1,18 @@
-import path from 'path'
-import fs from 'fs'
-import { createCafsStore, createPackageImporterAsync, type CafsLocker } from '@pnpm/create-cafs-store'
-import { type Fetchers } from '@pnpm/fetcher-base'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { type CafsLocker, createCafsStore, createPackageImporterAsync } from '@pnpm/create-cafs-store'
+import type { Fetchers } from '@pnpm/fetcher-base'
+import type { CustomFetcher } from '@pnpm/hooks.types'
 import { createPackageRequester } from '@pnpm/package-requester'
-import { type ResolveFunction } from '@pnpm/resolver-base'
-import {
-  type ImportIndexedPackageAsync,
-  type StoreController,
+import type { ResolveFunction } from '@pnpm/resolver-base'
+import type { StoreIndex } from '@pnpm/store.index'
+import type {
+  ImportIndexedPackageAsync,
+  StoreController,
 } from '@pnpm/store-controller-types'
-import { type CustomFetcher } from '@pnpm/hooks.types'
 import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
+
 import { prune } from './prune.js'
 
 export { type CafsLocker }
@@ -31,6 +34,7 @@ export interface CreatePackageStoreOptions {
   strictStorePkgContentCheck?: boolean
   clearResolutionCache: () => void
   customFetchers?: CustomFetcher[]
+  storeIndex: StoreIndex
 }
 
 export function createPackageStore (
@@ -64,7 +68,9 @@ export function createPackageStore (
   })
 
   return {
-    close: async () => {}, // eslint-disable-line:no-empty
+    close: async () => {
+      initOpts.storeIndex.flush()
+    },
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
     importPackage: initOpts.importPackage
@@ -75,7 +81,7 @@ export function createPackageStore (
         storeDir: initOpts.storeDir,
         targetDir,
       }),
-    prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir }),
+    prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir, storeIndex: initOpts.storeIndex }),
     requestPackage: packageRequester.requestPackage,
     upload,
     clearResolutionCache: initOpts.clearResolutionCache,
@@ -84,6 +90,7 @@ export function createPackageStore (
   async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }): Promise<void> {
     await addFilesFromDir({
       storeDir: cafs.storeDir,
+      storeIndex: initOpts.storeIndex,
       dir: builtPkgLocation,
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       filesIndexFile: opts.filesIndexFile,

@@ -11,20 +11,22 @@ const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arc
 
 const pkgName = `@pnpm/${platform}-${arch}`
 const pkgJson = fileURLToPath(import.meta.resolve(`${pkgName}/package.json`))
-const subpkg = JSON.parse(fs.readFileSync(pkgJson, 'utf8'))
+const executable = platform === 'win' ? 'pnpm.exe' : 'pnpm'
+const platformDir = path.dirname(pkgJson)
+const bin = path.resolve(platformDir, executable)
 
-if (subpkg.bin != null) {
-  const executable = subpkg.bin.pnpm
-  const bin = path.resolve(path.dirname(pkgJson), executable)
+const ownDir = import.meta.dirname
 
-  linkSync(bin, path.resolve(process.cwd(), executable))
+if (!fs.existsSync(bin)) process.exit(0)
 
-  if (platform === 'win') {
-    const pkg = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8'))
-    fs.writeFileSync(path.resolve(process.cwd(), 'pnpm'), 'This file intentionally left blank')
-    pkg.bin.pnpm = 'pnpm.exe'
-    fs.writeFileSync(path.resolve(process.cwd(), 'package.json'), JSON.stringify(pkg, null, 2))
-  }
+linkSync(bin, path.resolve(ownDir, executable))
+
+if (platform === 'win') {
+  const pkgJsonPath = path.resolve(ownDir, 'package.json')
+  const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  fs.writeFileSync(path.resolve(ownDir, 'pnpm'), 'This file intentionally left blank')
+  pkg.bin.pnpm = 'pnpm.exe'
+  fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2))
 }
 
 function linkSync(src, dest) {

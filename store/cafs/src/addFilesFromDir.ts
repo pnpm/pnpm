@@ -1,14 +1,16 @@
-import util from 'util'
-import fs, { type Stats } from 'fs'
-import path from 'path'
-import {
-  type AddToStoreResult,
-  type FilesIndex,
-  type FileWriteResult,
+import fs, { type Stats } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
+import type {
+  AddToStoreResult,
+  FilesIndex,
+  FileWriteResult,
 } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
-import { type DependencyManifest } from '@pnpm/types'
-import isSubdir from 'is-subdir'
+import type { DependencyManifest } from '@pnpm/types'
+import { isSubdir } from 'is-subdir'
+
 import { parseJsonBufferSync } from './parseJson.js'
 
 export function addFilesFromDir (
@@ -16,6 +18,7 @@ export function addFilesFromDir (
   dirname: string,
   opts: {
     files?: string[]
+    includeNodeModules?: boolean
     readManifest?: boolean
   } = {}
 ): AddToStoreResult {
@@ -39,7 +42,7 @@ export function addFilesFromDir (
       })
     }
   } else {
-    files = findFilesInDir(dirname, resolvedRoot)
+    files = findFilesInDir(dirname, resolvedRoot, opts)
   }
   for (const { absolutePath, relativePath, stat } of files) {
     const buffer = gfs.readFileSync(absolutePath)
@@ -112,10 +115,11 @@ function getSymlinkStatIfContained (
   return { stat: fs.statSync(realPath), realPath }
 }
 
-function findFilesInDir (dir: string, rootDir: string): File[] {
+function findFilesInDir (dir: string, rootDir: string, opts: { includeNodeModules?: boolean }): File[] {
   const files: File[] = []
   const ctx: FindFilesContext = {
     filesList: files,
+    includeNodeModules: opts.includeNodeModules ?? false,
     rootDir,
     visited: new Set([rootDir]),
   }
@@ -125,6 +129,7 @@ function findFilesInDir (dir: string, rootDir: string): File[] {
 
 interface FindFilesContext {
   filesList: File[]
+  includeNodeModules: boolean
   rootDir: string
   visited: Set<string>
 }
@@ -162,7 +167,7 @@ function findFiles (
 
     if (nextRealDir) {
       if (ctx.visited.has(nextRealDir)) continue
-      if (relativeDir !== '' || file.name !== 'node_modules') {
+      if (relativeDir !== '' || file.name !== 'node_modules' || ctx.includeNodeModules) {
         ctx.visited.add(nextRealDir)
         findFiles(ctx, absolutePath, relativeSubdir, nextRealDir)
         ctx.visited.delete(nextRealDir)

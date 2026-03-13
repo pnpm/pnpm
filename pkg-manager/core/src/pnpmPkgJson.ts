@@ -1,5 +1,6 @@
-import path from 'path'
-import { type PackageManifest } from '@pnpm/types'
+import path from 'node:path'
+
+import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 let pnpmPkgJson!: PackageManifest

@@ -1,12 +1,12 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import path from 'path'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import { prepare, preparePackages } from '@pnpm/prepare'
-
-import execa from 'execa'
-import { stripVTControlCharacters as stripAnsi } from 'util'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { safeExeca as execa } from 'execa'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
@@ -33,9 +33,11 @@ test('listing packages', async () => {
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   dependencies:
+└── is-positive@1.0.0
 
-dependencies:
-is-positive 1.0.0`)
+1 package`)
   }
 
   {
@@ -49,9 +51,11 @@ is-positive 1.0.0`)
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   devDependencies:
+└── is-negative@1.0.0
 
-devDependencies:
-is-negative 1.0.0`)
+1 package`)
   }
 
   {
@@ -63,12 +67,14 @@ is-negative 1.0.0`)
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   dependencies:
+├── is-positive@1.0.0
+│
+│   devDependencies:
+└── is-negative@1.0.0
 
-dependencies:
-is-positive 1.0.0
-
-devDependencies:
-is-negative 1.0.0`)
+2 packages`)
   }
 })
 
@@ -84,7 +90,7 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     sharedWorkspaceLockfile: true,
     packages: ['**', '!store/**'],
   })
@@ -102,9 +108,11 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
   expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 pkg@1.0.0 ${process.cwd()}
+│
+│   dependencies:
+└── is-positive@1.0.0
 
-dependencies:
-is-positive 1.0.0`)
+1 package`)
 })
 
 // Use a preinstalled fixture
@@ -193,9 +201,11 @@ test('listing packages should not fail on package that has local file directory 
   expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 pkg@1.0.0 ${pkgDir}
+│
+│   dependencies:
+└── dep@file:../dep
 
-dependencies:
-dep file:../dep`)
+1 package`)
 })
 
 test('listing packages with --lockfile-only', async () => {
@@ -222,9 +232,11 @@ test('listing packages with --lockfile-only', async () => {
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   dependencies:
+└── is-positive@1.0.0
 
-dependencies:
-is-positive 1.0.0`)
+1 package`)
   }
 
   {
@@ -239,9 +251,11 @@ is-positive 1.0.0`)
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   devDependencies:
+└── is-negative@1.0.0
 
-devDependencies:
-is-negative 1.0.0`)
+1 package`)
   }
 
   {
@@ -254,12 +268,14 @@ is-negative 1.0.0`)
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   dependencies:
+├── is-positive@1.0.0
+│
+│   devDependencies:
+└── is-negative@1.0.0
 
-dependencies:
-is-positive 1.0.0
-
-devDependencies:
-is-negative 1.0.0`)
+2 packages`)
   }
 })
 
@@ -305,7 +321,9 @@ test('listing specific package with --lockfile-only', async () => {
   expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
+│
+│   dependencies:
+└── is-positive@1.0.0
 
-dependencies:
-is-positive 1.0.0`)
+1 package`)
 })

@@ -4,7 +4,7 @@ import {
   type ResolveFunction,
 } from '@pnpm/client'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import { type PackageVersionPolicy, type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest, PackageVersionPolicy } from '@pnpm/types'
 
 interface GetManifestOpts {
   dir: string
@@ -14,7 +14,7 @@ interface GetManifestOpts {
   minimumReleaseAgeExclude?: string[]
 }
 
-export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig' | 'minimumReleaseAgeExclude'>
+export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig' | 'minimumReleaseAgeExclude' | 'storeIndex'>
 & GetManifestOpts
 & { fullMetadata: boolean, rawConfig: Record<string, string> }
 

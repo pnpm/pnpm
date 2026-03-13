@@ -3,16 +3,17 @@ import {
   type ResolveFunction,
   type ResolverFactoryOptions,
 } from '@pnpm/default-resolver'
-import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
-import { type SslConfig } from '@pnpm/types'
-import { type CustomResolver, type CustomFetcher } from '@pnpm/hooks.types'
-import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
-import type { GitFetcher, DirectoryFetcher, BinaryFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
-import { createGitFetcher } from '@pnpm/git-fetcher'
-import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
-import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
+import type { BinaryFetcher, DirectoryFetcher, GitFetcher } from '@pnpm/fetcher-base'
 import { createBinaryFetcher } from '@pnpm/fetching.binary-fetcher'
+import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching-types'
+import { createGitFetcher } from '@pnpm/git-fetcher'
+import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
+import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import type { StoreIndex } from '@pnpm/store.index'
+import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
+import type { SslConfig } from '@pnpm/types'
 
 export type { ResolveFunction }
 
@@ -24,6 +25,7 @@ export type ClientOptions = {
   rawConfig: Record<string, string>
   sslConfigs?: Record<string, SslConfig>
   retry?: RetryTimeoutOptions
+  storeIndex: StoreIndex
   timeout?: number
   unsafePerm?: boolean
   userAgent?: string
@@ -53,7 +55,7 @@ export function createClient (opts: ClientOptions): Client {
   }
 }
 
-export function createResolver (opts: ClientOptions): { resolve: ResolveFunction, clearCache: () => void } {
+export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { resolve: ResolveFunction, clearCache: () => void } {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
 
@@ -69,7 +71,7 @@ type Fetchers = {
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
-  opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles' | 'offline' | 'fetchMinSpeedKiBps'>
+  opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles' | 'offline' | 'fetchMinSpeedKiBps' | 'storeIndex'>
 ): Fetchers {
   const tarballFetchers = createTarballFetcher(fetchFromRegistry, getAuthHeader, opts)
   return {
@@ -81,6 +83,7 @@ function createFetchers (
       fetchFromRemoteTarball: tarballFetchers.remoteTarball,
       offline: opts.offline,
       rawConfig: opts.rawConfig,
+      storeIndex: opts.storeIndex,
     }),
   }
 }

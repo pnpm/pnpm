@@ -1,14 +1,15 @@
-import {
-  type PackageManifestLog,
-  type StatsLog,
-} from '@pnpm/core-loggers'
-import { prepareEmpty } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import {
   addDependenciesToPackage,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import { type ProjectRootDir } from '@pnpm/types'
-import sinon from 'sinon'
+import type {
+  PackageManifestLog,
+  StatsLog,
+} from '@pnpm/core-loggers'
+import { prepareEmpty } from '@pnpm/prepare'
+import type { ProjectRootDir } from '@pnpm/types'
+
 import { testDefaults } from './../utils/index.js'
 
 test('uninstall package with no dependencies', async () => {
@@ -20,7 +21,7 @@ test('uninstall package with no dependencies', async () => {
     testDefaults({ save: true, nodeLinker: 'hoisted' })
   )
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   manifest = (await mutateModulesInSingleProject({
     dependencyNames: ['is-negative'],
     manifest,
@@ -28,7 +29,7 @@ test('uninstall package with no dependencies', async () => {
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ nodeLinker: 'hoisted', save: true, reporter }))).updatedProject.manifest
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     initial: {
       dependencies: {
         'is-negative': '2.1.0',
@@ -37,15 +38,15 @@ test('uninstall package with no dependencies', async () => {
     level: 'debug',
     name: 'pnpm:package-manifest',
     prefix: process.cwd(),
-  } as PackageManifestLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as PackageManifestLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix: process.cwd(),
     removed: 1,
-  } as StatsLog)).toBeTruthy()
+  } as StatsLog))
   /* This should be fixed
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:root',
     removed: {
@@ -53,15 +54,15 @@ test('uninstall package with no dependencies', async () => {
       name: 'is-negative',
       version: '2.1.0',
     },
-  } as RootLog)).toBeTruthy()
+  } as RootLog))
   */
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
     updated: {
       dependencies: {},
     },
-  } as PackageManifestLog)).toBeTruthy()
+  } as PackageManifestLog))
 
   // uninstall does not remove packages from store
   // even if they become unreferenced

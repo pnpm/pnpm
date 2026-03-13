@@ -1,27 +1,29 @@
-import fs from 'fs'
-import path from 'path'
-import { createGzip } from 'zlib'
-import { type Catalogs } from '@pnpm/catalogs.types'
-import { PnpmError } from '@pnpm/error'
-import { types as allTypes, type UniversalOptions, type Config, getWorkspaceConcurrency, getDefaultWorkspaceConcurrency } from '@pnpm/config'
+import fs from 'node:fs'
+import path from 'node:path'
+import { createGzip } from 'node:zlib'
+
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { readProjectManifest } from '@pnpm/cli-utils'
-import { createExportableManifest } from '@pnpm/exportable-manifest'
-import { packlist } from '@pnpm/fs.packlist'
-import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { type Hooks } from '@pnpm/pnpmfile'
-import { type ProjectManifest, type Project, type ProjectRootDir, type ProjectsGraph, type DependencyManifest } from '@pnpm/types'
-import { glob } from 'tinyglobby'
-import { pick } from 'ramda'
-import realpathMissing from 'realpath-missing'
-import renderHelp from 'render-help'
-import tar from 'tar-stream'
-import { runScriptsIfPresent } from './publish.js'
-import chalk from 'chalk'
-import validateNpmPackageName from 'validate-npm-package-name'
-import pLimit from 'p-limit'
 import { FILTERING } from '@pnpm/common-cli-options-help'
-import { sortPackages } from '@pnpm/sort-packages'
+import { type Config, getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, types as allTypes, type UniversalOptions } from '@pnpm/config'
+import { PnpmError } from '@pnpm/error'
+import { createExportableManifest, type ExportedManifest } from '@pnpm/exportable-manifest'
+import { packlist } from '@pnpm/fs.packlist'
 import { logger } from '@pnpm/logger'
+import { getBinsFromPackageManifest } from '@pnpm/package-bins'
+import type { Hooks } from '@pnpm/pnpmfile'
+import { sortPackages } from '@pnpm/sort-packages'
+import type { DependencyManifest, Project, ProjectManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
+import chalk from 'chalk'
+import pLimit from 'p-limit'
+import { pick } from 'ramda'
+import { realpathMissing } from 'realpath-missing'
+import { renderHelp } from 'render-help'
+import tar from 'tar-stream'
+import { glob } from 'tinyglobby'
+import validateNpmPackageName from 'validate-npm-package-name'
+
+import { runScriptsIfPresent } from './publish.js'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
 
@@ -244,9 +246,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     hooks: opts.hooks,
   })
   const files = await packlist(dir, {
-    packageJsonCache: {
-      [path.join(dir, 'package.json')]: publishManifest as Record<string, unknown>,
-    },
+    manifest: publishManifest as Record<string, unknown>,
   })
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
@@ -292,7 +292,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
 }
 
 export interface PackResult {
-  publishedManifest: ProjectManifest
+  publishedManifest: ExportedManifest
   contents: string[]
   tarballPath: string
 }
@@ -323,7 +323,7 @@ async function packPkg (opts: {
   modulesDir: string
   packGzipLevel?: number
   bins: string[]
-  manifest: ProjectManifest
+  manifest: ExportedManifest
 }): Promise<void> {
   const {
     destFile,
@@ -359,7 +359,7 @@ async function createPublishManifest (opts: {
   manifest: ProjectManifest
   catalogs: Catalogs
   hooks?: Hooks
-}): Promise<ProjectManifest> {
+}): Promise<ExportedManifest> {
   const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks } = opts
   const readmeFile = embedReadme ? await readReadmeFile(projectDir) : undefined
   return createExportableManifest(projectDir, manifest, {

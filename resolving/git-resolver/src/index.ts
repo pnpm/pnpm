@@ -1,10 +1,11 @@
-import { type TarballResolution, type GitResolution, type PkgResolutionId, type ResolveOptions, type ResolveResult } from '@pnpm/resolver-base'
-import git from 'graceful-git'
-import semver from 'semver'
-import { parseBareSpecifier, type HostedPackageSpec } from './parseBareSpecifier.js'
-import { createGitHostedPkgId } from './createGitHostedPkgId.js'
-import { type AgentOptions } from '@pnpm/network.agent'
 import { PnpmError } from '@pnpm/error'
+import type { AgentOptions } from '@pnpm/network.agent'
+import type { GitResolution, PkgResolutionId, ResolveOptions, ResolveResult, TarballResolution } from '@pnpm/resolver-base'
+import { gracefulGit as git } from 'graceful-git'
+import semver from 'semver'
+
+import { createGitHostedPkgId } from './createGitHostedPkgId.js'
+import { type HostedPackageSpec, parseBareSpecifier } from './parseBareSpecifier.js'
 
 export { createGitHostedPkgId }
 

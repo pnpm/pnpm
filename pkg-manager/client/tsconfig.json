@@ -47,6 +47,9 @@
     },
     {
       "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../store/index"
     }
   ]
 }

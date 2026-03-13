@@ -1,14 +1,16 @@
-import path from 'path'
+import path from 'node:path'
+
+import type { DepPath, PkgResolutionId } from '@pnpm/types'
 import normalize from 'normalize-path'
-import { type PkgResolutionId, type DepPath } from '@pnpm/types'
-import { type ResolvedDirectDependency, type ResolvedImporters } from './resolveDependencyTree.js'
-import { type NodeId } from './nextNodeId.js'
-import { type LinkedDependency } from './resolveDependencies.js'
-import {
-  type GenericDependenciesGraphWithResolvedChildren,
-  type DependenciesByProjectId,
-  type PartialResolvedPackage,
-  type ProjectToResolve,
+
+import type { NodeId } from './nextNodeId.js'
+import type { LinkedDependency } from './resolveDependencies.js'
+import type { ResolvedDirectDependency, ResolvedImporters } from './resolveDependencyTree.js'
+import type {
+  DependenciesByProjectId,
+  GenericDependenciesGraphWithResolvedChildren,
+  PartialResolvedPackage,
+  ProjectToResolve,
 } from './resolvePeers.js'
 
 export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {

@@ -1,15 +1,18 @@
-import path from 'path'
+import path from 'node:path'
+
 import { createResolver } from '@pnpm/client'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { logger } from '@pnpm/logger'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { type ResolveFunction } from '@pnpm/resolver-base'
+import type { ResolveFunction } from '@pnpm/resolver-base'
 import { sortPackages } from '@pnpm/sort-packages'
-import { type Registries, type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir, Registries } from '@pnpm/types'
 import pFilter from 'p-filter'
 import { pick } from 'ramda'
 import { writeJsonFile } from 'write-json-file'
+
 import { publish } from './publish.js'
+import type { PublishPackedPkgOptions } from './publishPackedPkg.js'
 
 export type PublishRecursiveOpts = Required<Pick<Config,
 | 'bin'
@@ -45,7 +48,6 @@ Partial<Pick<Config,
 | 'offline'
 | 'selectedProjectsGraph'
 | 'strictSsl'
-| 'sslConfigs'
 | 'unsafePerm'
 | 'userAgent'
 | 'userConfig'
@@ -56,7 +58,7 @@ Partial<Pick<Config,
     original: string[]
   }
   reportSummary?: boolean
-}
+} & PublishPackedPkgOptions
 
 export async function recursivePublish (
   opts: PublishRecursiveOpts & Required<Pick<Config, 'selectedProjectsGraph'>>

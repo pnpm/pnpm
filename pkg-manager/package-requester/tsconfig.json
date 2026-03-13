@@ -46,9 +46,6 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manifest/read-package-json"
-    },
-    {
       "path": "../../resolving/resolver-base"
     },
     {
@@ -59,6 +56,9 @@
     },
     {
       "path": "../../store/create-cafs-store"
+    },
+    {
+      "path": "../../store/index"
     },
     {
       "path": "../../store/store-controller-types"

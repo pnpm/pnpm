@@ -1,5 +1,6 @@
 import { list } from '@pnpm/plugin-commands-listing'
 import { prepare } from '@pnpm/prepare'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 // Covers https://github.com/pnpm/pnpm/issues/8519

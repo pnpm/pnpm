@@ -1,8 +1,10 @@
-import fs from 'fs'
-import path from 'path'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare } from '@pnpm/prepare'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import PATH from 'path-name'
+
 import { execPnpm } from './utils/index.js'
 
 test('uninstall package and remove from appropriate property', async () => {

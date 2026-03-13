@@ -1,11 +1,12 @@
-import { type PnpmError } from '@pnpm/error'
-import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
+import type { PnpmError } from '@pnpm/error'
+import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
+
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)

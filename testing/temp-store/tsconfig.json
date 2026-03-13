@@ -13,6 +13,9 @@
       "path": "../../pkg-manager/client"
     },
     {
+      "path": "../../store/index"
+    },
+    {
       "path": "../../store/package-store"
     },
     {

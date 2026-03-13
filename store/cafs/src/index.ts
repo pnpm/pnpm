@@ -1,50 +1,52 @@
-import crypto from 'crypto'
-import {
-  type AddToStoreResult,
-  type FileWriteResult,
-  type PackageFiles,
-  type PackageFileInfo,
-  type FilesIndex,
-  type SideEffects,
-  type SideEffectsDiff,
+import crypto from 'node:crypto'
+
+import type {
+  AddToStoreResult,
+  FilesIndex,
+  FileWriteResult,
+  PackageFileInfo,
+  PackageFiles,
+  SideEffects,
+  SideEffectsDiff,
 } from '@pnpm/cafs-types'
+
 import { addFilesFromDir } from './addFilesFromDir.js'
 import { addFilesFromTarball } from './addFilesFromTarball.js'
 import {
-  checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
+  checkPkgFilesIntegrity,
   type Integrity,
   type PackageFilesIndex,
   type VerifyResult,
 } from './checkPkgFilesIntegrity.js'
-import { readManifestFromStore } from './readManifestFromStore.js'
 import {
-  getIndexFilePathInCafs,
   contentPathFromHex,
   type FileType,
   getFilePathByModeInCafs,
   modeIsExecutable,
 } from './getFilePathInCafs.js'
+import { normalizeBundledManifest } from './normalizeBundledManifest.js'
 import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCafs.js'
 
 export const HASH_ALGORITHM = 'sha512'
 
+export { type BundledManifest } from '@pnpm/types'
+export { normalizeBundledManifest }
+
 export {
-  checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
-  readManifestFromStore,
+  checkPkgFilesIntegrity,
+  type FilesIndex,
   type FileType,
   getFilePathByModeInCafs,
-  getIndexFilePathInCafs,
   type Integrity,
+  optimisticRenameOverwrite,
   type PackageFileInfo,
   type PackageFiles,
   type PackageFilesIndex,
-  optimisticRenameOverwrite,
-  type FilesIndex,
-  type VerifyResult,
   type SideEffects,
   type SideEffectsDiff,
+  type VerifyResult,
 }
 
 export type CafsLocker = Map<string, number>
@@ -55,10 +57,9 @@ export interface CreateCafsOpts {
 }
 
 export interface CafsFunctions {
-  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean }) => AddToStoreResult
+  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean }) => AddToStoreResult
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
-  getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
   getFilePathByModeInCafs: (digest: string, mode: number) => string
 }
 
@@ -69,7 +70,6 @@ export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: Create
     addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
     addFilesFromTarball: addFilesFromTarball.bind(null, addBuffer, ignoreFile ?? null),
     addFile: addBuffer,
-    getIndexFilePathInCafs: getIndexFilePathInCafs.bind(null, storeDir),
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, storeDir),
   }
 }

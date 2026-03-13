@@ -1,8 +1,7 @@
-import renderHelp from 'render-help'
 import { docsUrl } from '@pnpm/cli-utils'
-import { types } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { pick } from 'ramda'
+import { renderHelp } from 'render-help'
+
 import * as dlx from './dlx.js'
 
 export const commandNames = ['create']
@@ -28,11 +27,7 @@ export async function handler (_opts: dlx.DlxCommandOptions, params: string[]): 
 }
 
 export function rcOptionsTypes (): Record<string, unknown> {
-  return {
-    ...pick([
-      'use-node-version',
-    ], types),
-  }
+  return {}
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {

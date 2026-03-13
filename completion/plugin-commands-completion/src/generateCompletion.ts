@@ -1,5 +1,6 @@
-import renderHelp from 'render-help'
 import { getCompletionScript, SUPPORTED_SHELLS } from '@pnpm/tabtab'
+import { renderHelp } from 'render-help'
+
 import { getShellFromParams } from './getShell.js'
 
 export const commandNames = ['completion']

@@ -1,4 +1,4 @@
-import { type ProjectManifest } from './package.js'
+import type { ProjectManifest } from './package.js'
 
 export interface Project {
   rootDir: ProjectRootDir

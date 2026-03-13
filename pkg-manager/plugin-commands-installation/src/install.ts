@@ -2,9 +2,11 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { PnpmError } from '@pnpm/error'
+import type { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
+
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 import { installDeps, type InstallDepsOptions } from './installDeps.js'
 
@@ -274,6 +276,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'deployAllFiles'
 | 'depth'
 | 'dev'
+| 'enableGlobalVirtualStore'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
 | 'frozenLockfile'
@@ -327,7 +330,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'overrides'
 | 'supportedArchitectures'
 | 'packageConfigs'
-> & CreateStoreControllerOptions & {
+> & CreateStoreControllerOptions & Partial<Pick<Config, 'globalPkgDir'>> & {
   argv: {
     original: string[]
   }
@@ -346,7 +349,11 @@ export type InstallCommandOptions = Pick<Config,
   pnpmfile: string[]
 } & Partial<Pick<Config, 'ci' | 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile' | 'symlink'>>
 
-export async function handler (opts: InstallCommandOptions): Promise<void> {
+export async function handler (opts: InstallCommandOptions & { _calledFromLink?: boolean }): Promise<void> {
+  if (opts.global && !opts._calledFromLink) {
+    throw new PnpmError('GLOBAL_INSTALL_NOT_SUPPORTED',
+      '"pnpm install -g" is not supported. Use "pnpm add -g <pkg>" to install global packages.')
+  }
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,

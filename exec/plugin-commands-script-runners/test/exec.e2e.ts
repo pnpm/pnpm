@@ -1,12 +1,14 @@
-import fs from 'fs'
-import path from 'path'
-import { type PnpmError } from '@pnpm/error'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import type { PnpmError } from '@pnpm/error'
 import { exec, run } from '@pnpm/plugin-commands-script-runners'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { type ProjectRootDirRealPath, type ProjectRootDir } from '@pnpm/types'
-import execa from 'execa'
+import type { ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { safeExeca as execa } from 'execa'
+
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')

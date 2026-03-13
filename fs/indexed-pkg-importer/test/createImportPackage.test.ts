@@ -1,5 +1,6 @@
-import fs, { type BigIntStats } from 'fs'
-import path from 'path'
+import fs, { type BigIntStats } from 'node:fs'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
 
 const testOnLinuxOnly = (process.platform === 'darwin' || process.platform === 'win32') ? test.skip : test
@@ -23,7 +24,7 @@ jest.unstable_mockModule('@pnpm/graceful-fs', () => {
   }
 })
 jest.unstable_mockModule('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))
-jest.unstable_mockModule('rename-overwrite', () => ({ default: { sync: jest.fn() } }))
+jest.unstable_mockModule('rename-overwrite', () => ({ renameOverwrite: jest.fn(), renameOverwriteSync: jest.fn() }))
 jest.unstable_mockModule('fs-extra', () => ({
   default: {
     copySync: jest.fn(),

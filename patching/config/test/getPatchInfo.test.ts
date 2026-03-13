@@ -1,5 +1,5 @@
 import { getPatchInfo } from '../src/getPatchInfo.js'
-import { type PatchGroupRecord } from '../src/index.js'
+import type { PatchGroupRecord } from '../src/index.js'
 
 test('getPatchInfo(undefined, ...) returns undefined', () => {
   expect(getPatchInfo(undefined, 'foo', '1.0.0')).toBeUndefined()
@@ -10,10 +10,7 @@ test('getPatchInfo() returns an exact version patch if the name and version matc
     foo: {
       exact: {
         '1.0.0': {
-          file: {
-            path: 'patches/foo@1.0.0.patch',
-            hash: '00000000000000000000000000000000',
-          },
+          hash: '00000000000000000000000000000000',
           key: 'foo@1.0.0',
         },
       },
@@ -34,10 +31,7 @@ test('getPatchInfo() returns a range version patch if the name matches and the v
       range: [{
         version: '1',
         patch: {
-          file: {
-            path: 'patches/foo@1.patch',
-            hash: '00000000000000000000000000000000',
-          },
+          hash: '00000000000000000000000000000000',
           key: 'foo@1',
         },
       }],
@@ -56,10 +50,7 @@ test('getPatchInfo() returns name-only patch if the name matches', () => {
       exact: {},
       range: [],
       all: {
-        file: {
-          path: 'patches/foo.patch',
-          hash: '00000000000000000000000000000000',
-        },
+        hash: '00000000000000000000000000000000',
         key: 'foo',
       },
     },
@@ -75,17 +66,11 @@ test('exact version patches override version range patches, version range patche
     foo: {
       exact: {
         '1.0.0': {
-          file: {
-            path: 'patches/foo@1.0.0.patch',
-            hash: '00000000000000000000000000000000',
-          },
+          hash: '00000000000000000000000000000000',
           key: 'foo@1.0.0',
         },
         '1.1.0': {
-          file: {
-            path: 'patches/foo@1.1.0.patch',
-            hash: '00000000000000000000000000000000',
-          },
+          hash: '00000000000000000000000000000000',
           key: 'foo@1.1.0',
         },
       },
@@ -93,29 +78,20 @@ test('exact version patches override version range patches, version range patche
         {
           version: '1',
           patch: {
-            file: {
-              path: 'patches/foo@1.patch',
-              hash: '00000000000000000000000000000000',
-            },
+            hash: '00000000000000000000000000000000',
             key: 'foo@1',
           },
         },
         {
           version: '2',
           patch: {
-            file: {
-              path: 'patches/foo@2.patch',
-              hash: '00000000000000000000000000000000',
-            },
+            hash: '00000000000000000000000000000000',
             key: 'foo@2',
           },
         },
       ],
       all: {
-        file: {
-          path: 'patches/foo.patch',
-          hash: '00000000000000000000000000000000',
-        },
+        hash: '00000000000000000000000000000000',
         key: 'foo',
       },
     },
@@ -137,20 +113,14 @@ test('getPatchInfo(_, name, version) throws an error when name@version matches m
         {
           version: '>=1.0.0 <3.0.0',
           patch: {
-            file: {
-              path: 'patches/foo_a.patch',
-              hash: '00000000000000000000000000000000',
-            },
+            hash: '00000000000000000000000000000000',
             key: 'foo@>=1.0.0 <3.0.0',
           },
         },
         {
           version: '>=2.0.0',
           patch: {
-            file: {
-              path: 'patches/foo_b.patch',
-              hash: '00000000000000000000000000000000',
-            },
+            hash: '00000000000000000000000000000000',
             key: 'foo@>=2.0.0',
           },
         },
@@ -170,10 +140,7 @@ test('getPatchInfo(_, name, version) does not throw an error when name@version m
     foo: {
       exact: {
         '2.1.0': {
-          file: {
-            path: 'patches/foo_a.patch',
-            hash: '00000000000000000000000000000000',
-          },
+          hash: '00000000000000000000000000000000',
           key: 'foo@>=1.0.0 <3.0.0',
         },
       },
@@ -181,20 +148,14 @@ test('getPatchInfo(_, name, version) does not throw an error when name@version m
         {
           version: '>=1.0.0 <3.0.0',
           patch: {
-            file: {
-              path: 'patches/foo_b.patch',
-              hash: '00000000000000000000000000000000',
-            },
+            hash: '00000000000000000000000000000000',
             key: 'foo@>=1.0.0 <3.0.0',
           },
         },
         {
           version: '>=2.0.0',
           patch: {
-            file: {
-              path: 'patches/foo_c.patch',
-              hash: '00000000000000000000000000000000',
-            },
+            hash: '00000000000000000000000000000000',
             key: 'foo@>=2.0.0',
           },
         },

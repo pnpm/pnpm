@@ -35,7 +35,6 @@
 "@pnpm/pkg-manager.direct-dep-linker": major
 "@pnpm/package-requester": major
 "@pnpm/plugin-commands-rebuild": major
-"@pnpm/plugin-commands-server": major
 "@pnpm/store-controller-types": major
 "@pnpm/find-workspace-dir": major
 "@pnpm/common-cli-options-help": major
@@ -156,7 +155,6 @@
 "@pnpm/dedupe.check": major
 "@pnpm/dedupe.types": major
 "@pnpm/run-npm": major
-"@pnpm/server": major
 "@pnpm/command": major
 "@pnpm/crypto.hash": major
 "@pnpm/deps.status": major
@@ -164,11 +162,10 @@
 "@pnpm/hooks.types": major
 "@pnpm/lockfile.fs": major
 "@pnpm/store.cafs": major
-"@pnpm/tools.path": major
 "@pnpm/cache.api": major
 "@pnpm/env.path": major
 "@pnpm/worker": major
 "pnpm": major
 ---
 
-Node.js v18 and 19 support discontinued.
+Node.js v18, 19, 20, and 21 support discontinued.

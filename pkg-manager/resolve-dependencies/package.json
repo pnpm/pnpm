@@ -59,7 +59,6 @@
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@yarnpkg/core": "catalog:",
     "filenamify": "catalog:",
-    "get-npm-tarball-url": "catalog:",
     "graph-cycles": "catalog:",
     "is-inner-link": "catalog:",
     "is-subdir": "catalog:",
@@ -85,7 +84,7 @@
     "@types/semver": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

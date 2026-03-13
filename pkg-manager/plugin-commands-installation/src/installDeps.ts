@@ -1,41 +1,52 @@
-import path from 'path'
+import path from 'node:path'
+
+import { buildProjects } from '@pnpm/building.after-install'
 import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
-import { checkDepsStatus } from '@pnpm/deps.status'
-import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
-import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
-import { filterDependenciesByType } from '@pnpm/manifest-utils'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { type LockfileObject } from '@pnpm/lockfile.types'
-import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir } from '@pnpm/types'
 import {
   IgnoredBuildsError,
   install,
   mutateModulesInSingleProject,
   type MutateModulesOptions,
+  type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/core'
+import { checkDepsStatus } from '@pnpm/deps.status'
+import { PnpmError } from '@pnpm/error'
+import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
+import { filterDependenciesByType } from '@pnpm/manifest-utils'
+import type { PreferredVersions, VersionSelectors } from '@pnpm/resolver-base'
 import { sequenceGraph } from '@pnpm/sort-packages'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import type {
+  IncludedDependencies,
+  PackageVulnerabilityAudit,
+  Project,
+  ProjectRootDir,
+  ProjectsGraph,
+  VulnerabilitySeverity,
+} from '@pnpm/types'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import {
   type CommandFullName,
+  createMatcher,
+  makeIgnorePatterns,
+  matchDependencies,
+  recursive,
   type RecursiveOptions,
   type UpdateDepsMatcher,
-  createMatcher,
-  matchDependencies,
-  makeIgnorePatterns,
-  recursive,
 } from './recursive.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
@@ -57,6 +68,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'dedupePeerDependents'
 | 'depth'
 | 'dev'
+| 'enableGlobalVirtualStore'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
 | 'global'
@@ -126,7 +138,7 @@ export type InstallDepsOptions = Pick<Config,
   lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
   update?: boolean
   updateToLatest?: boolean
-  updateMatching?: (pkgName: string) => boolean
+  updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean
   useBetaCli?: boolean
   recursive?: boolean
@@ -136,6 +148,7 @@ export type InstallDepsOptions = Pick<Config,
   fetchFullMetadata?: boolean
   pruneLockfileImporters?: boolean
   pnpmfile: string[]
+  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 } & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
 
 export async function installDeps (
@@ -223,6 +236,7 @@ when running add/update with the --workspace option')
           },
           forceHoistPattern,
           forcePublicHoistPattern,
+          preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
           allProjectsGraph,
           selectedProjectsGraph,
           storeControllerAndDir: store,
@@ -271,11 +285,12 @@ when running add/update with the --workspace option')
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,
+    preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
   }
 
   let updateMatch: UpdateDepsMatcher | null
   let updatePackageManifest = opts.updatePackageManifest
-  let updateMatching: ((pkgName: string) => boolean) | undefined
+  let updateMatching: UpdateMatchingFunction | undefined
   if (opts.update) {
     if (params.length === 0) {
       const ignoreDeps = opts.updateConfig?.ignoreDependencies
@@ -286,6 +301,11 @@ when running add/update with the --workspace option')
     updateMatch = params.length ? createMatcher(params) : null
   } else {
     updateMatch = null
+  }
+  if (opts.packageVulnerabilityAudit != null) {
+    updateMatch = null
+    const { packageVulnerabilityAudit } = opts
+    updateMatching = (pkgName: string, version?: string) => version != null && packageVulnerabilityAudit.isVulnerable(pkgName, version)
   }
   if (updateMatch != null) {
     params = matchDependencies(updateMatch, manifest, includeDirect)
@@ -390,7 +410,7 @@ when running add/update with the --workspace option')
 
     if (opts.ignoreScripts) return
 
-    await rebuildProjects(
+    await buildProjects(
       [
         {
           buildIndex: 0,
@@ -443,4 +463,56 @@ async function recursiveInstallThenUpdateWorkspaceState (
     })
   }
   return recursiveResult
+}
+
+function severityStringToNumber (severity: VulnerabilitySeverity): number {
+  switch (severity) {
+  case 'low': return 0
+  case 'moderate': return 1
+  case 'high': return 2
+  case 'critical': return 3
+  default: return -1
+  }
+}
+
+function getVulnerabilityPenalty (severity: VulnerabilitySeverity): number {
+  switch (severity) {
+  case 'low': return -1100 // 100 more than DIRECT_DEP_SELECTOR_WEIGHT from @pnpm/resolver-base
+  case 'moderate': return -2000
+  case 'high': return -3000
+  case 'critical': return -4000
+  // Treat unrecognized severity as the lowest severity
+  default: return -1100
+  }
+}
+
+function preferNonvulnerablePackageVersions (packageVulnerabilityAudit: PackageVulnerabilityAudit): PreferredVersions {
+  const preferredVersions: PreferredVersions = {}
+  for (const [packageName, vulnerabilities] of packageVulnerabilityAudit.getVulnerabilities()) {
+    const vulnerableRanges = new Map<string, VulnerabilitySeverity>()
+    for (const vuln of vulnerabilities) {
+      const existingSeverity = vulnerableRanges.get(vuln.versionRange)
+      if (existingSeverity == null) {
+        vulnerableRanges.set(vuln.versionRange, vuln.severity)
+        continue
+      }
+      // Choose the highest severity for the same version range
+      if (severityStringToNumber(vuln.severity) > severityStringToNumber(existingSeverity)) {
+        vulnerableRanges.set(vuln.versionRange, vuln.severity)
+      }
+    }
+    const preferredVersionSelectors: VersionSelectors = {}
+    for (const [vulnRange, severity] of vulnerableRanges) {
+      if (vulnRange === '__proto__' || vulnRange === 'constructor' || vulnRange === 'prototype') {
+        // Prevent prototype pollution
+        continue
+      }
+      preferredVersionSelectors[vulnRange] = {
+        selectorType: 'range',
+        weight: getVulnerabilityPenalty(severity),
+      }
+    }
+    preferredVersions[packageName] = preferredVersionSelectors
+  }
+  return preferredVersions
 }

@@ -1,11 +1,14 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import { add } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { type LockfileFile } from '@pnpm/lockfile.types'
 import { loadJsonFileSync } from 'load-json-file'
-import { sync as readYamlFile } from 'read-yaml-file'
+import nock from 'nock'
+import { readYamlFileSync } from 'read-yaml-file'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 // This must be a function because some of its values depend on CWD
@@ -15,6 +18,11 @@ const createOptions = (saveCatalogName = 'default'): add.AddCommandOptions => ({
   dir: process.cwd(),
   cacheDir: path.resolve('cache'),
   storeDir: path.resolve('store'),
+})
+
+afterEach(() => {
+  nock.abortPendingRequests()
+  nock.cleanAll()
 })
 
 test('saveCatalogName creates new workspace manifest with the new catalogs', async () => {
@@ -32,7 +40,7 @@ test('saveCatalogName creates new workspace manifest with the new catalogs', asy
     '@pnpm.e2e/foo': 'catalog:',
   })
 
-  expect(readYamlFile('pnpm-workspace.yaml')).toHaveProperty(['catalog'], {
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toHaveProperty(['catalog'], {
     '@pnpm.e2e/foo': '^100.1.0',
   })
 
@@ -69,6 +77,11 @@ test('saveCatalogName works with different protocols', async () => {
     version: '0.0.0',
     private: true,
   })
+  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes.
+  // Without this, transient network failures cause fallback to git+https:// resolution.
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/kevva/is-positive')
+    .reply(200)
 
   const options = createOptions()
   options.registries['@jsr'] = options.rawConfig['@jsr:registry'] = 'https://npm.jsr.io/'
@@ -84,7 +97,7 @@ test('saveCatalogName works with different protocols', async () => {
     'is-positive': 'catalog:',
   })
 
-  expect(readYamlFile('pnpm-workspace.yaml')).toHaveProperty(['catalog'], {
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toHaveProperty(['catalog'], {
     '@pnpm.e2e/foo': '100.1.0',
     '@rus/greet': 'jsr:0.0.3',
     'is-positive': 'github:kevva/is-positive#97edff6',
@@ -126,6 +139,7 @@ test('saveCatalogName works with different protocols', async () => {
       },
     },
   } as Partial<LockfileFile>))
+  githubNock.done()
 })
 
 test('saveCatalogName does not work with local dependencies', async () => {
@@ -159,8 +173,8 @@ test('saveCatalogName does not work with local dependencies', async () => {
 
   expect(fs.existsSync('pnpm-workspace.yaml')).toBe(false)
 
-  expect(readYamlFile('pnpm-lock.yaml')).not.toHaveProperty(['catalog'])
-  expect(readYamlFile('pnpm-lock.yaml')).not.toHaveProperty(['catalogs'])
+  expect(readYamlFileSync('pnpm-lock.yaml')).not.toHaveProperty(['catalog'])
+  expect(readYamlFileSync('pnpm-lock.yaml')).not.toHaveProperty(['catalogs'])
 })
 
 test('saveCatalogName with non-default name', async () => {
@@ -178,7 +192,7 @@ test('saveCatalogName with non-default name', async () => {
     '@pnpm.e2e/foo': 'catalog:my-catalog',
   })
 
-  expect(readYamlFile('pnpm-workspace.yaml')).toHaveProperty(['catalogs', 'my-catalog'], {
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toHaveProperty(['catalogs', 'my-catalog'], {
     '@pnpm.e2e/foo': '^100.1.0',
   })
 

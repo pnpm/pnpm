@@ -35,6 +35,7 @@
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/global.commands": "workspace:*",
     "@pnpm/list": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:",
@@ -58,7 +59,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

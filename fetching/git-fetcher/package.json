@@ -36,6 +36,7 @@
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:"
   },
@@ -54,7 +55,7 @@
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

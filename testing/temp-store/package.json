@@ -35,13 +35,14 @@
     "@pnpm/client": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
-    "@pnpm/store-controller-types": "workspace:*"
+    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/store.index": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/testing.temp-store": "workspace:*"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

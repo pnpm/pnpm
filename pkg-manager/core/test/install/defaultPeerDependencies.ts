@@ -1,10 +1,12 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { addDependenciesToPackage } from '@pnpm/core'
+import { createPeerDepGraphHash } from '@pnpm/dependency-path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { addDependenciesToPackage } from '@pnpm/core'
 import deepRequireCwd from 'deep-require-cwd'
-import { createPeerDepGraphHash } from '@pnpm/dependency-path'
+
 import { testDefaults } from '../utils/index.js'
 
 test('package with default peer dependency, when auto install peers is on', async () => {

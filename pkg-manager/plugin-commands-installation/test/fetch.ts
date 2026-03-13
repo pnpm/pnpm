@@ -1,9 +1,13 @@
-import fs from 'fs'
-import path from 'path'
-import { install, fetch } from '@pnpm/plugin-commands-installation'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { STORE_VERSION } from '@pnpm/constants'
+import { fetch, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { closeAllStoreIndexes } from '@pnpm/store.index'
+import { finishWorkers } from '@pnpm/worker'
+import { rimrafSync } from '@zkochan/rimraf'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -53,8 +57,8 @@ test('fetch dependencies', async () => {
     storeDir,
   })
 
-  rimraf(path.resolve(project.dir(), 'node_modules'))
-  rimraf(path.resolve(project.dir(), './package.json'))
+  rimrafSync(path.resolve(project.dir(), 'node_modules'))
+  rimrafSync(path.resolve(project.dir(), './package.json'))
 
   project.storeHasNot('is-negative')
   project.storeHasNot('is-positive')
@@ -84,8 +88,8 @@ test('fetch production dependencies', async () => {
     storeDir,
   })
 
-  rimraf(path.resolve(project.dir(), 'node_modules'))
-  rimraf(path.resolve(project.dir(), './package.json'))
+  rimrafSync(path.resolve(project.dir(), 'node_modules'))
+  rimrafSync(path.resolve(project.dir(), './package.json'))
 
   project.storeHasNot('is-negative')
   project.storeHasNot('is-positive')
@@ -116,8 +120,8 @@ test('fetch only dev dependencies', async () => {
     storeDir,
   })
 
-  rimraf(path.resolve(project.dir(), 'node_modules'))
-  rimraf(path.resolve(project.dir(), './package.json'))
+  rimrafSync(path.resolve(project.dir(), 'node_modules'))
+  rimrafSync(path.resolve(project.dir(), './package.json'))
 
   project.storeHasNot('is-negative')
   project.storeHasNot('is-positive')
@@ -163,10 +167,10 @@ test('fetch skips file: protocol dependencies that do not exist', async () => {
     storeDir,
   })
 
-  rimraf(path.resolve(project.dir(), 'node_modules'))
-  rimraf(path.resolve(project.dir(), './package.json'))
+  rimrafSync(path.resolve(project.dir(), 'node_modules'))
+  rimrafSync(path.resolve(project.dir(), './package.json'))
   // Remove the local package directory to simulate Docker build scenario
-  rimraf(localPkgDir)
+  rimrafSync(localPkgDir)
 
   project.storeHasNot('is-positive')
 
@@ -179,4 +183,48 @@ test('fetch skips file: protocol dependencies that do not exist', async () => {
   })
 
   project.storeHas('is-positive')
+})
+
+test('fetch populates global virtual store links/', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+  const storeDir = path.resolve('store')
+  const globalVirtualStoreDir = path.join(storeDir, STORE_VERSION, 'links')
+
+  // Generate the lockfile only — no need for a full install
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    lockfileOnly: true,
+    storeDir,
+  })
+
+  // Drain workers and close SQLite connections before removing the store (required on Windows)
+  await finishWorkers()
+  closeAllStoreIndexes()
+
+  // Remove the store — simulate a cold start with only the lockfile
+  rimrafSync(storeDir)
+
+  // Fetch with enableGlobalVirtualStore — should populate links/
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    storeDir,
+    enableGlobalVirtualStore: true,
+  })
+
+  // The global virtual store links/ directory should exist and contain packages
+  expect(fs.existsSync(globalVirtualStoreDir)).toBeTruthy()
+  const entries = fs.readdirSync(globalVirtualStoreDir)
+  expect(entries.length).toBeGreaterThan(0)
 })

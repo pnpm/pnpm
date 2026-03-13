@@ -1,6 +1,7 @@
 import { types as allTypes } from '@pnpm/config'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
+
 import {
   handler as run,
   IF_PRESENT_OPTION,

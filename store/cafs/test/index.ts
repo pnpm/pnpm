@@ -1,11 +1,13 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { fixtures } from '@pnpm/test-fixtures'
 import symlinkDir from 'symlink-dir'
 import { temporaryDirectory } from 'tempy'
-import { fixtures } from '@pnpm/test-fixtures'
+
 import {
-  createCafs,
   checkPkgFilesIntegrity,
+  createCafs,
   getFilePathByModeInCafs,
 } from '../src/index.js'
 import { parseTarball } from '../src/parseTarball.js'

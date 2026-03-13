@@ -3,22 +3,25 @@ import {
   readDepNameCompletions,
   readProjectManifestOnly,
 } from '@pnpm/cli-utils'
-import { type CompletionFunc } from '@pnpm/command'
+import type { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import type { UpdateMatchingFunction } from '@pnpm/core'
+import { PnpmError } from '@pnpm/error'
+import { handleGlobalUpdate } from '@pnpm/global.commands'
 import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
-import { PnpmError } from '@pnpm/error'
-import { type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
-import enquirer from 'enquirer'
+import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir } from '@pnpm/types'
 import chalk from 'chalk'
+import enquirer from 'enquirer'
 import { pick, pluck, unnest } from 'ramda'
-import renderHelp from 'render-help'
-import { type InstallCommandOptions } from '../install.js'
+import { renderHelp } from 'render-help'
+
+import type { InstallCommandOptions } from '../install.js'
 import { installDeps } from '../installDeps.js'
-import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
 import { parseUpdateParam } from '../recursive.js'
+import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
@@ -162,14 +165,20 @@ dependencies is not found inside the workspace',
 export type UpdateCommandOptions = InstallCommandOptions & {
   interactive?: boolean
   latest?: boolean
+  packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
 export async function handler (
   opts: UpdateCommandOptions,
   params: string[] = []
 ): Promise<string | undefined> {
-  if (opts.global && opts.rootProjectManifest == null) {
-    return 'No global packages found'
+  if (opts.global) {
+    if (!opts.bin) {
+      throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
+        hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
+      })
+    }
+    return handleGlobalUpdate(opts, params)
   }
   if (opts.interactive) {
     return interactiveUpdate(params, opts)
@@ -289,6 +298,15 @@ async function update (
     optionalDependencies: opts.rawConfig.optional !== false,
   }
   const depth = opts.depth ?? Infinity
+  let updateMatching: UpdateMatchingFunction | undefined
+  if (opts.packageVulnerabilityAudit != null) {
+    const { packageVulnerabilityAudit } = opts
+    updateMatching = (pkgName: string, version?: string) => version != null && packageVulnerabilityAudit.isVulnerable(pkgName, version)
+  } else if (
+    (dependencies.length > 0) && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
+  ) {
+    updateMatching = createMatcher(dependencies)
+  }
   return installDeps({
     ...opts,
     allowNew: false,
@@ -298,9 +316,7 @@ async function update (
     include,
     update: true,
     updateToLatest: opts.latest,
-    updateMatching: (dependencies.length > 0) && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
-      ? createMatcher(dependencies)
-      : undefined,
+    updateMatching,
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
   }, dependencies)

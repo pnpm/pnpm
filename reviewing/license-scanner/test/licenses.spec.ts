@@ -1,9 +1,19 @@
-import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type DepPath, type ProjectManifest, type Registries, type ProjectId } from '@pnpm/types'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
-import { type LicensePackage } from '../lib/licenses.js'
-import { type GetPackageInfoOptions, type PackageInfo } from '../lib/getPkgInfo.js'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { DepPath, ProjectId, ProjectManifest, Registries } from '@pnpm/types'
+
+import type { GetPackageInfoOptions, PackageInfo } from '../lib/getPkgInfo.js'
+import type { LicensePackage } from '../lib/licenses.js'
+
+const tmpStoreDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-license-spec-'))
+afterAll(() => {
+  fs.rmSync(tmpStoreDir, { recursive: true, force: true })
+})
 
 const actualModule = await import('../lib/getPkgInfo.js')
 jest.unstable_mockModule('../lib/getPkgInfo.js', () => {
@@ -72,7 +82,7 @@ describe('licences', () => {
       virtualStoreDir: '/.pnpm',
       registries: {} as Registries,
       wantedLockfile: lockfile,
-      storeDir: '/opt/.pnpm',
+      storeDir: tmpStoreDir,
       virtualStoreDirMaxLength: 120,
     })
 
@@ -158,7 +168,7 @@ describe('licences', () => {
       virtualStoreDir: '/.pnpm',
       registries: {} as Registries,
       wantedLockfile: lockfile,
-      storeDir: '/opt/.pnpm',
+      storeDir: tmpStoreDir,
       includedImporterIds: ['packages/a'] as ProjectId[],
       virtualStoreDirMaxLength: 120,
     })
@@ -235,7 +245,7 @@ describe('licences', () => {
       virtualStoreDir: '/.pnpm',
       registries: {} as Registries,
       wantedLockfile: lockfile,
-      storeDir: '/opt/.pnpm',
+      storeDir: tmpStoreDir,
       virtualStoreDirMaxLength: 120,
     })
 

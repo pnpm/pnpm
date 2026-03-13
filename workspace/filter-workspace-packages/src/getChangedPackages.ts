@@ -1,11 +1,12 @@
-import assert from 'assert'
-import path from 'path'
-import util from 'util'
+import assert from 'node:assert'
+import path from 'node:path'
+import util from 'node:util'
+
 import { PnpmError } from '@pnpm/error'
-import * as micromatch from 'micromatch'
-import execa from 'execa'
+import type { ProjectRootDir } from '@pnpm/types'
+import { safeExeca as execa } from 'execa'
 import { findUp } from 'find-up'
-import { type ProjectRootDir } from '@pnpm/types'
+import * as micromatch from 'micromatch'
 
 type ChangeType = 'source' | 'test'
 
@@ -18,7 +19,13 @@ export async function getChangedPackages (
   commit: string,
   opts: { workspaceDir: string, testPattern?: string[], changedFilesIgnorePattern?: string[] }
 ): Promise<[ProjectRootDir[], ProjectRootDir[]]> {
-  const repoRoot = path.resolve(await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ?? opts.workspaceDir, '..')
+
+  // .git is a directory in regular repos, but a file in worktrees
+  const gitPath = await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ??
+                  await findUp('.git', { cwd: opts.workspaceDir, type: 'file' })
+
+  const repoRoot = path.resolve(gitPath ?? opts.workspaceDir, '..')
+
   const changedDirs = (await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPattern ?? [], opts.changedFilesIgnorePattern ?? []))
     .map(changedDir => ({ ...changedDir, dir: path.join(repoRoot, changedDir.dir) }))
   const pkgChangeTypes = new Map<ProjectRootDir, ChangeType | undefined>()
@@ -62,7 +69,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
         '--',
         workingDir,
       ], { cwd: workingDir })
-    ).stdout
+    ).stdout as string
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
     throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${'stderr' in err ? err.stderr as string : ''}`)

@@ -1,5 +1,5 @@
 import { globalWarn } from '@pnpm/logger'
-import { type PackageMetadataWithTime } from '@pnpm/registry.types'
+import type { PackageMetadataWithTime } from '@pnpm/registry.types'
 import semver from 'semver'
 
 export function filterPkgMetadataByPublishDate (

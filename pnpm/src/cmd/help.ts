@@ -1,7 +1,8 @@
-import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
+import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli-meta'
 import { docsUrl } from '@pnpm/cli-utils'
-import renderHelp from 'render-help'
-import { type CommandDefinition } from './index.js'
+import { renderHelp } from 'render-help'
+
+import type { CommandDefinition } from './index.js'
 
 type HelpByCommandName = Record<string, () => string>
 
@@ -124,6 +125,11 @@ function getHelpText ({ all }: { all: boolean }): string {
           advanced: true,
         },
         {
+          description: 'Safely remove node_modules directories from all workspace projects',
+          name: 'clean',
+          advanced: true,
+        },
+        {
           description: 'Fetch packages from a lockfile into virtual store, package manifest is ignored',
           name: 'fetch',
           advanced: true,
@@ -239,10 +245,6 @@ function getHelpText ({ all }: { all: boolean }): string {
           name: 'publish',
         },
         {
-          description: 'Updates pnpm to the latest version',
-          name: 'self-update',
-        },
-        {
           description: 'Create a package.json file',
           name: 'init',
         },
@@ -274,13 +276,22 @@ function getHelpText ({ all }: { all: boolean }): string {
       ],
     },
     {
-      title: 'Manage your environments',
+      title: 'Manage your engines',
       advanced: true,
 
       list: [
         {
-          description: 'Manage Node.js versions',
-          name: 'env ',
+          description: 'Manage runtimes',
+          name: 'runtime',
+          shortAlias: 'rt',
+        },
+        {
+          description: 'Manage Node.js versions (deprecated, use runtime)',
+          name: 'env',
+        },
+        {
+          description: 'Updates pnpm to the latest version',
+          name: 'self-update',
         },
       ],
     },

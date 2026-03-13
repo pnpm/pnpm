@@ -22,6 +22,12 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../building/after-install"
+    },
+    {
+      "path": "../../building/build-commands"
+    },
+    {
       "path": "../../catalogs/types"
     },
     {
@@ -55,13 +61,13 @@
       "path": "../../deps/status"
     },
     {
-      "path": "../../exec/plugin-commands-rebuild"
-    },
-    {
       "path": "../../fs/graceful-fs"
     },
     {
       "path": "../../fs/read-modules-dir"
+    },
+    {
+      "path": "../../global/commands"
     },
     {
       "path": "../../hooks/pnpmfile"
@@ -103,10 +109,16 @@
       "path": "../../reviewing/outdated"
     },
     {
+      "path": "../../store/index"
+    },
+    {
       "path": "../../store/package-store"
     },
     {
       "path": "../../store/store-connection-manager"
+    },
+    {
+      "path": "../../worker"
     },
     {
       "path": "../../workspace/filter-packages-from-dir"

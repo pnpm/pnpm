@@ -1,8 +1,9 @@
-import os from 'os'
-import path from 'path'
+import os from 'node:os'
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
+import type { PkgResolutionId } from '@pnpm/resolver-base'
 import normalize from 'normalize-path'
-import { type PkgResolutionId } from '@pnpm/resolver-base'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']

@@ -1,12 +1,14 @@
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
+import type { MutatedProject, MutateModulesOptions, ProjectOptions } from '@pnpm/core'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
-import { type ProjectRootDir, type ProjectId, type ProjectManifest } from '@pnpm/types'
+import type { CatalogSnapshots } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { type MutatedProject, type ProjectOptions, type MutateModulesOptions } from '@pnpm/core'
-import { type CatalogSnapshots } from '@pnpm/lockfile.types'
-import { jest } from '@jest/globals'
+import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
-import path from 'path'
+
 import { testDefaults } from './utils/index.js'
 
 const originalModule = await import('@pnpm/logger')
@@ -1759,6 +1761,9 @@ describe('update', () => {
   //   - 100.0.0
   //   - 100.1.0
   test('update only affects matching filter', async () => {
+    await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {

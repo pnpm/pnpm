@@ -1,32 +1,34 @@
-import { PnpmError } from '@pnpm/error'
-import {
-  type FetchFunction,
-  type FetchOptions,
-  type FetchResult,
-} from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
-import {
-  type FetchFromRegistry,
-  type GetAuthHeader,
-  type RetryTimeoutOptions,
+import { PnpmError } from '@pnpm/error'
+import type {
+  FetchFunction,
+  FetchOptions,
+  FetchResult,
+} from '@pnpm/fetcher-base'
+import type {
+  FetchFromRegistry,
+  GetAuthHeader,
+  RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
+import type { StoreIndex } from '@pnpm/store.index'
 import { TarballIntegrityError } from '@pnpm/worker'
+
+import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher.js'
+import { createLocalTarballFetcher } from './localTarballFetcher.js'
 import {
   createDownloader,
-  type DownloadFunction,
   type CreateDownloaderOptions,
+  type DownloadFunction,
 } from './remoteTarballFetcher.js'
-import { createLocalTarballFetcher } from './localTarballFetcher.js'
-import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher.js'
 
 export { BadTarballError } from './errorTypes/index.js'
 
 export { TarballIntegrityError }
 
 // Export individual fetcher factories for custom fetcher authors
-export { createLocalTarballFetcher } from './localTarballFetcher.js'
 export { createGitHostedTarballFetcher } from './gitHostedTarballFetcher.js'
-export { createDownloader, type DownloadFunction, type CreateDownloaderOptions } from './remoteTarballFetcher.js'
+export { createLocalTarballFetcher } from './localTarballFetcher.js'
+export { createDownloader, type CreateDownloaderOptions, type DownloadFunction } from './remoteTarballFetcher.js'
 
 export interface TarballFetchers {
   localTarball: FetchFunction
@@ -41,6 +43,7 @@ export function createTarballFetcher (
     rawConfig: Record<string, unknown>
     unsafePerm?: boolean
     ignoreScripts?: boolean
+    storeIndex: StoreIndex
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean
@@ -56,10 +59,11 @@ export function createTarballFetcher (
     download,
     getAuthHeaderByURI: getAuthHeader,
     offline: opts.offline,
+    storeIndex: opts.storeIndex,
   }) as FetchFunction
 
   return {
-    localTarball: createLocalTarballFetcher(),
+    localTarball: createLocalTarballFetcher(opts.storeIndex),
     remoteTarball: remoteTarballFetcher,
     gitHostedTarball: createGitHostedTarballFetcher(remoteTarballFetcher, opts),
   }
@@ -70,6 +74,7 @@ async function fetchFromTarball (
     download: DownloadFunction
     getAuthHeaderByURI: (registry: string) => string | undefined
     offline?: boolean
+    storeIndex: StoreIndex
   },
   cafs: Cafs,
   resolution: {
@@ -86,6 +91,7 @@ async function fetchFromTarball (
   return ctx.download(resolution.tarball, {
     getAuthHeaderByURI: ctx.getAuthHeaderByURI,
     cafs,
+    storeIndex: ctx.storeIndex,
     integrity: resolution.integrity,
     readManifest: opts.readManifest,
     onProgress: opts.onProgress,
