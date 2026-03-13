@@ -1,7 +1,8 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
-import fs from 'fs'
-import path from 'path'
 
 export interface StoreAssertions {
   getPkgIndexFilePath: (pkgName: string, version: string) => string

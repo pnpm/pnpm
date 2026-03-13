@@ -204,7 +204,7 @@ export default tseslint.config(
       // Node plugin
       'n/no-missing-import': 'off', // TypeScript handles this
       'n/no-unsupported-features/node-builtins': 'off',
-      'n/prefer-node-protocol': 'error',
+      'n/prefer-node-protocol': ['error', { version: '>=18.18.0' }],
     },
   },
   // Test file configuration

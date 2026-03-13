@@ -1,6 +1,7 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { tempDir } from '@pnpm/prepare-temp-dir'
-import fs from 'fs'
-import path from 'path'
 
 export interface FixturesHandle {
   copy: (name: string, dest: string) => void
