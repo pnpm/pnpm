@@ -71,7 +71,7 @@ test_linux_task:
         echo "CI_TEST_SCRIPT=ci:test-all" >> $CIRRUS_ENV
       else
         git remote set-branches --add origin main && git fetch origin main --depth=1
-        if [ -n "$(git diff --name-only origin/main HEAD -- pnpm-workspace.yaml)" ]; then
+        if [ -n "$(git diff --name-only origin/main HEAD -- pnpm-workspace.yaml .cirrus.yml)" ]; then
           echo "CI_TEST_SCRIPT=ci:test-all" >> $CIRRUS_ENV
         else
           echo "CI_TEST_SCRIPT=ci:test-branch" >> $CIRRUS_ENV
@@ -120,7 +120,7 @@ test_windows_task:
         echo CI_TEST_SCRIPT=ci:test-all>> %CIRRUS_ENV%
       ) else (
         git remote set-branches --add origin main && git fetch origin main --depth=1
-        git diff --name-only origin/main HEAD -- pnpm-workspace.yaml > nul 2>&1 && (
+        git diff --name-only origin/main HEAD -- pnpm-workspace.yaml .cirrus.yml > nul 2>&1 && (
           echo CI_TEST_SCRIPT=ci:test-all>> %CIRRUS_ENV%
         ) || (
           echo CI_TEST_SCRIPT=ci:test-branch>> %CIRRUS_ENV%
