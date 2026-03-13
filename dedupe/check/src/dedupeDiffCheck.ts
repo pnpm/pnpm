@@ -1,10 +1,11 @@
-import type { ResolvedDependencies, LockfileObject } from '@pnpm/lockfile.types'
 import type {
-  ResolutionChangesByAlias,
   DedupeCheckIssues,
+  ResolutionChangesByAlias,
   SnapshotsChanges,
 } from '@pnpm/dedupe.types'
-import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
+import type { LockfileObject, ResolvedDependencies } from '@pnpm/lockfile.types'
+import { DEPENDENCIES_FIELDS, type DepPath } from '@pnpm/types'
+
 import { DedupeCheckIssuesError } from './DedupeCheckIssuesError.js'
 
 const PACKAGE_SNAPSHOT_DEP_FIELDS = ['dependencies', 'optionalDependencies'] as const

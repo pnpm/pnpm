@@ -162,7 +162,6 @@
 "@pnpm/hooks.types": major
 "@pnpm/lockfile.fs": major
 "@pnpm/store.cafs": major
-"@pnpm/tools.path": major
 "@pnpm/cache.api": major
 "@pnpm/env.path": major
 "@pnpm/worker": major

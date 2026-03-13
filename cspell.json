@@ -177,6 +177,7 @@
     "noent",
     "nonexec",
     "noninjected",
+    "nonvulnerable",
     "nopadding",
     "noproxy",
     "nosystem",

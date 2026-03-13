@@ -1,9 +1,9 @@
 import {
+  allRegistryConfigKeys,
   type NormalizedRegistryUrl,
+  parseSupportedRegistryUrl,
   type RegistryConfigKey,
   type SupportedRegistryUrlInfo,
-  allRegistryConfigKeys,
-  parseSupportedRegistryUrl,
 } from '../src/registryConfigKeys.js'
 
 describe('parseSupportedRegistryUrl', () => {

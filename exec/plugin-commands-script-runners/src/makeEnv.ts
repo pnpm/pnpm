@@ -1,6 +1,7 @@
-import { PnpmError } from '@pnpm/error'
+import path from 'node:path'
+
 import { prependDirsToPath } from '@pnpm/env.path'
-import path from 'path'
+import { PnpmError } from '@pnpm/error'
 
 export interface Env extends NodeJS.ProcessEnv {
   npm_config_user_agent: string

@@ -1,8 +1,10 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
@@ -144,7 +146,7 @@ testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
     },
   })
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     preferSymlinkedExecutables: true,
   })
 
@@ -160,7 +162,7 @@ testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir
     },
   })
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     virtualStoreDir: '/foo/bar',
     preferSymlinkedExecutables: true,
   })

@@ -1,6 +1,6 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 

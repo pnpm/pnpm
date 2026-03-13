@@ -1,19 +1,20 @@
 import { PnpmError } from '@pnpm/error'
-import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type {
-  SupportedArchitectures,
   DependenciesField,
   IncludedDependencies,
   ProjectId,
   ProjectManifest,
   Registries,
+  SupportedArchitectures,
 } from '@pnpm/types'
+import semver from 'semver'
+
 import {
   type LicenseNode,
   lockfileToLicenseNodeTree,
 } from './lockfileToLicenseNodeTree.js'
-import semver from 'semver'
 
 export interface LicensePackage {
   belongsTo: DependenciesField

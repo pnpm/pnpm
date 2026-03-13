@@ -1,6 +1,7 @@
-import path from 'path'
-import type { FetchFunction, FetchOptions } from '@pnpm/fetcher-base'
+import path from 'node:path'
+
 import type { Cafs } from '@pnpm/cafs-types'
+import type { FetchFunction, FetchOptions } from '@pnpm/fetcher-base'
 import gfs from '@pnpm/graceful-fs'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'

@@ -1,12 +1,12 @@
-import { PnpmError } from '@pnpm/error'
 import { jest } from '@jest/globals'
+import { PnpmError } from '@pnpm/error'
 import type { PathExtenderReport } from '@pnpm/os.env.path-extender'
 
 jest.unstable_mockModule('@pnpm/os.env.path-extender', () => ({
   addDirToEnvPath: jest.fn(),
 }))
 
-const actualFs = await import('fs')
+const actualFs = await import('node:fs')
 jest.unstable_mockModule('fs', () => {
   return {
     ...actualFs,
@@ -17,11 +17,6 @@ jest.unstable_mockModule('fs', () => {
     },
   }
 })
-
-jest.mock('@zkochan/cmd-shim', () => ({
-  __esModule: true,
-  default: jest.fn(),
-}))
 
 const { addDirToEnvPath } = await import('@pnpm/os.env.path-extender')
 const { setup } = await import('@pnpm/plugin-commands-setup')

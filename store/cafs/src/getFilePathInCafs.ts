@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 /**
  * Checks if a file mode has any executable permissions set.

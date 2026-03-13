@@ -1,4 +1,4 @@
-import { type StringLiteral, parseStringLiteral } from '../../src/index.js'
+import { parseStringLiteral, type StringLiteral } from '../../src/index.js'
 
 test('not a string literal', () => {
   expect(parseStringLiteral('')).toBeUndefined()

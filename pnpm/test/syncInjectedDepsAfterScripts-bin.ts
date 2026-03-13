@@ -1,6 +1,8 @@
-import fs from 'fs'
+import fs from 'node:fs'
+
 import { preparePackages } from '@pnpm/prepare'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from './utils/index.js'
 
 test('sync bin links after build script', async () => {
@@ -32,7 +34,7 @@ test('sync bin links after build script', async () => {
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['*'],
     reporter: 'append-only',
     injectWorkspacePackages: true,

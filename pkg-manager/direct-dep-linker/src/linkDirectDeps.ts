@@ -1,11 +1,12 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { rootLogger } from '@pnpm/core-loggers'
-import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import { omit } from 'ramda'
 import { readModulesDir } from '@pnpm/read-modules-dir'
-import rimraf from '@zkochan/rimraf'
-import resolveLinkTarget from 'resolve-link-target'
+import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
+import { rimraf } from '@zkochan/rimraf'
+import { omit } from 'ramda'
+import { resolveLinkTarget } from 'resolve-link-target'
 
 export interface LinkedDirectDep {
   alias: string

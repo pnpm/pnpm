@@ -1,9 +1,11 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
-import { jest } from '@jest/globals'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+
 import { DirPatcher } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm

@@ -1,8 +1,9 @@
-import fs from 'fs'
+import fs from 'node:fs'
+import path from 'node:path'
+import stream from 'node:stream'
+
 import * as execa from 'execa'
-import path from 'path'
-import makeEmptyDir from 'make-empty-dir'
-import stream from 'stream'
+import { makeEmptyDir } from 'make-empty-dir'
 import * as tar from 'tar'
 import { glob } from 'tinyglobby'
 

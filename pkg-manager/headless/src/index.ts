@@ -1,7 +1,8 @@
-import { promises as fs } from 'fs'
-import path from 'path'
-import { buildModules } from '@pnpm/build-modules'
-import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
+import { buildModules } from '@pnpm/building.during-install'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
@@ -14,29 +15,36 @@ import {
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
+import * as dp from '@pnpm/dependency-path'
+import {
+  type DependenciesGraph,
+  type DependenciesGraphNode,
+  type DirectDependenciesByImporterId,
+  lockfileToDepGraph,
+  type LockfileToDepGraphOptions,
+} from '@pnpm/deps.graph-builder'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
+import {
+  makeNodeRequireOption,
+  runLifecycleHooksConcurrently,
+} from '@pnpm/lifecycle'
+import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   filterLockfileByEngine,
   filterLockfileByImportersAndEngine,
 } from '@pnpm/lockfile.filtering'
-import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
-import {
-  runLifecycleHooksConcurrently,
-  makeNodeRequireOption,
-} from '@pnpm/lifecycle'
-import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
   type LockfileObject,
   readCurrentLockfile,
   readWantedLockfile,
-  writeLockfiles,
   writeCurrentLockfile,
+  writeLockfiles,
 } from '@pnpm/lockfile.fs'
-import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
+import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
   type LogBase,
   logger,
@@ -49,9 +57,10 @@ import {
   writeModulesManifest,
 } from '@pnpm/modules-yaml'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
-import type { HoistingLimits } from '@pnpm/real-hoist'
+import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+import type { HoistingLimits } from '@pnpm/real-hoist'
 import type {
   PackageFilesResponse,
   StoreController,
@@ -59,33 +68,26 @@ import type {
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
   type AllowBuild,
-  type DepPath,
+  DEPENDENCIES_FIELDS,
   type DependencyManifest,
+  type DepPath,
   type HoistedDependencies,
   type IgnoredBuilds,
   type ProjectId,
   type ProjectManifest,
-  type Registries,
-  DEPENDENCIES_FIELDS,
-  type SupportedArchitectures,
   type ProjectRootDir,
+  type Registries,
+  type SupportedArchitectures,
 } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
-import pathAbsolute from 'path-absolute'
+import { pathAbsolute } from 'path-absolute'
 import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'
-import realpathMissing from 'realpath-missing'
+import { realpathMissing } from 'realpath-missing'
+
+import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
 import { linkHoistedModules } from './linkHoistedModules.js'
-import {
-  type DirectDependenciesByImporterId,
-  type DependenciesGraph,
-  type DependenciesGraphNode,
-  type LockfileToDepGraphOptions,
-  lockfileToDepGraph,
-} from '@pnpm/deps.graph-builder'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
-import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
 export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
 
 export type { HoistingLimits }
@@ -890,7 +892,7 @@ async function linkAllPkgs (
         if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
-            patchFileHash: depNode.patch?.file.hash,
+            patchFileHash: depNode.patch?.hash,
           })
         }
       }
@@ -919,6 +921,7 @@ async function linkAllPkgs (
         force: depNode.forceImportPackage ?? opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         requiresBuild: depNode.patch != null || depNode.requiresBuild,
+        safeToSkip: opts.enableGlobalVirtualStore,
         sideEffectsCacheKey,
       })
       if (importMethod) {

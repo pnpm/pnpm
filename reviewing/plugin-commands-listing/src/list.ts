@@ -5,8 +5,9 @@ import { listGlobalPackages } from '@pnpm/global.commands'
 import { list, listForPackages } from '@pnpm/list'
 import type { Finder, IncludedDependencies } from '@pnpm/types'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
-import { computeInclude, resolveFinders, determineReportAs, SHARED_CLI_HELP_OPTIONS, BASE_RC_OPTION_KEYS } from './common.js'
+import { renderHelp } from 'render-help'
+
+import { BASE_RC_OPTION_KEYS, computeInclude, determineReportAs, resolveFinders, SHARED_CLI_HELP_OPTIONS } from './common.js'
 import { listRecursive } from './recursive.js'
 
 export const EXCLUDE_PEERS_HELP = {

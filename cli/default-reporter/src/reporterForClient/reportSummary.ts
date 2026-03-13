@@ -1,25 +1,27 @@
-import path from 'path'
+import path from 'node:path'
+
+import type { Config } from '@pnpm/config'
 import type {
   DeprecationLog,
   PackageManifestLog,
   RootLog,
   SummaryLog,
 } from '@pnpm/core-loggers'
-import type { Config } from '@pnpm/config'
+import chalk from 'chalk'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
-import chalk from 'chalk'
 import semver from 'semver'
+
 import { EOL } from '../constants.js'
+import {
+  ADDED_CHAR,
+  REMOVED_CHAR,
+} from './outputConstants.js'
 import {
   getPkgsDiff,
   type PackageDiff,
   propertyByDependencyType,
 } from './pkgsDiff.js'
-import {
-  ADDED_CHAR,
-  REMOVED_CHAR,
-} from './outputConstants.js'
 
 type DepType = 'prod' | 'optional' | 'peer' | 'dev' | 'nodeModulesOnly'
 

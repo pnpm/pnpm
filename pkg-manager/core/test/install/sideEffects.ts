@@ -1,13 +1,15 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { ENGINE_NAME } from '@pnpm/constants'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { hashObject } from '@pnpm/crypto.object-hasher'
+import { prepareEmpty } from '@pnpm/prepare'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { prepareEmpty } from '@pnpm/prepare'
-import { ENGINE_NAME } from '@pnpm/constants'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
+
 import { testDefaults } from '../utils/index.js'
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
@@ -110,8 +112,8 @@ test('using side effects cache', async () => {
   addedFiles.delete('generated-by-postinstall.js')
   storeIndex.set(filesIndexKey, filesIndex)
 
-  rimraf('node_modules')
-  rimraf('pnpm-lock.yaml') // to avoid headless install
+  rimrafSync('node_modules')
+  rimrafSync('pnpm-lock.yaml') // to avoid headless install
   const opts2 = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
@@ -141,7 +143,7 @@ test.skip('readonly side effects cache', async () => {
   const cacheBuildDir = path.join(opts1.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   fs.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   const opts2 = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
@@ -152,7 +154,7 @@ test.skip('readonly side effects cache', async () => {
 
   expect(fs.existsSync('node_modules/diskusage/build/new-file.txt')).toBeTruthy()
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   // changing version to make sure we don't create the cache
   await addDependenciesToPackage(manifest, ['diskusage@1.1.2'], opts2)
 
@@ -252,9 +254,9 @@ test('a corrupted side-effects cache is ignored', async () => {
   const sideEffectFileStat = filesIndex4.sideEffects!.get(sideEffectsKey)!.added!.get('generated-by-preinstall.js')!
   const sideEffectFile = getFilePathByModeInCafs(opts.storeDir, sideEffectFileStat.digest, sideEffectFileStat.mode)
   expect(fs.existsSync(sideEffectFile)).toBeTruthy()
-  rimraf(sideEffectFile) // we remove the side effect file to break the store
+  rimrafSync(sideEffectFile) // we remove the side effect file to break the store
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   const opts2 = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,

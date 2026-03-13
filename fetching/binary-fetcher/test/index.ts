@@ -1,11 +1,12 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
-import { temporaryDirectory } from 'tempy'
+import { downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
 import AdmZip from 'adm-zip'
 import ssri from 'ssri'
-import { downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
+import { temporaryDirectory } from 'tempy'
 
 // Mock fetch function that returns a ZIP buffer and simulates FetchFromRegistry
 function createMockFetch (zipBuffer: Buffer) {

@@ -1,5 +1,6 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import type {
@@ -8,12 +9,13 @@ import type {
 } from '@pnpm/modules-yaml'
 import {
   DEPENDENCIES_FIELDS,
-  type Registries,
   type ProjectRootDir,
+  type Registries,
 } from '@pnpm/types'
-import rimraf from '@zkochan/rimraf'
+import { rimraf } from '@zkochan/rimraf'
 import enquirer from 'enquirer'
 import { equals } from 'ramda'
+
 import { checkCompatibility } from './checkCompatibility/index.js'
 
 interface ImporterToPurge {

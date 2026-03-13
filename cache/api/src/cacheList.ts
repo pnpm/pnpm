@@ -1,4 +1,5 @@
-import fs from 'fs'
+import fs from 'node:fs'
+
 import getRegistryName from 'encode-registry'
 import { glob } from 'tinyglobby'
 

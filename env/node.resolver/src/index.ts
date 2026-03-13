@@ -11,14 +11,15 @@ import type {
   VariationsResolution,
   WantedDependency,
 } from '@pnpm/resolver-base'
+import type { PkgResolutionId } from '@pnpm/types'
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
-import type { PkgResolutionId } from '@pnpm/types'
-import { parseNodeSpecifier } from './parseNodeSpecifier.js'
-import { getNodeMirror } from './getNodeMirror.js'
-import { getNodeArtifactAddress } from './getNodeArtifactAddress.js'
 
-export { getNodeMirror, parseNodeSpecifier, getNodeArtifactAddress }
+import { getNodeArtifactAddress } from './getNodeArtifactAddress.js'
+import { getNodeMirror } from './getNodeMirror.js'
+import { parseNodeSpecifier } from './parseNodeSpecifier.js'
+
+export { getNodeArtifactAddress, getNodeMirror, parseNodeSpecifier }
 
 export const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
 export const UNOFFICIAL_NODE_MIRROR_BASE_URL = 'https://unofficial-builds.nodejs.org/download/release/'

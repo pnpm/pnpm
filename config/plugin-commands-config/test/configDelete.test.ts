@@ -1,10 +1,11 @@
-import fs from 'fs'
-import path from 'path'
-import { tempDir } from '@pnpm/prepare'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { config } from '@pnpm/plugin-commands-config'
+import { tempDir } from '@pnpm/prepare'
 import { readIniFileSync } from 'read-ini-file'
-import { sync as readYamlFile } from 'read-yaml-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 test('config delete on registry key not set', async () => {
   const tmp = tempDir()
@@ -84,7 +85,7 @@ test('config delete on pnpm-specific key not set', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(configDir, 'config.yaml'), {
+  writeYamlFileSync(path.join(configDir, 'config.yaml'), {
     cacheDir: '~/cache',
   })
 
@@ -96,7 +97,7 @@ test('config delete on pnpm-specific key not set', async () => {
     rawConfig: {},
   }, ['delete', 'store-dir'])
 
-  expect(readYamlFile(path.join(configDir, 'config.yaml'))).toStrictEqual({
+  expect(readYamlFileSync(path.join(configDir, 'config.yaml'))).toStrictEqual({
     cacheDir: '~/cache',
   })
 })
@@ -105,7 +106,7 @@ test('config delete on pnpm-specific key set', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(configDir, 'config.yaml'), {
+  writeYamlFileSync(path.join(configDir, 'config.yaml'), {
     cacheDir: '~/cache',
   })
 

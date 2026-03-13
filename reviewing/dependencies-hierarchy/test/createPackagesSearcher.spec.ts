@@ -1,4 +1,5 @@
 import type { DependencyManifest } from '@pnpm/types'
+
 import { createPackagesSearcher } from '../lib/createPackagesSearcher.js'
 
 test('packages searcher', () => {

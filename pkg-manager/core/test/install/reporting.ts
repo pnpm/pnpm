@@ -1,9 +1,10 @@
-import type { DeprecationLog } from '@pnpm/core-loggers'
-import { prepareEmpty } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import {
   addDependenciesToPackage,
 } from '@pnpm/core'
-import { jest } from '@jest/globals'
+import type { DeprecationLog } from '@pnpm/core-loggers'
+import { prepareEmpty } from '@pnpm/prepare'
+
 import { testDefaults } from '../utils/index.js'
 
 // TODO: use a smaller package for testing deprecation

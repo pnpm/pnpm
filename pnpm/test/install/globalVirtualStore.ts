@@ -1,7 +1,9 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare } from '@pnpm/prepare'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from '../utils/index.js'
 
 test('using a global virtual store', async () => {
@@ -12,7 +14,7 @@ test('using a global virtual store', async () => {
   })
   const storeDir = path.resolve('store')
   const globalVirtualStoreDir = path.join(storeDir, 'v11/links')
-  writeYamlFile(path.resolve('pnpm-workspace.yaml'), {
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
     enableGlobalVirtualStore: true,
     storeDir,
     privateHoistPattern: '*',

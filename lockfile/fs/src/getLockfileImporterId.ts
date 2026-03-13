@@ -1,5 +1,6 @@
+import path from 'node:path'
+
 import type { ProjectId } from '@pnpm/types'
-import path from 'path'
 import normalize from 'normalize-path'
 
 export function getLockfileImporterId (lockfileDir: string, prefix: string): ProjectId {

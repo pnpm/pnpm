@@ -1,14 +1,16 @@
-import fs from 'fs'
-import path from 'path'
-import { docsUrl } from '@pnpm/cli-utils'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { packageManager } from '@pnpm/cli-meta'
-import { types as allTypes, type Config, type UniversalOptions } from '@pnpm/config'
+import { docsUrl } from '@pnpm/cli-utils'
+import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import type { ProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
+
 import { parseRawConfig } from './utils.js'
 
 export const rcOptionsTypes = cliOptionsTypes

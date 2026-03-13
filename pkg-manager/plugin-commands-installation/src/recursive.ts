@@ -1,5 +1,7 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
+import { rebuild } from '@pnpm/building.build-commands'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   type RecursiveSummary,
@@ -7,33 +9,12 @@ import {
 } from '@pnpm/cli-utils'
 import {
   type Config,
-  type OptionsFromRootManifest,
-  type ProjectConfig,
   createProjectConfigRecord,
   getOptionsFromRootManifest,
   getWorkspaceConcurrency,
+  type OptionsFromRootManifest,
+  type ProjectConfig,
 } from '@pnpm/config'
-import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
-import { logger } from '@pnpm/logger'
-import { filterDependenciesByType } from '@pnpm/manifest-utils'
-import { createMatcherWithIndex } from '@pnpm/matcher'
-import { rebuild } from '@pnpm/plugin-commands-rebuild'
-import type { StoreController } from '@pnpm/package-store'
-import { requireHooks } from '@pnpm/pnpmfile'
-import { sortPackages } from '@pnpm/sort-packages'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import type {
-  IgnoredBuilds,
-  IncludedDependencies,
-  PackageManifest,
-  Project,
-  ProjectManifest,
-  ProjectsGraph,
-  ProjectRootDir,
-  ProjectRootDirRealPath,
-} from '@pnpm/types'
-import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import {
   addDependenciesToPackage,
   IgnoredBuildsError,
@@ -45,13 +26,34 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/core'
-import isSubdir from 'is-subdir'
+import { PnpmError } from '@pnpm/error'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import { logger } from '@pnpm/logger'
+import { filterDependenciesByType } from '@pnpm/manifest-utils'
+import { createMatcherWithIndex } from '@pnpm/matcher'
+import type { StoreController } from '@pnpm/package-store'
+import { requireHooks } from '@pnpm/pnpmfile'
+import type { PreferredVersions } from '@pnpm/resolver-base'
+import { sortPackages } from '@pnpm/sort-packages'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import type {
+  IgnoredBuilds,
+  IncludedDependencies,
+  PackageManifest,
+  Project,
+  ProjectManifest,
+  ProjectRootDir,
+  ProjectRootDirRealPath,
+  ProjectsGraph,
+} from '@pnpm/types'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
+import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
-import { getSaveType } from './getSaveType.js'
+
 import { getPinnedVersion } from './getPinnedVersion.js'
-import type { PreferredVersions } from '@pnpm/resolver-base'
+import { getSaveType } from './getSaveType.js'
+import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'

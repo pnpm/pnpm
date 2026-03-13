@@ -1,14 +1,16 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import path from 'path'
-import fs from 'fs'
+import fs from 'node:fs'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
+
 import { STORE_VERSION } from '@pnpm/constants'
-import { licenses } from '@pnpm/plugin-commands-licenses'
 import { install } from '@pnpm/plugin-commands-installation'
+import { licenses } from '@pnpm/plugin-commands-licenses'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { stripVTControlCharacters as stripAnsi } from 'util'
-import { DEFAULT_OPTS } from './utils/index.js'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+
+import { DEFAULT_OPTS } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 

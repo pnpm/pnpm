@@ -1,4 +1,5 @@
-import path from 'path'
+import path from 'node:path'
+
 import { linkLogger } from '@pnpm/core-loggers'
 import symlinkDir from 'symlink-dir'
 

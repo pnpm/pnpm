@@ -1,8 +1,8 @@
+import { renderTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import type {
   BadPeerDependencyIssue,
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
-import { renderTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
 

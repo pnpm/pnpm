@@ -7,6 +7,7 @@ import type {
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger } from '@pnpm/logger'
 import type { DependenciesField, DepPath, ProjectId } from '@pnpm/types'
+
 import { filterImporter } from './filterImporter.js'
 
 const lockfileLogger = logger('lockfile')

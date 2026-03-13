@@ -1,9 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { calcPnpmfilePathsOfPluginDeps, getConfig } from '@pnpm/cli-utils'
 import { prepare } from '@pnpm/prepare'
-import { jest } from '@jest/globals'
 
 beforeEach(() => {
   jest.spyOn(console, 'warn')

@@ -1,14 +1,15 @@
 import type { Config } from '@pnpm/config'
 import type * as logs from '@pnpm/core-loggers'
 import type { LogLevel, StreamParser } from '@pnpm/logger'
+import createDiffer from 'ansi-diff'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
-import createDiffer from 'ansi-diff'
+
 import { EOL } from './constants.js'
 import { mergeOutputs } from './mergeOutputs.js'
 import { reporterForClient } from './reporterForClient/index.js'
-import { formatWarn } from './reporterForClient/utils/formatWarn.js'
 import type { FilterPkgsDiff } from './reporterForClient/reportSummary.js'
+import { formatWarn } from './reporterForClient/utils/formatWarn.js'
 
 export { formatWarn }
 

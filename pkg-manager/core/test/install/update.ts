@@ -1,10 +1,12 @@
-import path from 'path'
+import path from 'node:path'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { addDependenciesToPackage, install } from '@pnpm/core'
 import type { LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { sync as readYamlFile } from 'read-yaml-file'
-import { addDependenciesToPackage, install } from '@pnpm/core'
+import { readYamlFileSync } from 'read-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 test('preserve subdeps on update', async () => {
@@ -110,7 +112,7 @@ test('update dependency when external lockfile directory is used', async () => {
 
   await install(manifest, testDefaults({ update: true, depth: 0, lockfileDir }))
 
-  const lockfile = readYamlFile<LockfileFile>(path.join('..', WANTED_LOCKFILE))
+  const lockfile = readYamlFileSync<LockfileFile>(path.join('..', WANTED_LOCKFILE))
 
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
 })

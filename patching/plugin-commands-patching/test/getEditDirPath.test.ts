@@ -1,4 +1,5 @@
-import path from 'path'
+import path from 'node:path'
+
 import { getEditDirPath } from '../src/getEditDirPath.js'
 
 test('getEditDirPath() returns path to pkg@version inside node_modules/.pnpm_patches', () => {

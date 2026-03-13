@@ -1,11 +1,9 @@
-import { createReadStream, promises as fs } from 'fs'
-import path from 'path'
-import {
-  normalizeBundledManifest,
-} from '@pnpm/store.cafs'
-import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
+import { createReadStream, promises as fs } from 'node:fs'
+import path from 'node:path'
+
+import type { Cafs } from '@pnpm/cafs-types'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
-import { pickFetcher } from '@pnpm/pick-fetcher'
+import { depPathToFilename } from '@pnpm/dependency-path'
 import { PnpmError } from '@pnpm/error'
 import type {
   DirectoryFetcherResult,
@@ -13,36 +11,38 @@ import type {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
-import type { Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
+import type { CustomFetcher } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { loadJsonFile } from 'load-json-file'
+import { pickFetcher } from '@pnpm/pick-fetcher'
 import type {
-  PlatformAssetResolution,
+  AtomicResolution,
   DirectoryResolution,
+  PlatformAssetResolution,
   PreferredVersions,
   Resolution,
   ResolveFunction,
   ResolveResult,
   TarballResolution,
-  AtomicResolution,
 } from '@pnpm/resolver-base'
+import {
+  normalizeBundledManifest,
+} from '@pnpm/store.cafs'
+import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
 import type {
   BundledManifest,
-  PkgRequestFetchResult,
   FetchPackageToStoreFunction,
   FetchPackageToStoreOptions,
   GetFilesIndexFilePath,
   PackageResponse,
   PkgNameVersion,
+  PkgRequestFetchResult,
   RequestPackageFunction,
   RequestPackageOptions,
   WantedDependency,
 } from '@pnpm/store-controller-types'
 import type { DependencyManifest, SupportedArchitectures } from '@pnpm/types'
-import type { CustomFetcher } from '@pnpm/hooks.types'
-import { depPathToFilename } from '@pnpm/dependency-path'
 import {
   calcMaxWorkers,
   readPkgFromCafs as _readPkgFromCafs,
@@ -50,9 +50,10 @@ import {
   type ReadPkgFromCafsResult,
 } from '@pnpm/worker'
 import { familySync } from 'detect-libc'
-import PQueue from 'p-queue'
+import { loadJsonFile } from 'load-json-file'
 import pDefer, { type DeferredPromise } from 'p-defer'
-import pShare from 'promise-share'
+import PQueue from 'p-queue'
+import { pShare } from 'promise-share'
 import { pick } from 'ramda'
 import ssri from 'ssri'
 

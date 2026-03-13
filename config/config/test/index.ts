@@ -1,15 +1,15 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
-import PATH from 'path-name'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { jest } from '@jest/globals'
-
+import PATH from 'path-name'
 import symlinkDir from 'symlink-dir'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
@@ -210,7 +210,7 @@ test('.npmrc does not load pnpm settings', async () => {
 test('rc options appear as kebab-case in rawConfig even if it was defined as camelCase by pnpm-workspace.yaml', async () => {
   prepareEmpty()
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     ignoreScripts: true,
     linkWorkspacePackages: true,
     nodeLinker: 'hoisted',
@@ -250,7 +250,7 @@ test('rc options appear as kebab-case in rawConfig even if it was defined as cam
 test('workspace-specific settings preserve case in rawConfig', async () => {
   prepareEmpty()
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['foo', 'bar'],
     packageExtensions: {
       '@babel/parser': {
@@ -308,7 +308,7 @@ test('workspace-specific settings preserve case in rawConfig', async () => {
 test('when using --global, linkWorkspacePackages, sharedWorkspaceLockfile and lockfileDir are false even if they are set to true in pnpm-workspace.yaml', async () => {
   prepareEmpty()
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     linkWorkspacePackages: true,
     sharedWorkspaceLockfile: true,
     lockfileDir: true,
@@ -700,7 +700,7 @@ test('normalize the value of the color flag', async () => {
 test.skip('read only supported settings from config', async () => {
   prepare()
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     storeDir: '__store__',
     foo: 'bar',
   })
@@ -839,7 +839,7 @@ test('respects changedFilesIgnorePattern', async () => {
   {
     prepareEmpty()
 
-    writeYamlFile('pnpm-workspace.yaml', {
+    writeYamlFileSync('pnpm-workspace.yaml', {
       changedFilesIgnorePattern: ['.github/**', '**/README.md'],
     })
 
@@ -1035,7 +1035,7 @@ test('respect mergeGitBranchLockfilesBranchPattern', async () => {
   {
     prepareEmpty()
 
-    writeYamlFile('pnpm-workspace.yaml', {
+    writeYamlFileSync('pnpm-workspace.yaml', {
       mergeGitBranchLockfilesBranchPattern: ['main', 'release/**'],
     })
 
@@ -1057,7 +1057,7 @@ test('respect mergeGitBranchLockfilesBranchPattern', async () => {
 test('getConfig() sets mergeGitBranchLockfiles when branch matches mergeGitBranchLockfilesBranchPattern', async () => {
   prepareEmpty()
   {
-    writeYamlFile('pnpm-workspace.yaml', {
+    writeYamlFileSync('pnpm-workspace.yaml', {
       mergeGitBranchLockfilesBranchPattern: ['main', 'release/**'],
     })
 
@@ -1312,7 +1312,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
 test('environment variable pnpm_config_* should override pnpm-workspace.yaml', async () => {
   prepareEmpty()
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     fetchRetries: 5,
   })
 
@@ -1437,7 +1437,7 @@ describe('global config.yaml', () => {
     prepareEmpty()
 
     fs.mkdirSync('.config/pnpm', { recursive: true })
-    writeYamlFile('.config/pnpm/config.yaml', {
+    writeYamlFileSync('.config/pnpm/config.yaml', {
       dangerouslyAllowAllBuilds: true,
     })
 
@@ -1466,7 +1466,7 @@ describe('global config.yaml', () => {
 test('lockfile: false in pnpm-workspace.yaml sets useLockfile to false', async () => {
   prepareEmpty()
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     lockfile: false,
   })
 
@@ -1485,7 +1485,7 @@ test('lockfile: false in pnpm-workspace.yaml sets useLockfile to false', async (
 test('pnpm_config_lockfile env var overrides lockfile from pnpm-workspace.yaml in useLockfile', async () => {
   prepareEmpty()
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     lockfile: true,
   })
 
@@ -1507,7 +1507,7 @@ test('pnpm_config_lockfile env var overrides lockfile from pnpm-workspace.yaml i
 test('ci disables enableGlobalVirtualStore by default', async () => {
   prepareEmpty()
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     ci: true,
   })
 
@@ -1527,7 +1527,7 @@ test('ci disables enableGlobalVirtualStore by default', async () => {
 test('ci respects explicit enableGlobalVirtualStore from config', async () => {
   prepareEmpty()
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     ci: true,
     enableGlobalVirtualStore: true,
   })
@@ -1548,7 +1548,7 @@ test('ci respects explicit enableGlobalVirtualStore from config', async () => {
 test('pnpm_config_git_branch_lockfile env var overrides git-branch-lockfile from pnpm-workspace.yaml in useGitBranchLockfile', async () => {
   prepareEmpty()
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     gitBranchLockfile: false,
   })
 

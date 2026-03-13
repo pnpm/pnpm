@@ -1,11 +1,13 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
+import { install } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { jest } from '@jest/globals'
+
 import { DEFAULT_OPTS } from './utils/index.js'
-import { install } from '@pnpm/plugin-commands-installation'
 
 const original = await import('@pnpm/logger')
 const warn = jest.fn()

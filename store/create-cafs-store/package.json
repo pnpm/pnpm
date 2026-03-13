@@ -42,7 +42,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/exec.pkg-requires-build": "workspace:*",
+    "@pnpm/building.pkg-requires-build": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",

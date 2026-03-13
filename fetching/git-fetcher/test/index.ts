@@ -1,10 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
-import { jest } from '@jest/globals'
-import { temporaryDirectory } from 'tempy'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { temporaryDirectory } from 'tempy'
 
 {
   const originalModule = await import('execa')
@@ -12,7 +13,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
     return {
       __esModule: true,
       ...originalModule,
-      default: jest.fn(originalModule.default),
+      safeExeca: jest.fn(originalModule.safeExeca),
     }
   })
 }
@@ -27,7 +28,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 }
 
 const { globalWarn } = await import('@pnpm/logger')
-const { default: execa } = await import('execa')
+const { safeExeca: execa } = await import('execa')
 const { createGitFetcher } = await import('@pnpm/git-fetcher')
 
 const storeIndexes: StoreIndex[] = []

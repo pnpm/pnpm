@@ -1,12 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import path from 'path'
+import path from 'node:path'
 
-import { prepare } from '@pnpm/prepare'
 import { getConfig } from '@pnpm/config'
-import { findHash } from '@pnpm/plugin-commands-store-inspecting'
 import type { PnpmError } from '@pnpm/error'
-
-import execa from 'execa'
+import { findHash } from '@pnpm/plugin-commands-store-inspecting'
+import { prepare } from '@pnpm/prepare'
+import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')

@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 // cspell:ignore buildserver
-import { resolveFromTarball as _resolveFromTarball } from '@pnpm/tarball-resolver'
 import { createFetchFromRegistry } from '@pnpm/fetch'
+import { resolveFromTarball as _resolveFromTarball } from '@pnpm/tarball-resolver'
 
 const fetch = createFetchFromRegistry({})
 const resolveFromTarball = _resolveFromTarball.bind(null, fetch)

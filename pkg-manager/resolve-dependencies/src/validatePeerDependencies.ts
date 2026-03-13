@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
-import type { ProjectManifest } from '@pnpm/types'
 import { isValidPeerRange } from '@pnpm/semver.peer-range'
+import type { ProjectManifest } from '@pnpm/types'
 
 export interface ProjectToValidate {
   rootDir: string

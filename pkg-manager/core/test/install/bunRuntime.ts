@@ -1,9 +1,10 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
-import { sync as rimraf } from '@zkochan/rimraf'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { rimrafSync } from '@zkochan/rimraf'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 const RESOLUTIONS = [
@@ -159,7 +160,7 @@ test('installing Bun runtime', async () => {
     },
   })
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true }, {
     offline: true, // We want to verify that Bun is resolved from cache.
   }))
@@ -220,7 +221,7 @@ test('installing Bun runtime fails if offline mode is used and Bun not found loc
 test('installing Bun runtime fails if integrity check fails', async () => {
   prepareEmpty()
 
-  writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFileSync(WANTED_LOCKFILE, {
     settings: {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,

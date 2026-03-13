@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 
 export async function getGitBranchLockfileNames (lockfileDir: string): Promise<string[]> {
   const files = await fs.readdir(lockfileDir)
