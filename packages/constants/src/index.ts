@@ -52,5 +52,8 @@ export function getBunBinLocationForCurrentOS (platform: string = process.platfo
 export const GLOBAL_VIRTUAL_STORE_DIR_NAME = 'links'
 
 export function resolveGlobalVirtualStoreDir (explicit: string | undefined, storeDir: string): string {
-  return explicit ?? path.join(storeDir, GLOBAL_VIRTUAL_STORE_DIR_NAME)
+  if (explicit != null) {
+    return path.isAbsolute(explicit) ? explicit : path.resolve(storeDir, explicit)
+  }
+  return path.join(storeDir, GLOBAL_VIRTUAL_STORE_DIR_NAME)
 }

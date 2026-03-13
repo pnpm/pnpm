@@ -73,6 +73,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'unsafe-perm',
     'verify-store-integrity',
     'virtual-store-dir',
+    'virtual-store-only',
   ], allTypes)
 }
 
