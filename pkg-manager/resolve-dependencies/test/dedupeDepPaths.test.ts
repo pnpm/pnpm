@@ -103,6 +103,7 @@ test('packages are not deduplicated when versions do not match', async () => {
     virtualStoreDirMaxLength: 120,
     lockfileDir: '',
     peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
   })
 
   expect(dependenciesByProjectId.project1.get('foo')).toEqual(dependenciesByProjectId.project2.get('foo'))
