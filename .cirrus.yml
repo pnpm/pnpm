@@ -8,7 +8,7 @@ compile_and_lint_task:
     cpu: 4
     memory: 8G
   install_deps_script:
-    - apt-get update && apt-get install -y curl git
+    - apt-get update && apt-get install -y curl git libatomic1
   install_pnpm_script:
     - curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=${PNPM_VERSION} sh -
     - export PNPM_HOME="$HOME/.local/share/pnpm" && echo "PATH=$PNPM_HOME:$PATH" >> $CIRRUS_ENV
@@ -42,7 +42,7 @@ test_linux_task:
       - NODE_VERSION: "25.0.0"
         NODE_MAJOR: "25"
   install_deps_script:
-    - apt-get update && apt-get install -y curl git
+    - apt-get update && apt-get install -y curl git libatomic1
   configure_git_script:
     - git config --global core.autocrlf false
     - git config --global user.name "xyz"
