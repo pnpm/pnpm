@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+
 import { parseDepPath } from '@pnpm/dependency-path'
 
 export function peersSuffixHashFromDepPath (depPath: string): string | undefined {

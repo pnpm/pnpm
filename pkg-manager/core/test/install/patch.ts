@@ -1,16 +1,18 @@
 import fs from 'fs'
 import path from 'path'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
+
+import { jest } from '@jest/globals'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { install } from '@pnpm/core'
 import type { IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
-import { jest } from '@jest/globals'
 import { rimrafSync } from '@zkochan/rimraf'
+
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)

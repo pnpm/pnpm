@@ -1,12 +1,14 @@
 import path from 'path'
-import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
-import { prepareEmpty } from '@pnpm/prepare'
+
 import {
   addDependenciesToPackage,
   install,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
+import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
+import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
+
 import { testDefaults } from '../utils/index.js'
 
 test('the modules cache is pruned when it expires', async () => {

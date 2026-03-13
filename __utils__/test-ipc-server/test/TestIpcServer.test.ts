@@ -2,11 +2,12 @@
 import fs from 'fs'
 import net from 'net'
 import path from 'path'
-import { safeExeca as execa } from 'execa'
 import { setTimeout } from 'timers/promises'
 import { promisify } from 'util'
+
 import { prepare } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { safeExeca as execa } from 'execa'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 

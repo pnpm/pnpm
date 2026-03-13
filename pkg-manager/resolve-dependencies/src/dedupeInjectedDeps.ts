@@ -1,12 +1,14 @@
 import path from 'path'
+
+import type { DepPath, PkgResolutionId } from '@pnpm/types'
 import normalize from 'normalize-path'
-import type { PkgResolutionId, DepPath } from '@pnpm/types'
-import type { ResolvedDirectDependency, ResolvedImporters } from './resolveDependencyTree.js'
+
 import type { NodeId } from './nextNodeId.js'
 import type { LinkedDependency } from './resolveDependencies.js'
+import type { ResolvedDirectDependency, ResolvedImporters } from './resolveDependencyTree.js'
 import type {
-  GenericDependenciesGraphWithResolvedChildren,
   DependenciesByProjectId,
+  GenericDependenciesGraphWithResolvedChildren,
   PartialResolvedPackage,
   ProjectToResolve,
 } from './resolvePeers.js'

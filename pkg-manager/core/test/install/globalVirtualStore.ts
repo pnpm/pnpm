@@ -1,13 +1,15 @@
 import fs from 'fs'
 import path from 'path'
+
 import { assertProject } from '@pnpm/assert-project'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { getIntegrity } from '@pnpm/registry-mock'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
-import { getIntegrity } from '@pnpm/registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
+
 import { testDefaults } from '../utils/index.js'
 
 const storeIndexes: StoreIndex[] = []

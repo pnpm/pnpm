@@ -1,11 +1,13 @@
 import fs from 'fs'
-import delay from 'delay'
 import path from 'path'
+
 import { STORE_VERSION } from '@pnpm/constants'
 import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { rimrafSync } from '@zkochan/rimraf'
+import delay from 'delay'
 import { loadJsonFileSync } from 'load-json-file'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip

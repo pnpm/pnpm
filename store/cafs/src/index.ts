@@ -1,18 +1,20 @@
 import crypto from 'crypto'
+
 import type {
   AddToStoreResult,
-  FileWriteResult,
-  PackageFiles,
-  PackageFileInfo,
   FilesIndex,
+  FileWriteResult,
+  PackageFileInfo,
+  PackageFiles,
   SideEffects,
   SideEffectsDiff,
 } from '@pnpm/cafs-types'
+
 import { addFilesFromDir } from './addFilesFromDir.js'
 import { addFilesFromTarball } from './addFilesFromTarball.js'
 import {
-  checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
+  checkPkgFilesIntegrity,
   type Integrity,
   type PackageFilesIndex,
   type VerifyResult,
@@ -32,19 +34,19 @@ export { type BundledManifest } from '@pnpm/types'
 export { normalizeBundledManifest }
 
 export {
-  checkPkgFilesIntegrity,
   buildFileMapsFromIndex,
+  checkPkgFilesIntegrity,
+  type FilesIndex,
   type FileType,
   getFilePathByModeInCafs,
   type Integrity,
+  optimisticRenameOverwrite,
   type PackageFileInfo,
   type PackageFiles,
   type PackageFilesIndex,
-  optimisticRenameOverwrite,
-  type FilesIndex,
-  type VerifyResult,
   type SideEffects,
   type SideEffectsDiff,
+  type VerifyResult,
 }
 
 export type CafsLocker = Map<string, number>

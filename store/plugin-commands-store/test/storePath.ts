@@ -1,5 +1,6 @@
 import os from 'os'
 import path from 'path'
+
 import { STORE_VERSION } from '@pnpm/constants'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare } from '@pnpm/prepare'

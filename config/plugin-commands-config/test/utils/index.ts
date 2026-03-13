@@ -1,9 +1,11 @@
 import fs from 'fs'
 import path from 'path'
+
 import { readIniFileSync } from 'read-ini-file'
-import { writeIniFileSync } from 'write-ini-file'
 import { readYamlFileSync } from 'read-yaml-file'
+import { writeIniFileSync } from 'write-ini-file'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import type { config } from '../../src/index.js'
 
 export function getOutputString (result: config.ConfigHandlerResult): string {

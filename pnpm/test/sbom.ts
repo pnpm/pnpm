@@ -1,4 +1,5 @@
 import { prepare } from '@pnpm/prepare'
+
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 test('pnpm sbom --sbom-format cyclonedx outputs valid JSON to stdout', async () => {

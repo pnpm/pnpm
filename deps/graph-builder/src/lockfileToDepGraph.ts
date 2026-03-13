@@ -1,10 +1,12 @@
 import fs from 'fs'
 import path from 'path'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
-import type { LockfileResolution, LockfileObject } from '@pnpm/lockfile.fs'
+import * as dp from '@pnpm/dependency-path'
+import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
 import {
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
@@ -12,24 +14,24 @@ import {
 import { logger } from '@pnpm/logger'
 import type { IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
+import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
 import type {
-  DepPath,
-  SupportedArchitectures,
-  Registries,
-  PkgIdWithPatchHash,
-  ProjectId,
-  AllowBuild,
-} from '@pnpm/types'
-import type {
-  PkgRequestFetchResult,
   FetchResponse,
+  PkgRequestFetchResult,
   StoreController,
 } from '@pnpm/store-controller-types'
-import * as dp from '@pnpm/dependency-path'
+import type {
+  AllowBuild,
+  DepPath,
+  PkgIdWithPatchHash,
+  ProjectId,
+  Registries,
+  SupportedArchitectures,
+} from '@pnpm/types'
 import { pathExists } from 'path-exists'
 import { equals, isEmpty } from 'ramda'
+
 import { iteratePkgsForVirtualStore } from './iteratePkgsForVirtualStore.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')

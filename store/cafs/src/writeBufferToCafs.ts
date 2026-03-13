@@ -1,8 +1,10 @@
 import fs from 'fs'
 import path from 'path'
-import workerThreads from 'worker_threads'
 import util from 'util'
+import workerThreads from 'worker_threads'
+
 import { renameOverwriteSync } from 'rename-overwrite'
+
 import { type Integrity, verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
 import { writeFile } from './writeFile.js'
 

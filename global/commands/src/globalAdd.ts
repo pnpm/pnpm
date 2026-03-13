@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+
 import { approveBuilds } from '@pnpm/building.policy-commands'
 import {
   cleanOrphanedInstallDirs,
@@ -15,6 +16,7 @@ import { removeBin } from '@pnpm/remove-bins'
 import type { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { isSubdir } from 'is-subdir'
 import symlinkDir from 'symlink-dir'
+
 import { installGlobalPackages } from './installGlobalPackages.js'
 
 type ApproveBuildsHandlerOpts = Parameters<typeof approveBuilds.handler>[0]

@@ -3,6 +3,7 @@ import { type AgentOptions, fetchWithAgent, type RetryTimeoutOptions } from '@pn
 import type { GetAuthHeader } from '@pnpm/fetching-types'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import type { DependenciesField } from '@pnpm/types'
+
 import { lockfileToAuditTree } from './lockfileToAuditTree.js'
 import type { AuditReport } from './types.js'
 

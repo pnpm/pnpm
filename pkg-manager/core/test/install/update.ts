@@ -1,10 +1,12 @@
 import path from 'path'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { addDependenciesToPackage, install } from '@pnpm/core'
 import type { LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { readYamlFileSync } from 'read-yaml-file'
-import { addDependenciesToPackage, install } from '@pnpm/core'
+
 import { testDefaults } from '../utils/index.js'
 
 test('preserve subdeps on update', async () => {

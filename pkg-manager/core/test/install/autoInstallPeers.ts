@@ -1,11 +1,13 @@
 import path from 'path'
+
 import { assertProject } from '@pnpm/assert-project'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject, type PackageManifest } from '@pnpm/core'
+import { createPeerDepGraphHash } from '@pnpm/dependency-path'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
-import { createPeerDepGraphHash } from '@pnpm/dependency-path'
+
 import { testDefaults } from '../utils/index.js'
 
 test('auto install non-optional peer dependencies', async () => {

@@ -1,4 +1,5 @@
 import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
+
 import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
 

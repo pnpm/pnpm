@@ -1,14 +1,16 @@
 import assert from 'assert'
 import fs from 'fs'
-import path from 'path'
-import util from 'util'
-import { pathToFileURL } from 'url'
 import { createRequire } from 'module'
+import path from 'path'
+import { pathToFileURL } from 'url'
+import util from 'util'
+
 import { PnpmError } from '@pnpm/error'
+import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
-import type { PackageManifest, Finder } from '@pnpm/types'
-import type { CustomResolver, CustomFetcher } from '@pnpm/hooks.types'
+import type { Finder, PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
+
 import type { Hooks } from './Hooks.js'
 
 const require = createRequire(import.meta.url)

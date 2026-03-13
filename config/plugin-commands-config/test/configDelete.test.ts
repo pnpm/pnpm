@@ -1,7 +1,8 @@
 import fs from 'fs'
 import path from 'path'
-import { tempDir } from '@pnpm/prepare'
+
 import { config } from '@pnpm/plugin-commands-config'
+import { tempDir } from '@pnpm/prepare'
 import { readIniFileSync } from 'read-ini-file'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'

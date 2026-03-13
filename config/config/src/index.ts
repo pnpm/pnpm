@@ -1,34 +1,33 @@
-import path from 'path'
 import fs from 'fs'
 import os from 'os'
-import { isCI } from 'ci-info'
-import { omit } from 'ramda'
+import path from 'path'
+
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { getCurrentBranch } from '@pnpm/git-utils'
+import { createMatcher } from '@pnpm/matcher'
 import { isCamelCase } from '@pnpm/naming-cases'
 import loadNpmConf from '@pnpm/npm-conf'
 import type npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { getCurrentBranch } from '@pnpm/git-utils'
-import { createMatcher } from '@pnpm/matcher'
 import type { DevEngines, EngineDependency, ProjectManifest } from '@pnpm/types'
+import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { betterPathResolve } from 'better-path-resolve'
 import camelcase from 'camelcase'
+import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
 import kebabCase from 'lodash.kebabcase'
 import normalizeRegistryUrl from 'normalize-registry-url'
-import semver from 'semver'
-import { realpathMissing } from 'realpath-missing'
 import { pathAbsolute } from 'path-absolute'
+import { omit } from 'ramda'
+import { realpathMissing } from 'realpath-missing'
+import semver from 'semver'
 import which from 'which'
+
 import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
-import { isConfigFileKey } from './configFileKey.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
-import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
-import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
-import { transformPathKeys } from './transformPath.js'
-import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
+import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import type {
   Config,
   ConfigWithDeprecatedSettings,
@@ -36,32 +35,33 @@ import type {
   UniversalOptions,
   VerifyDepsBeforeRun,
 } from './Config.js'
-import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
+import { isConfigFileKey } from './configFileKey.js'
+import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
+import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
-import { type WorkspaceManifest, readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
-
-import { types } from './types.js'
+import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
 } from './overrideSupportedArchitecturesWithCLI.js'
+import { transformPathKeys } from './transformPath.js'
+import { types } from './types.js'
 export { types }
 
-export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
-
+export { getOptionsFromPnpmSettings, getOptionsFromRootManifest, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 export {
+  createProjectConfigRecord,
+  type CreateProjectConfigRecordOptions,
   ProjectConfigInvalidValueTypeError,
   ProjectConfigIsNotAnObjectError,
-  ProjectConfigUnsupportedFieldError,
   ProjectConfigsArrayItemIsNotAnObjectError,
   ProjectConfigsArrayItemMatchIsNotAnArrayError,
   ProjectConfigsArrayItemMatchIsNotDefinedError,
   ProjectConfigsIsNeitherObjectNorArrayError,
   ProjectConfigsMatchItemIsNotAStringError,
-  type CreateProjectConfigRecordOptions,
-  createProjectConfigRecord,
+  ProjectConfigUnsupportedFieldError,
 } from './projectConfig.js'
 
 export type { Config, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }

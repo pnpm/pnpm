@@ -1,11 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import path from 'path'
+import { stripVTControlCharacters as stripAnsi } from 'util'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import { prepare, preparePackages } from '@pnpm/prepare'
-
 import { safeExeca as execa } from 'execa'
-import { stripVTControlCharacters as stripAnsi } from 'util'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')

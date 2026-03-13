@@ -1,6 +1,13 @@
 import fs from 'fs'
 import path from 'path'
+
+import { jest } from '@jest/globals'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import {
+  addDependenciesToPackage,
+  mutateModules,
+  mutateModulesInSingleProject,
+} from '@pnpm/core'
 import type {
   PackageManifestLog,
   RootLog,
@@ -10,17 +17,12 @@ import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import type { ProjectRootDir, PackageManifest } from '@pnpm/types'
+import type { PackageManifest, ProjectRootDir } from '@pnpm/types'
+import existsSymlink from 'exists-link'
 import { readYamlFileSync } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
-import {
-  addDependenciesToPackage,
-  mutateModules,
-  mutateModulesInSingleProject,
-} from '@pnpm/core'
-import { jest } from '@jest/globals'
 import { writeJsonFileSync } from 'write-json-file'
-import existsSymlink from 'exists-link'
+
 import { testDefaults } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)

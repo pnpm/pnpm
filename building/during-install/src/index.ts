@@ -2,6 +2,7 @@ import assert from 'assert'
 import fs from 'fs/promises'
 import path from 'path'
 import util from 'util'
+
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { getWorkspaceConcurrency } from '@pnpm/config'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
@@ -9,19 +10,20 @@ import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
-import { hardLinkDir } from '@pnpm/worker'
+import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import type { StoreController } from '@pnpm/store-controller-types'
-import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import type {
   AllowBuild,
   DependencyManifest,
   DepPath,
   IgnoredBuilds,
 } from '@pnpm/types'
+import { hardLinkDir } from '@pnpm/worker'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import { pickBy } from 'ramda'
 import { runGroups } from 'run-groups'
+
 import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence.js'
 
 export type { DepsStateCache }

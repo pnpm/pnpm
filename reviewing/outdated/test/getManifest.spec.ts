@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals'
 import type { ResolveFunction } from '@pnpm/client'
 import type { PkgResolutionId, TarballResolution } from '@pnpm/resolver-base'
+
 import { getManifest } from '../lib/createManifestGetter.js'
 
 test('getManifest()', async () => {

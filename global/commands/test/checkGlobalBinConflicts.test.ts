@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+
 import { checkGlobalBinConflicts } from '@pnpm/global.commands'
 import type { DependencyManifest } from '@pnpm/types'
 import symlinkDir from 'symlink-dir'

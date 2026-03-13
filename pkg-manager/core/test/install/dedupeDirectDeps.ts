@@ -1,9 +1,11 @@
 import fs from 'fs'
 import path from 'path'
+
+import { type MutatedProject, mutateModules } from '@pnpm/core'
 import { preparePackages } from '@pnpm/prepare'
-import { mutateModules, type MutatedProject } from '@pnpm/core'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
+
 import { testDefaults } from '../utils/index.js'
 
 test('dedupe direct dependencies', async () => {

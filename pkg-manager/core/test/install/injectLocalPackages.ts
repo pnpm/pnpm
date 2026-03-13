@@ -1,11 +1,13 @@
 import fs from 'fs'
 import path from 'path'
+
 import { assertProject } from '@pnpm/assert-project'
 import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { writeJsonFileSync } from 'write-json-file'
+
 import { testDefaults } from '../utils/index.js'
 
 test('inject local packages', async () => {

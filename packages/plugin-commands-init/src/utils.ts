@@ -1,7 +1,8 @@
-import path from 'path'
 import { spawnSync } from 'child_process'
-import camelcaseKeys from 'camelcase-keys'
 import fs from 'fs'
+import path from 'path'
+
+import camelcaseKeys from 'camelcase-keys'
 
 export interface Person {
   name?: string

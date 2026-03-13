@@ -1,7 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
-import isWindows from 'is-windows'
+
 import { jest } from '@jest/globals'
+import isWindows from 'is-windows'
 
 const { fetchWithAgent: fetchWithAgentOriginal } = await import('@pnpm/fetch')
 jest.unstable_mockModule('@pnpm/fetch', () => ({

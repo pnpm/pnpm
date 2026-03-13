@@ -1,4 +1,5 @@
 import fs from 'fs'
+
 import { installConfigDeps } from '@pnpm/config.deps-installer'
 import { createEnvLockfile, type EnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'

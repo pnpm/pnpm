@@ -1,6 +1,8 @@
 import path from 'path'
-import { prepareEmpty } from '@pnpm/prepare'
+
 import { jest } from '@jest/globals'
+import { prepareEmpty } from '@pnpm/prepare'
+
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 
 jest.unstable_mockModule('execa', () => ({

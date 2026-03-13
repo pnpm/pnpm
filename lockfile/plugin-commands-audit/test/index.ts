@@ -1,12 +1,14 @@
 import path from 'path'
-import { fixtures } from '@pnpm/test-fixtures'
+import { stripVTControlCharacters as stripAnsi } from 'util'
+
+import { AuditEndpointNotExistsError } from '@pnpm/audit'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { install } from '@pnpm/plugin-commands-installation'
-import { AuditEndpointNotExistsError } from '@pnpm/audit'
+import { fixtures } from '@pnpm/test-fixtures'
 import nock from 'nock'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+
+import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
-import { DEFAULT_OPTS, AUDIT_REGISTRY_OPTS, AUDIT_REGISTRY } from './utils/options.js'
 
 const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
 

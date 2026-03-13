@@ -1,13 +1,15 @@
 import fs from 'fs'
 import path from 'path'
-import { prepare, preparePackages, prepareEmpty } from '@pnpm/prepare'
-import { isExecutable, assertProject } from '@pnpm/assert-project'
+
+import { jest } from '@jest/globals'
+import { assertProject, isExecutable } from '@pnpm/assert-project'
+import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import PATH from 'path-name'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writePackageSync } from 'write-package'
-import { jest } from '@jest/globals'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const original = await import('@pnpm/logger')

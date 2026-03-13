@@ -1,13 +1,14 @@
 import path from 'path'
+
 import { envReplace } from '@pnpm/config.env-replace'
 import { PnpmError } from '@pnpm/error'
 import type {
-  SupportedArchitectures,
   AllowedDeprecatedVersions,
   PackageExtension,
   PeerDependencyRules,
-  ProjectManifest,
   PnpmSettings,
+  ProjectManifest,
+  SupportedArchitectures,
 } from '@pnpm/types'
 import { map as mapValues, pick } from 'ramda'
 

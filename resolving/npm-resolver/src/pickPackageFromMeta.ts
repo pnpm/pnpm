@@ -1,10 +1,12 @@
+import util from 'util'
+
 import { PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/registry.types'
 import type { VersionSelectors } from '@pnpm/resolver-base'
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
-import util from 'util'
+
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 
 export interface PickVersionByVersionRangeOptions {

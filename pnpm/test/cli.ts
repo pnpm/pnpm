@@ -1,10 +1,12 @@
 import fs from 'fs'
 import path from 'path'
-import PATH_NAME from 'path-name'
+
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
+import PATH_NAME from 'path-name'
+
 import {
   execPnpm,
   execPnpmSync,

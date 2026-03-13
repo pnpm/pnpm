@@ -1,13 +1,15 @@
 import fs from 'fs'
 import path from 'path'
-import { preparePackages, tempDir } from '@pnpm/prepare'
-import { fixtures } from '@pnpm/test-fixtures'
+
 import {
+  install,
   type MutatedProject,
   mutateModules,
-  install,
 } from '@pnpm/core'
+import { preparePackages, tempDir } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectRootDir } from '@pnpm/types'
+
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)

@@ -1,5 +1,5 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { jest } from '@jest/globals'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 
 jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 

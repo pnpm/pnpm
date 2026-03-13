@@ -1,21 +1,23 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
+
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import {
   createNpmResolver,
-  RegistryResponseError,
   NoMatchingVersionError,
+  RegistryResponseError,
 } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
-import type { Registries, ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir, Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import { omit } from 'ramda'
 import { temporaryDirectory } from 'tempy'
+
 import { delay, retryLoadJsonFile } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)

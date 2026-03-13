@@ -1,6 +1,8 @@
 import path from 'path'
+
 import { parse } from '@pnpm/dependency-path'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
+
 import type { IgnoredBuildsCommandOpts } from './ignoredBuilds.js'
 
 export interface GetAutomaticallyIgnoredBuildsResult {

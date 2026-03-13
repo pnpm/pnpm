@@ -1,7 +1,9 @@
 import { stripVTControlCharacters as stripAnsi } from 'util'
+
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import semverDiff from '@pnpm/semver-diff'
 import type { PackageManifest } from '@pnpm/types'
+
 import type { OutdatedWithVersionDiff } from '../src/utils.js'
 
 test('renderLatest: outdated and deprecated', () => {

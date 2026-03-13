@@ -1,7 +1,8 @@
 import fs from 'fs'
 import path from 'path'
+
 import { STORE_VERSION } from '@pnpm/constants'
-import { install, fetch } from '@pnpm/plugin-commands-installation'
+import { fetch, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { closeAllStoreIndexes } from '@pnpm/store.index'

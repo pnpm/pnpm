@@ -1,17 +1,8 @@
-import * as path from 'path'
 import fs from 'fs'
-import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
-import type {
-  PackageManifestLog,
-  ProgressLog,
-  RootLog,
-  StageLog,
-  StatsLog,
-} from '@pnpm/core-loggers'
+import * as path from 'path'
+
+import { jest } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { fixtures } from '@pnpm/test-fixtures'
-import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
-import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
   install,
@@ -19,14 +10,25 @@ import {
   UnexpectedStoreError,
   UnexpectedVirtualStoreDirError,
 } from '@pnpm/core'
+import type {
+  PackageManifestLog,
+  ProgressLog,
+  RootLog,
+  StageLog,
+  StatsLog,
+} from '@pnpm/core-loggers'
+import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { fixtures } from '@pnpm/test-fixtures'
+import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
-import { safeExeca as execa } from 'execa'
 import { isCI } from 'ci-info'
+import deepRequireCwd from 'deep-require-cwd'
+import { safeExeca as execa } from 'execa'
 import isWindows from 'is-windows'
 import semver from 'semver'
-import { jest } from '@jest/globals'
-import deepRequireCwd from 'deep-require-cwd'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)

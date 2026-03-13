@@ -1,7 +1,8 @@
 import fs from 'fs'
 import path from 'path'
-import { tempDir as createTempDir } from '@pnpm/prepare'
+
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
+import { tempDir as createTempDir } from '@pnpm/prepare'
 
 test('hardLinkDirectory()', () => {
   const tempDir = createTempDir()

@@ -1,6 +1,7 @@
 import path from 'path'
-import { prepareEmpty } from '@pnpm/prepare'
+
 import { jest } from '@jest/globals'
+import { prepareEmpty } from '@pnpm/prepare'
 
 const fsOriginal = await import('fs')
 jest.unstable_mockModule('fs', () => ({

@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals'
-import { serializeCycloneDx, type SbomResult } from '@pnpm/sbom'
 import { DepType } from '@pnpm/lockfile.detect-dep-types'
+import { type SbomResult, serializeCycloneDx } from '@pnpm/sbom'
 
 function makeSbomResult (): SbomResult {
   return {

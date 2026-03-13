@@ -1,11 +1,12 @@
 import path from 'path'
+
+import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import type { EnvLockfile, LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
-import { detectDepTypes, type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
-import type { DependenciesField, ProjectId } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+import type { DependenciesField, ProjectId } from '@pnpm/types'
 import { map as mapValues } from 'ramda'
 
 export interface AuditNode {

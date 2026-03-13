@@ -1,28 +1,30 @@
 import fs, { type Stats } from 'fs'
 import path from 'path'
 import util from 'util'
+
+import {
+  type CatalogResolver,
+  resolveFromCatalog,
+} from '@pnpm/catalogs.resolver'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { createResolver } from '@pnpm/client'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
+import { getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import type { PackageManifest, PnpmSettings, SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import symlinkDir from 'symlink-dir'
+
 import { makeEnv } from './makeEnv.js'
-import {
-  type CatalogResolver,
-  resolveFromCatalog,
-} from '@pnpm/catalogs.resolver'
 
 export const skipPackageManagerCheck = true
 

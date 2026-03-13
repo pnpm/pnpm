@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import util from 'util'
+
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import type { PackageManifest } from '@pnpm/types'

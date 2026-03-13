@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+
 import { assertStore } from '@pnpm/assert-store'
 import { STORE_VERSION } from '@pnpm/constants'
 import { store } from '@pnpm/plugin-commands-store'

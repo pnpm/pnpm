@@ -1,10 +1,12 @@
-import path from 'path'
 import fs from 'fs'
+import path from 'path'
+
 import { prepare } from '@pnpm/prepare'
+import isWindows from 'is-windows'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpmSync } from './utils/index.js'
-import isWindows from 'is-windows'
 
 test('switch to the pnpm version specified in the packageManager field of package.json', async () => {
   prepare()

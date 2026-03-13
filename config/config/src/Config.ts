@@ -1,4 +1,5 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
+import type { Hooks } from '@pnpm/pnpmfile'
 import type {
   EngineDependency,
   Finder,
@@ -9,7 +10,7 @@ import type {
   SslConfig,
   TrustPolicy,
 } from '@pnpm/types'
-import type { Hooks } from '@pnpm/pnpmfile'
+
 import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 import type { AuthInfo } from './parseAuthInfo.js'
 

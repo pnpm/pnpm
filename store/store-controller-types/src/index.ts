@@ -1,12 +1,4 @@
 import type {
-  PkgResolutionId,
-  DirectoryResolution,
-  PreferredVersions,
-  Resolution,
-  WantedDependency,
-  WorkspacePackages,
-} from '@pnpm/resolver-base'
-import type {
   FilesMap,
   ImportPackageFunction,
   ImportPackageFunctionAsync,
@@ -15,16 +7,24 @@ import type {
   ResolvedFrom,
 } from '@pnpm/cafs-types'
 import type {
+  DirectoryResolution,
+  PkgResolutionId,
+  PreferredVersions,
+  Resolution,
+  WantedDependency,
+  WorkspacePackages,
+} from '@pnpm/resolver-base'
+import type {
   AllowBuild,
   BundledManifest,
-  SupportedArchitectures,
   PackageManifest,
-  PinnedVersion,
   PackageVersionPolicy,
+  PinnedVersion,
+  SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
 
-export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync, FilesMap }
+export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse }
 
 export * from '@pnpm/resolver-base'
 export type { BundledManifest }

@@ -1,6 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage } from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
+
 import { testDefaults } from '../utils/index.js'
 
 test('fail if installed package does not support the current engine and engine-strict = true', async () => {

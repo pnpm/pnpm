@@ -1,15 +1,17 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import type { LockfileObject, LockfileFile } from '@pnpm/lockfile.types'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import { rimraf } from '@zkochan/rimraf'
 import yaml from 'js-yaml'
 import { isEmpty } from 'ramda'
 import writeFileAtomic from 'write-file-atomic'
+
+import { convertToLockfileFile } from './lockfileFormatConverters.js'
+import { getWantedLockfileName } from './lockfileName.js'
 import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
-import { getWantedLockfileName } from './lockfileName.js'
-import { convertToLockfileFile } from './lockfileFormatConverters.js'
 
 const LOCKFILE_YAML_FORMAT = {
   blankLines: true,

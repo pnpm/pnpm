@@ -1,16 +1,18 @@
 import fs from 'fs'
 import path from 'path'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+
+import { jest } from '@jest/globals'
 import { streamParser } from '@pnpm/logger'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
-import { jest } from '@jest/globals'
-import { safeExeca as execa } from 'execa'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import crossSpawn from 'cross-spawn'
+import { safeExeca as execa } from 'execa'
 import { loadJsonFileSync } from 'load-json-file'
-import { DEFAULT_OPTS, checkPkgExists } from './utils/index.js'
+
+import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
 const CREDENTIALS = `\
 registry=http://localhost:${REGISTRY_MOCK_PORT}/

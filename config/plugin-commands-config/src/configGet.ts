@@ -1,12 +1,14 @@
 import path from 'path'
-import kebabCase from 'lodash.kebabcase'
+
 import { types } from '@pnpm/config'
 import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { runNpm } from '@pnpm/run-npm'
+import kebabCase from 'lodash.kebabcase'
+
 import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
-import { processConfig } from './processConfig.js'
 import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
+import { processConfig } from './processConfig.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {

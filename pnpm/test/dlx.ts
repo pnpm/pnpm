@@ -1,12 +1,14 @@
 import fs from 'fs'
 import path from 'path'
-import PATH_NAME from 'path-name'
+
 import { getConfig } from '@pnpm/config'
-import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { readModulesManifest } from '@pnpm/modules-yaml'
-import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
+import { prepare, prepareEmpty } from '@pnpm/prepare'
+import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { BaseManifest } from '@pnpm/types'
+import PATH_NAME from 'path-name'
+
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 let registries: Record<string, string>

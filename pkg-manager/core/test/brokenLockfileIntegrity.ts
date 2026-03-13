@@ -1,16 +1,17 @@
+import { jest } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import {
+  addDependenciesToPackage,
+  mutateModulesInSingleProject,
+} from '@pnpm/core'
 import type { TarballResolution } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
-import { jest } from '@jest/globals'
 import { clone } from 'ramda'
-import {
-  addDependenciesToPackage,
-  mutateModulesInSingleProject,
-} from '@pnpm/core'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { testDefaults } from './utils/index.js'
 
 test('installation breaks if the lockfile contains the wrong checksum', async () => {

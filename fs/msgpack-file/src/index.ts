@@ -1,5 +1,5 @@
-import { Packr } from 'msgpackr'
 import gfs from '@pnpm/graceful-fs'
+import { Packr } from 'msgpackr'
 
 /**
  * Create a Packr instance with record structure optimization enabled.

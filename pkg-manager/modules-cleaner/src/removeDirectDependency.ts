@@ -1,5 +1,6 @@
-import path from 'path'
 import { promises as fs } from 'fs'
+import path from 'path'
+
 import { rootLogger } from '@pnpm/core-loggers'
 import { removeBin, removeBinsOfDependency } from '@pnpm/remove-bins'
 import type { DependenciesField, ProjectRootDir } from '@pnpm/types'

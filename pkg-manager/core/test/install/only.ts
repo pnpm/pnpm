@@ -1,7 +1,9 @@
 import fs from 'fs'
 import path from 'path'
-import { prepareEmpty } from '@pnpm/prepare'
+
 import { addDependenciesToPackage, install } from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
+
 import { testDefaults } from '../utils/index.js'
 
 test('production install (with --production flag)', async () => {

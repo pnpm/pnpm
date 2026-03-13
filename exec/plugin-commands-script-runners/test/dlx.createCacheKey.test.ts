@@ -1,4 +1,5 @@
 import { createHexHash } from '@pnpm/crypto.hash'
+
 import { createCacheKey } from '../src/dlx.js'
 
 test('creates a hash', () => {

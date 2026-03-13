@@ -1,9 +1,11 @@
 import fs from 'fs'
 import path from 'path'
-import type { ProjectManifest } from '@pnpm/types'
+
+import { jest } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { jest } from '@jest/globals'
+import type { ProjectManifest } from '@pnpm/types'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const originalModule = await import('@pnpm/logger')

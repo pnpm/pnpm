@@ -1,4 +1,5 @@
 import { setTimeout } from 'node:timers/promises'
+
 import type { Config } from '@pnpm/config'
 import { scopeLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'

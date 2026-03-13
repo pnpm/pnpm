@@ -1,6 +1,8 @@
 import fs from 'fs'
 import util from 'util'
+
 import { logger } from '@pnpm/logger'
+
 import { getFilePath } from './filePath.js'
 import type { WorkspaceState } from './types.js'
 

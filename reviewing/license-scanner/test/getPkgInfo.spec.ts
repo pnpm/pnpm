@@ -1,7 +1,9 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+
 import { StoreIndex } from '@pnpm/store.index'
+
 import { getPkgInfo } from '../lib/getPkgInfo.js'
 
 export const DEFAULT_REGISTRIES = {

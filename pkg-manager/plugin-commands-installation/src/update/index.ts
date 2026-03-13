@@ -6,21 +6,22 @@ import {
 import type { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import type { UpdateMatchingFunction } from '@pnpm/core'
+import { PnpmError } from '@pnpm/error'
 import { handleGlobalUpdate } from '@pnpm/global.commands'
 import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
-import { PnpmError } from '@pnpm/error'
-import type { IncludedDependencies, ProjectRootDir, PackageVulnerabilityAudit } from '@pnpm/types'
-import type { UpdateMatchingFunction } from '@pnpm/core'
-import enquirer from 'enquirer'
+import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir } from '@pnpm/types'
 import chalk from 'chalk'
+import enquirer from 'enquirer'
 import { pick, pluck, unnest } from 'ramda'
 import { renderHelp } from 'render-help'
+
 import type { InstallCommandOptions } from '../install.js'
 import { installDeps } from '../installDeps.js'
-import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
 import { parseUpdateParam } from '../recursive.js'
+import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',

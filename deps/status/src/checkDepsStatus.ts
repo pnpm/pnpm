@@ -1,15 +1,15 @@
 import fs from 'fs'
 import path from 'path'
 import util from 'util'
-import { equals, isEmpty, filter, once } from 'ramda'
-import { type Config, type OptionsFromRootManifest, getOptionsFromRootManifest } from '@pnpm/config'
+
+import { type Config, getOptionsFromRootManifest, type OptionsFromRootManifest } from '@pnpm/config'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import {
-  type LockfileObject,
   getLockfileImporterId,
+  type LockfileObject,
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile.fs'
@@ -19,8 +19,8 @@ import {
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
 import {
-  linkedPackagesAreUpToDate,
   getWorkspacePackagesByDirectory,
+  linkedPackagesAreUpToDate,
   satisfiesPackageManifest,
 } from '@pnpm/lockfile.verification'
 import { globalWarn, logger } from '@pnpm/logger'
@@ -34,7 +34,9 @@ import type {
 } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
-import { type WorkspaceState, type WorkspaceStateSettings, loadWorkspaceState, updateWorkspaceState } from '@pnpm/workspace.state'
+import { loadWorkspaceState, updateWorkspaceState, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { equals, filter, isEmpty, once } from 'ramda'
+
 import { assertLockfilesEqual } from './assertLockfilesEqual.js'
 import { safeStat, safeStatSync } from './safeStat.js'
 import { statManifestFile } from './statManifestFile.js'

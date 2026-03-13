@@ -1,13 +1,15 @@
 import fs from 'fs'
 import path from 'path'
+
+import { ENGINE_NAME } from '@pnpm/constants'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { hashObject } from '@pnpm/crypto.object-hasher'
+import { prepareEmpty } from '@pnpm/prepare'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { prepareEmpty } from '@pnpm/prepare'
-import { ENGINE_NAME } from '@pnpm/constants'
 import { rimrafSync } from '@zkochan/rimraf'
+
 import { testDefaults } from '../utils/index.js'
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`

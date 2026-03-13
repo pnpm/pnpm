@@ -1,6 +1,6 @@
 import url from 'url'
+
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { globalWarn } from '@pnpm/logger'
 import {
   FetchError,
   type FetchErrorRequest,
@@ -8,6 +8,7 @@ import {
   PnpmError,
 } from '@pnpm/error'
 import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
+import { globalWarn } from '@pnpm/logger'
 import type { PackageMeta } from '@pnpm/registry.types'
 import * as retry from '@zkochan/retry'
 

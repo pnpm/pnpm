@@ -1,16 +1,15 @@
-import type { Config } from '@pnpm/config'
 import util from 'util'
-import { createResolver } from '@pnpm/client'
-import type { TarballResolution } from '@pnpm/lockfile.types'
 
+import { createResolver } from '@pnpm/client'
+import type { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import type { TarballResolution } from '@pnpm/lockfile.types'
 import { sortDeepKeys } from '@pnpm/object.key-sorting'
+import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { getStorePath } from '@pnpm/store-path'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-
 import { renderHelp } from 'render-help'
 
 export const skipPackageManagerCheck = true

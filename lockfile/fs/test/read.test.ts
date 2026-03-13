@@ -1,6 +1,7 @@
 import path from 'path'
-import type { DepPath, ProjectId } from '@pnpm/types'
+
 import { jest } from '@jest/globals'
+import type { DepPath, ProjectId } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
 jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))

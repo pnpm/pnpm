@@ -1,11 +1,12 @@
 import assert from 'assert'
 import path from 'path'
 import util from 'util'
+
 import { PnpmError } from '@pnpm/error'
-import * as micromatch from 'micromatch'
+import type { ProjectRootDir } from '@pnpm/types'
 import { safeExeca as execa } from 'execa'
 import { findUp } from 'find-up'
-import type { ProjectRootDir } from '@pnpm/types'
+import * as micromatch from 'micromatch'
 
 type ChangeType = 'source' | 'test'
 

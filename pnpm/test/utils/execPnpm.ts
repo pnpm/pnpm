@@ -1,9 +1,10 @@
 import type { ChildProcess as NodeChildProcess, StdioOptions } from 'child_process'
 import path from 'path'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+
 import type { Config } from '@pnpm/config'
-import isWindows from 'is-windows'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import crossSpawn from 'cross-spawn'
+import isWindows from 'is-windows'
 import { readYamlFileSync } from 'read-yaml-file'
 
 export const binDir = path.join(import.meta.dirname, '../..', isWindows() ? 'dist' : 'bin')

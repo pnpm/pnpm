@@ -1,14 +1,9 @@
 import fs from 'fs'
 import path from 'path'
+
+import { jest } from '@jest/globals'
 import type { Project } from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import type { LockfileFile } from '@pnpm/lockfile.fs'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { fixtures } from '@pnpm/test-fixtures'
-import type { ProjectRootDir } from '@pnpm/types'
-import { jest } from '@jest/globals'
-import { readYamlFileSync } from 'read-yaml-file'
 import {
   addDependenciesToPackage,
   install,
@@ -18,9 +13,16 @@ import {
   type PeerDependencyIssuesError,
   type ProjectOptions,
 } from '@pnpm/core'
+import { createPeerDepGraphHash, depPathToFilename } from '@pnpm/dependency-path'
+import type { LockfileFile } from '@pnpm/lockfile.fs'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { fixtures } from '@pnpm/test-fixtures'
+import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import deepRequireCwd from 'deep-require-cwd'
-import { createPeerDepGraphHash, depPathToFilename } from '@pnpm/dependency-path'
+import { readYamlFileSync } from 'read-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)

@@ -1,4 +1,5 @@
 import path from 'path'
+
 import { resolveConfigDeps } from '@pnpm/config.deps-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'

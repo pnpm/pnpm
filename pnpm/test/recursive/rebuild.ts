@@ -1,4 +1,5 @@
 import { preparePackages } from '@pnpm/prepare'
+
 import { execPnpm } from '../utils/index.js'
 
 test('`pnpm recursive rebuild` specific dependencies', async () => {

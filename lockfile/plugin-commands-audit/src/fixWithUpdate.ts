@@ -1,15 +1,16 @@
 import type { AuditReport } from '@pnpm/audit'
-import type {
-  VulnerabilitySeverity,
-  PackageVulnerability,
-  PackageVulnerabilityAudit,
-  DependenciesField,
-} from '@pnpm/types'
-import { update } from '@pnpm/plugin-commands-installation'
-import semver from 'semver'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
+import { update } from '@pnpm/plugin-commands-installation'
+import type {
+  DependenciesField,
+  PackageVulnerability,
+  PackageVulnerabilityAudit,
+  VulnerabilitySeverity,
+} from '@pnpm/types'
+import semver from 'semver'
+
 import type { AuditOptions } from './audit.js'
 import { lockfileToPackages } from './lockfileToPackages.js'
 

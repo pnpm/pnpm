@@ -1,5 +1,6 @@
 import path from 'path'
 import util from 'util'
+
 import { PnpmError } from '@pnpm/error'
 import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFile, loadJsonFileSync } from 'load-json-file'

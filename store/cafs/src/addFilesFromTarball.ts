@@ -1,3 +1,5 @@
+import { gunzipSync } from 'zlib'
+
 import type {
   AddToStoreResult,
   FilesIndex,
@@ -5,7 +7,7 @@ import type {
 } from '@pnpm/cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
 import isGzip from 'is-gzip'
-import { gunzipSync } from 'zlib'
+
 import { parseJsonBufferSync } from './parseJson.js'
 import { parseTarball } from './parseTarball.js'
 

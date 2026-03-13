@@ -1,9 +1,10 @@
 import fs from 'fs'
 import path from 'path'
+
 import { calcLeafGlobalVirtualStorePath } from '@pnpm/calc-dep-state'
 import { installingConfigDepsLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import { readEnvLockfile, type EnvLockfile } from '@pnpm/lockfile.fs'
+import { type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import type { StoreController } from '@pnpm/package-store'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { readModulesDir } from '@pnpm/read-modules-dir'
@@ -12,6 +13,7 @@ import type { ConfigDependencies, Registries } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import symlinkDir from 'symlink-dir'
+
 import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
 import type { NormalizedConfigDep } from './parseIntegrity.js'
 

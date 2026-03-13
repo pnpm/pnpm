@@ -1,18 +1,20 @@
-import path from 'path'
 import fs from 'fs'
-import type { RootLog } from '@pnpm/core-loggers'
-import { depPathToFilename } from '@pnpm/dependency-path'
-import { prepareEmpty } from '@pnpm/prepare'
+import path from 'path'
+
+import { jest } from '@jest/globals'
+import { assertProject } from '@pnpm/assert-project'
 import {
   addDependenciesToPackage,
   install,
 } from '@pnpm/core'
+import type { RootLog } from '@pnpm/core-loggers'
+import { depPathToFilename } from '@pnpm/dependency-path'
+import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { assertProject } from '@pnpm/assert-project'
 import { rimrafSync } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
 import nock from 'nock'
-import { jest } from '@jest/globals'
+
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)

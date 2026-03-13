@@ -1,7 +1,9 @@
 import fs from 'fs'
 import path from 'path'
+
 import { preparePackages, tempDir } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpmSync } from './utils/index.js'
 
 test('pnpm clean removes pnpm entries and packages but preserves non-pnpm hidden files', () => {

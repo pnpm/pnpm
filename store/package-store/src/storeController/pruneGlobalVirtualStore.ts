@@ -1,10 +1,12 @@
-import { type Dirent, promises as fs } from 'fs'
-import util from 'util'
-import path from 'path'
 import crypto from 'crypto'
+import { type Dirent, promises as fs } from 'fs'
+import path from 'path'
+import util from 'util'
+
 import { globalInfo } from '@pnpm/logger'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
+
 import { getRegisteredProjects } from './projectRegistry.js'
 
 const LINKS_DIR = 'links'

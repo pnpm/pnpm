@@ -1,14 +1,16 @@
 import fs from 'fs'
 import path from 'path'
+
 import { DedupeCheckIssuesError } from '@pnpm/dedupe.check'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { dedupe, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { diff } from 'jest-diff'
 import { readYamlFileSync } from 'read-yaml-file'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)

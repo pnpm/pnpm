@@ -1,8 +1,9 @@
-import path from 'path'
 import fs from 'fs'
+import path from 'path'
+
 import { ignoredBuilds } from '@pnpm/building.policy-commands'
-import { tempDir } from '@pnpm/prepare-temp-dir'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
+import { tempDir } from '@pnpm/prepare-temp-dir'
 import type { DepPath } from '@pnpm/types'
 
 const DEFAULT_MODULES_MANIFEST = {

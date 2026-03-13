@@ -1,4 +1,5 @@
 import { stripVTControlCharacters as stripAnsi } from 'util'
+
 import { formatUnknownOptionsError } from '../src/formatError.js'
 
 test('formatUnknownOptionsError()', async () => {

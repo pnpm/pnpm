@@ -1,12 +1,13 @@
 import type { PnpmError } from '@pnpm/error'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { addDistTag } from '@pnpm/registry-mock'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { readYamlFileSync } from 'read-yaml-file'
+
 import { DEFAULT_OPTS } from '../utils/index.js'
 
 test('recursive update', async () => {

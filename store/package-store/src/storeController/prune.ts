@@ -1,10 +1,12 @@
 import { type Dirent, promises as fs } from 'fs'
-import util from 'util'
 import path from 'path'
-import type { StoreIndex } from '@pnpm/store.index'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import util from 'util'
+
 import { globalInfo, globalWarn } from '@pnpm/logger'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import type { StoreIndex } from '@pnpm/store.index'
 import { rimraf } from '@zkochan/rimraf'
+
 import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
 
 const BIG_ONE = BigInt(1) as unknown

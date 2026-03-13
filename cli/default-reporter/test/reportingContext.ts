@@ -1,4 +1,5 @@
 import { setTimeout } from 'node:timers/promises'
+
 import { contextLogger, packageImportMethodLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import {

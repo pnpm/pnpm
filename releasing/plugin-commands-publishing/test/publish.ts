@@ -1,17 +1,19 @@
 import fs from 'fs'
 import path from 'path'
-import { temporaryDirectory } from 'tempy'
-import { safeExeca as execa } from 'execa'
-import { isCI } from 'ci-info'
-import isWindows from 'is-windows'
+
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { isCI } from 'ci-info'
 import crossSpawn from 'cross-spawn'
+import { safeExeca as execa } from 'execa'
+import isWindows from 'is-windows'
+import { temporaryDirectory } from 'tempy'
 import { writeYamlFileSync } from 'write-yaml-file'
-import { DEFAULT_OPTS, checkPkgExists } from './utils/index.js'
+
+import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
 const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 

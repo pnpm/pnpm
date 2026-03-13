@@ -1,10 +1,11 @@
 import fs from 'fs'
 import path from 'path'
-import {
-  scanGlobalPackages,
-  type GlobalPackageInfo,
-} from '@pnpm/global.packages'
+
 import { PnpmError } from '@pnpm/error'
+import {
+  type GlobalPackageInfo,
+  scanGlobalPackages,
+} from '@pnpm/global.packages'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import type { DependencyManifest } from '@pnpm/types'

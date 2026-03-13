@@ -1,5 +1,6 @@
-import path from 'path'
 import type { SpawnSyncReturns } from 'child_process'
+import path from 'path'
+
 import { packageManager } from '@pnpm/cli-meta'
 import { getConfig, types as allTypes } from '@pnpm/config'
 import { runNpm as _runNpm } from '@pnpm/run-npm'

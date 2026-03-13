@@ -1,5 +1,5 @@
-import type { DependenciesMeta, DepPath, ProjectId } from '@pnpm/types'
 import type { PlatformAssetTarget } from '@pnpm/resolver-base'
+import type { DependenciesMeta, DepPath, ProjectId } from '@pnpm/types'
 
 export type { ProjectId }
 

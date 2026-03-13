@@ -1,13 +1,15 @@
 import path from 'path'
+
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
-import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
-import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import type { Hooks } from '@pnpm/pnpmfile'
+import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
-import { omit } from 'ramda'
 import { pMapValues } from 'p-map-values'
+import { omit } from 'ramda'
+
 import { overridePublishConfig } from './overridePublishConfig.js'
 import { type ExportedManifest, transform } from './transform/index.js'
 

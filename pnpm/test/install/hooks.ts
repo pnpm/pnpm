@@ -1,11 +1,13 @@
 import fs from 'fs'
 import path from 'path'
+
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { readYamlFileSync } from 'read-yaml-file'
 import { loadJsonFileSync } from 'load-json-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import {
   addDistTag,
   execPnpm,

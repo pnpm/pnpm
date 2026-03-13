@@ -1,9 +1,11 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
 import type { DepPath, ProjectId } from '@pnpm/types'
+
 import { buildDependentsTree } from '../lib/buildDependentsTree.js'
 
 function refToRelativeOrThrow (reference: string, pkgName: string): DepPath {

@@ -1,8 +1,9 @@
-import { convertToLockfileFile, convertToLockfileObject, readEnvLockfile, writeEnvLockfile, createEnvLockfile } from '@pnpm/lockfile.fs'
+import { convertToLockfileFile, convertToLockfileObject, createEnvLockfile, readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/package-store'
 import type { DepPath, ProjectId, Registries } from '@pnpm/types'
+
 import { resolveManifestDependencies } from './resolveManifestDependencies.js'
 
 export interface ResolvePackageManagerIntegritiesOpts {

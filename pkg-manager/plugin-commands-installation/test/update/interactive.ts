@@ -1,11 +1,12 @@
 import path from 'path'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+
+import { jest } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
-import { jest } from '@jest/globals'
-import { readYamlFileSync } from 'read-yaml-file'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import chalk from 'chalk'
+import { readYamlFileSync } from 'read-yaml-file'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 const { default: enquirer } = await import('enquirer')

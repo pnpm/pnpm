@@ -1,23 +1,25 @@
 import path from 'path'
+
 import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DependencyNode, buildDependenciesTree, type DependenciesTree, createPackagesSearcher, buildDependentsTree, type ImporterInfo } from '@pnpm/reviewing.dependencies-hierarchy'
-import type { DependenciesField, Registries, Finder } from '@pnpm/types'
+import { buildDependenciesTree, buildDependentsTree, createPackagesSearcher, type DependenciesTree, type DependencyNode, type ImporterInfo } from '@pnpm/reviewing.dependencies-hierarchy'
+import type { DependenciesField, Finder, Registries } from '@pnpm/types'
+
+import { renderDependentsJson, renderDependentsParseable, renderDependentsTree } from './renderDependentsTree.js'
 import { renderJson } from './renderJson.js'
 import { renderParseable } from './renderParseable.js'
 import { renderTree } from './renderTree.js'
-import { renderDependentsTree, renderDependentsJson, renderDependentsParseable } from './renderDependentsTree.js'
 import type { PackageDependencyHierarchy } from './types.js'
 
 export type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 export {
+  type PackageDependencyHierarchy,
+  renderDependentsJson,
+  renderDependentsParseable,
+  renderDependentsTree,
   renderJson,
   renderParseable,
   renderTree,
-  type PackageDependencyHierarchy,
-  renderDependentsTree,
-  renderDependentsParseable,
-  renderDependentsJson,
 }
 
 const DEFAULTS = {

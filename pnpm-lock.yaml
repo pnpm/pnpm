@@ -372,6 +372,9 @@ catalogs:
     eslint-plugin-regexp:
       specifier: ^2.10.0
       version: 2.10.0
+    eslint-plugin-simple-import-sort:
+      specifier: ^12.1.1
+      version: 12.1.1
     execa:
       specifier: npm:safe-execa@0.3.0
       version: 0.3.0
@@ -1029,6 +1032,9 @@ importers:
       eslint-plugin-promise:
         specifier: 'catalog:'
         version: 7.2.1(eslint@9.39.4(jiti@2.6.1))
+      eslint-plugin-simple-import-sort:
+        specifier: 'catalog:'
+        version: 12.1.1(eslint@9.39.4(jiti@2.6.1))
       typescript:
         specifier: 'catalog:'
         version: 5.9.2
@@ -13020,6 +13026,11 @@ packages:
     peerDependencies:
       eslint: '>=8.44.0'
 
+  eslint-plugin-simple-import-sort@12.1.1:
+    resolution: {integrity: sha512-6nuzu4xwQtE3332Uz0to+TxDQYRLTKRESSc2hefVT48Zc8JthmN23Gx9lnYhu0FtkRSL1oxny3kJ2aveVhmOVA==}
+    peerDependencies:
+      eslint: '>=5.0.0'
+
   eslint-scope@8.4.0:
     resolution: {integrity: sha512-sNXOfKCn74rt8RICKMvJS7XKV/Xk9kA7DyJr8mJik3S7Cwgy3qlkkmyS2uQB3jiJg6VNdZd/pDBJu0nvG2NlTg==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -21860,6 +21871,10 @@ snapshots:
       refa: 0.12.1
       regexp-ast-analysis: 0.7.1
       scslre: 0.3.0
+
+  eslint-plugin-simple-import-sort@12.1.1(eslint@9.39.4(jiti@2.6.1)):
+    dependencies:
+      eslint: 9.39.4(jiti@2.6.1)
 
   eslint-scope@8.4.0:
     dependencies:

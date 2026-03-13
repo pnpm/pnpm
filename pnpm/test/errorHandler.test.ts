@@ -1,9 +1,10 @@
 import { prepare, preparePackages } from '@pnpm/prepare'
-import isWindows from 'is-windows'
-import getPort from 'get-port'
-import { writeYamlFileSync } from 'write-yaml-file'
-import { execPnpmSync } from './utils/index.js'
 import { fixtures } from '@pnpm/test-fixtures'
+import getPort from 'get-port'
+import isWindows from 'is-windows'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import { execPnpmSync } from './utils/index.js'
 import { isPortInUse } from './utils/isPortInUse.js'
 
 const f = fixtures(import.meta.dirname)

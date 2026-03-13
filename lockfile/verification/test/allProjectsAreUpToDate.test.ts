@@ -1,14 +1,15 @@
+import { createWriteStream } from 'fs'
+import { mkdir, writeFile } from 'fs/promises'
+import { pipeline } from 'stream/promises'
+
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { getTarballIntegrity } from '@pnpm/crypto.hash'
+import type { LockfileObject } from '@pnpm/lockfile.types'
+import { allProjectsAreUpToDate } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolver-base'
-import type { DepPath, DependencyManifest, ProjectId, ProjectRootDir } from '@pnpm/types'
-import { allProjectsAreUpToDate } from '@pnpm/lockfile.verification'
-import { createWriteStream } from 'fs'
-import { writeFile, mkdir } from 'fs/promises'
-import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
 import tar from 'tar-stream'
-import { pipeline } from 'stream/promises'
-import { getTarballIntegrity } from '@pnpm/crypto.hash'
 
 const fooManifest = {
   name: 'foo',

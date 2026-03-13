@@ -1,8 +1,10 @@
 import fs from 'fs'
 import path from 'path'
-import { writeYamlFileSync } from 'write-yaml-file'
-import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+
 import { prepare } from '@pnpm/prepare'
+import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpmSync } from '../utils/index.js'
 
 test('pnpm config get reads npm options but ignores other settings from .npmrc', () => {

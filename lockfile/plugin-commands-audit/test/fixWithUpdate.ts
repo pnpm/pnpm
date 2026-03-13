@@ -1,15 +1,17 @@
-import { join } from 'path'
 import { readFile } from 'fs/promises'
-import { fixtures } from '@pnpm/test-fixtures'
-import { audit } from '@pnpm/plugin-commands-audit'
-import { readWantedLockfile } from '@pnpm/lockfile.fs'
-import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { join } from 'path'
+
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
-import type { DepPath } from '@pnpm/types'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
+import { audit } from '@pnpm/plugin-commands-audit'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { addDistTag } from '@pnpm/registry-mock'
+import { fixtures } from '@pnpm/test-fixtures'
+import type { DepPath } from '@pnpm/types'
 import chalk from 'chalk'
 import nock from 'nock'
 import { readYamlFileSync } from 'read-yaml-file'
+
 import { MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
 
 const f = fixtures(import.meta.dirname)

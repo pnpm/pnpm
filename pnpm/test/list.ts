@@ -1,7 +1,9 @@
 import fs from 'fs'
 import path from 'path'
+
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 test('ls --filter=not-exist --json should prints an empty array (#9672)', async () => {

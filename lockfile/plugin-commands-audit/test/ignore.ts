@@ -1,10 +1,12 @@
 import path from 'path'
-import { fixtures } from '@pnpm/test-fixtures'
+
 import { audit } from '@pnpm/plugin-commands-audit'
+import { fixtures } from '@pnpm/test-fixtures'
 import nock from 'nock'
 import { readYamlFileSync } from 'read-yaml-file'
+
+import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
-import { AUDIT_REGISTRY_OPTS, AUDIT_REGISTRY } from './utils/options.js'
 
 const f = fixtures(import.meta.dirname)
 

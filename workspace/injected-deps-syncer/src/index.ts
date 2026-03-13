@@ -1,4 +1,5 @@
 import path from 'path'
+
 import { PnpmError } from '@pnpm/error'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger as createLogger } from '@pnpm/logger'
@@ -7,6 +8,7 @@ import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import type { DependencyManifest } from '@pnpm/types'
 import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
 import normalizePath from 'normalize-path'
+
 import { DirPatcher } from './DirPatcher.js'
 
 interface SkipSyncInjectedDepsMessage {

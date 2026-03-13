@@ -1,7 +1,8 @@
 import fs from 'fs'
 import path from 'path'
+
 import { packageManager } from '@pnpm/cli-meta'
-import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
+import { type CliOptions, type Config, getConfig as _getConfig } from '@pnpm/config'
 import { installConfigDeps } from '@pnpm/config.deps-installer'
 import { formatWarn } from '@pnpm/default-reporter'
 import { requireHooks } from '@pnpm/pnpmfile'

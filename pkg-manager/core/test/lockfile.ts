@@ -1,29 +1,31 @@
 import fs from 'fs'
 import path from 'path'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import type { RootLog } from '@pnpm/core-loggers'
-import type { PnpmError } from '@pnpm/error'
-import { fixtures } from '@pnpm/test-fixtures'
-import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.fs'
-import type { LockfileFile } from '@pnpm/lockfile.types'
-import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import type { DepPath, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+
 import { jest } from '@jest/globals'
-import { readYamlFileSync } from 'read-yaml-file'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
   install,
+  type MutatedProject,
   mutateModules,
   mutateModulesInSingleProject,
-  type MutatedProject,
   type ProjectOptions,
 } from '@pnpm/core'
+import type { RootLog } from '@pnpm/core-loggers'
+import type { PnpmError } from '@pnpm/error'
+import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.fs'
+import type { LockfileFile } from '@pnpm/lockfile.types'
+import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { fixtures } from '@pnpm/test-fixtures'
+import type { DepPath, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { testDefaults } from './utils/index.js'
 
 afterEach(() => {

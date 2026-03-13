@@ -1,16 +1,17 @@
 import assert from 'assert'
 import path from 'path'
+import { URL } from 'url'
 import util from 'util'
+
+import { PnpmError } from '@pnpm/error'
 import type { GitFetcher } from '@pnpm/fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
-import { PnpmError } from '@pnpm/error'
 import { rimraf } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
-import { URL } from 'url'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]

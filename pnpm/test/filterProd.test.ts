@@ -1,10 +1,11 @@
-import { writeYamlFileSync } from 'write-yaml-file'
-import { execPnpm } from './utils/index.js'
 import {
   preparePackages,
 } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectManifest } from '@pnpm/types'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import { execPnpm } from './utils/index.js'
 
 test.each([
   { message: '--filter should include devDependencies', filter: '--filter', expected: ['project-1', 'project-3', 'project-4'] },

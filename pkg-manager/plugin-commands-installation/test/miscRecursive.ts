@@ -1,18 +1,20 @@
 import fs from 'fs'
 import path from 'path'
+
 import type { PnpmError } from '@pnpm/error'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { add, install, remove, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
-import { readYamlFileSync } from 'read-yaml-file'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { loadJsonFile } from 'load-json-file'
+import { readYamlFileSync } from 'read-yaml-file'
+import symlinkDir from 'symlink-dir'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { DEFAULT_OPTS } from './utils/index.js'
-import symlinkDir from 'symlink-dir'
 
 test('recursive add/remove', async () => {
   const projects = preparePackages([

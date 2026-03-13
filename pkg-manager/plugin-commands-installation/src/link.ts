@@ -1,25 +1,27 @@
 import path from 'path'
+
 import {
   docsUrl,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { writeSettings } from '@pnpm/config.config-writer'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { DEPENDENCIES_FIELDS, type ProjectManifest, type Project } from '@pnpm/types'
-import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { writeSettings } from '@pnpm/config.config-writer'
 import type {
   WorkspacePackages,
 } from '@pnpm/core'
+import { PnpmError } from '@pnpm/error'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { logger } from '@pnpm/logger'
-import { pick, partition } from 'ramda'
+import { DEPENDENCIES_FIELDS, type Project, type ProjectManifest } from '@pnpm/types'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import normalize from 'normalize-path'
+import { partition, pick } from 'ramda'
 import { renderHelp } from 'render-help'
+
 import { createProjectManifestWriter } from './createProjectManifestWriter.js'
 import { getSaveType } from './getSaveType.js'
 import * as install from './install.js'
-import normalize from 'normalize-path'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']

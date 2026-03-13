@@ -1,5 +1,6 @@
-import { getPkgInfo, type GetPkgInfoOpts } from '../src/getPkgInfo.js'
 import path from 'path'
+
+import { getPkgInfo, type GetPkgInfoOpts } from '../src/getPkgInfo.js'
 
 test('getPkgInfo handles missing pkgSnapshot without crashing', () => {
   const opts: GetPkgInfoOpts = {

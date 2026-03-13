@@ -1,4 +1,5 @@
 import path from 'path'
+
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
@@ -7,6 +8,7 @@ import type { Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import { temporaryDirectory } from 'tempy'
+
 import { retryLoadJsonFile } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)

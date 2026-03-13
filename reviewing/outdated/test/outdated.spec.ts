@@ -1,5 +1,6 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { DepPath, ProjectId } from '@pnpm/types'
+
 import { outdated } from '../lib/outdated.js'
 
 async function getLatestManifest (packageName: string) {

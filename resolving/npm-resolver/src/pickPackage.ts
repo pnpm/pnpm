@@ -1,26 +1,28 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
+
+import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
-import type { PackageMeta, PackageInRegistry } from '@pnpm/registry.types'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/registry.types'
 import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { pick } from 'ramda'
-import semver from 'semver'
 import { renameOverwrite } from 'rename-overwrite'
-import { toRaw } from './toRaw.js'
+import semver from 'semver'
+
 import type { FetchMetadataResult } from './fetch.js'
-import {
-  pickPackageFromMeta,
-  pickVersionByVersionRange,
-  pickLowestVersionByVersionRange,
-  type PickPackageFromMetaOptions,
-} from './pickPackageFromMeta.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
+import {
+  pickLowestVersionByVersionRange,
+  pickPackageFromMeta,
+  type PickPackageFromMetaOptions,
+  pickVersionByVersionRange,
+} from './pickPackageFromMeta.js'
+import { toRaw } from './toRaw.js'
 
 export interface PackageMetaCache {
   get: (key: string) => PackageMeta | undefined

@@ -1,36 +1,38 @@
 import crypto from 'crypto'
-import path from 'path'
 import fs from 'fs'
+import path from 'path'
+import { parentPort } from 'worker_threads'
+
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
-import type { Cafs, PackageFiles, SideEffectsDiff, FilesMap } from '@pnpm/cafs-types'
+import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import { PnpmError } from '@pnpm/error'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
-import { StoreIndex, packForStorage } from '@pnpm/store.index'
 import {
+  buildFileMapsFromIndex,
   type CafsFunctions,
   checkPkgFilesIntegrity,
-  buildFileMapsFromIndex,
   createCafs,
+  type FilesIndex,
   HASH_ALGORITHM,
   normalizeBundledManifest,
   type PackageFilesIndex,
-  type FilesIndex,
   type VerifyResult,
 } from '@pnpm/store.cafs'
+import { packForStorage, StoreIndex } from '@pnpm/store.index'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
-import { parentPort } from 'worker_threads'
+
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import type {
   AddDirToStoreMessage,
-  ReadPkgFromCafsMessage,
-  LinkPkgMessage,
-  SymlinkAllModulesMessage,
-  TarballExtractMessage,
   HardLinkDirMessage,
   InitStoreMessage,
+  LinkPkgMessage,
+  ReadPkgFromCafsMessage,
+  SymlinkAllModulesMessage,
+  TarballExtractMessage,
 } from './types.js'
 
 export function startWorker (): void {

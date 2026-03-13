@@ -1,12 +1,14 @@
 import fs from 'fs'
 import path from 'path'
+
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import type { VariationsResolution } from '@pnpm/resolver-base'
-import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
+import type { VariationsResolution } from '@pnpm/resolver-base'
 import { rimrafSync } from '@zkochan/rimraf'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 // The standard glibc variants from nodejs.org/download/release/

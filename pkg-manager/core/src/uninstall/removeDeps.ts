@@ -1,7 +1,7 @@
 import { packageManifestLogger } from '@pnpm/core-loggers'
 import {
-  type DependenciesField,
   DEPENDENCIES_FIELDS,
+  type DependenciesField,
   type ProjectManifest,
 } from '@pnpm/types'
 

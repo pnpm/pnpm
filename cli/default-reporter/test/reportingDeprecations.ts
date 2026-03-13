@@ -5,10 +5,11 @@ import {
 } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
-import { firstValueFrom } from 'rxjs'
-import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
+import { firstValueFrom } from 'rxjs'
+import { map, take } from 'rxjs/operators'
+
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
 
 test('prints summary of deprecated subdependencies', async () => {
