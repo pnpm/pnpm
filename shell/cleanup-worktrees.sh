@@ -44,7 +44,7 @@ while IFS= read -r line; do
   case "$branch" in
     main|master|v[0-9]*)
       echo "SKIP (protected branch): $worktree_path [$branch]"
-      ((skipped++))
+      skipped=$((skipped + 1))
       continue
       ;;
   esac
@@ -53,7 +53,7 @@ while IFS= read -r line; do
   real_wt="$(cd "$worktree_path" 2>/dev/null && pwd -P)" || continue
   if [[ "$real_wt" == "$CURRENT_WORKTREE" ]]; then
     echo "SKIP (current worktree): $worktree_path [$branch]"
-    ((skipped++))
+    skipped=$((skipped + 1))
     continue
   fi
 
@@ -84,10 +84,10 @@ while IFS= read -r line; do
       echo "  -> Would remove worktree and delete branch"
     fi
     echo
-    ((removed++))
+    removed=$((removed + 1))
   else
     echo "SKIP (no merged PR): $worktree_path [$branch]"
-    ((skipped++))
+    skipped=$((skipped + 1))
   fi
 done < <(git worktree list)
 
