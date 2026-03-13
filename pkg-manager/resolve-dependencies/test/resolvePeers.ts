@@ -112,6 +112,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
     lockfileDir: '',
     virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
   })
   expect(Object.keys(dependenciesGraph)).toStrictEqual([
     'foo/1.0.0',
@@ -216,6 +217,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
     virtualStoreDirMaxLength: 120,
     lockfileDir: '',
     peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
   })
   expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
     'bar/1.0.0',
@@ -398,6 +400,7 @@ describe('peer dependency issues', () => {
       virtualStoreDirMaxLength: 120,
       lockfileDir: '',
       peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
     })).peerDependencyIssuesByProjects
   })
   it('should find peer dependency conflicts', () => {
@@ -484,6 +487,7 @@ describe('unmet peer dependency issues', () => {
       virtualStoreDirMaxLength: 120,
       lockfileDir: '',
       peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
     })).peerDependencyIssuesByProjects
   })
   it('should not warn when the found package has prerelease version and the wanted range is *', () => {
@@ -557,6 +561,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
       virtualStoreDirMaxLength: 120,
       lockfileDir: '',
       peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
     })).peerDependencyIssuesByProjects
   })
   it('should return from where the bad peer dependency is resolved', () => {
@@ -659,6 +664,7 @@ test('resolve peer dependencies with npm aliases', async () => {
     virtualStoreDirMaxLength: 120,
     lockfileDir: '',
     peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
   })
   expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
     'bar/1.0.0',
