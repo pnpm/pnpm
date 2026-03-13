@@ -278,7 +278,7 @@ export class OtpWebAuthTimeoutError extends PnpmError {
 
 export class OtpNonInteractiveError extends PnpmError {
   constructor () {
-    super('OTP_NON_INTERACTIVE', 'The registry requires a one-time password (OTP) but pnpm is not running in an interactive terminal. Please set the --otp option.')
+    super('OTP_NON_INTERACTIVE', 'The registry requires additional authentication, but pnpm is not running in an interactive terminal. Re-run this command in an interactive terminal to complete authentication, or provide the --otp option if you are using a classic one-time password (OTP).')
   }
 }
 
