@@ -34,8 +34,9 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
         hint: 'Run "pnpm install" before running scripts. The "verifyDepsBeforeRun: prompt" setting cannot prompt for confirmation in non-interactive environments.',
       })
     }
+    let confirmed: { runInstall: boolean }
     try {
-      const confirmed = await enquirer.prompt<{ runInstall: boolean }>({
+      confirmed = await enquirer.prompt<{ runInstall: boolean }>({
         type: 'confirm',
         name: 'runInstall',
         message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.
@@ -43,13 +44,13 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
 Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?`,
         initial: true,
       })
-      if (confirmed.runInstall) {
-        install()
-      }
     } catch {
       // User cancelled the prompt (e.g. Ctrl+C) — exit immediately
       // so the caller doesn't proceed to run the script.
       process.exit(1)
+    }
+    if (confirmed.runInstall) {
+      install()
     }
     break
   }
