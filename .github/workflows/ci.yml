@@ -42,6 +42,7 @@ jobs:
         retention-days: 1
 
   test-smoke:
+    name: ubuntu-latest / Node.js 24
     needs: compile-and-lint
     uses: ./.github/workflows/test.yml
     with:
@@ -49,6 +50,7 @@ jobs:
       platform: ubuntu-latest
 
   test:
+    name: ${{ matrix.platform }} / Node.js ${{ matrix.node }}
     needs: test-smoke
     strategy:
       fail-fast: false

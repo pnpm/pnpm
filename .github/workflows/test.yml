@@ -19,7 +19,6 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform }}-${{ inputs.node }}
       cancel-in-progress: true
 
-    name: Test ${{ inputs.platform }} / Node.js ${{ inputs.node }}
     runs-on: ${{ inputs.platform }}
 
     steps:
