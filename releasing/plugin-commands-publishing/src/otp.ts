@@ -238,10 +238,8 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
       continue
     }
 
-    // Non-ok status (4xx, 5xx, etc.): retry after the default interval
     if (!response.ok) continue
 
-    // Any 2xx (other than 202): try to extract a token from the body.
     let body: { token?: string }
     try {
       // eslint-disable-next-line no-await-in-loop
