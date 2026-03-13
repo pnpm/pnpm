@@ -1468,6 +1468,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           projectManifest: project.manifest,
           extraNodePaths: ctx.extraNodePaths,
           warn: binWarn.bind(null, project.rootDir),
+          global: opts.global,
         })
       } else {
         const directPkgs = [
@@ -1497,6 +1498,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           {
             extraNodePaths: ctx.extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            global: opts.global,
           }
         )
       }
