@@ -1283,6 +1283,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       trustPolicyExclude: opts.trustPolicyExclude,
       trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
       blockExoticSubdeps: opts.blockExoticSubdeps,
+      allProjectIds: Object.values(ctx.projects).map((p) => p.id),
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
