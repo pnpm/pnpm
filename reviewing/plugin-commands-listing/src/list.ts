@@ -116,7 +116,7 @@ export async function handler (
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    return listRecursive(pkgs, params, { ...opts, depth, include, checkWantedLockfileOnly: opts.lockfileOnly })
+    return listRecursive(pkgs, params, { ...opts, depth, include, checkWantedLockfileOnly: opts.lockfileOnly, onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects })
   }
   return render([opts.dir], params, {
     ...opts,
@@ -124,6 +124,7 @@ export async function handler (
     include,
     lockfileDir: opts.lockfileDir ?? opts.dir,
     checkWantedLockfileOnly: opts.lockfileOnly,
+    onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
   })
 }
 
