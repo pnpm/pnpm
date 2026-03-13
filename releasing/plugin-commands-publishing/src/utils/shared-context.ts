@@ -7,7 +7,7 @@ import { publish as _publish, type PublishOptions } from 'libnpmpublish'
 import { type AuthTokenContext } from '../oidc/authToken.js'
 import { type IdTokenContext } from '../oidc/idToken.js'
 import { type ProvenanceContext } from '../oidc/provenance.js'
-import { type OtpContext, type OtpPublishFn } from '../otp.js'
+import { type OtpContext } from '../otp.js'
 
 // @types/libnpmpublish uses an outdated PackageJson type that is incompatible
 // with ExportedManifest. This intermediate type bridges only that manifest
@@ -17,7 +17,7 @@ type PublishWithExportedManifest = (
   tarballData: Buffer,
   options: PublishOptions
 ) => ReturnType<typeof _publish>
-const publish = _publish as PublishWithExportedManifest as OtpPublishFn
+const publish = _publish as PublishWithExportedManifest
 
 type SharedContext =
 & AuthTokenContext
