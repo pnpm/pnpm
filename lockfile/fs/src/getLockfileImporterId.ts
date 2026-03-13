@@ -1,4 +1,4 @@
-import { type ProjectId } from '@pnpm/types'
+import type { ProjectId } from '@pnpm/types'
 import path from 'path'
 import normalize from 'normalize-path'
 

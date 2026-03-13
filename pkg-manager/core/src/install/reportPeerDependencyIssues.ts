@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { createMatcher } from '@pnpm/matcher'
 import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
-import { type PeerDependencyIssuesByProjects, type PeerDependencyRules, type BadPeerDependencyIssue } from '@pnpm/types'
+import type { PeerDependencyIssuesByProjects, PeerDependencyRules, BadPeerDependencyIssue } from '@pnpm/types'
 import semver from 'semver'
 import { isEmpty } from 'ramda'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'

@@ -18,39 +18,22 @@ export const packageManager = {
   version: pkgJson.version,
 }
 
-export interface Process {
-  arch: NodeJS.Architecture
-  platform: NodeJS.Platform
-  pkg?: unknown
-}
-
-export function detectIfCurrentPkgIsExecutable (proc: Process = process): boolean {
-  return 'pkg' in proc && proc.pkg != null
+export function detectIfCurrentPkgIsExecutable (_proc?: unknown): boolean {
+  try {
+    // require() is available here because esbuild injects a createRequire shim
+    // via the banner in pnpm/bundle.ts. node:sea is not available as an ESM
+    // import, so require() is the correct approach.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('node:sea').isSea()
+  } catch {
+    return false
+  }
 }
 
 export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boolean {
   return env.COREPACK_ROOT != null
 }
 
-export function getCurrentPackageName (proc: Process = process): string {
-  return detectIfCurrentPkgIsExecutable(proc) ? getExePackageName(proc) : 'pnpm'
-}
-
-function getExePackageName (proc: Process): string {
-  return `@pnpm/${normalizePlatformName(proc)}-${normalizeArchName(proc)}`
-}
-
-function normalizePlatformName (proc: Process): string {
-  switch (proc.platform) {
-  case 'win32': return 'win'
-  case 'darwin': return 'macos'
-  default: return proc.platform
-  }
-}
-
-function normalizeArchName (proc: Process): string {
-  if (proc.platform === 'win32' && proc.arch === 'ia32') {
-    return 'x86'
-  }
-  return proc.arch
+export function getCurrentPackageName (): string {
+  return detectIfCurrentPkgIsExecutable() ? '@pnpm/exe' : 'pnpm'
 }

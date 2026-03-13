@@ -1,7 +1,8 @@
 import AdmZip from 'adm-zip'
 import path from 'path'
 import { Readable } from 'stream'
-import { type FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
+import type { FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
+import { StoreIndex } from '@pnpm/store.index'
 import { tempDir } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
 
@@ -12,7 +13,18 @@ jest.unstable_mockModule('detect-libc', () => ({
 const { fetchNode } = await import('@pnpm/node.fetcher')
 const { isNonGlibcLinux } = await import('detect-libc')
 
+// A stable fake hex digest used as placeholder sha256 in mock SHASUMS256.txt files.
+// Any non-zero value works; the tarball content won't match, so integrity will
+// fail — but all URL assertions run before that happens.
+const FAKE_SHA256 = '5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef'
+
 const fetchMock = jest.fn(async (url: string) => {
+  if (url.endsWith('SHASUMS256.txt')) {
+    // Return a minimal SHASUMS file covering the artifacts used in tests.
+    return new Response(
+      `${FAKE_SHA256}  node-v22.0.0-linux-x64-musl.tar.gz\n`
+    )
+  }
   if (url.endsWith('.zip')) {
     // The Windows code path for pnpm's node bootstrapping expects a subdir
     // within the .zip file.
@@ -26,6 +38,11 @@ const fetchMock = jest.fn(async (url: string) => {
   return new Response(Readable.toWeb(Readable.from(Buffer.alloc(0))) as ReadableStream)
 })
 
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
+
 beforeEach(() => {
   jest.mocked(isNonGlibcLinux).mockReturnValue(Promise.resolve(false))
   fetchMock.mockClear()
@@ -35,9 +52,13 @@ test.skip('install Node using a custom node mirror', async () => {
   tempDir()
 
   const nodeMirrorBaseUrl = 'https://pnpm-node-mirror-test.localhost/download/release/'
+  const storeDir = path.resolve('store')
+  const storeIndex = new StoreIndex(storeDir)
+  storeIndexes.push(storeIndex)
   const opts: FetchNodeOptions = {
     nodeMirrorBaseUrl,
-    storeDir: path.resolve('store'),
+    storeDir,
+    storeIndex,
   }
 
   await fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
@@ -50,8 +71,12 @@ test.skip('install Node using a custom node mirror', async () => {
 test.skip('install Node using the default node mirror', async () => {
   tempDir()
 
+  const storeDir = path.resolve('store')
+  const storeIndex = new StoreIndex(storeDir)
+  storeIndexes.push(storeIndex)
   const opts: FetchNodeOptions = {
-    storeDir: path.resolve('store'),
+    storeDir,
+    storeIndex,
   }
 
   await fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
@@ -61,15 +86,30 @@ test.skip('install Node using the default node mirror', async () => {
   }
 })
 
-test('install Node using a custom node mirror #2', async () => {
+
+test('auto-detects musl on non-glibc Linux and uses unofficial-builds mirror', async () => {
   jest.mocked(isNonGlibcLinux).mockReturnValue(Promise.resolve(true))
   tempDir()
 
-  const opts: FetchNodeOptions = {
-    storeDir: path.resolve('store'),
-  }
-
+  // The function will throw because the downloaded tarball content won't match
+  // the fake sha256 we put in the SHASUMS256.txt mock, but all fetch calls are
+  // recorded before the integrity check, so we can assert the correct URLs.
+  const storeIndex = new StoreIndex(path.resolve('store'))
+  storeIndexes.push(storeIndex)
   await expect(
-    fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
-  ).rejects.toThrow('The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
+    fetchNode(fetchMock, '22.0.0', path.resolve('node'), {
+      storeDir: path.resolve('store'),
+      storeIndex,
+      platform: 'linux',
+      arch: 'x64',
+      retry: { retries: 0 },
+    })
+  ).rejects.toThrow()
+
+  const shasumsUrl = fetchMock.mock.calls[0][0] as string
+  expect(shasumsUrl).toContain('unofficial-builds.nodejs.org')
+
+  const tarballUrl = fetchMock.mock.calls[1][0] as string
+  expect(tarballUrl).toContain('unofficial-builds.nodejs.org')
+  expect(tarballUrl).toContain('node-v22.0.0-linux-x64-musl.tar.gz')
 })

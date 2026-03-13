@@ -9,12 +9,12 @@ if (!global['pnpm__startedAt']) {
 import loudRejection from 'loud-rejection'
 import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
-import { type Config, type WantedPackageManager } from '@pnpm/config'
+import type { Config, WantedPackageManager } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
-import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
+import type { ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
 import path from 'path'
@@ -45,9 +45,6 @@ const DEPRECATED_OPTIONS = new Set([
   'lock',
   'resolution-strategy',
 ])
-
-// A workaround for the https://github.com/vercel/pkg/issues/897 issue.
-delete process.env.PKG_EXECPATH
 
 export async function main (inputArgv: string[]): Promise<void> {
   let parsedCliArgs!: ParsedCliArgs
@@ -207,7 +204,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
-    } else if (filters.length === 0 && workspaceDir && !config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
+    } else if (filters.length === 0 && workspaceDir && config.workspacePackagePatterns && !config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
     }
 
@@ -300,8 +297,6 @@ export async function main (inputArgv: string[]): Promise<void> {
         result = await result
       }
     } finally {
-      // When use-node-version is set and "pnpm run" is executed,
-      // this will be the only place where the tarball worker pool is finished.
       await finishWorkers()
     }
     executionTimeLogger.debug({

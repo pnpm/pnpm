@@ -1,8 +1,9 @@
 import path from 'path'
 import fsPromises from 'fs/promises'
 import { PnpmError } from '@pnpm/error'
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { type BinaryFetcher, type FetchFunction, type FetchResult } from '@pnpm/fetcher-base'
+import type { FetchFromRegistry } from '@pnpm/fetching-types'
+import type { BinaryFetcher, FetchFunction, FetchResult } from '@pnpm/fetcher-base'
+import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
 import isSubdir from 'is-subdir'
@@ -14,6 +15,7 @@ export function createBinaryFetcher (ctx: {
   fetch: FetchFromRegistry
   fetchFromRemoteTarball: FetchFunction
   rawConfig: Record<string, string>
+  storeIndex: StoreIndex
   offline?: boolean
 }): { binary: BinaryFetcher } {
   const fetchBinary: BinaryFetcher = async (cafs, resolution, opts) => {
@@ -48,10 +50,12 @@ export function createBinaryFetcher (ctx: {
       }, tempLocation)
       fetchResult = await addFilesFromDir({
         storeDir: cafs.storeDir,
+        storeIndex: ctx.storeIndex,
         dir: tempLocation,
         filesIndexFile: opts.filesIndexFile,
         readManifest: false,
         appendManifest: manifest,
+        includeNodeModules: true,
       })
       break
     }

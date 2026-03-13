@@ -11,7 +11,7 @@ import camelCase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
-import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
+import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
 import { getConfigFileInfo } from './getConfigFileInfo.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 

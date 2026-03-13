@@ -1,5 +1,5 @@
-import { type PackageFilesResponse } from '@pnpm/cafs-types'
-import { type DependencyManifest } from '@pnpm/types'
+import type { PackageFilesResponse } from '@pnpm/cafs-types'
+import type { DependencyManifest } from '@pnpm/types'
 
 export interface PkgNameVersion {
   name?: string
@@ -54,6 +54,7 @@ export interface AddDirToStoreMessage {
   pkg?: PkgNameVersion
   appendManifest?: DependencyManifest
   files?: string[]
+  includeNodeModules?: boolean
 }
 
 export interface ReadPkgFromCafsMessage {

@@ -1,31 +1,32 @@
 import { pathExists } from 'path-exists'
 import path from 'path'
-import {
-  type LockfileObject,
-  type PackageSnapshot,
-  type ProjectSnapshot,
+import type {
+  LockfileObject,
+  PackageSnapshot,
+  ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
-import { type IncludedDependencies } from '@pnpm/modules-yaml'
+import { logger } from '@pnpm/logger'
+import type { IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DepPath, type SupportedArchitectures, type ProjectId, type Registries, type AllowBuild } from '@pnpm/types'
-import {
-  type FetchPackageToStoreFunction,
-  type StoreController,
+import type { DepPath, SupportedArchitectures, ProjectId, Registries, AllowBuild } from '@pnpm/types'
+import type {
+  FetchPackageToStoreFunction,
+  StoreController,
 } from '@pnpm/store-controller-types'
 import { hoist, type HoistingLimits, type HoisterResult } from '@pnpm/real-hoist'
 import * as dp from '@pnpm/dependency-path'
-import {
-  type DependenciesGraph,
-  type DepHierarchy,
-  type DirectDependenciesByImporterId,
-  type LockfileToDepGraphResult,
+import type {
+  DependenciesGraph,
+  DepHierarchy,
+  DirectDependenciesByImporterId,
+  LockfileToDepGraphResult,
 } from '@pnpm/deps.graph-builder'
 
 export interface LockfileToHoistedDepGraphOptions {
@@ -38,6 +39,12 @@ export interface LockfileToHoistedDepGraphOptions {
   importerIds: string[]
   include: IncludedDependencies
   ignoreScripts: boolean
+  /**
+   * When true, skip fetching local dependencies (file: protocol pointing to directories).
+   * This is used by `pnpm fetch` which only downloads packages from the registry
+   * and doesn't need local packages that won't be available (e.g., in Docker builds).
+   */
+  ignoreLocalPackages?: boolean
   currentHoistedLocations?: Record<string, string[]>
   lockfileDir: string
   modulesDir?: string
@@ -199,6 +206,16 @@ async function fetchDeps (
       opts.skipped.add(depPath)
       return
     }
+
+    const isDirectoryDep = 'directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null
+    if (isDirectoryDep && opts.ignoreLocalPackages) {
+      logger.info({
+        message: `Skipping local dependency ${pkgName}@${pkgVersion} (file: protocol)`,
+        prefix: opts.lockfileDir,
+      })
+      return
+    }
+
     const dir = path.join(modules, dep.name)
     const depLocation = path.relative(opts.lockfileDir, dir)
     const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
@@ -224,7 +241,7 @@ async function fetchDeps (
         ignoreScripts: opts.ignoreScripts,
         pkg: pkgResolution,
       })
-      fetchResponse = { filesIndexFile } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      fetchResponse = { filesIndexFile } as unknown as ReturnType<FetchPackageToStoreFunction>
     } else {
       try {
         fetchResponse = opts.storeController.fetchPackage({
@@ -234,9 +251,9 @@ async function fetchDeps (
           ignoreScripts: opts.ignoreScripts,
           pkg: pkgResolution,
           supportedArchitectures: opts.supportedArchitectures,
-        }) as any // eslint-disable-line
+        }) as unknown as ReturnType<FetchPackageToStoreFunction>
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-      } catch (err: any) { // eslint-disable-line
+      } catch (err: unknown) {
         if (pkgSnapshot.optional) return
         throw err
       }
@@ -287,8 +304,8 @@ async function dirHasPackageJsonWithVersion (dir: string, expectedVersion?: stri
   try {
     const manifest = await safeReadPackageJsonFromDir(dir)
     return manifest?.version === expectedVersion
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
       return pathExists(dir)
     }
     throw err

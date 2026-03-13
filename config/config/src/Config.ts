@@ -1,16 +1,16 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
-import {
-  type Finder,
-  type Project,
-  type ProjectManifest,
-  type ProjectsGraph,
-  type Registries,
-  type SslConfig,
-  type TrustPolicy,
+import type {
+  Finder,
+  Project,
+  ProjectManifest,
+  ProjectsGraph,
+  Registries,
+  SslConfig,
+  TrustPolicy,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
-import { type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
-import { type AuthInfo } from './parseAuthInfo.js'
+import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+import type { AuthInfo } from './parseAuthInfo.js'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
@@ -27,6 +27,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   allProjectsGraph?: ProjectsGraph
 
   allowNew: boolean
+  autoConfirmAllPrompts?: boolean
   autoInstallPeers?: boolean
   bail: boolean
   color: 'always' | 'auto' | 'never'
@@ -238,6 +239,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
+  auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
 
   packageConfigs?: ProjectConfigSet
 }

@@ -2,7 +2,7 @@ import fs from 'fs'
 import util from 'util'
 import { logger } from '@pnpm/logger'
 import { getFilePath } from './filePath.js'
-import { type WorkspaceState } from './types.js'
+import type { WorkspaceState } from './types.js'
 
 export function loadWorkspaceState (workspaceDir: string): WorkspaceState | undefined {
   logger.debug({ msg: 'loading workspace state' })

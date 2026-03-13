@@ -1,5 +1,5 @@
-import { type CatalogSnapshots } from '@pnpm/lockfile.types'
-import { type Catalogs } from '@pnpm/catalogs.types'
+import type { CatalogSnapshots } from '@pnpm/lockfile.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
 
 export function allCatalogsAreUpToDate (
   catalogsConfig: Catalogs,

@@ -1,10 +1,10 @@
-import {
-  type ProjectRootDir,
-  type DependencyManifest,
-  type PkgResolutionId,
-  type PinnedVersion,
-  type PackageVersionPolicy,
-  type TrustPolicy,
+import type {
+  ProjectRootDir,
+  DependencyManifest,
+  PkgResolutionId,
+  PinnedVersion,
+  PackageVersionPolicy,
+  TrustPolicy,
 } from '@pnpm/types'
 
 export { type PkgResolutionId }
@@ -24,7 +24,7 @@ export interface BinaryResolution {
   archive: 'tarball' | 'zip'
   url: string
   integrity: string
-  bin: string
+  bin: string | Record<string, string>
   prefix?: string
 }
 

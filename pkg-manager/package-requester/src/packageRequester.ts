@@ -1,46 +1,47 @@
 import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
 import {
-  getIndexFilePathInCafs as _getIndexFilePathInCafs,
+  normalizeBundledManifest,
 } from '@pnpm/store.cafs'
+import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { PnpmError } from '@pnpm/error'
-import {
-  type DirectoryFetcherResult,
-  type Fetchers,
-  type FetchOptions,
-  type FetchResult,
+import type {
+  DirectoryFetcherResult,
+  Fetchers,
+  FetchOptions,
+  FetchResult,
 } from '@pnpm/fetcher-base'
-import { type Cafs } from '@pnpm/cafs-types'
+import type { Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { readPackageJson } from '@pnpm/read-package-json'
-import {
-  type PlatformAssetResolution,
-  type DirectoryResolution,
-  type PreferredVersions,
-  type Resolution,
-  type ResolveFunction,
-  type ResolveResult,
-  type TarballResolution,
-  type AtomicResolution,
+import { loadJsonFile } from 'load-json-file'
+import type {
+  PlatformAssetResolution,
+  DirectoryResolution,
+  PreferredVersions,
+  Resolution,
+  ResolveFunction,
+  ResolveResult,
+  TarballResolution,
+  AtomicResolution,
 } from '@pnpm/resolver-base'
-import {
-  type BundledManifest,
-  type PkgRequestFetchResult,
-  type FetchPackageToStoreFunction,
-  type FetchPackageToStoreOptions,
-  type GetFilesIndexFilePath,
-  type PackageResponse,
-  type PkgNameVersion,
-  type RequestPackageFunction,
-  type RequestPackageOptions,
-  type WantedDependency,
+import type {
+  BundledManifest,
+  PkgRequestFetchResult,
+  FetchPackageToStoreFunction,
+  FetchPackageToStoreOptions,
+  GetFilesIndexFilePath,
+  PackageResponse,
+  PkgNameVersion,
+  RequestPackageFunction,
+  RequestPackageOptions,
+  WantedDependency,
 } from '@pnpm/store-controller-types'
-import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
-import { type CustomFetcher } from '@pnpm/hooks.types'
+import type { DependencyManifest, SupportedArchitectures } from '@pnpm/types'
+import type { CustomFetcher } from '@pnpm/hooks.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import {
   calcMaxWorkers,
@@ -53,7 +54,6 @@ import PQueue from 'p-queue'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import pShare from 'promise-share'
 import { pick } from 'ramda'
-import semver from 'semver'
 import ssri from 'ssri'
 
 let currentLibc: 'glibc' | 'musl' | undefined | null
@@ -66,29 +66,6 @@ function getLibcFamilySync () {
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
 
-const pickBundledManifest = pick([
-  'bin',
-  'bundledDependencies',
-  'bundleDependencies',
-  'cpu',
-  'dependencies',
-  'directories',
-  'engines',
-  'name',
-  'optionalDependencies',
-  'os',
-  'peerDependencies',
-  'peerDependenciesMeta',
-  'scripts',
-  'version',
-])
-
-function normalizeBundledManifest (manifest: DependencyManifest): BundledManifest {
-  return {
-    ...pickBundledManifest(manifest),
-    version: semver.clean(manifest.version ?? '0.0.0', { loose: true }) ?? manifest.version,
-  }
-}
 
 export function createPackageRequester (
   opts: {
@@ -119,7 +96,6 @@ export function createPackageRequester (
     concurrency: networkConcurrency,
   })
 
-  const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
   const readPkgFromCafs = _readPkgFromCafs.bind(null, {
     storeDir: opts.storeDir,
@@ -130,7 +106,6 @@ export function createPackageRequester (
     readPkgFromCafs,
     fetch,
     fetchingLocker: new Map(),
-    getIndexFilePathInCafs,
     requestsQueue: Object.assign(requestsQueue, {
       counter: 0,
       concurrency: networkConcurrency,
@@ -153,7 +128,6 @@ export function createPackageRequester (
   return Object.assign(requestPackage, {
     fetchPackageToStore,
     getFilesIndexFilePath: getFilesIndexFilePath.bind(null, {
-      getIndexFilePathInCafs,
       storeDir: opts.storeDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }),
@@ -248,7 +222,7 @@ async function resolveAndFetch (
     }
   }
 
-  const isInstallable = (
+  let isInstallable: boolean | null | undefined = (
     ctx.force === true ||
     (
       manifest == null
@@ -303,11 +277,25 @@ async function resolveAndFetch (
 
   if (!manifest) {
     const fetchedResult = await fetchResult.fetching()
-    manifest = fetchedResult.bundledManifest
+    if (fetchedResult.bundledManifest) {
+      manifest = fetchedResult.bundledManifest as DependencyManifest
+    } else if (fetchedResult.files.filesMap.has('package.json')) {
+      manifest = await loadJsonFile<DependencyManifest>(fetchedResult.files.filesMap.get('package.json')!)
+    }
     // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
     if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
+  }
+  // Check installability now that we have the manifest (for git/tarball packages without registry metadata)
+  if (isInstallable === undefined && manifest != null) {
+    isInstallable = ctx.force === true || packageIsInstallable(id, manifest, {
+      engineStrict: ctx.engineStrict,
+      lockfileDir: options.lockfileDir,
+      nodeVersion: ctx.nodeVersion,
+      optional: wantedDependency.optional === true,
+      supportedArchitectures: options.supportedArchitectures,
+    })
   }
   return {
     body: {
@@ -342,7 +330,6 @@ interface GetFilesIndexFilePathResult {
 
 function getFilesIndexFilePath (
   ctx: {
-    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     storeDir: string
     virtualStoreDirMaxLength: number
   },
@@ -353,7 +340,7 @@ function getFilesIndexFilePath (
   if ((opts.pkg.resolution as TarballResolution).integrity) {
     return {
       target,
-      filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
+      filesIndexFile: storeIndexKey((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
       resolution: opts.pkg.resolution as AtomicResolution,
     }
   }
@@ -363,14 +350,14 @@ function getFilesIndexFilePath (
     if ((resolution as TarballResolution).integrity) {
       return {
         target,
-        filesIndexFile: ctx.getIndexFilePathInCafs((resolution as TarballResolution).integrity!, opts.pkg.id),
+        filesIndexFile: storeIndexKey((resolution as TarballResolution).integrity!, opts.pkg.id),
         resolution,
       }
     }
   } else {
     resolution = opts.pkg.resolution
   }
-  const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.mpk' : 'integrity.mpk')
+  const filesIndexFile = gitHostedStoreIndexKey(opts.pkg.id, { built: !opts.ignoreScripts })
   return { filesIndexFile, target, resolution }
 }
 
@@ -411,7 +398,6 @@ function fetchToStore (
       opts: FetchOptions
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
-    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     requestsQueue: {
       add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>
       counter: number
@@ -537,14 +523,14 @@ function fetchToStore (
         ) &&
         !isLocalPkg
       ) {
-        const { verified, files, manifest } = await ctx.readPkgFromCafs(filesIndexFile, {
+        const { verified, files, bundledManifest } = await ctx.readPkgFromCafs(filesIndexFile, {
           readManifest: opts.fetchRawManifest,
           expectedPkg: opts.pkg,
         })
         if (verified) {
           fetching.resolve({
             files,
-            bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
+            bundledManifest,
           })
           return
         }
@@ -608,7 +594,7 @@ function fetchToStore (
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
           requiresBuild: fetchedPackage.requiresBuild,
         },
-        bundledManifest: fetchedPackage.manifest == null ? fetchedPackage.manifest : normalizeBundledManifest(fetchedPackage.manifest),
+        bundledManifest: fetchedPackage.manifest,
         integrity,
       })
     } catch (err: any) { // eslint-disable-line
@@ -617,8 +603,8 @@ function fetchToStore (
   }
 }
 
-async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {
-  return pickBundledManifest(await readPackageJson(pkgJsonPath) as DependencyManifest)
+async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest | undefined> {
+  return normalizeBundledManifest(await loadJsonFile<DependencyManifest>(pkgJsonPath))
 }
 
 async function tarballIsUpToDate (

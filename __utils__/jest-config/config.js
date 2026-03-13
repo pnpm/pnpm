@@ -1,21 +1,10 @@
 import path from 'path'
 
 const config = {
-  preset: "ts-jest/presets/default-esm",
   resolver: path.join(import.meta.dirname, 'node_modules/ts-jest-resolver'),
-  globals: {
-    'ts-jest': {
-      useESM: true,
-    },
-  },
   extensionsToTreatAsEsm: ['.ts'],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      // For most projects, the tsconfig.json and test/tsconfig.json are almost
-      // exactly the same. But it's more correct to point to test/tsconfig.json
-      // to prevent surprises in the future.
-      tsconfig: 'test/tsconfig.json'
-    }],
+    '^.+\\.tsx?$': path.join(import.meta.dirname, 'jest.transform.js'),
   },
   testMatch: ["**/test/**/*.[jt]s?(x)", "**/src/**/*.test.ts"],
   testEnvironment: "node",

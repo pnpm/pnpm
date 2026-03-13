@@ -1,8 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { ENGINE_NAME, STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
@@ -10,12 +10,17 @@ import { prepare } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import execa from 'execa'
-import sinon from 'sinon'
+import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const f = fixtures(import.meta.dirname)
+
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
 
 test('rebuilds dependencies', async () => {
   const project = prepare()
@@ -76,8 +81,10 @@ test('rebuilds dependencies', async () => {
     ])
   }
 
-  const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)!
+  const cacheIntegrityPath = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  const storeIndex1 = new StoreIndex(path.join(storeDir, STORE_VERSION))
+  storeIndexes.push(storeIndex1)
+  const cacheIntegrity = storeIndex1.get(cacheIntegrityPath) as PackageFilesIndex
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -109,8 +116,10 @@ test('skipIfHasSideEffectsCache', async () => {
     '--config.enableGlobalVirtualStore=false',
   ])
 
-  const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  let cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)!
+  const cacheIntegrityPath = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  const storeIndex = new StoreIndex(path.join(storeDir, STORE_VERSION))
+  storeIndexes.push(storeIndex)
+  let cacheIntegrity = storeIndex.get(cacheIntegrityPath) as PackageFilesIndex
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   cacheIntegrity.sideEffects = new Map([
     [sideEffectsKey, {
@@ -123,7 +132,7 @@ test('skipIfHasSideEffectsCache', async () => {
       ]),
     }],
   ])
-  writeMsgpackFileSync(cacheIntegrityPath, cacheIntegrity)
+  storeIndex.set(cacheIntegrityPath, cacheIntegrity)
 
   let modules = project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
@@ -146,7 +155,7 @@ test('skipIfHasSideEffectsCache', async () => {
   expect(modules).toBeTruthy()
   expect(modules!.pendingBuilds).toHaveLength(0)
 
-  cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)!
+  cacheIntegrity = storeIndex.get(cacheIntegrityPath) as PackageFilesIndex
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)?.added?.has('foo')).toBeTruthy()
 })
@@ -395,7 +404,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
     '--config.enableGlobalVirtualStore=false',
   ])
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   const modules = project.readModulesManifest()
   await rebuild.handler({

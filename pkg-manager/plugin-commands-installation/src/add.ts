@@ -3,11 +3,12 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { types as allTypes } from '@pnpm/config'
 import { resolveConfigDeps } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
+import { handleGlobalAdd } from '@pnpm/global.commands'
 import { createStoreController } from '@pnpm/store-connection-manager'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
-import { type InstallCommandOptions } from './install.js'
+import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { writeSettings } from '@pnpm/config.config-writer'
 
@@ -222,6 +223,7 @@ export async function handler (
     await resolveConfigDeps(params, {
       ...opts,
       store: store.ctrl,
+      storeDir: store.dir,
       rootDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
     })
     return
@@ -250,6 +252,7 @@ export async function handler (
     if (params.includes('pnpm') || params.includes('@pnpm/exe')) {
       throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
     }
+    return handleGlobalAdd(opts, params)
   }
 
   const include = {

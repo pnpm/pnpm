@@ -6,12 +6,13 @@ import { createResolver } from '@pnpm/client'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
+import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { type PackageManifest, type PnpmSettings, type SupportedArchitectures } from '@pnpm/types'
+import type { PackageManifest, PnpmSettings, SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import execa from 'execa'
 import { pick } from 'ramda'
@@ -81,12 +82,15 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
+} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
-): Promise<{ exitCode: number }> {
+): Promise<{ exitCode: number, output?: string }> {
+  if (!command && (!opts.package || opts.package.length === 0)) {
+    return { exitCode: 1, output: help() }
+  }
   const pkgs = opts.package ?? [command]
   const fullMetadata = (
     (
@@ -111,6 +115,9 @@ export async function handler (
   })
   const resolvedPkgAliases: string[] = []
   const publishedBy = opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined
+  const publishedByExclude = opts.minimumReleaseAgeExclude
+    ? createPackageVersionPolicy(opts.minimumReleaseAgeExclude)
+    : undefined
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
     const { alias, bareSpecifier } = parseWantedDependency(pkg) || {}
     if (alias == null) return pkg
@@ -123,6 +130,7 @@ export async function handler (
       preferredVersions: {},
       projectDir: opts.dir,
       publishedBy,
+      publishedByExclude,
     })
     return resolved.id
   }))
@@ -138,6 +146,7 @@ export async function handler (
     fs.mkdirSync(cachedDir, { recursive: true })
     await add.handler({
       ...opts,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
       bin: path.join(cachedDir, 'node_modules/.bin'),
       dir: cachedDir,
       lockfileDir: cachedDir,
@@ -267,8 +276,8 @@ export function createCacheKey (opts: {
   allowBuild?: string[]
   supportedArchitectures?: SupportedArchitectures
 }): string {
-  const sortedPkgs = [...opts.packages].sort((a, b) => a.localeCompare(b))
-  const sortedRegistries = Object.entries(opts.registries).sort(([k1], [k2]) => k1.localeCompare(k2))
+  const sortedPkgs = [...opts.packages].sort(lexCompare)
+  const sortedRegistries = Object.entries(opts.registries).sort(([k1], [k2]) => lexCompare(k1, k2))
   const args: unknown[] = [sortedPkgs, sortedRegistries]
   if (opts.allowBuild?.length) {
     args.push({ allowBuild: opts.allowBuild.sort(lexCompare) })

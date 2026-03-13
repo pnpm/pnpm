@@ -1,16 +1,16 @@
 import * as path from 'path'
 import fs from 'fs'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
-import {
-  type PackageManifestLog,
-  type ProgressLog,
-  type RootLog,
-  type StageLog,
-  type StatsLog,
+import type {
+  PackageManifestLog,
+  ProgressLog,
+  RootLog,
+  StageLog,
+  StatsLog,
 } from '@pnpm/core-loggers'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
+import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
@@ -24,7 +24,7 @@ import execa from 'execa'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
 import semver from 'semver'
-import sinon from 'sinon'
+import { jest } from '@jest/globals'
 import deepRequireCwd from 'deep-require-cwd'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils/index.js'
@@ -61,7 +61,7 @@ test.skip('ignoring some files in the dependency', async () => {
 
 test('no dependencies (lodash)', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDistTag({ package: 'lodash', version: '4.1.0', distTag: 'latest' })
 
@@ -74,60 +74,61 @@ test('no dependencies (lodash)', async () => {
     testDefaults({ fastUnpack: false, reporter })
   )
 
-  expect(reporter.withArgs(sinon.match({
+  const manifestMatcher = expect.objectContaining({
     initial: { name: 'project', version: '0.0.0' },
     level: 'debug',
     name: 'pnpm:package-manifest',
-  } as PackageManifestLog)).callCount).toBe(1)
-  expect(reporter.calledWithMatch({
+  } as PackageManifestLog)
+  expect(reporter.mock.calls.filter(([arg]) => manifestMatcher.asymmetricMatch(arg))).toHaveLength(1)
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix: process.cwd(),
     stage: 'resolution_started',
-  } as StageLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StageLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix: process.cwd(),
     stage: 'resolution_done',
-  } as StageLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StageLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix: process.cwd(),
     stage: 'importing_started',
-  } as StageLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StageLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix: process.cwd(),
     stage: 'importing_done',
-  } as StageLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StageLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 1,
     level: 'debug',
     name: 'pnpm:stats',
     prefix: process.cwd(),
-  } as StatsLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StatsLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix: process.cwd(),
     removed: 0,
-  } as StatsLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
-    added: {
+  } as StatsLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
       dependencyType: 'prod',
       latest: '4.1.0',
       name: 'lodash',
       realName: 'lodash',
       version: '4.0.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
     prefix: process.cwd(),
-  } as RootLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as RootLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
     updated: {
@@ -137,7 +138,7 @@ test('no dependencies (lodash)', async () => {
       name: 'project',
       version: '0.0.0',
     } as ProjectManifest,
-  } as PackageManifestLog)).toBeTruthy()
+  } as PackageManifestLog))
 
   const m = project.requireModule('lodash')
   expect(typeof m).toBe('function')
@@ -147,14 +148,14 @@ test('no dependencies (lodash)', async () => {
 test('only the new packages are added', async () => {
   prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm/x'], testDefaults())
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await addDependenciesToPackage(manifest, ['@pnpm/y'], testDefaults({ reporter }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 1,
     level: 'debug',
     name: 'pnpm:stats',
-  } as StatsLog)).toBeTruthy()
+  } as StatsLog))
 })
 
 test('scoped modules without version spec', async () => {
@@ -227,29 +228,29 @@ test('update a package when installing with a dist-tag', async () => {
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/dep-of-pkg-with-1-dep'], testDefaults({ targetDependenciesField: 'devDependencies' }))
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-pkg-with-1-dep@beta'], testDefaults({ targetDependenciesField: 'devDependencies', reporter }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:root',
-    removed: {
+    removed: expect.objectContaining({
       dependencyType: 'dev',
       name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
       version: '100.0.0',
-    },
-  } as RootLog)).toBeTruthy()
+    }),
+  } as RootLog))
 
-  expect(reporter.calledWithMatch({
-    added: {
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
       dependencyType: 'dev',
       name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
       version: '100.1.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog)).toBeTruthy()
+  } as RootLog))
 
   project.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
@@ -266,7 +267,7 @@ test('scoped modules with versions', async () => {
 
 test('multiple scoped modules (@rstacruz/...)', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@rstacruz/tap-spec@4.1.1', '@rstacruz/travis-encrypt@1.1.1'], testDefaults({ fastUnpack: false }))
 
   expect(typeof project.requireModule('@rstacruz/tap-spec')).toBe('function')
   expect(typeof project.requireModule('@rstacruz/travis-encrypt')).toBe('function')
@@ -289,34 +290,34 @@ test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)'
 
 test('idempotency', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   const opts = testDefaults({ reporter })
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
 
-  expect(reporter.calledWithMatch({
-    added: {
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
       dependencyType: 'prod',
       name: '@pnpm.e2e/pkg-with-1-dep',
       version: '100.0.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog)).toBeTruthy()
+  } as RootLog))
 
-  reporter.resetHistory()
+  reporter.mockClear()
 
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
 
-  expect(reporter.calledWithMatch({
-    added: {
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
       dependencyType: 'prod',
       name: '@pnpm.e2e/pkg-with-1-dep',
       version: '100.0.0',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog)).toBeFalsy()
+  } as RootLog))
 
   project.has('@pnpm.e2e/pkg-with-1-dep')
 })
@@ -327,19 +328,19 @@ test('reporting adding root package', async () => {
 
   project.storeHas('flatten', '1.0.2')
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDependenciesToPackage(manifest, ['flatten@1.0.2'], testDefaults({ reporter }))
 
-  expect(reporter.calledWithMatch({
-    added: {
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
       dependencyType: 'prod',
       name: 'flatten',
       version: '1.0.2',
-    },
+    }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog)).toBeTruthy()
+  } as RootLog))
 })
 
 test('overwriting (magic-hook@2.0.0 and @0.1.0)', async () => {
@@ -359,6 +360,7 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async () => {
 })
 
 test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
+  await addDistTag({ package: 'is-positive', version: '3.1.0', distTag: 'latest' })
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@3.0.0'], testDefaults({ save: true }))
   expect(manifest.dependencies?.['is-positive']).toBe('3.0.0')
@@ -569,16 +571,16 @@ test('should update subdep on second install', async () => {
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await install(manifest, testDefaults({ depth: 1, update: true, reporter }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 1,
     level: 'debug',
     name: 'pnpm:stats',
     prefix: process.cwd(),
-  } as StatsLog)).toBeTruthy()
+  } as StatsLog))
 
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
 
@@ -681,7 +683,7 @@ test('should throw error when trying to install using a different virtual store 
 
 test('lockfile locks npm dependencies', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
@@ -689,19 +691,19 @@ test('lockfile locks npm dependencies', async () => {
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ save: true, reporter }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:progress',
     packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'resolved',
-  } as ProgressLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as ProgressLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'fetched',
-  } as ProgressLog)).toBeTruthy()
+  } as ProgressLog))
 
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 
@@ -709,21 +711,21 @@ test('lockfile locks npm dependencies', async () => {
 
   rimraf('node_modules')
 
-  reporter.resetHistory()
+  reporter.mockClear()
   await install(manifest, testDefaults({ reporter }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'resolved',
-  } as ProgressLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as ProgressLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'found_in_store',
-  } as ProgressLog)).toBeTruthy()
+  } as ProgressLog))
 
   const m = project.requireModule('.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json')
 
@@ -755,7 +757,7 @@ test('install on project with lockfile and no node_modules', async () => {
 
 test('install a dependency with * range', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await install({
     dependencies: {
@@ -765,7 +767,7 @@ test('install a dependency with * range', async () => {
 
   project.has('@pnpm.e2e/has-beta-only')
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
     updated: {
@@ -773,7 +775,7 @@ test('install a dependency with * range', async () => {
         '@pnpm.e2e/has-beta-only': '*',
       },
     } as ProjectManifest,
-  } as PackageManifestLog)).toBeTruthy()
+  } as PackageManifestLog))
 })
 
 test('should throw error when trying to install a package without name', async () => {
@@ -805,7 +807,7 @@ test('rewrites node_modules created by npm', async () => {
 // TODO: move this test to @pnpm/package-store
 test("don't fail on case insensitive filesystems when package has 2 files with same name", async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   const opts = testDefaults({ reporter })
   await addDependenciesToPackage({}, ['@pnpm.e2e/with-same-file-in-different-cases'], opts)
@@ -816,7 +818,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 // Covers https://github.com/pnpm/pnpm/issues/1134
 test('reinstalls missing packages to node_modules', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   const depLocation = path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')
   const missingDepLog = {
     level: 'debug',
@@ -827,7 +829,7 @@ test('reinstalls missing packages to node_modules', async () => {
   const opts = testDefaults({ fastUnpack: false, reporter })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0'], opts)
 
-  expect(reporter.calledWithMatch(missingDepLog)).toBeFalsy()
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining(missingDepLog))
 
   rimraf('pnpm-lock.yaml')
   rimraf('node_modules/is-positive')
@@ -835,18 +837,18 @@ test('reinstalls missing packages to node_modules', async () => {
 
   project.hasNot('is-positive')
 
-  reporter.resetHistory()
+  reporter.mockClear()
 
   await install(manifest, opts)
 
-  expect(reporter.calledWithMatch(missingDepLog)).toBeTruthy()
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining(missingDepLog))
   project.has('is-positive')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1134
 test('reinstalls missing packages to node_modules during headless install', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   const depLocation = path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')
   const missingDepLog = {
     level: 'debug',
@@ -857,18 +859,18 @@ test('reinstalls missing packages to node_modules during headless install', asyn
   const opts = testDefaults({ fastUnpack: false, reporter })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0'], opts)
 
-  expect(reporter.calledWithMatch(missingDepLog)).toBeFalsy()
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining(missingDepLog))
 
   rimraf('node_modules/is-positive')
   rimraf(depLocation)
 
   project.hasNot('is-positive')
 
-  reporter.resetHistory()
+  reporter.mockClear()
 
   await install(manifest, opts)
 
-  expect(reporter.calledWithMatch(missingDepLog)).toBeTruthy()
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining(missingDepLog))
   project.has('is-positive')
 })
 
@@ -1043,7 +1045,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
 
 test('globally installed package which don\'t have bins should log warning message', async () => {
   prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   const opts = testDefaults({ global: true, reporter })
 
@@ -1057,10 +1059,10 @@ test('globally installed package which don\'t have bins should log warning messa
     rootDir: process.cwd() as ProjectRootDir,
   }, opts)
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     message: 'is-positive has no binaries',
     prefix: process.cwd(),
-  })).toBeTruthy()
+  }))
 })
 
 // Covers issue: https://github.com/pnpm/pnpm/issues/2629
@@ -1078,7 +1080,7 @@ test('installing a package that has a manifest with byte order mark (BOM)', asyn
 
 test('ignore files in node_modules', async () => {
   const project = prepareEmpty()
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   fs.mkdirSync('node_modules')
   fs.writeFileSync('node_modules/foo', 'x', 'utf8')

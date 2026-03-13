@@ -1,9 +1,9 @@
 import { packageExtensions as compatPackageExtensions } from '@yarnpkg/extensions'
-import {
-  type PackageExtension,
-  type PackageManifest,
-  type ProjectManifest,
-  type ReadPackageHook,
+import type {
+  PackageExtension,
+  PackageManifest,
+  ProjectManifest,
+  ReadPackageHook,
 } from '@pnpm/types'
 import { isEmpty, pipeWith } from 'ramda'
 import { createOptionalDependenciesRemover } from './createOptionalDependenciesRemover.js'

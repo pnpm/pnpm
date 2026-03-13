@@ -1,4 +1,4 @@
-import { type DepPath } from '@pnpm/types'
+import type { DepPath } from '@pnpm/types'
 
 export type TreeNodeId = TreeNodeIdImporter | TreeNodeIdPackage
 
@@ -30,5 +30,7 @@ export function serializeTreeNodeId (treeNodeId: TreeNodeId): string {
     const { type, depPath } = treeNodeId
     return JSON.stringify({ type, depPath })
   }
+  default:
+    throw new Error(`Unknown TreeNodeId type: ${(treeNodeId as { type: string }).type}`)
   }
 }

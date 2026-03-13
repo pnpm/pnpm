@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
-import { buildDependenciesHierarchy, type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { buildDependenciesTree, type DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { depPathToFilename } from '@pnpm/dependency-path'
 
 const virtualStoreDirMaxLength = process.platform === 'win32' ? 60 : 120
@@ -21,7 +21,7 @@ const workspaceWithNestedWorkspaceDeps = f.find('workspace-with-nested-workspace
 const customModulesDirFixture = f.find('custom-modules-dir')
 
 test('one package depth 0', async () => {
-  const tree = await buildDependenciesHierarchy([generalFixture], { depth: 0, lockfileDir: generalFixture, virtualStoreDirMaxLength })
+  const tree = await buildDependenciesTree([generalFixture], { depth: 0, lockfileDir: generalFixture, virtualStoreDirMaxLength })
   const modulesDir = path.join(generalFixture, 'node_modules')
 
   expect(tree).toStrictEqual({
@@ -82,7 +82,7 @@ test('one package depth 0', async () => {
 })
 
 test('one package depth 1', async () => {
-  const tree = await buildDependenciesHierarchy([generalFixture], { depth: 1, lockfileDir: generalFixture, virtualStoreDirMaxLength })
+  const tree = await buildDependenciesTree([generalFixture], { depth: 1, lockfileDir: generalFixture, virtualStoreDirMaxLength })
   const modulesDir = path.join(generalFixture, 'node_modules')
 
   expect(tree).toStrictEqual({
@@ -171,7 +171,7 @@ test('one package depth 1', async () => {
 })
 
 test('only prod depth 0', async () => {
-  const tree = await buildDependenciesHierarchy(
+  const tree = await buildDependenciesTree(
     [generalFixture],
     {
       depth: 0,
@@ -217,7 +217,7 @@ test('only prod depth 0', async () => {
 })
 
 test('only dev depth 0', async () => {
-  const tree = await buildDependenciesHierarchy(
+  const tree = await buildDependenciesTree(
     [generalFixture],
     {
       depth: 0,
@@ -252,7 +252,7 @@ test('only dev depth 0', async () => {
 })
 
 test('hierarchy for no packages', async () => {
-  const tree = await buildDependenciesHierarchy([generalFixture], {
+  const tree = await buildDependenciesTree([generalFixture], {
     depth: 100,
     lockfileDir: generalFixture,
     search: () => false,
@@ -269,7 +269,7 @@ test('hierarchy for no packages', async () => {
 })
 
 test('filter 1 package with depth 0', async () => {
-  const tree = await buildDependenciesHierarchy(
+  const tree = await buildDependenciesTree(
     [generalFixture],
     {
       depth: 0,
@@ -303,7 +303,7 @@ test('filter 1 package with depth 0', async () => {
 })
 
 test('circular dependency', async () => {
-  const tree = await buildDependenciesHierarchy([circularFixture], {
+  const tree = await buildDependenciesTree([circularFixture], {
     depth: 1000,
     lockfileDir: circularFixture,
     virtualStoreDirMaxLength,
@@ -314,14 +314,14 @@ test('circular dependency', async () => {
     [circularFixture]: {
       dependencies: JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'circularTree.json'), 'utf8'))
         .dependencies
-        .map((dep: PackageNode) => resolvePaths(modulesDir, dep)),
+        .map((dep: DependencyNode) => resolvePaths(modulesDir, dep)),
       devDependencies: [],
       optionalDependencies: [],
     },
   })
 })
 
-function resolvePaths (modulesDir: string, node: PackageNode): PackageNode {
+function resolvePaths (modulesDir: string, node: DependencyNode): DependencyNode {
   const p = path.resolve(modulesDir, '.pnpm', node.path, 'node_modules', node.name)
   if (node.dependencies == null) {
     return {
@@ -339,7 +339,7 @@ function resolvePaths (modulesDir: string, node: PackageNode): PackageNode {
 }
 
 test('local package depth 0', async () => {
-  const tree = await buildDependenciesHierarchy([withFileDepFixture], {
+  const tree = await buildDependenciesTree([withFileDepFixture], {
     depth: 1,
     lockfileDir: withFileDepFixture,
     virtualStoreDirMaxLength,
@@ -377,7 +377,7 @@ test('local package depth 0', async () => {
 })
 
 test('on a package that has only links', async () => {
-  const tree = await buildDependenciesHierarchy([withLinksOnlyFixture], {
+  const tree = await buildDependenciesTree([withLinksOnlyFixture], {
     depth: 1000,
     lockfileDir: withLinksOnlyFixture,
     virtualStoreDirMaxLength,
@@ -404,7 +404,7 @@ test('on a package that has only links', async () => {
 
 // Test for feature request at https://github.com/pnpm/pnpm/issues/4154
 test('on a package with nested workspace links', async () => {
-  const tree = await buildDependenciesHierarchy(
+  const tree = await buildDependenciesTree(
     [workspaceWithNestedWorkspaceDeps],
     {
       depth: 1000,
@@ -448,7 +448,7 @@ test('on a package with nested workspace links', async () => {
 
 test('unsaved dependencies are listed', async () => {
   const modulesDir = path.join(withUnsavedDepsFixture, 'node_modules')
-  expect(await buildDependenciesHierarchy([withUnsavedDepsFixture], {
+  expect(await buildDependenciesTree([withUnsavedDepsFixture], {
     depth: 0,
     lockfileDir: withUnsavedDepsFixture,
     virtualStoreDirMaxLength,
@@ -488,7 +488,7 @@ test('unsaved dependencies are listed', async () => {
 test('unsaved dependencies are listed and filtered', async () => {
   const modulesDir = path.join(withUnsavedDepsFixture, 'node_modules')
   expect(
-    await buildDependenciesHierarchy(
+    await buildDependenciesTree(
       [withUnsavedDepsFixture],
       {
         depth: 0,
@@ -521,7 +521,7 @@ test('unsaved dependencies are listed and filtered', async () => {
 
 // Covers https://github.com/pnpm/pnpm/issues/1549
 test(`do not fail on importers that are not in current ${WANTED_LOCKFILE}`, async () => {
-  expect(await buildDependenciesHierarchy([fixtureMonorepo], {
+  expect(await buildDependenciesTree([fixtureMonorepo], {
     depth: 0,
     lockfileDir: fixtureMonorepo,
     virtualStoreDirMaxLength,
@@ -531,7 +531,7 @@ test(`do not fail on importers that are not in current ${WANTED_LOCKFILE}`, asyn
 test('dependency with an alias', async () => {
   const modulesDir = path.join(withAliasedDepFixture, 'node_modules')
   expect(
-    await buildDependenciesHierarchy([withAliasedDepFixture], {
+    await buildDependenciesTree([withAliasedDepFixture], {
       depth: 0,
       lockfileDir: withAliasedDepFixture,
       virtualStoreDirMaxLength,
@@ -558,7 +558,7 @@ test('dependency with an alias', async () => {
 })
 
 test('peer dependencies', async () => {
-  const hierarchy = await buildDependenciesHierarchy([withPeerFixture], {
+  const hierarchy = await buildDependenciesTree([withPeerFixture], {
     depth: 1,
     lockfileDir: withPeerFixture,
     virtualStoreDirMaxLength,
@@ -572,7 +572,7 @@ test('dependency without a package.json', async () => {
   const org = 'denolib'
   const pkg = 'camelcase'
   const commit = 'aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b'
-  const tree = await buildDependenciesHierarchy([withNonPackageDepFixture], {
+  const tree = await buildDependenciesTree([withNonPackageDepFixture], {
     depth: 0,
     lockfileDir: withNonPackageDepFixture,
     virtualStoreDirMaxLength,
@@ -609,7 +609,7 @@ test('dependency without a package.json', async () => {
 })
 
 test('on custom modules-dir workspaces', async () => {
-  const tree = await buildDependenciesHierarchy(
+  const tree = await buildDependenciesTree(
     [customModulesDirFixture, path.join(customModulesDirFixture, './packages/foo'), path.join(customModulesDirFixture, './packages/bar')],
     {
       depth: 1000,

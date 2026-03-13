@@ -1,11 +1,11 @@
 // cspell:ignore buildscript
 import fs from 'fs'
 import path from 'path'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { type LockfileFile } from '@pnpm/lockfile.types'
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   prepare,
@@ -23,7 +23,7 @@ import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils/index.js'
 import { addDistTag } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 
 test('no projects matched the filters', async () => {
   preparePackages([
@@ -61,6 +61,22 @@ test('no projects found', async () => {
     const { stdout } = execPnpmSync(['list', '-r', '--parseable'])
     expect(stdout.toString()).toBe('') // don't print anything if --parseable is used
   }
+})
+
+test('empty pnpm-workspace.yaml should not break pnpm run -r', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+    scripts: {
+      test: 'echo Passed',
+    },
+  })
+
+  fs.writeFileSync('pnpm-workspace.yaml', '')
+
+  const { stdout, status } = execPnpmSync(['run', '-r', 'test'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Passed')
 })
 
 const invalidWorkspaceManifests = [
@@ -1708,6 +1724,7 @@ test('run --stream should prefix with dir name', async () => {
 
   const result = execPnpmSync([
     '--stream',
+    '--config.verify-deps-before-run=false',
     '--filter',
     'alfa',
     '--filter',
@@ -1733,6 +1750,7 @@ packages/beta test: OK`
   )
   const singleResult = execPnpmSync([
     '--stream',
+    '--config.verify-deps-before-run=false',
     '--filter',
     'alfa',
     'run',
@@ -1789,6 +1807,7 @@ test('run --reporter-hide-prefix should hide prefix', async () => {
   const result = execPnpmSync([
     '--stream',
     '--reporter-hide-prefix',
+    '--config.verify-deps-before-run=false',
     '--filter',
     'alfa',
     '--filter',
@@ -1815,6 +1834,7 @@ packages/beta test: Done`
   const singleResult = execPnpmSync([
     '--stream',
     '--reporter-hide-prefix',
+    '--config.verify-deps-before-run=false',
     '--filter',
     'alfa',
     'run',

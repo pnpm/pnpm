@@ -48,6 +48,7 @@
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/get-context": "workspace:*",
+    "@pnpm/global.commands": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
@@ -100,23 +101,24 @@
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/proxyquire": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/sinon": "catalog:",
     "@types/which": "catalog:",
     "@types/yarnpkg__lockfile": "catalog:",
     "@types/zkochan__table": "catalog:",
     "ci-info": "catalog:",
     "delay": "catalog:",
     "jest-diff": "catalog:",
+    "nock": "catalog:",
     "path-name": "catalog:",
     "proxyquire": "catalog:",
     "read-yaml-file": "catalog:",
-    "sinon": "catalog:",
     "symlink-dir": "catalog:",
     "tempy": "catalog:",
     "write-json-file": "catalog:",
@@ -124,7 +126,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

@@ -138,6 +138,7 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/testing.temp-store": "workspace:*",
@@ -146,7 +147,6 @@
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "@types/sinon": "catalog:",
     "@yarnpkg/core": "catalog:",
     "ci-info": "catalog:",
     "deep-require-cwd": "catalog:",
@@ -156,14 +156,13 @@
     "path-name": "catalog:",
     "read-yaml-file": "catalog:",
     "resolve-link-target": "catalog:",
-    "sinon": "catalog:",
     "symlink-dir": "catalog:",
     "undici": "catalog:",
     "write-json-file": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

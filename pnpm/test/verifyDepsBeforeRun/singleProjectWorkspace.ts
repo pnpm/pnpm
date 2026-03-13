@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { prepare } from '@pnpm/prepare'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 

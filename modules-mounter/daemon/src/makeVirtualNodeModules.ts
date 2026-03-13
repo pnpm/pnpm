@@ -1,5 +1,5 @@
 import path from 'path'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import * as dp from '@pnpm/dependency-path'

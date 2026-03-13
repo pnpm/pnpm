@@ -1,13 +1,13 @@
 import path from 'path'
-import { type Catalogs } from '@pnpm/catalogs.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
 import { isRuntimeDepPath } from '@pnpm/dependency-path'
-import {
-  type LockfileObject,
-  type ProjectSnapshot,
+import type {
+  LockfileObject,
+  ProjectSnapshot,
 } from '@pnpm/lockfile.types'
 import {
   getAllDependenciesFromManifest,
@@ -16,6 +16,7 @@ import {
 import { verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
+  type AllowBuild,
   type DependenciesField,
   DEPENDENCIES_FIELDS,
   type DependencyManifest,
@@ -25,12 +26,13 @@ import {
   type ProjectId,
   type ProjectRootDir,
   type DepPath,
+  type PkgIdWithPatchHash,
 } from '@pnpm/types'
 import { difference, zipWith } from 'ramda'
 import isSubdir from 'is-subdir'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
 import { depPathToRef } from './depPathToRef.js'
-import { type NodeId } from './nextNodeId.js'
+import type { NodeId } from './nextNodeId.js'
 import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies.js'
 import {
   type Importer,
@@ -463,27 +465,28 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     .filter(Boolean) as DependencyManifest[]
 }
 
+function * iterateGraphPkgMetaEntries (graph: DependenciesGraph, runtimeOnly?: boolean): IterableIterator<{ depPath: DepPath; name: string; version: string; pkgIdWithPatchHash: PkgIdWithPatchHash }> {
+  for (const depPath in graph) {
+    if (Object.hasOwn(graph, depPath)) {
+      if (runtimeOnly && !isRuntimeDepPath(depPath as DepPath)) continue
+      const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
+      yield { depPath: depPath as DepPath, name, version, pkgIdWithPatchHash }
+    }
+  }
+}
+
 function extendGraph (
   graph: DependenciesGraph,
   opts: {
+    allowBuild?: AllowBuild
     globalVirtualStoreDir: string
     enableGlobalVirtualStore?: boolean
   }
 ): DependenciesGraph {
-  const pkgMetaIter = (function * () {
-    for (const depPath in graph) {
-      if ((opts.enableGlobalVirtualStore === true || isRuntimeDepPath(depPath as DepPath)) && Object.hasOwn(graph, depPath)) {
-        const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
-        yield {
-          name,
-          version,
-          depPath: depPath as DepPath,
-          pkgIdWithPatchHash,
-        }
-      }
-    }
-  })()
-  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter)) {
+  const pkgMetaIter = iterateGraphPkgMetaEntries(graph, !opts.enableGlobalVirtualStore)
+  // Only use allowBuild for engine-agnostic hash optimization when GVS is on
+  const allowBuild = opts.enableGlobalVirtualStore ? opts.allowBuild : undefined
+  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, allowBuild)) {
     const modules = path.join(opts.globalVirtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {

@@ -5,7 +5,7 @@ import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/con
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
-import { type Registries } from '@pnpm/types'
+import type { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
 import { difference, pick, pickBy } from 'ramda'
@@ -103,7 +103,7 @@ export function help (): string {
             name: '--no-optional',
           },
           {
-            description: 'Use exit code 0 if the registry responds with an error. Useful when audit checks are used in CI. A build should fail because the registry has issues.',
+            description: 'Use exit code 0 if the registry responds with an error. Useful when audit checks are used in CI. A build should not fail because the registry has issues.',
             name: '--ignore-registry-errors',
           },
           {
@@ -123,7 +123,6 @@ export function help (): string {
 }
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
-  auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
   fix?: boolean
   ignoreRegistryErrors?: boolean
   json?: boolean
@@ -132,6 +131,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   ignore?: string[]
   ignoreUnfixable?: boolean
 } & Pick<Config, 'auditConfig'
+| 'auditLevel'
 | 'ca'
 | 'cert'
 | 'httpProxy'
@@ -276,20 +276,20 @@ ${newIgnores.join('\n')}`,
       return false
     }, auditReport.advisories)
   }
+  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
+  const advisoryEntries = Object.entries(auditReport.advisories)
+    .filter(([, { severity }]) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
   if (opts.json) {
+    const advisories = Object.fromEntries(advisoryEntries)
     return {
-      exitCode: totalVulnerabilityCount > 0 ? 1 : 0,
-      output: JSON.stringify(auditReport, null, 2),
+      exitCode: Object.keys(advisories).length > 0 ? 1 : 0,
+      output: JSON.stringify({ ...auditReport, advisories }, null, 2),
     }
   }
 
   let output = ''
-  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
-  let advisories = Object.values(auditReport.advisories)
-  advisories = advisories
-    .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
-    .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
-  for (const advisory of advisories) {
+  advisoryEntries.sort(([, a1], [, a2]) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
+  for (const [, advisory] of advisoryEntries) {
     const paths = advisory.findings.map(({ paths }) => paths).flat()
     output += table([
       [AUDIT_COLOR[advisory.severity](advisory.severity), chalk.bold(advisory.title)],

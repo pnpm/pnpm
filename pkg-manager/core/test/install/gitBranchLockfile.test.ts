@@ -3,7 +3,7 @@ import path from 'path'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { testDefaults } from '../utils/index.js'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { type ProjectRootDir, type ProjectManifest } from '@pnpm/types'
+import type { ProjectRootDir, ProjectManifest } from '@pnpm/types'
 import { jest } from '@jest/globals'
 import { sync as writeYamlFile } from 'write-yaml-file'
 

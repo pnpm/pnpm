@@ -6,8 +6,8 @@ import { PnpmError } from '@pnpm/error'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { fixtures } from '@pnpm/test-fixtures'
 import { tempDir } from '@pnpm/prepare'
-import { type ProjectRootDir } from '@pnpm/types'
-import { type StoreController } from '@pnpm/store-controller-types'
+import type { ProjectRootDir } from '@pnpm/types'
+import type { StoreController } from '@pnpm/store-controller-types'
 import isWindows from 'is-windows'
 
 const skipOnWindows = isWindows() ? test.skip : test

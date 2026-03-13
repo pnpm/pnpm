@@ -1,13 +1,13 @@
 import path from 'path'
-import {
-  type PackageSnapshot,
-  type ProjectSnapshot,
-  type PackageSnapshots,
+import type {
+  PackageSnapshot,
+  ProjectSnapshot,
+  PackageSnapshots,
 } from '@pnpm/lockfile.types'
 import { refIsLocalDirectory } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { refToRelative } from '@pnpm/dependency-path'
-import { type DirectoryResolution, type WorkspacePackages } from '@pnpm/resolver-base'
+import type { DirectoryResolution, WorkspacePackages } from '@pnpm/resolver-base'
 import {
   DEPENDENCIES_FIELDS,
   DEPENDENCIES_OR_PEER_FIELDS,
@@ -52,6 +52,10 @@ export async function linkedPackagesAreUpToDate (
           if (!currentSpec) return true
           const lockfileRef = lockfileDeps[depName]
           if (refIsLocalDirectory(project.snapshot.specifiers[depName])) {
+            // When a file: specifier resolves to link: in the lockfile
+            // (e.g. injected self-references), it's a local link with no
+            // entry in the packages section. Treat it as up-to-date.
+            if (lockfileRef.startsWith('link:')) return true
             const depPath = refToRelative(lockfileRef, depName)
             return depPath != null && isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[depPath])
           }

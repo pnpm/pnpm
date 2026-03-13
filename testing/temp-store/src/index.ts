@@ -2,7 +2,8 @@ import * as path from 'path'
 import { type ClientOptions, createClient } from '@pnpm/client'
 import { createPackageStore, type CreatePackageStoreOptions } from '@pnpm/package-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type StoreController } from '@pnpm/store-controller-types'
+import type { StoreController } from '@pnpm/store-controller-types'
+import { StoreIndex } from '@pnpm/store.index'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -21,6 +22,7 @@ export function createTempStore (opts?: {
   const authConfig = { registry }
   const cacheDir = path.resolve('cache')
   const storeDir = opts?.storeDir ?? path.resolve('.store')
+  const storeIndex = new StoreIndex(storeDir)
   const { resolve, fetchers, clearResolutionCache } = createClient({
     authConfig,
     rawConfig: {},
@@ -32,6 +34,7 @@ export function createTempStore (opts?: {
     },
     cacheDir,
     storeDir,
+    storeIndex,
     registries: {
       default: registry,
     },
@@ -44,6 +47,7 @@ export function createTempStore (opts?: {
       cacheDir,
       ignoreFile: opts?.fastUnpack === false ? undefined : (filename) => filename !== 'package.json',
       storeDir,
+      storeIndex,
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
       clearResolutionCache,

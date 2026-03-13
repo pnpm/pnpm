@@ -1,13 +1,13 @@
 import fs from 'fs'
 import path from 'path'
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getIntegrity } from '@pnpm/registry-mock'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -24,6 +24,11 @@ import {
 
 const skipOnWindows = isWindows() ? test.skip : test
 const f = fixtures(import.meta.dirname)
+
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
 
 test('bin files are found by lifecycle scripts', () => {
   prepare({
@@ -72,11 +77,11 @@ test('write to stderr when --use-stderr is used', async () => {
   expect(result.stderr.toString()).not.toBe('')
 })
 
-test('install with useLockfile being false in pnpm-workspace.yaml', async () => {
+test('install with lockfile being false in pnpm-workspace.yaml', async () => {
   const project = prepare()
 
   writeYamlFile('pnpm-workspace.yaml', {
-    useLockfile: false,
+    lockfile: false,
   })
 
   await execPnpm(['add', 'is-positive'])
@@ -159,12 +164,19 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
-  const { files: integrityFile } = readMsgpackFileSync<PackageFilesIndex>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
-  const packageFiles = Array.from(integrityFile.keys()).sort(lexCompare)
+  const storeDir = project.getStorePath()
+  const indexKey = storeIndexKey(getIntegrity('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'), '@pnpm.e2e/with-same-file-in-different-cases@1.0.0')
+  const si = new StoreIndex(storeDir)
+  let filesIndex: PackageFilesIndex
+  try {
+    filesIndex = si.get(indexKey) as PackageFilesIndex
+  } finally {
+    si.close()
+  }
+  const packageFiles = Array.from(filesIndex.files.keys()).sort(lexCompare)
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
-  const storeDir = project.getStorePath()
   if (await dirIsCaseSensitive.default(storeDir)) {
     expect([...files].sort(lexCompare)).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
@@ -438,6 +450,58 @@ test('installing in a CI environment', async () => {
   await execPnpm(['install', '--no-prefer-frozen-lockfile'], { env: { CI: 'true' } })
 })
 
+// Tests for issue #9861: frozen-lockfile should be overridable via env vars and updateConfig hook
+test('CI mode: frozen-lockfile can be overridden via environment variable', async () => {
+  const project = prepare({
+    dependencies: { rimraf: '2.5.1' },
+  })
+
+  // Initial install in CI mode
+  await execPnpm(['install'], { env: { CI: 'true' } })
+
+  // Change dependencies
+  project.writePackageJson({
+    dependencies: { rimraf: '1' },
+  })
+
+  // Should not fail when pnpm_config_frozen_lockfile is set to false
+  await execPnpm(['install'], {
+    env: {
+      CI: 'true',
+      pnpm_config_frozen_lockfile: 'false',
+    },
+  })
+})
+
+test('CI mode: frozen-lockfile can be overridden via updateConfig hook', async () => {
+  const project = prepare({
+    dependencies: { rimraf: '2.5.1' },
+  })
+
+  const pnpmfile = `
+    module.exports = {
+      hooks: {
+        updateConfig(config) {
+          config.frozenLockfile = false
+          return config
+        }
+      }
+    }
+  `
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
+
+  // Initial install in CI mode
+  await execPnpm(['install'], { env: { CI: 'true' } })
+
+  // Change dependencies
+  project.writePackageJson({
+    dependencies: { rimraf: '1' },
+  })
+
+  // Should not fail due to updateConfig hook setting frozenLockfile to false
+  await execPnpm(['install'], { env: { CI: 'true' } })
+})
+
 test('installation fails with a timeout error', async () => {
   prepare()
 
@@ -453,12 +517,13 @@ test('installation fails when the stored package name and version do not match t
 
   await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
 
-  const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
-  const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)
-  cacheIntegrity.name = 'foo'
-  writeMsgpackFileSync(cacheIntegrityPath, {
+  const cacheIntegrityKey = storeIndexKey(getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+  const storeIndex = new StoreIndex(path.join(storeDir, STORE_VERSION))
+  storeIndexes.push(storeIndex)
+  const cacheIntegrity = storeIndex.get(cacheIntegrityKey) as PackageFilesIndex
+  storeIndex.set(cacheIntegrityKey, {
     ...cacheIntegrity,
-    name: 'foo',
+    manifest: { ...cacheIntegrity.manifest, name: 'foo' },
   })
 
   rimraf('node_modules')

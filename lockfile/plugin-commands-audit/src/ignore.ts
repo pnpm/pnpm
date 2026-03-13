@@ -1,5 +1,5 @@
-import { type AuditAdvisory, type AuditReport } from '@pnpm/audit'
-import { type ProjectManifest, type AuditConfig } from '@pnpm/types'
+import type { AuditAdvisory, AuditReport } from '@pnpm/audit'
+import type { ProjectManifest, AuditConfig } from '@pnpm/types'
 import { writeSettings } from '@pnpm/config.config-writer'
 import { difference } from 'ramda'
 

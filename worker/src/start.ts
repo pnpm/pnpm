@@ -2,11 +2,11 @@ import crypto from 'crypto'
 import path from 'path'
 import fs from 'fs'
 import { PnpmError } from '@pnpm/error'
-import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff, type FilesMap } from '@pnpm/cafs-types'
+import type { Cafs, PackageFiles, SideEffectsDiff, FilesMap } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
-import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
+import { StoreIndex, packForStorage } from '@pnpm/store.index'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import {
   type CafsFunctions,
@@ -14,23 +14,23 @@ import {
   buildFileMapsFromIndex,
   createCafs,
   HASH_ALGORITHM,
+  normalizeBundledManifest,
   type PackageFilesIndex,
   type FilesIndex,
-  optimisticRenameOverwrite,
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
-import { type DependencyManifest } from '@pnpm/types'
+import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 import { parentPort } from 'worker_threads'
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
-import {
-  type AddDirToStoreMessage,
-  type ReadPkgFromCafsMessage,
-  type LinkPkgMessage,
-  type SymlinkAllModulesMessage,
-  type TarballExtractMessage,
-  type HardLinkDirMessage,
-  type InitStoreMessage,
+import type {
+  AddDirToStoreMessage,
+  ReadPkgFromCafsMessage,
+  LinkPkgMessage,
+  SymlinkAllModulesMessage,
+  TarballExtractMessage,
+  HardLinkDirMessage,
+  InitStoreMessage,
 } from './types.js'
 
 export function startWorker (): void {
@@ -43,6 +43,14 @@ export function startWorker (): void {
 const cafsCache = new Map<string, CafsFunctions>()
 const cafsStoreCache = new Map<string, Cafs>()
 const cafsLocker = new Map<string, number>()
+const storeIndexCache = new Map<string, StoreIndex>()
+
+function getStoreIndex (storeDir: string): StoreIndex {
+  if (!storeIndexCache.has(storeDir)) {
+    storeIndexCache.set(storeDir, new StoreIndex(storeDir))
+  }
+  return storeIndexCache.get(storeDir)!
+}
 
 async function handleMessage (
   message:
@@ -57,6 +65,13 @@ async function handleMessage (
 ): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)
+    // Explicitly close cached SQLite connections before exiting.
+    // process.exit() in a worker thread may not run C++ destructors,
+    // which would leave file descriptors and mmap regions open.
+    for (const idx of storeIndexCache.values()) {
+      idx.close()
+    }
+    storeIndexCache.clear()
     process.exit(0)
   }
   try {
@@ -78,13 +93,8 @@ async function handleMessage (
       break
     }
     case 'readPkgFromCafs': {
-      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
-      let pkgFilesIndex: PackageFilesIndex | undefined
-      try {
-        pkgFilesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
-      } catch {
-        // ignoring. It is fine if the integrity file is not present. Just refetch the package
-      }
+      const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
+      const pkgFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
       if (!pkgFilesIndex) {
         parentPort!.postMessage({
           status: 'success',
@@ -99,18 +109,18 @@ async function handleMessage (
       if (expectedPkg) {
         if (
           (
-            pkgFilesIndex.name != null &&
+            pkgFilesIndex.manifest?.name != null &&
             expectedPkg.name != null &&
-            pkgFilesIndex.name.toLowerCase() !== expectedPkg.name.toLowerCase()
+            pkgFilesIndex.manifest.name.toLowerCase() !== expectedPkg.name.toLowerCase()
           ) ||
           (
-            pkgFilesIndex.version != null &&
+            pkgFilesIndex.manifest?.version != null &&
             expectedPkg.version != null &&
-            !equalOrSemverEqual(pkgFilesIndex.version, expectedPkg.version)
+            !equalOrSemverEqual(pkgFilesIndex.manifest.version, expectedPkg.version)
           )
         ) {
           const msg = 'Package name or version mismatch found while reading from the store.'
-          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
+          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.manifest?.name}@${pkgFilesIndex.manifest?.version}.`
           if (strictStorePkgContentCheck ?? true) {
             throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
               hint: `${hint}\n\nIf you want to ignore this issue, set strictStorePkgContentCheck to false in your configuration`,
@@ -120,24 +130,21 @@ async function handleMessage (
           }
         }
       }
-      let verifyResult: VerifyResult | undefined
-      if (pkgFilesIndex.requiresBuild == null) {
-        readManifest = true
-      }
-      // Get file maps and optionally verify
+      let verifyResult: VerifyResult
       if (verifyStoreIntegrity) {
-        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex, readManifest)
+        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
       } else {
-        verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex, readManifest)
+        verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
       }
-      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, verifyResult.filesMap)
+      const bundledManifest = pkgFilesIndex.manifest
+      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(bundledManifest, verifyResult.filesMap)
 
       parentPort!.postMessage({
         status: 'success',
         warnings,
         value: {
           verified: verifyResult.passed,
-          manifest: verifyResult.manifest,
+          bundledManifest,
           files: {
             filesMap: verifyResult.filesMap,
             sideEffectsMaps: verifyResult.sideEffectsMaps,
@@ -196,15 +203,23 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
     addManifestToCafs(cafs, filesIndex, appendManifest)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  const requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: manifest ?? {}, files: filesIntegrity })
+  const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
+  const requiresBuild = pkgRequiresBuild(bundledManifest, filesIntegrity)
+  const pkgFilesIndex: PackageFilesIndex = {
+    requiresBuild,
+    manifest: bundledManifest,
+    algo: HASH_ALGORITHM,
+    files: filesIntegrity,
+  }
   return {
     status: 'success',
     value: {
       filesMap,
-      manifest,
+      manifest: bundledManifest,
       requiresBuild,
       integrity: integrity ?? calcIntegrity(buffer),
     },
+    indexWrites: [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex) }],
   }
 }
 
@@ -213,32 +228,52 @@ function calcIntegrity (buffer: Buffer): string {
   return formatIntegrity('sha512', calculatedHash)
 }
 
+function packToShared (data: unknown): Uint8Array {
+  const packed = packForStorage(data)
+  const shared = new SharedArrayBuffer(packed.byteLength)
+  const view = new Uint8Array(shared)
+  view.set(packed)
+  return view
+}
+
+interface IndexWrite {
+  key: string
+  buffer: Uint8Array
+}
+
 interface AddFilesFromDirResult {
   status: string
   value: {
     filesMap: FilesMap
-    manifest?: DependencyManifest
+    manifest?: BundledManifest
     requiresBuild: boolean
   }
+  indexWrites?: IndexWrite[]
 }
 
 function initStore ({ storeDir }: InitStoreMessage): { status: string } {
   fs.mkdirSync(storeDir, { recursive: true })
+  const hexChars = '0123456789abcdef'.split('')
+  // Only create subdirectories for files/ — index/ is now managed by SQLite
+  const filesDirPath = path.join(storeDir, 'files')
   try {
-    const hexChars = '0123456789abcdef'.split('')
-    for (const subDir of ['files', 'index']) {
-      const subDirPath = path.join(storeDir, subDir)
-      fs.mkdirSync(subDirPath)
-      for (const hex1 of hexChars) {
-        for (const hex2 of hexChars) {
-          fs.mkdirSync(path.join(subDirPath, `${hex1}${hex2}`))
-        }
-      }
-    }
+    fs.mkdirSync(filesDirPath)
   } catch {
     // If a parallel process has already started creating the directories in the store,
-    // then we just stop.
+    // ignore if it already exists.
   }
+  for (const hex1 of hexChars) {
+    for (const hex2 of hexChars) {
+      try {
+        fs.mkdirSync(path.join(filesDirPath, `${hex1}${hex2}`))
+      } catch {
+        // If a parallel process has already started creating the directories in the store,
+        // ignore if it already exists.
+      }
+    }
+  }
+  // Initialize the SQLite index database
+  getStoreIndex(storeDir)
   return { status: 'success' }
 }
 
@@ -248,6 +283,7 @@ function addFilesFromDir (
     dir,
     files,
     filesIndexFile,
+    includeNodeModules,
     sideEffectsCacheKey,
     storeDir,
   }: AddDirToStoreMessage
@@ -258,6 +294,7 @@ function addFilesFromDir (
   const cafs = cafsCache.get(storeDir)!
   let { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
     files,
+    includeNodeModules,
     readManifest: true,
   })
   if (appendManifest && manifest == null) {
@@ -265,18 +302,18 @@ function addFilesFromDir (
     addManifestToCafs(cafs, filesIndex, appendManifest)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
+  const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
   let requiresBuild: boolean
+  let indexWrites: IndexWrite[] | undefined
   if (sideEffectsCacheKey) {
-    let existingFilesIndex!: PackageFilesIndex
-    try {
-      existingFilesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
-    } catch {
+    const existingFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
+    if (!existingFilesIndex) {
       // If there is no existing index file, then we cannot store the side effects.
       return {
         status: 'success',
         value: {
           filesMap,
-          manifest,
+          manifest: bundledManifest,
           requiresBuild: pkgRequiresBuild(manifest, filesMap),
         },
       }
@@ -297,11 +334,18 @@ function addFilesFromDir (
     } else {
       requiresBuild = existingFilesIndex.requiresBuild
     }
-    writeIndexFile(filesIndexFile, existingFilesIndex)
+    indexWrites = [{ key: filesIndexFile, buffer: packToShared(existingFilesIndex) }]
   } else {
-    requiresBuild = writeFilesIndexFile(filesIndexFile, { algo: HASH_ALGORITHM, manifest: manifest ?? {}, files: filesIntegrity })
+    requiresBuild = pkgRequiresBuild(bundledManifest, filesIntegrity)
+    const pkgFilesIndex: PackageFilesIndex = {
+      requiresBuild,
+      manifest: bundledManifest,
+      algo: HASH_ALGORITHM,
+      files: filesIntegrity,
+    }
+    indexWrites = [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex) }]
   }
-  return { status: 'success', value: { filesMap, manifest, requiresBuild } }
+  return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild }, indexWrites }
 }
 
 function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
@@ -405,37 +449,3 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success'
   return { status: 'success' }
 }
 
-function writeFilesIndexFile (
-  filesIndexFile: string,
-  { algo, manifest, files, sideEffects }: {
-    algo: string
-    manifest: Partial<DependencyManifest>
-    files: PackageFiles
-    sideEffects?: SideEffects
-  }
-): boolean {
-  const requiresBuild = pkgRequiresBuild(manifest, files)
-  const filesIndex: PackageFilesIndex = {
-    name: manifest.name,
-    version: manifest.version,
-    requiresBuild,
-    algo,
-    files,
-    sideEffects,
-  }
-  writeIndexFile(filesIndexFile, filesIndex)
-  return requiresBuild
-}
-
-function writeIndexFile (filePath: string, data: PackageFilesIndex): void {
-  const targetDir = path.dirname(filePath)
-  // TODO: use the API of @pnpm/cafs to write this file
-  // There is actually no need to create the directory in 99% of cases.
-  // So by using cafs API, we'll improve performance.
-  fs.mkdirSync(targetDir, { recursive: true })
-  // Drop the last 10 characters and append the PID to create a shorter unique temp filename.
-  // This avoids ENAMETOOLONG errors on systems with path length limits.
-  const temp = `${filePath.slice(0, -10)}${process.pid}`
-  writeMsgpackFileSync(temp, data)
-  optimisticRenameOverwrite(temp, filePath)
-}

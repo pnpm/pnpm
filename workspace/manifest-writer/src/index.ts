@@ -1,8 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import util from 'util'
-import { type Catalogs } from '@pnpm/catalogs.types'
-import { type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
+import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import { validateWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { patchDocument } from '@pnpm/yaml.document-sync'
@@ -10,8 +10,8 @@ import { equals } from 'ramda'
 import yaml from 'yaml'
 import writeFileAtomic from 'write-file-atomic'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
-import {
-  type Project,
+import type {
+  Project,
 } from '@pnpm/types'
 
 export type FileName =
@@ -43,6 +43,7 @@ async function readManifestRaw (file: string): Promise<string | undefined> {
 export async function updateWorkspaceManifest (dir: string, opts: {
   updatedFields?: Partial<WorkspaceManifest>
   updatedCatalogs?: Catalogs
+  updatedOverrides?: Record<string, string>
   fileName?: FileName
   cleanupUnusedCatalogs?: boolean
   allProjects?: Project[]
@@ -73,6 +74,15 @@ export async function updateWorkspaceManifest (dir: string, opts: {
         delete manifest[key as keyof WorkspaceManifest]
       } else {
         manifest[key as keyof WorkspaceManifest] = value
+      }
+    }
+  }
+  if (opts.updatedOverrides) {
+    manifest.overrides ??= {}
+    for (const [key, value] of Object.entries(opts.updatedOverrides)) {
+      if (!equals(manifest.overrides[key], value)) {
+        shouldBeUpdated = true
+        manifest.overrides[key] = value
       }
     }
   }

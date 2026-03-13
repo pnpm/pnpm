@@ -1,5 +1,5 @@
 import * as utils from '@pnpm/read-project-manifest'
-import { type SupportedArchitectures, type ProjectManifest } from '@pnpm/types'
+import type { SupportedArchitectures, ProjectManifest } from '@pnpm/types'
 import { packageIsInstallable } from './packageIsInstallable.js'
 
 export interface ReadProjectManifestOpts {

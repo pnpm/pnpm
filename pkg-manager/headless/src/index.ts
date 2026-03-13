@@ -48,13 +48,13 @@ import {
   type Modules,
   writeModulesManifest,
 } from '@pnpm/modules-yaml'
-import { type PatchGroupRecord } from '@pnpm/patching.config'
-import { type HoistingLimits } from '@pnpm/real-hoist'
+import type { PatchGroupRecord } from '@pnpm/patching.config'
+import type { HoistingLimits } from '@pnpm/real-hoist'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import {
-  type PackageFilesResponse,
-  type StoreController,
+import type {
+  PackageFilesResponse,
+  StoreController,
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
@@ -124,6 +124,12 @@ export interface HeadlessOptions {
   ignoreDepScripts: boolean
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
+  /**
+   * When true, skip fetching local dependencies (file: protocol pointing to directories).
+   * This is used by `pnpm fetch` which only downloads packages from the registry
+   * and doesn't need local packages that won't be available (e.g., in Docker builds).
+   */
+  ignoreLocalPackages?: boolean
   include: IncludedDependencies
   selectedProjectDirs: string[]
   allProjects: Record<string, Project>
@@ -328,8 +334,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     nodeVersion: opts.currentEngine.nodeVersion,
     pnpmVersion: opts.currentEngine.pnpmVersion,
     supportedArchitectures: opts.supportedArchitectures,
-    includeUnchangedDeps: (!equals(opts.currentHoistPattern, opts.hoistPattern ?? undefined)) ||
-      (!equals(opts.currentPublicHoistPattern, opts.publicHoistPattern ?? undefined)),
+    includeUnchangedDeps: (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) ||
+      (!equals(opts.currentPublicHoistPattern ?? [], opts.publicHoistPattern ?? [])) ||
+      (opts.enableGlobalVirtualStore === true && !equals(opts.modulesFile?.allowBuilds ?? {}, opts.allowBuilds ?? {})),
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,
@@ -420,9 +427,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         depGraph: graph,
         depsStateCache,
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         ignoreScripts: opts.ignoreScripts,
         lockfileDir: opts.lockfileDir,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
+        storeDir: opts.storeDir,
       }),
     ])
 
@@ -553,6 +562,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       storeController: opts.storeController,
       unsafePerm: opts.unsafePerm,
       userAgent: opts.userAgent,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
     })).ignoredBuilds
     if (opts.modulesFile?.ignoredBuilds?.size) {
       ignoredBuilds ??= new Set()
@@ -633,8 +643,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       storeDir: opts.storeDir,
       virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    }, {
-      makeModulesDir: Object.keys(filteredLockfile.packages ?? {}).length > 0,
+      allowBuilds: opts.allowBuilds,
     })
     const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
     if (opts.useLockfile) {
@@ -659,8 +668,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }))
 
   summaryLogger.debug({ prefix: lockfileDir })
-
-  await opts.storeController.close()
 
   if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
     await runLifecycleHooksConcurrently(
@@ -850,12 +857,22 @@ async function linkAllPkgs (
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
+    enableGlobalVirtualStore?: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
+    storeDir: string
   }
 ): Promise<void> {
+  // Create a marker source file that will be added to filesMap for GVS packages
+  // that need building. The importer treats it as just another file, so it's
+  // atomically included in the staged directory and renamed with the package.
+  let needsBuildMarkerSrc: string | undefined
+  if (opts.enableGlobalVirtualStore) {
+    needsBuildMarkerSrc = path.join(opts.storeDir, '.pnpm-needs-build-marker')
+    await fs.writeFile(needsBuildMarkerSrc, '')
+  }
   await Promise.all(
     depNodes.map(async (depNode) => {
       if (!depNode.fetching) return
@@ -873,12 +890,32 @@ async function linkAllPkgs (
         if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
-            patchFileHash: depNode.patch?.file.hash,
+            patchFileHash: depNode.patch?.hash,
           })
         }
       }
+      // For GVS packages that need building, add a .pnpm-needs-build marker to the
+      // filesMap. The import pipeline treats it as a normal file, so it gets
+      // written into the staging directory and atomically renamed with the rest
+      // of the package. On the next install, GVS fast paths detect the marker
+      // and force a re-fetch/re-import/re-build.
+      // Skip the marker when cached side effects will be applied (the package
+      // is already built and no build will run).
+      const hasCachedSideEffects = sideEffectsCacheKey != null &&
+        filesResponse.sideEffectsMaps?.has(sideEffectsCacheKey) === true
+      const needsBuildMarker = needsBuildMarkerSrc != null &&
+        !hasCachedSideEffects &&
+        (depNode.requiresBuild || depNode.patch != null)
+      let effectiveFilesResponse = filesResponse
+      if (needsBuildMarker) {
+        effectiveFilesResponse = {
+          ...filesResponse,
+          filesMap: new Map([...filesResponse.filesMap, ['.pnpm-needs-build', needsBuildMarkerSrc!]]),
+        }
+      }
+
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-        filesResponse,
+        filesResponse: effectiveFilesResponse,
         force: depNode.forceImportPackage ?? opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         requiresBuild: depNode.patch != null || depNode.requiresBuild,

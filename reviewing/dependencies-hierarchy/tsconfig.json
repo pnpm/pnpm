@@ -44,6 +44,12 @@
     },
     {
       "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/index"
     }
   ]
 }

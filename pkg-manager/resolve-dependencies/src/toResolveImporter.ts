@@ -1,14 +1,14 @@
 import { logger } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import {
-  type PreferredVersions,
-  type WorkspacePackages,
+import type {
+  PreferredVersions,
+  WorkspacePackages,
 } from '@pnpm/resolver-base'
-import { type Dependencies, type ProjectManifest } from '@pnpm/types'
+import type { Dependencies, ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
-import { type ImporterToResolve } from './index.js'
+import type { ImporterToResolve } from './index.js'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
-import { type ImporterToResolveGeneric } from './resolveDependencyTree.js'
+import type { ImporterToResolveGeneric } from './resolveDependencyTree.js'
 import { safeIsInnerLink } from './safeIsInnerLink.js'
 import { unwrapPackageName } from './unwrapPackageName.js'
 import { validatePeerDependencies } from './validatePeerDependencies.js'

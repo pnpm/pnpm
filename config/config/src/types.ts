@@ -1,5 +1,5 @@
 import npmTypes from '@pnpm/npm-conf/lib/types.js'
-import { type TrustPolicy } from '@pnpm/types'
+import type { TrustPolicy } from '@pnpm/types'
 
 export const pnpmTypes = {
   'auto-install-peers': Boolean,
@@ -118,7 +118,6 @@ export const pnpmTypes = {
   'trust-policy-exclude': [String, Array],
   'trust-policy-ignore-after': Number,
   'use-beta-cli': Boolean,
-  'use-node-version': String,
   'use-stderr': Boolean,
   'verify-deps-before-run': Boolean,
   'verify-store-integrity': Boolean,
@@ -129,6 +128,7 @@ export const pnpmTypes = {
   'workspace-concurrency': Number,
   'workspace-packages': [String, Array],
   'workspace-root': Boolean,
+  yes: Boolean,
   'test-pattern': [String, Array],
   'changed-files-ignore-pattern': [String, Array],
   'embed-readme': Boolean,
@@ -139,6 +139,7 @@ export const pnpmTypes = {
   cpu: [String, Array],
   libc: [String, Array],
   os: [String, Array],
+  'audit-level': ['low', 'moderate', 'high', 'critical'],
 }
 
 // NOTE: There is an oversight I just now notice thanks to a test failure: pnpmTypes (which used to be the object literal inside `Object.assign`)

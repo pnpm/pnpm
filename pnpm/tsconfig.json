@@ -54,6 +54,9 @@
       "path": "../config/plugin-commands-config"
     },
     {
+      "path": "../config/version-policy"
+    },
+    {
       "path": "../crypto/hash"
     },
     {
@@ -147,7 +150,16 @@
       "path": "../reviewing/plugin-commands-outdated"
     },
     {
+      "path": "../reviewing/plugin-commands-sbom"
+    },
+    {
+      "path": "../runtime/commands"
+    },
+    {
       "path": "../store/cafs"
+    },
+    {
+      "path": "../store/index"
     },
     {
       "path": "../store/plugin-commands-store"

@@ -4,7 +4,7 @@ import { type GetAuthHeader } from '@pnpm/fetching-types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type DependenciesField } from '@pnpm/types'
 import { lockfileToAuditTree } from './lockfileToAuditTree.js'
-import { type AuditReport } from './types.js'
+import type { AuditReport } from './types.js'
 
 export * from './types.js'
 
@@ -24,28 +24,38 @@ export async function audit (
   const auditTree = await lockfileToAuditTree(lockfile, { include: opts.include, lockfileDir: opts.lockfileDir })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/audits`
+  const quickAuditUrl = `${registry}-/npm/v1/security/audits/quick`
   const authHeaderValue = getAuthHeader(registry)
-
-  const res = await fetchWithDispatcher(auditUrl, {
+  const requestBody = JSON.stringify(auditTree)
+  const requestHeaders = {
+    'Content-Type': 'application/json',
+    ...getAuthHeaders(authHeaderValue),
+  }
+  const requestOptions = {
     dispatcherOptions: opts.dispatcherOptions ?? {},
-    body: JSON.stringify(auditTree),
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(authHeaderValue),
-    },
-    method: 'post',
+    body: requestBody,
+    headers: requestHeaders,
+    method: 'POST',
     retry: opts.retry,
     timeout: opts.timeout,
-  })
-
-  if (res.status === 404) {
-    throw new AuditEndpointNotExistsError(auditUrl)
   }
 
-  if (res.status !== 200) {
-    throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
+  const quickRes = await fetchWithDispatcher(quickAuditUrl, requestOptions)
+
+  if (quickRes.status === 200) {
+    return (quickRes.json() as Promise<AuditReport>)
   }
-  return (res.json() as Promise<AuditReport>)
+
+  const res = await fetchWithDispatcher(auditUrl, requestOptions)
+  if (res.status === 200) {
+    return (res.json() as Promise<AuditReport>)
+  }
+
+  if (quickRes.status === 404 && res.status === 404) {
+    throw new AuditEndpointNotExistsError(quickAuditUrl)
+  }
+
+  throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${quickAuditUrl}) responded with ${quickRes.status}: ${await quickRes.text()}. Fallback endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
 }
 
 interface AuthHeaders {

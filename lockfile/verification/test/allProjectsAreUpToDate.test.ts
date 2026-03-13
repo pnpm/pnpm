@@ -1,11 +1,11 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
-import { type WorkspacePackages } from '@pnpm/resolver-base'
-import { type DepPath, type DependencyManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
+import type { WorkspacePackages } from '@pnpm/resolver-base'
+import type { DepPath, DependencyManifest, ProjectId, ProjectRootDir } from '@pnpm/types'
 import { allProjectsAreUpToDate } from '@pnpm/lockfile.verification'
 import { createWriteStream } from 'fs'
 import { writeFile, mkdir } from 'fs/promises'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import tar from 'tar-stream'
 import { pipeline } from 'stream/promises'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
@@ -863,6 +863,52 @@ test('allProjectsAreUpToDate(): returns true if one of the importers is not pres
       lockfileVersion: LOCKFILE_VERSION,
     },
     workspacePackages,
+    lockfileDir: '',
+  })).toBeTruthy()
+})
+
+test('allProjectsAreUpToDate(): returns true for injected self-referencing file: dependency resolved as link:', async () => {
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'can-link' as ProjectId,
+      manifest: {
+        name: 'can-link',
+        version: '2.0.0',
+        dependenciesMeta: {
+          'can-link': {
+            injected: true,
+          },
+        },
+        devDependencies: {
+          'can-link': 'file:',
+        },
+      },
+      rootDir: 'can-link' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    wantedLockfile: {
+      importers: {
+        ['can-link' as ProjectId]: {
+          dependenciesMeta: {
+            'can-link': {
+              injected: true,
+            },
+          },
+          devDependencies: {
+            'can-link': 'link:',
+          },
+          specifiers: {
+            'can-link': 'file:',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages: new Map(),
     lockfileDir: '',
   })).toBeTruthy()
 })

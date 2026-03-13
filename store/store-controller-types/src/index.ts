@@ -1,49 +1,33 @@
-import {
-  type PkgResolutionId,
-  type DirectoryResolution,
-  type PreferredVersions,
-  type Resolution,
-  type WantedDependency,
-  type WorkspacePackages,
+import type {
+  PkgResolutionId,
+  DirectoryResolution,
+  PreferredVersions,
+  Resolution,
+  WantedDependency,
+  WorkspacePackages,
 } from '@pnpm/resolver-base'
-import {
-  type FilesMap,
-  type ImportPackageFunction,
-  type ImportPackageFunctionAsync,
-  type PackageFileInfo,
-  type PackageFilesResponse,
-  type ResolvedFrom,
+import type {
+  FilesMap,
+  ImportPackageFunction,
+  ImportPackageFunctionAsync,
+  PackageFileInfo,
+  PackageFilesResponse,
+  ResolvedFrom,
 } from '@pnpm/cafs-types'
-import {
-  type AllowBuild,
-  type SupportedArchitectures,
-  type DependencyManifest,
-  type PackageManifest,
-  type PinnedVersion,
-  type PackageVersionPolicy,
-  type TrustPolicy,
+import type {
+  AllowBuild,
+  BundledManifest,
+  SupportedArchitectures,
+  PackageManifest,
+  PinnedVersion,
+  PackageVersionPolicy,
+  TrustPolicy,
 } from '@pnpm/types'
 
 export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync, FilesMap }
 
 export * from '@pnpm/resolver-base'
-export type BundledManifest = Pick<
-  DependencyManifest,
-| 'bin'
-| 'bundledDependencies'
-| 'bundleDependencies'
-| 'cpu'
-| 'dependencies'
-| 'directories'
-| 'engines'
-| 'name'
-| 'optionalDependencies'
-| 'os'
-| 'peerDependencies'
-| 'peerDependenciesMeta'
-| 'scripts'
-| 'version'
->
+export type { BundledManifest }
 
 export interface UploadPkgToStoreOpts {
   filesIndexFile: string

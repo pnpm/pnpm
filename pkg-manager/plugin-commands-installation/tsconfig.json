@@ -64,6 +64,9 @@
       "path": "../../fs/read-modules-dir"
     },
     {
+      "path": "../../global/commands"
+    },
+    {
       "path": "../../hooks/pnpmfile"
     },
     {
@@ -103,10 +106,16 @@
       "path": "../../reviewing/outdated"
     },
     {
+      "path": "../../store/index"
+    },
+    {
       "path": "../../store/package-store"
     },
     {
       "path": "../../store/store-connection-manager"
+    },
+    {
+      "path": "../../worker"
     },
     {
       "path": "../../workspace/filter-packages-from-dir"

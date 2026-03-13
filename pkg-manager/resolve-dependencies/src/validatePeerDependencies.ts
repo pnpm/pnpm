@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { isValidPeerRange } from '@pnpm/semver.peer-range'
 
 export interface ProjectToValidate {

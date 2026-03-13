@@ -1,7 +1,8 @@
 import assert from 'assert'
 import path from 'path'
 import util from 'util'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { storeIndexKey } from '@pnpm/store.index'
 import { calcDepState, lockfileToDepGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
@@ -15,7 +16,7 @@ import {
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
 import { linkBins } from '@pnpm/link-bins'
-import { type TarballResolution } from '@pnpm/lockfile.types'
+import type { TarballResolution } from '@pnpm/lockfile.types'
 import {
   type LockfileObject,
   nameVerFromPkgSnapshot,
@@ -26,17 +27,17 @@ import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createStoreController } from '@pnpm/store-connection-manager'
-import {
-  type DepPath,
-  type IgnoredBuilds,
-  type ProjectManifest,
-  type ProjectId,
-  type ProjectRootDir,
+import type {
+  DepPath,
+  IgnoredBuilds,
+  ProjectManifest,
+  ProjectId,
+  ProjectRootDir,
 } from '@pnpm/types'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
-import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
+import { StoreIndex } from '@pnpm/store.index'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { hardLinkDir } from '@pnpm/worker'
 import { runGroups } from 'run-groups'
@@ -328,6 +329,7 @@ async function _rebuild (
     return false
   }
   const builtDepPaths = new Set<string>()
+  const storeIndex = opts.skipIfHasSideEffectsCache ? new StoreIndex(opts.storeDir) : undefined
 
   const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
     async () => {
@@ -356,11 +358,8 @@ async function _rebuild (
         let sideEffectsCacheKey: string | undefined
         const pkgId = `${pkgInfo.name}@${pkgInfo.version}`
         if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
-          const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
-          let pkgFilesIndex: PackageFilesIndex | undefined
-          try {
-            pkgFilesIndex = await readMsgpackFile<PackageFilesIndex>(filesIndexFile)
-          } catch {}
+          const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)
+          const pkgFilesIndex = storeIndex!.get(filesIndexFile) as PackageFilesIndex | undefined
           if (pkgFilesIndex) {
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
               includeDepGraphHash: true,
@@ -393,7 +392,7 @@ async function _rebuild (
         })
         if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
           builtDepPaths.add(depPath)
-          const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
+          const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)
           try {
             if (!sideEffectsCacheKey) {
               sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
@@ -439,6 +438,7 @@ async function _rebuild (
   ))
 
   await runGroups(opts.childConcurrency || 5, groups)
+  storeIndex?.close()
 
   if (builtDepPaths.size > 0) {
     // It may be optimized because some bins were already linked before running lifecycle scripts

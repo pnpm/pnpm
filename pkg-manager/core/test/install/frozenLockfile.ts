@@ -6,8 +6,8 @@ import {
   type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
-import { type ProjectRootDir } from '@pnpm/types'
-import sinon from 'sinon'
+import type { ProjectRootDir } from '@pnpm/types'
+import { jest } from '@jest/globals'
 import { testDefaults } from '../utils/index.js'
 
 test(`frozen-lockfile: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async () => {
@@ -139,14 +139,14 @@ test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_
 
   project.hasNot('is-positive')
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await install(manifest, testDefaults({ reporter, preferFrozenLockfile: true }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'info',
     message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
-  })).toBeTruthy()
+  }))
 
   project.has('is-positive')
 })
@@ -162,18 +162,18 @@ test(`prefer-frozen-lockfile: should not prefer headless installation when ${WAN
 
   project.hasNot('is-positive')
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await install({
     dependencies: {
       'is-negative': '1.0.0',
     },
   }, testDefaults({ reporter, preferFrozenLockfile: true }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     level: 'info',
     message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
-  })).toBeFalsy()
+  }))
 
   project.has('is-negative')
 })
@@ -201,18 +201,18 @@ test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation w
 
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await install(manifest, testDefaults({
     hoistPattern: '*',
     preferFrozenLockfile: true,
     reporter,
   }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'info',
     message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
-  })).toBeTruthy()
+  }))
 
   project.has('@pnpm.e2e/pkg-with-1-dep')
   project.has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -272,18 +272,18 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
   ]
   await mutateModules(mutatedProjects, testDefaults({ allProjects }))
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await mutateModules(mutatedProjects, testDefaults({
     allProjects,
     preferFrozenLockfile: true,
     reporter,
   }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'info',
     message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
-  })).toBeTruthy()
+  }))
 
   projects['p1'].has('p2')
   projects['p2'].has('is-negative')

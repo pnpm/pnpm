@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import PATH from 'path-name'
 import { sync as writeYamlFile } from 'write-yaml-file'
@@ -502,7 +503,8 @@ test('convert shamefully-flatten to hoist-pattern=* and warn', async () => {
   ])
 })
 
-test('hoist-pattern is undefined if --no-hoist used', async () => {
+// hoist → hoistPattern processing is done in @pnpm/cli-utils
+test('hoist-pattern is unchanged if --no-hoist used', async () => {
   const { config } = await getConfig({
     cliOptions: {
       hoist: false,
@@ -513,7 +515,8 @@ test('hoist-pattern is undefined if --no-hoist used', async () => {
     },
   })
 
-  expect(config.hoistPattern).toBeUndefined()
+  expect(config.hoist).toBe(false)
+  expect(config.hoistPattern).toStrictEqual(['*'])
 })
 
 test('throw error if --no-hoist is used with --shamefully-hoist', async () => {
@@ -564,6 +567,7 @@ test('throw error if --no-hoist is used with --hoist-pattern', async () => {
   })
 })
 
+// public-hoist-pattern normalization is done in @pnpm/cli-utils
 test('normalizing the value of public-hoist-pattern', async () => {
   {
     const { config } = await getConfig({
@@ -576,7 +580,7 @@ test('normalizing the value of public-hoist-pattern', async () => {
       },
     })
 
-    expect(config.publicHoistPattern).toBeUndefined()
+    expect(config.publicHoistPattern).toBe('')
   }
   {
     const { config } = await getConfig({
@@ -589,7 +593,7 @@ test('normalizing the value of public-hoist-pattern', async () => {
       },
     })
 
-    expect(config.publicHoistPattern).toBeUndefined()
+    expect(config.publicHoistPattern).toStrictEqual([''])
   }
 })
 
@@ -1247,6 +1251,7 @@ test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect
   expect(config.lockfileDir).toBeUndefined()
 })
 
+// shamefullyHoist → publicHoistPattern conversion is done in @pnpm/cli-utils
 test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async () => {
   const workspaceDir = f.find('settings-in-workspace-yaml')
   process.chdir(workspaceDir)
@@ -1260,7 +1265,6 @@ test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async
   })
 
   expect(config.shamefullyHoist).toBe(true)
-  expect(config.publicHoistPattern).toStrictEqual(['*'])
   expect(config.rawConfig['shamefully-hoist']).toBe(true)
 })
 
@@ -1358,6 +1362,66 @@ test('CLI should override environment variable pnpm_config_*', async () => {
   })).toBe(10)
 })
 
+test('warn when directory contains PATH delimiter character', async () => {
+  const tempDir = path.join(os.tmpdir(), `pnpm-test${path.delimiter}project-${Date.now()}`)
+  fs.mkdirSync(tempDir, { recursive: true })
+
+  try {
+    const { warnings } = await getConfig({
+      cliOptions: { dir: tempDir },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(warnings).toContainEqual(
+      expect.stringContaining('path delimiter character')
+    )
+  } finally {
+    fs.rmSync(tempDir, { recursive: true })
+  }
+})
+
+test('no warning when directory does not contain PATH delimiter character', async () => {
+  const tempDir = path.join(os.tmpdir(), `pnpm-test-normal-${Date.now()}`)
+  fs.mkdirSync(tempDir, { recursive: true })
+
+  try {
+    const { warnings } = await getConfig({
+      cliOptions: { dir: tempDir },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(warnings).not.toContainEqual(
+      expect.stringContaining('path delimiter character')
+    )
+  } finally {
+    fs.rmSync(tempDir, { recursive: true })
+  }
+})
+
+test.each([
+  [undefined, undefined],
+  [false, undefined],
+  [true, true],
+])('sets autoConfirmAllPrompts when CLI is passed --yes=%s', async (cliValue?: boolean, expectedValue?: boolean) => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'yes': cliValue,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.autoConfirmAllPrompts).toBe(expectedValue)
+})
+
 describe('global config.yaml', () => {
   let XDG_CONFIG_HOME: string | undefined
 
@@ -1397,4 +1461,108 @@ describe('global config.yaml', () => {
     // TODO: switch to camelCase entirely later.
     expect(config.rawConfig).toHaveProperty(['dangerously-allow-all-builds'])
   })
+})
+
+test('lockfile: false in pnpm-workspace.yaml sets useLockfile to false', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    lockfile: false,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.useLockfile).toBe(false)
+})
+
+test('pnpm_config_lockfile env var overrides lockfile from pnpm-workspace.yaml in useLockfile', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    lockfile: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_lockfile: 'false',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.useLockfile).toBe(false)
+})
+
+test('ci disables enableGlobalVirtualStore by default', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    ci: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.enableGlobalVirtualStore).toBe(false)
+})
+
+test('ci respects explicit enableGlobalVirtualStore from config', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    ci: true,
+    enableGlobalVirtualStore: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.enableGlobalVirtualStore).toBe(true)
+})
+
+test('pnpm_config_git_branch_lockfile env var overrides git-branch-lockfile from pnpm-workspace.yaml in useGitBranchLockfile', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    gitBranchLockfile: false,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_git_branch_lockfile: 'true',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.useGitBranchLockfile).toBe(true)
 })

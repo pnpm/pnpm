@@ -25,12 +25,12 @@ import {
 } from '@pnpm/lockfile.verification'
 import { globalWarn, logger } from '@pnpm/logger'
 import { parseOverrides } from '@pnpm/parse-overrides'
-import { type WorkspacePackages } from '@pnpm/resolver-base'
-import {
-  type DependencyManifest,
-  type Project,
-  type ProjectId,
-  type ProjectManifest,
+import type { WorkspacePackages } from '@pnpm/resolver-base'
+import type {
+  DependencyManifest,
+  Project,
+  ProjectId,
+  ProjectManifest,
 } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
@@ -466,7 +466,6 @@ async function assertWantedLockfileUpToDate (
     linkWorkspacePackages,
     getManifestsByDir,
     getWorkspacePackages,
-    rootDir,
     rootManifestOptions,
   } = ctx
 
@@ -482,7 +481,7 @@ async function assertWantedLockfileUpToDate (
     patchedDependencies,
     pnpmfileChecksum,
   ] = await Promise.all([
-    calcPatchHashes(rootManifestOptions?.patchedDependencies ?? {}, rootDir),
+    calcPatchHashes(rootManifestOptions?.patchedDependencies ?? {}),
     config.hooks?.calculatePnpmfileChecksum?.(),
   ])
 

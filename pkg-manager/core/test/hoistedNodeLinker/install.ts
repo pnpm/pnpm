@@ -3,7 +3,7 @@ import path from 'path'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -56,6 +56,7 @@ test('installing with hoisted node-linker and no lockfile', async () => {
 })
 
 test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
+  await addDistTag({ package: 'is-positive', version: '3.1.0', distTag: 'latest' })
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},

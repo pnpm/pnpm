@@ -54,7 +54,7 @@ test('overrides are added for vulnerable dependencies', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
   getMockAgent()!.get(registries.default.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
+    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -80,7 +80,7 @@ test('no overrides are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
   getMockAgent()!.get(registries.default.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
+    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -102,7 +102,7 @@ test('CVEs found in the allow list are not added as overrides', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
   getMockAgent()!.get(registries.default.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
+    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({

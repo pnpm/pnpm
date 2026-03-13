@@ -1,21 +1,23 @@
 import assert from 'assert'
+import fs from 'fs/promises'
 import path from 'path'
 import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { getWorkspaceConcurrency } from '@pnpm/config'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
 import { hardLinkDir } from '@pnpm/worker'
-import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type StoreController } from '@pnpm/store-controller-types'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import type { StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import {
-  type AllowBuild,
-  type DependencyManifest,
-  type DepPath,
-  type IgnoredBuilds,
+import type {
+  AllowBuild,
+  DependencyManifest,
+  DepPath,
+  IgnoredBuilds,
 } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import { pickBy } from 'ramda'
@@ -49,6 +51,7 @@ export async function buildModules<T extends string> (
     storeController: StoreController
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
+    enableGlobalVirtualStore?: boolean
   }
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   if (!rootDepPaths.length) return {}
@@ -103,7 +106,24 @@ export async function buildModules<T extends string> (
       }
     )
   })
-  await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)
+  const patchErrors: Error[] = []
+  const groupsWithPatchErrors = groups.map((group) =>
+    group.map((task) => async () => {
+      try {
+        await task()
+      } catch (err: unknown) {
+        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_PATCH_FAILED') {
+          patchErrors.push(err)
+        } else {
+          throw err
+        }
+      }
+    })
+  )
+  await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groupsWithPatchErrors)
+  if (patchErrors.length > 0) {
+    throw patchErrors[0]
+  }
   return { ignoredBuilds }
 }
 
@@ -129,6 +149,7 @@ async function buildDependency<T extends string> (
     unsafePerm: boolean
     hoistedLocations?: Record<string, string[]>
     builtHoistedDeps?: Record<string, DeferredPromise<void>>
+    enableGlobalVirtualStore?: boolean
     warn: (message: string) => void
   }
 ): Promise<void> {
@@ -141,12 +162,18 @@ async function buildDependency<T extends string> (
     }
     opts.builtHoistedDeps[depNode.depPath] = pDefer()
   }
+  let buildSucceeded = false
   try {
     await linkBinsOfDependencies(depNode, depGraph, opts)
     let isPatched = false
     if (depNode.patch) {
-      const { file } = depNode.patch
-      isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: file.path })
+      if (!depNode.patch.patchFilePath) {
+        throw new PnpmError('PATCH_FILE_PATH_MISSING',
+          `Cannot apply patch for ${depPath}: patch file path is missing`,
+          { hint: 'Ensure the package is listed in patchedDependencies configuration' }
+        )
+      }
+      isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patch.patchFilePath })
     }
     const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
       depPath,
@@ -162,10 +189,15 @@ async function buildDependency<T extends string> (
       shellEmulator: opts.shellEmulator,
       unsafePerm: opts.unsafePerm || false,
     })
+    // Remove the .pnpm-needs-build marker before uploading side effects,
+    // so it doesn't get cached as part of the package's side effects diff.
+    if (opts.enableGlobalVirtualStore) {
+      await fs.unlink(path.join(depNode.dir, '.pnpm-needs-build')).catch(() => {})
+    }
     if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
-          patchFileHash: depNode.patch?.file.hash,
+          patchFileHash: depNode.patch?.hash,
           includeDepGraphHash: hasSideEffects,
         })
         await opts.storeController.upload(depNode.dir, {
@@ -181,17 +213,23 @@ async function buildDependency<T extends string> (
         })
       }
     }
+    buildSucceeded = true
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
+    // In GVS mode, remove the entire hash directory so the next install
+    // sees the directory is absent, re-fetches, and re-builds.
+    if (opts.enableGlobalVirtualStore) {
+      const hashDir = path.resolve(depNode.dir, '../..')
+      await fs.rm(hashDir, { recursive: true, force: true })
+    }
     if (depNode.optional) {
       // TODO: add parents field to the log
-      const pkg = await readPackageJsonFromDir(path.join(depNode.dir)) as DependencyManifest
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: {
           id: depNode.dir,
-          name: pkg.name,
-          version: pkg.version,
+          name: depNode.name,
+          version: depNode.version,
         },
         prefix: opts.lockfileDir,
         reason: 'build_failure',
@@ -200,13 +238,15 @@ async function buildDependency<T extends string> (
     }
     throw err
   } finally {
-    const hoistedLocationsOfDep = opts.hoistedLocations?.[depNode.depPath]
-    if (hoistedLocationsOfDep) {
-      // There is no need to build the same package in every location.
-      // We just copy the built package to every location where it is present.
-      const currentHoistedLocation = path.relative(opts.lockfileDir, depNode.dir)
-      const nonBuiltHoistedDeps = hoistedLocationsOfDep?.filter((hoistedLocation) => hoistedLocation !== currentHoistedLocation)
-      await hardLinkDir(depNode.dir, nonBuiltHoistedDeps)
+    if (buildSucceeded) {
+      const hoistedLocationsOfDep = opts.hoistedLocations?.[depNode.depPath]
+      if (hoistedLocationsOfDep) {
+        // There is no need to build the same package in every location.
+        // We just copy the built package to every location where it is present.
+        const currentHoistedLocation = path.relative(opts.lockfileDir, depNode.dir)
+        const nonBuiltHoistedDeps = hoistedLocationsOfDep?.filter((hoistedLocation) => hoistedLocation !== currentHoistedLocation)
+        await hardLinkDir(depNode.dir, nonBuiltHoistedDeps)
+      }
     }
     if (opts.builtHoistedDeps) {
       opts.builtHoistedDeps[depNode.depPath].resolve()
@@ -247,7 +287,7 @@ export async function linkBinsOfDependencies<T extends string> (
   const pkgs = await Promise.all(pkgNodes
     .map(async (dep) => ({
       location: dep.dir,
-      manifest: (await dep.fetching?.())?.bundledManifest ?? (await safeReadPackageJsonFromDir(dep.dir) as DependencyManifest) ?? {},
+      manifest: ((await dep.fetching?.())?.bundledManifest ?? (await safeReadPackageJsonFromDir(dep.dir))) as DependencyManifest ?? {},
     }))
   )
 

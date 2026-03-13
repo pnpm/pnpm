@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import {
   deprecationLogger,
   hookLogger,
@@ -404,7 +404,7 @@ test('prints summary for global installation', async () => {
 
   const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
   expect(output).toBe(EOL + `\
-${h1(`${prefix}:`)}
+${h1('global:')}
 ${ADD} bar ${versionColor('2.0.0')}
 ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
 `)

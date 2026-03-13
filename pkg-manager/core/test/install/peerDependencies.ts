@@ -1,12 +1,12 @@
 import fs from 'fs'
 import path from 'path'
-import { type Project } from '@pnpm/assert-project'
+import type { Project } from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type LockfileFile } from '@pnpm/lockfile.fs'
+import type { LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir } from '@pnpm/types'
 import { jest } from '@jest/globals'
 import { sync as readYamlFile } from 'read-yaml-file'
 import {
@@ -19,7 +19,6 @@ import {
   type ProjectOptions,
 } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
-import sinon from 'sinon'
 import deepRequireCwd from 'deep-require-cwd'
 import { createPeerDepGraphHash, depPathToFilename } from '@pnpm/dependency-path'
 import { testDefaults } from '../utils/index.js'
@@ -85,13 +84,13 @@ test('nothing is needlessly removed from node_modules', async () => {
 test('peer dependency is grouped with dependent when the peer is a top dependency', async () => {
   const project = prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], testDefaults({ reporter }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     message: `localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.`,
-  })).toBeFalsy()
+  }))
 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords'))).toBeTruthy()
 
@@ -854,13 +853,13 @@ test('own peer installed in root as well is linked to root', async () => {
 test('peer dependency is grouped with dependent when the peer is a top dependency but an external lockfile is used', async () => {
   prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], testDefaults({ reporter, lockfileDir: path.resolve('..'), strictPeerDependencies: false }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     message: `localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.`,
-  })).toBeFalsy()
+  }))
 
   expect(fs.existsSync(path.join('../node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords'))).toBeTruthy()
 
@@ -884,7 +883,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 test('peer dependency is grouped correctly with peer installed via separate installation when external lockfile is used', async () => {
   prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   const lockfileDir = path.resolve('..')
 
   const { updatedManifest: manifest } = await install({
@@ -1323,7 +1322,7 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
 test('local tarball dependency with peer dependency', async () => {
   prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, [
     `file:${f.find('tar-pkg-with-peers-1.0.0.tgz')}`,

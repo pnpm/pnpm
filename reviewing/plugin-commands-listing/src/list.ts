@@ -1,11 +1,12 @@
-import { PnpmError } from '@pnpm/error'
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { listGlobalPackages } from '@pnpm/global.commands'
 import { list, listForPackages } from '@pnpm/list'
-import { type Finder, type IncludedDependencies } from '@pnpm/types'
+import type { Finder, IncludedDependencies } from '@pnpm/types'
 import { pick } from 'ramda'
 import renderHelp from 'render-help'
+import { computeInclude, resolveFinders, determineReportAs, SHARED_CLI_HELP_OPTIONS, BASE_RC_OPTION_KEYS } from './common.js'
 import { listRecursive } from './recursive.js'
 
 export const EXCLUDE_PEERS_HELP = {
@@ -15,17 +16,9 @@ export const EXCLUDE_PEERS_HELP = {
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
+    ...BASE_RC_OPTION_KEYS,
     'depth',
-    'dev',
-    'global-dir',
-    'global',
-    'json',
     'lockfile-only',
-    'long',
-    'only',
-    'optional',
-    'parseable',
-    'production',
   ], allTypes)
 }
 
@@ -37,10 +30,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   'find-by': [String, Array],
 })
 
-export const shorthands: Record<string, string> = {
-  D: '--dev',
-  P: '--production',
-}
+export { shorthands } from './common.js'
 
 export const commandNames = ['list', 'ls']
 
@@ -55,30 +45,7 @@ For example: pnpm ls babel-* eslint-*',
         title: 'Options',
 
         list: [
-          {
-            description: 'Perform command on every package in subdirectories \
-or on every workspace package, when executed inside a workspace. \
-For options that may be used with `-r`, see "pnpm help recursive"',
-            name: '--recursive',
-            shortAlias: '-r',
-          },
-          {
-            description: 'Show extended information',
-            name: '--long',
-          },
-          {
-            description: 'Show parseable output instead of tree view',
-            name: '--parseable',
-          },
-          {
-            description: 'Show information in JSON format',
-            name: '--json',
-          },
-          {
-            description: 'List packages in the global install prefix instead of in the current project',
-            name: '--global',
-            shortAlias: '-g',
-          },
+          ...SHARED_CLI_HELP_OPTIONS,
           {
             description: 'Max display depth of the dependency tree',
             name: '--depth <number>',
@@ -92,22 +59,8 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--depth -1',
           },
           {
-            description: 'Display only the dependency graph for packages in `dependencies` and `optionalDependencies`',
-            name: '--prod',
-            shortAlias: '-P',
-          },
-          {
-            description: 'Display only the dependency graph for packages in `devDependencies`',
-            name: '--dev',
-            shortAlias: '-D',
-          },
-          {
             description: 'Display only dependencies that are also projects within the workspace',
             name: '--only-projects',
-          },
-          {
-            description: "Don't display packages from `optionalDependencies`",
-            name: '--no-optional',
           },
           {
             description: 'List packages from the lockfile only, without checking node_modules.',
@@ -149,17 +102,16 @@ export type ListCommandOptions = Pick<Config,
   onlyProjects?: boolean
   recursive?: boolean
   findBy?: string[]
-}
+} & Partial<Pick<Config, 'global' | 'globalPkgDir'>>
 
 export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ): Promise<string> {
-  const include = {
-    dependencies: opts.production !== false,
-    devDependencies: opts.dev !== false,
-    optionalDependencies: opts.optional !== false,
+  if (opts.global && opts.globalPkgDir) {
+    return listGlobalPackages(opts.globalPkgDir, params)
   }
+  const include = computeInclude(opts)
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
@@ -194,15 +146,7 @@ export async function render (
     findBy?: string[]
   }
 ): Promise<string> {
-  const finders: Finder[] = []
-  if (opts.findBy) {
-    for (const finderName of opts.findBy) {
-      if (opts.finders?.[finderName] == null) {
-        throw new PnpmError('FINDER_NOT_FOUND', `No finder with name ${finderName} is found`)
-      }
-      finders.push(opts.finders[finderName])
-    }
-  }
+  const finders = resolveFinders(opts)
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth ?? 0,
@@ -212,8 +156,9 @@ export async function render (
     checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
     long: opts.long,
     onlyProjects: opts.onlyProjects,
-    reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
+    reportAs: determineReportAs(opts),
     showExtraneous: false,
+    showSummary: true,
     modulesDir: opts.modulesDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     finders,

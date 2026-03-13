@@ -39,9 +39,8 @@ function hasPeerA (context) {
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
   await execPnpm(['add', 'is-positive@1.0.0', '@pnpm.e2e/abc@1.0.0'])
   const result = execPnpmSync(['list', '--find-by=hasPeerA'])
-  expect(result.stdout.toString()).toMatch(`dependencies:
-@pnpm.e2e/abc 1.0.0
-  @pnpm.e2e/peer-a@^1.0.0`)
+  expect(result.stdout.toString()).toMatch('@pnpm.e2e/abc@1.0.0')
+  expect(result.stdout.toString()).toMatch('@pnpm.e2e/peer-a@^1.0.0')
 })
 
 test('pnpm list returns correct paths with global virtual store', async () => {
@@ -51,7 +50,6 @@ test('pnpm list returns correct paths with global virtual store', async () => {
     },
   })
   writeYamlFile('pnpm-workspace.yaml', {
-    ci: false, // enableGlobalVirtualStore is always disabled in CI
     enableGlobalVirtualStore: true,
     storeDir: path.resolve('store'),
     privateHoistPattern: '*',

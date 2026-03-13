@@ -4,7 +4,7 @@ import os from 'os'
 import { isCI } from 'ci-info'
 import { omit } from 'ramda'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
-import { GLOBAL_CONFIG_YAML_FILENAME, LAYOUT_VERSION } from '@pnpm/constants'
+import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { isCamelCase } from '@pnpm/naming-cases'
 import loadNpmConf from '@pnpm/npm-conf'
@@ -12,7 +12,7 @@ import type npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { createMatcher } from '@pnpm/matcher'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import betterPathResolve from 'better-path-resolve'
 import camelcase from 'camelcase'
 import isWindows from 'is-windows'
@@ -28,13 +28,13 @@ import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } fro
 import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
 import { transformPathKeys } from './transformPath.js'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
-import {
-  type Config,
-  type ConfigWithDeprecatedSettings,
-  type ProjectConfig,
-  type UniversalOptions,
-  type VerifyDepsBeforeRun,
-  type WantedPackageManager,
+import type {
+  Config,
+  ConfigWithDeprecatedSettings,
+  ProjectConfig,
+  UniversalOptions,
+  VerifyDepsBeforeRun,
+  WantedPackageManager,
 } from './Config.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import { parseEnvVars } from './env.js'
@@ -184,7 +184,7 @@ export async function getConfig (opts: {
     'hoist-workspace-packages': true,
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
-    'optimistic-repeat-install': false,
+    'optimistic-repeat-install': true,
     optional: true,
     'init-package-manager': true,
     'init-type': 'module',
@@ -222,7 +222,7 @@ export async function getConfig (opts: {
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
     userconfig: npmDefaults.userconfig,
-    'verify-deps-before-run': false,
+    'verify-deps-before-run': 'install',
     'verify-store-integrity': true,
     'workspace-concurrency': getDefaultWorkspaceConcurrency(),
     'workspace-prefix': opts.workspaceDir,
@@ -274,6 +274,12 @@ export async function getConfig (opts: {
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
   const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
 
+  // Unfortunately, there is no way to escape the PATH delimiter,
+  // so directories added to PATH should not contain it.
+  if (cwd.includes(path.delimiter)) {
+    warnings.push(`Directory "${cwd}" contains the path delimiter character (${path.delimiter}), so binaries from node_modules/.bin will not be accessible via PATH. Consider renaming the directory.`)
+  }
+
   pnpmConfig.maxSockets = npmConfig.maxsockets
   // @ts-expect-error
   delete pnpmConfig['maxsockets']
@@ -320,11 +326,6 @@ export async function getConfig (opts: {
   pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
   Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.rawConfig))
-  pnpmConfig.useLockfile = (() => {
-    if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
-    if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
-    return false
-  })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)
   let globalDirRoot
   if (pnpmConfig.globalDir) {
@@ -332,10 +333,10 @@ export async function getConfig (opts: {
   } else {
     globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
   }
-  pnpmConfig.globalPkgDir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
+  pnpmConfig.globalPkgDir = path.join(globalDirRoot, GLOBAL_LAYOUT_VERSION)
+  pnpmConfig.dir = cwd
   if (cliOptions['global']) {
     delete pnpmConfig.workspaceDir
-    pnpmConfig.dir = pnpmConfig.globalPkgDir
     pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
@@ -378,12 +379,11 @@ export async function getConfig (opts: {
       throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
         'Configuration conflict. "virtual-store-dir" may not be used with "global"')
     }
-    pnpmConfig.virtualStoreDir = '.pnpm'
-  } else {
-    pnpmConfig.dir = cwd
-    if (!pnpmConfig.bin) {
-      pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
+    if (pnpmConfig.enableGlobalVirtualStore == null) {
+      pnpmConfig.enableGlobalVirtualStore = true
     }
+  } else if (!pnpmConfig.bin) {
+    pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
   }
   pnpmConfig.packageManager = packageManager
 
@@ -428,22 +428,6 @@ export async function getConfig (opts: {
     }
   }
 
-  pnpmConfig.useGitBranchLockfile = (() => {
-    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
-    return false
-  })()
-  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
-    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') return pnpmConfig.mergeGitBranchLockfiles
-    if (pnpmConfig.mergeGitBranchLockfilesBranchPattern != null && pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0) {
-      const branch = await getCurrentBranch()
-      if (branch) {
-        const branchMatcher = createMatcher(pnpmConfig.mergeGitBranchLockfilesBranchPattern)
-        return branchMatcher(branch)
-      }
-    }
-    return undefined
-  })()
-
   // omit some schema that the custom parser can't yet handle
   const envPnpmTypes = omit([
     'init-version', // the type is a private function named 'semver'
@@ -471,6 +455,28 @@ export async function getConfig (opts: {
   }
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
+
+  pnpmConfig.useLockfile = (() => {
+    if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
+    if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
+    return false
+  })()
+
+  pnpmConfig.useGitBranchLockfile = (() => {
+    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
+    return false
+  })()
+  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
+    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') return pnpmConfig.mergeGitBranchLockfiles
+    if (pnpmConfig.mergeGitBranchLockfilesBranchPattern != null && pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0) {
+      const branch = await getCurrentBranch()
+      if (branch) {
+        const branchMatcher = createMatcher(pnpmConfig.mergeGitBranchLockfilesBranchPattern)
+        return branchMatcher(branch)
+      }
+    }
+    return undefined
+  })()
 
   if (!hasDependencyBuildOptions(pnpmConfig)) {
     Object.assign(pnpmConfig, globalDepsBuildConfig)
@@ -523,34 +529,6 @@ export async function getConfig (opts: {
   }
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
-  }
-  if (pnpmConfig.hoist === false) {
-    delete pnpmConfig.hoistPattern
-  }
-  switch (pnpmConfig.shamefullyHoist) {
-  case false:
-    delete pnpmConfig.publicHoistPattern
-    break
-  case true:
-    pnpmConfig.publicHoistPattern = ['*']
-    break
-  default:
-    if (
-      (pnpmConfig.publicHoistPattern == null) ||
-        (pnpmConfig.publicHoistPattern === '') ||
-        (
-          Array.isArray(pnpmConfig.publicHoistPattern) &&
-          pnpmConfig.publicHoistPattern.length === 1 &&
-          pnpmConfig.publicHoistPattern[0] === ''
-        )
-    ) {
-      delete pnpmConfig.publicHoistPattern
-    }
-    break
-  }
-  if (!pnpmConfig.symlink) {
-    delete pnpmConfig.hoistPattern
-    delete pnpmConfig.publicHoistPattern
   }
   if (typeof pnpmConfig['color'] === 'boolean') {
     switch (pnpmConfig['color']) {
@@ -628,10 +606,19 @@ export async function getConfig (opts: {
     pnpmConfig.dev = true
   }
 
-  if (pnpmConfig.ci) {
+  if (pnpmConfig.ci && pnpmConfig.enableGlobalVirtualStore == null) {
     // Using a global virtual store in CI makes little sense,
-    // as there is never a warm cache in that environment.
+    // as there is usually no warm cache in that environment.
+    // However, if the user explicitly enabled GVS (e.g., for Nix builds
+    // or CI systems with persistent caches), respect that setting.
     pnpmConfig.enableGlobalVirtualStore = false
+  }
+
+  // The yes option is only meant to be a CLI option. Remove it from the
+  // returned pnpm config.
+  delete (pnpmConfig as { yes?: boolean }).yes
+  if (cliOptions.yes) {
+    pnpmConfig.autoConfirmAllPrompts = true
   }
 
   transformPathKeys(pnpmConfig, os.homedir())

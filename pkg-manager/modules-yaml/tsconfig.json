@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../fs/graceful-fs"
+    },
+    {
       "path": "../../packages/types"
     }
   ]

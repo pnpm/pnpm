@@ -3,7 +3,7 @@ import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { type MakePublishManifestOptions, createExportableManifest } from '@pnpm/exportable-manifest'
 import { preparePackages } from '@pnpm/prepare'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
 import path from 'path'
 
@@ -275,4 +275,38 @@ test('jsr deps are replaced', async () => {
       qux: 'npm:@jsr/foo__qux',
     },
   } as Partial<typeof manifest>)
+})
+
+test('checks for name', async () => {
+  const location = 'package-to-export'
+  const manifest = { version: '0.0.0' } satisfies ProjectManifest
+
+  preparePackages([{
+    location,
+    package: manifest,
+  }])
+
+  process.chdir(location)
+
+  await expect(createExportableManifest(process.cwd(), manifest, { catalogs: {} })).rejects.toMatchObject({
+    code: 'ERR_PNPM_MISSING_REQUIRED_FIELD',
+    field: 'name',
+  })
+})
+
+test('checks for version', async () => {
+  const location = 'package-to-export'
+  const manifest = { name: 'example' } satisfies ProjectManifest
+
+  preparePackages([{
+    location,
+    package: manifest,
+  }])
+
+  process.chdir(location)
+
+  await expect(createExportableManifest(process.cwd(), manifest, { catalogs: {} })).rejects.toMatchObject({
+    code: 'ERR_PNPM_MISSING_REQUIRED_FIELD',
+    field: 'version',
+  })
 })

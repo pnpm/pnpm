@@ -1,4 +1,4 @@
-import { type LockfileBase, type LockfilePackageInfo, type LockfilePackageSnapshot, type ProjectSnapshotBase } from './index.js'
+import type { LockfileBase, LockfilePackageInfo, LockfilePackageSnapshot, ProjectSnapshotBase } from './index.js'
 
 export interface LockfileFile extends LockfileBase {
   importers?: Record<string, LockfileFileProjectSnapshot>

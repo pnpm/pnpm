@@ -1,34 +1,34 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import {
-  type FetchFromRegistry,
-  type GetAuthHeader,
-  type RetryTimeoutOptions,
+import type {
+  FetchFromRegistry,
+  GetAuthHeader,
+  RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
+import type { PackageMeta, PackageInRegistry } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
-import {
-  type DirectoryResolution,
-  type PkgResolutionId,
-  type PreferredVersions,
-  type ResolveResult,
-  type TarballResolution,
-  type WantedDependency,
-  type WorkspacePackage,
-  type WorkspacePackages,
-  type WorkspacePackagesByVersion,
+import type {
+  DirectoryResolution,
+  PkgResolutionId,
+  PreferredVersions,
+  ResolveResult,
+  TarballResolution,
+  WantedDependency,
+  WorkspacePackage,
+  WorkspacePackages,
+  WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
-import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
+import { storeIndexKey } from '@pnpm/store.index'
 import {
   readPkgFromCafs,
 } from '@pnpm/worker'
-import {
-  type DependencyManifest,
-  type PackageVersionPolicy,
-  type PinnedVersion,
-  type Registries,
-  type TrustPolicy,
+import type {
+  DependencyManifest,
+  PackageVersionPolicy,
+  PinnedVersion,
+  Registries,
+  TrustPolicy,
 } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
@@ -173,7 +173,6 @@ export function createNpmResolver (
   }
   const fetch = pMemoize(fetchMetadataFromFromRegistry.bind(null, fetchOpts), {
     cacheKey: (...args) => JSON.stringify(args),
-    maxAge: 1000 * 20, // 20 seconds
   })
   const metaCache = new LRUCache<string, PackageMeta>({
     max: 10000,
@@ -185,7 +184,7 @@ export function createNpmResolver (
   let peekManifestFromStore: ResolveFromNpmContext['peekManifestFromStore'] | undefined
   if (storeDir) {
     peekManifestFromStore = async (peekOpts) => {
-      const filesIndexFile = getIndexFilePathInCafs(storeDir, peekOpts.integrity, peekOpts.id)
+      const filesIndexFile = storeIndexKey(peekOpts.integrity, peekOpts.id)
       const existingRequest = peekLockerForPeek.get(filesIndexFile)
       if (existingRequest != null) {
         return existingRequest
@@ -193,16 +192,15 @@ export function createNpmResolver (
       const request = readPkgFromCafs(
         {
           storeDir,
-          verifyStoreIntegrity: true,
+          verifyStoreIntegrity: false,
         },
         filesIndexFile,
         {
-          readManifest: true,
           expectedPkg: { name: peekOpts.name, version: peekOpts.version },
         }
-      ).then(({ manifest, verified }) => {
-        if (!verified) return undefined
-        return manifest
+      ).then(({ bundledManifest }) => {
+        if (!bundledManifest) return undefined
+        return bundledManifest as DependencyManifest
       }).catch(() => undefined)
       peekLockerForPeek.set(filesIndexFile, request)
       return request
@@ -363,7 +361,7 @@ async function resolveNpm (
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
-          update: Boolean(opts.update),
+          update: false,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
@@ -384,7 +382,7 @@ async function resolveNpm (
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
-          update: Boolean(opts.update),
+          update: false,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,

@@ -3,9 +3,9 @@ import path from 'path'
 import { ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import { readMsgpackFile, writeMsgpackFile } from '@pnpm/fs.msgpack-file'
+import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
-import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
+import type { PackageMeta, PackageInRegistry } from '@pnpm/registry.types'
 import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
@@ -13,13 +13,14 @@ import { pick } from 'ramda'
 import semver from 'semver'
 import renameOverwrite from 'rename-overwrite'
 import { toRaw } from './toRaw.js'
+import type { FetchMetadataResult } from './fetch.js'
 import {
   pickPackageFromMeta,
   pickVersionByVersionRange,
   pickLowestVersionByVersionRange,
   type PickPackageFromMetaOptions,
 } from './pickPackageFromMeta.js'
-import { type RegistryPackageSpec } from './parseBareSpecifier.js'
+import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 
 export interface PackageMetaCache {
   get: (key: string) => PackageMeta | undefined
@@ -85,7 +86,7 @@ function pickPackageFromMetaUsingTime (
 
 export async function pickPackage (
   ctx: {
-    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean }) => Promise<PackageMeta>
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean }) => Promise<FetchMetadataResult>
     fullMetadata?: boolean
     metaCache: PackageMetaCache
     cacheDir: string
@@ -143,7 +144,7 @@ export async function pickPackage (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.mpk`)
+  const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.json`)
 
   return runLimited(pkgMirror, async (limit) => {
     let metaCachedInStore: PackageMeta | null | undefined
@@ -210,23 +211,34 @@ export async function pickPackage (
     }
 
     try {
-      let meta = await ctx.fetch(spec.name, {
+      const fetchResult = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
         fullMetadata,
         registry: opts.registry,
       })
+      const cachedAt = Date.now()
+      let meta = fetchResult.meta
+      let jsonToSave: string | undefined
       if (ctx.filterMetadata) {
         meta = clearMeta(meta)
+      } else if (typeof fetchResult.jsonText === 'string') {
+        // Reuse the raw JSON text from the registry response to avoid re-stringifying.
+        // Inject cachedAt at the start of the JSON object. To be robust against BOMs or
+        // leading whitespace/newlines, locate the first '{' and splice after it.
+        const jsonText = fetchResult.jsonText
+        const firstBraceIndex = jsonText.indexOf('{')
+        if (firstBraceIndex !== -1) {
+          jsonToSave = `{"cachedAt":${cachedAt},${jsonText.slice(firstBraceIndex + 1)}`
+        }
       }
-      meta.cachedAt = Date.now()
+      meta.cachedAt = cachedAt
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
       if (!opts.dryRun) {
-        // We clone this meta here to avoid saving any mutations that could happen to the meta object.
-        const metaClone = structuredClone(meta)
+        const jsonForDisk = jsonToSave ?? JSON.stringify(meta)
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
-            await saveMeta(pkgMirror, metaClone)
+            await saveMeta(pkgMirror, jsonForDisk)
           } catch (err: any) { // eslint-disable-line
             // We don't care if this file was not written to the cache
           }
@@ -296,7 +308,8 @@ function encodePkgName (pkgName: string): string {
 
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
-    return await readMsgpackFile<PackageMeta>(pkgMirror)
+    const data = await gfs.readFile(pkgMirror, 'utf8')
+    return JSON.parse(data) as PackageMeta
   } catch {
     return null
   }
@@ -304,14 +317,14 @@ async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
 
 const createdDirs = new Set<string>()
 
-async function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<void> {
+async function saveMeta (pkgMirror: string, json: string): Promise<void> {
   const dir = path.dirname(pkgMirror)
   if (!createdDirs.has(dir)) {
     await fs.mkdir(dir, { recursive: true })
     createdDirs.add(dir)
   }
   const temp = pathTemp(pkgMirror)
-  await writeMsgpackFile(temp, meta)
+  await gfs.writeFile(temp, json, 'utf8')
   await renameOverwrite(temp, pkgMirror)
 }
 

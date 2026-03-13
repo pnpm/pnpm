@@ -1,5 +1,5 @@
-import { type Catalogs } from '@pnpm/catalogs.types'
-import { type LockfileObject, type PatchFile } from '@pnpm/lockfile.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { allCatalogsAreUpToDate } from '@pnpm/lockfile.verification'
 import { equals } from 'ramda'
 
@@ -32,7 +32,7 @@ export function getOutdatedLockfileSetting (
     catalogs?: Catalogs
     overrides?: Record<string, string>
     packageExtensionsChecksum?: string
-    patchedDependencies?: Record<string, PatchFile>
+    patchedDependencies?: Record<string, string>
     ignoredOptionalDependencies?: string[]
     autoInstallPeers?: boolean
     excludeLinksFromLockfile?: boolean

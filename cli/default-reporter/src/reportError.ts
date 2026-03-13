@@ -1,10 +1,10 @@
-import { type Config } from '@pnpm/config'
-import { type Log } from '@pnpm/core-loggers'
+import type { Config } from '@pnpm/config'
+import type { Log } from '@pnpm/core-loggers'
 import { renderDedupeCheckIssues } from '@pnpm/dedupe.issues-renderer'
-import { type DedupeCheckIssues } from '@pnpm/dedupe.types'
-import { type PnpmError } from '@pnpm/error'
+import type { DedupeCheckIssues } from '@pnpm/dedupe.types'
+import type { PnpmError } from '@pnpm/error'
 import { renderPeerIssues } from '@pnpm/render-peer-issues'
-import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
+import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 import { equals } from 'ramda'
 import StackTracey from 'stacktracey'
@@ -158,7 +158,7 @@ function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, i
     }
   }
 
-  output += `${EOL}If you need the full list of all ${Object.keys(meta.versions).length} published versions run "$ pnpm view ${meta.name} versions".`
+  output += `${EOL}If you need the full list of all ${Object.keys(meta.versions).length} published versions run "pnpm view ${meta.name} versions".`
 
   if (msg.immatureVersion) {
     output += `${EOL}${EOL}If you want to install the matched version ignoring the time it was published, you can add the package name to the minimumReleaseAgeExclude setting. Read more about it: https://pnpm.io/settings#minimumreleaseageexclude`

@@ -1,7 +1,7 @@
-import { type ChildProcess as NodeChildProcess, type StdioOptions } from 'child_process'
+import type { ChildProcess as NodeChildProcess, StdioOptions } from 'child_process'
 import path from 'path'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import isWindows from 'is-windows'
 import crossSpawn from 'cross-spawn'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -93,16 +93,18 @@ export interface ChildProcess {
   stderr: { toString: () => string }
 }
 
+export interface ExecPnpmSyncOpts {
+  cwd?: string
+  env?: Record<string, string>
+  expectSuccess?: boolean // similar to expect(status).toBe(0), but also prints error messages, which makes it easier to debug failed tests
+  stdio?: StdioOptions
+  storeDir?: string
+  timeout?: number
+}
+
 export function execPnpmSync (
   args: string[],
-  opts?: {
-    cwd?: string
-    env?: Record<string, string>
-    expectSuccess?: boolean // similar to expect(status).toBe(0), but also prints error messages, which makes it easier to debug failed tests
-    stdio?: StdioOptions
-    storeDir?: string
-    timeout?: number
-  }
+  opts?: ExecPnpmSyncOpts
 ): ChildProcess {
   const execResult = crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
     cwd: opts?.cwd,

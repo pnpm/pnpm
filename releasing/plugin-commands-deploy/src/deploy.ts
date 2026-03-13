@@ -16,7 +16,7 @@ import renderHelp from 'render-help'
 import writeYamlFile from 'write-yaml-file'
 import { deployHook } from './deployHook.js'
 import { logger, globalWarn } from '@pnpm/logger'
-import { type Project } from '@pnpm/types'
+import type { Project } from '@pnpm/types'
 import { createDeployFiles } from './createDeployFiles.js'
 
 const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes
@@ -170,6 +170,9 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     // the deploy directory. It's also just weird to include empty importers
     // that don't matter to the filtered lockfile generated for pnpm deploy.
     pruneLockfileImporters: true,
+    // The node_modules for a pnpm deploy should be self-contained. The global
+    // virtual store would create symlinks outside of the deploy directory.
+    enableGlobalVirtualStore: false,
     depth: Infinity,
     hooks: {
       ...opts.hooks,
@@ -266,6 +269,9 @@ async function deployFromSharedLockfile (
       allProjectsGraph: undefined,
       selectedProjectsGraph: undefined,
       rootProjectManifest: deployFiles.manifest,
+      // The node_modules for a pnpm deploy should be self-contained. The global
+      // virtual store would create symlinks outside of the deploy directory.
+      enableGlobalVirtualStore: false,
       rootProjectManifestDir: deployDir,
       dir: deployDir,
       lockfileDir: deployDir,

@@ -1,30 +1,31 @@
+import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
-import { type LockfileResolution, type LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileResolution, LockfileObject } from '@pnpm/lockfile.fs'
 import {
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { type IncludedDependencies } from '@pnpm/modules-yaml'
+import type { IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
-import { type PatchInfo } from '@pnpm/patching.types'
-import {
-  type DepPath,
-  type SupportedArchitectures,
-  type Registries,
-  type PkgIdWithPatchHash,
-  type ProjectId,
-  type AllowBuild,
+import type { PatchInfo } from '@pnpm/patching.types'
+import type {
+  DepPath,
+  SupportedArchitectures,
+  Registries,
+  PkgIdWithPatchHash,
+  ProjectId,
+  AllowBuild,
 } from '@pnpm/types'
-import {
-  type PkgRequestFetchResult,
-  type FetchResponse,
-  type StoreController,
+import type {
+  PkgRequestFetchResult,
+  FetchResponse,
+  StoreController,
 } from '@pnpm/store-controller-types'
 import * as dp from '@pnpm/dependency-path'
 import { pathExists } from 'path-exists'
@@ -69,6 +70,12 @@ export interface LockfileToDepGraphOptions {
   include: IncludedDependencies
   includeUnchangedDeps?: boolean
   ignoreScripts: boolean
+  /**
+   * When true, skip fetching local dependencies (file: protocol pointing to directories).
+   * This is useful for `pnpm fetch` which only downloads packages from the registry
+   * and doesn't need local packages that won't be available (e.g., in Docker builds).
+   */
+  ignoreLocalPackages?: boolean
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
@@ -206,6 +213,14 @@ async function buildGraphFromPackages (
       }
 
       const isDirectoryDep = 'directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null
+      if (isDirectoryDep && opts.ignoreLocalPackages) {
+        logger.info({
+          message: `Skipping local dependency ${pkgName}@${pkgVersion} (file: protocol)`,
+          prefix: opts.lockfileDir,
+        })
+        return
+      }
+
       const depIsPresent = !isDirectoryDep &&
         currentPackages[depPath] &&
         equals(currentPackages[depPath].dependencies, pkgSnapshot.dependencies)
@@ -220,6 +235,12 @@ async function buildGraphFromPackages (
         injectionTargetsByDepPath.set(depPath, [dir])
       }
 
+      // In GVS mode, packages that are allowed to build may have a .pnpm-needs-build
+      // marker indicating a previous build failed or was interrupted. When the
+      // marker is present, skip the fast path to force a re-fetch/re-import/re-build.
+      const mightNeedBuild = opts.enableGlobalVirtualStore &&
+        opts.allowBuild?.(pkgName, pkgVersion) === true
+
       let dirExists: boolean | undefined
       if (
         depIsPresent &&
@@ -229,16 +250,30 @@ async function buildGraphFromPackages (
         !opts.includeUnchangedDeps
       ) {
         dirExists = await pathExists(dir)
-        if (dirExists) return
-        brokenModulesLogger.debug({ missing: dir })
+        if (dirExists) {
+          if (!(mightNeedBuild && fs.existsSync(path.join(dir, '.pnpm-needs-build')))) return
+        } else {
+          brokenModulesLogger.debug({ missing: dir })
+        }
       }
 
       let fetchResponse!: Partial<FetchResponse>
       if (depIsPresent && depIntegrityIsUnchanged && equals(currentPackages[depPath].optionalDependencies, pkgSnapshot.optionalDependencies)) {
         if (dirExists ?? await pathExists(dir)) {
-          fetchResponse = {}
+          if (!(mightNeedBuild && fs.existsSync(path.join(dir, '.pnpm-needs-build')))) {
+            fetchResponse = {}
+          }
         } else {
           brokenModulesLogger.debug({ missing: dir })
+        }
+      }
+
+      if (!fetchResponse && opts.enableGlobalVirtualStore && !isDirectoryDep
+        && !opts.force) {
+        if (dirExists ?? await pathExists(dir)) {
+          if (!(mightNeedBuild && fs.existsSync(path.join(dir, '.pnpm-needs-build')))) {
+            fetchResponse = {}
+          }
         }
       }
 

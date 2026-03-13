@@ -3,19 +3,20 @@ import {
   readDepNameCompletions,
   readProjectManifestOnly,
 } from '@pnpm/cli-utils'
-import { type CompletionFunc } from '@pnpm/command'
+import type { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import { handleGlobalUpdate } from '@pnpm/global.commands'
 import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { PnpmError } from '@pnpm/error'
-import { type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
+import type { IncludedDependencies, ProjectRootDir } from '@pnpm/types'
 import enquirer from 'enquirer'
 import chalk from 'chalk'
 import { pick, pluck, unnest } from 'ramda'
 import renderHelp from 'render-help'
-import { type InstallCommandOptions } from '../install.js'
+import type { InstallCommandOptions } from '../install.js'
 import { installDeps } from '../installDeps.js'
 import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
 import { parseUpdateParam } from '../recursive.js'
@@ -168,8 +169,13 @@ export async function handler (
   opts: UpdateCommandOptions,
   params: string[] = []
 ): Promise<string | undefined> {
-  if (opts.global && opts.rootProjectManifest == null) {
-    return 'No global packages found'
+  if (opts.global) {
+    if (!opts.bin) {
+      throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
+        hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
+      })
+    }
+    return handleGlobalUpdate(opts, params)
   }
   if (opts.interactive) {
     return interactiveUpdate(params, opts)

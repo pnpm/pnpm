@@ -1,16 +1,16 @@
 import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import {
-  type PackageManifestLog,
-  type RootLog,
-  type StatsLog,
+import type {
+  PackageManifestLog,
+  RootLog,
+  StatsLog,
 } from '@pnpm/core-loggers'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectRootDir, type PackageManifest } from '@pnpm/types'
+import type { ProjectRootDir, PackageManifest } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
 import {
@@ -18,7 +18,7 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import sinon from 'sinon'
+import { jest } from '@jest/globals'
 import { writeJsonFileSync } from 'write-json-file'
 import existsSymlink from 'exists-link'
 import { testDefaults } from './utils/index.js'
@@ -30,7 +30,7 @@ test('uninstall package with no dependencies', async () => {
 
   let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative@2.1.0'], testDefaults({ save: true }))
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   manifest = (await mutateModulesInSingleProject({
     dependencyNames: ['is-negative'],
     manifest,
@@ -38,7 +38,7 @@ test('uninstall package with no dependencies', async () => {
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ save: true, reporter }))).updatedProject.manifest
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     initial: {
       dependencies: {
         'is-negative': '2.1.0',
@@ -47,29 +47,29 @@ test('uninstall package with no dependencies', async () => {
     level: 'debug',
     name: 'pnpm:package-manifest',
     prefix: process.cwd(),
-  } as PackageManifestLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as PackageManifestLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix: process.cwd(),
     removed: 1,
-  } as StatsLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StatsLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:root',
-    removed: {
+    removed: expect.objectContaining({
       dependencyType: 'prod',
       name: 'is-negative',
       version: '2.1.0',
-    },
-  } as RootLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+    }),
+  } as RootLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
     updated: {
       dependencies: {},
     },
-  } as PackageManifestLog)).toBeTruthy()
+  } as PackageManifestLog))
 
   // uninstall does not remove packages from store
   // even if they become unreferenced
@@ -83,7 +83,7 @@ test('uninstall package with no dependencies', async () => {
 test('uninstall a dependency that is not present in node_modules', async () => {
   prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await mutateModulesInSingleProject({
     dependencyNames: ['is-negative'],
     manifest: {},
@@ -91,13 +91,13 @@ test('uninstall a dependency that is not present in node_modules', async () => {
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ reporter }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:root',
-    removed: {
+    removed: expect.objectContaining({
       name: 'is-negative',
-    },
-  } as RootLog)).toBeFalsy()
+    }),
+  } as RootLog))
 })
 
 test('uninstall scoped package', async () => {

@@ -46,7 +46,7 @@ test('hook returns new manifest', async () => {
 module.exports = {
   hooks: {
     beforePacking: (pkg) => {
-      return { type: 'module' }
+      return { type: 'module', ...pkg }
     },
   },
 }`, 'utf8')
@@ -57,6 +57,8 @@ module.exports = {
     version: '1.0.0',
   }, { ...defaultOpts, hooks })).toStrictEqual({
     type: 'module',
+    name: 'foo',
+    version: '1.0.0',
   })
 })
 
