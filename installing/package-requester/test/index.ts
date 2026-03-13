@@ -618,6 +618,8 @@ test('fetchPackageToStore() does not cache errors', async () => {
     headers: { 'content-length': String(tarballContent.length) },
   })
 
+  const noRetryStoreIndex = new StoreIndex('.store')
+  storeIndexes.push(noRetryStoreIndex)
   const noRetry = createClient({
     authConfig,
     rawConfig: {},

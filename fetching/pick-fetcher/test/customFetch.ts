@@ -16,9 +16,7 @@ import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)
 const storeIndex = new StoreIndex(temporaryDirectory())
-afterAll(() => {
-  storeIndex.close()
-})
+
 
 let originalDispatcher: Dispatcher
 
@@ -27,6 +25,7 @@ beforeAll(() => {
 })
 
 afterAll(() => {
+  storeIndex.close()
   setGlobalDispatcher(originalDispatcher)
 })
 

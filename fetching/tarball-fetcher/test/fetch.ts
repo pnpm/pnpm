@@ -9,6 +9,7 @@ import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { StoreIndex } from '@pnpm/store.index'
 import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
@@ -68,6 +69,7 @@ const registry = 'http://example.com'
 const fetchFromRegistry = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
   rawConfig: {},
   storeIndex,
   retry: {
@@ -272,6 +274,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
   }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     offline: true,
     rawConfig: {},
     storeIndex,
@@ -300,6 +303,7 @@ test('fail when trying to fetch a non-local tarball in offline mode', async () =
   }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     offline: true,
     rawConfig: {},
     storeIndex,
@@ -427,6 +431,7 @@ test('accessing private packages', async () => {
 
   const getAuthHeader = () => 'Bearer ofjergrg349gj3f2'
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     rawConfig: {},
     storeIndex,
     retry: {
@@ -545,6 +550,7 @@ test('do not build the package when scripts are ignored', async () => {
   const resolution = { tarball }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     ignoreScripts: true,
     rawConfig: {},
     storeIndex,
@@ -594,6 +600,7 @@ test('use the subfolder when path is present', async () => {
   }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     ignoreScripts: true,
     rawConfig: {},
     storeIndex,
@@ -624,6 +631,7 @@ test('prevent directory traversal attack when path is present', async () => {
   const resolution = { tarball, path }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     ignoreScripts: true,
     rawConfig: {},
     storeIndex,
@@ -652,6 +660,7 @@ test('fail when path is not exists', async () => {
   const resolution = { tarball, path }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+  storeIndex,
     ignoreScripts: true,
     rawConfig: {},
     storeIndex,

@@ -58,6 +58,18 @@ function getMockAgent (): MockAgent | null {
 
 const f = fixtures(import.meta.dirname)
 
+function calledWithMatch (mockFn: jest.Mock, matcher: object): boolean {
+  const expected = expect.objectContaining(matcher)
+  return mockFn.mock.calls.some(([arg]) => {
+    try {
+      expect(arg).toEqual(expected)
+      return true
+    } catch {
+      return false
+    }
+  })
+}
+
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
   message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,
