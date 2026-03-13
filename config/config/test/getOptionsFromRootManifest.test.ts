@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import type { PnpmSettings } from '@pnpm/types'
+
 import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from '../lib/getOptionsFromRootManifest.js'
 
 const ORIGINAL_ENV = process.env
@@ -118,6 +120,18 @@ test('getOptionsFromPnpmSettings() replaces env variables in settings', () => {
     '${PNPM_TEST_KEY}': '${PNPM_TEST_VALUE}',
   } as any) as any // eslint-disable-line
   expect(options.foo).toBe('bar')
+})
+
+test('getOptionsFromPnpmSettings() throws a PnpmError when a string config value has an undefined env variable', () => {
+  // Simulates runtime behavior when pnpm-workspace.yaml or config.yaml has a
+  // string-valued setting referencing an env variable that is not defined.
+  // The TypeScript type doesn't include all valid config keys, so we cast.
+  const settings = { nodeLinker: '${PNPM_TEST_UNDEFINED_ENV_VAR_82645}' } as unknown as PnpmSettings
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), settings)).toThrow(
+    expect.objectContaining({
+      code: 'ERR_PNPM_CONFIG_UNRESOLVED_ENV_VAR',
+    })
+  )
 })
 
 test('getOptionsFromRootManifest() converts allowBuilds', () => {
