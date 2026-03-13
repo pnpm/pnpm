@@ -1,14 +1,15 @@
 import fs from 'fs'
-import util from 'util'
-import fsx from 'fs-extra'
 import path from 'path'
+import util from 'util'
+
+import gfs from '@pnpm/graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import { rimrafSync } from '@zkochan/rimraf'
+import fsx from 'fs-extra'
 import { makeEmptyDirSync } from 'make-empty-dir'
-import sanitizeFilename from 'sanitize-filename'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
-import gfs from '@pnpm/graceful-fs'
+import sanitizeFilename from 'sanitize-filename'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
 

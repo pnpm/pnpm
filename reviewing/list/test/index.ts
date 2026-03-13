@@ -1,10 +1,12 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
+
 import { list, listForPackages } from '@pnpm/list'
 import { fixtures } from '@pnpm/test-fixtures'
 import chalk from 'chalk'
-import { renderTree } from '../lib/renderTree.js'
+
 import { renderParseable } from '../lib/renderParseable.js'
+import { renderTree } from '../lib/renderTree.js'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color

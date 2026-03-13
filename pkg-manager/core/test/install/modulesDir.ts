@@ -1,12 +1,14 @@
 import path from 'path'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+
 import {
   install,
   type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
+
 import { testDefaults } from '../utils/index.js'
 
 test('installing to a custom modules directory', async () => {

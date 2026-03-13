@@ -1,6 +1,6 @@
 import path from 'path'
 import url from 'url'
-import normalizePath from 'normalize-path'
+
 import * as dp from '@pnpm/dependency-path'
 import type {
   DirectoryResolution,
@@ -18,6 +18,7 @@ import type {
   ProjectId,
   ProjectManifest,
 } from '@pnpm/types'
+import normalizePath from 'normalize-path'
 
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
 

@@ -1,20 +1,21 @@
 import path from 'path'
+
 import {
+  calcGraphNodeHash,
+  type DepsGraph,
+  type DepsStateCache,
+  type HashedDepPath,
   iterateHashedGraphNodes,
   iteratePkgMeta,
   lockfileToDepGraph,
-  calcGraphNodeHash,
   type PkgMetaAndSnapshot,
-  type DepsGraph,
-  type HashedDepPath,
-  type DepsStateCache,
 } from '@pnpm/calc-dep-state'
+import * as dp from '@pnpm/dependency-path'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
 import type { AllowBuild, DepPath } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
 
 interface PkgSnapshotWithLocation {
   pkgMeta: PkgMetaAndSnapshot

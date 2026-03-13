@@ -1,12 +1,14 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { LOCKFILE_VERSION } from '@pnpm/constants'
-import type { DepPath, ProjectManifest, Registries, ProjectId } from '@pnpm/types'
-import type { LockfileObject } from '@pnpm/lockfile.fs'
+
 import { jest } from '@jest/globals'
-import type { LicensePackage } from '../lib/licenses.js'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { DepPath, ProjectId,ProjectManifest, Registries } from '@pnpm/types'
+
 import type { GetPackageInfoOptions, PackageInfo } from '../lib/getPkgInfo.js'
+import type { LicensePackage } from '../lib/licenses.js'
 
 const tmpStoreDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-license-spec-'))
 afterAll(() => {

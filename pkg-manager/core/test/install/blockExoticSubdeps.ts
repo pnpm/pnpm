@@ -1,7 +1,8 @@
-import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage } from '@pnpm/core'
-import { testDefaults } from '../utils/index.js'
+import { prepareEmpty } from '@pnpm/prepare'
 import nock from 'nock'
+
+import { testDefaults } from '../utils/index.js'
 
 afterEach(() => {
   nock.abortPendingRequests()

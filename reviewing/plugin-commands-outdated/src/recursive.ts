@@ -13,6 +13,7 @@ import type {
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { isEmpty, sortWith } from 'ramda'
+
 import {
   getCellWidth,
   type OutdatedCommandOptions,

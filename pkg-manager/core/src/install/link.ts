@@ -1,21 +1,22 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   progressLogger,
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
+import type { InstallationResultStats } from '@pnpm/headless'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import {
   filterLockfileByImporters,
 } from '@pnpm/lockfile.filtering'
-import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
-import type { InstallationResultStats } from '@pnpm/headless'
-import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import type { IncludedDependencies } from '@pnpm/modules-yaml'
+import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
 import type {
   DependenciesGraph,
   DependenciesGraphNode,
@@ -27,13 +28,14 @@ import type {
   AllowBuild,
   DepPath,
   HoistedDependencies,
-  Registries,
   ProjectId,
+  Registries,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
-import { equals, isEmpty, difference, pick, pickBy, props } from 'ramda'
+import { difference, equals, isEmpty, pick, pickBy, props } from 'ramda'
+
 import type { ImporterToUpdate } from './index.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')

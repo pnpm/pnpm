@@ -1,9 +1,11 @@
 import path from 'path'
-import { writeYamlFileSync } from 'write-yaml-file'
+
 import type { Config } from '@pnpm/config'
 import { preparePackages } from '@pnpm/prepare'
-import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { addDistTag } from '@pnpm/registry-mock'
+import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from '../utils/index.js'
 
 // TODO: This should work if the settings are passed through CLI

@@ -1,8 +1,10 @@
 import fs from 'fs'
-import { prepare, prepareEmpty } from '@pnpm/prepare'
+
 import { readModulesManifest } from '@pnpm/modules-yaml'
+import { prepare, prepareEmpty } from '@pnpm/prepare'
 import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from '../utils/index.js'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip

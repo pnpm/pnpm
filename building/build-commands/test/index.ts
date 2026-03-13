@@ -1,16 +1,18 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
-import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+
+import { jest } from '@jest/globals'
+import { rebuild } from '@pnpm/building.build-commands'
 import { ENGINE_NAME, STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObject } from '@pnpm/crypto.object-hasher'
-import { rebuild } from '@pnpm/building.build-commands'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { safeExeca as execa } from 'execa'
-import { jest } from '@jest/globals'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`

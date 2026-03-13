@@ -1,11 +1,12 @@
 import assert from 'assert'
+import fs from 'fs'
 import path from 'path'
 import util from 'util'
-import fs from 'fs'
-import { globalWarn } from '@pnpm/logger'
+
 import gfs from '@pnpm/graceful-fs'
-import { renameOverwriteSync } from 'rename-overwrite'
+import { globalWarn } from '@pnpm/logger'
 import { pathTemp } from 'path-temp'
+import { renameOverwriteSync } from 'rename-overwrite'
 
 export function hardLinkDir (src: string, destDirs: string[]): void {
   if (destDirs.length === 0) return

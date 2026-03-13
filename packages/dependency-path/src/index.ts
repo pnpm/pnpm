@@ -1,5 +1,5 @@
 import { createShortHash } from '@pnpm/crypto.hash'
-import type { DepPath, PkgResolutionId, Registries, PkgId, PkgIdWithPatchHash } from '@pnpm/types'
+import type { DepPath, PkgId, PkgIdWithPatchHash,PkgResolutionId, Registries } from '@pnpm/types'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string): boolean {

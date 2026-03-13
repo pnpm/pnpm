@@ -1,9 +1,10 @@
 import assert from 'assert'
 import path from 'path'
 import util from 'util'
+
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
-import { calcDepState, lockfileToDepGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
+import { calcDepState, type DepsStateCache,lockfileToDepGraph } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -36,17 +37,18 @@ import { createStoreController } from '@pnpm/store-connection-manager'
 import type {
   DepPath,
   IgnoredBuilds,
-  ProjectManifest,
   ProjectId,
+  ProjectManifest,
   ProjectRootDir,
 } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
 import pLimit from 'p-limit'
 import { runGroups } from 'run-groups'
 import semver from 'semver'
+
 import {
-  extendBuildOptions,
   type BuildOptions,
+  extendBuildOptions,
   type StrictBuildOptions,
 } from './extendBuildOptions.js'
 

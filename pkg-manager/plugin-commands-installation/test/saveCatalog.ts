@@ -1,12 +1,14 @@
 import fs from 'fs'
 import path from 'path'
+
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import { add } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import type { LockfileFile } from '@pnpm/lockfile.types'
 import { loadJsonFileSync } from 'load-json-file'
-import { readYamlFileSync } from 'read-yaml-file'
 import nock from 'nock'
+import { readYamlFileSync } from 'read-yaml-file'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 // This must be a function because some of its values depend on CWD

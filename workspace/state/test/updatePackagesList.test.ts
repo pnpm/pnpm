@@ -1,8 +1,10 @@
 import path from 'path'
+
+import { jest } from '@jest/globals'
 import { logger } from '@pnpm/logger'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
-import { jest } from '@jest/globals'
+
 import { loadWorkspaceState, updateWorkspaceState } from '../src/index.js'
 
 const originalLoggerDebug = logger.debug

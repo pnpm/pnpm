@@ -1,8 +1,8 @@
+import type { Cafs } from '@pnpm/cafs-types'
+import type { Fetchers,FetchOptions, FetchResult } from '@pnpm/fetcher-base'
 import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import type { Resolution, WantedDependency } from '@pnpm/resolver-base'
 import type { Registries } from '@pnpm/types'
-import type { Cafs } from '@pnpm/cafs-types'
-import type { FetchOptions, FetchResult, Fetchers } from '@pnpm/fetcher-base'
 
 // Custom resolution types must use scoped naming to avoid conflicts with pnpm's built-in types
 export type CustomResolutionType = `@${string}/${string}`
@@ -116,8 +116,8 @@ export interface CustomFetcher {
 }
 
 export {
-  getCustomResolverCacheKey,
-  getCachedCanResolve,
-  setCachedCanResolve,
   checkCustomResolverCanResolve,
+  getCachedCanResolve,
+  getCustomResolverCacheKey,
+  setCachedCanResolve,
 } from './customResolverCache.js'

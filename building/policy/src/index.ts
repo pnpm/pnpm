@@ -1,5 +1,5 @@
-import type { AllowBuild } from '@pnpm/types'
 import { expandPackageVersionSpecs } from '@pnpm/config.version-policy'
+import type { AllowBuild } from '@pnpm/types'
 
 export function createAllowBuildFunction (
   opts: {

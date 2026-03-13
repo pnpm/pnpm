@@ -1,6 +1,8 @@
 import fs from 'fs'
+
 import { preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from './utils/index.js'
 
 test('sync bin links after build script', async () => {

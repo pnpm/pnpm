@@ -1,10 +1,12 @@
 import fs from 'fs'
 import path from 'path'
+
 import { PnpmError } from '@pnpm/error'
-import { tempDir } from '@pnpm/prepare'
 import { config } from '@pnpm/plugin-commands-config'
+import { tempDir } from '@pnpm/prepare'
 import { readIniFileSync } from 'read-ini-file'
 import { readYamlFileSync } from 'read-yaml-file'
+
 import { type ConfigFilesData, readConfigFiles, writeConfigFiles } from './utils/index.js'
 
 test('config set registry setting using the global option', async () => {

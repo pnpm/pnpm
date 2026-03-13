@@ -1,14 +1,16 @@
 import fs from 'fs'
 import path from 'path'
 import util from 'util'
-import { createRequire } from 'module'
+
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import type { Modules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { createRequire } from 'module'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writePackageSync } from 'write-package'
+
 import isExecutable from './isExecutable.js'
 
 const require = createRequire(import.meta.url)

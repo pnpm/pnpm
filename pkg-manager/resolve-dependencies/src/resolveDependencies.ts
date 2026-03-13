@@ -1,11 +1,14 @@
 import path from 'path'
-import { type CatalogResolution, matchCatalogResolveResult, type CatalogResolver } from '@pnpm/catalogs.resolver'
+
+import { type CatalogResolution, type CatalogResolver,matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
 import {
   deprecationLogger,
   progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
+import * as dp from '@pnpm/dependency-path'
 import { PnpmError } from '@pnpm/error'
+import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import type {
   LockfileObject,
   PackageSnapshot,
@@ -16,52 +19,51 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
+import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
+import { getPatchInfo,type PatchGroupRecord } from '@pnpm/patching.config'
+import type { PatchInfo } from '@pnpm/patching.types'
 import {
-  type DirectoryResolution,
   DIRECT_DEP_SELECTOR_WEIGHT,
+  type DirectoryResolution,
+  type PkgResolutionId,
   type PreferredVersions,
   type Resolution,
   type WorkspacePackages,
-  type PkgResolutionId,
 } from '@pnpm/resolver-base'
 import type {
-  PkgRequestFetchResult,
   PackageResponse,
+  PkgRequestFetchResult,
   StoreController,
 } from '@pnpm/store-controller-types'
 import type {
   AllowBuild,
-  DepPath,
-  SupportedArchitectures,
   AllowedDeprecatedVersions,
+  DepPath,
   PackageManifest,
+  PackageVersionPolicy,
+  PinnedVersion,
+  PkgIdWithPatchHash,
   ReadPackageHook,
   Registries,
-  PkgIdWithPatchHash,
-  PinnedVersion,
-  PackageVersionPolicy,
+  SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
-import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
-import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
-import type { PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
-import { pathExists } from 'path-exists'
 import pDefer from 'p-defer'
+import { pathExists } from 'path-exists'
 import { pShare } from 'promise-share'
-import { pickBy, omit, zipWith } from 'ramda'
+import { omit, pickBy, zipWith } from 'ramda'
 import semver from 'semver'
+
 import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies.js'
+import { getHoistableOptionalPeers,hoistPeers } from './hoistPeers.js'
 import { safeIntersect } from './mergePeers.js'
-import { type NodeId, nextNodeId } from './nextNodeId.js'
+import { nextNodeId,type NodeId } from './nextNodeId.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
-import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers.js'
-import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable.js'
-import type { CatalogLookupMetadata } from './resolveDependencyTree.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
+import type { CatalogLookupMetadata } from './resolveDependencyTree.js'
+import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable.js'
 
 export type { WantedDependency }
 

@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -8,6 +9,7 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
+
 import { testDefaults } from '../utils/index.js'
 
 test('installing with hoisted node-linker', async () => {

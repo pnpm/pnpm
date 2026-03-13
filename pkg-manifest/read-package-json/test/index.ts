@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
+
 import { readPackageJson, readPackageJsonFromDir } from '@pnpm/read-package-json'
 
 const fixtures = path.join(import.meta.dirname, 'fixtures')

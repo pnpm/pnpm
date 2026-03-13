@@ -1,15 +1,17 @@
 import fs from 'fs'
 import path from 'path'
 import url from 'url'
-import { install } from '@pnpm/plugin-commands-installation'
+
+import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
-import { preparePackages } from '@pnpm/prepare'
 import type { LockfileFile, LockfilePackageSnapshot } from '@pnpm/lockfile.types'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { install } from '@pnpm/plugin-commands-installation'
+import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
-import { jest } from '@jest/globals'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { writeYamlFile } from 'write-yaml-file'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)

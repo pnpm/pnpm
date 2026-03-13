@@ -1,8 +1,9 @@
+import { addDependenciesToPackage, install,mutateModulesInSingleProject } from '@pnpm/core'
+import { hashObject as _hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDependenciesToPackage, mutateModulesInSingleProject, install } from '@pnpm/core'
-import { hashObject as _hashObject } from '@pnpm/crypto.object-hasher'
-import type { ProjectRootDir, PackageExtension, ProjectManifest } from '@pnpm/types'
+import type { PackageExtension, ProjectManifest,ProjectRootDir } from '@pnpm/types'
+
 import {
   testDefaults,
 } from '../utils/index.js'

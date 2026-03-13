@@ -1,18 +1,19 @@
 import fs from 'fs'
 import path from 'path'
-import type { ApproveBuildsCommandOpts } from '@pnpm/building.policy-commands'
+
+import { jest } from '@jest/globals'
 import type { RebuildCommandOpts } from '@pnpm/building.build-commands'
-import { prepare } from '@pnpm/prepare'
+import type { ApproveBuildsCommandOpts } from '@pnpm/building.policy-commands'
 import { getConfig } from '@pnpm/config'
 import { readModulesManifest } from '@pnpm/modules-yaml'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { jest } from '@jest/globals'
-import { omit } from 'ramda'
+import { prepare } from '@pnpm/prepare'
 import { tempDir } from '@pnpm/prepare-temp-dir'
-import { writePackageSync } from 'write-package'
-import { readYamlFileSync } from 'read-yaml-file'
-import { writeYamlFileSync } from 'write-yaml-file'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { safeExeca as execa } from 'execa'
+import { omit } from 'ramda'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writePackageSync } from 'write-package'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 const { default: enquirer } = await import('enquirer')

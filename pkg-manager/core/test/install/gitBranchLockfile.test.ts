@@ -1,11 +1,13 @@
 import fs from 'fs'
 import path from 'path'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { testDefaults } from '../utils/index.js'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import type { ProjectRootDir, ProjectManifest } from '@pnpm/types'
+
 import { jest } from '@jest/globals'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import type { ProjectManifest,ProjectRootDir } from '@pnpm/types'
 import { writeYamlFileSync } from 'write-yaml-file'
+
+import { testDefaults } from '../utils/index.js'
 
 jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 

@@ -1,9 +1,11 @@
 import fs from 'fs'
 import path from 'path'
-import PATH_NAME from 'path-name'
+
 import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
+import PATH_NAME from 'path-name'
+
 import { execPnpm, execPnpmSync } from '../utils/index.js'
 
 test('self-update updates the packageManager field in package.json', async () => {

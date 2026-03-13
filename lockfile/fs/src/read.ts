@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import util from 'util'
+
 import {
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
@@ -13,12 +14,13 @@ import { comverToSemver } from 'comver-to-semver'
 import yaml from 'js-yaml'
 import semver from 'semver'
 import stripBom from 'strip-bom'
+
 import { LockfileBreakingChangeError } from './errors/index.js'
-import { autofixMergeConflicts, isDiff } from './gitMergeFile.js'
-import { lockfileLogger as logger } from './logger.js'
-import { getWantedLockfileName } from './lockfileName.js'
 import { getGitBranchLockfileNames } from './gitBranchLockfile.js'
+import { autofixMergeConflicts, isDiff } from './gitMergeFile.js'
 import { convertToLockfileObject } from './lockfileFormatConverters.js'
+import { getWantedLockfileName } from './lockfileName.js'
+import { lockfileLogger as logger } from './logger.js'
 
 export async function readCurrentLockfile (
   pnpmInternalDir: string,

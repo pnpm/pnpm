@@ -1,4 +1,5 @@
 import path from 'path'
+
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   readCurrentLockfile,
@@ -11,6 +12,7 @@ import type {
   ProjectRootDir,
 } from '@pnpm/types'
 import { unnest } from 'ramda'
+
 import { createManifestGetter, type ManifestGetterOptions } from './createManifestGetter.js'
 import { outdated, type OutdatedPackage } from './outdated.js'
 

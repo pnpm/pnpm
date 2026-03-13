@@ -1,11 +1,13 @@
 import fs from 'fs'
 import path from 'path'
+
 import { createHash } from '@pnpm/crypto.hash'
-import type { PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
+import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 test('readPackage hook in single project doesn\'t modify manifest', async () => {

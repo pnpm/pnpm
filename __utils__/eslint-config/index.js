@@ -2,6 +2,7 @@ import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import stylistic from '@stylistic/eslint-plugin'
 import * as importX from 'eslint-plugin-import-x'
+import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import n from 'eslint-plugin-n'
 import promise from 'eslint-plugin-promise'
 import noDupeConditions from './no-dupe-conditions.js'
@@ -29,6 +30,7 @@ export default tseslint.config(
     plugins: {
       '@stylistic': stylistic,
       'import-x': importX,
+      'simple-import-sort': simpleImportSort,
       n,
       promise,
       conditions: {
@@ -41,6 +43,19 @@ export default tseslint.config(
     },
 
     rules: {
+      // Import sorting
+      'simple-import-sort/imports': ['error', {
+        groups: [
+          // Node.js builtins
+          ['^node:', '^(assert|buffer|child_process|crypto|dns|events|fs|http|https|net|os|path|readline|stream|string_decoder|timers|tls|url|util|vm|zlib)(/|$|\\u0000)'],
+          // External packages
+          ['^@?\\w'],
+          // Relative imports
+          ['^\\.'],
+        ],
+      }],
+      'simple-import-sort/exports': 'error',
+
       // Import rules (migrated from eslint-plugin-import)
       'import-x/extensions': ['error', 'always', { ignorePackages: true }],
       'import-x/no-extraneous-dependencies': ['error', {

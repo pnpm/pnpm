@@ -1,23 +1,25 @@
 import fs from 'fs'
 import path from 'path'
+
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import {
+  addDependenciesToPackage,
+  install,
+  type MutatedProject,
+  mutateModules,
+  mutateModulesInSingleProject,
+  type ProjectOptions,
+} from '@pnpm/core'
 import type { LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectRootDir } from '@pnpm/types'
-import {
-  addDependenciesToPackage,
-  install,
-  mutateModules,
-  type MutatedProject,
-  mutateModulesInSingleProject,
-  type ProjectOptions,
-} from '@pnpm/core'
 import { rimrafSync } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
 import { readYamlFileSync } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
+
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)

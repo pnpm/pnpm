@@ -1,23 +1,25 @@
-import * as path from 'path'
 import fs from 'fs'
+import * as path from 'path'
+
+import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
-import type { LifecycleLog } from '@pnpm/core-loggers'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,
-  mutateModulesInSingleProject,
   type MutatedProject,
   mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
+import type { LifecycleLog } from '@pnpm/core-loggers'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectRootDir } from '@pnpm/types'
 import { restartWorkerPool } from '@pnpm/worker'
-import { jest } from '@jest/globals'
 import { rimrafSync } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
 import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
+
 import { testDefaults } from '../utils/index.js'
 
 const testOnNonWindows = isWindows() ? test.skip : test

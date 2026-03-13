@@ -1,10 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
+
+import { jest } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { rimrafSync } from '@zkochan/rimraf'
-import { jest } from '@jest/globals'
 
 const debug = jest.fn()
 jest.unstable_mockModule('@pnpm/logger', () => {

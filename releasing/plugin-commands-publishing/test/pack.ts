@@ -1,11 +1,13 @@
 import fs from 'fs'
 import path from 'path'
+
 import { pack } from '@pnpm/plugin-commands-publishing'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
-import * as tar from 'tar'
-import chalk from 'chalk'
-import { writeYamlFileSync } from 'write-yaml-file'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import chalk from 'chalk'
+import * as tar from 'tar'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import type { PackResultJson } from '../src/pack.js'
 import { DEFAULT_OPTS } from './utils/index.js'
 

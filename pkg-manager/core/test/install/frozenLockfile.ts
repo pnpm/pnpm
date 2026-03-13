@@ -1,13 +1,15 @@
 import path from 'path'
+
+import { jest } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   install,
   type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
-import { jest } from '@jest/globals'
+
 import { testDefaults } from '../utils/index.js'
 
 test(`frozen-lockfile: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async () => {

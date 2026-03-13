@@ -1,6 +1,6 @@
 import type {
-  ResolutionChange,
   DedupeCheckIssues,
+  ResolutionChange,
   ResolutionChangesByAlias,
   SnapshotsChanges,
 } from '@pnpm/dedupe.types'

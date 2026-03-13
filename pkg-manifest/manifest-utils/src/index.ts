@@ -3,14 +3,15 @@ import type {
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
+
 import { getAllUniqueSpecs } from './getAllUniqueSpecs.js'
 import { getSpecFromPackageManifest } from './getSpecFromPackageManifest.js'
 
 export * from './convertEnginesRuntimeToDependencies.js'
-export * from './updateProjectManifestObject.js'
 export * from './getDependencyTypeFromManifest.js'
+export * from './updateProjectManifestObject.js'
 
-export { getSpecFromPackageManifest, getAllUniqueSpecs }
+export { getAllUniqueSpecs,getSpecFromPackageManifest }
 
 export function filterDependenciesByType (
   manifest: ProjectManifest,

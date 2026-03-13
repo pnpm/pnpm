@@ -1,4 +1,7 @@
 import path from 'path'
+
+import { refToRelative } from '@pnpm/dependency-path'
+import { DepType,type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type {
   PackageSnapshot,
   PackageSnapshots,
@@ -8,12 +11,11 @@ import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
-import { type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
+import { readPackageJsonFromDirSync } from '@pnpm/read-package-json'
 import type { StoreIndex } from '@pnpm/store.index'
 import type { DependencyManifest, Registries } from '@pnpm/types'
-import { refToRelative } from '@pnpm/dependency-path'
-import { readPackageJsonFromDirSync } from '@pnpm/read-package-json'
 import normalizePath from 'normalize-path'
+
 import { readManifestFromCafs } from './readManifestFromCafs.js'
 import { resolvePackagePath } from './resolvePackagePath.js'
 

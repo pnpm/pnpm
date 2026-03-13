@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -8,15 +9,16 @@ import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getIntegrity } from '@pnpm/registry-mock'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
-import { fixtures } from '@pnpm/test-fixtures'
-import { dirIsCaseSensitive } from 'dir-is-case-sensitive'
-import { readYamlFileSync } from 'read-yaml-file'
 import { rimrafSync } from '@zkochan/rimraf'
-import isWindows from 'is-windows'
-import { writeYamlFileSync } from 'write-yaml-file'
 import crossSpawn from 'cross-spawn'
+import { dirIsCaseSensitive } from 'dir-is-case-sensitive'
+import isWindows from 'is-windows'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import {
   execPnpm,
   execPnpmSync,

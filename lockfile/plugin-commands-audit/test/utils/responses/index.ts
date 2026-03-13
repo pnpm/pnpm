@@ -1,4 +1,5 @@
 import path from 'path'
+
 import { loadJsonFileSync } from 'load-json-file'
 
 // eslint-disable-next-line

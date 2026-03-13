@@ -1,10 +1,12 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import path from 'path'
+
 import { STORE_VERSION } from '@pnpm/constants'
-import { sbom } from '@pnpm/plugin-commands-sbom'
 import { install } from '@pnpm/plugin-commands-installation'
+import { sbom } from '@pnpm/plugin-commands-sbom'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)

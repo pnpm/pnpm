@@ -1,17 +1,18 @@
-import { logger } from '@pnpm/logger'
+import * as dp from '@pnpm/dependency-path'
 import {
   type LockfileObject,
   type PackageSnapshot,
   pruneSharedLockfile,
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
+import { logger } from '@pnpm/logger'
 import type { DepPath, Registries } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
 import type { KeyValuePair } from 'ramda'
 import { partition } from 'ramda'
+
 import { depPathToRef } from './depPathToRef.js'
-import type { ResolvedPackage } from './resolveDependencies.js'
 import type { DependenciesGraph } from './index.js'
+import type { ResolvedPackage } from './resolveDependencies.js'
 
 export function updateLockfile (
   { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {

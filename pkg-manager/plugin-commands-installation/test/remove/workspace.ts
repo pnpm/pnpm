@@ -1,9 +1,11 @@
 import path from 'path'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { install, remove } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { readYamlFileSync } from 'read-yaml-file'
+
 import { DEFAULT_OPTS } from '../utils/index.js'
 
 test('remove --filter only changes the specified dependency, when run with link-workspace-packages=false', async () => {

@@ -1,10 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
+
+import { jest } from '@jest/globals'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
-import { jest } from '@jest/globals'
-import { temporaryDirectory } from 'tempy'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { temporaryDirectory } from 'tempy'
 
 {
   const originalModule = await import('execa')

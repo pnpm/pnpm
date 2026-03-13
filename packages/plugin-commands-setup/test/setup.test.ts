@@ -1,5 +1,5 @@
-import { PnpmError } from '@pnpm/error'
 import { jest } from '@jest/globals'
+import { PnpmError } from '@pnpm/error'
 import type { PathExtenderReport } from '@pnpm/os.env.path-extender'
 
 jest.unstable_mockModule('@pnpm/os.env.path-extender', () => ({

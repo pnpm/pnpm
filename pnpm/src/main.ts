@@ -6,8 +6,10 @@ declare const global: Global
 if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
-import loudRejection from 'loud-rejection'
-import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
+import path from 'path'
+import { stripVTControlCharacters as stripAnsi } from 'util'
+
+import { isExecutedByCorepack,packageManager } from '@pnpm/cli-meta'
 import { getConfig, installConfigDepsAndLoadHooks } from '@pnpm/cli-utils'
 import type { Config } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
@@ -18,10 +20,10 @@ import type { ParsedCliArgs } from '@pnpm/parse-cli-args'
 import type { EngineDependency } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
-import semver from 'semver'
-import path from 'path'
+import loudRejection from 'loud-rejection'
 import { isEmpty } from 'ramda'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import semver from 'semver'
+
 import { checkForUpdates } from './checkForUpdates.js'
 import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'

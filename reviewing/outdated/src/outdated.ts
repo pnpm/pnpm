@@ -1,12 +1,14 @@
 import {
+  type CatalogResolutionFound,
   matchCatalogResolveResult,
   resolveFromCatalog,
-  type CatalogResolutionFound,
   type WantedDependency,
 } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import * as dp from '@pnpm/dependency-path'
 import { PnpmError } from '@pnpm/error'
+import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import {
   getLockfileImporterId,
   type LockfileObject,
@@ -14,21 +16,19 @@ import {
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
+import { createMatcher } from '@pnpm/matcher'
 import { parseBareSpecifier } from '@pnpm/npm-resolver'
+import { parseOverrides } from '@pnpm/parse-overrides'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
-  type DependenciesField,
   DEPENDENCIES_FIELDS,
+  type DependenciesField,
   type IncludedDependencies,
   type PackageManifest,
   type ProjectManifest,
   type Registries,
 } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
 import semver from 'semver'
-import { createMatcher } from '@pnpm/matcher'
-import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
-import { parseOverrides } from '@pnpm/parse-overrides'
 
 export * from './createManifestGetter.js'
 

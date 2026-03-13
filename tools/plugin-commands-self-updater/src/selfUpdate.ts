@@ -1,19 +1,21 @@
 import path from 'path'
+
+import { isExecutedByCorepack,packageManager } from '@pnpm/cli-meta'
 import { docsUrl } from '@pnpm/cli-utils'
-import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { linkBins } from '@pnpm/link-bins'
 import { globalWarn } from '@pnpm/logger'
+import { whichVersionIsPinned } from '@pnpm/npm-resolver'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { whichVersionIsPinned } from '@pnpm/npm-resolver'
 import type { PinnedVersion } from '@pnpm/types'
 import { pick } from 'ramda'
-import semver from 'semver'
 import { renderHelp } from 'render-help'
+import semver from 'semver'
+
 import { installPnpm } from './installPnpm.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {

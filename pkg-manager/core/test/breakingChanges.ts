@@ -1,11 +1,13 @@
 import fs from 'fs'
 import path from 'path'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { addDependenciesToPackage, install } from '@pnpm/core'
 import type { PnpmError } from '@pnpm/error'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { addDependenciesToPackage, install } from '@pnpm/core'
 import { rimrafSync } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
+
 import { testDefaults } from './utils/index.js'
 
 test('fail on non-compatible node_modules', async () => {

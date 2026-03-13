@@ -1,12 +1,13 @@
 import path from 'path'
+
+import { refToRelative } from '@pnpm/dependency-path'
 import type {
   PackageSnapshot,
-  ProjectSnapshot,
   PackageSnapshots,
+  ProjectSnapshot,
 } from '@pnpm/lockfile.types'
 import { refIsLocalDirectory } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { refToRelative } from '@pnpm/dependency-path'
 import type { DirectoryResolution, WorkspacePackages } from '@pnpm/resolver-base'
 import {
   DEPENDENCIES_FIELDS,

@@ -1,14 +1,15 @@
 import path from 'path'
+
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import type {
+  LockfileObject,
+  ProjectSnapshot,
+} from '@pnpm/lockfile.types'
 import {
   getWantedDependencies,
   resolveDependencies,
 } from '@pnpm/resolve-dependencies'
 import type { StoreController } from '@pnpm/store-controller-types'
-import type {
-  LockfileObject,
-  ProjectSnapshot,
-} from '@pnpm/lockfile.types'
 import type {
   ProjectId,
   ProjectManifest,

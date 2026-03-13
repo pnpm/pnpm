@@ -1,7 +1,8 @@
 import fs from 'fs'
 import path from 'path'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+
 import { jest } from '@jest/globals'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { temporaryDirectory } from 'tempy'
 import yaml from 'yaml-tag'
 

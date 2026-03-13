@@ -1,6 +1,7 @@
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
-import { sortBy, path, type Ord } from 'ramda'
+import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { type Ord,path, sortBy } from 'ramda'
+
 import { getPkgInfo, type PkgInfo } from './getPkgInfo.js'
 import type { PackageDependencyHierarchy } from './types.js'
 

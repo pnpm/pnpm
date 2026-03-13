@@ -2,6 +2,7 @@ import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
 import util from 'util'
+
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'

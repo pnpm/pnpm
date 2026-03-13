@@ -1,7 +1,8 @@
 import fs from 'fs'
 import path from 'path'
-import { prepareEmpty } from '@pnpm/prepare'
+
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
+import { prepareEmpty } from '@pnpm/prepare'
 
 test('importing a package with invalid files', () => {
   prepareEmpty()

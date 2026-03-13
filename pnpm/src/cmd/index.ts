@@ -4,20 +4,19 @@ import { cache } from '@pnpm/cache.commands'
 import type { CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
-import { generateCompletion, createCompletionServer } from '@pnpm/plugin-commands-completion'
+import { createCompletionServer,generateCompletion } from '@pnpm/plugin-commands-completion'
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
+import { deploy } from '@pnpm/plugin-commands-deploy'
 import { doctor } from '@pnpm/plugin-commands-doctor'
 import { env } from '@pnpm/plugin-commands-env'
-import { runtime } from '@pnpm/runtime.commands'
-import { deploy } from '@pnpm/plugin-commands-deploy'
-import { add, ci, dedupe, fetch, install, link, prune, remove, unlink, update, importCommand } from '@pnpm/plugin-commands-installation'
-import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
-import { list, ll, why } from '@pnpm/plugin-commands-listing'
+import { init } from '@pnpm/plugin-commands-init'
+import { add, ci, dedupe, fetch, importCommand,install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
 import { licenses } from '@pnpm/plugin-commands-licenses'
-import { sbom } from '@pnpm/plugin-commands-sbom'
+import { list, ll, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
-import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
+import { pack, publish } from '@pnpm/plugin-commands-publishing'
+import { sbom } from '@pnpm/plugin-commands-sbom'
 import {
   create,
   dlx,
@@ -28,11 +27,13 @@ import {
 import { setup } from '@pnpm/plugin-commands-setup'
 import { store } from '@pnpm/plugin-commands-store'
 import { catFile, catIndex, findHash } from '@pnpm/plugin-commands-store-inspecting'
-import { init } from '@pnpm/plugin-commands-init'
+import { runtime } from '@pnpm/runtime.commands'
+import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
 import { pick } from 'ramda'
-import type { PnpmOptions } from '../types.js'
-import { shorthands as universalShorthands } from '../shorthands.js'
+
 import { parseCliArgs } from '../parseCliArgs.js'
+import { shorthands as universalShorthands } from '../shorthands.js'
+import type { PnpmOptions } from '../types.js'
 import * as bin from './bin.js'
 import * as clean from './clean.js'
 import { createHelp } from './help.js'
@@ -239,4 +240,4 @@ export function getCommandFullName (commandName: string): string | null {
     (handlerByCommandName[commandName] ? commandName : null)
 }
 
-export { shorthandsByCommandName, rcOptionsTypes }
+export { rcOptionsTypes,shorthandsByCommandName }

@@ -1,11 +1,7 @@
 import fs from 'fs'
 import path from 'path'
-import type { LockfileFile } from '@pnpm/lockfile.fs'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import type { ProjectRootDir } from '@pnpm/types'
+
 import { jest } from '@jest/globals'
-import deepRequireCwd from 'deep-require-cwd'
-import { readYamlFileSync } from 'read-yaml-file'
 import {
   addDependenciesToPackage,
   install,
@@ -13,7 +9,13 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
+import type { LockfileFile } from '@pnpm/lockfile.fs'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
+import deepRequireCwd from 'deep-require-cwd'
+import { readYamlFileSync } from 'read-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 test('successfully install optional dependency with subdependencies', async () => {

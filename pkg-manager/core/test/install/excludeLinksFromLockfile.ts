@@ -1,22 +1,24 @@
 import fs from 'fs'
 import path from 'path'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
   install,
-  mutateModules,
   type MutatedProject,
+  mutateModules,
   type ProjectOptions,
 } from '@pnpm/core'
-import type { LockfileObject, LockfileFile } from '@pnpm/lockfile.types'
-import type { ProjectRootDir, ProjectId } from '@pnpm/types'
+import type { LockfileFile,LockfileObject } from '@pnpm/lockfile.types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
+import type { ProjectId,ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeJsonFileSync } from 'write-json-file'
+
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)

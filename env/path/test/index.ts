@@ -1,4 +1,5 @@
 import path from 'path'
+
 import { prependDirsToPath } from '@pnpm/env.path'
 import PATH from 'path-name'
 

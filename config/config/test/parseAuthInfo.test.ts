@@ -1,8 +1,8 @@
 import {
   type AuthInfo,
   AuthMissingSeparatorError,
-  TokenHelperUnsupportedCharacterError,
   parseAuthInfo,
+  TokenHelperUnsupportedCharacterError,
 } from '../src/parseAuthInfo.js'
 
 describe('parseAuthInfo', () => {

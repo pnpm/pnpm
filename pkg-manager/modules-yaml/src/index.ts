@@ -1,15 +1,16 @@
 import path from 'path'
+
 import fs from '@pnpm/graceful-fs'
 import type {
-  DepPath,
   DependenciesField,
+  DepPath,
   HoistedDependencies,
   IgnoredBuilds,
   Registries,
 } from '@pnpm/types'
-import { readYamlFile } from 'read-yaml-file'
-import { map as mapValues } from 'ramda'
 import isWindows from 'is-windows'
+import { map as mapValues } from 'ramda'
+import { readYamlFile } from 'read-yaml-file'
 
 // The dot prefix is needed because otherwise `npm shrinkwrap`
 // thinks that it is an extraneous package.

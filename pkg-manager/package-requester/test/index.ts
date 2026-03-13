@@ -1,22 +1,23 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
+
+import { jest } from '@jest/globals'
 import { createClient } from '@pnpm/client'
-import { StoreIndex } from '@pnpm/store.index'
+import { createCafsStore } from '@pnpm/create-cafs-store'
+import { depPathToFilename } from '@pnpm/dependency-path'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
-import { createCafsStore } from '@pnpm/create-cafs-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex } from '@pnpm/store.index'
+import type { PkgRequestFetchResult, PkgResolutionId, RequestPackageOptions } from '@pnpm/store-controller-types'
 import { fixtures } from '@pnpm/test-fixtures'
-import delay from 'delay'
-import { depPathToFilename } from '@pnpm/dependency-path'
 import { restartWorkerPool } from '@pnpm/worker'
-import { jest } from '@jest/globals'
+import delay from 'delay'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import { temporaryDirectory } from 'tempy'
-import type { PkgResolutionId, PkgRequestFetchResult, RequestPackageOptions } from '@pnpm/store-controller-types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(import.meta.dirname)

@@ -1,5 +1,7 @@
 import fs from 'fs'
 import path from 'path'
+
+import { jest } from '@jest/globals'
 import { assertStore } from '@pnpm/assert-store'
 import { STORE_VERSION } from '@pnpm/constants'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
@@ -7,7 +9,6 @@ import { store } from '@pnpm/plugin-commands-store'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
-import { jest } from '@jest/globals'
 import { safeExeca as execa } from 'execa'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`

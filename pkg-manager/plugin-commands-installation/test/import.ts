@@ -1,11 +1,12 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import path from 'path'
+
 import { assertProject } from '@pnpm/assert-project'
 import { PnpmError } from '@pnpm/error'
 import { importCommand } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
-import { fixtures } from '@pnpm/test-fixtures'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { fixtures } from '@pnpm/test-fixtures'
 import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)

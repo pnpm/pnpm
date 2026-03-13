@@ -1,12 +1,14 @@
 import path from 'path'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { createPeerDepGraphHash } from '@pnpm/dependency-path'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { readYamlFileSync } from 'read-yaml-file'
-import { createPeerDepGraphHash } from '@pnpm/dependency-path'
 import { loadJsonFileSync } from 'load-json-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from '../utils/index.js'
 
 test('deduplicate packages that have peers, when adding new dependency in a workspace', async () => {

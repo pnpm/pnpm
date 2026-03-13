@@ -1,6 +1,6 @@
-import kebabCase from 'lodash.kebabcase'
 import { types } from '@pnpm/config'
 import { parsePropertyPath } from '@pnpm/object.property-path'
+import kebabCase from 'lodash.kebabcase'
 
 /**
  * Just like {@link parsePropertyPath} but the first element may be converted into kebab-case

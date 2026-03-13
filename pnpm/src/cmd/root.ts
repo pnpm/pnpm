@@ -1,6 +1,7 @@
 import path from 'path'
-import { types as allTypes } from '@pnpm/config'
+
 import { docsUrl } from '@pnpm/cli-utils'
+import { types as allTypes } from '@pnpm/config'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 

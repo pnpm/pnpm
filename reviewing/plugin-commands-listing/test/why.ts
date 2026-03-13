@@ -1,11 +1,12 @@
-import path from 'path'
 import fs from 'fs'
+import path from 'path'
+import { stripVTControlCharacters as stripAnsi } from 'util'
+
 import type { PnpmError } from '@pnpm/error'
 import { why } from '@pnpm/plugin-commands-listing'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { safeExeca as execa } from 'execa'
-import { stripVTControlCharacters as stripAnsi } from 'util'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 

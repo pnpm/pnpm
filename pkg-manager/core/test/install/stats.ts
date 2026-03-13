@@ -1,10 +1,11 @@
-import { prepareEmpty } from '@pnpm/prepare'
 import {
-  mutateModules,
   type MutatedProject,
+  mutateModules,
 } from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
+
 import { testDefaults } from '../utils/index.js'
 
 test('spec not specified in package.json.dependencies', async () => {

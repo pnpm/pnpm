@@ -1,4 +1,5 @@
 import path from 'path'
+
 import PATH from 'path-name'
 
 export interface PrependDirsToPathResult {

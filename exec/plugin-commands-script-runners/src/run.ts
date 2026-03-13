@@ -1,5 +1,5 @@
 import path from 'path'
-import pLimit from 'p-limit'
+
 import {
   docsUrl,
   readProjectManifestOnly,
@@ -7,24 +7,26 @@ import {
 } from '@pnpm/cli-utils'
 import type { CompletionFunc } from '@pnpm/command'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes, getWorkspaceConcurrency } from '@pnpm/config'
-import { PnpmError } from '@pnpm/error'
+import { type Config, getWorkspaceConcurrency,types as allTypes } from '@pnpm/config'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
+import { PnpmError } from '@pnpm/error'
 import {
-  runLifecycleHook,
   makeNodeRequireOption,
+  runLifecycleHook,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
-import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import type { PackageScripts, ProjectManifest } from '@pnpm/types'
+import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
+import pLimit from 'p-limit'
 import { pick } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import { renderHelp } from 'render-help'
-import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive.js'
-import { existsInDir } from './existsInDir.js'
-import { handler as exec } from './exec.js'
+
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint.js'
+import { handler as exec } from './exec.js'
+import { existsInDir } from './existsInDir.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
+import { getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand,type RecursiveRunOpts, runRecursive } from './runRecursive.js'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,

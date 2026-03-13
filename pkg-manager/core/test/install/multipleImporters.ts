@@ -1,23 +1,25 @@
 import fs from 'fs'
 import path from 'path'
+
+import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { readCurrentLockfile } from '@pnpm/lockfile.fs'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
-import type { ProjectManifest, ProjectId, ProjectRootDir } from '@pnpm/types'
 import {
   addDependenciesToPackage,
   type MutatedProject,
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import { rimrafSync } from '@zkochan/rimraf'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
+import { readCurrentLockfile } from '@pnpm/lockfile.fs'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
+import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
-import { jest } from '@jest/globals'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 test('install only the dependencies of the specified importer', async () => {

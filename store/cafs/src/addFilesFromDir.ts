@@ -1,6 +1,7 @@
-import util from 'util'
 import fs, { type Stats } from 'fs'
 import path from 'path'
+import util from 'util'
+
 import type {
   AddToStoreResult,
   FilesIndex,
@@ -9,6 +10,7 @@ import type {
 import gfs from '@pnpm/graceful-fs'
 import type { DependencyManifest } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
+
 import { parseJsonBufferSync } from './parseJson.js'
 
 export function addFilesFromDir (

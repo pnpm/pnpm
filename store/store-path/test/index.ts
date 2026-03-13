@@ -1,6 +1,7 @@
 import path from 'path'
-import { STORE_VERSION } from '@pnpm/constants'
+
 import { jest } from '@jest/globals'
+import { STORE_VERSION } from '@pnpm/constants'
 import isWindows from 'is-windows'
 
 jest.unstable_mockModule('touch', () => {

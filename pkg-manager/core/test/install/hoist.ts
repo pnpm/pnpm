@@ -1,7 +1,8 @@
 import fs from 'fs'
 import path from 'path'
+
 import { assertProject } from '@pnpm/assert-project'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
   install,
@@ -9,13 +10,14 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import type { DepPath, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { resolveLinkTarget } from 'resolve-link-target'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { addDistTag } from '@pnpm/registry-mock'
 import symlinkDir from 'symlink-dir'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 test('should hoist dependencies', async () => {

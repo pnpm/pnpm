@@ -1,12 +1,14 @@
 import path from 'path'
+
 import { assertProject } from '@pnpm/assert-project'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { rebuild } from '@pnpm/building.build-commands'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { PackageManifest } from '@pnpm/types'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { safeExeca as execa } from 'execa'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { DEFAULT_OPTS, REGISTRY } from './utils/index.js'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')

@@ -1,10 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
+
 import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
-import { temporaryDirectory } from 'tempy'
 import type { ProjectManifest } from '@pnpm/types'
+import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)
 

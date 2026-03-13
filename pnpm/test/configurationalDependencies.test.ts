@@ -1,12 +1,14 @@
 import fs from 'fs'
 import path from 'path'
+
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+
 import { execPnpm, execPnpmSync, pnpmBinLocation } from './utils/index.js'
 
 test('patch from configuration dependency is applied', async () => {

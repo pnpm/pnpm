@@ -1,47 +1,48 @@
-import { PnpmError } from '@pnpm/error'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
+import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
-import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import type { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolver-base'
 import type { StoreController } from '@pnpm/store-controller-types'
 import type {
   AllowBuild,
-  SupportedArchitectures,
   AllowedDeprecatedVersions,
+  PackageVersionPolicy,
   PinnedVersion,
   PkgResolutionId,
-  ProjectManifest,
   ProjectId,
+  ProjectManifest,
+  ProjectRootDir,
   ReadPackageHook,
   Registries,
-  ProjectRootDir,
-  PackageVersionPolicy,
+  SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
 import { partition, zipObj } from 'ramda'
+
 import type { WantedDependency } from './getNonDevWantedDependencies.js'
-import { type NodeId, nextNodeId } from './nextNodeId.js'
+import { nextNodeId,type NodeId } from './nextNodeId.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import {
   type ChildrenByParentId,
   type DependenciesTree,
-  type LinkedDependency,
   type ImporterToResolve,
   type ImporterToResolveOptions,
+  type LinkedDependency,
   type ParentPkgAliases,
   type PendingNode,
   type PkgAddress,
   type PkgAddressOrLink,
-  resolveRootDependencies,
+  type ResolutionContext,
   type ResolvedPackage,
   type ResolvedPkgsById,
-  type ResolutionContext,
+  resolveRootDependencies,
 } from './resolveDependencies.js'
 
-export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies.js'
+export type { DependenciesTree, DependenciesTreeNode,LinkedDependency, ResolvedPackage } from './resolveDependencies.js'
 
 export interface ResolvedImporters {
   [id: string]: {

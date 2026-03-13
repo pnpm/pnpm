@@ -1,13 +1,15 @@
 import fs from 'fs'
 import path from 'path'
+
 import type { Config } from '@pnpm/config'
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
 import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
-import type { LockfileFile } from '@pnpm/lockfile.types'
-import { readYamlFileSync } from 'read-yaml-file'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import {
   execPnpm,
   execPnpmSync,

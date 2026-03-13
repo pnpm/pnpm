@@ -1,4 +1,5 @@
 import npmTypes from '@pnpm/npm-conf/lib/types.js'
+
 import type { pnpmTypes } from './types.js'
 
 type NpmKey = keyof typeof npmTypes.types

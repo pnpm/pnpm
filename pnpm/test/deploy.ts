@@ -1,8 +1,10 @@
 import fs from 'fs'
 import path from 'path'
+
 import { preparePackages } from '@pnpm/prepare'
 import { loadJsonFileSync } from 'load-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from './utils/index.js'
 
 // Covers https://github.com/pnpm/pnpm/issues/9550

@@ -1,6 +1,7 @@
 import { spawnSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
+
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli-meta'
 import { docsUrl } from '@pnpm/cli-utils'
 import { logger } from '@pnpm/logger'

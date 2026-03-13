@@ -1,23 +1,25 @@
 import path from 'path'
+
 import {
   getLockfileImporterId,
   type LockfileObject,
-  type ProjectSnapshot,
   type PackageSnapshots,
+  type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { readModulesManifest } from '@pnpm/modules-yaml'
-import { StoreIndex } from '@pnpm/store.index'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
+import { StoreIndex } from '@pnpm/store.index'
 import type { DependenciesField, DependencyManifest, Finder, Registries } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import semver from 'semver'
 import { realpathMissing } from 'realpath-missing'
+import semver from 'semver'
+
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
+import { getPkgInfo } from './getPkgInfo.js'
 import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
 import type { TreeNodeId } from './TreeNodeId.js'
-import { getPkgInfo } from './getPkgInfo.js'
 
 interface ReverseEdge {
   parentSerialized: string

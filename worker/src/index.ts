@@ -1,21 +1,23 @@
 // cspell:ignore checkin
-import path from 'path'
-import os from 'os'
-import { WorkerPool } from '@rushstack/worker-pool'
-import { PnpmError } from '@pnpm/error'
 import { execSync } from 'child_process'
-import isWindows from 'is-windows'
-import type { PackageFilesResponse, FilesMap } from '@pnpm/cafs-types'
-import type { BundledManifest } from '@pnpm/types'
-import pLimit from 'p-limit'
+import os from 'os'
+import path from 'path'
+
+import type { FilesMap,PackageFilesResponse } from '@pnpm/cafs-types'
+import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import type { StoreIndex } from '@pnpm/store.index'
+import type { BundledManifest } from '@pnpm/types'
+import { WorkerPool } from '@rushstack/worker-pool'
+import isWindows from 'is-windows'
+import pLimit from 'p-limit'
+
 import type {
-  TarballExtractMessage,
   AddDirToStoreMessage,
+  HardLinkDirMessage,
   LinkPkgMessage,
   SymlinkAllModulesMessage,
-  HardLinkDirMessage,
+  TarballExtractMessage,
 } from './types.js'
 
 let workerPool: WorkerPool | undefined

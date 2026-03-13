@@ -1,13 +1,14 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import { spawnSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { fixtures } from '@pnpm/test-fixtures'
+
 import { jest } from '@jest/globals'
+import { fixtures } from '@pnpm/test-fixtures'
 import { cmdExtension as CMD_EXTENSION } from 'cmd-extension'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
 import { temporaryDirectory } from 'tempy'
-import { spawnSync } from 'child_process'
 
 jest.unstable_mockModule('@pnpm/logger', () => {
   const debug = jest.fn()

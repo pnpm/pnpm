@@ -1,14 +1,16 @@
 // cspell:ignore ents
 import fs from 'fs'
-import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
-import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
+
+import { type LockfileObject, type PackageSnapshot, readWantedLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
-import schemas from 'hyperdrive-schemas'
 import Fuse from 'fuse-native'
+import schemas from 'hyperdrive-schemas'
+
 import * as cafsExplorer from './cafsExplorer.js'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
 

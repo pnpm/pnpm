@@ -13,6 +13,7 @@ import {
 import type { ProjectRootDir } from '@pnpm/types'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
+
 import { recursiveRebuild } from './recursive.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {

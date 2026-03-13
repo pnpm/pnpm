@@ -1,5 +1,7 @@
 import { stripVTControlCharacters } from 'util'
+
 import chalk from 'chalk'
+
 import { getUpdateChoices } from '../../lib/update/getUpdateChoices.js'
 
 test('getUpdateChoices()', () => {

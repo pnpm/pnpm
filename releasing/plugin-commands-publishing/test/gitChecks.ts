@@ -1,11 +1,12 @@
 import fs from 'fs'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { prepare } from '@pnpm/prepare'
+
+import { jest } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
+import { prepare } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
-import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))

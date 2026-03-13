@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
+
 import type { Config } from '@pnpm/config'
 import {
   deprecationLogger,
@@ -17,11 +18,12 @@ import {
   createStreamParser,
   logger,
 } from '@pnpm/logger'
-import { map, skip, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
-import { firstValueFrom } from 'rxjs'
 import { repeat } from 'ramda'
+import { firstValueFrom } from 'rxjs'
+import { map, skip, take } from 'rxjs/operators'
+
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
 
 const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)

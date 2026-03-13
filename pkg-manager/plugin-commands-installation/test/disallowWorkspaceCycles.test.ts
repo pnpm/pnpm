@@ -1,8 +1,9 @@
-import { install } from '@pnpm/plugin-commands-installation'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { preparePackages } from '@pnpm/prepare'
-import { DEFAULT_OPTS } from './utils/index.js'
 import type { PnpmError } from '@pnpm/error'
+import { install } from '@pnpm/plugin-commands-installation'
+import { preparePackages } from '@pnpm/prepare'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+
+import { DEFAULT_OPTS } from './utils/index.js'
 
 test('should error if disallow-workspace-cycles is set', async () => {
   preparePackages([

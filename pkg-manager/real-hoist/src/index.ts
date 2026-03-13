@@ -1,11 +1,11 @@
+import * as dp from '@pnpm/dependency-path'
 import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
   type LockfileObject,
-  type ProjectId,
   nameVerFromPkgSnapshot,
+  type ProjectId,
 } from '@pnpm/lockfile.utils'
-import * as dp from '@pnpm/dependency-path'
-import { hoist as _hoist, HoisterDependencyKind, type HoisterTree, type HoisterResult } from '@yarnpkg/nm/hoist'
+import { hoist as _hoist, HoisterDependencyKind, type HoisterResult,type HoisterTree } from '@yarnpkg/nm/hoist'
 
 export type HoistingLimits = Map<string, Set<string>>
 

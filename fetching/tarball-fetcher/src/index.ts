@@ -1,10 +1,10 @@
+import type { Cafs } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
 import type {
   FetchFunction,
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
-import type { Cafs } from '@pnpm/cafs-types'
 import type {
   FetchFromRegistry,
   GetAuthHeader,
@@ -12,22 +12,23 @@ import type {
 } from '@pnpm/fetching-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { TarballIntegrityError } from '@pnpm/worker'
+
+import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher.js'
+import { createLocalTarballFetcher } from './localTarballFetcher.js'
 import {
   createDownloader,
-  type DownloadFunction,
   type CreateDownloaderOptions,
+  type DownloadFunction,
 } from './remoteTarballFetcher.js'
-import { createLocalTarballFetcher } from './localTarballFetcher.js'
-import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher.js'
 
 export { BadTarballError } from './errorTypes/index.js'
 
 export { TarballIntegrityError }
 
 // Export individual fetcher factories for custom fetcher authors
-export { createLocalTarballFetcher } from './localTarballFetcher.js'
 export { createGitHostedTarballFetcher } from './gitHostedTarballFetcher.js'
-export { createDownloader, type DownloadFunction, type CreateDownloaderOptions } from './remoteTarballFetcher.js'
+export { createLocalTarballFetcher } from './localTarballFetcher.js'
+export { createDownloader, type CreateDownloaderOptions,type DownloadFunction } from './remoteTarballFetcher.js'
 
 export interface TarballFetchers {
   localTarball: FetchFunction

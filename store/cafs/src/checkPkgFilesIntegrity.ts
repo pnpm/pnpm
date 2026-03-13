@@ -1,11 +1,13 @@
 import crypto from 'crypto'
 import fs from 'fs'
 import util from 'util'
+
+import type { FilesMap,PackageFileInfo, PackageFiles, SideEffects } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
-import type { PackageFiles, PackageFileInfo, SideEffects, FilesMap } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import type { BundledManifest } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
+
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 
 export interface Integrity {

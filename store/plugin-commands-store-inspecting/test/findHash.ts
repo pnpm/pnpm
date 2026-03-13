@@ -1,11 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import path from 'path'
 
-import { prepare } from '@pnpm/prepare'
 import { getConfig } from '@pnpm/config'
-import { findHash } from '@pnpm/plugin-commands-store-inspecting'
 import type { PnpmError } from '@pnpm/error'
-
+import { findHash } from '@pnpm/plugin-commands-store-inspecting'
+import { prepare } from '@pnpm/prepare'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 

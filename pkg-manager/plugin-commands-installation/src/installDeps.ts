@@ -1,26 +1,11 @@
 import path from 'path'
+
 import { buildProjects } from '@pnpm/building.after-install'
 import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
-import { checkDepsStatus } from '@pnpm/deps.status'
-import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
-import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
-import { filterDependenciesByType } from '@pnpm/manifest-utils'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import type { LockfileObject } from '@pnpm/lockfile.types'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import type {
-  IncludedDependencies,
-  Project,
-  ProjectsGraph,
-  ProjectRootDir,
-  PackageVulnerabilityAudit,
-  VulnerabilitySeverity,
-} from '@pnpm/types'
 import {
   IgnoredBuildsError,
   install,
@@ -29,22 +14,39 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/core'
+import { checkDepsStatus } from '@pnpm/deps.status'
+import { PnpmError } from '@pnpm/error'
+import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
+import { filterDependenciesByType } from '@pnpm/manifest-utils'
+import type { PreferredVersions, VersionSelectors } from '@pnpm/resolver-base'
 import { sequenceGraph } from '@pnpm/sort-packages'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import type {
+  IncludedDependencies,
+  PackageVulnerabilityAudit,
+  Project,
+  ProjectRootDir,
+  ProjectsGraph,
+  VulnerabilitySeverity,
+} from '@pnpm/types'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
-import type { PreferredVersions, VersionSelectors } from '@pnpm/resolver-base'
+
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import {
   type CommandFullName,
+  createMatcher,
+  makeIgnorePatterns,
+  matchDependencies,
+  recursive,
   type RecursiveOptions,
   type UpdateDepsMatcher,
-  createMatcher,
-  matchDependencies,
-  makeIgnorePatterns,
-  recursive,
 } from './recursive.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 

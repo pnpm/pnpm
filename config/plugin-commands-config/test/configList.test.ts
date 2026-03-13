@@ -1,4 +1,5 @@
 import { config } from '@pnpm/plugin-commands-config'
+
 import { getOutputString } from './utils/index.js'
 
 test('config list', async () => {

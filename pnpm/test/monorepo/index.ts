@@ -1,10 +1,9 @@
 // cspell:ignore buildscript
 import fs from 'fs'
 import path from 'path'
+
 import type { Config } from '@pnpm/config'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
@@ -14,16 +13,19 @@ import {
   tempDir as makeTempDir,
 } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { readYamlFileSync } from 'read-yaml-file'
-import { safeExeca as execa } from 'execa'
-import { rimrafSync } from '@zkochan/rimraf'
-import { temporaryDirectory } from 'tempy'
-import symlink from 'symlink-dir'
-import { writeYamlFileSync } from 'write-yaml-file'
-import { execPnpm, execPnpmSync } from '../utils/index.js'
 import { addDistTag } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectManifest } from '@pnpm/types'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { rimrafSync } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
+import { readYamlFileSync } from 'read-yaml-file'
+import symlink from 'symlink-dir'
+import { temporaryDirectory } from 'tempy'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import { execPnpm, execPnpmSync } from '../utils/index.js'
 
 test('no projects matched the filters', async () => {
   preparePackages([

@@ -1,10 +1,11 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
 import nock from 'nock'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 afterEach(() => {

@@ -1,9 +1,10 @@
 import path from 'path'
+
+import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
-import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
 import { isRuntimeDepPath } from '@pnpm/dependency-path'
 import type {
   LockfileObject,
@@ -17,41 +18,42 @@ import { verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
   type AllowBuild,
-  type DependenciesField,
   DEPENDENCIES_FIELDS,
+  type DependenciesField,
   type DependencyManifest,
+  type DepPath,
   type PeerDependencyIssuesByProjects,
   type PinnedVersion,
-  type ProjectManifest,
-  type ProjectId,
-  type ProjectRootDir,
-  type DepPath,
   type PkgIdWithPatchHash,
+  type ProjectId,
+  type ProjectManifest,
+  type ProjectRootDir,
 } from '@pnpm/types'
-import { difference, zipWith } from 'ramda'
 import { isSubdir } from 'is-subdir'
-import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
+import { difference, zipWith } from 'ramda'
+
 import { depPathToRef } from './depPathToRef.js'
+import { getCatalogSnapshots } from './getCatalogSnapshots.js'
+import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
 import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies.js'
 import {
   type Importer,
   type LinkedDependency,
-  type ResolveDependenciesOptions,
   type ResolvedDirectDependency,
-  type ResolvedPackage,
+  type ResolveDependenciesOptions,
   resolveDependencyTree,
+  type ResolvedPackage,
 } from './resolveDependencyTree.js'
 import {
   type DependenciesByProjectId,
-  resolvePeers,
-  type GenericDependenciesGraphWithResolvedChildren,
   type GenericDependenciesGraphNodeWithResolvedChildren,
+  type GenericDependenciesGraphWithResolvedChildren,
+  resolvePeers,
 } from './resolvePeers.js'
 import { toResolveImporter } from './toResolveImporter.js'
 import { updateLockfile } from './updateLockfile.js'
 import { updateProjectManifest } from './updateProjectManifest.js'
-import { getCatalogSnapshots } from './getCatalogSnapshots.js'
 
 export type DependenciesGraph = GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
 
@@ -60,8 +62,8 @@ export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChil
 export {
   getWantedDependencies,
   type LinkedDependency,
-  type ResolvedPackage,
   type PinnedVersion,
+  type ResolvedPackage,
   type UpdateMatchingFunction,
   type WantedDependency,
 }

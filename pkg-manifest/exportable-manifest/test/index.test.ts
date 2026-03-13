@@ -1,11 +1,12 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import path from 'path'
+
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
-import { type MakePublishManifestOptions, createExportableManifest } from '@pnpm/exportable-manifest'
+import { createExportableManifest,type MakePublishManifestOptions } from '@pnpm/exportable-manifest'
 import { preparePackages } from '@pnpm/prepare'
-import { writeYamlFileSync } from 'write-yaml-file'
 import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
-import path from 'path'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 

@@ -1,11 +1,12 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+
+import type { Cafs, FilesMap,PackageFilesResponse } from '@pnpm/cafs-types'
+import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
   type CafsLocker,
   createCafs,
 } from '@pnpm/store.cafs'
-import type { Cafs, PackageFilesResponse, FilesMap } from '@pnpm/cafs-types'
-import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import type {
   ImportIndexedPackage,
   ImportIndexedPackageAsync,

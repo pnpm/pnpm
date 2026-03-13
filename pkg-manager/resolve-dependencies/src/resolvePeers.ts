@@ -1,9 +1,6 @@
-import filenamify from 'filenamify'
-import { analyzeGraph, type Graph } from 'graph-cycles'
 import path from 'path'
-import pDefer, { type DeferredPromise } from 'p-defer'
-import semver from 'semver'
-import * as semverUtils from '@yarnpkg/core/semverUtils'
+
+import { createPeerDepGraphHash, depPathToFilename, type PeerId } from '@pnpm/dependency-path'
 import type {
   DepPath,
   ParentPackages,
@@ -12,19 +9,24 @@ import type {
   PkgIdWithPatchHash,
   ProjectRootDir,
 } from '@pnpm/types'
-import { depPathToFilename, createPeerDepGraphHash, type PeerId } from '@pnpm/dependency-path'
+import * as semverUtils from '@yarnpkg/core/semverUtils'
+import filenamify from 'filenamify'
+import { analyzeGraph, type Graph } from 'graph-cycles'
+import pDefer, { type DeferredPromise } from 'p-defer'
 import { partition, pick } from 'ramda'
+import semver from 'semver'
+
+import { dedupeInjectedDeps } from './dedupeInjectedDeps.js'
+import { mergePeers } from './mergePeers.js'
 import type { NodeId } from './nextNodeId.js'
 import type {
   ChildrenMap,
-  PeerDependencies,
   DependenciesTree,
   DependenciesTreeNode,
+  PeerDependencies,
   ResolvedPackage,
 } from './resolveDependencies.js'
 import type { ResolvedImporters } from './resolveDependencyTree.js'
-import { mergePeers } from './mergePeers.js'
-import { dedupeInjectedDeps } from './dedupeInjectedDeps.js'
 
 export interface BaseGenericDependenciesGraphNode {
   // at this point the version is really needed only for logging

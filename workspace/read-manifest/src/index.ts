@@ -1,8 +1,10 @@
+import path from 'node:path'
 import util from 'util'
+
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import type { PnpmSettings } from '@pnpm/types'
-import path from 'node:path'
 import { readYamlFile } from 'read-yaml-file'
+
 import {
   assertValidWorkspaceManifestCatalog,
   assertValidWorkspaceManifestCatalogs,

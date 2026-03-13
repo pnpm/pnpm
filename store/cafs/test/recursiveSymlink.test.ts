@@ -1,6 +1,8 @@
 import fs from 'fs'
 import path from 'path'
+
 import { temporaryDirectory } from 'tempy'
+
 import { createCafs } from '../src/index.js'
 
 test('addFilesFromDir does not loop infinitely on recursive symlinks', () => {

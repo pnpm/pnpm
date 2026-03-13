@@ -1,11 +1,13 @@
 import path from 'path'
+
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, type MutatedProject, mutateModules } from '@pnpm/core'
-import { writeYamlFileSync } from 'write-yaml-file'
-import { readYamlFileSync } from 'read-yaml-file'
 import type { LockfileFile, PackageSnapshots } from '@pnpm/lockfile.fs'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 test('fix broken lockfile with --fix-lockfile', async () => {

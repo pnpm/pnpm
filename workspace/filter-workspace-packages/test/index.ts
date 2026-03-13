@@ -1,17 +1,19 @@
+import fs from 'fs'
+import path from 'path'
 import { promisify } from 'util'
+
 import type { PnpmError } from '@pnpm/error'
 import { filterWorkspacePackages, type PackageGraph } from '@pnpm/filter-workspace-packages'
-import type { Package } from '@pnpm/workspace.pkgs-graph'
 import type { ProjectRootDir } from '@pnpm/types'
-import './parsePackageSelector.js'
-import fs from 'fs'
-import { safeExeca as execa } from 'execa'
+import type { Package } from '@pnpm/workspace.pkgs-graph'
 import { isCI } from 'ci-info'
+import { safeExeca as execa } from 'execa'
 import isWindows from 'is-windows'
-import path from 'path'
 import { omit } from 'ramda'
 import { temporaryDirectory } from 'tempy'
 import touchCB from 'touch'
+
+import './parsePackageSelector.js'
 
 const touch = promisify(touchCB)
 const mkdir = promisify(fs.mkdir)

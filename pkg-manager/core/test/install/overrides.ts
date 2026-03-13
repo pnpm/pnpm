@@ -1,13 +1,15 @@
-import path from 'path'
 import fs from 'fs'
-import { readYamlFileSync } from 'read-yaml-file'
+import path from 'path'
+
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { addDependenciesToPackage, type MutatedProject, mutateModules,mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/core'
 import { PnpmError } from '@pnpm/error'
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type MutatedProject, type ProjectOptions, addDependenciesToPackage, mutateModulesInSingleProject, mutateModules } from '@pnpm/core'
-import type { LockfileFile } from '@pnpm/lockfile.types'
-import type { ProjectRootDir, ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest,ProjectRootDir } from '@pnpm/types'
+import { readYamlFileSync } from 'read-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
 
 test('versions are replaced with versions specified through overrides option', async () => {

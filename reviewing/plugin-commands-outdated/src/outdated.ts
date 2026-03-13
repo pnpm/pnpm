@@ -1,3 +1,5 @@
+import { stripVTControlCharacters as stripAnsi } from 'util'
+
 import {
   docsUrl,
   readDepNameCompletions,
@@ -20,13 +22,13 @@ import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { pick, sortWith } from 'ramda'
 import { renderHelp } from 'render-help'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+
+import { outdatedRecursive } from './recursive.js'
 import {
   DEFAULT_COMPARATORS,
   NAME_COMPARATOR,
   type OutdatedWithVersionDiff,
 } from './utils.js'
-import { outdatedRecursive } from './recursive.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {

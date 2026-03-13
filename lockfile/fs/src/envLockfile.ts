@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import util from 'util'
+
 import { ENV_LOCKFILE, LOCKFILE_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
@@ -8,6 +9,7 @@ import { sortDirectKeys } from '@pnpm/object.key-sorting'
 import yaml from 'js-yaml'
 import stripBom from 'strip-bom'
 import writeFileAtomic from 'write-file-atomic'
+
 import { lockfileYamlDump } from './write.js'
 
 export function createEnvLockfile (): EnvLockfile {

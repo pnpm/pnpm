@@ -1,8 +1,10 @@
 import fs from 'fs'
 import path from 'path'
-import { writeYamlFileSync } from 'write-yaml-file'
+
 import type { Config } from '@pnpm/config'
 import { prepare } from '@pnpm/prepare'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpmSync } from '../utils/index.js'
 
 test('pnpm config list reads npm options but ignores other settings from .npmrc', () => {

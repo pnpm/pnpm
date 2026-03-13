@@ -1,5 +1,7 @@
-import type { ProjectManifest } from '@pnpm/types'
 import path from 'path'
+
+import type { ProjectManifest } from '@pnpm/types'
+
 import { readPkg } from './readPkg.js'
 
 interface PkgData {

@@ -1,11 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import path from 'path'
 
-import { prepare } from '@pnpm/prepare'
 import { getConfig } from '@pnpm/config'
-import { catFile } from '@pnpm/plugin-commands-store-inspecting'
 import type { PnpmError } from '@pnpm/error'
-
+import { catFile } from '@pnpm/plugin-commands-store-inspecting'
+import { prepare } from '@pnpm/prepare'
 import { safeExeca as execa } from 'execa'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')

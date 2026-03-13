@@ -1,8 +1,10 @@
 import fs from 'fs'
 import path from 'path'
+
 import { install } from '@pnpm/core'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { preparePackages } from '@pnpm/prepare'
+
 import { testDefaults } from '../utils/index.js'
 
 test('throws an error when the peerDependencies have unallowed specs', async () => {

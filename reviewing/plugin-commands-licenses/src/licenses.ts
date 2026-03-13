@@ -8,8 +8,9 @@ import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
+
 import type { LicensesCommandResult } from './LicensesCommandResult.js'
-import { licensesList, type LicensesCommandOptions } from './licensesList.js'
+import { type LicensesCommandOptions,licensesList } from './licensesList.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {

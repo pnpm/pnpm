@@ -1,6 +1,6 @@
 import {
-  scanGlobalPackages,
   getGlobalPackageDetails,
+  scanGlobalPackages,
 } from '@pnpm/global.packages'
 import { createMatcher } from '@pnpm/matcher'
 import { lexCompare } from '@pnpm/util.lex-comparator'

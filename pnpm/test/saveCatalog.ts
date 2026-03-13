@@ -5,6 +5,7 @@ import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from './utils/index.js'
 
 test('--save-catalog adds catalogs to the manifest of a single package workspace', async () => {
