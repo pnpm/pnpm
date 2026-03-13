@@ -131,17 +131,25 @@ export function * extractUrlsFromString (text: string): Generator<string> {
  * @see https://github.com/npm/npm-profile/blob/main/lib/index.js for the webauth polling flow.
  */
 export async function publishWithOtpHandling ({
-  context = SHARED_CONTEXT,
+  context: {
+    Date,
+    setTimeout,
+    enquirer,
+    fetch,
+    globalInfo,
+    process,
+    publish,
+  } = SHARED_CONTEXT,
   manifest,
   publishOptions,
   tarballData,
 }: OtpParams): Promise<OtpPublishResponse> {
   let response: OtpPublishResponse
   try {
-    response = await context.publish(manifest, tarballData, publishOptions)
+    response = await publish(manifest, tarballData, publishOptions)
   } catch (error) {
     if (!isOtpError(error)) throw error
-    if (!context.process.stdin.isTTY || !context.process.stdout.isTTY) {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
       throw new OtpNonInteractiveError()
     }
     const fetchOptions: OtpWebAuthFetchOptions = {
@@ -157,12 +165,12 @@ export async function publishWithOtpHandling ({
     let otp: string | undefined
     if (error.body?.authUrl && error.body?.doneUrl) {
       // Web auth flow: display authUrl with QR code, poll doneUrl for token
-      otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, context, fetchOptions)
+      otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, { Date, setTimeout, fetch, globalInfo }, fetchOptions)
     } else {
       // Display npm-notice URL with QR code if available
-      await displayNpmNotice(error, context)
+      displayNpmNotice(error, globalInfo)
       // Prompt for manual OTP entry
-      const enquirerResponse = await context.enquirer.prompt({
+      const enquirerResponse = await enquirer.prompt({
         message: 'This operation requires a one-time password.\nEnter OTP:',
         name: 'otp',
         type: 'input',
@@ -172,7 +180,7 @@ export async function publishWithOtpHandling ({
     }
     if (otp != null) {
       try {
-        return await context.publish(manifest, tarballData, { ...publishOptions, otp })
+        return await publish(manifest, tarballData, { ...publishOptions, otp })
       } catch (retryError) {
         if (isOtpError(retryError)) {
           throw new OtpSecondChallengeError()
@@ -189,37 +197,43 @@ export async function publishWithOtpHandling ({
  * If the OTP error contains npm-notice headers with URLs, display the
  * notice messages and a QR code for each URL.
  */
-function displayNpmNotice (error: OtpError, context: OtpContext): void {
+function displayNpmNotice (error: OtpError, globalInfo: OtpContext['globalInfo']): void {
   const notices = error.headers?.['npm-notice']
   if (!notices?.length) return
 
   for (const notice of notices) {
-    context.globalInfo(notice)
+    globalInfo(notice)
     for (const url of extractUrlsFromString(notice)) {
       const qrCode = generateQrCode(url)
-      context.globalInfo(`\n${qrCode}\n`)
+      globalInfo(`\n${qrCode}\n`)
     }
   }
 }
 
-async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext, fetchOptions: OtpWebAuthFetchOptions): Promise<string> {
+async function webAuthOtp (
+  authUrl: string,
+  doneUrl: string,
+  { Date, setTimeout, fetch, globalInfo }: Pick<OtpContext, 'Date' | 'setTimeout' | 'fetch' | 'globalInfo'>,
+  fetchOptions: OtpWebAuthFetchOptions
+): Promise<string> {
   const qrCode = generateQrCode(authUrl)
-  context.globalInfo(`Authenticate your account at:\n${authUrl}\n\n${qrCode}`)
-  const startTime = context.Date.now()
+  globalInfo(`Authenticate your account at:\n${authUrl}\n\n${qrCode}`)
+  const startTime = Date.now()
   const timeout = 5 * 60 * 1000 // 5 minutes
 
   const pollIntervalMs = 1000
 
   while (true) {
-    if (context.Date.now() - startTime > timeout) {
-      throw new OtpWebAuthTimeoutError(context.Date.now(), startTime, timeout)
+    const now = Date.now()
+    if (now - startTime > timeout) {
+      throw new OtpWebAuthTimeoutError(now, startTime, timeout)
     }
     // eslint-disable-next-line no-await-in-loop
-    await new Promise<void>(resolve => context.setTimeout(resolve, pollIntervalMs))
+    await new Promise<void>(resolve => setTimeout(resolve, pollIntervalMs))
     let response: OtpWebAuthFetchResponse
     try {
       // eslint-disable-next-line no-await-in-loop
-      response = await context.fetch(doneUrl, fetchOptions)
+      response = await fetch(doneUrl, fetchOptions)
     } catch {
       continue
     }
@@ -235,7 +249,7 @@ async function webAuthOtp (authUrl: string, doneUrl: string, context: OtpContext
         const additionalMs = retryAfterSeconds * 1000 - pollIntervalMs
         if (additionalMs > 0) {
           // eslint-disable-next-line no-await-in-loop
-          await new Promise<void>(resolve => context.setTimeout(resolve, additionalMs))
+          await new Promise<void>(resolve => setTimeout(resolve, additionalMs))
         }
       }
       continue
