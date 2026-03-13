@@ -1,7 +1,7 @@
-import fs from 'fs'
-import { createRequire } from 'module'
-import path from 'path'
-import util from 'util'
+import fs from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+import util from 'node:util'
 
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'

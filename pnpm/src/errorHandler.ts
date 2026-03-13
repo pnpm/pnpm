@@ -1,4 +1,4 @@
-import { promisify } from 'util'
+import { promisify } from 'node:util'
 
 import { logger } from '@pnpm/logger'
 import pidTree from 'pidtree'

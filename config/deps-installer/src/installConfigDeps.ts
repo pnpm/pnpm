@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { calcLeafGlobalVirtualStorePath } from '@pnpm/calc-dep-state'
 import { installingConfigDepsLogger } from '@pnpm/core-loggers'

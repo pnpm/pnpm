@@ -1,6 +1,6 @@
 // cspell:ignore buildscript
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import type { Config } from '@pnpm/config'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'

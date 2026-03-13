@@ -1,7 +1,7 @@
-import assert from 'assert'
-import { constants, existsSync, type Stats } from 'fs'
-import path from 'path'
-import util from 'util'
+import assert from 'node:assert'
+import { constants, existsSync, type Stats } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
 
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import fs from '@pnpm/graceful-fs'

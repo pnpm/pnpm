@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'

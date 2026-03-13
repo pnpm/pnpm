@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import path from 'path'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/plugin-commands-listing'

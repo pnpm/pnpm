@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
+import path from 'node:path'
 
 import { arrayOfWorkspacePackagesToMap, getContext } from '@pnpm/get-context'
 import type { ProjectRootDir } from '@pnpm/types'

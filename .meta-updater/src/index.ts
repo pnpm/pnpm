@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { type LockfileObject, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'

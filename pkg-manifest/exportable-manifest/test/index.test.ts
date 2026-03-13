@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
+import path from 'node:path'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/exportable-manifest'

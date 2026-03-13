@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import { homedir } from 'os'
-import path from 'path'
+import fs from 'node:fs'
+import { homedir } from 'node:os'
+import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'

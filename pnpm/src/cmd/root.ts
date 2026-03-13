@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'

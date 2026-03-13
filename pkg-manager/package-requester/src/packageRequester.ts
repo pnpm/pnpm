@@ -1,5 +1,5 @@
-import { createReadStream, promises as fs } from 'fs'
-import path from 'path'
+import { createReadStream, promises as fs } from 'node:fs'
+import path from 'node:path'
 
 import type { Cafs } from '@pnpm/cafs-types'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'

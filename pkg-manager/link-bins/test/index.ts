@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { spawnSync } from 'child_process'
-import fs from 'fs'
-import path from 'path'
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'

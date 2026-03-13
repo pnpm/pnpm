@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'node:fs'
 
 export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {
   let retry = 0

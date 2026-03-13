@@ -1,4 +1,4 @@
-import util from 'util'
+import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/registry.pkg-metadata-filter'

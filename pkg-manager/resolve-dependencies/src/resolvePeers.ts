@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { createPeerDepGraphHash, depPathToFilename, type PeerId } from '@pnpm/dependency-path'
 import type {

@@ -1,5 +1,5 @@
-import { readFile } from 'fs/promises'
-import path from 'path'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { PnpmError } from '@pnpm/error'

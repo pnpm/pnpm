@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'

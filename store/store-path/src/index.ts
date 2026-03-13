@@ -1,6 +1,6 @@
-import { promises as fs } from 'fs'
-import os from 'os'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 import { STORE_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'

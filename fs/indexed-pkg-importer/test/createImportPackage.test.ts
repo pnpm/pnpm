@@ -1,5 +1,5 @@
-import fs, { type BigIntStats } from 'fs'
-import path from 'path'
+import fs, { type BigIntStats } from 'node:fs'
+import path from 'node:path'
 
 import { jest } from '@jest/globals'
 

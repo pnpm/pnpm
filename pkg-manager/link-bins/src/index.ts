@@ -1,6 +1,6 @@
-import { existsSync, promises as fs } from 'fs'
-import { createRequire } from 'module'
-import path from 'path'
+import { existsSync, promises as fs } from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
 
 import { getBunBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'

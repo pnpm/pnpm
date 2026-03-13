@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { run } from '@pnpm/plugin-commands-script-runners'

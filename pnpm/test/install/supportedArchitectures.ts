@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'node:fs'
 
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { prepare, prepareEmpty } from '@pnpm/prepare'

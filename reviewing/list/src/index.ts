@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'

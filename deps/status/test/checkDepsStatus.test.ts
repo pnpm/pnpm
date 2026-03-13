@@ -1,4 +1,4 @@
-import type { Stats } from 'fs'
+import type { Stats } from 'node:fs'
 
 import { jest } from '@jest/globals'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'

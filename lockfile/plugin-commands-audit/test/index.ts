@@ -1,5 +1,5 @@
-import path from 'path'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { AuditEndpointNotExistsError } from '@pnpm/audit'
 import { audit } from '@pnpm/plugin-commands-audit'

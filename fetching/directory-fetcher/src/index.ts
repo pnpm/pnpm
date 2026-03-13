@@ -1,6 +1,6 @@
-import { promises as fs, type Stats } from 'fs'
-import path from 'path'
-import util from 'util'
+import { promises as fs, type Stats } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import type { FilesMap } from '@pnpm/cafs-types'

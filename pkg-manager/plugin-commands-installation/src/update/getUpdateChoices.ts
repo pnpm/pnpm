@@ -1,4 +1,4 @@
-import { stripVTControlCharacters } from 'util'
+import { stripVTControlCharacters } from 'node:util'
 
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import type { OutdatedPackage } from '@pnpm/outdated'

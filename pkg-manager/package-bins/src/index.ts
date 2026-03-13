@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import type { DependencyManifest, PackageBin } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'

@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import type { PnpmError } from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'

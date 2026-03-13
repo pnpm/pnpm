@@ -1,7 +1,7 @@
-import assert from 'assert'
-import fs from 'fs'
-import path from 'path'
-import util from 'util'
+import assert from 'node:assert'
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
 
 import gfs from '@pnpm/graceful-fs'
 import { globalWarn } from '@pnpm/logger'

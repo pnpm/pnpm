@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import path from 'path'
+import path from 'node:path'
 
 import { STORE_VERSION } from '@pnpm/constants'
 import { install } from '@pnpm/plugin-commands-installation'

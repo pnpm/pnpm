@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import {

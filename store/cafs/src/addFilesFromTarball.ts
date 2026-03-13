@@ -1,4 +1,4 @@
-import { gunzipSync } from 'zlib'
+import { gunzipSync } from 'node:zlib'
 
 import type {
   AddToStoreResult,

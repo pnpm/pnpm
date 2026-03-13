@@ -1,6 +1,6 @@
-import assert from 'assert'
-import path from 'path'
-import util from 'util'
+import assert from 'node:assert'
+import path from 'node:path'
+import util from 'node:util'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { createAllowBuildFunction } from '@pnpm/building.policy'

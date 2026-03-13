@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'

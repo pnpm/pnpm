@@ -1,4 +1,4 @@
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import type { DependentsTree } from '@pnpm/reviewing.dependencies-hierarchy'
 

@@ -1,5 +1,5 @@
-import type { ChildProcess as NodeChildProcess, StdioOptions } from 'child_process'
-import path from 'path'
+import type { ChildProcess as NodeChildProcess, StdioOptions } from 'node:child_process'
+import path from 'node:path'
 
 import type { Config } from '@pnpm/config'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

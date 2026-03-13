@@ -1,6 +1,6 @@
-import fs from 'fs'
-import path from 'path'
-import { createGzip } from 'zlib'
+import fs from 'node:fs'
+import path from 'node:path'
+import { createGzip } from 'node:zlib'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { readProjectManifest } from '@pnpm/cli-utils'

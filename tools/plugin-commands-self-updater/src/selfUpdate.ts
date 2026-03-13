@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli-meta'
 import { docsUrl } from '@pnpm/cli-utils'

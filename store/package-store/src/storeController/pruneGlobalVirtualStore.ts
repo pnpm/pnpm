@@ -1,7 +1,7 @@
-import crypto from 'crypto'
-import { type Dirent, promises as fs } from 'fs'
-import path from 'path'
-import util from 'util'
+import crypto from 'node:crypto'
+import { type Dirent, promises as fs } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
 
 import { globalInfo } from '@pnpm/logger'
 import { rimraf } from '@zkochan/rimraf'

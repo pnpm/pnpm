@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type {

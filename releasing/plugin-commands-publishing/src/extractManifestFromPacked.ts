@@ -1,6 +1,6 @@
-import fs from 'fs'
-import path from 'path'
-import { createGunzip } from 'zlib'
+import fs from 'node:fs'
+import path from 'node:path'
+import { createGunzip } from 'node:zlib'
 
 import { PnpmError } from '@pnpm/error'
 import type { ExportedManifest } from '@pnpm/exportable-manifest'

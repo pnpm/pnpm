@@ -1,9 +1,9 @@
-import path from 'path'
+import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 
-const fsOriginal = await import('fs')
+const fsOriginal = await import('node:fs')
 jest.unstable_mockModule('fs', () => ({
   ...fsOriginal,
   readdirSync: jest.fn(fsOriginal.readdirSync),
@@ -14,7 +14,7 @@ jest.unstable_mockModule('fs', () => ({
     rm: jest.fn(fsOriginal.promises.rm),
   },
 }))
-const fs = await import('fs')
+const fs = await import('node:fs')
 const { cleanExpiredDlxCache, cleanOrphans } = await import('./cleanExpiredDlxCache.js')
 const { dlx } = await import('@pnpm/plugin-commands-script-runners')
 

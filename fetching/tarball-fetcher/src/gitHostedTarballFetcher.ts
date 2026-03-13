@@ -1,5 +1,5 @@
-import assert from 'assert'
-import util from 'util'
+import assert from 'node:assert'
+import util from 'node:util'
 
 import type { Cafs, FilesMap } from '@pnpm/cafs-types'
 import type { FetchFunction, FetchOptions } from '@pnpm/fetcher-base'

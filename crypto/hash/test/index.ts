@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'node:fs'
 import { pipeline } from 'node:stream/promises'
-import fs from 'fs'
 
 import { createHashFromFile, createShortHash, getTarballIntegrity } from '@pnpm/crypto.hash'
 import { tempDir } from '@pnpm/prepare'

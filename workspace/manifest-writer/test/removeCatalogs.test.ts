@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { findPackages } from '@pnpm/fs.find-packages'

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { type CatalogResolution, type CatalogResolver, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
 import {

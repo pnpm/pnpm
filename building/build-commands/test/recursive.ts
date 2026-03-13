@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 import { assertProject } from '@pnpm/assert-project'
 import { rebuild } from '@pnpm/building.build-commands'

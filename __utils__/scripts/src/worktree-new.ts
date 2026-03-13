@@ -1,6 +1,6 @@
-import { execSync, type StdioOptions } from 'child_process'
-import fs from 'fs'
-import path from 'path'
+import { execSync, type StdioOptions } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
 
 const arg = process.argv[2]
 if (!arg) {

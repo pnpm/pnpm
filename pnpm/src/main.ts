@@ -6,8 +6,8 @@ declare const global: Global
 if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
-import path from 'path'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli-meta'
 import { getConfig, installConfigDepsAndLoadHooks } from '@pnpm/cli-utils'

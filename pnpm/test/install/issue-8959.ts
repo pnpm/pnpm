@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'node:fs'
 
 import { preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'

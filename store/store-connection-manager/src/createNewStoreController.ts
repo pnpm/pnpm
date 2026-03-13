@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import { promises as fs } from 'node:fs'
 
 import { packageManager } from '@pnpm/cli-meta'
 import { type ClientOptions, createClient } from '@pnpm/client'
