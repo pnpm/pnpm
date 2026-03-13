@@ -87,7 +87,7 @@ export const DEFAULT_OPTS = {
   // registry: REGISTRY,
   sort: true,
   storeDir: '../store',
-  strictSsl: false,
+  strictSsl: true,
   userAgent: 'pnpm',
   userConfig: {},
   useRunningStoreServer: false,
