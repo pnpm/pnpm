@@ -35,7 +35,7 @@ export interface OtpPublishResponse {
 }
 
 export interface OtpEnquirer {
-  prompt: (options: OtpEnquirerOptions) => Promise<OtpEnquirerResponse>
+  prompt: (this: this, options: OtpEnquirerOptions) => Promise<OtpEnquirerResponse>
 }
 
 export interface OtpEnquirerOptions {
