@@ -41,9 +41,6 @@ const f = fixtures(import.meta.dirname)
 const registries = {
   default: 'https://registry.npmjs.org/',
 }
-const rawConfig = {
-  registry: registries.default,
-}
 
 beforeEach(() => {
   setupMockAgent()
