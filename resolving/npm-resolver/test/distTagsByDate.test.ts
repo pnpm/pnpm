@@ -2,7 +2,8 @@ import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import type { Registries } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
-import { setupMockAgent, teardownMockAgent, getMockAgent } from './utils/index.js'
+
+import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const registries: Registries = {
   default: 'https://registry.npmjs.org/',
