@@ -46,12 +46,10 @@ Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?
       if (confirmed.runInstall) {
         install()
       }
-    } catch (err) {
-      // Handle Ctrl+C gracefully - user cancelled the prompt
-      if ((err as NodeJS.ErrnoException).code === 'ERR_USE_AFTER_CLOSE') {
-        process.exit(1)
-      }
-      throw err
+    } catch {
+      // User cancelled the prompt (e.g. Ctrl+C) — exit immediately
+      // so the caller doesn't proceed to run the script.
+      process.exit(1)
     }
     break
   }
