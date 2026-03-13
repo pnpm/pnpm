@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION, resolveGlobalVirtualStoreDir } from '@pnpm/constants'
 import type {
   LockfileObject,
   ProjectSnapshot,
@@ -19,6 +19,7 @@ import type {
 
 export interface ResolveManifestDependenciesOpts {
   dir: string
+  globalVirtualStoreDir?: string
   registries: Registries
   storeController: StoreController
   storeDir: string
@@ -77,7 +78,7 @@ export async function resolveManifestDependencies (
       storeController: opts.storeController,
       tag: 'latest',
       virtualStoreDir: path.join(opts.dir, 'node_modules', '.pnpm'),
-      globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
+      globalVirtualStoreDir: resolveGlobalVirtualStoreDir(opts.globalVirtualStoreDir, opts.storeDir),
       virtualStoreDirMaxLength: 120,
       wantedLockfile: emptyLockfile,
       workspacePackages: new Map(),

@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { resolveGlobalVirtualStoreDir } from '@pnpm/constants'
 import { type CafsLocker, createCafsStore, createPackageImporterAsync } from '@pnpm/create-cafs-store'
 import type { Fetchers } from '@pnpm/fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
@@ -13,7 +14,7 @@ import type {
 } from '@pnpm/store-controller-types'
 import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
 
-import { prune } from './prune.js'
+import { prune, type PruneOptions } from './prune.js'
 
 export { type CafsLocker }
 
@@ -26,6 +27,7 @@ export interface CreatePackageStoreOptions {
   pnpmVersion?: string
   ignoreFile?: (filename: string) => boolean
   cacheDir: string
+  globalVirtualStoreDir?: string
   storeDir: string
   networkConcurrency?: number
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
@@ -67,6 +69,13 @@ export function createPackageStore (
     customFetchers: initOpts.customFetchers,
   })
 
+  const pruneOpts: PruneOptions = {
+    storeDir,
+    cacheDir: initOpts.cacheDir,
+    globalVirtualStoreDir: resolveGlobalVirtualStoreDir(initOpts.globalVirtualStoreDir, storeDir),
+    storeIndex: initOpts.storeIndex,
+  }
+
   return {
     close: async () => {
       initOpts.storeIndex.flush()
@@ -81,7 +90,7 @@ export function createPackageStore (
         storeDir: initOpts.storeDir,
         targetDir,
       }),
-    prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir, storeIndex: initOpts.storeIndex }),
+    prune: prune.bind(null, pruneOpts),
     requestPackage: packageRequester.requestPackage,
     upload,
     clearResolutionCache: initOpts.clearResolutionCache,

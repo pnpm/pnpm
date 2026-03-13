@@ -1,4 +1,4 @@
-import { type Dirent, promises as fs } from 'node:fs'
+import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -7,21 +7,23 @@ import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
 import { rimraf } from '@zkochan/rimraf'
 
+import { getSubdirsSafely } from './fsUtils.js'
 import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
 
 const BIG_ONE = BigInt(1) as unknown
 
 export interface PruneOptions {
   cacheDir: string
+  globalVirtualStoreDir: string
   storeDir: string
   storeIndex: StoreIndex
 }
 
-export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
+export async function prune ({ cacheDir, globalVirtualStoreDir, storeDir, storeIndex }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
   // 1. First, prune the global virtual store
   // This must happen BEFORE pruning the CAS, because removing packages from
   // the virtual store will reduce hard link counts on files in the CAS
-  await pruneGlobalVirtualStore(storeDir)
+  await pruneGlobalVirtualStore(storeDir, globalVirtualStoreDir)
 
   // 2. Clean up metadata cache
   const metadataDirs = await getSubdirsSafely(cacheDir)
@@ -86,17 +88,3 @@ export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, r
   globalInfo(`Removed ${pkgCounter} package${pkgCounter === 1 ? '' : 's'}`)
 }
 
-async function getSubdirsSafely (dir: string): Promise<string[]> {
-  let entries: Dirent[]
-  try {
-    entries = await fs.readdir(dir, { withFileTypes: true }) as Dirent[]
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return []
-    }
-    throw err
-  }
-  return entries
-    .filter(entry => entry.isDirectory())
-    .map(dir => dir.name)
-}

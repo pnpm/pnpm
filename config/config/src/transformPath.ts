@@ -11,6 +11,7 @@ const PATH_KEYS = [
   'cacheDir',
   'globalBinDir',
   'globalDir',
+  'globalVirtualStoreDir',
   'pnpmHomeDir',
   'storeDir',
 ] as const satisfies Array<keyof Config>

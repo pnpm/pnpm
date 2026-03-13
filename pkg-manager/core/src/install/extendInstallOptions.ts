@@ -1,7 +1,5 @@
-import path from 'node:path'
-
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { resolveGlobalVirtualStoreDir, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { ProjectOptions } from '@pnpm/get-context'
 import type { HoistingLimits } from '@pnpm/headless'
@@ -325,11 +323,17 @@ export function extendOptions (
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
+  const resolvedGlobalVirtualStoreDir = resolveGlobalVirtualStoreDir(opts.globalVirtualStoreDir, extendedOpts.storeDir)
+  // When GVS is enabled but no explicit virtualStoreDir is set,
+  // use the global virtual store as the virtual store directory.
   if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
-    extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+    extendedOpts.virtualStoreDir = resolvedGlobalVirtualStoreDir
   }
+  // When GVS is enabled, globalVirtualStoreDir tracks the effective virtualStoreDir
+  // (which may have been set above or explicitly overridden by the user).
+  // When GVS is disabled, it always uses the resolved default for prune/config-deps.
   extendedOpts.globalVirtualStoreDir = extendedOpts.enableGlobalVirtualStore
-    ? extendedOpts.virtualStoreDir!
-    : path.join(extendedOpts.storeDir, 'links')
+    ? extendedOpts.virtualStoreDir ?? resolvedGlobalVirtualStoreDir
+    : resolvedGlobalVirtualStoreDir
   return extendedOpts
 }

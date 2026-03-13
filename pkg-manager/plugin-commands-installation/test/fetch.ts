@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { STORE_VERSION } from '@pnpm/constants'
+import { GLOBAL_VIRTUAL_STORE_DIR_NAME, STORE_VERSION } from '@pnpm/constants'
 import { fetch, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -195,7 +195,7 @@ test('fetch populates global virtual store links/', async () => {
     },
   })
   const storeDir = path.resolve('store')
-  const globalVirtualStoreDir = path.join(storeDir, STORE_VERSION, 'links')
+  const globalVirtualStoreDir = path.join(storeDir, STORE_VERSION, GLOBAL_VIRTUAL_STORE_DIR_NAME)
 
   // Generate the lockfile only — no need for a full install
   await install.handler({

@@ -3,13 +3,12 @@ import { type Dirent, promises as fs } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
 
+import { getSubdirsSafely } from './fsUtils.js'
 import { getRegisteredProjects } from './projectRegistry.js'
-
-const LINKS_DIR = 'links'
 
 /**
  * Prune unused packages from the global virtual store using mark-and-sweep:
@@ -18,10 +17,26 @@ const LINKS_DIR = 'links'
  * 3. Walk symlinks from each node_modules to mark reachable packages
  * 4. Remove any package directories that weren't marked as reachable
  */
-export async function pruneGlobalVirtualStore (storeDir: string): Promise<void> {
-  const linksDir = path.join(storeDir, LINKS_DIR)
-  if (!await pathExists(linksDir)) {
+export async function pruneGlobalVirtualStore (storeDir: string, globalVirtualStoreDir: string): Promise<void> {
+  if (!path.isAbsolute(globalVirtualStoreDir)) {
+    globalWarn(`Skipping global virtual store prune: globalVirtualStoreDir is not an absolute path: ${globalVirtualStoreDir}`)
     return
+  }
+  if (!await pathExists(globalVirtualStoreDir)) {
+    return
+  }
+
+  // Resolve symlinks in the GVS path so that isSubdir comparisons work
+  // correctly when the user-provided path traverses a symlink.
+  let resolvedGvsDir: string
+  try {
+    resolvedGvsDir = await fs.realpath(globalVirtualStoreDir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      resolvedGvsDir = globalVirtualStoreDir
+    } else {
+      throw err
+    }
   }
 
   const projects = await getRegisteredProjects(storeDir)
@@ -42,14 +57,14 @@ export async function pruneGlobalVirtualStore (storeDir: string): Promise<void> 
       const nodeModulesDirs = await findAllNodeModulesDirs(projectDir)
       await Promise.all(
         nodeModulesDirs.map((modulesDir) =>
-          walkSymlinksToStore(modulesDir, linksDir, reachable, visited)
+          walkSymlinksToStore(modulesDir, resolvedGvsDir, reachable, visited)
         )
       )
     })
   )
 
   // Sweep phase: remove unreachable packages
-  const unreachableCount = await removeUnreachablePackages(linksDir, reachable)
+  const unreachableCount = await removeUnreachablePackages(resolvedGvsDir, reachable)
   if (unreachableCount > 0) {
     globalInfo(`Removed ${unreachableCount} package${unreachableCount === 1 ? '' : 's'} from global virtual store`)
   } else {
@@ -68,8 +83,11 @@ async function findAllNodeModulesDirs (projectDir: string): Promise<string[]> {
     let entries: Dirent[]
     try {
       entries = await fs.readdir(dir, { withFileTypes: true })
-    } catch {
-      return
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+        return
+      }
+      throw err
     }
 
     const subdirs: string[] = []
@@ -116,8 +134,11 @@ async function walkSymlinksToStore (
   let entries: Dirent[]
   try {
     entries = await fs.readdir(dir, { withFileTypes: true })
-  } catch {
-    return
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return
+    }
+    throw err
   }
 
   await Promise.all(
@@ -127,9 +148,25 @@ async function walkSymlinksToStore (
       if (entry.isSymbolicLink()) {
         try {
           const target = await fs.readlink(entryPath)
-          const absoluteTarget = path.isAbsolute(target)
+          const rawTarget = path.isAbsolute(target)
             ? target
             : path.resolve(dir, target)
+          // Resolve symlinks in the target path so that isSubdir comparisons
+          // are symmetric with the realpath-resolved GVS directory.
+          // Falls back to the raw path on ENOENT (dangling symlink) or other
+          // errors (e.g., permission issues on intermediate path components).
+          // This is safe because an unresolved target will fail the isSubdir
+          // check conservatively, keeping the package marked as reachable.
+          let absoluteTarget: string
+          try {
+            absoluteTarget = await fs.realpath(rawTarget)
+          } catch (err: unknown) {
+            if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+              absoluteTarget = rawTarget
+            } else {
+              throw err
+            }
+          }
 
           // Check if this symlink points into the global virtual store
           if (isSubdir(linksDir, absoluteTarget)) {
@@ -151,8 +188,12 @@ async function walkSymlinksToStore (
               await walkSymlinksToStore(pkgNodeModules, linksDir, reachable, visited)
             }
           }
-        } catch {
-          // Ignore broken symlinks
+        } catch (err: unknown) {
+          if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+            // Ignore broken/dangling symlinks
+          } else {
+            throw err
+          }
         }
       } else if (entry.isDirectory() && entry.name !== '.pnpm') {
         // Recurse into directories (but not .pnpm which is the local virtual store)
@@ -169,8 +210,15 @@ async function getRealPathHash (p: string): Promise<string> {
   let realPath: string
   try {
     realPath = await fs.realpath(p)
-  } catch {
-    realPath = p
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      // Dangling symlink — use the raw path for hashing.
+      // This is only used for cycle detection, so the worst case is re-visiting
+      // a directory, not data loss.
+      realPath = p
+    } else {
+      throw err
+    }
   }
   // Create a compact hash for in-memory use (base64url is shorter than hex that we use for file name hashes)
   return crypto.createHash('sha256').update(realPath).digest('base64url')
@@ -274,26 +322,11 @@ async function pathExists (p: string): Promise<boolean> {
   try {
     await fs.stat(p)
     return true
-  } catch {
-    return false
-  }
-}
-
-async function getSubdirsSafely (dir: string): Promise<string[]> {
-  let entries: Dirent[]
-  try {
-    entries = await fs.readdir(dir, { withFileTypes: true }) as Dirent[]
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return []
+      return false
     }
     throw err
   }
-  const subdirs: string[] = []
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      subdirs.push(entry.name)
-    }
-  }
-  return subdirs
 }
+

@@ -8,6 +8,7 @@ import { resolveManifestDependencies } from './resolveManifestDependencies.js'
 
 export interface ResolvePackageManagerIntegritiesOpts {
   envLockfile?: EnvLockfile
+  globalVirtualStoreDir?: string
   registries: Registries
   rootDir: string
   storeController: StoreController
@@ -53,6 +54,7 @@ export async function resolvePackageManagerIntegrities (
     },
     {
       dir: opts.rootDir,
+      globalVirtualStoreDir: opts.globalVirtualStoreDir,
       registries: opts.registries,
       storeController: opts.storeController,
       storeDir: opts.storeDir,

@@ -8,6 +8,7 @@ import {
   lockfileToDepGraph,
 } from '@pnpm/calc-dep-state'
 import { getCurrentPackageName } from '@pnpm/cli-meta'
+import { resolveGlobalVirtualStoreDir } from '@pnpm/constants'
 import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
 import {
   cleanOrphanedInstallDirs,
@@ -31,6 +32,7 @@ export interface InstallPnpmResult {
 
 export interface InstallPnpmOptions extends GlobalAddOptions {
   envLockfile?: EnvLockfile
+  globalVirtualStoreDir?: string
   storeController?: StoreController
   storeDir?: string
   packageManager?: { name: string, version: string }
@@ -70,6 +72,7 @@ export async function installPnpmToStore (
   pnpmVersion: string,
   opts: {
     envLockfile: EnvLockfile
+    globalVirtualStoreDir?: string
     storeController: StoreController
     storeDir: string
     registries: Registries
@@ -79,7 +82,7 @@ export async function installPnpmToStore (
 ): Promise<{ binDir: string }> {
   const currentPkgName = getCurrentPackageName()
   const wantedLockfile = buildLockfileFromEnvLockfile(opts.envLockfile, currentPkgName, pnpmVersion)
-  const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
+  const globalVirtualStoreDir = resolveGlobalVirtualStoreDir(opts.globalVirtualStoreDir, opts.storeDir)
 
   // Compute the GVS hash for the pnpm package to find its path
   const pnpmGvsPath = findPnpmGvsPath(wantedLockfile, currentPkgName, globalVirtualStoreDir)
@@ -101,6 +104,7 @@ export async function installPnpmToStore (
 
   try {
     await installFromLockfile(tmpInstallDir, binDir, {
+      globalVirtualStoreDir,
       wantedLockfile,
       storeController: opts.storeController,
       storeDir: opts.storeDir,
@@ -180,6 +184,7 @@ async function installPnpmToGlobalDir (
   try {
     if (wantedLockfile != null && opts.storeController != null && opts.storeDir != null) {
       await installFromLockfile(installDir, binDir, {
+        globalVirtualStoreDir: resolveGlobalVirtualStoreDir(opts.globalVirtualStoreDir, opts.storeDir),
         wantedLockfile,
         storeController: opts.storeController,
         storeDir: opts.storeDir,
@@ -214,6 +219,7 @@ async function installFromLockfile (
   installDir: string,
   binDir: string,
   opts: {
+    globalVirtualStoreDir: string
     wantedLockfile: LockfileObject
     storeController: StoreController
     storeDir: string
@@ -233,7 +239,7 @@ async function installFromLockfile (
     storeDir: opts.storeDir,
     registries: opts.registries,
     enableGlobalVirtualStore: true,
-    globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
+    globalVirtualStoreDir: opts.globalVirtualStoreDir,
     ignoreScripts: true,
     ignoreDepScripts: true,
     force: false,

@@ -21,6 +21,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'cert'
 | 'engineStrict'
 | 'force'
+| 'globalVirtualStoreDir'
 | 'nodeVersion'
 | 'fetchTimeout'
 | 'fetchWarnTimeoutMs'
@@ -120,6 +121,7 @@ export async function createNewStoreController (
       cafsLocker: opts.cafsLocker,
       engineStrict: opts.engineStrict,
       force: opts.force,
+      globalVirtualStoreDir: opts.globalVirtualStoreDir,
       nodeVersion: opts.nodeVersion,
       pnpmVersion: packageManager.version,
       ignoreFile: opts.ignoreFile,

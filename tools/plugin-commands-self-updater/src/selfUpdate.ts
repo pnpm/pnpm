@@ -48,6 +48,7 @@ export function help (): string {
 
 export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Config,
 | 'globalPkgDir'
+| 'globalVirtualStoreDir'
 | 'lockfileDir'
 | 'managePackageManagerVersions'
 | 'modulesDir'
@@ -97,6 +98,7 @@ export async function handler (
         }
         const store = await createStoreController(opts)
         await resolvePackageManagerIntegrities(resolution.manifest.version, {
+          globalVirtualStoreDir: opts.globalVirtualStoreDir,
           registries: opts.registries,
           rootDir: opts.rootProjectManifestDir,
           storeController: store.ctrl,
@@ -119,6 +121,7 @@ export async function handler (
 
   // Resolve integrities and write pnpm-lock.env.yaml
   const envLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
+    globalVirtualStoreDir: opts.globalVirtualStoreDir,
     registries: opts.registries,
     rootDir: opts.pnpmHomeDir,
     storeController: store.ctrl,

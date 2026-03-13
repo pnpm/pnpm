@@ -36,6 +36,7 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/config.deps-installer": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/global.commands": "workspace:*",

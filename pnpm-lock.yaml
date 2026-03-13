@@ -8560,6 +8560,9 @@ importers:
 
   store/package-store:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../create-cafs-store
@@ -8992,6 +8995,9 @@ importers:
       '@pnpm/config.deps-installer':
         specifier: workspace:*
         version: link:../../config/deps-installer
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error

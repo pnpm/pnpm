@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { calcLeafGlobalVirtualStorePath } from '@pnpm/calc-dep-state'
+import { resolveGlobalVirtualStoreDir } from '@pnpm/constants'
 import { installingConfigDepsLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
@@ -18,6 +19,7 @@ import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
 import type { NormalizedConfigDep } from './parseIntegrity.js'
 
 export interface InstallConfigDepsOpts {
+  globalVirtualStoreDir?: string
   registries: Registries
   rootDir: string
   store: StoreController
@@ -34,7 +36,7 @@ export async function installConfigDeps (
   opts: InstallConfigDepsOpts
 ): Promise<void> {
   const normalizedDeps = await normalizeForInstall(configDepsOrLockfile, opts)
-  const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
+  const globalVirtualStoreDir = resolveGlobalVirtualStoreDir(opts.globalVirtualStoreDir, opts.storeDir)
 
   const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
   const existingConfigDeps: string[] = await readModulesDir(configModulesDir) ?? []

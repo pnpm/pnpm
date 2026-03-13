@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 export const WANTED_LOCKFILE = 'pnpm-lock.yaml'
 export const ENV_LOCKFILE = 'pnpm-lock.env.yaml'
 export const LOCKFILE_MAJOR_VERSION = '9'
@@ -45,4 +47,10 @@ export function getDenoBinLocationForCurrentOS (platform: string = process.platf
 
 export function getBunBinLocationForCurrentOS (platform: string = process.platform): string {
   return platform === 'win32' ? 'bun.exe' : 'bun'
+}
+
+export const GLOBAL_VIRTUAL_STORE_DIR_NAME = 'links'
+
+export function resolveGlobalVirtualStoreDir (explicit: string | undefined, storeDir: string): string {
+  return explicit ?? path.join(storeDir, GLOBAL_VIRTUAL_STORE_DIR_NAME)
 }

@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { assertStore } from '@pnpm/assert-store'
-import { STORE_VERSION } from '@pnpm/constants'
+import { GLOBAL_VIRTUAL_STORE_DIR_NAME, STORE_VERSION } from '@pnpm/constants'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
@@ -445,7 +445,7 @@ describe('global virtual store prune', () => {
     ])
 
     // Verify the links directory was created
-    const linksDir = path.join(storeDir, STORE_VERSION, 'links')
+    const linksDir = path.join(storeDir, STORE_VERSION, GLOBAL_VIRTUAL_STORE_DIR_NAME)
     expect(fs.existsSync(linksDir)).toBe(true)
 
     // Remove the dependency from package.json and reinstall
@@ -523,7 +523,7 @@ describe('global virtual store prune', () => {
     rimrafSync(project1Dir)
 
     // Verify package still exists in links/@/ directory
-    const linksDir = path.join(storeDir, STORE_VERSION, 'links')
+    const linksDir = path.join(storeDir, STORE_VERSION, GLOBAL_VIRTUAL_STORE_DIR_NAME)
     const unscopedDir = path.join(linksDir, '@')
     const beforePrune = fs.readdirSync(unscopedDir)
     expect(beforePrune).toContain('is-positive')
@@ -589,7 +589,7 @@ describe('global virtual store prune', () => {
     ], { cwd: project2Dir })
 
     // Verify both packages exist in links/@/ directory
-    const linksDir = path.join(storeDir, STORE_VERSION, 'links')
+    const linksDir = path.join(storeDir, STORE_VERSION, GLOBAL_VIRTUAL_STORE_DIR_NAME)
     const unscopedDir = path.join(linksDir, '@')
     expect(fs.existsSync(unscopedDir)).toBe(true)
     const beforePrune = fs.readdirSync(unscopedDir)
@@ -652,7 +652,7 @@ describe('global virtual store prune', () => {
     ])
 
     // Verify all packages exist in links directory
-    const linksDir = path.join(storeDir, STORE_VERSION, 'links')
+    const linksDir = path.join(storeDir, STORE_VERSION, GLOBAL_VIRTUAL_STORE_DIR_NAME)
 
     // Scoped packages are in links/@pnpm.e2e/pkg-name/
     const scopeDir = path.join(linksDir, '@pnpm.e2e')

@@ -48,6 +48,7 @@ export async function installConfigDepsAndLoadHooks (config: Config): Promise<Co
   if (config.configDependencies) {
     const store = await createStoreController(config)
     await installConfigDeps(config.configDependencies, {
+      globalVirtualStoreDir: config.globalVirtualStoreDir,
       registries: config.registries,
       rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
       store: store.ctrl,

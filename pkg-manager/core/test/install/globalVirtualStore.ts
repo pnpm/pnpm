@@ -486,3 +486,186 @@ test('injected local packages work with global virtual store', async () => {
   expect(injectedDepLocation).toContain('links')
   expect(fs.existsSync(path.join(injectedDepLocation!, 'foo.js'))).toBeTruthy()
 })
+
+test('explicit globalVirtualStoreDir overrides default storeDir/links location', async () => {
+  prepareEmpty()
+  const customGVS = path.resolve('custom-links')
+  const defaultGVS = path.resolve('.store', 'links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    globalVirtualStoreDir: customGVS,
+  }))
+
+  // Packages should land in the custom GVS, not the default storeDir/links
+  expect(fs.existsSync(customGVS)).toBeTruthy()
+  expect(fs.existsSync(defaultGVS)).toBeFalsy()
+
+  const pkgDir = path.join(customGVS, '@pnpm.e2e/pkg-with-1-dep/100.0.0')
+  expect(fs.existsSync(pkgDir)).toBeTruthy()
+  const hashes = fs.readdirSync(pkgDir)
+  expect(hashes).toHaveLength(1)
+  const hashDir = path.join(pkgDir, hashes[0], 'node_modules')
+  expect(fs.existsSync(path.join(hashDir, '@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  // Verify transitive dependency is also present in the custom GVS
+  expect(fs.existsSync(path.join(hashDir, '@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+})
+
+test('explicit globalVirtualStoreDir is not used when enableGlobalVirtualStore is false', async () => {
+  prepareEmpty()
+  const customGVS = path.resolve('custom-links')
+  const defaultGVS = path.resolve('.store', 'links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: false,
+    globalVirtualStoreDir: customGVS,
+  }))
+
+  // Custom GVS should not be used when the feature is disabled
+  expect(fs.existsSync(customGVS)).toBeFalsy()
+  // Default GVS should also not be created when the feature is disabled
+  expect(fs.existsSync(defaultGVS)).toBeFalsy()
+  // Direct dependency should be installed locally via symlink in node_modules
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  // The virtual store should exist locally (not in the custom or default GVS)
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm'))).toBeTruthy()
+})
+
+test('reinstall from warm custom globalVirtualStoreDir skips fetching', async () => {
+  prepareEmpty()
+  const customGVS = path.resolve('custom-warm-links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    globalVirtualStoreDir: customGVS,
+    hoistPattern: ['*'],
+  })
+  await install(manifest, opts)
+
+  // Delete only node_modules, keep the custom GVS warm
+  rimrafSync('node_modules')
+  expect(fs.existsSync(customGVS)).toBeTruthy()
+
+  // Spy on fetchPackage to verify fast-path skips fetching
+  const originalFetchPackage = opts.storeController.fetchPackage
+  let fetchPackageCalls = 0
+  opts.storeController.fetchPackage = ((fetchOpts) => {
+    fetchPackageCalls++
+    return originalFetchPackage(fetchOpts)
+  }) as typeof originalFetchPackage
+
+  // Reinstall with frozenLockfile — should reattach from the warm custom GVS
+  await install(manifest, {
+    ...opts,
+    frozenLockfile: true,
+  })
+
+  // fetchPackage should NOT be called — all packages reattached from warm custom GVS
+  expect(fetchPackageCalls).toBe(0)
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+})
+
+test('prune works correctly with custom globalVirtualStoreDir', async () => {
+  prepareEmpty()
+  const customGVS = path.resolve('custom-prune-links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  // Pass globalVirtualStoreDir through storeOptions so the store controller
+  // knows to prune from the custom location
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    globalVirtualStoreDir: customGVS,
+  }, undefined, undefined, { globalVirtualStoreDir: customGVS })
+  await install(manifest, opts)
+
+  // Verify package is in custom GVS
+  const pkgDir = path.join(customGVS, '@pnpm.e2e/pkg-with-1-dep/100.0.0')
+  expect(fs.existsSync(pkgDir)).toBeTruthy()
+
+  // Run prune — package should be retained since it's still referenced
+  await opts.storeController.prune()
+  expect(fs.existsSync(pkgDir)).toBeTruthy()
+})
+
+test('prune removes unreachable packages from custom globalVirtualStoreDir', async () => {
+  prepareEmpty()
+  const customGVS = path.resolve('custom-prune-removal-links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      'is-positive': '1.0.0',
+    },
+  }
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    globalVirtualStoreDir: customGVS,
+  }, undefined, undefined, { globalVirtualStoreDir: customGVS })
+  await install(manifest, opts)
+
+  // Both packages should exist in the custom GVS
+  const pkgWithDepDir = path.join(customGVS, '@pnpm.e2e/pkg-with-1-dep/100.0.0')
+  expect(fs.existsSync(pkgWithDepDir)).toBeTruthy()
+
+  // Remove one dependency and reinstall
+  const reducedManifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  await install(reducedManifest, opts)
+
+  // Run prune — the removed package and its transitive dep should be cleaned up
+  await opts.storeController.prune()
+  expect(fs.existsSync(pkgWithDepDir)).toBeFalsy()
+  // The transitive dep should also be removed
+  const transitiveDepDir = path.join(customGVS, '@pnpm.e2e/dep-of-pkg-with-1-dep')
+  expect(fs.existsSync(transitiveDepDir)).toBeFalsy()
+  // The retained package should still exist
+  const isPositiveDir = path.join(customGVS, '@/is-positive')
+  expect(fs.existsSync(isPositiveDir)).toBeTruthy()
+})
+
+test('symlinked globalVirtualStoreDir resolves correctly', async () => {
+  prepareEmpty()
+  const realDir = path.resolve('real-gvs-dir')
+  const symlinkDir = path.resolve('symlinked-gvs')
+  fs.mkdirSync(realDir, { recursive: true })
+  fs.symlinkSync(realDir, symlinkDir)
+
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    globalVirtualStoreDir: symlinkDir,
+  }))
+
+  // Packages should be accessible through the symlink
+  const pkgDir = path.join(symlinkDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0')
+  expect(fs.existsSync(pkgDir)).toBeTruthy()
+  const hashes = fs.readdirSync(pkgDir)
+  expect(hashes).toHaveLength(1)
+  const hashDir = path.join(pkgDir, hashes[0], 'node_modules')
+  expect(fs.existsSync(path.join(hashDir, '@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(hashDir, '@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+
+  // Packages should also exist in the real directory
+  expect(fs.existsSync(path.join(realDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))).toBeTruthy()
+})
