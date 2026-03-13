@@ -1,4 +1,4 @@
-import { type LockfileFile } from '@pnpm/lockfile.types'
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import { sortKeysByPriority, sortDirectKeys, sortDeepKeys } from '@pnpm/object.key-sorting'
 
 const ORDERED_KEYS = {

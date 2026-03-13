@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
-import { type ProjectManifest } from '@pnpm/types'
-import { type ExportedManifest } from './index.js'
+import type { ProjectManifest } from '@pnpm/types'
+import type { ExportedManifest } from './index.js'
 
 type EnginesField = 'engines' | 'devEngines'
 type Input = Pick<ProjectManifest, EnginesField>

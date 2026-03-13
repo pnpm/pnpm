@@ -1,4 +1,4 @@
-import { type PkgResolutionId } from '@pnpm/types'
+import type { PkgResolutionId } from '@pnpm/types'
 
 export function parentIdsContainSequence (pkgIds: PkgResolutionId[], pkgId1: PkgResolutionId, pkgId2: PkgResolutionId): boolean {
   const pkg1Index = pkgIds.indexOf(pkgId1)

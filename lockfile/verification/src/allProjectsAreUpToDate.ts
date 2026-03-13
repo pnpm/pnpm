@@ -1,9 +1,9 @@
-import { type Catalogs } from '@pnpm/catalogs.types'
-import { type ProjectOptions } from '@pnpm/get-context'
-import {
-  type LockfileObject,
+import type { Catalogs } from '@pnpm/catalogs.types'
+import type { ProjectOptions } from '@pnpm/get-context'
+import type {
+  LockfileObject,
 } from '@pnpm/lockfile.types'
-import { type WorkspacePackages } from '@pnpm/resolver-base'
+import type { WorkspacePackages } from '@pnpm/resolver-base'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import pEvery from 'p-every'
 import { isEmpty } from 'ramda'

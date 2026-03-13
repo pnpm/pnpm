@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { prepare } from '@pnpm/prepare'
 import { execPnpmSync } from '../utils/index.js'
 

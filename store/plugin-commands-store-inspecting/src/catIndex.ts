@@ -1,13 +1,13 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import util from 'util'
 import { createResolver } from '@pnpm/client'
-import { type TarballResolution } from '@pnpm/lockfile.types'
+import type { TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
 import { sortDeepKeys } from '@pnpm/object.key-sorting'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { getStorePath } from '@pnpm/store-path'
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 

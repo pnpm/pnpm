@@ -5,18 +5,19 @@ import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { getWorkspaceConcurrency } from '@pnpm/config'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
 import { hardLinkDir } from '@pnpm/worker'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type StoreController } from '@pnpm/store-controller-types'
+import type { StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import {
-  type AllowBuild,
-  type DependencyManifest,
-  type DepPath,
-  type IgnoredBuilds,
+import type {
+  AllowBuild,
+  DependencyManifest,
+  DepPath,
+  IgnoredBuilds,
 } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import { pickBy } from 'ramda'
@@ -166,8 +167,13 @@ async function buildDependency<T extends string> (
     await linkBinsOfDependencies(depNode, depGraph, opts)
     let isPatched = false
     if (depNode.patch) {
-      const { file } = depNode.patch
-      isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: file.path })
+      if (!depNode.patch.patchFilePath) {
+        throw new PnpmError('PATCH_FILE_PATH_MISSING',
+          `Cannot apply patch for ${depPath}: patch file path is missing`,
+          { hint: 'Ensure the package is listed in patchedDependencies configuration' }
+        )
+      }
+      isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patch.patchFilePath })
     }
     const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
       depPath,
@@ -191,7 +197,7 @@ async function buildDependency<T extends string> (
     if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
-          patchFileHash: depNode.patch?.file.hash,
+          patchFileHash: depNode.patch?.hash,
           includeDepGraphHash: hasSideEffects,
         })
         await opts.storeController.upload(depNode.dir, {

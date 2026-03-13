@@ -1,9 +1,9 @@
 import fs from 'fs'
 import path from 'path'
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { install } from '@pnpm/core'
-import { type IgnoredScriptsLog } from '@pnpm/core-loggers'
+import type { IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
@@ -54,10 +54,7 @@ test('patch package with exact version', async () => {
   const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
-    'is-positive@1.0.0': {
-      path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
-      hash: patchFileHash,
-    },
+    'is-positive@1.0.0': patchFileHash,
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
@@ -154,10 +151,7 @@ test('patch package with version range', async () => {
   const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
-    'is-positive@1': {
-      path: path.relative(process.cwd(), patchedDependencies['is-positive@1']).replaceAll('\\', '/'),
-      hash: patchFileHash,
-    },
+    'is-positive@1': patchFileHash,
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
@@ -326,10 +320,7 @@ test('patch package when scripts are ignored', async () => {
   const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
-    'is-positive@1.0.0': {
-      path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
-      hash: patchFileHash,
-    },
+    'is-positive@1.0.0': patchFileHash,
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
@@ -419,10 +410,7 @@ test('patch package when the package is not in allowBuilds list', async () => {
   const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
-    'is-positive@1.0.0': {
-      path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
-      hash: patchFileHash,
-    },
+    'is-positive@1.0.0': patchFileHash,
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { type VariationsResolution } from '@pnpm/resolver-base'
+import type { VariationsResolution } from '@pnpm/resolver-base'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { getIntegrity } from '@pnpm/registry-mock'

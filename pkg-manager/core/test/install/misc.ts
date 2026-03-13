@@ -1,16 +1,16 @@
 import * as path from 'path'
 import fs from 'fs'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
-import {
-  type PackageManifestLog,
-  type ProgressLog,
-  type RootLog,
-  type StageLog,
-  type StatsLog,
+import type {
+  PackageManifestLog,
+  ProgressLog,
+  RootLog,
+  StageLog,
+  StatsLog,
 } from '@pnpm/core-loggers'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
+import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,

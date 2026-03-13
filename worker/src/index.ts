@@ -5,17 +5,17 @@ import { WorkerPool } from '@rushstack/worker-pool'
 import { PnpmError } from '@pnpm/error'
 import { execSync } from 'child_process'
 import isWindows from 'is-windows'
-import { type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
-import { type BundledManifest } from '@pnpm/types'
+import type { PackageFilesResponse, FilesMap } from '@pnpm/cafs-types'
+import type { BundledManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { globalWarn } from '@pnpm/logger'
-import { type StoreIndex } from '@pnpm/store.index'
-import {
-  type TarballExtractMessage,
-  type AddDirToStoreMessage,
-  type LinkPkgMessage,
-  type SymlinkAllModulesMessage,
-  type HardLinkDirMessage,
+import type { StoreIndex } from '@pnpm/store.index'
+import type {
+  TarballExtractMessage,
+  AddDirToStoreMessage,
+  LinkPkgMessage,
+  SymlinkAllModulesMessage,
+  HardLinkDirMessage,
 } from './types.js'
 
 let workerPool: WorkerPool | undefined

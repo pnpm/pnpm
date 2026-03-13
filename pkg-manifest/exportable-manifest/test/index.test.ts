@@ -3,7 +3,7 @@ import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { type MakePublishManifestOptions, createExportableManifest } from '@pnpm/exportable-manifest'
 import { preparePackages } from '@pnpm/prepare'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
 import path from 'path'
 

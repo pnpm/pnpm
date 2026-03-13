@@ -1,7 +1,7 @@
 import { packageManager } from '@pnpm/cli-meta'
 import { logger } from '@pnpm/logger'
 import { checkPackage, UnsupportedEngineError, type WantedEngine } from '@pnpm/package-is-installable'
-import { type SupportedArchitectures } from '@pnpm/types'
+import type { SupportedArchitectures } from '@pnpm/types'
 
 export function packageIsInstallable (
   pkgPath: string,

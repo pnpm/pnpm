@@ -1,11 +1,11 @@
 import path from 'path'
-import {
-  type DeprecationLog,
-  type PackageManifestLog,
-  type RootLog,
-  type SummaryLog,
+import type {
+  DeprecationLog,
+  PackageManifestLog,
+  RootLog,
+  SummaryLog,
 } from '@pnpm/core-loggers'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
@@ -118,7 +118,7 @@ function printDiffs (
       result += ` ${chalk.red('deprecated')}`
     }
     if (pkg.from) {
-      result += ` ${chalk.grey(`<- ${pkg.from && path.relative(opts.prefix, pkg.from) || '???'}`)}`
+      result += ` ${chalk.grey(`<- ${path.relative(opts.prefix, pkg.from) || pkg.from}`)}`
     }
     if (pkg.added && depType === 'dev' && opts.pnpmConfig?.saveDev === false && opts.cmd === 'add') {
       result += `${chalk.yellow(' already in devDependencies, was not moved to dependencies.')}`

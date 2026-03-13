@@ -1,7 +1,7 @@
 import path from 'path'
 import util from 'util'
 
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/graceful-fs'
 import { getStorePath } from '@pnpm/store-path'

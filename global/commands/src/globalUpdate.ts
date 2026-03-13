@@ -12,7 +12,7 @@ import { linkBinsOfPackages } from '@pnpm/link-bins'
 import { removeBin } from '@pnpm/remove-bins'
 import isSubdir from 'is-subdir'
 import symlinkDir from 'symlink-dir'
-import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import type { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { approveBuilds } from '@pnpm/exec.build-commands'
 import { installGlobalPackages } from './installGlobalPackages.js'
 

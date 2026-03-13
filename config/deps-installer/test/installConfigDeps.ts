@@ -9,7 +9,7 @@ const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 test('configuration dependency is installed', async () => {
   prepareEmpty()
-  const { storeController } = createTempStore()
+  const { storeController, storeDir } = createTempStore()
 
   let configDeps: Record<string, string> = {
     '@pnpm.e2e/foo': `100.0.0+${getIntegrity('@pnpm.e2e/foo', '100.0.0')}`,
@@ -20,12 +20,15 @@ test('configuration dependency is installed', async () => {
     },
     rootDir: process.cwd(),
     store: storeController,
+    storeDir,
   })
 
   {
     const configDepManifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')
     expect(configDepManifest.name).toBe('@pnpm.e2e/foo')
     expect(configDepManifest.version).toBe('100.0.0')
+    // The local path should be a symlink to the global virtual store
+    expect(fs.lstatSync('node_modules/.pnpm-config/@pnpm.e2e/foo').isSymbolicLink()).toBe(true)
   }
 
   // Dependency is updated
@@ -37,6 +40,7 @@ test('configuration dependency is installed', async () => {
     },
     rootDir: process.cwd(),
     store: storeController,
+    storeDir,
   })
 
   {
@@ -54,6 +58,7 @@ test('configuration dependency is installed', async () => {
     },
     rootDir: process.cwd(),
     store: storeController,
+    storeDir,
   })
 
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')).toBeFalsy()
@@ -61,7 +66,7 @@ test('configuration dependency is installed', async () => {
 
 test('installation fails if the checksum of the config dependency is invalid', async () => {
   prepareEmpty()
-  const { storeController } = createTempStore({
+  const { storeController, storeDir } = createTempStore({
     clientOptions: {
       retry: {
         retries: 0,
@@ -78,12 +83,13 @@ test('installation fails if the checksum of the config dependency is invalid', a
     },
     rootDir: process.cwd(),
     store: storeController,
+    storeDir,
   })).rejects.toThrow('Got unexpected checksum for')
 })
 
 test('installation fails if the config dependency does not have a checksum', async () => {
   prepareEmpty()
-  const { storeController } = createTempStore({
+  const { storeController, storeDir } = createTempStore({
     clientOptions: {
       retry: {
         retries: 0,
@@ -100,5 +106,6 @@ test('installation fails if the config dependency does not have a checksum', asy
     },
     rootDir: process.cwd(),
     store: storeController,
+    storeDir,
   })).rejects.toThrow("doesn't have an integrity checksum")
 })

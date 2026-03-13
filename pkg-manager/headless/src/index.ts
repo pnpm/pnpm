@@ -48,13 +48,13 @@ import {
   type Modules,
   writeModulesManifest,
 } from '@pnpm/modules-yaml'
-import { type PatchGroupRecord } from '@pnpm/patching.config'
-import { type HoistingLimits } from '@pnpm/real-hoist'
+import type { PatchGroupRecord } from '@pnpm/patching.config'
+import type { HoistingLimits } from '@pnpm/real-hoist'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import {
-  type PackageFilesResponse,
-  type StoreController,
+import type {
+  PackageFilesResponse,
+  StoreController,
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
@@ -890,7 +890,7 @@ async function linkAllPkgs (
         if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
-            patchFileHash: depNode.patch?.file.hash,
+            patchFileHash: depNode.patch?.hash,
           })
         }
       }

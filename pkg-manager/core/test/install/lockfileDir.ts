@@ -1,11 +1,11 @@
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
-import { type ProjectRootDir, type DepPath } from '@pnpm/types'
+import type { ProjectRootDir, DepPath } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
 

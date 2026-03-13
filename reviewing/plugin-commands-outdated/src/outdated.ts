@@ -5,7 +5,7 @@ import {
   TABLE_OPTIONS,
 } from '@pnpm/cli-utils'
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
-import { type CompletionFunc } from '@pnpm/command'
+import type { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -15,7 +15,7 @@ import {
   type OutdatedPackage,
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { type DependenciesField, type PackageManifest, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
+import type { DependenciesField, PackageManifest, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { pick, sortWith } from 'ramda'

@@ -1,4 +1,4 @@
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { transformPeerDependenciesMeta } from '../lib/transform/peerDependenciesMeta.js'
 
 test('returns manifest as-is when peerDependenciesMeta is absent', () => {

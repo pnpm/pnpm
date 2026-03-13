@@ -3,7 +3,7 @@ import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
-import { type Catalogs } from '@pnpm/catalogs.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -59,20 +59,20 @@ import {
   type UpdateMatchingFunction,
   type WantedDependency,
 } from '@pnpm/resolve-dependencies'
-import {
-  type PreferredVersions,
+import type {
+  PreferredVersions,
 } from '@pnpm/resolver-base'
-import {
-  type DepPath,
-  type AllowBuild,
-  type DependenciesField,
-  type DependencyManifest,
-  type IgnoredBuilds,
-  type PeerDependencyIssues,
-  type ProjectId,
-  type ProjectManifest,
-  type ReadPackageHook,
-  type ProjectRootDir,
+import type {
+  DepPath,
+  AllowBuild,
+  DependenciesField,
+  DependencyManifest,
+  IgnoredBuilds,
+  PeerDependencyIssues,
+  ProjectId,
+  ProjectManifest,
+  ReadPackageHook,
+  ProjectRootDir,
 } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import isSubdir from 'is-subdir'
@@ -425,14 +425,18 @@ export async function mutateModules (
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
-      : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies, opts.lockfileDir) : {})
-    const patchedDependenciesWithResolvedPath = patchedDependencies
-      ? mapValues((patchFile) => ({
-        hash: patchFile.hash,
-        path: path.join(opts.lockfileDir, patchFile.path),
-      }), patchedDependencies)
-      : undefined
-    const patchGroups = patchedDependenciesWithResolvedPath && groupPatchedDependencies(patchedDependenciesWithResolvedPath)
+      : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies) : {})
+    const patchGroupInput = opts.patchedDependencies
+      ? Object.fromEntries(
+        Object.entries(patchedDependencies ?? {}).map(([key, hash]) => {
+          const patchFilePath = opts.patchedDependencies![key]
+            ? path.resolve(opts.lockfileDir, opts.patchedDependencies![key])
+            : undefined
+          return [key, { hash, patchFilePath }]
+        })
+      )
+      : patchedDependencies
+    const patchGroups = patchGroupInput ? groupPatchedDependencies(patchGroupInput) : undefined
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
