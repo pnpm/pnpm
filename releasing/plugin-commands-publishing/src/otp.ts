@@ -35,7 +35,7 @@ export interface OtpPublishResponse {
 }
 
 export interface OtpEnquirer {
-  prompt: (options: OtpEnquirerOptions) => Promise<object>
+  prompt: (options: OtpEnquirerOptions) => Promise<OtpEnquirerResponse>
 }
 
 export interface OtpEnquirerOptions {
@@ -174,7 +174,7 @@ export async function publishWithOtpHandling ({
         message: 'This operation requires a one-time password.\nEnter OTP:',
         name: 'otp',
         type: 'input',
-      }) as OtpEnquirerResponse
+      })
       // Use || (not ??) so that empty-string input is treated as "no OTP provided"
       otp = enquirerResponse.otp || undefined
     }
