@@ -1,27 +1,62 @@
 import path from 'node:path'
 
 import { audit } from '@pnpm/deps.compliance.commands'
+import { clearDispatcherCache } from '@pnpm/network.fetch'
 import { fixtures } from '@pnpm/test-fixtures'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
-import nock from 'nock'
 import { readYamlFileSync } from 'read-yaml-file'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
-import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
+import { DEFAULT_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
 const f = fixtures(import.meta.dirname)
 
+const registries = DEFAULT_OPTS.registries
+
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  currentMockAgent.disableNetConnect()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+  }
+}
+
+beforeEach(() => {
+  setupMockAgent()
+})
+
+afterEach(async () => {
+  await teardownMockAgent()
+})
+
 test('overrides with references (via $) are preserved during audit --fix', async () => {
   const tmp = f.prepare('preserve-reference-overrides')
 
-  nock(AUDIT_REGISTRY)
-    .post('/-/npm/v1/security/audits/quick')
+  currentMockAgent!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { manifest: initialManifest } = await readProjectManifest(tmp)
 
   const { exitCode, output } = await audit.handler({
-    ...AUDIT_REGISTRY_OPTS,
+    ...DEFAULT_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
