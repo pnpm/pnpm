@@ -1,10 +1,12 @@
-import path from 'path'
+import path from 'node:path'
+
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { run } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import execa from 'execa'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { safeExeca as execa } from 'execa'
+
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')

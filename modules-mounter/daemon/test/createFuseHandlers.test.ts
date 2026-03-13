@@ -1,12 +1,13 @@
-import { STORE_VERSION } from '@pnpm/constants'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
-import path from 'path'
-import type { FuseHandlers } from '../src/createFuseHandlers.js'
+import { STORE_VERSION } from '@pnpm/constants'
 
 jest.unstable_mockModule('fuse-native', () => ({ default: { ENOENT: -2 } }))
 
 const { default: Fuse } = await import('fuse-native')
 const { createFuseHandlers } = await import('../src/createFuseHandlers.js')
+type FuseHandlers = Awaited<ReturnType<typeof createFuseHandlers>>
 
 describe('FUSE handlers', () => {
   let handlers: FuseHandlers

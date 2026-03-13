@@ -1,19 +1,20 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
+import type { Cafs, FilesMap, PackageFilesResponse } from '@pnpm/cafs-types'
+import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
   type CafsLocker,
   createCafs,
 } from '@pnpm/store.cafs'
-import { type Cafs, type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
-import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
-import {
-  type ImportIndexedPackage,
-  type ImportIndexedPackageAsync,
-  type ImportPackageFunction,
-  type ImportPackageFunctionAsync,
+import type {
+  ImportIndexedPackage,
+  ImportIndexedPackageAsync,
+  ImportPackageFunction,
+  ImportPackageFunctionAsync,
 } from '@pnpm/store-controller-types'
 import memoize from 'memoize'
-import pathTemp from 'path-temp'
+import { pathTemp } from 'path-temp'
 
 export { type CafsLocker }
 
@@ -42,6 +43,7 @@ export function createPackageImporterAsync (
       resolvedFrom: opts.filesResponse.resolvedFrom,
       force: opts.force,
       keepModulesDir: Boolean(opts.keepModulesDir),
+      safeToSkip: opts.safeToSkip,
     })
     return { importMethod, isBuilt }
   }
@@ -72,6 +74,7 @@ function createPackageImporter (
       resolvedFrom: opts.filesResponse.resolvedFrom,
       force: opts.force,
       keepModulesDir: Boolean(opts.keepModulesDir),
+      safeToSkip: opts.safeToSkip,
     })
     return { importMethod, isBuilt }
   }

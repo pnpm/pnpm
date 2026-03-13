@@ -1,8 +1,9 @@
-import path from 'path'
-import { preparePackage } from '@pnpm/prepare-package'
+import path from 'node:path'
+
 import { tempDir } from '@pnpm/prepare'
-import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { preparePackage } from '@pnpm/prepare-package'
 import { fixtures } from '@pnpm/test-fixtures'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 
 const f = fixtures(import.meta.dirname)
 const allowBuild = () => true

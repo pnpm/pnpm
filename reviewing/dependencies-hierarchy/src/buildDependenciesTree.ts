@@ -1,4 +1,6 @@
-import path from 'path'
+import path from 'node:path'
+
+import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import {
   getLockfileImporterId,
   type LockfileObject,
@@ -7,19 +9,20 @@ import {
   readWantedLockfile,
   type ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
-import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DependenciesField, type Finder, DEPENDENCIES_FIELDS, type Registries } from '@pnpm/types'
+import { StoreIndex } from '@pnpm/store.index'
+import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'
-import realpathMissing from 'realpath-missing'
-import resolveLinkTarget from 'resolve-link-target'
-import { type DependencyNode } from './DependencyNode.js'
+import { realpathMissing } from 'realpath-missing'
+import { resolveLinkTarget } from 'resolve-link-target'
+
 import { buildDependencyGraph } from './buildDependencyGraph.js'
-import { getTree, type BaseTreeOpts, type MaterializationCache } from './getTree.js'
-import { type TreeNodeId } from './TreeNodeId.js'
+import type { DependencyNode } from './DependencyNode.js'
+import { type BaseTreeOpts, getTree, type MaterializationCache } from './getTree.js'
+import type { TreeNodeId } from './TreeNodeId.js'
 
 export interface DependenciesTree {
   dependencies?: DependencyNode[]
@@ -72,6 +75,8 @@ export async function buildDependenciesTree (
     return result
   }
 
+  const storeDir = modules?.storeDir
+  const storeIndex = storeDir ? new StoreIndex(storeDir) : undefined
   const opts = {
     depth: maybeOpts.depth || 0,
     excludePeerDependencies: maybeOpts.excludePeerDependencies,
@@ -87,7 +92,8 @@ export async function buildDependenciesTree (
     search: maybeOpts.search,
     showDedupedSearchMatches: maybeOpts.showDedupedSearchMatches ?? (maybeOpts.search != null),
     skipped: new Set(modules?.skipped ?? []),
-    storeDir: modules?.storeDir,
+    storeDir,
+    storeIndex,
     modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
@@ -130,6 +136,7 @@ export async function buildDependenciesTree (
   for (const [projectPath, dependenciesHierarchy] of pairs) {
     result[projectPath] = dependenciesHierarchy
   }
+  storeIndex?.close()
   return result
 }
 

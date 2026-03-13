@@ -1,11 +1,13 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { listGlobalPackages } from '@pnpm/global.commands'
 import { list, listForPackages } from '@pnpm/list'
-import { type Finder, type IncludedDependencies } from '@pnpm/types'
+import type { Finder, IncludedDependencies } from '@pnpm/types'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
-import { computeInclude, resolveFinders, determineReportAs, SHARED_CLI_HELP_OPTIONS, BASE_RC_OPTION_KEYS } from './common.js'
+import { renderHelp } from 'render-help'
+
+import { BASE_RC_OPTION_KEYS, computeInclude, determineReportAs, resolveFinders, SHARED_CLI_HELP_OPTIONS } from './common.js'
 import { listRecursive } from './recursive.js'
 
 export const EXCLUDE_PEERS_HELP = {
@@ -101,12 +103,15 @@ export type ListCommandOptions = Pick<Config,
   onlyProjects?: boolean
   recursive?: boolean
   findBy?: string[]
-}
+} & Partial<Pick<Config, 'global' | 'globalPkgDir'>>
 
 export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ): Promise<string> {
+  if (opts.global && opts.globalPkgDir) {
+    return listGlobalPackages(opts.globalPkgDir, params)
+  }
   const include = computeInclude(opts)
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {

@@ -1,13 +1,14 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
-import { fixtures } from '@pnpm/test-fixtures'
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
-import CMD_EXTENSION from 'cmd-extension'
+import { fixtures } from '@pnpm/test-fixtures'
+import { cmdExtension as CMD_EXTENSION } from 'cmd-extension'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
 import { temporaryDirectory } from 'tempy'
-import { spawnSync } from 'child_process'
 
 jest.unstable_mockModule('@pnpm/logger', () => {
   const debug = jest.fn()
@@ -597,5 +598,65 @@ describe('enable prefer-symlinked-executables', () => {
     expect(
       globalWarn
     ).toHaveBeenCalled()
+  })
+})
+
+describe('node binary linking', () => {
+  if (!IS_WINDOWS) {
+    test('linkBinsOfPackages() symlinks node binary directly instead of creating a shell shim', async () => {
+      const binTarget = temporaryDirectory()
+      const nodeDir = temporaryDirectory()
+
+      const nodeBinDir = path.join(nodeDir, 'bin')
+      fs.mkdirSync(nodeBinDir, { recursive: true })
+      fs.writeFileSync(path.join(nodeBinDir, 'node'), 'fake-node-binary', 'utf8')
+
+      await linkBinsOfPackages(
+        [
+          {
+            location: nodeDir,
+            manifest: {
+              name: 'node',
+              version: '20.0.0',
+              bin: { node: 'bin/node' },
+            },
+          },
+        ],
+        binTarget
+      )
+
+      const binLocation = path.join(binTarget, 'node')
+      const stat = fs.lstatSync(binLocation)
+      expect(stat.isSymbolicLink()).toBe(true)
+      expect(fs.realpathSync(binLocation)).toBe(path.join(nodeBinDir, 'node'))
+    })
+  }
+
+  testOnWindows('linkBinsOfPackages() hardlinks node.exe instead of creating a cmd-shim', async () => {
+    const binTarget = temporaryDirectory()
+    const nodeDir = temporaryDirectory()
+
+    fs.writeFileSync(path.join(nodeDir, 'node.exe'), 'fake-node-binary', 'utf8')
+
+    await linkBinsOfPackages(
+      [
+        {
+          location: nodeDir,
+          manifest: {
+            name: 'node',
+            version: '20.0.0',
+            bin: { node: 'node.exe' },
+          },
+        },
+      ],
+      binTarget
+    )
+
+    const exePath = path.join(binTarget, 'node.exe')
+    expect(fs.existsSync(exePath)).toBe(true)
+    // Should be a hardlink, not a shim — same content as the original
+    expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
+    // No cmd-shim should be created since we return early
+    expect(fs.existsSync(path.join(binTarget, `node${CMD_EXTENSION}`))).toBe(false)
   })
 })

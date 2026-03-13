@@ -24,6 +24,12 @@
       "path": "../__utils__/test-ipc-server"
     },
     {
+      "path": "../building/build-commands"
+    },
+    {
+      "path": "../building/policy-commands"
+    },
+    {
       "path": "../cache/commands"
     },
     {
@@ -51,6 +57,9 @@
       "path": "../config/config"
     },
     {
+      "path": "../config/deps-installer"
+    },
+    {
       "path": "../config/plugin-commands-config"
     },
     {
@@ -66,12 +75,6 @@
       "path": "../env/plugin-commands-env"
     },
     {
-      "path": "../exec/build-commands"
-    },
-    {
-      "path": "../exec/plugin-commands-rebuild"
-    },
-    {
       "path": "../exec/plugin-commands-script-runners"
     },
     {
@@ -79,6 +82,9 @@
     },
     {
       "path": "../fs/msgpack-file"
+    },
+    {
+      "path": "../lockfile/fs"
     },
     {
       "path": "../lockfile/plugin-commands-audit"
@@ -150,7 +156,16 @@
       "path": "../reviewing/plugin-commands-outdated"
     },
     {
+      "path": "../reviewing/plugin-commands-sbom"
+    },
+    {
+      "path": "../runtime/commands"
+    },
+    {
       "path": "../store/cafs"
+    },
+    {
+      "path": "../store/index"
     },
     {
       "path": "../store/plugin-commands-store"
@@ -159,7 +174,7 @@
       "path": "../store/plugin-commands-store-inspecting"
     },
     {
-      "path": "../tools/path"
+      "path": "../store/store-connection-manager"
     },
     {
       "path": "../tools/plugin-commands-self-updater"

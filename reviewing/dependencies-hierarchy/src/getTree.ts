@@ -1,10 +1,13 @@
-import path from 'path'
-import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile.fs'
-import { type DepTypes } from '@pnpm/lockfile.detect-dep-types'
-import { type Finder, type Registries } from '@pnpm/types'
+import path from 'node:path'
+
+import type { DepTypes } from '@pnpm/lockfile.detect-dep-types'
+import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
+import type { StoreIndex } from '@pnpm/store.index'
+import type { Finder, Registries } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { type DependencyGraph } from './buildDependencyGraph.js'
-import { type DependencyNode } from './DependencyNode.js'
+
+import type { DependencyGraph } from './buildDependencyGraph.js'
+import type { DependencyNode } from './DependencyNode.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
 import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
@@ -23,6 +26,7 @@ export interface BaseTreeOpts {
   registries: Registries
   depTypes: DepTypes
   storeDir?: string
+  storeIndex?: StoreIndex
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
   modulesDir?: string

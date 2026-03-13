@@ -1,16 +1,18 @@
-import fs from 'fs'
-import path from 'path'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { streamParser } from '@pnpm/logger'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type ProjectManifest } from '@pnpm/types'
-import { jest } from '@jest/globals'
-import execa from 'execa'
+import type { ProjectManifest } from '@pnpm/types'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import crossSpawn from 'cross-spawn'
+import { safeExeca as execa } from 'execa'
 import { loadJsonFileSync } from 'load-json-file'
-import { DEFAULT_OPTS, checkPkgExists } from './utils/index.js'
+
+import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
 const CREDENTIALS = `\
 registry=http://localhost:${REGISTRY_MOCK_PORT}/
@@ -113,7 +115,7 @@ test('recursive publish', async () => {
 
   {
     const { stdout } = await execa('npm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
-    expect(stdout.toString()).toContain('next: 2.0.0')
+    expect(stdout?.toString()).toContain('next: 2.0.0')
   }
 })
 

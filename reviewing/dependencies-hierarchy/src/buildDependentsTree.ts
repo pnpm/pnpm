@@ -1,22 +1,25 @@
-import path from 'path'
+import path from 'node:path'
+
 import {
   getLockfileImporterId,
   type LockfileObject,
-  type ProjectSnapshot,
   type PackageSnapshots,
+  type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
-import { type DependenciesField, type DependencyManifest, type Finder, type Registries } from '@pnpm/types'
+import { StoreIndex } from '@pnpm/store.index'
+import type { DependenciesField, DependencyManifest, Finder, Registries } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
-import realpathMissing from 'realpath-missing'
+
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
-import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
-import { type TreeNodeId } from './TreeNodeId.js'
 import { getPkgInfo } from './getPkgInfo.js'
+import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
+import type { TreeNodeId } from './TreeNodeId.js'
 
 interface ReverseEdge {
   parentSerialized: string
@@ -90,6 +93,7 @@ export async function buildDependentsTree (
     ...modules?.registries,
   })
   const storeDir = modules?.storeDir
+  const storeIndex = storeDir ? new StoreIndex(storeDir) : undefined
   const virtualStoreDir = modules?.virtualStoreDir ?? path.join(modulesDir, '.pnpm')
   const virtualStoreDirMaxLength = modules?.virtualStoreDirMaxLength ?? 120
 
@@ -129,6 +133,7 @@ export async function buildDependentsTree (
     registries,
     wantedPackages: currentPackages,
     storeDir,
+    storeIndex,
   })
 
   // Scan all package nodes for matches.
@@ -208,6 +213,7 @@ export async function buildDependentsTree (
     if (versionCmp !== 0) return versionCmp
     return lexCompare(a.peersSuffixHash ?? '', b.peersSuffixHash ?? '')
   })
+  storeIndex?.close()
   return trees
 }
 
@@ -248,6 +254,7 @@ function resolvePackageNodes (
     registries: Registries
     wantedPackages: PackageSnapshots
     storeDir?: string
+    storeIndex?: StoreIndex
   }
 ): Map<string, { path: string, readManifest: () => DependencyManifest }> {
   const resolved = new Map<string, { path: string, readManifest: () => DependencyManifest }>()

@@ -1,5 +1,5 @@
 import npmTypes from '@pnpm/npm-conf/lib/types.js'
-import { type TrustPolicy } from '@pnpm/types'
+import type { TrustPolicy } from '@pnpm/types'
 
 export const pnpmTypes = {
   'auto-install-peers': Boolean,
@@ -118,7 +118,6 @@ export const pnpmTypes = {
   'trust-policy-exclude': [String, Array],
   'trust-policy-ignore-after': Number,
   'use-beta-cli': Boolean,
-  'use-node-version': String,
   'use-stderr': Boolean,
   'verify-deps-before-run': Boolean,
   'verify-store-integrity': Boolean,

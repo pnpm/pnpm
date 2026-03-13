@@ -16,6 +16,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../store/index"
+    },
+    {
       "path": "../../worker"
     },
     {

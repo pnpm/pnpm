@@ -1,10 +1,12 @@
-import path from 'path'
-import { type PnpmError } from '@pnpm/error'
+import path from 'node:path'
+
+import type { PnpmError } from '@pnpm/error'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
+
 import { DEFAULT_OPTS } from '../utils/index.js'
 
 test('update with "*" pattern', async () => {

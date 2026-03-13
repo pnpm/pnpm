@@ -1,12 +1,14 @@
-import assert from 'assert/strict'
+import assert from 'node:assert/strict'
+
 import { PnpmError } from '@pnpm/error'
+
 import {
   type ExactToken,
   type Identifier,
   type NumericLiteral,
   type StringLiteral,
-  type UnexpectedToken,
   tokenize,
+  type UnexpectedToken,
 } from './token/index.js'
 
 export class UnexpectedTokenError<Token extends ExactToken<string> | UnexpectedToken> extends PnpmError {

@@ -1,24 +1,27 @@
-import { promises as fs, existsSync } from 'fs'
-import Module, { createRequire } from 'module'
-import path from 'path'
-import { getNodeBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getBunBinLocationForCurrentOS } from '@pnpm/constants'
+import { existsSync, promises as fs } from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+
+import { getBunBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { logger, globalWarn } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { type Command, getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type EngineDependency, type DependencyManifest, type ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, EngineDependency, ProjectManifest } from '@pnpm/types'
 import cmdShim from '@zkochan/cmd-shim'
-import rimraf from '@zkochan/rimraf'
-import isSubdir from 'is-subdir'
+import { rimraf } from '@zkochan/rimraf'
+import fixBin from 'bin-links/lib/fix-bin.js'
+import { isSubdir } from 'is-subdir'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
-import { isEmpty, unnest, groupBy, partition } from 'ramda'
+import { groupBy, isEmpty, partition, unnest } from 'ramda'
 import semver from 'semver'
 import symlinkDir from 'symlink-dir'
-import fixBin from 'bin-links/lib/fix-bin.js'
+
+import { getBinNodePaths } from './getBinNodePaths.js'
 
 const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()
@@ -100,17 +103,21 @@ export async function linkBinsOfPackages (
     location: string
   }>,
   binsTarget: string,
-  opts: LinkBinOptions = {}
+  opts: LinkBinOptions & { excludeBins?: Set<string> } = {}
 ): Promise<string[]> {
   if (pkgs.length === 0) return []
 
-  const allCmds = unnest(
+  let allCmds = unnest(
     (await Promise.all(
       pkgs
         .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
     ))
       .filter((cmds: Command[]) => cmds.length)
   )
+  const excludeBins = opts.excludeBins
+  if (excludeBins?.size) {
+    allCmds = allCmds.filter((cmd) => !excludeBins.has(cmd.name))
+  }
 
   return _linkBins(allCmds, binsTarget, opts)
 }
@@ -288,6 +295,30 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       globalWarn(`The target bin directory already contains an exe called ${cmd.name}, so removing ${exePath}`)
       await rimraf(exePath)
     }
+    // node.exe must exist as a real executable, not a cmd-shim wrapper.
+    // We could update our own cmd shims to support node.cmd, but we can't
+    // control npm's cmd shims, which break when node resolves to node.cmd.
+    // npm's cmd shims use `IF EXIST "%~dp0\node.exe"` to find the node binary.
+    if (cmd.name === 'node' && cmd.path.toLowerCase().endsWith('.exe')) {
+      try {
+        await fs.link(cmd.path, exePath)
+      } catch {
+        await fs.copyFile(cmd.path, exePath)
+      }
+      return
+    }
+  } else if (cmd.name === 'node') {
+    // On non-Windows, node should be symlinked directly to the binary
+    // instead of wrapped in a shell shim.
+    try {
+      if (existsSync(externalBinPath)) {
+        await rimraf(externalBinPath)
+      }
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+    }
+    await fs.symlink(cmd.path, externalBinPath, 'file')
+    return
   }
 
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
@@ -306,12 +337,17 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   try {
     let nodePath: string[] | undefined
     if (opts?.extraNodePaths?.length) {
-      nodePath = []
-      for (const modulesPath of await getBinNodePaths(cmd.path)) {
-        if (opts.extraNodePaths.includes(modulesPath)) break
-        nodePath.push(modulesPath)
+      const binNodePaths = await getBinNodePaths(cmd.path)
+      if (binNodePaths.length === 0) {
+        nodePath = opts.extraNodePaths
+      } else {
+        nodePath = [...binNodePaths]
+        for (const p of opts.extraNodePaths) {
+          if (!binNodePaths.includes(p)) {
+            nodePath.push(p)
+          }
+        }
       }
-      nodePath.push(...opts.extraNodePaths)
     }
     await cmdShim(cmd.path, externalBinPath, {
       createPwshFile: cmd.makePowerShellShim,
@@ -319,11 +355,18 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       nodeExecPath: cmd.nodeExecPath,
     })
   } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
-      throw err
+    if (err.code === 'ENOENT' || err.code === 'EISDIR') {
+      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      return
     }
-    globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
-    return
+    // On Windows, EPERM during bin creation can happen when another process
+    // (e.g. a parallel dlx call) is writing to the same shared bin directory.
+    // The other process will finish creating the bin, so we can safely skip.
+    if (IS_WINDOWS && err.code === 'EPERM') {
+      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      return
+    }
+    throw err
   }
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line
@@ -342,21 +385,6 @@ function getExeExtension (): string {
   }
 
   return cmdExtension ?? '.exe'
-}
-
-async function getBinNodePaths (target: string): Promise<string[]> {
-  const targetDir = path.dirname(target)
-  try {
-    const targetRealPath = await fs.realpath(targetDir)
-    // @ts-expect-error
-    return Module['_nodeModulePaths'](targetRealPath)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') {
-      throw err
-    }
-    // @ts-expect-error
-    return Module['_nodeModulePaths'](targetDir)
-  }
 }
 
 async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | null> {

@@ -1,13 +1,14 @@
-import path from 'path'
-import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
-import enquirer from 'enquirer'
+import path from 'node:path'
+
+import type { Config } from '@pnpm/config'
+import { PnpmError } from '@pnpm/error'
 import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import { PnpmError } from '@pnpm/error'
+import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
-import realpathMissing from 'realpath-missing'
+import enquirer from 'enquirer'
+import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
-import { type Config } from '@pnpm/config'
 
 export type GetPatchedDependencyOptions = {
   lockfileDir: string

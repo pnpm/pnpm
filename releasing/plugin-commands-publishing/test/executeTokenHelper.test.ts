@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals'
+
 import { executeTokenHelper } from '../src/executeTokenHelper.js'
 
 test('executeTokenHelper returns stdout of the tokenHelper command', () => {

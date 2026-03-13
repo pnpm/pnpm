@@ -1,4 +1,4 @@
 export { buildDependenciesTree, type DependenciesTree } from './buildDependenciesTree.js'
-export { type DependencyNode } from './DependencyNode.js'
+export { buildDependentsTree, type DependentNode, type DependentsTree, type ImporterInfo } from './buildDependentsTree.js'
 export { createPackagesSearcher } from './createPackagesSearcher.js'
-export { buildDependentsTree, type DependentsTree, type DependentNode, type ImporterInfo } from './buildDependentsTree.js'
+export { type DependencyNode } from './DependencyNode.js'

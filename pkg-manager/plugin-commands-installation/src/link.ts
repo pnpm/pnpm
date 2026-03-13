@@ -1,25 +1,27 @@
-import path from 'path'
+import path from 'node:path'
+
 import {
   docsUrl,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { writeSettings } from '@pnpm/config.config-writer'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { DEPENDENCIES_FIELDS, type ProjectManifest, type Project } from '@pnpm/types'
+import { writeSettings } from '@pnpm/config.config-writer'
+import type {
+  WorkspacePackages,
+} from '@pnpm/core'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import {
-  type WorkspacePackages,
-} from '@pnpm/core'
 import { logger } from '@pnpm/logger'
-import { pick, partition } from 'ramda'
-import renderHelp from 'render-help'
+import { DEPENDENCIES_FIELDS, type Project, type ProjectManifest } from '@pnpm/types'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import normalize from 'normalize-path'
+import { partition, pick } from 'ramda'
+import { renderHelp } from 'render-help'
+
 import { createProjectManifestWriter } from './createProjectManifestWriter.js'
 import { getSaveType } from './getSaveType.js'
 import * as install from './install.js'
-import normalize from 'normalize-path'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
@@ -38,7 +40,6 @@ type LinkOpts = Pick<Config,
 | 'workspaceDir'
 | 'workspacePackagePatterns'
 | 'sharedWorkspaceLockfile'
-| 'globalPkgDir'
 > & Partial<Pick<Config, 'linkWorkspacePackages'>> & install.InstallCommandOptions
 
 export const rcOptionsTypes = cliOptionsTypes
@@ -74,8 +75,7 @@ export function help (): string {
     ],
     url: docsUrl('link'),
     usages: [
-      'pnpm link <dir|pkg name>',
-      'pnpm link',
+      'pnpm link <dir>',
     ],
   })
 }
@@ -123,37 +123,18 @@ export async function handler (
     binsDir: opts.bin,
   })
 
-  if (opts.cliOptions?.global && !opts.bin) {
-    throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
-      hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
-    })
-  }
-
   const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
 
-  // pnpm link
   if ((params == null) || (params.length === 0)) {
-    const cwd = process.cwd()
-    if (path.relative(linkOpts.dir, cwd) === '') {
-      throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter')
-    }
-
-    await checkPeerDeps(cwd, opts)
-
-    const newManifest = opts.rootProjectManifest ?? {}
-    await addLinkToManifest(opts, newManifest, cwd, opts.rootProjectManifestDir)
-    await writeProjectManifest(newManifest)
-    await install.handler({
-      ...linkOpts,
-      frozenLockfileIfExists: false,
-      rootProjectManifest: newManifest,
-    })
-    return
+    throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter. Usage: pnpm link <dir>')
   }
 
   const [pkgPaths, pkgNames] = partition((inp) => isFilespec.test(inp), params)
 
-  pkgNames.forEach((pkgName) => pkgPaths.push(path.join(opts.globalPkgDir, 'node_modules', pkgName)))
+  if (pkgNames.length > 0) {
+    throw new PnpmError('LINK_BAD_PARAMS',
+      `Cannot link by package name. Use a relative or absolute path instead, e.g. "pnpm link ./${pkgNames[0]}"`)
+  }
 
   const newManifest = opts.rootProjectManifest ?? {}
   await Promise.all(
@@ -166,6 +147,7 @@ export async function handler (
   await writeProjectManifest(newManifest)
   await install.handler({
     ...linkOpts,
+    _calledFromLink: true,
     frozenLockfileIfExists: false,
     rootProjectManifest: newManifest,
   })

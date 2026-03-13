@@ -4,7 +4,7 @@ packages:
   - __typings__
   - __utils__/*
   - '!__utils__/build-artifacts'
-  - builder/*
+  - building/*
   - cache/*
   - catalogs/*
   - cli/*
@@ -17,6 +17,7 @@ packages:
   - exec/*
   - fetching/*
   - fs/*
+  - global/*
   - hooks/*
   - lockfile/*
   - network/*
@@ -36,6 +37,7 @@ packages:
   - releasing/*
   - resolving/*
   - reviewing/*
+  - runtime/*
   - semver/*
   - store/*
   - text/*
@@ -66,9 +68,10 @@ catalog:
   '@babel/core': ^7.28.3
   '@babel/plugin-transform-explicit-resource-management': ^7.27.1
   '@changesets/cli': ^2.29.8
-  '@commitlint/cli': ^19.8.1
-  '@commitlint/config-conventional': ^19.8.1
-  '@commitlint/prompt-cli': ^19.8.1
+  '@commitlint/cli': ^20.4.1
+  '@commitlint/config-conventional': ^20.4.1
+  '@commitlint/prompt-cli': ^20.4.1
+  '@cyclonedx/cyclonedx-library': 9.4.1
   '@eslint/js': ^9.18.0
   '@jest/globals': 30.0.5
   '@npm/types': ^2.1.0
@@ -87,7 +90,7 @@ catalog:
   '@pnpm/npm-package-arg': ^2.0.0
   '@pnpm/os.env.path-extender': ^2.0.3
   '@pnpm/patch-package': 0.0.1
-  '@pnpm/registry-mock': 5.2.1
+  '@pnpm/registry-mock': 5.2.2
   '@pnpm/semver-diff': ^1.1.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
@@ -95,7 +98,7 @@ catalog:
   '@pnpm/workspace.find-packages': ^1000.0.15
   '@pnpm/workspace.read-manifest': ^1000.1.1
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.5.26
+  '@rushstack/worker-pool': 0.7.1
   '@stylistic/eslint-plugin': ^4.4.1
   '@types/adm-zip': ^0.5.7
   '@types/archy': 0.0.36
@@ -124,7 +127,6 @@ catalog:
   '@types/ramda': 0.29.12
   '@types/retry': ^0.12.5
   '@types/semver': 7.7.1
-  '@types/sinon': ^10.0.20
   '@types/ssri': ^7.1.5
   '@types/tar': ^6.1.13
   '@types/tar-stream': ^2.2.3
@@ -133,7 +135,6 @@ catalog:
   '@types/which': ^2.0.2
   '@types/write-file-atomic': ^4.0.3
   '@types/yarnpkg__lockfile': ^1.1.9
-  '@types/yazl': ^3.3.0
   '@types/zkochan__table': npm:@types/table@6.0.0
   '@typescript-eslint/utils': ^8.53.0
   '@typescript/native-preview': 7.0.0-dev.20260216.1
@@ -143,28 +144,28 @@ catalog:
   '@yarnpkg/nm': 4.0.5
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
-  '@zkochan/cmd-shim': ^7.0.0
+  '@zkochan/cmd-shim': ^8.0.1
   '@zkochan/retry': ^0.2.0
-  '@zkochan/rimraf': ^3.0.2
+  '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
   adm-zip: ^0.5.16
   ansi-diff: ^1.2.0
   archy: ^1.0.0
-  better-path-resolve: 1.0.0
+  better-path-resolve: 2.0.0
   bin-links: ^5.0.0
   bole: ^5.0.17
   boxen: npm:@zkochan/boxen@5.1.2
   c8: ^7.14.0
   camelcase: ^9.0.0
   camelcase-keys: ^10.0.1
-  can-link: ^2.0.0
-  can-write-to-dir: ^1.1.1
+  can-link: ^3.0.0
+  can-write-to-dir: ^2.0.0
   chalk: ^5.6.0
   ci-info: ^4.3.0
   cli-columns: ^4.0.0
   cli-truncate: ^4.0.0
-  cmd-extension: ^1.0.2
-  comver-to-semver: ^1.0.0
+  cmd-extension: ^2.0.0
+  comver-to-semver: ^2.0.0
   concurrently: 9.2.1
   cross-env: ^10.1.0
   cross-spawn: ^7.0.6
@@ -175,18 +176,19 @@ catalog:
   detect-libc: ^2.0.3
   didyoumean2: ^7.0.4
   dint: ^5.1.0
-  dir-is-case-sensitive: ^2.0.0
+  dir-is-case-sensitive: ^3.0.0
   encode-registry: ^3.0.1
   enquirer: ^2.4.1
   esbuild: ^0.25.9
   escape-string-regexp: ^5.0.0
   eslint: ^9.39.2
   eslint-plugin-import-x: ^4.16.1
+  eslint-plugin-simple-import-sort: ^12.1.1
   eslint-plugin-jest: ^29.12.1
   eslint-plugin-n: ^17.23.2
   eslint-plugin-promise: ^7.2.1
   eslint-plugin-regexp: ^2.10.0
-  execa: npm:safe-execa@0.2.0
+  execa: npm:safe-execa@0.3.0
   exists-link: 2.0.0
   fast-deep-equal: ^3.1.3
   fast-glob: ^3.3.3
@@ -198,7 +200,7 @@ catalog:
   get-port: ^7.1.0
   ghooks: 2.0.4
   graceful-fs: ^4.2.11
-  graceful-git: ^4.0.0
+  graceful-git: ^5.0.0
   graph-cycles: 3.0.0
   hosted-git-info: npm:@pnpm/hosted-git-info@1.0.0
   https-proxy-server-express: 0.1.2
@@ -206,13 +208,13 @@ catalog:
   hyperdrive-schemas: ^2.0.0
   ini: 6.0.0
   is-gzip: 2.0.0
-  is-inner-link: ^4.0.0
-  is-subdir: ^1.2.0
+  is-inner-link: ^5.0.0
+  is-subdir: ^2.0.0
   is-windows: ^1.0.2
   isexe: 2.0.0
   jest: ^30.2.0
   jest-diff: ^30.1.1
-  js-yaml: npm:@zkochan/js-yaml@0.0.10
+  js-yaml: npm:@zkochan/js-yaml@0.0.11
   json5: ^2.2.3
   keyv: 4.5.4
   lcov-result-merger: ^3.3.0
@@ -222,7 +224,7 @@ catalog:
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
   lru-cache: ^11.1.0
-  make-empty-dir: ^3.0.2
+  make-empty-dir: ^4.0.0
   mdast-util-to-string: ^2.0.0
   memoize: ^10.2.0
   micromatch: ^4.0.8
@@ -234,52 +236,50 @@ catalog:
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
   normalize-registry-url: 2.0.1
-  npm-packlist: 5.1.3
+  npm-packlist: 10.0.3
   object-hash: 3.0.0
   p-defer: ^4.0.1
   p-every: ^2.0.0
   p-filter: ^4.1.0
   p-limit: ^7.1.0
-  p-map-values: ^1.0.0
+  p-map-values: ^0.1.0
   p-memoize: 8.0.0
   p-queue: ^8.1.0
   parse-json: ^8.3.0
   parse-npm-tarball-url: ^4.0.0
-  path-absolute: ^1.0.1
+  path-absolute: ^2.0.0
   path-exists: ^5.0.0
   path-name: ^1.0.0
-  path-temp: ^2.1.1
+  path-temp: ^3.0.0
   pidtree: ^0.6.0
-  pkg: npm:@yao-pkg/pkg@6.6.0
-  preferred-pm: ^3.1.4
+  preferred-pm: ^5.0.0
   pretty-bytes: ^7.0.1
   pretty-ms: ^9.2.0
-  promise-share: ^1.0.0
+  promise-share: ^2.0.0
   proxyquire: ^2.1.3
   ps-list: ^8.1.1
   ramda: npm:@pnpm/ramda@0.28.1
-  read-ini-file: 4.0.0
-  read-yaml-file: ^2.1.0
-  realpath-missing: ^1.1.0
+  read-ini-file: 5.0.0
+  read-yaml-file: ^3.0.0
+  realpath-missing: ^2.0.0
   remark-parse: ^9.0.0
   remark-stringify: ^9.0.1
-  rename-overwrite: ^6.0.2
-  render-help: ^1.0.3
-  resolve-link-target: ^2.0.0
+  rename-overwrite: ^7.0.0
+  render-help: ^2.0.0
+  resolve-link-target: ^3.0.0
   rimraf: ^6.1.2
-  root-link-target: ^3.1.0
-  run-groups: ^4.0.0
+  root-link-target: ^4.0.0
+  run-groups: ^5.0.0
   rxjs: ^7.8.2
   safe-buffer: 5.2.1
-  safe-execa: ^0.2.0
-  safe-promise-defer: ^1.0.1
+  safe-execa: ^0.3.0
+  safe-promise-defer: ^2.0.0
   sanitize-filename: ^1.6.3
   semver: ^7.7.2
   semver-range-intersect: ^0.3.1
   semver-utils: ^1.1.4
   shlex: ^3.0.0
   shx: ^0.4.0
-  sinon: ^16.1.3
   sort-keys: ^6.0.0
   split-cmd: ^1.1.0
   split2: ^4.2.0
@@ -289,7 +289,7 @@ catalog:
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
   symlink-dir: ^7.0.0
-  tar: ^7.5.7
+  tar: ^7.5.10
   tar-stream: ^3.1.7
   tempy: 3.0.0
   terminal-link: ^4.0.0
@@ -301,18 +301,17 @@ catalog:
   typescript-eslint: ^8.53.0
   unified: ^9.2.2
   validate-npm-package-name: 7.0.2
-  verdaccio: 6.2.5
+  verdaccio: 6.2.7
   version-selector-type: ^3.0.0
   which: npm:@pnpm/which@^3.0.1
   write-file-atomic: ^7.0.0
-  write-ini-file: 4.0.1
+  write-ini-file: 5.0.0
   write-json-file: ^7.0.0
-  write-json5-file: ^3.1.0
+  write-json5-file: ^4.0.0
   write-package: 7.2.0
-  write-yaml-file: ^5.0.0
+  write-yaml-file: ^6.0.0
   yaml: ^2.8.1
   yaml-tag: 1.1.0
-  yazl: ^3.3.1
 
 catalogMode: strict
 
@@ -335,16 +334,48 @@ minimumReleaseAge: 1440 # At least a day
 
 minimumReleaseAgeExclude:
   - '@pnpm/*'
+  - '@rushstack/worker-pool@0.7.1'
+  - '@zkochan/*'
+  - '@zkochan/cmd-shim@8.0.0 || 8.0.1'
+  - better-path-resolve
   - body-parser@2.2.1
+  - can-link
+  - can-write-to-dir
+  - cmd-extension
+  - comver-to-semver
+  - dir-is-case-sensitive
   - express@4.22.1
   - glob@11.1.0
+  - graceful-git
+  - is-inner-link
+  - is-subdir
   - jws@3.2.3
+  - make-empty-dir
   - normalize-registry-url
-  - path-temp@2.1.1
+  - p-map-values
   - parse-npm-tarball-url@4.0.0
+  - path-absolute
+  - path-temp
   - pnpm
-  - run-groups@4.0.0
-  - tar@7.5.7
+  - preferred-pm
+  - promise-share
+  - read-ini-file
+  - read-json5-file
+  - read-yaml-file
+  - realpath-missing
+  - rename-overwrite
+  - render-help
+  - resolve-link-target
+  - root-link-target
+  - run-groups
+  - safe-execa
+  - safe-promise-defer
+  - tar@7.5.10
+  - which-pm
+  - which-pm-runs
+  - write-ini-file
+  - write-json5-file
+  - write-yaml-file
   - lodash@4.17.23
   - qs@6.14.2
 
@@ -374,6 +405,7 @@ overrides:
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   jws@<3.2.3: '^3.2.3'
   lodash@>=4.0.0 <=4.17.22: '^4.17.23'
+  minimatch@>=7.0.0 <7.4.7: '^7.4.7'
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
   path-to-regexp@<0.1.12: ^0.1.12
@@ -385,7 +417,7 @@ overrides:
   send@<0.19.0: ^0.19.0
   serve-static@<1.16.0: ^1.16.0
   socks@2: ^2.8.1
-  tar@<=7.5.6: '>=7.5.7'
+  tar@<=7.5.9: '>=7.5.10'
   tmp@<=0.2.3: '>=0.2.4'
   tough-cookie@<4.1.3: '>=4.1.3'
   validator@<13.15.22: '>=13.15.22'
@@ -410,7 +442,6 @@ packageExtensions:
 
 patchedDependencies:
   '@pnpm/npm-lifecycle': __patches__/@pnpm__npm-lifecycle.patch
-  '@yao-pkg/pkg': __patches__/pkg.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
 

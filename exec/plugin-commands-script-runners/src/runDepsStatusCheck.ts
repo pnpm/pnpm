@@ -1,8 +1,8 @@
-import { type VerifyDepsBeforeRun } from '@pnpm/config'
+import type { VerifyDepsBeforeRun } from '@pnpm/config'
+import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { globalWarn } from '@pnpm/logger'
-import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import enquirer from 'enquirer'
 
 export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions {
@@ -27,14 +27,28 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
     install()
     break
   case 'prompt': {
-    const confirmed = await enquirer.prompt<{ runInstall: boolean }>({
-      type: 'confirm',
-      name: 'runInstall',
-      message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.
+    // In non-TTY environments (like CI), we can't prompt the user
+    // Exit with error to alert users that node_modules are out of sync
+    if (!process.stdin.isTTY) {
+      throw new PnpmError('VERIFY_DEPS_BEFORE_RUN', issue ?? 'Your node_modules are out of sync with your lockfile', {
+        hint: 'Run "pnpm install" before running scripts. The "verifyDepsBeforeRun: prompt" setting cannot prompt for confirmation in non-interactive environments.',
+      })
+    }
+    let confirmed: { runInstall: boolean }
+    try {
+      confirmed = await enquirer.prompt<{ runInstall: boolean }>({
+        type: 'confirm',
+        name: 'runInstall',
+        message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.
 
 Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?`,
-      initial: true,
-    })
+        initial: true,
+      })
+    } catch {
+      // User cancelled the prompt (e.g. Ctrl+C) — exit immediately
+      // so the caller doesn't proceed to run the script.
+      process.exit(1)
+    }
     if (confirmed.runInstall) {
       install()
     }

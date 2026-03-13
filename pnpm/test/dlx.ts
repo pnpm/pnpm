@@ -1,12 +1,14 @@
-import fs from 'fs'
-import path from 'path'
-import PATH_NAME from 'path-name'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { getConfig } from '@pnpm/config'
-import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { readModulesManifest } from '@pnpm/modules-yaml'
-import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
-import { type BaseManifest } from '@pnpm/types'
+import { prepare, prepareEmpty } from '@pnpm/prepare'
+import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import type { BaseManifest } from '@pnpm/types'
+import PATH_NAME from 'path-name'
+
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 let registries: Record<string, string>
@@ -291,7 +293,23 @@ test('dlx uses the node version specified by --package=node@runtime:<version>', 
   }
 
   expect(nodeInfo.versions.node).toBe('20.0.0')
-  expect(nodeInfo.execPath).toContain(path.normalize('links/@/node/20.0.0'))
+  // On Windows, node.exe is hardlinked into .bin/ so process.execPath
+  // reports the hardlink path rather than the original store location.
+  // On non-Windows, the symlink is resolved by the kernel.
+  if (process.platform !== 'win32') {
+    expect(nodeInfo.execPath).toContain(path.normalize('links/@/node/20.0.0'))
+  }
+})
+
+test('dlx without arguments prints help text and exits with 1', () => {
+  prepareEmpty()
+
+  const result = execPnpmSync(['dlx'])
+
+  expect(result.status).toBe(1)
+
+  const output = result.stdout.toString()
+  expect(output).toMatch(/Run a package in a temporary environment\./)
 })
 
 describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {

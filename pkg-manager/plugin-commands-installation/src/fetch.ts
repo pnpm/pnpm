@@ -1,10 +1,11 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/core'
-import { type ProjectRootDir } from '@pnpm/types'
-import renderHelp from 'render-help'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import type { ProjectRootDir } from '@pnpm/types'
+import { renderHelp } from 'render-help'
+
 import { cliOptionsTypes } from './install.js'
 
 export const rcOptionsTypes = cliOptionsTypes
@@ -45,7 +46,7 @@ export function help (): string {
   })
 }
 
-type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
+type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'enableGlobalVirtualStore' | 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
 
 export async function handler (opts: FetchCommandOptions): Promise<void> {
   const store = await createStoreController(opts)

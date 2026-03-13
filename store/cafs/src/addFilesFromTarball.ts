@@ -1,11 +1,13 @@
-import {
-  type AddToStoreResult,
-  type FilesIndex,
-  type FileWriteResult,
+import { gunzipSync } from 'node:zlib'
+
+import type {
+  AddToStoreResult,
+  FilesIndex,
+  FileWriteResult,
 } from '@pnpm/cafs-types'
-import { type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 import isGzip from 'is-gzip'
-import { gunzipSync } from 'zlib'
+
 import { parseJsonBufferSync } from './parseJson.js'
 import { parseTarball } from './parseTarball.js'
 

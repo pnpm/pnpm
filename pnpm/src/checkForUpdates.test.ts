@@ -1,6 +1,6 @@
+import { jest } from '@jest/globals'
 import { getConfig } from '@pnpm/config'
 import { prepareEmpty } from '@pnpm/prepare'
-import { jest } from '@jest/globals'
 import { loadJsonFileSync } from 'load-json-file'
 import { writeJsonFileSync } from 'write-json-file'
 

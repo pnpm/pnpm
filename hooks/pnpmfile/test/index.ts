@@ -1,7 +1,9 @@
-import path from 'path'
-import { type Log } from '@pnpm/core-loggers'
-import { requireHooks, BadReadPackageHookError, type HookContext } from '@pnpm/pnpmfile'
+import path from 'node:path'
+
+import type { Log } from '@pnpm/core-loggers'
+import { BadReadPackageHookError, type HookContext, requireHooks } from '@pnpm/pnpmfile'
 import { fixtures } from '@pnpm/test-fixtures'
+
 import { requirePnpmfile } from '../src/requirePnpmfile.js'
 
 const defaultHookContext: HookContext = { log () {} }
@@ -57,6 +59,19 @@ test('ignoring the default pnpmfile if tryLoadDefaultPnpmfile is not set', async
 test('loading the default pnpmfile if tryLoadDefaultPnpmfile is set to true', async () => {
   const { hooks } = await requireHooks(path.join(import.meta.dirname, '__fixtures__/default'), { tryLoadDefaultPnpmfile: true })
   expect(hooks.readPackage?.length).toBe(1)
+})
+
+test('loading the default .pnpmfile.mjs if tryLoadDefaultPnpmfile is set to true', async () => {
+  const { hooks } = await requireHooks(path.join(import.meta.dirname, '__fixtures__/default-esm'), { tryLoadDefaultPnpmfile: true })
+  expect(hooks.readPackage?.length).toBe(1)
+})
+
+test('.pnpmfile.mjs takes priority over .pnpmfile.cjs when both exist', async () => {
+  const { hooks } = await requireHooks(path.join(import.meta.dirname, '__fixtures__/default-both'), { tryLoadDefaultPnpmfile: true })
+  expect(hooks.readPackage?.length).toBe(1)
+  const pkg: any = await hooks.readPackage![0]({ name: 'test', version: '1.0.0' }) // eslint-disable-line
+  expect(pkg._fromMjs).toBe(true)
+  expect(pkg._fromCjs).toBeUndefined()
 })
 
 test('calculatePnpmfileChecksum is undefined when pnpmfile does not exist', async () => {

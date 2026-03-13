@@ -1,7 +1,9 @@
-import fs from 'fs'
-import path from 'path'
-import { prepareEmpty } from '@pnpm/prepare'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
+import { prepareEmpty } from '@pnpm/prepare'
+
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 
 const { getSystemNodeVersion: originalGetSystemNodeVersion } = await import('@pnpm/env.system-node-version')
@@ -335,6 +337,7 @@ test('dlx builds the package that is executed', async () => {
 
   await dlx.handler({
     ...DEFAULT_OPTS,
+    enableGlobalVirtualStore: false,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
@@ -361,6 +364,7 @@ test('dlx builds the packages passed via --allow-build', async () => {
   const allowBuild = ['@pnpm.e2e/install-script-example']
   await dlx.handler({
     ...DEFAULT_OPTS,
+    enableGlobalVirtualStore: false,
     allowBuild,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),

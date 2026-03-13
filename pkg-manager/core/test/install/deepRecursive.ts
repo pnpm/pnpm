@@ -1,6 +1,8 @@
-import fs from 'fs'
-import { prepareEmpty } from '@pnpm/prepare'
+import fs from 'node:fs'
+
 import { addDependenciesToPackage } from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
+
 import { testDefaults } from '../utils/index.js'
 
 test('a package with a huge amount of circular dependencies and many peer dependencies should successfully be resolved', async () => {

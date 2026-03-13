@@ -1,6 +1,7 @@
 import fs from 'node:fs'
-import path from 'node:path'
 import os from 'node:os'
+import path from 'node:path'
+
 import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 
 describe('isEmptyDirOrNothing', () => {

@@ -1,22 +1,29 @@
-import fs from 'fs'
-import path from 'path'
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { install } from '@pnpm/core'
-import { type IgnoredScriptsLog } from '@pnpm/core-loggers'
+import type { IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
-import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
 import { prepareEmpty } from '@pnpm/prepare'
+import { getIntegrity } from '@pnpm/registry-mock'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
-import { jest } from '@jest/globals'
-import { sync as rimraf } from '@zkochan/rimraf'
-import sinon from 'sinon'
+import { rimrafSync } from '@zkochan/rimraf'
+
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
+
 test('patch package with exact version', async () => {
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   const project = prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
@@ -38,26 +45,25 @@ test('patch package with exact version', async () => {
     },
   }, opts)
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     packageNames: [],
     level: 'debug',
     name: 'pnpm:ignored-scripts',
-  } as IgnoredScriptsLog)).toBeTruthy()
+  } as IgnoredScriptsLog))
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
-    'is-positive@1.0.0': {
-      path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
-      hash: patchFileHash,
-    },
+    'is-positive@1.0.0': patchFileHash,
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.mpk')
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexKey = storeIndexKey(getIntegrity('is-positive', '1.0.0'), 'is-positive@1.0.0')
+  const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
+  const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
@@ -70,7 +76,7 @@ test('patch package with exact version', async () => {
   expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -82,7 +88,7 @@ test('patch package with exact version', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -114,7 +120,7 @@ test('patch package with exact version', async () => {
 })
 
 test('patch package with version range', async () => {
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   const project = prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
@@ -136,26 +142,25 @@ test('patch package with version range', async () => {
     },
   }, opts)
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     packageNames: [],
     level: 'debug',
     name: 'pnpm:ignored-scripts',
-  } as IgnoredScriptsLog)).toBeTruthy()
+  } as IgnoredScriptsLog))
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
-    'is-positive@1': {
-      path: path.relative(process.cwd(), patchedDependencies['is-positive@1']).replaceAll('\\', '/'),
-      hash: patchFileHash,
-    },
+    'is-positive@1': patchFileHash,
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.mpk')
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexKey = storeIndexKey(getIntegrity('is-positive', '1.0.0'), 'is-positive@1.0.0')
+  const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
+  const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
@@ -168,7 +173,7 @@ test('patch package with version range', async () => {
   expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -180,7 +185,7 @@ test('patch package with version range', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -317,15 +322,14 @@ test('patch package when scripts are ignored', async () => {
   const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
-    'is-positive@1.0.0': {
-      path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
-      hash: patchFileHash,
-    },
+    'is-positive@1.0.0': patchFileHash,
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.mpk')
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexKey = storeIndexKey(getIntegrity('is-positive', '1.0.0'), 'is-positive@1.0.0')
+  const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
+  const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
@@ -338,7 +342,7 @@ test('patch package when scripts are ignored', async () => {
   expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -350,7 +354,7 @@ test('patch package when scripts are ignored', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -408,15 +412,14 @@ test('patch package when the package is not in allowBuilds list', async () => {
   const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
-    'is-positive@1.0.0': {
-      path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
-      hash: patchFileHash,
-    },
+    'is-positive@1.0.0': patchFileHash,
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.mpk')
-  const filesIndex = readMsgpackFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndexKey = storeIndexKey(getIntegrity('is-positive', '1.0.0'), 'is-positive@1.0.0')
+  const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
+  const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
   expect(filesIndex.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
@@ -429,7 +432,7 @@ test('patch package when the package is not in allowBuilds list', async () => {
   expect(originalFileDigest).not.toEqual(patchedFileDigest)
 
   // The same with frozen lockfile
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -441,7 +444,7 @@ test('patch package when the package is not in allowBuilds list', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',

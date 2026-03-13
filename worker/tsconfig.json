@@ -10,19 +10,16 @@
   ],
   "references": [
     {
-      "path": "../crypto/integrity"
+      "path": "../building/pkg-requires-build"
     },
     {
-      "path": "../exec/pkg-requires-build"
+      "path": "../crypto/integrity"
     },
     {
       "path": "../fs/graceful-fs"
     },
     {
       "path": "../fs/hard-link-dir"
-    },
-    {
-      "path": "../fs/msgpack-file"
     },
     {
       "path": "../fs/symlink-dependency"
@@ -44,6 +41,9 @@
     },
     {
       "path": "../store/create-cafs-store"
+    },
+    {
+      "path": "../store/index"
     }
   ]
 }

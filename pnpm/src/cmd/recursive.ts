@@ -1,8 +1,8 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { getDefaultWorkspaceConcurrency } from '@pnpm/config'
-import renderHelp from 'render-help'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 export const cliOptionsTypes = (): Record<string, unknown> => ({})

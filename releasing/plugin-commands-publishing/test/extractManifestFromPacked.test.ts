@@ -1,13 +1,15 @@
-import fs from 'fs'
-import { createGzip } from 'zlib'
-import tar from 'tar-stream'
-import { type ExportedManifest } from '@pnpm/exportable-manifest'
+import fs from 'node:fs'
+import { createGzip } from 'node:zlib'
+
+import type { ExportedManifest } from '@pnpm/exportable-manifest'
 import { prepareEmpty } from '@pnpm/prepare'
+import tar from 'tar-stream'
+
 import {
-  type TarballPath,
-  PublishArchiveMissingManifestError,
-  isTarballPath,
   extractManifestFromPacked,
+  isTarballPath,
+  PublishArchiveMissingManifestError,
+  type TarballPath,
 } from '../src/extractManifestFromPacked.js'
 
 async function createTarball (tarballPath: string, contents: Record<string, string | ExportedManifest>): Promise<void> {

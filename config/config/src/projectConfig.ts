@@ -1,6 +1,7 @@
-import { omit } from 'ramda'
 import { PnpmError } from '@pnpm/error'
-import { PROJECT_CONFIG_FIELDS, type Config, type ProjectConfig, type ProjectConfigRecord } from './Config.js'
+import { omit } from 'ramda'
+
+import { type Config, PROJECT_CONFIG_FIELDS, type ProjectConfig, type ProjectConfigRecord } from './Config.js'
 
 export type CreateProjectConfigRecordOptions = Pick<Config, 'packageConfigs'>
 

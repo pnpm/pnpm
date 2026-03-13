@@ -1,18 +1,17 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import path from 'path'
+import path from 'node:path'
 
-import { prepare } from '@pnpm/prepare'
 import { getConfig } from '@pnpm/config'
+import type { PnpmError } from '@pnpm/error'
 import { findHash } from '@pnpm/plugin-commands-store-inspecting'
-import { type PnpmError } from '@pnpm/error'
-
-import execa from 'execa'
+import { prepare } from '@pnpm/prepare'
+import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('print index file path with hash', async () => {
-  const { PACKAGE_INFO_CLR, INDEX_PATH_CLR } = findHash
+  const { PACKAGE_INFO_CLR } = findHash
   prepare()
   const tmp = temporaryDirectory()
   const storeDir = path.join(tmp, 'store')
@@ -26,9 +25,12 @@ test('print index file path with hash', async () => {
       storeDir,
     }, ['sha512-fXs1pWlUdqT2jkeoEJW/+odKZ2NwAyYkWea+plJKZI2xmhRKQi2e+nKGcClyDblgLwCLD912oMaua0+sTwwIrw=='])
 
-    expect(output).toBe(`${PACKAGE_INFO_CLR('lodash')}@${PACKAGE_INFO_CLR('4.17.19')}  ${INDEX_PATH_CLR('/24/dbddf17111f46417d2fdaa260b1a37f9b3142340e4145efe3f0937d77eb56c-lodash@4.17.19.mpk')}
-${PACKAGE_INFO_CLR('lodash')}@${PACKAGE_INFO_CLR('4.17.20')}  ${INDEX_PATH_CLR('/3e/585d15c8a594e20d7de57b362ea81754c011acb2641a19f1b72c8531ea3982-lodash@4.17.20.mpk')}
-`)
+    // The output contains colored package info and SQLite index keys (integrity\tpkgId)
+    expect(output).toContain(PACKAGE_INFO_CLR('lodash'))
+    expect(output).toContain(PACKAGE_INFO_CLR('4.17.19'))
+    expect(output).toContain(PACKAGE_INFO_CLR('4.17.20'))
+    expect(output).toContain('lodash@4.17.19')
+    expect(output).toContain('lodash@4.17.20')
   }
 })
 

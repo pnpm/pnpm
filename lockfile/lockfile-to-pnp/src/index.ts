@@ -1,11 +1,12 @@
-import { promises as fs } from 'fs'
-import path from 'path'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
+import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import { type Registries } from '@pnpm/types'
-import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
+import type { Registries } from '@pnpm/types'
 import { generateInlinedScript, type PackageRegistry } from '@yarnpkg/pnp'
 import normalizePath from 'normalize-path'
 

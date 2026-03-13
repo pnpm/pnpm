@@ -1,7 +1,9 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { fixtures } from '@pnpm/test-fixtures'
-import fs from 'fs'
-import path from 'path'
-import { workWithInitModule, personToString } from '../lib/utils.js'
+
+import { personToString, workWithInitModule } from '../lib/utils.js'
 
 const f = fixtures(path.join(import.meta.dirname, '../fixtures'))
 

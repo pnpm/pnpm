@@ -1,19 +1,22 @@
-import assert from 'assert'
-import path from 'path'
-import util from 'util'
+import assert from 'node:assert'
+import path from 'node:path'
+import { URL } from 'node:url'
+import util from 'node:util'
+
+import { PnpmError } from '@pnpm/error'
 import type { GitFetcher } from '@pnpm/fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
+import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
-import { PnpmError } from '@pnpm/error'
-import rimraf from '@zkochan/rimraf'
-import execa from 'execa'
-import { URL } from 'url'
+import { rimraf } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]
   rawConfig: Record<string, unknown>
+  storeIndex: StoreIndex
   unsafePerm?: boolean
   ignoreScripts?: boolean
 }
@@ -61,6 +64,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
     // the linking of files to the store is in progress.
     return addFilesFromDir({
       storeDir: cafs.storeDir,
+      storeIndex: createOpts.storeIndex,
       dir: pkgDir,
       files,
       filesIndexFile: opts.filesIndexFile,
@@ -93,5 +97,5 @@ function prefixGitArgs (): string[] {
 async function execGit (args: string[], opts?: object): Promise<string> {
   const fullArgs = prefixGitArgs().concat(args || [])
   const { stdout } = await execa('git', fullArgs, opts)
-  return stdout
+  return stdout as string
 }

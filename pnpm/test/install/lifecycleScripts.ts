@@ -1,12 +1,14 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare } from '@pnpm/prepare'
-import { type PackageManifest, type ProjectManifest } from '@pnpm/types'
-import PATH from 'path-name'
-import { loadJsonFileSync } from 'load-json-file'
-import writeYamlFile from 'write-yaml-file'
-import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
+import type { PackageManifest, ProjectManifest } from '@pnpm/types'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { loadJsonFileSync } from 'load-json-file'
+import PATH from 'path-name'
+import { writeYamlFile } from 'write-yaml-file'
+
+import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 
 const pkgRoot = path.join(import.meta.dirname, '..', '..')
 const pnpmPkg = loadJsonFileSync<PackageManifest>(path.join(pkgRoot, 'package.json'))
@@ -240,7 +242,7 @@ test('the list of ignored builds is preserved after a repeat install', async () 
   const project = prepare({})
   execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', 'esbuild@0.25.0', '--config.optimistic-repeat-install=false'])
 
-  const result = execPnpmSync(['install'])
+  const result = execPnpmSync(['install', '--config.optimistic-repeat-install=false'])
   // The warning is printed on repeat install too
   expect(result.stdout.toString()).toContain('Ignored build scripts:')
 

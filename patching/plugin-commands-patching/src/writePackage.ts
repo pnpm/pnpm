@@ -1,9 +1,9 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
+import type { ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import {
   createStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import type { ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 
 export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries'>
 

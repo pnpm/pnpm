@@ -1,5 +1,6 @@
-import { PnpmError } from '@pnpm/error'
 import { jest } from '@jest/globals'
+import { PnpmError } from '@pnpm/error'
+
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 
 jest.unstable_mockModule('../src/dlx.js', () => ({ handler: jest.fn() }))

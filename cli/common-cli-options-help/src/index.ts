@@ -72,6 +72,7 @@ export const FILTERING = {
     {
       description: 'Restricts the scope to package names matching the given pattern. E.g.: foo, "@bar/*"',
       name: '--filter <pattern>',
+      shortAlias: '-F',
     },
     {
       description: 'Includes all direct and indirect dependencies of the matched packages. E.g.: foo...',

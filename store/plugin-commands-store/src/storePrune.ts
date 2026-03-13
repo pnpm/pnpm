@@ -1,7 +1,9 @@
+import { cleanOrphanedInstallDirs } from '@pnpm/global.packages'
 import { streamParser } from '@pnpm/logger'
-import { type StoreController } from '@pnpm/store-controller-types'
-import { type ReporterFunction } from './types.js'
+import type { StoreController } from '@pnpm/store-controller-types'
+
 import { cleanExpiredDlxCache } from './cleanExpiredDlxCache.js'
+import type { ReporterFunction } from './types.js'
 
 export async function storePrune (
   opts: {
@@ -10,6 +12,7 @@ export async function storePrune (
     removeAlienFiles?: boolean
     cacheDir: string
     dlxCacheMaxAge: number
+    globalPkgDir?: string
   }
 ): Promise<void> {
   const reporter = opts?.reporter
@@ -24,6 +27,10 @@ export async function storePrune (
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     now: new Date(),
   })
+
+  if (opts.globalPkgDir) {
+    cleanOrphanedInstallDirs(opts.globalPkgDir)
+  }
 
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)

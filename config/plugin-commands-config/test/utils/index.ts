@@ -1,10 +1,12 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { readIniFileSync } from 'read-ini-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeIniFileSync } from 'write-ini-file'
-import { sync as readYamlFile } from 'read-yaml-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
-import { type config } from '../../src/index.js'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import type { config } from '../../src/index.js'
 
 export function getOutputString (result: config.ConfigHandlerResult): string {
   if (result == null) throw new Error('output is null or undefined')
@@ -38,13 +40,13 @@ export function readConfigFiles (globalConfigDir: string | undefined, localDir: 
       ? tryRead(() => readIniFileSync(path.join(globalConfigDir, 'rc')) as Record<string, unknown>)
       : undefined,
     globalYaml: globalConfigDir
-      ? tryRead(() => readYamlFile(path.join(globalConfigDir, 'config.yaml')))
+      ? tryRead(() => readYamlFileSync(path.join(globalConfigDir, 'config.yaml')))
       : undefined,
     localRc: localDir
       ? tryRead(() => readIniFileSync(path.join(localDir, '.npmrc')) as Record<string, unknown>)
       : undefined,
     localYaml: localDir
-      ? tryRead(() => readYamlFile(path.join(localDir, 'pnpm-workspace.yaml')))
+      ? tryRead(() => readYamlFileSync(path.join(localDir, 'pnpm-workspace.yaml')))
       : undefined,
   }
 }
@@ -58,7 +60,7 @@ export function writeConfigFiles (globalConfigDir: string | undefined, localDir:
     }
 
     if (data.globalYaml) {
-      writeYamlFile(path.join(globalConfigDir, 'config.yaml'), data.globalYaml)
+      writeYamlFileSync(path.join(globalConfigDir, 'config.yaml'), data.globalYaml)
     }
   }
 
@@ -70,7 +72,7 @@ export function writeConfigFiles (globalConfigDir: string | undefined, localDir:
     }
 
     if (data.localYaml) {
-      writeYamlFile(path.join(localDir, 'pnpm-workspace.yaml'), data.localYaml)
+      writeYamlFileSync(path.join(localDir, 'pnpm-workspace.yaml'), data.localYaml)
     }
   }
 }

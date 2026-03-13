@@ -1,10 +1,17 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
-import { sync as rimraf } from '@zkochan/rimraf'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { rimrafSync } from '@zkochan/rimraf'
+import nock from 'nock'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { testDefaults } from '../utils/index.js'
+
+afterEach(() => {
+  nock.abortPendingRequests()
+  nock.cleanAll()
+})
 
 const RESOLUTIONS = [
   {
@@ -88,7 +95,34 @@ const RESOLUTIONS = [
   },
 ]
 
+// Derive SHA256 hex values from RESOLUTIONS integrity fields
+const PLATFORM_HEX_DIGESTS: Record<string, string> = Object.fromEntries(
+  RESOLUTIONS.map(({ resolution }) => {
+    const platform = resolution.url.match(/deno-(.+)\.zip$/)![1]
+    const hex = Buffer.from(resolution.integrity.replace('sha256-', ''), 'base64').toString('hex')
+    return [platform, hex]
+  })
+)
+
 test('installing Deno runtime', async () => {
+  // Mock GitHub API to avoid network flakiness
+  const assetNames = Object.keys(PLATFORM_HEX_DIGESTS).map((platform) => `deno-${platform}`)
+  const githubApiNock = nock('https://api.github.com', { allowUnmocked: true })
+    .get('/repos/denoland/deno/releases/tags/v2.4.2')
+    .reply(200, {
+      assets: assetNames.map((name) => ({
+        name: `${name}.zip.sha256sum`,
+        browser_download_url: `https://github.com/denoland/deno/releases/download/v2.4.2/${name}.zip.sha256sum`,
+      })),
+    })
+  const githubDownloadNock = nock('https://github.com', { allowUnmocked: true })
+  for (const [platform, hex] of Object.entries(PLATFORM_HEX_DIGESTS)) {
+    const name = `deno-${platform}`
+    githubDownloadNock
+      .get(`/denoland/deno/releases/download/v2.4.2/${name}.zip.sha256sum`)
+      .reply(200, `${hex}  ${name}.zip`)
+  }
+
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['deno@runtime:2.4.2'], testDefaults({ fastUnpack: false }))
 
@@ -124,7 +158,7 @@ test('installing Deno runtime', async () => {
     },
   })
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true }, {
     offline: true, // We want to verify that Deno is resolved from cache.
   }))
@@ -173,6 +207,9 @@ test('installing Deno runtime', async () => {
       '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {},
     },
   })
+
+  githubApiNock.done()
+  githubDownloadNock.done()
 })
 
 test('installing Deno runtime fails if offline mode is used and Deno not found locally', async () => {
@@ -185,7 +222,7 @@ test('installing Deno runtime fails if offline mode is used and Deno not found l
 test('installing Deno runtime fails if integrity check fails', async () => {
   prepareEmpty()
 
-  writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFileSync(WANTED_LOCKFILE, {
     settings: {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,

@@ -1,11 +1,13 @@
-import path from 'path'
-import fs from 'fs'
-import { logger } from '@pnpm/logger'
-import { type ProjectRootDir } from '@pnpm/types'
-import { prepareEmpty } from '@pnpm/prepare'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
+import { logger } from '@pnpm/logger'
+import { prepareEmpty } from '@pnpm/prepare'
+import type { ProjectRootDir } from '@pnpm/types'
+
 import { getFilePath } from '../src/filePath.js'
-import { type WorkspaceState, loadWorkspaceState } from '../src/index.js'
+import { loadWorkspaceState, type WorkspaceState } from '../src/index.js'
 
 const lastValidatedTimestamp = Date.now()
 

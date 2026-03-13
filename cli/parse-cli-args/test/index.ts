@@ -1,5 +1,6 @@
-import os from 'os'
-import { type PnpmError } from '@pnpm/error'
+import os from 'node:os'
+
+import type { PnpmError } from '@pnpm/error'
 import { parseCliArgs } from '@pnpm/parse-cli-args'
 import { temporaryDirectory } from 'tempy'
 

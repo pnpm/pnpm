@@ -12,7 +12,6 @@ describe('normalizeBundledManifest', () => {
       license: 'MIT',
       author: 'test',
       repository: 'test/test',
-      devDependencies: { jest: '^29' },
     })).toBeUndefined()
   })
 
@@ -28,6 +27,7 @@ describe('normalizeBundledManifest', () => {
       os: ['linux'],
       libc: ['glibc'],
       dependencies: { bar: '^1.0.0' },
+      devDependencies: { qux: '^3.0.0' },
       optionalDependencies: { baz: '^2.0.0' },
       peerDependencies: { react: '^18' },
       peerDependenciesMeta: { react: { optional: true } },
@@ -43,6 +43,7 @@ describe('normalizeBundledManifest', () => {
       os: ['linux'],
       libc: ['glibc'],
       dependencies: { bar: '^1.0.0' },
+      devDependencies: { qux: '^3.0.0' },
       optionalDependencies: { baz: '^2.0.0' },
       peerDependencies: { react: '^18' },
       peerDependenciesMeta: { react: { optional: true } },

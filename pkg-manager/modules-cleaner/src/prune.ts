@@ -1,30 +1,32 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
 import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
+import { depPathToFilename } from '@pnpm/dependency-path'
 import { filterLockfile, filterLockfileByImporters } from '@pnpm/lockfile.filtering'
-import {
-  type LockfileObject,
-  type PackageSnapshots,
-  type ProjectSnapshot,
+import type {
+  LockfileObject,
+  PackageSnapshots,
+  ProjectSnapshot,
 } from '@pnpm/lockfile.types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { readModulesDir } from '@pnpm/read-modules-dir'
-import { type StoreController } from '@pnpm/store-controller-types'
+import type { StoreController } from '@pnpm/store-controller-types'
 import {
-  type DepPath,
-  type DependenciesField,
   DEPENDENCIES_FIELDS,
+  type DependenciesField,
+  type DepPath,
   type HoistedDependencies,
   type ProjectId,
   type ProjectRootDir,
 } from '@pnpm/types'
-import { depPathToFilename } from '@pnpm/dependency-path'
-import rimraf from '@zkochan/rimraf'
+import { rimraf } from '@zkochan/rimraf'
 import { difference, equals, mergeAll, pickAll } from 'ramda'
+
 import { removeDirectDependency, removeIfEmpty } from './removeDirectDependency.js'
 
 export async function prune (

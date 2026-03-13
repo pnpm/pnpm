@@ -1,18 +1,21 @@
-import path from 'path'
-import {
-  type PackageSnapshot,
-  type PackageSnapshots,
-  type TarballResolution,
+import path from 'node:path'
+
+import { refToRelative } from '@pnpm/dependency-path'
+import { DepType, type DepTypes } from '@pnpm/lockfile.detect-dep-types'
+import type {
+  PackageSnapshot,
+  PackageSnapshots,
+  TarballResolution,
 } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
-import { type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
-import { type DependencyManifest, type Registries } from '@pnpm/types'
-import { refToRelative } from '@pnpm/dependency-path'
 import { readPackageJsonFromDirSync } from '@pnpm/read-package-json'
+import type { StoreIndex } from '@pnpm/store.index'
+import type { DependencyManifest, Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'
+
 import { readManifestFromCafs } from './readManifestFromCafs.js'
 import { resolvePackagePath } from './resolvePackagePath.js'
 
@@ -24,6 +27,7 @@ export interface GetPkgInfoOpts {
   readonly registries: Registries
   readonly skipped: Set<string>
   readonly storeDir?: string
+  readonly storeIndex?: StoreIndex
   readonly wantedPackages: PackageSnapshots
   readonly virtualStoreDir?: string
   readonly virtualStoreDirMaxLength: number
@@ -68,7 +72,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
   let integrity: string | undefined
   const depPath = refToRelative(opts.ref, opts.alias)
   if (depPath) {
-    let pkgSnapshot!: PackageSnapshot
+    let pkgSnapshot: PackageSnapshot | undefined
     if (opts.currentPackages[depPath]) {
       pkgSnapshot = opts.currentPackages[depPath]
       const parsed = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
@@ -87,12 +91,14 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
       isMissing = true
       isSkipped = opts.skipped.has(depPath)
     }
-    resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
-    depType = opts.depTypes[depPath]
-    optional = pkgSnapshot.optional
-    if ('integrity' in pkgSnapshot.resolution) {
-      integrity = pkgSnapshot.resolution.integrity as string
+    if (pkgSnapshot) {
+      resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
+      optional = pkgSnapshot.optional
+      if ('integrity' in pkgSnapshot.resolution) {
+        integrity = pkgSnapshot.resolution.integrity as string
+      }
     }
+    depType = opts.depTypes[depPath]
   } else {
     name = opts.alias
     version = opts.ref
@@ -139,8 +145,8 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
   return {
     pkgInfo: packageInfo,
     readManifest: () => {
-      if (integrity && opts.storeDir) {
-        const manifest = readManifestFromCafs(opts.storeDir, { integrity, name, version })
+      if (integrity && opts.storeDir && opts.storeIndex) {
+        const manifest = readManifestFromCafs(opts.storeDir, opts.storeIndex, { integrity, name, version })
         if (manifest) return manifest
       }
       return readPackageJsonFromDirSync(fullPackagePath)

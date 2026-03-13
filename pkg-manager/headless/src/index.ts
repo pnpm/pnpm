@@ -1,7 +1,8 @@
-import { promises as fs } from 'fs'
-import path from 'path'
-import { buildModules } from '@pnpm/build-modules'
-import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
+import { buildModules } from '@pnpm/building.during-install'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
@@ -14,29 +15,36 @@ import {
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
+import * as dp from '@pnpm/dependency-path'
+import {
+  type DependenciesGraph,
+  type DependenciesGraphNode,
+  type DirectDependenciesByImporterId,
+  lockfileToDepGraph,
+  type LockfileToDepGraphOptions,
+} from '@pnpm/deps.graph-builder'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
+import {
+  makeNodeRequireOption,
+  runLifecycleHooksConcurrently,
+} from '@pnpm/lifecycle'
+import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   filterLockfileByEngine,
   filterLockfileByImportersAndEngine,
 } from '@pnpm/lockfile.filtering'
-import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
-import {
-  runLifecycleHooksConcurrently,
-  makeNodeRequireOption,
-} from '@pnpm/lifecycle'
-import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
   type LockfileObject,
   readCurrentLockfile,
   readWantedLockfile,
-  writeLockfiles,
   writeCurrentLockfile,
+  writeLockfiles,
 } from '@pnpm/lockfile.fs'
-import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
+import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
   type LogBase,
   logger,
@@ -48,44 +56,38 @@ import {
   type Modules,
   writeModulesManifest,
 } from '@pnpm/modules-yaml'
-import { type PatchGroupRecord } from '@pnpm/patching.config'
-import { type HoistingLimits } from '@pnpm/real-hoist'
+import type { PatchGroupRecord } from '@pnpm/patching.config'
+import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import {
-  type PackageFilesResponse,
-  type StoreController,
+import type { HoistingLimits } from '@pnpm/real-hoist'
+import type {
+  PackageFilesResponse,
+  StoreController,
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
   type AllowBuild,
-  type DepPath,
+  DEPENDENCIES_FIELDS,
   type DependencyManifest,
+  type DepPath,
   type HoistedDependencies,
   type IgnoredBuilds,
   type ProjectId,
   type ProjectManifest,
-  type Registries,
-  DEPENDENCIES_FIELDS,
-  type SupportedArchitectures,
   type ProjectRootDir,
+  type Registries,
+  type SupportedArchitectures,
 } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
-import pathAbsolute from 'path-absolute'
+import { pathAbsolute } from 'path-absolute'
 import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'
-import realpathMissing from 'realpath-missing'
+import { realpathMissing } from 'realpath-missing'
+
+import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
 import { linkHoistedModules } from './linkHoistedModules.js'
-import {
-  type DirectDependenciesByImporterId,
-  type DependenciesGraph,
-  type DependenciesGraphNode,
-  type LockfileToDepGraphOptions,
-  lockfileToDepGraph,
-} from '@pnpm/deps.graph-builder'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
-import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
 export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
 
 export type { HoistingLimits }
@@ -334,8 +336,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     nodeVersion: opts.currentEngine.nodeVersion,
     pnpmVersion: opts.currentEngine.pnpmVersion,
     supportedArchitectures: opts.supportedArchitectures,
-    includeUnchangedDeps: (!equals(opts.currentHoistPattern, opts.hoistPattern ?? undefined)) ||
-      (!equals(opts.currentPublicHoistPattern, opts.publicHoistPattern ?? undefined)),
+    includeUnchangedDeps: (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) ||
+      (!equals(opts.currentPublicHoistPattern ?? [], opts.publicHoistPattern ?? [])) ||
+      (opts.enableGlobalVirtualStore === true && !equals(opts.modulesFile?.allowBuilds ?? {}, opts.allowBuilds ?? {})),
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,
@@ -426,9 +429,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         depGraph: graph,
         depsStateCache,
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         ignoreScripts: opts.ignoreScripts,
         lockfileDir: opts.lockfileDir,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
+        storeDir: opts.storeDir,
       }),
     ])
 
@@ -559,6 +564,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       storeController: opts.storeController,
       unsafePerm: opts.unsafePerm,
       userAgent: opts.userAgent,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
     })).ignoredBuilds
     if (opts.modulesFile?.ignoredBuilds?.size) {
       ignoredBuilds ??= new Set()
@@ -639,6 +645,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       storeDir: opts.storeDir,
       virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      allowBuilds: opts.allowBuilds,
     })
     const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
     if (opts.useLockfile) {
@@ -663,8 +670,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }))
 
   summaryLogger.debug({ prefix: lockfileDir })
-
-  await opts.storeController.close()
 
   if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
     await runLifecycleHooksConcurrently(
@@ -854,12 +859,22 @@ async function linkAllPkgs (
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
+    enableGlobalVirtualStore?: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
+    storeDir: string
   }
 ): Promise<void> {
+  // Create a marker source file that will be added to filesMap for GVS packages
+  // that need building. The importer treats it as just another file, so it's
+  // atomically included in the staged directory and renamed with the package.
+  let needsBuildMarkerSrc: string | undefined
+  if (opts.enableGlobalVirtualStore) {
+    needsBuildMarkerSrc = path.join(opts.storeDir, '.pnpm-needs-build-marker')
+    await fs.writeFile(needsBuildMarkerSrc, '')
+  }
   await Promise.all(
     depNodes.map(async (depNode) => {
       if (!depNode.fetching) return
@@ -877,15 +892,36 @@ async function linkAllPkgs (
         if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
-            patchFileHash: depNode.patch?.file.hash,
+            patchFileHash: depNode.patch?.hash,
           })
         }
       }
+      // For GVS packages that need building, add a .pnpm-needs-build marker to the
+      // filesMap. The import pipeline treats it as a normal file, so it gets
+      // written into the staging directory and atomically renamed with the rest
+      // of the package. On the next install, GVS fast paths detect the marker
+      // and force a re-fetch/re-import/re-build.
+      // Skip the marker when cached side effects will be applied (the package
+      // is already built and no build will run).
+      const hasCachedSideEffects = sideEffectsCacheKey != null &&
+        filesResponse.sideEffectsMaps?.has(sideEffectsCacheKey) === true
+      const needsBuildMarker = needsBuildMarkerSrc != null &&
+        !hasCachedSideEffects &&
+        (depNode.requiresBuild || depNode.patch != null)
+      let effectiveFilesResponse = filesResponse
+      if (needsBuildMarker) {
+        effectiveFilesResponse = {
+          ...filesResponse,
+          filesMap: new Map([...filesResponse.filesMap, ['.pnpm-needs-build', needsBuildMarkerSrc!]]),
+        }
+      }
+
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-        filesResponse,
+        filesResponse: effectiveFilesResponse,
         force: depNode.forceImportPackage ?? opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         requiresBuild: depNode.patch != null || depNode.requiresBuild,
+        safeToSkip: opts.enableGlobalVirtualStore,
         sideEffectsCacheKey,
       })
       if (importMethod) {

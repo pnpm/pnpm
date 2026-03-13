@@ -1,5 +1,6 @@
-import { createOptionalDependenciesRemover } from '../lib/createOptionalDependenciesRemover.js'
 import type { BaseManifest } from '@pnpm/types'
+
+import { createOptionalDependenciesRemover } from '../lib/createOptionalDependenciesRemover.js'
 
 test('createOptionalDependenciesRemover() does not modify the manifest if provided array is empty', async () => {
   const removeOptionalDependencies = createOptionalDependenciesRemover([])

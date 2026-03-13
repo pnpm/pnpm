@@ -1,47 +1,48 @@
-import { PnpmError } from '@pnpm/error'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
-import { type Catalogs } from '@pnpm/catalogs.types'
-import { type LockfileObject } from '@pnpm/lockfile.types'
-import { globalWarn } from '@pnpm/logger'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import { type PatchGroupRecord } from '@pnpm/patching.config'
-import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
-import { type StoreController } from '@pnpm/store-controller-types'
-import {
-  type AllowBuild,
-  type SupportedArchitectures,
-  type AllowedDeprecatedVersions,
-  type PinnedVersion,
-  type PkgResolutionId,
-  type ProjectManifest,
-  type ProjectId,
-  type ReadPackageHook,
-  type Registries,
-  type ProjectRootDir,
-  type PackageVersionPolicy,
-  type TrustPolicy,
+import { PnpmError } from '@pnpm/error'
+import type { LockfileObject } from '@pnpm/lockfile.types'
+import { globalWarn } from '@pnpm/logger'
+import type { PatchGroupRecord } from '@pnpm/patching.config'
+import type { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolver-base'
+import type { StoreController } from '@pnpm/store-controller-types'
+import type {
+  AllowBuild,
+  AllowedDeprecatedVersions,
+  PackageVersionPolicy,
+  PinnedVersion,
+  PkgResolutionId,
+  ProjectId,
+  ProjectManifest,
+  ProjectRootDir,
+  ReadPackageHook,
+  Registries,
+  SupportedArchitectures,
+  TrustPolicy,
 } from '@pnpm/types'
 import { partition, zipObj } from 'ramda'
-import { type WantedDependency } from './getNonDevWantedDependencies.js'
-import { type NodeId, nextNodeId } from './nextNodeId.js'
+
+import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import { nextNodeId, type NodeId } from './nextNodeId.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import {
   type ChildrenByParentId,
   type DependenciesTree,
-  type LinkedDependency,
   type ImporterToResolve,
   type ImporterToResolveOptions,
+  type LinkedDependency,
   type ParentPkgAliases,
   type PendingNode,
   type PkgAddress,
   type PkgAddressOrLink,
-  resolveRootDependencies,
+  type ResolutionContext,
   type ResolvedPackage,
   type ResolvedPkgsById,
-  type ResolutionContext,
+  resolveRootDependencies,
 } from './resolveDependencies.js'
 
-export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies.js'
+export type { DependenciesTree, DependenciesTreeNode, LinkedDependency, ResolvedPackage } from './resolveDependencies.js'
 
 export interface ResolvedImporters {
   [id: string]: {
@@ -94,7 +95,7 @@ export interface Importer<WantedDepExtraProps> {
 
 export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<WantedDepExtraProps> {
   updatePackageManifest: boolean
-  updateMatching?: (pkgName: string) => boolean
+  updateMatching?: (pkgName: string, version?: string) => boolean
   updateToLatest?: boolean
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions

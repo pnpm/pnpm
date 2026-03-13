@@ -2,6 +2,7 @@ import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import stylistic from '@stylistic/eslint-plugin'
 import * as importX from 'eslint-plugin-import-x'
+import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import n from 'eslint-plugin-n'
 import promise from 'eslint-plugin-promise'
 import noDupeConditions from './no-dupe-conditions.js'
@@ -29,6 +30,7 @@ export default tseslint.config(
     plugins: {
       '@stylistic': stylistic,
       'import-x': importX,
+      'simple-import-sort': simpleImportSort,
       n,
       promise,
       conditions: {
@@ -41,6 +43,19 @@ export default tseslint.config(
     },
 
     rules: {
+      // Import sorting
+      'simple-import-sort/imports': ['error', {
+        groups: [
+          // Node.js builtins
+          ['^node:'],
+          // External packages
+          ['^@?\\w'],
+          // Relative imports
+          ['^\\.'],
+        ],
+      }],
+      'simple-import-sort/exports': 'error',
+
       // Import rules (migrated from eslint-plugin-import)
       'import-x/extensions': ['error', 'always', { ignorePackages: true }],
       'import-x/no-extraneous-dependencies': ['error', {
@@ -63,6 +78,7 @@ export default tseslint.config(
       }],
       '@stylistic/type-annotation-spacing': 'error',
       '@stylistic/brace-style': ['error', '1tbs'],
+      '@stylistic/comma-spacing': ['error', { before: false, after: true }],
       '@stylistic/space-before-function-paren': ['error', 'always'],
 
       // TypeScript rules
@@ -112,6 +128,10 @@ export default tseslint.config(
       '@typescript-eslint/triple-slash-reference': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/consistent-type-assertions': 'off',
+      // The typescript-eslint docs recommend disabling this rule if
+      // verbatimModuleSyntax is enabled.
+      // https://typescript-eslint.io/rules/consistent-type-imports/
+      '@typescript-eslint/consistent-type-imports': 'off',
       '@typescript-eslint/strict-boolean-expressions': 'off',
       '@typescript-eslint/no-base-to-string': 'off',
       '@typescript-eslint/no-dynamic-delete': 'off',
@@ -142,6 +162,7 @@ export default tseslint.config(
         varsIgnorePattern: '^_',
         caughtErrorsIgnorePattern: '^_',
       }],
+      '@typescript-eslint/no-import-type-side-effects': 'error',
 
       // Core ESLint rules
       'no-return-await': 'error',
@@ -183,6 +204,7 @@ export default tseslint.config(
       // Node plugin
       'n/no-missing-import': 'off', // TypeScript handles this
       'n/no-unsupported-features/node-builtins': 'off',
+      'n/prefer-node-protocol': ['error', { version: '>=18.18.0' }],
     },
   },
   // Test file configuration

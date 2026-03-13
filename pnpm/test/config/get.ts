@@ -1,8 +1,10 @@
-import fs from 'fs'
-import path from 'path'
-import { sync as writeYamlFile } from 'write-yaml-file'
-import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare } from '@pnpm/prepare'
+import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpmSync } from '../utils/index.js'
 
 test('pnpm config get reads npm options but ignores other settings from .npmrc', () => {
@@ -62,7 +64,7 @@ test('pnpm config get reads npm options but ignores other settings from .npmrc',
 
 test('pnpm config get reads workspace-specific settings from pnpm-workspace.yaml', () => {
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     dlxCacheMaxAge: 1234,
     trustPolicyExclude: ['foo', 'bar'],
     packages: ['baz', 'qux'],
@@ -96,7 +98,7 @@ test('pnpm config get reads workspace-specific settings from pnpm-workspace.yaml
 
 test('pnpm config get ignores non camelCase settings from pnpm-workspace.yaml', () => {
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     'dlx-cache-max-age': 1234,
     'trust-policy-exclude': ['foo', 'bar'],
   })
@@ -139,7 +141,7 @@ test('pnpm config get accepts a property path', () => {
   } satisfies Partial<WorkspaceManifest>
 
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packageExtensions: {
       '@babel/parser': {
         peerDependencies: {
@@ -199,7 +201,7 @@ test('pnpm config get accepts a property path', () => {
 
 test('pnpm config get "" gives exactly the same result as pnpm config list', () => {
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     dlxCacheMaxAge: 1234,
     trustPolicyExclude: ['foo', 'bar'],
     packages: ['baz', 'qux'],
@@ -236,7 +238,7 @@ test('pnpm config get shows settings from global config.yaml', () => {
   const XDG_CONFIG_HOME = path.resolve('.config')
   const configDir = path.join(XDG_CONFIG_HOME, 'pnpm')
   fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(configDir, 'config.yaml'), {
+  writeYamlFileSync(path.join(configDir, 'config.yaml'), {
     dangerouslyAllowAllBuilds: true,
     dlxCacheMaxAge: 1234,
     dev: true,

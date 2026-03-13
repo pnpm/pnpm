@@ -1,11 +1,13 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type PnpmError } from '@pnpm/error'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
-import { sync as rimraf } from '@zkochan/rimraf'
+import type { PnpmError } from '@pnpm/error'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { rimrafSync } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
+
 import { testDefaults } from './utils/index.js'
 
 test('fail on non-compatible node_modules', async () => {
@@ -42,7 +44,7 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
 
   process.chdir('pkg')
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({ lockfileDir: path.resolve('..') }))
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   process.chdir('..')
 

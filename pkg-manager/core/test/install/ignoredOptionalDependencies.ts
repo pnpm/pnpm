@@ -1,6 +1,7 @@
-import type { ProjectManifest } from '@pnpm/types'
-import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
+import type { ProjectManifest } from '@pnpm/types'
+
 import {
   testDefaults,
 } from '../utils/index.js'

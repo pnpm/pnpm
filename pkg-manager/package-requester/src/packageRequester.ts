@@ -1,48 +1,48 @@
-import { createReadStream, promises as fs } from 'fs'
-import path from 'path'
-import {
-  getIndexFilePathInCafs as _getIndexFilePathInCafs,
-  normalizeBundledManifest,
-} from '@pnpm/store.cafs'
+import { createReadStream, promises as fs } from 'node:fs'
+import path from 'node:path'
+
+import type { Cafs } from '@pnpm/cafs-types'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
-import { pickFetcher } from '@pnpm/pick-fetcher'
+import { depPathToFilename } from '@pnpm/dependency-path'
 import { PnpmError } from '@pnpm/error'
-import {
-  type DirectoryFetcherResult,
-  type Fetchers,
-  type FetchOptions,
-  type FetchResult,
+import type {
+  DirectoryFetcherResult,
+  Fetchers,
+  FetchOptions,
+  FetchResult,
 } from '@pnpm/fetcher-base'
-import { type Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
+import type { CustomFetcher } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { loadJsonFile } from 'load-json-file'
-import {
-  type PlatformAssetResolution,
-  type DirectoryResolution,
-  type PreferredVersions,
-  type Resolution,
-  type ResolveFunction,
-  type ResolveResult,
-  type TarballResolution,
-  type AtomicResolution,
+import { pickFetcher } from '@pnpm/pick-fetcher'
+import type {
+  AtomicResolution,
+  DirectoryResolution,
+  PlatformAssetResolution,
+  PreferredVersions,
+  Resolution,
+  ResolveFunction,
+  ResolveResult,
+  TarballResolution,
 } from '@pnpm/resolver-base'
 import {
-  type BundledManifest,
-  type PkgRequestFetchResult,
-  type FetchPackageToStoreFunction,
-  type FetchPackageToStoreOptions,
-  type GetFilesIndexFilePath,
-  type PackageResponse,
-  type PkgNameVersion,
-  type RequestPackageFunction,
-  type RequestPackageOptions,
-  type WantedDependency,
+  normalizeBundledManifest,
+} from '@pnpm/store.cafs'
+import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
+import type {
+  BundledManifest,
+  FetchPackageToStoreFunction,
+  FetchPackageToStoreOptions,
+  GetFilesIndexFilePath,
+  PackageResponse,
+  PkgNameVersion,
+  PkgRequestFetchResult,
+  RequestPackageFunction,
+  RequestPackageOptions,
+  WantedDependency,
 } from '@pnpm/store-controller-types'
-import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
-import { type CustomFetcher } from '@pnpm/hooks.types'
-import { depPathToFilename } from '@pnpm/dependency-path'
+import type { DependencyManifest, SupportedArchitectures } from '@pnpm/types'
 import {
   calcMaxWorkers,
   readPkgFromCafs as _readPkgFromCafs,
@@ -50,9 +50,10 @@ import {
   type ReadPkgFromCafsResult,
 } from '@pnpm/worker'
 import { familySync } from 'detect-libc'
-import PQueue from 'p-queue'
+import { loadJsonFile } from 'load-json-file'
 import pDefer, { type DeferredPromise } from 'p-defer'
-import pShare from 'promise-share'
+import PQueue from 'p-queue'
+import { pShare } from 'promise-share'
 import { pick } from 'ramda'
 import ssri from 'ssri'
 
@@ -96,7 +97,6 @@ export function createPackageRequester (
     concurrency: networkConcurrency,
   })
 
-  const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
   const readPkgFromCafs = _readPkgFromCafs.bind(null, {
     storeDir: opts.storeDir,
@@ -107,7 +107,6 @@ export function createPackageRequester (
     readPkgFromCafs,
     fetch,
     fetchingLocker: new Map(),
-    getIndexFilePathInCafs,
     requestsQueue: Object.assign(requestsQueue, {
       counter: 0,
       concurrency: networkConcurrency,
@@ -130,7 +129,6 @@ export function createPackageRequester (
   return Object.assign(requestPackage, {
     fetchPackageToStore,
     getFilesIndexFilePath: getFilesIndexFilePath.bind(null, {
-      getIndexFilePathInCafs,
       storeDir: opts.storeDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }),
@@ -333,7 +331,6 @@ interface GetFilesIndexFilePathResult {
 
 function getFilesIndexFilePath (
   ctx: {
-    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     storeDir: string
     virtualStoreDirMaxLength: number
   },
@@ -344,7 +341,7 @@ function getFilesIndexFilePath (
   if ((opts.pkg.resolution as TarballResolution).integrity) {
     return {
       target,
-      filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
+      filesIndexFile: storeIndexKey((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
       resolution: opts.pkg.resolution as AtomicResolution,
     }
   }
@@ -354,14 +351,14 @@ function getFilesIndexFilePath (
     if ((resolution as TarballResolution).integrity) {
       return {
         target,
-        filesIndexFile: ctx.getIndexFilePathInCafs((resolution as TarballResolution).integrity!, opts.pkg.id),
+        filesIndexFile: storeIndexKey((resolution as TarballResolution).integrity!, opts.pkg.id),
         resolution,
       }
     }
   } else {
     resolution = opts.pkg.resolution
   }
-  const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.mpk' : 'integrity.mpk')
+  const filesIndexFile = gitHostedStoreIndexKey(opts.pkg.id, { built: !opts.ignoreScripts })
   return { filesIndexFile, target, resolution }
 }
 
@@ -402,7 +399,6 @@ function fetchToStore (
       opts: FetchOptions
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
-    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     requestsQueue: {
       add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>
       counter: number

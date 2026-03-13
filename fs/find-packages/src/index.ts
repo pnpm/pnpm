@@ -1,11 +1,12 @@
-import { promises as fs } from 'fs'
-import path from 'path'
-import util from 'util'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
 import { readExactProjectManifest } from '@pnpm/read-project-manifest'
-import { type Project, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
+import type { Project, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { glob } from 'tinyglobby'
 import pFilter from 'p-filter'
+import { glob } from 'tinyglobby'
 
 const DEFAULT_IGNORE = [
   '**/node_modules/**',

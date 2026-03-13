@@ -1,22 +1,24 @@
-import fs from 'fs'
-import path from 'path'
-import { applyPatchToDir } from '@pnpm/patching.apply-patch'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { type LogBase } from '@pnpm/logger'
-import {
-  type CreateStoreControllerOptions,
-} from '@pnpm/store-connection-manager'
-import { pick } from 'ramda'
-import renderHelp from 'render-help'
-import chalk from 'chalk'
-import terminalLink from 'terminal-link'
 import { PnpmError } from '@pnpm/error'
-import { writePackage } from './writePackage.js'
-import { getEditDirPath } from './getEditDirPath.js'
-import { type GetPatchedDependencyResult, getPatchedDependency } from './getPatchedDependency.js'
-import { writeEditDirState } from './stateFile.js'
+import type { LogBase } from '@pnpm/logger'
+import { applyPatchToDir } from '@pnpm/patching.apply-patch'
+import type {
+  CreateStoreControllerOptions,
+} from '@pnpm/store-connection-manager'
+import chalk from 'chalk'
 import isWindows from 'is-windows'
+import { pick } from 'ramda'
+import { renderHelp } from 'render-help'
+import terminalLink from 'terminal-link'
+
+import { getEditDirPath } from './getEditDirPath.js'
+import { getPatchedDependency, type GetPatchedDependencyResult } from './getPatchedDependency.js'
+import { writeEditDirState } from './stateFile.js'
+import { writePackage } from './writePackage.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)

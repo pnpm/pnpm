@@ -1,26 +1,28 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import {
-  type PackageManifestLog,
-  type RootLog,
-  type StatsLog,
-} from '@pnpm/core-loggers'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectRootDir, type PackageManifest } from '@pnpm/types'
-import { sync as readYamlFile } from 'read-yaml-file'
-import symlinkDir from 'symlink-dir'
 import {
   addDependenciesToPackage,
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import sinon from 'sinon'
-import { writeJsonFileSync } from 'write-json-file'
+import type {
+  PackageManifestLog,
+  RootLog,
+  StatsLog,
+} from '@pnpm/core-loggers'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { fixtures } from '@pnpm/test-fixtures'
+import type { PackageManifest, ProjectRootDir } from '@pnpm/types'
 import existsSymlink from 'exists-link'
+import { readYamlFileSync } from 'read-yaml-file'
+import symlinkDir from 'symlink-dir'
+import { writeJsonFileSync } from 'write-json-file'
+
 import { testDefaults } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -30,7 +32,7 @@ test('uninstall package with no dependencies', async () => {
 
   let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative@2.1.0'], testDefaults({ save: true }))
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   manifest = (await mutateModulesInSingleProject({
     dependencyNames: ['is-negative'],
     manifest,
@@ -38,7 +40,7 @@ test('uninstall package with no dependencies', async () => {
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ save: true, reporter }))).updatedProject.manifest
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     initial: {
       dependencies: {
         'is-negative': '2.1.0',
@@ -47,29 +49,29 @@ test('uninstall package with no dependencies', async () => {
     level: 'debug',
     name: 'pnpm:package-manifest',
     prefix: process.cwd(),
-  } as PackageManifestLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as PackageManifestLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix: process.cwd(),
     removed: 1,
-  } as StatsLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+  } as StatsLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:root',
-    removed: {
+    removed: expect.objectContaining({
       dependencyType: 'prod',
       name: 'is-negative',
       version: '2.1.0',
-    },
-  } as RootLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
+    }),
+  } as RootLog))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
     updated: {
       dependencies: {},
     },
-  } as PackageManifestLog)).toBeTruthy()
+  } as PackageManifestLog))
 
   // uninstall does not remove packages from store
   // even if they become unreferenced
@@ -83,7 +85,7 @@ test('uninstall package with no dependencies', async () => {
 test('uninstall a dependency that is not present in node_modules', async () => {
   prepareEmpty()
 
-  const reporter = sinon.spy()
+  const reporter = jest.fn()
   await mutateModulesInSingleProject({
     dependencyNames: ['is-negative'],
     manifest: {},
@@ -91,13 +93,13 @@ test('uninstall a dependency that is not present in node_modules', async () => {
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ reporter }))
 
-  expect(reporter.calledWithMatch({
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:root',
-    removed: {
+    removed: expect.objectContaining({
       name: 'is-negative',
-    },
-  } as RootLog)).toBeFalsy()
+    }),
+  } as RootLog))
 })
 
 test('uninstall scoped package', async () => {
@@ -300,7 +302,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
   projects['project-1'].hasNot('is-positive')
   projects['project-2'].has('is-negative')
 
-  const lockfile = readYamlFile<LockfileObject>(WANTED_LOCKFILE)
+  const lockfile = readYamlFileSync<LockfileObject>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
     settings: {

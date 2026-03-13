@@ -228,6 +228,49 @@ run_bench "cold" \
   "rm -rf {project}/node_modules {project}/pnpm-lock.yaml {store} {cache} && cp $BENCH_DIR/original-package.json {project}/package.json" \
   "cd {project} && node {bin} install --ignore-scripts --no-frozen-lockfile >/dev/null 2>&1"
 
+# ── Benchmark 6: GVS warm reinstall ───────────────────────────────────────
+# Global virtual store enabled, GVS warm, node_modules deleted.
+# This tests the reattach fast-path: all packages should be skipped
+# (no fetch/import) because their GVS hash directories already exist.
+
+echo ""
+echo "━━━ Benchmark 6: GVS warm reinstall (frozen lockfile, warm global virtual store) ━━━"
+
+# Set up separate GVS-enabled project directories per variant
+GVS_PROJECTS=()
+for i in "${!VARIANTS[@]}"; do
+  gvs_dir="$BENCH_DIR/project-gvs-${VARIANTS[$i]}"
+  mkdir -p "$gvs_dir"
+  cp "$BRANCH_DIR/benchmarks/fixture.package.json" "$gvs_dir/package.json"
+  printf "storeDir: %s\ncacheDir: %s\nenableGlobalVirtualStore: true\n" \
+    "${VARIANT_STORES[$i]}" "${VARIANT_CACHES[$i]}" > "$gvs_dir/pnpm-workspace.yaml"
+  GVS_PROJECTS+=("$gvs_dir")
+
+  # Warm the GVS with a full install
+  echo "Warming GVS for ${VARIANTS[$i]}..."
+  cd "$gvs_dir" && node "${VARIANT_BINS[$i]}" install --ignore-scripts --no-frozen-lockfile >/dev/null 2>&1
+  cp "$gvs_dir/pnpm-lock.yaml" "$BENCH_DIR/saved-lockfile-gvs-${VARIANTS[$i]}.yaml"
+done
+
+for i in "${!VARIANTS[@]}"; do
+  variant="${VARIANTS[$i]}"
+  gvs_project="${GVS_PROJECTS[$i]}"
+  bin="${VARIANT_BINS[$i]}"
+  lockfile="$BENCH_DIR/saved-lockfile-gvs-$variant.yaml"
+
+  echo ""
+  echo "  $variant:"
+  hyperfine \
+    --warmup "$WARMUP" \
+    --runs "$RUNS" \
+    --ignore-failure \
+    --prepare "rm -rf $gvs_project/node_modules && cp $lockfile $gvs_project/pnpm-lock.yaml" \
+    --command-name "$variant" \
+    "cd $gvs_project && node $bin install --frozen-lockfile --ignore-scripts >/dev/null 2>&1" \
+    --export-json "$BENCH_DIR/gvs-warm-${variant}.json" \
+    || true
+done
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 RESULTS_MD="$BENCH_DIR/results.md"
@@ -239,7 +282,7 @@ echo ""
 echo "Results saved to: $RESULTS_MD"
 
 # Cleanup
-for project in "${VARIANT_PROJECTS[@]}"; do
+for project in "${VARIANT_PROJECTS[@]}" "${GVS_PROJECTS[@]}"; do
   rm -rf "$project/node_modules"
 done
 echo ""

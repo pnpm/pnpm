@@ -1,6 +1,6 @@
-import { type ProjectRootDir, type ProjectsGraph } from '@pnpm/types'
-import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import type { Result as GraphSequencerResult } from '@pnpm/deps.graph-sequencer'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
+import type { ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 
 export function sequenceGraph (pkgGraph: ProjectsGraph): GraphSequencerResult<ProjectRootDir> {
   const keys = Object.keys(pkgGraph) as ProjectRootDir[]

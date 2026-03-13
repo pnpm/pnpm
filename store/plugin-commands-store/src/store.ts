@@ -1,11 +1,12 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { logger, type LogBase } from '@pnpm/logger'
+import { type LogBase, logger } from '@pnpm/logger'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { getStorePath } from '@pnpm/store-path'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
+
 import { storeAdd } from './storeAdd.js'
 import { storePrune } from './storePrune.js'
 import { storeStatus } from './storeStatus/index.js'
@@ -74,7 +75,7 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export type StoreCommandOptions = Pick<Config, 'dir' | 'lockfileDir' | 'registries' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & CreateStoreControllerOptions & {
+export type StoreCommandOptions = Pick<Config, 'dir' | 'lockfileDir' | 'registries' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & Partial<Pick<Config, 'globalPkgDir'>> & CreateStoreControllerOptions & {
   reporter?: (logObj: LogBase) => void
 }
 

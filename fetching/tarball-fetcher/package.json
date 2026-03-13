@@ -40,13 +40,12 @@
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
     "lodash.throttle": "catalog:",
     "p-map-values": "catalog:",
-    "path-temp": "catalog:",
-    "ramda": "catalog:",
-    "rename-overwrite": "catalog:"
+    "ramda": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:",

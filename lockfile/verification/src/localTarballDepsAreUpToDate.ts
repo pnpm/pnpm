@@ -1,13 +1,14 @@
+import path from 'node:path'
+
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import * as dp from '@pnpm/dependency-path'
-import {
-  type ProjectSnapshot,
-  type PackageSnapshots,
-  type TarballResolution,
+import type {
+  PackageSnapshots,
+  ProjectSnapshot,
+  TarballResolution,
 } from '@pnpm/lockfile.types'
 import { refIsLocalTarball } from '@pnpm/lockfile.utils'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import path from 'node:path'
 import pEvery from 'p-every'
 
 export interface LocalTarballDepsUpToDateContext {
