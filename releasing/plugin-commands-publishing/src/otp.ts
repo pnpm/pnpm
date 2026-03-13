@@ -223,8 +223,9 @@ async function webAuthOtp (
   const pollIntervalMs = 1000
 
   while (true) {
-    if (Date.now() - startTime > timeout) {
-      throw new OtpWebAuthTimeoutError(Date.now(), startTime, timeout)
+    const now = Date.now()
+    if (now - startTime > timeout) {
+      throw new OtpWebAuthTimeoutError(now, startTime, timeout)
     }
     // eslint-disable-next-line no-await-in-loop
     await new Promise<void>(resolve => setTimeout(resolve, pollIntervalMs))
