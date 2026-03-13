@@ -1,5 +1,5 @@
 import { createWriteStream } from 'fs'
-import { mkdir,writeFile } from 'fs/promises'
+import { mkdir, writeFile } from 'fs/promises'
 import { pipeline } from 'stream/promises'
 
 import { LOCKFILE_VERSION } from '@pnpm/constants'

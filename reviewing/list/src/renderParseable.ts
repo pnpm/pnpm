@@ -1,5 +1,5 @@
 import type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
-import { prop,sortBy } from 'ramda'
+import { prop, sortBy } from 'ramda'
 
 import type { PackageDependencyHierarchy } from './types.js'
 

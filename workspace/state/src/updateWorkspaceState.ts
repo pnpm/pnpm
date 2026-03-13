@@ -6,7 +6,7 @@ import type { ConfigDependencies } from '@pnpm/types'
 
 import { createWorkspaceState } from './createWorkspaceState.js'
 import { getFilePath } from './filePath.js'
-import type { ProjectsList,WorkspaceStateSettings } from './types.js'
+import type { ProjectsList, WorkspaceStateSettings } from './types.js'
 
 export interface UpdateWorkspaceStateOptions {
   allProjects: ProjectsList

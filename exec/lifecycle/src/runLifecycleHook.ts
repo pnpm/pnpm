@@ -5,7 +5,7 @@ import { lifecycleLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
-import type { DependencyManifest, PackageScripts,ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
 import { join as shellQuote } from 'shlex'
 

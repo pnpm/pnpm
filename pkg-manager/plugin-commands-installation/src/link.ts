@@ -13,10 +13,10 @@ import type {
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { logger } from '@pnpm/logger'
-import { DEPENDENCIES_FIELDS, type Project,type ProjectManifest } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type Project, type ProjectManifest } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import normalize from 'normalize-path'
-import { partition,pick } from 'ramda'
+import { partition, pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { createProjectManifestWriter } from './createProjectManifestWriter.js'

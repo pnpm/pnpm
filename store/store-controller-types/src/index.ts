@@ -24,7 +24,7 @@ import type {
   TrustPolicy,
 } from '@pnpm/types'
 
-export type { FilesMap,ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse }
+export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse }
 
 export * from '@pnpm/resolver-base'
 export type { BundledManifest }

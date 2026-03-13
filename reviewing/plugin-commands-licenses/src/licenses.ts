@@ -10,7 +10,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import type { LicensesCommandResult } from './LicensesCommandResult.js'
-import { type LicensesCommandOptions,licensesList } from './licensesList.js'
+import { type LicensesCommandOptions, licensesList } from './licensesList.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {

@@ -4,7 +4,7 @@ import { parse } from '@pnpm/dependency-path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import type { Resolution } from '@pnpm/resolver-base'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { gitHostedStoreIndexKey,type StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, type StoreIndex, storeIndexKey } from '@pnpm/store.index'
 
 export interface ReadPackageFileMapOptions {
   storeDir: string

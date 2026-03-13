@@ -11,7 +11,7 @@ export * from './convertEnginesRuntimeToDependencies.js'
 export * from './getDependencyTypeFromManifest.js'
 export * from './updateProjectManifestObject.js'
 
-export { getAllUniqueSpecs,getSpecFromPackageManifest }
+export { getAllUniqueSpecs, getSpecFromPackageManifest }
 
 export function filterDependenciesByType (
   manifest: ProjectManifest,

@@ -20,14 +20,14 @@ import {
 import { logger } from '@pnpm/logger'
 import type { IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { getPatchInfo,type PatchGroupRecord } from '@pnpm/patching.config'
+import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { hoist, type HoisterResult,type HoistingLimits } from '@pnpm/real-hoist'
+import { hoist, type HoisterResult, type HoistingLimits } from '@pnpm/real-hoist'
 import type {
   FetchPackageToStoreFunction,
   StoreController,
 } from '@pnpm/store-controller-types'
-import type { AllowBuild,DepPath, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
+import type { AllowBuild, DepPath, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
 import { pathExists } from 'path-exists'
 
 export interface LockfileToHoistedDepGraphOptions {

@@ -1,5 +1,5 @@
 import { docsUrl } from '@pnpm/cli-utils'
-import { OPTIONS,UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
+import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'

@@ -4,7 +4,7 @@ import { buildSelectedPkgs } from '@pnpm/building.after-install'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
-import { type CatalogResultMatcher,matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   LAYOUT_VERSION,
@@ -49,7 +49,7 @@ import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
-import { groupPatchedDependencies,type PatchGroupRecord } from '@pnpm/patching.config'
+import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   type DependenciesGraph,

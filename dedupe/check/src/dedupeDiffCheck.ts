@@ -3,8 +3,8 @@ import type {
   ResolutionChangesByAlias,
   SnapshotsChanges,
 } from '@pnpm/dedupe.types'
-import type { LockfileObject,ResolvedDependencies } from '@pnpm/lockfile.types'
-import { DEPENDENCIES_FIELDS,type DepPath } from '@pnpm/types'
+import type { LockfileObject, ResolvedDependencies } from '@pnpm/lockfile.types'
+import { DEPENDENCIES_FIELDS, type DepPath } from '@pnpm/types'
 
 import { DedupeCheckIssuesError } from './DedupeCheckIssuesError.js'
 

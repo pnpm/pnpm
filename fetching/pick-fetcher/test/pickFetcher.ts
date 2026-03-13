@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import type { Fetchers,FetchFunction } from '@pnpm/fetcher-base'
+import type { Fetchers, FetchFunction } from '@pnpm/fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 

@@ -1,6 +1,6 @@
 import path from 'path'
 
-import { DEFAULT_REGISTRIES,normalizeRegistries } from '@pnpm/normalize-registries'
+import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/normalize-registries'
 import type { Registries } from '@pnpm/types'
 
 import type { ReporterFunction } from '../types.js'

@@ -1,12 +1,12 @@
 import path from 'path'
 
 import { jest } from '@jest/globals'
-import type { MutatedProject, MutateModulesOptions,ProjectOptions } from '@pnpm/core'
+import type { MutatedProject, MutateModulesOptions, ProjectOptions } from '@pnpm/core'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
 import type { CatalogSnapshots } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import type { ProjectId, ProjectManifest,ProjectRootDir } from '@pnpm/types'
+import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { testDefaults } from './utils/index.js'

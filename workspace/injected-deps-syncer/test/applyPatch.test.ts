@@ -6,7 +6,7 @@ import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
-import { applyPatch,DIR, type DirDiff } from '../src/DirPatcher.js'
+import { applyPatch, DIR, type DirDiff } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir

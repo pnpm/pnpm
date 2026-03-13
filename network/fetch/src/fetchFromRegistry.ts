@@ -1,10 +1,10 @@
 import { URL } from 'url'
 
 import type { FetchFromRegistry } from '@pnpm/fetching-types'
-import { type AgentOptions,getAgent } from '@pnpm/network.agent'
+import { type AgentOptions, getAgent } from '@pnpm/network.agent'
 import type { SslConfig } from '@pnpm/types'
 
-import { fetch, isRedirect, type RequestInfo, type RequestInit,type Response } from './fetch.js'
+import { fetch, isRedirect, type RequestInfo, type RequestInit, type Response } from './fetch.js'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 

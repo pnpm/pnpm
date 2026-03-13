@@ -1,6 +1,6 @@
 import path from 'path'
 
-import { isExecutedByCorepack,packageManager } from '@pnpm/cli-meta'
+import { isExecutedByCorepack, packageManager } from '@pnpm/cli-meta'
 import { docsUrl } from '@pnpm/cli-utils'
 import { createResolver } from '@pnpm/client'
 import { type Config, types as allTypes } from '@pnpm/config'

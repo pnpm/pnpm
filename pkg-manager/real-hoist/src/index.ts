@@ -5,7 +5,7 @@ import {
   nameVerFromPkgSnapshot,
   type ProjectId,
 } from '@pnpm/lockfile.utils'
-import { hoist as _hoist, HoisterDependencyKind, type HoisterResult,type HoisterTree } from '@yarnpkg/nm/hoist'
+import { hoist as _hoist, HoisterDependencyKind, type HoisterResult, type HoisterTree } from '@yarnpkg/nm/hoist'
 
 export type HoistingLimits = Map<string, Set<string>>
 

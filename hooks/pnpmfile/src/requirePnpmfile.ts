@@ -5,9 +5,9 @@ import { pathToFileURL } from 'url'
 import util from 'util'
 
 import { PnpmError } from '@pnpm/error'
-import type { CustomFetcher,CustomResolver } from '@pnpm/hooks.types'
+import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
-import type { Finder,PackageManifest } from '@pnpm/types'
+import type { Finder, PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
 import { createRequire } from 'module'
 

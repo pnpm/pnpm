@@ -10,7 +10,7 @@ import type { DependenciesField, ProjectId, Registries } from '@pnpm/types'
 
 import { getPkgMetadata, type GetPkgMetadataOptions } from './getPkgMetadata.js'
 import { buildPurl, encodePurlName } from './purl.js'
-import type { SbomComponent, SbomComponentType,SbomRelationship, SbomResult } from './types.js'
+import type { SbomComponent, SbomComponentType, SbomRelationship, SbomResult } from './types.js'
 
 export interface CollectSbomComponentsOptions {
   lockfile: LockfileObject

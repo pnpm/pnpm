@@ -18,7 +18,7 @@ import { realpathMissing } from 'realpath-missing'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec.js'
 import { existsInDir } from './existsInDir.js'
 import { tryBuildRegExpFromCommand } from './regexpCommand.js'
-import { runScript,type RunScriptOptions } from './run.js'
+import { runScript, type RunScriptOptions } from './run.js'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'bin'

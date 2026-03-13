@@ -1,6 +1,6 @@
 import path from 'path'
 
-import { DepType,type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
+import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import type { EnvLockfile, LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'

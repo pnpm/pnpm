@@ -2,7 +2,7 @@ import path from 'path'
 
 import { packageManager } from '@pnpm/cli-meta'
 import type { Config } from '@pnpm/config'
-import { isPackageManagerResolved,resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
+import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import { prependDirsToPath } from '@pnpm/env.path'
 import { PnpmError } from '@pnpm/error'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'

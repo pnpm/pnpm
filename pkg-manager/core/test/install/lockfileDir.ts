@@ -5,7 +5,7 @@ import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/co
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import type { DepPath,ProjectRootDir } from '@pnpm/types'
+import type { DepPath, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { readYamlFileSync } from 'read-yaml-file'
 

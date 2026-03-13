@@ -1,5 +1,5 @@
 import type { Cafs } from '@pnpm/cafs-types'
-import type { Fetchers,FetchOptions, FetchResult } from '@pnpm/fetcher-base'
+import type { Fetchers, FetchOptions, FetchResult } from '@pnpm/fetcher-base'
 import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import type { Resolution, WantedDependency } from '@pnpm/resolver-base'
 import type { Registries } from '@pnpm/types'

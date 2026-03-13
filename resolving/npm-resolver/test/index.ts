@@ -12,7 +12,7 @@ import {
   RegistryResponseError,
 } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
-import type { ProjectRootDir,Registries } from '@pnpm/types'
+import type { ProjectRootDir, Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import { omit } from 'ramda'

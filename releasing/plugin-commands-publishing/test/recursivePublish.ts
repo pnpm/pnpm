@@ -12,7 +12,7 @@ import crossSpawn from 'cross-spawn'
 import { safeExeca as execa } from 'execa'
 import { loadJsonFileSync } from 'load-json-file'
 
-import { checkPkgExists,DEFAULT_OPTS } from './utils/index.js'
+import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
 const CREDENTIALS = `\
 registry=http://localhost:${REGISTRY_MOCK_PORT}/

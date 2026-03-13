@@ -1,7 +1,7 @@
 import path from 'path'
 
 import { refToRelative } from '@pnpm/dependency-path'
-import { DepType,type DepTypes } from '@pnpm/lockfile.detect-dep-types'
+import { DepType, type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type {
   PackageSnapshot,
   PackageSnapshots,

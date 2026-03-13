@@ -3,7 +3,7 @@ import path from 'path'
 
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
-import { loadWorkspaceState,type WorkspaceState } from '@pnpm/workspace.state'
+import { loadWorkspaceState, type WorkspaceState } from '@pnpm/workspace.state'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'

@@ -9,11 +9,11 @@ import {
   mutateModules,
   type ProjectOptions,
 } from '@pnpm/core'
-import type { LockfileFile,LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import type { ProjectId,ProjectRootDir } from '@pnpm/types'
+import type { ProjectId, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
 import { readYamlFileSync } from 'read-yaml-file'

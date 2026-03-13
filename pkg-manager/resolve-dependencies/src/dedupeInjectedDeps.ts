@@ -1,6 +1,6 @@
 import path from 'path'
 
-import type { DepPath,PkgResolutionId } from '@pnpm/types'
+import type { DepPath, PkgResolutionId } from '@pnpm/types'
 import normalize from 'normalize-path'
 
 import type { NodeId } from './nextNodeId.js'

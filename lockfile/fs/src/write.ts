@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import type { LockfileFile,LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import { rimraf } from '@zkochan/rimraf'
 import yaml from 'js-yaml'
 import { isEmpty } from 'ramda'

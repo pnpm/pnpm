@@ -24,7 +24,7 @@ import type {
 import { partition, zipObj } from 'ramda'
 
 import type { WantedDependency } from './getNonDevWantedDependencies.js'
-import { nextNodeId,type NodeId } from './nextNodeId.js'
+import { nextNodeId, type NodeId } from './nextNodeId.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import {
   type ChildrenByParentId,
@@ -42,7 +42,7 @@ import {
   resolveRootDependencies,
 } from './resolveDependencies.js'
 
-export type { DependenciesTree, DependenciesTreeNode,LinkedDependency, ResolvedPackage } from './resolveDependencies.js'
+export type { DependenciesTree, DependenciesTreeNode, LinkedDependency, ResolvedPackage } from './resolveDependencies.js'
 
 export interface ResolvedImporters {
   [id: string]: {

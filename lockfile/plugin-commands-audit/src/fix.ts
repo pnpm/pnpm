@@ -1,4 +1,4 @@
-import type { AuditAdvisory,AuditReport } from '@pnpm/audit'
+import type { AuditAdvisory, AuditReport } from '@pnpm/audit'
 import { writeSettings } from '@pnpm/config.config-writer'
 import { difference } from 'ramda'
 

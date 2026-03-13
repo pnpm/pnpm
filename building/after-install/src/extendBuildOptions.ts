@@ -2,7 +2,7 @@ import path from 'path'
 
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import type { LogBase } from '@pnpm/logger'
-import { DEFAULT_REGISTRIES,normalizeRegistries } from '@pnpm/normalize-registries'
+import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/normalize-registries'
 import type { StoreController } from '@pnpm/store-controller-types'
 import type { Registries } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'

@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 
 import { packageManager } from '@pnpm/cli-meta'
-import { type ClientOptions,createClient } from '@pnpm/client'
+import { type ClientOptions, createClient } from '@pnpm/client'
 import type { Config } from '@pnpm/config'
 import { type CafsLocker, createPackageStore, type StoreController } from '@pnpm/package-store'
 import { StoreIndex } from '@pnpm/store.index'

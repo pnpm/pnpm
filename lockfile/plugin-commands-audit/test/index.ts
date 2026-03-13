@@ -7,7 +7,7 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { fixtures } from '@pnpm/test-fixtures'
 import nock from 'nock'
 
-import { AUDIT_REGISTRY,AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/options.js'
+import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
 const f = fixtures(path.join(import.meta.dirname, 'fixtures'))

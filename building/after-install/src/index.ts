@@ -4,7 +4,7 @@ import util from 'util'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
-import { calcDepState, type DepsStateCache,lockfileToDepGraph } from '@pnpm/calc-dep-state'
+import { calcDepState, type DepsStateCache, lockfileToDepGraph } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,

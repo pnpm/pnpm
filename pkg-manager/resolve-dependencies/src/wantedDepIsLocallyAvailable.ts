@@ -1,5 +1,5 @@
 import { parseBareSpecifier, type RegistryPackageSpec } from '@pnpm/npm-resolver'
-import type { WorkspacePackages,WorkspacePackagesByVersion } from '@pnpm/resolver-base'
+import type { WorkspacePackages, WorkspacePackagesByVersion } from '@pnpm/resolver-base'
 import semver from 'semver'
 
 import type { WantedDependency } from './getNonDevWantedDependencies.js'

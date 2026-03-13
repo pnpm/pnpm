@@ -6,7 +6,7 @@ import {
   progressLogger,
 } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/dependency-path'
-import type { LockfileObject,LockfileResolution } from '@pnpm/lockfile.fs'
+import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
 import {
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
@@ -14,7 +14,7 @@ import {
 import { logger } from '@pnpm/logger'
 import type { IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { getPatchInfo,type PatchGroupRecord } from '@pnpm/patching.config'
+import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
 import type {
   FetchResponse,

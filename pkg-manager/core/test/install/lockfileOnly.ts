@@ -8,7 +8,7 @@ import {
   install,
 } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDistTag,REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
 import { testDefaults } from '../utils/index.js'
 

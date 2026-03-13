@@ -2,9 +2,9 @@ import { combineParsers } from './combine.js'
 import { type ExactToken, parseCloseBracket, parseDotOperator, parseOpenBracket } from './ExactToken.js'
 import { type Identifier, parseIdentifier } from './Identifier.js'
 import { type NumericLiteral, parseNumericLiteral } from './NumericLiteral.js'
-import { parseStringLiteral,type StringLiteral } from './StringLiteral.js'
+import { parseStringLiteral, type StringLiteral } from './StringLiteral.js'
 import type { TokenBase, Tokenize } from './types.js'
-import { parseWhitespace,type Whitespace } from './Whitespace.js'
+import { parseWhitespace, type Whitespace } from './Whitespace.js'
 
 export type ExpectedToken =
   | ExactToken<'.'>

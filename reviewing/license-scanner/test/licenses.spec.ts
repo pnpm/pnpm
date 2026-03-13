@@ -5,7 +5,7 @@ import path from 'path'
 import { jest } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { DepPath, ProjectId,ProjectManifest, Registries } from '@pnpm/types'
+import type { DepPath, ProjectId, ProjectManifest, Registries } from '@pnpm/types'
 
 import type { GetPackageInfoOptions, PackageInfo } from '../lib/getPkgInfo.js'
 import type { LicensePackage } from '../lib/licenses.js'

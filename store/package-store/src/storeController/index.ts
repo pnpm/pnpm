@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 
-import { type CafsLocker,createCafsStore, createPackageImporterAsync } from '@pnpm/create-cafs-store'
+import { type CafsLocker, createCafsStore, createPackageImporterAsync } from '@pnpm/create-cafs-store'
 import type { Fetchers } from '@pnpm/fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { createPackageRequester } from '@pnpm/package-requester'

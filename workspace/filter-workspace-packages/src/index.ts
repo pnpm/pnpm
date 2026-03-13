@@ -7,9 +7,9 @@ import * as micromatch from 'micromatch'
 import { difference, partition, pick } from 'ramda'
 
 import { getChangedPackages } from './getChangedPackages.js'
-import { type PackageSelector,parsePackageSelector } from './parsePackageSelector.js'
+import { type PackageSelector, parsePackageSelector } from './parsePackageSelector.js'
 
-export { type PackageSelector,parsePackageSelector }
+export { type PackageSelector, parsePackageSelector }
 
 export interface WorkspaceFilter {
   filter: string

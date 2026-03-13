@@ -1,9 +1,9 @@
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching-types'
-import { createGitResolver,type GitResolveResult } from '@pnpm/git-resolver'
-import { checkCustomResolverCanResolve,type CustomResolver } from '@pnpm/hooks.types'
+import { createGitResolver, type GitResolveResult } from '@pnpm/git-resolver'
+import { checkCustomResolverCanResolve, type CustomResolver } from '@pnpm/hooks.types'
 import { type LocalResolveResult, resolveFromLocal } from '@pnpm/local-resolver'
-import { type NodeRuntimeResolveResult,resolveNodeRuntime } from '@pnpm/node.resolver'
+import { type NodeRuntimeResolveResult, resolveNodeRuntime } from '@pnpm/node.resolver'
 import {
   createNpmResolver,
   type JsrResolveResult,
@@ -20,9 +20,9 @@ import type {
   ResolveResult,
   WantedDependency,
 } from '@pnpm/resolver-base'
-import { type BunRuntimeResolveResult,resolveBunRuntime } from '@pnpm/resolving.bun-resolver'
-import { type DenoRuntimeResolveResult,resolveDenoRuntime } from '@pnpm/resolving.deno-resolver'
-import { resolveFromTarball,type TarballResolveResult } from '@pnpm/tarball-resolver'
+import { type BunRuntimeResolveResult, resolveBunRuntime } from '@pnpm/resolving.bun-resolver'
+import { type DenoRuntimeResolveResult, resolveDenoRuntime } from '@pnpm/resolving.deno-resolver'
+import { resolveFromTarball, type TarballResolveResult } from '@pnpm/tarball-resolver'
 
 export type {
   PackageMeta,

@@ -78,6 +78,7 @@ export default tseslint.config(
       }],
       '@stylistic/type-annotation-spacing': 'error',
       '@stylistic/brace-style': ['error', '1tbs'],
+      '@stylistic/comma-spacing': ['error', { before: false, after: true }],
       '@stylistic/space-before-function-paren': ['error', 'always'],
 
       // TypeScript rules

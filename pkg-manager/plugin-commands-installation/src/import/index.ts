@@ -14,7 +14,7 @@ import {
   createStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import type { Project,ProjectsGraph } from '@pnpm/types'
+import type { Project, ProjectsGraph } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import * as structUtils from '@yarnpkg/core/structUtils'
 import type { LockFileObject } from '@yarnpkg/lockfile'

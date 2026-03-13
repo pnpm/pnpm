@@ -9,7 +9,7 @@ if (!global['pnpm__startedAt']) {
 import path from 'path'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 
-import { isExecutedByCorepack,packageManager } from '@pnpm/cli-meta'
+import { isExecutedByCorepack, packageManager } from '@pnpm/cli-meta'
 import { getConfig, installConfigDepsAndLoadHooks } from '@pnpm/cli-utils'
 import type { Config } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'

@@ -3,7 +3,7 @@ import { execSync } from 'child_process'
 import os from 'os'
 import path from 'path'
 
-import type { FilesMap,PackageFilesResponse } from '@pnpm/cafs-types'
+import type { FilesMap, PackageFilesResponse } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import type { StoreIndex } from '@pnpm/store.index'

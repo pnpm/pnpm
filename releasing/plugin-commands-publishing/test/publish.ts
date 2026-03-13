@@ -13,7 +13,7 @@ import isWindows from 'is-windows'
 import { temporaryDirectory } from 'tempy'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { checkPkgExists,DEFAULT_OPTS } from './utils/index.js'
+import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
 const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 

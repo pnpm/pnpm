@@ -7,7 +7,7 @@ import type {
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import type { PackageInRegistry,PackageMeta } from '@pnpm/registry.types'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import type {
   DirectoryResolution,

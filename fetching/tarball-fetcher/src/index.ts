@@ -28,7 +28,7 @@ export { TarballIntegrityError }
 // Export individual fetcher factories for custom fetcher authors
 export { createGitHostedTarballFetcher } from './gitHostedTarballFetcher.js'
 export { createLocalTarballFetcher } from './localTarballFetcher.js'
-export { createDownloader, type CreateDownloaderOptions,type DownloadFunction } from './remoteTarballFetcher.js'
+export { createDownloader, type CreateDownloaderOptions, type DownloadFunction } from './remoteTarballFetcher.js'
 
 export interface TarballFetchers {
   localTarball: FetchFunction

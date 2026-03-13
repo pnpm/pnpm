@@ -5,7 +5,7 @@ import type { PnpmError } from '@pnpm/error'
 import { exec, run } from '@pnpm/plugin-commands-script-runners'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import type { ProjectRootDir,ProjectRootDirRealPath } from '@pnpm/types'
+import type { ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { safeExeca as execa } from 'execa'
 

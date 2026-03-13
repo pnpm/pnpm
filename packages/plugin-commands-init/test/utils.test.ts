@@ -3,7 +3,7 @@ import path from 'path'
 
 import { fixtures } from '@pnpm/test-fixtures'
 
-import { personToString,workWithInitModule } from '../lib/utils.js'
+import { personToString, workWithInitModule } from '../lib/utils.js'
 
 const f = fixtures(path.join(import.meta.dirname, '../fixtures'))
 

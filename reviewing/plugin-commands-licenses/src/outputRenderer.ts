@@ -2,7 +2,7 @@ import { TABLE_OPTIONS } from '@pnpm/cli-utils'
 import type { LicensePackage } from '@pnpm/license-scanner'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
-import { groupBy, omit, pick,sortWith } from 'ramda'
+import { groupBy, omit, pick, sortWith } from 'ramda'
 import semver from 'semver'
 
 import type { LicensesCommandResult } from './LicensesCommandResult.js'

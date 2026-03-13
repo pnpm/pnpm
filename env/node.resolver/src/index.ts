@@ -19,7 +19,7 @@ import { getNodeArtifactAddress } from './getNodeArtifactAddress.js'
 import { getNodeMirror } from './getNodeMirror.js'
 import { parseNodeSpecifier } from './parseNodeSpecifier.js'
 
-export { getNodeArtifactAddress,getNodeMirror, parseNodeSpecifier }
+export { getNodeArtifactAddress, getNodeMirror, parseNodeSpecifier }
 
 export const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
 export const UNOFFICIAL_NODE_MIRROR_BASE_URL = 'https://unofficial-builds.nodejs.org/download/release/'

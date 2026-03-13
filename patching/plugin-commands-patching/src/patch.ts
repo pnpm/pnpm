@@ -16,7 +16,7 @@ import { renderHelp } from 'render-help'
 import terminalLink from 'terminal-link'
 
 import { getEditDirPath } from './getEditDirPath.js'
-import { getPatchedDependency,type GetPatchedDependencyResult } from './getPatchedDependency.js'
+import { getPatchedDependency, type GetPatchedDependencyResult } from './getPatchedDependency.js'
 import { writeEditDirState } from './stateFile.js'
 import { writePackage } from './writePackage.js'
 

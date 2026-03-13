@@ -2,7 +2,7 @@ import fs from 'fs'
 
 import { prepareEmpty } from '@pnpm/prepare'
 
-import { getNetworkConfigs,type NetworkConfigs } from '../src/getNetworkConfigs.js'
+import { getNetworkConfigs, type NetworkConfigs } from '../src/getNetworkConfigs.js'
 
 test('without files', () => {
   expect(getNetworkConfigs({})).toStrictEqual({

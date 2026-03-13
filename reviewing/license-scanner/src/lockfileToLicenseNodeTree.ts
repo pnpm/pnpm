@@ -7,7 +7,7 @@ import {
 } from '@pnpm/lockfile.walker'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DependenciesField, ProjectId, Registries,SupportedArchitectures } from '@pnpm/types'
+import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
 import { map as mapValues } from 'ramda'
 
 import { getPkgInfo } from './getPkgInfo.js'

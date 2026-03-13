@@ -18,7 +18,7 @@ import { extractManifestFromPacked, isTarballPath } from './extractManifestFromP
 import { optionsWithOtpEnv } from './otpEnv.js'
 import * as pack from './pack.js'
 import { publishPackedPkg } from './publishPackedPkg.js'
-import { type PublishRecursiveOpts,recursivePublish } from './recursivePublish.js'
+import { type PublishRecursiveOpts, recursivePublish } from './recursivePublish.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([

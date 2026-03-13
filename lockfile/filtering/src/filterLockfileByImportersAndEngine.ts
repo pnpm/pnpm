@@ -8,7 +8,7 @@ import type {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import type { DependenciesField, DepPath, ProjectId,SupportedArchitectures } from '@pnpm/types'
+import type { DependenciesField, DepPath, ProjectId, SupportedArchitectures } from '@pnpm/types'
 import { map as mapValues, pickBy, unnest } from 'ramda'
 
 import { filterImporter } from './filterImporter.js'

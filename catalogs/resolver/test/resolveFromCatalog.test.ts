@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { matchCatalogResolveResult,resolveFromCatalog, type WantedDependency } from '@pnpm/catalogs.resolver'
+import { matchCatalogResolveResult, resolveFromCatalog, type WantedDependency } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 

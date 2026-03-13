@@ -7,7 +7,7 @@ import {
 } from '@pnpm/cli-utils'
 import type { CompletionFunc } from '@pnpm/command'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, getWorkspaceConcurrency,types as allTypes } from '@pnpm/config'
+import { type Config, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -26,7 +26,7 @@ import { buildCommandNotFoundHint } from './buildCommandNotFoundHint.js'
 import { handler as exec } from './exec.js'
 import { existsInDir } from './existsInDir.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
-import { getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand,type RecursiveRunOpts, runRecursive } from './runRecursive.js'
+import { getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand, type RecursiveRunOpts, runRecursive } from './runRecursive.js'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,

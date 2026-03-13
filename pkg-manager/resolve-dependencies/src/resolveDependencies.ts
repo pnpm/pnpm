@@ -1,6 +1,6 @@
 import path from 'path'
 
-import { type CatalogResolution, type CatalogResolver,matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
+import { type CatalogResolution, type CatalogResolver, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
 import {
   deprecationLogger,
   progressLogger,
@@ -20,7 +20,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
-import { getPatchInfo,type PatchGroupRecord } from '@pnpm/patching.config'
+import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
@@ -57,9 +57,9 @@ import semver from 'semver'
 
 import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies.js'
-import { getHoistableOptionalPeers,hoistPeers } from './hoistPeers.js'
+import { getHoistableOptionalPeers, hoistPeers } from './hoistPeers.js'
 import { safeIntersect } from './mergePeers.js'
-import { nextNodeId,type NodeId } from './nextNodeId.js'
+import { nextNodeId, type NodeId } from './nextNodeId.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
 import type { CatalogLookupMetadata } from './resolveDependencyTree.js'

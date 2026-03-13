@@ -4,13 +4,13 @@ import { cache } from '@pnpm/cache.commands'
 import type { CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
-import { createCompletionServer,generateCompletion } from '@pnpm/plugin-commands-completion'
+import { createCompletionServer, generateCompletion } from '@pnpm/plugin-commands-completion'
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
 import { deploy } from '@pnpm/plugin-commands-deploy'
 import { doctor } from '@pnpm/plugin-commands-doctor'
 import { env } from '@pnpm/plugin-commands-env'
 import { init } from '@pnpm/plugin-commands-init'
-import { add, ci, dedupe, fetch, importCommand,install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
+import { add, ci, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
 import { licenses } from '@pnpm/plugin-commands-licenses'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
@@ -240,4 +240,4 @@ export function getCommandFullName (commandName: string): string | null {
     (handlerByCommandName[commandName] ? commandName : null)
 }
 
-export { rcOptionsTypes,shorthandsByCommandName }
+export { rcOptionsTypes, shorthandsByCommandName }

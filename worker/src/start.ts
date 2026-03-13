@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
-import type { Cafs, FilesMap,PackageFiles, SideEffectsDiff } from '@pnpm/cafs-types'
+import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import { PnpmError } from '@pnpm/error'
@@ -19,7 +19,7 @@ import {
   type PackageFilesIndex,
   type VerifyResult,
 } from '@pnpm/store.cafs'
-import { packForStorage,StoreIndex } from '@pnpm/store.index'
+import { packForStorage, StoreIndex } from '@pnpm/store.index'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 import { parentPort } from 'worker_threads'

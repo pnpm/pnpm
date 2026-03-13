@@ -1,16 +1,16 @@
 import assert from 'assert'
-import { constants, existsSync,type Stats } from 'fs'
+import { constants, existsSync, type Stats } from 'fs'
 import path from 'path'
 import util from 'util'
 
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import fs from '@pnpm/graceful-fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import type { FilesMap, ImportIndexedPackage,ImportOptions } from '@pnpm/store-controller-types'
+import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store-controller-types'
 
-import { type ImportFile,importIndexedDir } from './importIndexedDir.js'
+import { type ImportFile, importIndexedDir } from './importIndexedDir.js'
 
-export { type FilesMap, type ImportIndexedPackage,type ImportOptions }
+export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
 
 export type PackageImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
 

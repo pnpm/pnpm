@@ -7,7 +7,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import { getFilePath } from '../src/filePath.js'
-import { loadWorkspaceState,type WorkspaceState } from '../src/index.js'
+import { loadWorkspaceState, type WorkspaceState } from '../src/index.js'
 
 const lastValidatedTimestamp = Date.now()
 

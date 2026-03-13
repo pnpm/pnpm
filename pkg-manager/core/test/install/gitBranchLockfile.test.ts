@@ -4,7 +4,7 @@ import path from 'path'
 import { jest } from '@jest/globals'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import type { ProjectManifest,ProjectRootDir } from '@pnpm/types'
+import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'

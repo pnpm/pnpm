@@ -10,7 +10,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
-import { gitHostedStoreIndexKey,storeIndexKey } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
 import { StoreIndex } from '@pnpm/store.index'
 import type { TarballResolution } from '@pnpm/store-controller-types'
 import type { DepPath } from '@pnpm/types'

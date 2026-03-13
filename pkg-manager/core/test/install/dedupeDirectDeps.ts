@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 
-import { type MutatedProject,mutateModules } from '@pnpm/core'
+import { type MutatedProject, mutateModules } from '@pnpm/core'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'

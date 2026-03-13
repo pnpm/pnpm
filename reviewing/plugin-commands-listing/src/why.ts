@@ -6,8 +6,8 @@ import { whyForPackages } from '@pnpm/list'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
-import { BASE_RC_OPTION_KEYS,computeInclude, determineReportAs, resolveFinders, SHARED_CLI_HELP_OPTIONS } from './common.js'
-import { EXCLUDE_PEERS_HELP,type ListCommandOptions } from './list.js'
+import { BASE_RC_OPTION_KEYS, computeInclude, determineReportAs, resolveFinders, SHARED_CLI_HELP_OPTIONS } from './common.js'
+import { EXCLUDE_PEERS_HELP, type ListCommandOptions } from './list.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([...BASE_RC_OPTION_KEYS, 'depth'], allTypes)

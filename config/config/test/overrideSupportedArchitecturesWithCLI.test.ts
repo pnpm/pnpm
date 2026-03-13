@@ -1,6 +1,6 @@
 import type { SupportedArchitectures } from '@pnpm/types'
 
-import { type CliOptions, overrideSupportedArchitecturesWithCLI,type TargetConfig } from '../src/overrideSupportedArchitecturesWithCLI.js'
+import { type CliOptions, overrideSupportedArchitecturesWithCLI, type TargetConfig } from '../src/overrideSupportedArchitecturesWithCLI.js'
 
 function getOverriddenSupportedArchitectures (
   supportedArchitectures: SupportedArchitectures | undefined,

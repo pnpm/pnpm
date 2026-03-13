@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 
-import { type Config, getOptionsFromRootManifest,type OptionsFromRootManifest } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest, type OptionsFromRootManifest } from '@pnpm/config'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
@@ -34,7 +34,7 @@ import type {
 } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
-import { loadWorkspaceState, updateWorkspaceState,type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { loadWorkspaceState, updateWorkspaceState, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { equals, filter, isEmpty, once } from 'ramda'
 
 import { assertLockfilesEqual } from './assertLockfilesEqual.js'

@@ -2,7 +2,7 @@ import type { StatsLog } from '@pnpm/core-loggers'
 import chalk from 'chalk'
 import { repeat } from 'ramda'
 import * as Rx from 'rxjs'
-import { filter, map,reduce, take } from 'rxjs/operators'
+import { filter, map, reduce, take } from 'rxjs/operators'
 import stringLength from 'string-length'
 
 import { EOL } from '../constants.js'

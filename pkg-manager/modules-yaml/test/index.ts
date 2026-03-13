@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 
-import { readModulesManifest, type StrictModules,writeModulesManifest } from '@pnpm/modules-yaml'
+import { readModulesManifest, type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
 import isWindows from 'is-windows'
 import { readYamlFileSync } from 'read-yaml-file'
 import { temporaryDirectory } from 'tempy'

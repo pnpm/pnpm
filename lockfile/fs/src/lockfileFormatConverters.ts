@@ -11,8 +11,8 @@ import type {
   ProjectSnapshot,
   ResolvedDependencies,
 } from '@pnpm/lockfile.types'
-import { DEPENDENCIES_FIELDS,type DepPath } from '@pnpm/types'
-import { isEmpty, map as _mapValues, omit, pick,pickBy } from 'ramda'
+import { DEPENDENCIES_FIELDS, type DepPath } from '@pnpm/types'
+import { isEmpty, map as _mapValues, omit, pick, pickBy } from 'ramda'
 
 export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
   const packages: Record<string, LockfilePackageInfo> = {}

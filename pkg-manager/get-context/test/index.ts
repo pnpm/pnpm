@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 
-import { arrayOfWorkspacePackagesToMap,getContext } from '@pnpm/get-context'
+import { arrayOfWorkspacePackagesToMap, getContext } from '@pnpm/get-context'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import type { GetContextOptions } from '../src/index.js'

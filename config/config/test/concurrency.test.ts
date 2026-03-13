@@ -2,7 +2,7 @@ import os, { cpus } from 'os'
 
 import { jest } from '@jest/globals'
 
-import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency,resetAvailableParallelismCache } from '../lib/concurrency.js'
+import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, resetAvailableParallelismCache } from '../lib/concurrency.js'
 
 const hostCores = cpus().length
 
