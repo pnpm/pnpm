@@ -6,7 +6,7 @@ import { publish } from 'libnpmpublish'
 import { type AuthTokenContext } from '../oidc/authToken.js'
 import { type IdTokenContext } from '../oidc/idToken.js'
 import { type ProvenanceContext } from '../oidc/provenance.js'
-import { type OtpContext, type OtpEnquirer, type OtpPublishFn } from '../otp.js'
+import { type OtpContext, type OtpPublishFn } from '../otp.js'
 
 type SharedContext =
 & AuthTokenContext
@@ -17,7 +17,7 @@ type SharedContext =
 export const SHARED_CONTEXT: SharedContext = {
   Date,
   ciInfo,
-  enquirer: enquirer as unknown as OtpEnquirer,
+  enquirer,
   fetch,
   globalInfo,
   process,

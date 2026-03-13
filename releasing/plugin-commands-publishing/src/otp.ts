@@ -35,7 +35,7 @@ export interface OtpPublishResponse {
 }
 
 export interface OtpEnquirer {
-  prompt: (this: this, options: OtpEnquirerOptions) => Promise<OtpEnquirerResponse | undefined>
+  prompt: (options: OtpEnquirerOptions) => Promise<object>
 }
 
 export interface OtpEnquirerOptions {
@@ -166,8 +166,8 @@ export async function publishWithOtpHandling ({
         message: 'This operation requires a one-time password.\nEnter OTP:',
         name: 'otp',
         type: 'input',
-      })
-      otp = enquirerResponse?.otp || undefined
+      }) as OtpEnquirerResponse
+      otp = enquirerResponse.otp ?? undefined
     }
     if (otp != null) {
       try {
