@@ -4,12 +4,16 @@ env:
 compile_and_lint_task:
   name: Compile & Lint
   container:
-    image: node:24.6.0
+    image: debian:bookworm-slim
     cpu: 4
     memory: 8G
+  install_deps_script:
+    - apt-get update && apt-get install -y curl git
   install_pnpm_script:
-    - corepack enable
-    - corepack prepare pnpm@${PNPM_VERSION} --activate
+    - curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=${PNPM_VERSION} sh -
+    - export PNPM_HOME="$HOME/.local/share/pnpm" && echo "PATH=$PNPM_HOME:$PATH" >> $CIRRUS_ENV
+  setup_node_script:
+    - pnpm runtime -g set node 24.6.0
   install_script:
     - pnpm install
   compile_script:
@@ -24,34 +28,30 @@ compile_and_lint_task:
 test_linux_task:
   name: "Test Linux / Node.js ${NODE_MAJOR}"
   depends_on: Compile & Lint
+  container:
+    image: debian:bookworm-slim
+    cpu: 4
+    memory: 8G
   env:
     PNPM_WORKERS: "3"
-  matrix:
-    - container:
-        image: node:22.13.0
-        cpu: 4
-        memory: 8G
-      env:
+    matrix:
+      - NODE_VERSION: "22.13.0"
         NODE_MAJOR: "22"
-    - container:
-        image: node:24.0.0
-        cpu: 4
-        memory: 8G
-      env:
+      - NODE_VERSION: "24.0.0"
         NODE_MAJOR: "24"
-    - container:
-        image: node:25.0.0
-        cpu: 4
-        memory: 8G
-      env:
+      - NODE_VERSION: "25.0.0"
         NODE_MAJOR: "25"
+  install_deps_script:
+    - apt-get update && apt-get install -y curl git
   configure_git_script:
     - git config --global core.autocrlf false
     - git config --global user.name "xyz"
     - git config --global user.email "x@y.z"
   install_pnpm_script:
-    - corepack enable
-    - corepack prepare pnpm@${PNPM_VERSION} --activate
+    - curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=${PNPM_VERSION} sh -
+    - export PNPM_HOME="$HOME/.local/share/pnpm" && echo "PATH=$PNPM_HOME:$PATH" >> $CIRRUS_ENV
+  setup_node_script:
+    - pnpm runtime -g set node ${NODE_VERSION}
   verify_npm_script:
     - npm --version
   install_script:
@@ -95,12 +95,10 @@ test_windows_task:
     - git config --global core.autocrlf false
     - git config --global user.name "xyz"
     - git config --global user.email "x@y.z"
-  install_node_script:
-    - choco install nodejs --version=%NODE_VERSION% -y --no-progress
-    - refreshenv
   install_pnpm_script:
-    - corepack enable
-    - corepack prepare pnpm@%PNPM_VERSION% --activate
+    - PowerShell -Command "Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression"
+  setup_node_script:
+    - pnpm runtime -g set node %NODE_VERSION%
   verify_npm_script:
     - npm --version
   install_script:
