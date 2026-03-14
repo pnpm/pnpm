@@ -16,7 +16,7 @@ interface MigrateOpts {
 
 /**
  * Migrates old-format configDependencies (with inline integrity in pnpm-workspace.yaml)
- * to the new pnpm-lock.env.yaml format.
+ * to the new pnpm-lock.yaml format.
  *
  * Returns normalized deps for immediate installation, and writes the env lockfile
  * and clean specifiers to pnpm-workspace.yaml as a side effect.
@@ -59,13 +59,13 @@ export async function migrateConfigDepsToLockfile (
 
     if (typeof pkgSpec === 'string') {
       // This branch only handles the legacy inline format (version+integrity).
-      // New clean specifiers (just version/range) require an existing pnpm-lock.env.yaml.
+      // New clean specifiers (just version/range) require an existing pnpm-lock.yaml.
       if (!pkgSpec.includes('+')) {
         throw new PnpmError(
           'CONFIG_DEP_MISSING_LOCKFILE',
           `Config dependency "${pkgName}" is already in clean-specifier form (${pkgSpec}) ` +
-          'but no pnpm-lock.env.yaml was found to resolve it. ' +
-          'Please generate and commit pnpm-lock.env.yaml (for example by running ' +
+          'but no pnpm-lock.yaml was found to resolve it. ' +
+          'Please generate and commit pnpm-lock.yaml (for example by running ' +
           '`pnpm install` in the workspace root) before attempting to migrate configDependencies.'
         )
       }

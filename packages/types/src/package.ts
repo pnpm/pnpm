@@ -148,7 +148,7 @@ type VersionWithIntegrity = string
  *   "@my-org/cfg": "1.2.0+sha512-XYZ"
  *   or { tarball: "...", integrity: "1.2.0+sha512-XYZ" }
  *
- * New format (plain specifiers in pnpm-workspace.yaml, integrity in pnpm-lock.env.yaml):
+ * New format (plain specifiers in pnpm-workspace.yaml, integrity in pnpm-lock.yaml):
  *   "@my-org/cfg": "^1.2.0"
  */
 export type ConfigDependencies = Record<string, VersionWithIntegrity | {
@@ -158,7 +158,7 @@ export type ConfigDependencies = Record<string, VersionWithIntegrity | {
 
 /**
  * Clean specifiers for configDependencies in pnpm-workspace.yaml (new format).
- * Integrity info is stored in pnpm-lock.env.yaml instead.
+ * Integrity info is stored in pnpm-lock.yaml instead.
  */
 export type ConfigDependencySpecifiers = Record<string, string>
 

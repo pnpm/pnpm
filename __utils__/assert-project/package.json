@@ -20,6 +20,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/isexe": "catalog:",
+    "@types/js-yaml": "catalog:",
     "@types/node": "catalog:"
   },
   "directories": {
@@ -52,6 +53,7 @@
     "@pnpm/types": "workspace:*",
     "is-windows": "catalog:",
     "isexe": "catalog:",
+    "js-yaml": "catalog:",
     "read-yaml-file": "catalog:",
     "write-package": "catalog:"
   }

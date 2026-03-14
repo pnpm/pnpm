@@ -8,6 +8,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import type { Modules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import yaml from 'js-yaml'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writePackageSync } from 'write-package'
 
@@ -152,7 +153,13 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     readModulesManifest: () => readModulesManifest(modules),
     readLockfile (lockfileName: string = WANTED_LOCKFILE) {
       try {
-        return readYamlFileSync(path.join(projectPath, lockfileName))
+        let content = fs.readFileSync(path.join(projectPath, lockfileName), 'utf8')
+        // Skip the env lockfile document if present (first document in combined format)
+        const sep = content.indexOf('\n---\n')
+        if (sep !== -1) {
+          content = content.slice(sep + 5)
+        }
+        return yaml.load(content) as Required<LockfileFile>
       } catch (err: unknown) {
         if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
         throw err

@@ -335,7 +335,7 @@ test('should not modify devEngines.packageManager range when resolved version st
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   expect(pkgJson.devEngines.packageManager.version).toBe('>=8.0.0')
   // The lockfile should be written with the resolved exact version
-  const lockfile = fs.readFileSync(path.join(opts.dir, 'pnpm-lock.env.yaml'), 'utf8')
+  const lockfile = fs.readFileSync(path.join(opts.dir, 'pnpm-lock.yaml'), 'utf8')
   expect(lockfile).toContain('9.0.0')
 })
 
@@ -447,8 +447,8 @@ test('self-update works globally without package.json', async () => {
   // Verify no package.json was created
   expect(fs.existsSync(path.join(dir, 'package.json'))).toBe(false)
 
-  // Verify pnpm-lock.env.yaml was written to pnpmHomeDir
-  expect(fs.existsSync(path.join(pnpmHomeDir, 'pnpm-lock.env.yaml'))).toBe(true)
+  // Verify pnpm-lock.yaml was written to pnpmHomeDir
+  expect(fs.existsSync(path.join(pnpmHomeDir, 'pnpm-lock.yaml'))).toBe(true)
 
   // Verify the package was installed in the global dir
   const globalDir = path.join(pnpmHomeDir, 'global', 'v11')
