@@ -66,15 +66,13 @@ export async function writeEnvLockfile (rootDir: string, lockfile: EnvLockfile):
   try {
     const existing = await fs.readFile(lockfilePath, 'utf8')
     mainDoc = extractMainDocument(existing)
-    // If there was no separator, the entire file is the main lockfile
-    // If there was a separator, mainDoc is the second document
   } catch (err: unknown) {
     if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
       throw err
     }
   }
 
-  const combined = '---\n' + envYaml + '\n---\n' + mainDoc
+  const combined = `---\n${envYaml}\n---\n${mainDoc}`
   return writeFileAtomic(lockfilePath, combined)
 }
 

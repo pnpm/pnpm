@@ -56,12 +56,13 @@ export async function streamReadFirstYamlDocument (filePath: string): Promise<st
 
 /**
  * Extracts the main lockfile content (second YAML document) from a combined string.
- * If the file starts with "---\n", skips past the env document.
- * Otherwise returns the entire content (backwards compatible).
+ * If the file starts with "---\n", returns the content after the separator.
+ * If there is no separator, returns empty string (file is env-only).
+ * Otherwise returns the entire content (no env document present).
  */
 export function extractMainDocument (content: string): string {
   if (!content.startsWith(YAML_DOCUMENT_START)) return content
   const sep = content.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
-  if (sep === -1) return content
+  if (sep === -1) return ''
   return content.slice(sep + YAML_DOCUMENT_SEPARATOR.length)
 }
