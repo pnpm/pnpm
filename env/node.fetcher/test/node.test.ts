@@ -6,7 +6,6 @@ import type { FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetch
 import { tempDir } from '@pnpm/prepare'
 import { StoreIndex } from '@pnpm/store.index'
 import AdmZip from 'adm-zip'
-import { Response } from 'node-fetch'
 
 jest.unstable_mockModule('detect-libc', () => ({
   isNonGlibcLinux: jest.fn(),
@@ -34,10 +33,10 @@ const fetchMock = jest.fn(async (url: string) => {
     const zip = new AdmZip()
     zip.addFile(`${pkgName}/dummy-file`, Buffer.from('test'))
 
-    return new Response(Readable.from(zip.toBuffer()))
+    return new Response(Readable.toWeb(Readable.from(zip.toBuffer())) as ReadableStream)
   }
 
-  return new Response(Readable.from(Buffer.alloc(0)))
+  return new Response(Readable.toWeb(Readable.from(Buffer.alloc(0))) as ReadableStream)
 })
 
 const storeIndexes: StoreIndex[] = []

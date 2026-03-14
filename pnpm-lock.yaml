@@ -60,9 +60,6 @@ catalogs:
     '@pnpm/meta-updater':
       specifier: 2.0.6
       version: 2.0.6
-    '@pnpm/network.agent':
-      specifier: ^2.0.3
-      version: 2.0.3
     '@pnpm/nopt':
       specifier: ^0.3.1
       version: 0.3.1
@@ -504,9 +501,6 @@ catalogs:
     nock:
       specifier: 13.3.4
       version: 13.3.4
-    node-fetch:
-      specifier: ^3.3.2
-      version: 3.3.2
     normalize-newline:
       specifier: 4.1.0
       version: 4.1.0
@@ -708,6 +702,9 @@ catalogs:
     typescript-eslint:
       specifier: ^8.53.0
       version: 8.57.0
+    undici:
+      specifier: ^7.2.0
+      version: 7.23.0
     unified:
       specifier: ^9.2.2
       version: 9.2.2
@@ -2672,9 +2669,6 @@ importers:
       adm-zip:
         specifier: 'catalog:'
         version: 0.5.16
-      node-fetch:
-        specifier: 'catalog:'
-        version: 3.3.2
 
   env/node.resolver:
     dependencies:
@@ -3274,12 +3268,12 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.23.0
 
   fetching/tarball-fetcher:
     dependencies:
@@ -3362,15 +3356,15 @@ importers:
       '@types/ssri':
         specifier: 'catalog:'
         version: 7.1.5
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       ssri:
         specifier: 'catalog:'
         version: 13.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.23.0
 
   fs/find-packages:
     dependencies:
@@ -3799,9 +3793,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
-      nock:
+      undici:
         specifier: 'catalog:'
-        version: 13.3.4
+        version: 7.23.0
 
   lockfile/detect-dep-types:
     dependencies:
@@ -4093,6 +4087,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -4126,6 +4123,9 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.23.0
 
   lockfile/preferred-versions:
     dependencies:
@@ -4439,18 +4439,18 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../fetching-types
-      '@pnpm/network.agent':
-        specifier: 'catalog:'
-        version: 2.0.3
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/retry':
         specifier: 'catalog:'
         version: 0.2.0
-      node-fetch:
+      lru-cache:
         specifier: 'catalog:'
-        version: 3.3.2
+        version: 11.2.6
+      undici:
+        specifier: 'catalog:'
+        version: 7.23.0
     devDependencies:
       '@pnpm/fetch':
         specifier: workspace:*
@@ -4461,18 +4461,12 @@ importers:
       https-proxy-server-express:
         specifier: 'catalog:'
         version: 0.1.2
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
 
   network/fetching-types:
     dependencies:
       '@zkochan/retry':
         specifier: 'catalog:'
         version: 0.2.0
-      node-fetch:
-        specifier: 'catalog:'
-        version: 3.3.2
     devDependencies:
       '@pnpm/fetching-types':
         specifier: workspace:*
@@ -5255,6 +5249,9 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/fs.msgpack-file':
         specifier: workspace:*
         version: link:../../fs/msgpack-file
@@ -5342,6 +5339,9 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 7.1.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.23.0
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
@@ -5848,6 +5848,9 @@ importers:
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -5906,6 +5909,9 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/fs.msgpack-file':
         specifier: workspace:*
         version: link:../../fs/msgpack-file
@@ -5936,15 +5942,15 @@ importers:
       delay:
         specifier: 'catalog:'
         version: 6.0.0
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.23.0
 
   pkg-manager/plugin-commands-installation:
     dependencies:
@@ -7471,9 +7477,6 @@ importers:
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher
-      node-fetch:
-        specifier: 'catalog:'
-        version: 3.3.2
 
   resolving/deno-resolver:
     dependencies:
@@ -7551,9 +7554,6 @@ importers:
       '@pnpm/git-resolver':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/network.agent':
-        specifier: 'catalog:'
-        version: 2.0.3
       '@types/hosted-git-info':
         specifier: 'catalog:'
         version: 3.0.5
@@ -7737,12 +7737,12 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+      undici:
+        specifier: 'catalog:'
+        version: 7.23.0
 
   resolving/resolver-base:
     dependencies:
@@ -9047,6 +9047,9 @@ importers:
       '@pnpm/env.path':
         specifier: workspace:*
         version: link:../../env/path
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -9065,9 +9068,9 @@ importers:
       cross-spawn:
         specifier: 'catalog:'
         version: 7.0.6
-      nock:
+      undici:
         specifier: 'catalog:'
-        version: 13.3.4
+        version: 7.23.0
 
   worker:
     dependencies:
@@ -12655,10 +12658,6 @@ packages:
     resolution: {integrity: sha512-WboRycPNsVw3B3TL559F7kuBUM4d8CgMEvk6xEJlOp7OBPjt6G7z8WMWlD2rOFZLk6OYfFIUGsCOWzcQH9K2og==}
     engines: {node: '>= 6'}
 
-  data-uri-to-buffer@4.0.1:
-    resolution: {integrity: sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A==}
-    engines: {node: '>= 12'}
-
   data-view-buffer@1.0.2:
     resolution: {integrity: sha512-EmKO5V3OLXh1rtK2wgXRansaK1/mtVdTUEiEI0W8RkvgT05kfxaH29PliLnpLP73yYO6142Q72QNa8Wx/A5CqQ==}
     engines: {node: '>= 0.4'}
@@ -13209,10 +13208,6 @@ packages:
       domexception:
         optional: true
 
-  fetch-blob@3.2.0:
-    resolution: {integrity: sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ==}
-    engines: {node: ^12.20 || >= 14.13}
-
   figures@6.1.0:
     resolution: {integrity: sha512-d+l3qxjSesT4V7v2fh+QnmFnUWv9lSpjarhShNTgBOfA0ttejbQUAlHLitbjkoRiDulW0OPoQPYIGhIC8ohejg==}
     engines: {node: '>=18'}
@@ -13318,10 +13313,6 @@ packages:
   form-data@4.0.5:
     resolution: {integrity: sha512-8RipRLol37bNs2bhoV67fiTEvdTrbMUYcFTiy3+wuuOnUog2QBHCZWXDRijWQfAkhBj2Uf5UnVaiWwA5vdd82w==}
     engines: {node: '>= 6'}
-
-  formdata-polyfill@4.0.10:
-    resolution: {integrity: sha512-buewHzMvYL29jdeQTVILecSaZKnt/RJWjoZCF5OW60Z67/GmSLBkOFM7qh1PI3zFNtJbaZL5eQu1vLfazOwj4g==}
-    engines: {node: '>=12.20.0'}
 
   forwarded@0.2.0:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
@@ -14870,11 +14861,6 @@ packages:
     resolution: {integrity: sha512-DDpmn5oLEdCTclEqweOT4U7bEpuoifBMFUXem9sA4turDAZ5tlbrEoWqCorwXey8CaAw44mst5JOQeVNiwtkhw==}
     engines: {node: '>= 10.13'}
 
-  node-domexception@1.0.0:
-    resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
-    engines: {node: '>=10.5.0'}
-    deprecated: Use your platform's native DOMException instead
-
   node-fetch@2.6.7:
     resolution: {integrity: sha512-ZjMPFEfVx5j+y2yF35Kzx5sF7kDzxuDj6ziH4FFbOp87zKDZNx8yExJIb05OGF4Nlt9IHFIMBkRl41VdvcNdbQ==}
     engines: {node: 4.x || >=6.0.0}
@@ -14883,10 +14869,6 @@ packages:
     peerDependenciesMeta:
       encoding:
         optional: true
-
-  node-fetch@3.3.2:
-    resolution: {integrity: sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==}
-    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   node-gyp-build-optional-packages@5.2.2:
     resolution: {integrity: sha512-s+w+rBWnpTMwSFbaE0UXsRlg7hU4FjekKU4eyAih5T8nJuNZT1nNsskXpxmeqSK9UzkBl6UgRlnKc8hz8IEqOw==}
@@ -16584,6 +16566,10 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
+  undici@7.23.0:
+    resolution: {integrity: sha512-HVMxHKZKi+eL2mrUZDzDkKW3XvCjynhbtpSq20xQp4ePDFeSFuAfnvM0GIwZIv8fiKHjXFQ5WjxhCt15KRNj+g==}
+    engines: {node: '>=20.18.1'}
+
   unicorn-magic@0.1.0:
     resolution: {integrity: sha512-lRfVq8fE8gz6QMBuDM6a+LO3IAzTi05H6gCVaUpir2E1Rwpo4ZUog45KpNXKC/Mn3Yb9UDuHumeFTo9iV/D9FQ==}
     engines: {node: '>=18'}
@@ -16777,10 +16763,6 @@ packages:
 
   wcwidth@1.0.1:
     resolution: {integrity: sha512-XHPEwS0q6TaxcvG85+8EYkbiCux2XtWG2mkc47Ng2A77BQu9+DqIOJldST4HgPkuea7dvKSj5VgX3P1d4rW8Tg==}
-
-  web-streams-polyfill@3.3.3:
-    resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
-    engines: {node: '>= 8'}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -21455,8 +21437,6 @@ snapshots:
 
   data-uri-to-buffer@3.0.1: {}
 
-  data-uri-to-buffer@4.0.1: {}
-
   data-view-buffer@1.0.2:
     dependencies:
       call-bound: 1.0.4
@@ -22109,11 +22089,6 @@ snapshots:
 
   fetch-blob@2.1.2: {}
 
-  fetch-blob@3.2.0:
-    dependencies:
-      node-domexception: 1.0.0
-      web-streams-polyfill: 3.3.3
-
   figures@6.1.0:
     dependencies:
       is-unicode-supported: 2.1.0
@@ -22236,10 +22211,6 @@ snapshots:
       es-set-tostringtag: 2.1.0
       hasown: 2.0.2
       mime-types: 2.1.35
-
-  formdata-polyfill@4.0.10:
-    dependencies:
-      fetch-blob: 3.2.0
 
   forwarded@0.2.0: {}
 
@@ -24123,19 +24094,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  node-domexception@1.0.0: {}
-
   node-fetch@2.6.7(encoding@0.1.13):
     dependencies:
       whatwg-url: 5.0.0
     optionalDependencies:
       encoding: 0.1.13
-
-  node-fetch@3.3.2:
-    dependencies:
-      data-uri-to-buffer: 4.0.1
-      fetch-blob: 3.2.0
-      formdata-polyfill: 4.0.10
 
   node-gyp-build-optional-packages@5.2.2:
     dependencies:
@@ -25953,6 +25916,8 @@ snapshots:
 
   undici-types@7.18.2: {}
 
+  undici@7.23.0: {}
+
   unicorn-magic@0.1.0: {}
 
   unicorn-magic@0.3.0: {}
@@ -26248,8 +26213,6 @@ snapshots:
   wcwidth@1.0.1:
     dependencies:
       defaults: 1.0.4
-
-  web-streams-polyfill@3.3.3: {}
 
   webidl-conversions@3.0.1: {}
 

@@ -2,18 +2,103 @@ import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { AuditEndpointNotExistsError } from '@pnpm/audit'
+import { clearDispatcherCache } from '@pnpm/fetch'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { install } from '@pnpm/plugin-commands-installation'
 import { fixtures } from '@pnpm/test-fixtures'
-import nock from 'nock'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
-import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  currentMockAgent.disableNetConnect()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+  }
+}
+
+function getMockAgent (): MockAgent | null {
+  return currentMockAgent
+}
+
 const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
+const registries = {
+  default: 'https://registry.npmjs.org/',
+}
+const rawConfig = {
+  registry: registries.default,
+}
+export const DEFAULT_OPTS = {
+  argv: {
+    original: [],
+  },
+  bail: true,
+  bin: 'node_modules/.bin',
+  ca: undefined,
+  cacheDir: '../cache',
+  cert: undefined,
+  excludeLinksFromLockfile: false,
+  extraEnv: {},
+  cliOptions: {},
+  fetchRetries: 2,
+  fetchRetryFactor: 90,
+  fetchRetryMaxtimeout: 90,
+  fetchRetryMintimeout: 10,
+  filter: [] as string[],
+  httpsProxy: undefined,
+  include: {
+    dependencies: true,
+    devDependencies: true,
+    optionalDependencies: true,
+  },
+  key: undefined,
+  linkWorkspacePackages: true,
+  localAddress: undefined,
+  lock: false,
+  lockStaleDuration: 90,
+  networkConcurrency: 16,
+  offline: false,
+  pending: false,
+  pnpmfile: ['./.pnpmfile.cjs'],
+  pnpmHomeDir: '',
+  preferWorkspacePackages: true,
+  proxy: undefined,
+  rawConfig,
+  rawLocalConfig: {},
+  registries,
+  rootProjectManifestDir: '',
+  // registry: REGISTRY,
+  sort: true,
+  storeDir: '../store',
+  strictSsl: true,
+  userAgent: 'pnpm',
+  userConfig: {},
+  useRunningStoreServer: false,
+  useStoreServer: false,
+  workspaceConcurrency: 4,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  peersSuffixMaxLength: 1000,
+}
 
 describe('plugin-commands-audit', () => {
-  const hasVulnerabilitiesDir = f.prepare('has-vulnerabilities')
+  const hasVulnerabilitiesDir = f.find('has-vulnerabilities')
   beforeAll(async () => {
     await install.handler({
       ...DEFAULT_OPTS,
@@ -21,16 +106,19 @@ describe('plugin-commands-audit', () => {
       dir: hasVulnerabilitiesDir,
     })
   })
-  afterEach(() => {
-    nock.cleanAll()
+  beforeEach(() => {
+    setupMockAgent()
+  })
+  afterEach(async () => {
+    await teardownMockAgent()
   })
   test('audit', async () => {
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
     })
@@ -39,12 +127,12 @@ describe('plugin-commands-audit', () => {
   })
 
   test('audit --dev', async () => {
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
@@ -56,12 +144,12 @@ describe('plugin-commands-audit', () => {
   })
 
   test('audit --audit-level', async () => {
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       auditLevel: 'moderate',
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
@@ -72,12 +160,12 @@ describe('plugin-commands-audit', () => {
   })
 
   test('audit: no vulnerabilities', async () => {
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, responses.NO_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
     })
@@ -87,12 +175,12 @@ describe('plugin-commands-audit', () => {
   })
 
   test('audit --json', async () => {
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       json: true,
@@ -104,12 +192,12 @@ describe('plugin-commands-audit', () => {
   })
 
   test.skip('audit does not exit with code 1 if the found vulnerabilities are having lower severity then what we asked for', async () => {
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       auditLevel: 'high',
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
@@ -122,12 +210,12 @@ describe('plugin-commands-audit', () => {
   })
 
   test('audit --json respects audit-level', async () => {
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       auditLevel: 'critical',
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
@@ -141,12 +229,12 @@ describe('plugin-commands-audit', () => {
   })
 
   test('audit --json filters advisories by audit-level', async () => {
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       auditLevel: 'high',
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
@@ -165,14 +253,14 @@ describe('plugin-commands-audit', () => {
   })
 
   test('audit does not exit with code 1 if the registry responds with a non-200 response and ignoreRegistryErrors is used', async () => {
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(500, { message: 'Something bad happened' })
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
       .reply(500, { message: 'Fallback failed too' })
     const { output, exitCode } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
@@ -182,23 +270,25 @@ describe('plugin-commands-audit', () => {
     })
 
     expect(exitCode).toBe(0)
-    expect(stripAnsi(output)).toBe(`The audit endpoint (at ${AUDIT_REGISTRY}-/npm/v1/security/audits/quick) responded with 500: {"message":"Something bad happened"}. Fallback endpoint (at ${AUDIT_REGISTRY}-/npm/v1/security/audits) responded with 500: {"message":"Fallback failed too"}`)
+    expect(stripAnsi(output)).toBe(`The audit endpoint (at ${registries.default}-/npm/v1/security/audits/quick) responded with 500: {"message":"Something bad happened"}. Fallback endpoint (at ${registries.default}-/npm/v1/security/audits) responded with 500: {"message":"Fallback failed too"}`)
   })
 
   test('audit sends authToken', async () => {
-    nock(AUDIT_REGISTRY, {
-      reqheaders: { authorization: 'Bearer 123' },
-    })
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({
+        path: '/-/npm/v1/security/audits/quick',
+        method: 'POST',
+        headers: { authorization: 'Bearer 123' },
+      })
       .reply(200, responses.NO_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       rawConfig: {
-        registry: AUDIT_REGISTRY,
-        [`${AUDIT_REGISTRY.replace(/^https?:/, '')}:_authToken`]: '123',
+        registry: registries.default,
+        [`${registries.default.replace(/^https?:/, '')}:_authToken`]: '123',
       },
     })
 
@@ -207,15 +297,15 @@ describe('plugin-commands-audit', () => {
   })
 
   test('audit endpoint does not exist', async () => {
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(404, {})
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
       .reply(404, {})
 
     await expect(audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
@@ -228,12 +318,12 @@ describe('plugin-commands-audit', () => {
   test('audit: CVEs in ignoreCves do not show up', async () => {
     const tmp = f.prepare('has-vulnerabilities')
 
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, responses.ALL_VULN_RESP)
 
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       auditLevel: 'moderate',
       dir: tmp,
       rootProjectManifestDir: tmp,
@@ -255,12 +345,12 @@ describe('plugin-commands-audit', () => {
   test('audit: CVEs in ignoreGhsas do not show up', async () => {
     const tmp = f.prepare('has-vulnerabilities')
 
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, responses.ALL_VULN_RESP)
 
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       auditLevel: 'moderate',
       dir: tmp,
       rootProjectManifestDir: tmp,
@@ -282,12 +372,12 @@ describe('plugin-commands-audit', () => {
   test('audit: CVEs in ignoreCves do not show up when JSON output is used', async () => {
     const tmp = f.prepare('has-vulnerabilities')
 
-    nock(AUDIT_REGISTRY)
-      .post('/-/npm/v1/security/audits/quick')
+    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, responses.ALL_VULN_RESP)
 
     const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
+      ...DEFAULT_OPTS,
       auditLevel: 'moderate',
       dir: tmp,
       rootProjectManifestDir: tmp,

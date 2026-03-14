@@ -20,7 +20,7 @@ async function writeResponse (lockfileDir: string, filename: string, opts: {
   }
   // @ts-expect-error
   const auditReport = await audit(lockfile!, {
-    agentOptions: {},
+    dispatcherOptions: {},
     include,
     registry: 'https://registry.npmjs.org/',
   })

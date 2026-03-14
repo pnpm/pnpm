@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type AgentOptions, fetchWithAgent, type RetryTimeoutOptions } from '@pnpm/fetch'
+import { type DispatcherOptions, fetchWithDispatcher, type RetryTimeoutOptions } from '@pnpm/fetch'
 import type { GetAuthHeader } from '@pnpm/fetching-types'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import type { DependenciesField } from '@pnpm/types'
@@ -13,7 +13,7 @@ export async function audit (
   lockfile: LockfileObject,
   getAuthHeader: GetAuthHeader,
   opts: {
-    agentOptions?: AgentOptions
+    dispatcherOptions?: DispatcherOptions
     envLockfile?: EnvLockfile | null
     include?: { [dependenciesField in DependenciesField]: boolean }
     lockfileDir: string
@@ -34,7 +34,7 @@ export async function audit (
     ...getAuthHeaders(authHeaderValue),
   }
   const requestOptions = {
-    agentOptions: opts.agentOptions ?? {},
+    dispatcherOptions: opts.dispatcherOptions ?? {},
     body: requestBody,
     headers: requestHeaders,
     method: 'POST',
@@ -42,13 +42,13 @@ export async function audit (
     timeout: opts.timeout,
   }
 
-  const quickRes = await fetchWithAgent(quickAuditUrl, requestOptions)
+  const quickRes = await fetchWithDispatcher(quickAuditUrl, requestOptions)
 
   if (quickRes.status === 200) {
     return (quickRes.json() as Promise<AuditReport>)
   }
 
-  const res = await fetchWithAgent(auditUrl, requestOptions)
+  const res = await fetchWithDispatcher(auditUrl, requestOptions)
   if (res.status === 200) {
     return (res.json() as Promise<AuditReport>)
   }

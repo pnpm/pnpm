@@ -55,6 +55,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/fetch": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-audit": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
@@ -65,7 +66,8 @@
     "load-json-file": "catalog:",
     "nock": "catalog:",
     "read-yaml-file": "catalog:",
-    "tempy": "catalog:"
+    "tempy": "catalog:",
+    "undici": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

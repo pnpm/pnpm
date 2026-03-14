@@ -1,12 +1,40 @@
 import { addDependenciesToPackage } from '@pnpm/core'
+import { clearDispatcherCache } from '@pnpm/fetch'
 import { prepareEmpty } from '@pnpm/prepare'
-import nock from 'nock'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 import { testDefaults } from '../utils/index.js'
 
-afterEach(() => {
-  nock.abortPendingRequests()
-  nock.cleanAll()
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  currentMockAgent.enableNetConnect()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+  }
+}
+
+beforeEach(() => {
+  setupMockAgent()
+})
+
+afterEach(async () => {
+  await teardownMockAgent()
 })
 
 test('blockExoticSubdeps disallows git dependencies in subdependencies', async () => {
@@ -23,8 +51,8 @@ test('blockExoticSubdeps allows git dependencies in direct dependencies', async 
   // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes to check if the repo is public.
   // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
   // resolving via the codeload tarball URL.
-  const githubNock = nock('https://github.com', { allowUnmocked: true })
-    .head('/kevva/is-negative')
+  currentMockAgent!.get('https://github.com')
+    .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
     .reply(200)
 
   const project = prepareEmpty()
@@ -41,8 +69,6 @@ test('blockExoticSubdeps allows git dependencies in direct dependencies', async 
   expect(manifest.dependencies).toStrictEqual({
     'is-negative': 'github:kevva/is-negative#1.0.0',
   })
-
-  githubNock.done()
 })
 
 test('blockExoticSubdeps allows registry dependencies in subdependencies', async () => {

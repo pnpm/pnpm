@@ -13,6 +13,7 @@ import {
 } from '@pnpm/core'
 import type { RootLog } from '@pnpm/core-loggers'
 import type { PnpmError } from '@pnpm/error'
+import { clearDispatcherCache } from '@pnpm/fetch'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.fs'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
@@ -20,20 +21,55 @@ import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { DepPath, ProjectManifest, ProjectRootDir } from '@pnpm/types'
-import { rimrafSync } from '@zkochan/rimraf'
+import { rimrafSync as rimraf } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
-import nock from 'nock'
-import { readYamlFileSync } from 'read-yaml-file'
-import { writeYamlFileSync } from 'write-yaml-file'
+import { readYamlFileSync as readYamlFile } from 'read-yaml-file'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+import { writeYamlFileSync as writeYamlFile } from 'write-yaml-file'
 
 import { testDefaults } from './utils/index.js'
 
-afterEach(() => {
-  nock.abortPendingRequests()
-  nock.cleanAll()
-})
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  currentMockAgent.disableNetConnect()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+  }
+}
+
+function getMockAgent (): MockAgent | null {
+  return currentMockAgent
+}
 
 const f = fixtures(import.meta.dirname)
+
+function calledWithMatch (mockFn: jest.Mock, matcher: object): boolean {
+  const expected = expect.objectContaining(matcher)
+  return mockFn.mock.calls.some(([arg]) => {
+    try {
+      expect(arg).toEqual(expected)
+      return true
+    } catch {
+      return false
+    }
+  })
+}
 
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
@@ -43,12 +79,6 @@ const LOCKFILE_WARN_LOG = {
 
 test('lockfile has correct format', async () => {
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
-  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes to check if the repo is public.
-  // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
-  // resolving via the codeload tarball URL.
-  const githubNock = nock('https://github.com', { allowUnmocked: true })
-    .head('/kevva/is-negative')
-    .reply(200)
   const project = prepareEmpty()
 
   await addDependenciesToPackage({},
@@ -81,7 +111,6 @@ test('lockfile has correct format', async () => {
   expect((lockfile.packages[id].resolution as TarballResolution).tarball).toBeFalsy()
 
   expect(lockfile.packages).toHaveProperty(['is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'])
-  githubNock.done()
 })
 
 test('lockfile has dev deps even when installing for prod only', async () => {
@@ -106,7 +135,7 @@ test('lockfile has dev deps even when installing for prod only', async () => {
 test('lockfile with scoped package', async () => {
   prepareEmpty()
 
-  writeYamlFileSync(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     importers: {
       '.': {
         dependencies: {
@@ -176,7 +205,7 @@ test('a lockfile created even when there are no deps in package.json', async () 
 test('current lockfile removed when no deps in package.json', async () => {
   const project = prepareEmpty()
 
-  writeYamlFileSync(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       'is-negative': {
         specifier: '2.1.0',
@@ -202,7 +231,7 @@ test('current lockfile removed when no deps in package.json', async () => {
 test('lockfile is fixed when it does not match package.json', async () => {
   const project = prepareEmpty()
 
-  writeYamlFileSync(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       '@types/semver': {
         specifier: '5.3.31',
@@ -247,11 +276,10 @@ test('lockfile is fixed when it does not match package.json', async () => {
     },
   }, testDefaults({ reporter }))
 
-  const progress = {
+  const progressMatcher = expect.objectContaining({
     name: 'pnpm:progress',
     status: 'resolving',
-  }
-  const progressMatcher = expect.objectContaining(progress)
+  })
   expect(reporter.mock.calls.filter(([arg]) => progressMatcher.asymmetricMatch(arg))).toHaveLength(0)
 
   const lockfile = project.readLockfile()
@@ -265,7 +293,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
 test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async () => {
   const project = prepareEmpty()
 
-  writeYamlFileSync(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       '@types/semver': {
         specifier: '5.3.31',
@@ -311,7 +339,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
   }, ['is-positive'], testDefaults({ reporter }))
   await install(manifest, testDefaults({ reporter }))
 
-  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining(LOCKFILE_WARN_LOG))
+  expect(calledWithMatch(reporter, LOCKFILE_WARN_LOG)).toBeFalsy()
 
   project.has('is-negative')
 })
@@ -319,13 +347,13 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
 test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   const project = prepareEmpty()
   const reporter = jest.fn()
-  // const fooProgress = {
+  // const fooProgress = expect.objectContaining({
   //   name: 'pnpm:progress',
   //   status: 'resolving',
   //   manifest: {
   //     name: 'foo',
   //   },
-  // }
+  // })
 
   const pkgs = ['@pnpm.e2e/foo', '@pnpm.e2e/bar', '@pnpm.e2e/qar']
   await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.0.0', distTag: 'latest' })))
@@ -344,8 +372,8 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
 
   await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.1.0', distTag: 'latest' })))
 
-  rimrafSync('node_modules')
-  rimrafSync(path.join('..', '.store'))
+  rimraf('node_modules')
+  rimraf(path.join('..', '.store'))
 
   reporter.mockClear()
 
@@ -393,7 +421,7 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 
   lockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.1.0'
 
-  writeYamlFileSync(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
+  writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
 
   await install(manifest, testDefaults())
 
@@ -439,7 +467,7 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
 
   expect(lockfile1.importers['.'].dependencies?.['highmaps-release'].version).toBe('5.0.11')
 
-  rimrafSync('node_modules')
+  rimraf('node_modules')
 
   await install(manifest, testDefaults())
 
@@ -553,7 +581,7 @@ test('repeat install with no inner lockfile should not rewrite packages in node_
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative@1.0.0'], testDefaults())
 
-  rimrafSync('node_modules/.pnpm/lock.yaml')
+  rimraf('node_modules/.pnpm/lock.yaml')
 
   await install(manifest, testDefaults())
 
@@ -654,7 +682,7 @@ test('no lockfile', async () => {
 
   await addDependenciesToPackage({}, ['is-positive'], testDefaults({ useLockfile: false, reporter }))
 
-  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining(LOCKFILE_WARN_LOG))
+  expect(calledWithMatch(reporter, LOCKFILE_WARN_LOG)).toBeFalsy()
 
   project.has('is-positive')
 
@@ -664,7 +692,7 @@ test('no lockfile', async () => {
 test('lockfile is ignored when lockfile = false', async () => {
   const project = prepareEmpty()
 
-  writeYamlFileSync(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       'is-negative': {
         specifier: '2.1.0',
@@ -690,7 +718,7 @@ test('lockfile is ignored when lockfile = false', async () => {
     },
   }, testDefaults({ useLockfile: false, reporter }))
 
-  expect(reporter).toHaveBeenCalledWith(expect.objectContaining(LOCKFILE_WARN_LOG))
+  expect(calledWithMatch(reporter, LOCKFILE_WARN_LOG)).toBeTruthy()
 
   project.has('is-negative')
 
@@ -706,7 +734,7 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
 
     manifest = (await addDependenciesToPackage({}, ['is-positive'], testDefaults({ reporter }))).updatedManifest
 
-    expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining(LOCKFILE_WARN_LOG))
+    expect(calledWithMatch(reporter, LOCKFILE_WARN_LOG)).toBeFalsy()
   }
 
   {
@@ -719,7 +747,7 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
       rootDir: process.cwd() as ProjectRootDir,
     }, testDefaults({ useLockfile: false, reporter }))
 
-    expect(reporter).toHaveBeenCalledWith(expect.objectContaining(LOCKFILE_WARN_LOG))
+    expect(calledWithMatch(reporter, LOCKFILE_WARN_LOG)).toBeTruthy()
   }
 
   project.hasNot('is-positive')
@@ -822,12 +850,6 @@ test('packages installed via tarball URL from the default registry are normalize
 
 test('lockfile file has correct format when lockfile directory does not equal the prefix directory', async () => {
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
-  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes to check if the repo is public.
-  // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
-  // resolving via the codeload tarball URL.
-  const githubNock = nock('https://github.com', { allowUnmocked: true })
-    .head('/kevva/is-negative')
-    .reply(200)
   prepareEmpty()
 
   const storeDir = path.resolve('..', '.store')
@@ -846,12 +868,12 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   process.chdir('..')
 
-  const modules = readYamlFileSync<any>(path.resolve('node_modules', '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const modules = readYamlFile<any>(path.resolve('node_modules', '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(modules).toBeTruthy()
   expect(modules.pendingBuilds).toHaveLength(0)
 
   {
-    const lockfile: LockfileFile = readYamlFileSync(WANTED_LOCKFILE)
+    const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
     const id = '@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
@@ -883,7 +905,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
   }))
 
   {
-    const lockfile = readYamlFileSync<LockfileFile>(path.join('..', WANTED_LOCKFILE))
+    const lockfile = readYamlFile<LockfileFile>(path.join('..', WANTED_LOCKFILE))
 
     expect(lockfile.importers).toHaveProperty(['project-2'])
 
@@ -902,7 +924,6 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
     expect(lockfile.packages).toHaveProperty(['is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'])
   }
-  githubNock.done()
 })
 
 test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, async () => {
@@ -927,7 +948,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     pkg2,
   ])
 
-  writeYamlFileSync(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     importers: {
       pkg1: {
         dependencies: {
@@ -970,7 +991,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     })
   )).updatedManifest
 
-  const currentLockfile = readYamlFileSync<LockfileFile>(path.resolve('node_modules/.pnpm/lock.yaml'))
+  const currentLockfile = readYamlFile<LockfileFile>(path.resolve('node_modules/.pnpm/lock.yaml'))
 
   expect(Object.keys(currentLockfile.importers ?? {})).toStrictEqual(['pkg2'])
 
@@ -1011,7 +1032,7 @@ test(`use current ${WANTED_LOCKFILE} as initial wanted one, when wanted was remo
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['lodash@4.17.11', 'underscore@1.9.0'], testDefaults())
 
-  rimrafSync(WANTED_LOCKFILE)
+  rimraf(WANTED_LOCKFILE)
 
   await addDependenciesToPackage(manifest, ['underscore@1.9.1'], testDefaults())
 
@@ -1029,7 +1050,7 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults())
 
   const initialLockfile = project.readLockfile()
-  writeYamlFileSync(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: '6.0' }, { lineWidth: 1000 })
+  writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: '6.0' }, { lineWidth: 1000 })
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
@@ -1055,7 +1076,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
     expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
     delete lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
     delete lockfile.snapshots['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
-    writeYamlFileSync(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
+    writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
   }
 
   let err!: PnpmError
@@ -1089,13 +1110,15 @@ const isPositiveMeta = loadJsonFileSync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-
 const tarballPath = f.find('is-positive-3.1.0.tgz')
 
 test('tarball domain differs from registry domain', async () => {
-  nock('https://registry.example.com', { allowUnmocked: true })
-    .get('/is-positive')
+  setupMockAgent()
+  getMockAgent()!.enableNetConnect(/localhost/)
+  getMockAgent()!.get('https://registry.example.com')
+    .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
-
-  nock('https://registry.npmjs.org', { allowUnmocked: true })
-    .get('/is-positive/-/is-positive-3.1.0.tgz')
-    .replyWithFile(200, tarballPath)
+  const tarballContent = fs.readFileSync(tarballPath)
+  getMockAgent()!.get('https://registry.npmjs.org')
+    .intercept({ path: '/is-positive/-/is-positive-3.1.0.tgz', method: 'GET' })
+    .reply(200, tarballContent, { headers: { 'content-length': String(tarballContent.length) } })
 
   const project = prepareEmpty()
 
@@ -1144,15 +1167,18 @@ test('tarball domain differs from registry domain', async () => {
       'is-positive@3.1.0': {},
     },
   })
+  await teardownMockAgent()
 })
 
 test('tarball installed through non-standard URL endpoint from the registry domain', async () => {
-  nock('https://registry.npmjs.org', { allowUnmocked: true })
-    .head('/is-positive/download/is-positive-3.1.0.tgz')
-    .reply(200, '')
-  nock('https://registry.npmjs.org', { allowUnmocked: true })
-    .get('/is-positive/download/is-positive-3.1.0.tgz')
-    .replyWithFile(200, tarballPath)
+  setupMockAgent()
+  getMockAgent()!.enableNetConnect(/localhost/)
+  const mockPool = getMockAgent()!.get('https://registry.npmjs.org')
+  mockPool.intercept({ path: '/is-positive/download/is-positive-3.1.0.tgz', method: 'HEAD' })
+    .reply(200, '').persist()
+  const tarballContent2 = fs.readFileSync(tarballPath)
+  mockPool.intercept({ path: '/is-positive/download/is-positive-3.1.0.tgz', method: 'GET' })
+    .reply(200, tarballContent2, { headers: { 'content-length': String(tarballContent2.length) } }).persist()
 
   const project = prepareEmpty()
 
@@ -1201,6 +1227,7 @@ test('tarball installed through non-standard URL endpoint from the registry doma
       'is-positive@https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {},
     },
   })
+  await teardownMockAgent()
 })
 
 // TODO: fix merge conflicts with the new lockfile format (TODOv8)
@@ -1412,11 +1439,11 @@ test('a broken lockfile should not break the store', async () => {
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0'], { ...opts, lockfileOnly: true })
 
-  const lockfile: LockfileObject = readYamlFileSync(WANTED_LOCKFILE)
+  const lockfile: LockfileObject = readYamlFile(WANTED_LOCKFILE)
   lockfile.packages!['is-positive@1.0.0' as DepPath].name = 'bad-name'
   lockfile.packages!['is-positive@1.0.0' as DepPath].version = '1.0.0'
 
-  writeYamlFileSync(WANTED_LOCKFILE, lockfile)
+  writeYamlFile(WANTED_LOCKFILE, lockfile)
 
   await mutateModulesInSingleProject({
     manifest,
@@ -1427,8 +1454,8 @@ test('a broken lockfile should not break the store', async () => {
   delete lockfile.packages!['is-positive@1.0.0' as DepPath].name
   delete lockfile.packages!['is-positive@1.0.0' as DepPath].version
 
-  writeYamlFileSync(WANTED_LOCKFILE, lockfile)
-  rimrafSync(path.resolve('node_modules'))
+  writeYamlFile(WANTED_LOCKFILE, lockfile)
+  rimraf(path.resolve('node_modules'))
 
   await mutateModulesInSingleProject({
     manifest,
@@ -1448,35 +1475,13 @@ test('include tarball URL', async () => {
     .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
 })
 
-test('exclude tarball URL when lockfileIncludeTarballUrl is false', async () => {
-  const project = prepareEmpty()
-
-  const opts = testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: false })
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
-
-  const lockfile = project.readLockfile()
-  expect((lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).tarball)
-    .toBeUndefined()
-})
-
-test('exclude non-standard tarball URL when lockfileIncludeTarballUrl is false', async () => {
-  const project = prepareEmpty()
-
-  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: false }))
-
-  const lockfile = project.readLockfile()
-
-  expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball)
-    .toBeUndefined()
-})
-
 test('lockfile v6', async () => {
   prepareEmpty()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ useLockfileV6: true }))
 
   {
-    const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const lockfile = readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
     expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
   }
@@ -1484,7 +1489,7 @@ test('lockfile v6', async () => {
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/foo@100.0.0'], testDefaults())
 
   {
-    const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const lockfile = readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
     expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
     expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.0.0'])
@@ -1498,7 +1503,7 @@ test('lockfile v5 is converted to lockfile v6', async () => {
 
   await install({ dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } }, testDefaults())
 
-  const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const lockfile = readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
 })
@@ -1547,7 +1552,7 @@ test('update the lockfile when a new project is added to the workspace', async (
   })
   await mutateModules(importers, testDefaults({ allProjects }))
 
-  const lockfile: LockfileObject = readYamlFileSync(WANTED_LOCKFILE)
+  const lockfile: LockfileObject = readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
 })
 
@@ -1595,7 +1600,7 @@ test('update the lockfile when a new project is added to the workspace and lockf
   })
   await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true }))
 
-  const lockfile: LockfileObject = readYamlFileSync(WANTED_LOCKFILE)
+  const lockfile: LockfileObject = readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
 })
 

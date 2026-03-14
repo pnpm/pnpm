@@ -1,24 +1,64 @@
 import path from 'node:path'
 
+import { clearDispatcherCache } from '@pnpm/fetch'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { fixtures } from '@pnpm/test-fixtures'
-import nock from 'nock'
-import { readYamlFileSync } from 'read-yaml-file'
+import { readYamlFileSync as readYamlFile } from 'read-yaml-file'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
-import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
+import { DEFAULT_OPTS } from './index.js'
 import * as responses from './utils/responses/index.js'
 
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  currentMockAgent.disableNetConnect()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+  }
+}
+
+function getMockAgent (): MockAgent | null {
+  return currentMockAgent
+}
+
 const f = fixtures(import.meta.dirname)
+const registries = {
+  default: 'https://registry.npmjs.org/',
+}
+
+beforeEach(() => {
+  setupMockAgent()
+})
+
+afterEach(async () => {
+  await teardownMockAgent()
+})
 
 test('overrides are added for vulnerable dependencies', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  nock(AUDIT_REGISTRY)
-    .post('/-/npm/v1/security/audits/quick')
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
-    ...AUDIT_REGISTRY_OPTS,
+    ...DEFAULT_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
@@ -28,7 +68,7 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)
 
-  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  const manifest = readYamlFile<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
   expect(manifest.overrides?.['axios@<=0.18.0']).toBe('>=0.18.1')
   expect(manifest.overrides?.['sync-exec@>=0.0.0']).toBeFalsy()
 })
@@ -36,12 +76,12 @@ test('overrides are added for vulnerable dependencies', async () => {
 test('no overrides are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
-  nock(AUDIT_REGISTRY)
-    .post('/-/npm/v1/security/audits/quick')
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
-    ...AUDIT_REGISTRY_OPTS,
+    ...DEFAULT_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
@@ -55,12 +95,12 @@ test('no overrides are added if no vulnerabilities are found', async () => {
 test('CVEs found in the allow list are not added as overrides', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  nock(AUDIT_REGISTRY)
-    .post('/-/npm/v1/security/audits/quick')
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
-    ...AUDIT_REGISTRY_OPTS,
+    ...DEFAULT_OPTS,
     auditLevel: 'moderate',
     auditConfig: {
       ignoreCves: [
@@ -77,7 +117,7 @@ test('CVEs found in the allow list are not added as overrides', async () => {
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)
 
-  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  const manifest = readYamlFile<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
   expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
   expect(manifest.overrides?.['axios@<0.21.1']).toBeFalsy()
   expect(manifest.overrides?.['minimist@<0.2.1']).toBeFalsy()

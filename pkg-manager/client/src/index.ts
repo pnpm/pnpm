@@ -4,7 +4,7 @@ import {
   type ResolverFactoryOptions,
 } from '@pnpm/default-resolver'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
-import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
+import { createFetchFromRegistry, type DispatcherOptions } from '@pnpm/fetch'
 import type { BinaryFetcher, DirectoryFetcher, GitFetcher } from '@pnpm/fetcher-base'
 import { createBinaryFetcher } from '@pnpm/fetching.binary-fetcher'
 import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching-types'
@@ -35,7 +35,7 @@ export type ClientOptions = {
   includeOnlyPackageFiles?: boolean
   preserveAbsolutePaths?: boolean
   fetchMinSpeedKiBps?: number
-} & ResolverFactoryOptions & AgentOptions
+} & ResolverFactoryOptions & DispatcherOptions
 
 export interface Client {
   fetchers: Fetchers

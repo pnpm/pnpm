@@ -42,6 +42,7 @@
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
@@ -66,19 +67,21 @@
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
     "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
     "delay": "catalog:",
-    "nock": "catalog:",
     "normalize-path": "catalog:",
-    "tempy": "catalog:"
+    "tempy": "catalog:",
+    "undici": "catalog:"
   },
   "engines": {
     "node": ">=22.13"
