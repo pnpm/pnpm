@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli-meta'
 import { type CliOptions, type Config, getConfig as _getConfig } from '@pnpm/config'
-import { installConfigDeps } from '@pnpm/config.deps-installer'
+import { resolveAndInstallConfigDeps } from '@pnpm/config.deps-installer'
 import { formatWarn } from '@pnpm/default-reporter'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createStoreController } from '@pnpm/store-connection-manager'
@@ -47,11 +47,11 @@ export async function getConfig (
 export async function installConfigDepsAndLoadHooks (config: Config): Promise<Config> {
   if (config.configDependencies) {
     const store = await createStoreController(config)
-    await installConfigDeps(config.configDependencies, {
-      registries: config.registries,
-      rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
+    await resolveAndInstallConfigDeps(config.configDependencies, {
+      ...config,
       store: store.ctrl,
       storeDir: store.dir,
+      rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
     })
   }
   if (!config.ignorePnpmfile) {
