@@ -126,6 +126,8 @@ test('getOptionsFromPnpmSettings() throws a PnpmError when a string config value
   // Simulates runtime behavior when pnpm-workspace.yaml or config.yaml has a
   // string-valued setting referencing an env variable that is not defined.
   // The TypeScript type doesn't include all valid config keys, so we cast.
+  delete process.env.PNPM_TEST_UNDEFINED_ENV_VAR_82645
+  expect(process.env.PNPM_TEST_UNDEFINED_ENV_VAR_82645).toBeUndefined()
   const settings = { nodeLinker: '${PNPM_TEST_UNDEFINED_ENV_VAR_82645}' } as unknown as PnpmSettings
   expect(() => getOptionsFromPnpmSettings(process.cwd(), settings)).toThrow(
     expect.objectContaining({
