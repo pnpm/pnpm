@@ -252,6 +252,87 @@ describe('plugin-commands-audit', () => {
     expect(stripAnsi(output)).toMatchSnapshot()
   })
 
+  test('audit: ignored vulnerabilities count reflects all ignored paths', async () => {
+    const tmp = f.prepare('has-vulnerabilities')
+
+    nock(AUDIT_REGISTRY)
+      .post('/-/npm/v1/security/audits/quick')
+      .reply(200, {
+        actions: [],
+        advisories: {
+          '999999': {
+            findings: [
+              {
+                version: '1.0.0',
+                paths: [
+                  'a>pkg',
+                  'b>pkg',
+                  'c>pkg',
+                  'd>pkg',
+                  'e>pkg',
+                  'f>pkg',
+                  'g>pkg',
+                ],
+                dev: false,
+                optional: false,
+                bundled: false,
+              },
+            ],
+            id: 999999,
+            created: '2026-01-01T00:00:00.000Z',
+            updated: '2026-01-01T00:00:00.000Z',
+            title: 'Test advisory',
+            found_by: { name: 'test' },
+            reported_by: { name: 'test' },
+            module_name: 'test-package',
+            cves: ['CVE-TEST-123'],
+            vulnerable_versions: '<2.0.0',
+            patched_versions: '>=2.0.0',
+            overview: 'test',
+            recommendation: 'upgrade',
+            references: 'test',
+            access: 'public',
+            severity: 'high',
+            cwe: 'CWE-79',
+            github_advisory_id: 'GHSA-test-1234',
+            metadata: {
+              module_type: 'package',
+              exploitability: 1,
+              affected_components: 'test',
+            },
+            url: 'https://example.com',
+          },
+        },
+        muted: [],
+        metadata: {
+          vulnerabilities: {
+            info: 0,
+            low: 0,
+            moderate: 0,
+            high: 7,
+            critical: 0,
+          },
+          dependencies: 1,
+          devDependencies: 0,
+          optionalDependencies: 0,
+          totalDependencies: 1,
+        },
+      })
+
+    const { output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'low',
+      dir: tmp,
+      rootProjectManifestDir: tmp,
+      rootProjectManifest: {},
+      auditConfig: {
+        ignoreCves: ['CVE-TEST-123'],
+      },
+    })
+
+    expect(stripAnsi(output)).toContain('Severity: 7 high (7 ignored)')
+  })
+
   test('audit: CVEs in ignoreGhsas do not show up', async () => {
     const tmp = f.prepare('has-vulnerabilities')
 
