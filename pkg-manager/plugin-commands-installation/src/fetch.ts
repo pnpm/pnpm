@@ -76,5 +76,8 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
     // to let the subsequent install know that hoisting should be performed.
     hoistPattern: [],
     publicHoistPattern: [],
+    // virtualStoreOnly skips post-import linking (symlinks, bins, hoisting, scripts)
+    // even if ignorePackageManifest handling changes in the future.
+    virtualStoreOnly: true,
   } as InstallOptions)
 }

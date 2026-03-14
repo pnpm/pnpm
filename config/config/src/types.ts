@@ -123,6 +123,7 @@ export const pnpmTypes = {
   'verify-store-integrity': Boolean,
   'global-virtual-store-dir': String,
   'virtual-store-dir': String,
+  'virtual-store-only': Boolean,
   'virtual-store-dir-max-length': Number,
   'peers-suffix-max-length': Number,
   'workspace-concurrency': Number,

@@ -1375,6 +1375,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         wantedLockfile: newLockfile,
         wantedToBeSkippedPackageIds,
         hoistWorkspacePackages: opts.hoistWorkspacePackages,
+        virtualStoreOnly: opts.virtualStoreOnly,
       }
     )
     stats = result.stats
@@ -1402,7 +1403,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             result.newDepPaths.filter((depPath) => dependenciesGraph[depPath].requiresBuild)
           )
       }
-      if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
+      if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && !opts.virtualStoreOnly) {
         // postinstall hooks
         const depPaths = Object.keys(dependenciesGraph) as DepPath[]
         const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
@@ -1451,7 +1452,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     const binWarn = (prefix: string, message: string) => {
       logger.info({ message, prefix })
     }
-    if (result.newDepPaths?.length) {
+    if (result.newDepPaths?.length && !opts.virtualStoreOnly) {
       const newPkgs = props<DepPath, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
       await linkAllBins(newPkgs, dependenciesGraph, {
         extraNodePaths: ctx.extraNodePaths,
@@ -1460,7 +1461,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       })
     }
 
-    await Promise.all(projects.map(async (project, index) => {
+    if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project, index) => {
       let linkedPackages!: string[]
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
@@ -1559,7 +1560,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         })
       })(),
     ])
-    if (!opts.ignoreScripts) {
+    if (!opts.ignoreScripts && !opts.virtualStoreOnly) {
       if (opts.enablePnp) {
         opts.scriptsOpts.extraEnv = {
           ...opts.scriptsOpts.extraEnv,
