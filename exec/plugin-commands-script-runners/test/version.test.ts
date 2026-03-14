@@ -19,7 +19,7 @@ test('version should invoke runNpm with version params and dir', async () => {
 
   const cwd = process.cwd() as ProjectRootDir
 
-  await version.handler({
+  const result = await version.handler({
     ...DEFAULT_OPTS,
     dir: cwd,
     configDir: cwd,
@@ -38,6 +38,8 @@ test('version should invoke runNpm with version params and dir', async () => {
       },
     } as unknown as ProjectsGraph,
   }, ['minor'])
+
+  expect(result.exitCode).toBe(0)
 
   expect(runNpm).toHaveBeenCalledWith(undefined, ['version', 'minor'], expect.objectContaining({
     cwd,

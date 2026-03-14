@@ -11,6 +11,10 @@ import { pick } from 'ramda'
 
 const renderHelp = renderHelpModule as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
+export interface VersionCommandResponse {
+  exitCode: number
+}
+
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
@@ -49,7 +53,7 @@ export type VersionOpts = Pick<Config,
 export async function handler (
   opts: VersionOpts,
   params: string[]
-): Promise<void> {
+): Promise<VersionCommandResponse> {
   let chunks!: ProjectRootDir[][]
   if (opts.recursive) {
     chunks = opts.sort
@@ -93,8 +97,8 @@ export async function handler (
             env: opts.extraEnv,
             userConfigPath,
           })
-          if (status !== 0) {
-            exitCode = status ?? 1
+          if (status !== 0 && status !== null) {
+            exitCode = status
           }
         } catch (err: any) { // eslint-disable-line
           if (!opts.recursive && typeof err.exitCode === 'number') {
@@ -108,6 +112,7 @@ export async function handler (
   }
 
   if (exitCode !== 0) {
-    process.exit(exitCode)
+    return { exitCode }
   }
+  return { exitCode: 0 }
 }
