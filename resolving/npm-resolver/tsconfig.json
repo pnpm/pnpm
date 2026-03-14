@@ -43,9 +43,6 @@
       "path": "../../fs/graceful-fs"
     },
     {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../network/fetch"
     },
     {
