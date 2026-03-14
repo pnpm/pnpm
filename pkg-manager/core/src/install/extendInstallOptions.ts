@@ -315,12 +315,11 @@ export function extendOptions (
     packageExtensions: extendedOpts.packageExtensions,
     ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,
   })
-  if (extendedOpts.virtualStoreOnly && !extendedOpts.enableModulesDir) {
+  if (extendedOpts.virtualStoreOnly && !extendedOpts.enableModulesDir && !extendedOpts.enableGlobalVirtualStore) {
     throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR',
-      'Cannot use virtualStoreOnly when enableModulesDir is false')
+      'Cannot use virtualStoreOnly when enableModulesDir is false (the standard virtual store requires node_modules/.pnpm)')
   }
   if (extendedOpts.virtualStoreOnly) {
-    extendedOpts.ignoreScripts = true
     // Ensure .modules.yaml records empty hoist patterns so a subsequent
     // normal install knows hoisting must be redone from scratch.
     extendedOpts.hoistPattern = []

@@ -244,9 +244,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     unsafePerm: opts.unsafePerm || false,
   }
 
-  if (opts.virtualStoreOnly && opts.enableModulesDir === false) {
+  if (opts.virtualStoreOnly && opts.enableModulesDir === false && !opts.enableGlobalVirtualStore) {
     throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR',
-      'Cannot use virtualStoreOnly when enableModulesDir is false')
+      'Cannot use virtualStoreOnly when enableModulesDir is false (the standard virtual store requires node_modules/.pnpm)')
   }
   const skipPostImportLinking = opts.virtualStoreOnly === true
 
@@ -399,22 +399,22 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   let newHoistedDependencies!: HoistedDependencies
   let linkedToRoot = 0
   if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
-    await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
-      allowBuild,
-      depsStateCache,
-      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-      force: opts.force,
-      ignoreScripts: opts.ignoreScripts,
-      lockfileDir: opts.lockfileDir,
-      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-      sideEffectsCacheRead: opts.sideEffectsCacheRead,
-    })
-    stageLogger.debug({
-      prefix: lockfileDir,
-      stage: 'importing_done',
-    })
-
     if (!skipPostImportLinking) {
+      await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
+        allowBuild,
+        depsStateCache,
+        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+        force: opts.force,
+        ignoreScripts: opts.ignoreScripts,
+        lockfileDir: opts.lockfileDir,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        sideEffectsCacheRead: opts.sideEffectsCacheRead,
+      })
+      stageLogger.debug({
+        prefix: lockfileDir,
+        stage: 'importing_done',
+      })
+
       linkedToRoot = await symlinkDirectDependencies({
         directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
         dedupe: Boolean(opts.dedupeDirectDeps),
@@ -425,10 +425,12 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         symlink: opts.symlink,
       })
     }
-  } else if (opts.enableModulesDir !== false) {
-    await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+  } else if (opts.enableModulesDir !== false || opts.enableGlobalVirtualStore) {
+    if (opts.enableModulesDir !== false) {
+      await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+    }
     await Promise.all([
-      opts.symlink === false
+      opts.symlink === false || opts.enableModulesDir === false
         ? Promise.resolve()
         : linkAllModules(depNodes, {
           optional: opts.include.optionalDependencies,
@@ -535,7 +537,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       )
   }
   let ignoredBuilds: IgnoredBuilds | undefined
-  if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false && !skipPostImportLinking) {
+  if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
       const directDependencies = directDependenciesByImporterId[id]
@@ -590,46 +592,48 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath)
 
-  if (opts.enableModulesDir !== false && !skipPostImportLinking) {
-    const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
-    /** Skip linking and due to no project manifest */
-    if (!opts.ignorePackageManifest) {
-      await Promise.all(selectedProjects.map(async (project) => {
-        if (opts.nodeLinker === 'hoisted' || opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
-          await linkBinsOfImporter(project, {
-            extraNodePaths: opts.extraNodePaths,
-            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-          })
-        } else {
-          let directPkgDirs: string[]
-          if (project.id === '.') {
-            directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
-          } else {
-            directPkgDirs = []
-            for (const [alias, dir] of Object.entries(directDependenciesByImporterId[project.id])) {
-              if (rootProjectDeps[alias] !== dir) {
-                directPkgDirs.push(dir)
-              }
-            }
-          }
-          await linkBinsOfPackages(
-            (
-              await Promise.all(
-                directPkgDirs.map(async (dir) => ({
-                  location: dir,
-                  manifest: await safeReadProjectManifestOnly(dir),
-                }))
-              )
-            )
-              .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
-            project.binsDir,
-            {
+  if (opts.enableModulesDir !== false) {
+    if (!skipPostImportLinking) {
+      const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
+      /** Skip linking and due to no project manifest */
+      if (!opts.ignorePackageManifest) {
+        await Promise.all(selectedProjects.map(async (project) => {
+          if (opts.nodeLinker === 'hoisted' || opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
+            await linkBinsOfImporter(project, {
               extraNodePaths: opts.extraNodePaths,
               preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            })
+          } else {
+            let directPkgDirs: string[]
+            if (project.id === '.') {
+              directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
+            } else {
+              directPkgDirs = []
+              for (const [alias, dir] of Object.entries(directDependenciesByImporterId[project.id])) {
+                if (rootProjectDeps[alias] !== dir) {
+                  directPkgDirs.push(dir)
+                }
+              }
             }
-          )
-        }
-      }))
+            await linkBinsOfPackages(
+              (
+                await Promise.all(
+                  directPkgDirs.map(async (dir) => ({
+                    location: dir,
+                    manifest: await safeReadProjectManifestOnly(dir),
+                  }))
+                )
+              )
+                .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+              project.binsDir,
+              {
+                extraNodePaths: opts.extraNodePaths,
+                preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+              }
+            )
+          }
+        }))
+      }
     }
     const injectedDeps: Record<string, string[]> = {}
     for (const project of projectsToBeBuilt) {
