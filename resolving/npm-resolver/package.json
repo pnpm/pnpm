@@ -71,7 +71,6 @@
   "devDependencies": {
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/fetch": "workspace:*",
-    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

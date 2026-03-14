@@ -8,7 +8,7 @@ import type { Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
-import { getMockAgent, retryLoadMsgpackFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
+import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -67,7 +67,7 @@ test('resolveFromJsr() on jsr', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'npm.jsr.io/@jsr/rus__greet.mpk')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'npm.jsr.io/@jsr/rus__greet.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta).toMatchObject({
     name: expect.any(String),
     versions: expect.any(Object),
@@ -108,7 +108,7 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'npm.jsr.io/@jsr/rus__greet.mpk')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'npm.jsr.io/@jsr/rus__greet.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta).toMatchObject({
     name: expect.any(String),
     versions: expect.any(Object),

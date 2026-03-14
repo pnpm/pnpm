@@ -1,5 +1,6 @@
+import fs from 'node:fs'
+
 import { clearDispatcherCache } from '@pnpm/fetch'
-import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 let originalDispatcher: Dispatcher | null = null
@@ -30,13 +31,14 @@ export function getMockAgent (): MockAgent | null {
   return currentMockAgent
 }
 
-export async function retryLoadMsgpackFile<T> (filePath: string): Promise<T> {
+export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {
   let retry = 0
   /* eslint-disable no-await-in-loop */
   while (true) {
     await delay(500)
     try {
-      return await readMsgpackFile<T>(filePath)
+      const data = await fs.promises.readFile(filePath, 'utf8')
+      return JSON.parse(data) as T
     } catch (err: any) { // eslint-disable-line
       if (retry > 2) throw err
       retry++
