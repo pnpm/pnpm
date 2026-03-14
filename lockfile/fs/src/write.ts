@@ -12,7 +12,7 @@ import { convertToLockfileFile } from './lockfileFormatConverters.js'
 import { getWantedLockfileName } from './lockfileName.js'
 import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
-import { readEnvYamlPrefix } from './yamlDocuments.js'
+import { streamReadFirstYamlDocument, YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START } from './yamlDocuments.js'
 
 const LOCKFILE_YAML_FORMAT = {
   blankLines: true,
@@ -62,7 +62,8 @@ async function writeLockfile (
   const yamlDoc = yamlStringify(lockfileToStringify)
 
   if (lockfileFilename === WANTED_LOCKFILE) {
-    const envPrefix = await readEnvYamlPrefix(lockfilePath)
+    const envDoc = await streamReadFirstYamlDocument(lockfilePath)
+    const envPrefix = envDoc != null ? `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}` : ''
     return writeFileAtomic(lockfilePath, envPrefix + yamlDoc)
   }
   return writeFileAtomic(lockfilePath, yamlDoc)
@@ -105,7 +106,10 @@ export async function writeLockfiles (
   // Preserve the env lockfile document at the top of pnpm-lock.yaml
   let envPrefix = ''
   if (wantedLockfileName === WANTED_LOCKFILE) {
-    envPrefix = await readEnvYamlPrefix(wantedLockfilePath)
+    const envDoc = await streamReadFirstYamlDocument(wantedLockfilePath)
+    if (envDoc != null) {
+      envPrefix = `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}`
+    }
   }
   const wantedYamlDoc = envPrefix + yamlDoc
 
