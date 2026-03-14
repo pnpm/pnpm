@@ -73,6 +73,7 @@ export interface LinkPackagesOptions {
   wantedLockfile: LockfileObject
   wantedToBeSkippedPackageIds: Set<string>
   hoistWorkspacePackages?: boolean
+  virtualStoreOnly: boolean
 }
 
 export interface LinkPackagesResult {
@@ -210,7 +211,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   }
 
   let newHoistedDependencies!: HoistedDependencies
-  if (opts.hoistPattern == null && opts.publicHoistPattern == null) {
+  if (opts.virtualStoreOnly || (opts.hoistPattern == null && opts.publicHoistPattern == null)) {
     newHoistedDependencies = {}
   } else if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
     newHoistedDependencies = {
@@ -250,7 +251,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   }
 
   let linkedToRoot = 0
-  if (opts.symlink) {
+  if (opts.symlink && !opts.virtualStoreOnly) {
     const projectsToLink = Object.fromEntries(await Promise.all(
       projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
         const deps = opts.dependenciesByProjectId[id]
