@@ -56,6 +56,57 @@ test('getConfig()', async () => {
   expect(config.nodeVersion).toBeUndefined()
 })
 
+test.each([
+  { field: 'devEngines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0' },
+  { field: 'devEngines' as const, version: '22.20.0', onFail: 'error' as const, expected: '22.20.0' },
+  { field: 'devEngines' as const, version: '^22.0.0', onFail: 'download' as const, expected: '22.0.0' },
+  { field: 'engines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0' },
+])('when $field is $version and onFail is $onFail, nodeVersion is set to $expected', async ({ field, version, onFail, expected }) => {
+  prepare({
+    [field]: {
+      runtime: {
+        name: 'node',
+        version,
+        onFail,
+      },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBe(expected)
+})
+
+test('nodeVersion from config takes priority over devEngines.runtime', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '22.20.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {
+      'node-version': '20.0.0',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBe('20.0.0')
+})
+
 test('throw error if --link-workspace-packages is used with --global', async () => {
   await expect(getConfig({
     cliOptions: {

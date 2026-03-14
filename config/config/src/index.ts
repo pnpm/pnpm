@@ -402,6 +402,9 @@ export async function getConfig (opts: {
       if (pnpmConfig.rootProjectManifest) {
         Object.assign(pnpmConfig, getOptionsFromRootManifest(pnpmConfig.rootProjectManifestDir, pnpmConfig.rootProjectManifest))
       }
+      if (pnpmConfig.nodeVersion == null) {
+        pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.rootProjectManifest)
+      }
     }
 
     if (pnpmConfig.workspaceDir != null) {
@@ -719,6 +722,21 @@ function parseDevEnginesPackageManager (devEngines?: DevEngines): EngineDependen
     version: pmEngine.version,
     onFail,
   }
+}
+
+function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | undefined {
+  for (const enginesFieldName of ['devEngines', 'engines'] as const) {
+    const enginesRuntime = manifest[enginesFieldName]?.runtime
+    if (enginesRuntime == null) continue
+    const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
+    const nodeRuntime = runtimes.find((r) => r.name === 'node')
+    if (nodeRuntime?.version == null) continue
+    const minVersion = semver.minVersion(nodeRuntime.version)
+    if (minVersion != null) {
+      return minVersion.version
+    }
+  }
+  return undefined
 }
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
