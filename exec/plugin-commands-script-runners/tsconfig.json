@@ -98,6 +98,9 @@
     },
     {
       "path": "../pnpm-cli-runner"
+    },
+    {
+      "path": "../run-npm"
     }
   ]
 }

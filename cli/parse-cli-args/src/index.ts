@@ -4,7 +4,7 @@ import nopt from '@pnpm/nopt'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
-const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx'])
+const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx', 'version'])
 
 export interface ParsedCliArgs {
   argv: {
@@ -60,7 +60,7 @@ export async function parseCliArgs (
     cmd = opts.fallbackCommand!
     commandName = opts.fallbackCommand!
     inputArgv.unshift(opts.fallbackCommand!)
-  // The run command has special casing for --help and is handled further below.
+    // The run command has special casing for --help and is handled further below.
   } else if (!SPECIALLY_ESCAPED_CMDS.has(cmd!)) {
     if (noptExploratoryResults['help']) {
       return {

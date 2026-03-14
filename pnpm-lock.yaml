@@ -2838,6 +2838,9 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/run-npm':
+        specifier: workspace:*
+        version: link:../run-npm
       '@pnpm/sort-packages':
         specifier: workspace:*
         version: link:../../workspace/sort-packages
