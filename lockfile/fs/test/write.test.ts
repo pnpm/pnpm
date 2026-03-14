@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import type { ProjectId } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 import yaml from 'yaml-tag'
 
@@ -280,7 +281,7 @@ test('writeLockfiles() preserves env document prefix in pnpm-lock.yaml', async (
   // The main lockfile should still be readable
   const lockfile = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
   expect(lockfile).toBeTruthy()
-  expect(lockfile!.importers['.'].dependencies).toEqual({ 'is-positive': '1.0.0' })
+  expect(lockfile!.importers['.' as ProjectId].dependencies).toEqual({ 'is-positive': '1.0.0' })
 })
 
 test('writeWantedLockfile() preserves env document prefix', async () => {
@@ -318,7 +319,7 @@ test('writeWantedLockfile() preserves env document prefix', async () => {
 
   // Main lockfile should be readable
   const lockfile = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
-  expect(lockfile!.importers['.'].dependencies).toEqual({ 'is-positive': '1.0.0' })
+  expect(lockfile!.importers['.' as ProjectId].dependencies).toEqual({ 'is-positive': '1.0.0' })
 })
 
 test('readWantedLockfile() skips env document in combined lockfile', async () => {
@@ -341,7 +342,7 @@ packages:
   const lockfile = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
   expect(lockfile).toBeTruthy()
   expect(lockfile!.lockfileVersion).toBe(LOCKFILE_VERSION)
-  expect(lockfile!.importers['.'].dependencies).toEqual({ 'is-positive': '1.0.0' })
+  expect(lockfile!.importers['.' as ProjectId].dependencies).toEqual({ 'is-positive': '1.0.0' })
 })
 
 test('readWantedLockfile() returns null for env-only lockfile with no main document', async () => {
