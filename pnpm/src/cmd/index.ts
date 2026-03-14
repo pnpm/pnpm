@@ -186,7 +186,7 @@ for (let i = 0; i < commands.length; i++) {
     completion,
     handler,
     help,
-    rcOptionsTypes,
+    rcOptionsTypes: commandRcOptionsTypes,
     shorthands,
     skipPackageManagerCheck,
   } = commands[i]
@@ -201,7 +201,7 @@ for (let i = 0; i < commands.length; i++) {
     if (completion != null) {
       completionByCommandName[commandName] = completion
     }
-    Object.assign(rcOptionsTypes, rcOptionsTypes())
+    Object.assign(rcOptionsTypes, commandRcOptionsTypes())
   }
   if (skipPackageManagerCheck) {
     skipPackageManagerCheckForCommandArray.push(...commandNames)
