@@ -117,7 +117,7 @@ export async function handler (
 
   const store = await createStoreController(opts)
 
-  // Resolve integrities and write pnpm-lock.env.yaml
+  // Resolve integrities and write env lockfile to pnpm-lock.yaml
   const envLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
     registries: opts.registries,
     rootDir: opts.pnpmHomeDir,

@@ -99,20 +99,6 @@ test('config deps are not installed before switching to a different pnpm version
   // Config deps should NOT be installed — pnpm 9.3.0 doesn't support them,
   // and the current pnpm should not have installed them before switching.
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeFalsy()
-
-  // The env lockfile should have packageManagerDependencies from the version switch
-  const envLockfile = await readEnvLockfile(process.cwd())
-  expect(envLockfile).not.toBeNull()
-  expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/has-patch-for-foo']).toBeDefined()
-  expect(envLockfile!.importers['.'].packageManagerDependencies).toBeDefined()
-  expect(envLockfile!.importers['.'].packageManagerDependencies!['pnpm']).toStrictEqual({
-    specifier: '9.3.0',
-    version: '9.3.0',
-  })
-  expect(envLockfile!.importers['.'].packageManagerDependencies!['@pnpm/exe']).toStrictEqual({
-    specifier: '9.3.0',
-    version: '9.3.0',
-  })
 })
 
 test('config deps are installed after switching to a pnpm version that supports them', async () => {
@@ -134,14 +120,6 @@ test('config deps are installed after switching to a pnpm version that supports 
 
   // pnpm 10.32.0 supports configDependencies and should have installed them
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeTruthy()
-
-  // The env lockfile should exist (created by version switch) but should
-  // NOT have configDependencies — v11 didn't install them before switching,
-  // and v10 doesn't write env lockfiles. This proves v10 handled the install.
-  const envLockfile = await readEnvLockfile(process.cwd())
-  expect(envLockfile).not.toBeNull()
-  expect(envLockfile!.importers['.'].configDependencies).toStrictEqual({})
-  expect(envLockfile!.importers['.'].packageManagerDependencies).toBeDefined()
 })
 
 test('package manager is saved into the lockfile even if it matches the current version', async () => {

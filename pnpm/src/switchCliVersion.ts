@@ -61,7 +61,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
   }
 
   if (!envLockfile) {
-    throw new PnpmError('NO_PKG_MANAGER_INTEGRITY', `The packageManager dependency ${pmVersion} was not found in the pnpm-lock.env.yaml`)
+    throw new PnpmError('NO_PKG_MANAGER_INTEGRITY', `The packageManager dependency ${pmVersion} was not found in pnpm-lock.yaml`)
   }
 
   const { binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, {
