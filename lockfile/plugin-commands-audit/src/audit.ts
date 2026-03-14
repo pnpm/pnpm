@@ -291,21 +291,21 @@ ${newIgnores.join('\n')}`,
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   const ignoreGhsas = opts.auditConfig?.ignoreGhsas
   if (ignoreGhsas) {
-    auditReport.advisories = pickBy(({ github_advisory_id: githubAdvisoryId, severity }) => {
-      if (!ignoreGhsas.includes(githubAdvisoryId)) {
+    auditReport.advisories = pickBy((advisory) => {
+      if (!ignoreGhsas.includes(advisory.github_advisory_id)) {
         return true
       }
-      ignoredVulnerabilities[severity as AuditLevelString] += 1
+      ignoredVulnerabilities[advisory.severity as AuditLevelString] += getIgnoredVulnerabilityCount(advisory)
       return false
     }, auditReport.advisories)
   }
   const ignoreCves = opts.auditConfig?.ignoreCves
   if (ignoreCves) {
-    auditReport.advisories = pickBy(({ cves, severity }) => {
-      if (cves.length === 0 || difference(cves, ignoreCves).length > 0) {
+    auditReport.advisories = pickBy((advisory) => {
+      if (advisory.cves.length === 0 || difference(advisory.cves, ignoreCves).length > 0) {
         return true
       }
-      ignoredVulnerabilities[severity as AuditLevelString] += 1
+      ignoredVulnerabilities[advisory.severity as AuditLevelString] += getIgnoredVulnerabilityCount(advisory)
       return false
     }, auditReport.advisories)
   }
@@ -411,4 +411,9 @@ export function formatFixWithUpdateOutput (result: FixWithUpdateResult, auditRep
   // Add trailing newline
   output.push('')
   return output.join('\n')
+}
+
+function getIgnoredVulnerabilityCount (advisory: AuditAdvisory): number {
+  const affectedPathsCount = advisory.findings.reduce((count, finding) => count + finding.paths.length, 0)
+  return affectedPathsCount > 0 ? affectedPathsCount : 1
 }
