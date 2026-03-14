@@ -57,11 +57,11 @@ test('getConfig()', async () => {
 })
 
 test.each([
-  { field: 'devEngines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0', desc: 'devEngines.runtime exact version with onFail download' },
-  { field: 'devEngines' as const, version: '22.20.0', onFail: 'error' as const, expected: '22.20.0', desc: 'devEngines.runtime exact version with onFail error' },
-  { field: 'devEngines' as const, version: '^22.0.0', onFail: 'download' as const, expected: '22.0.0', desc: 'devEngines.runtime version range resolves to minimum' },
-  { field: 'engines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0', desc: 'engines.runtime exact version' },
-])('nodeVersion from runtime: $desc', async ({ field, version, onFail, expected }) => {
+  { field: 'devEngines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0' },
+  { field: 'devEngines' as const, version: '22.20.0', onFail: 'error' as const, expected: '22.20.0' },
+  { field: 'devEngines' as const, version: '^22.0.0', onFail: 'download' as const, expected: '22.0.0' },
+  { field: 'engines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0' },
+])('when $field is $version and onFail is $onFail, nodeVersion is set to $expected', async ({ field, version, onFail, expected }) => {
   prepare({
     [field]: {
       runtime: {
