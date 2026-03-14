@@ -74,7 +74,7 @@ export async function writeEnvLockfile (rootDir: string, lockfile: EnvLockfile):
     }
   }
 
-  const combined = '---\n' + envYaml + '---\n' + mainDoc
+  const combined = '---\n' + envYaml + '\n---\n' + mainDoc
   return writeFileAtomic(lockfilePath, combined)
 }
 
