@@ -11,8 +11,10 @@ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/npm-resolver'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import type { ConfigDependencies } from '@pnpm/types'
+import getNpmTarballUrl from 'get-npm-tarball-url'
 
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
+import { parseIntegrity } from './parseIntegrity.js'
 
 export type ResolveAndInstallConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   rootDir: string
@@ -34,16 +36,41 @@ export async function resolveAndInstallConfigDeps (
   const envLockfile: EnvLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
   const lockfileConfigDeps = envLockfile.importers['.'].configDependencies
 
-  // Identify new-format (clean specifier) deps that are missing from the env lockfile.
-  // Old-format deps (with inline integrity or object format) are handled by
-  // installConfigDeps via the migration path.
   const depsToResolve: Array<{ name: string, specifier: string }> = []
-  let hasOldFormatDeps = false
+  let lockfileChanged = false
 
   for (const [name, value] of Object.entries(configDeps)) {
-    if (typeof value === 'object' || value.includes('+')) {
-      // Old format — will be handled by migration in installConfigDeps
-      hasOldFormatDeps = true
+    if (typeof value === 'object') {
+      // Old object format — migrate inline into lockfile
+      if (!lockfileConfigDeps[name]) {
+        const registry = pickRegistryForPackage(opts.registries, name)
+        const { version, integrity } = parseIntegrity(name, value.integrity)
+        const tarball = value.tarball ?? getNpmTarballUrl(name, version, { registry })
+        const pkgKey = `${name}@${version}`
+        lockfileConfigDeps[name] = { specifier: version, version }
+        envLockfile.packages[pkgKey] = {
+          resolution: toLockfileResolution({ name, version }, { integrity, tarball }, registry),
+        }
+        envLockfile.snapshots[pkgKey] = {}
+        lockfileChanged = true
+      }
+      continue
+    }
+
+    if (value.includes('+')) {
+      // Old string format with inline integrity — migrate into lockfile
+      if (!lockfileConfigDeps[name]) {
+        const registry = pickRegistryForPackage(opts.registries, name)
+        const { version, integrity } = parseIntegrity(name, value)
+        const tarball = getNpmTarballUrl(name, version, { registry })
+        const pkgKey = `${name}@${version}`
+        lockfileConfigDeps[name] = { specifier: version, version }
+        envLockfile.packages[pkgKey] = {
+          resolution: toLockfileResolution({ name, version }, { integrity, tarball }, registry),
+        }
+        envLockfile.snapshots[pkgKey] = {}
+        lockfileChanged = true
+      }
       continue
     }
 
@@ -58,20 +85,17 @@ export async function resolveAndInstallConfigDeps (
   }
 
   if (depsToResolve.length === 0) {
-    // Nothing to resolve — use existing install path
-    // Pass the env lockfile if we read one and all deps are new-format,
-    // otherwise pass the original configDeps for migration handling.
-    if (hasOldFormatDeps) {
-      await installConfigDeps(configDeps, opts)
-    } else {
-      await installConfigDeps(envLockfile, opts)
+    if (lockfileChanged) {
+      await writeEnvLockfile(opts.rootDir, envLockfile)
     }
+    await installConfigDeps(envLockfile, opts)
     return
   }
 
   // Resolve missing deps
+  const userConfig = opts.userConfig ?? {}
   const fetch = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.userConfig!, userSettings: opts.userConfig })
+  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: userConfig, userSettings: userConfig })
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
 
   await Promise.all(depsToResolve.map(async ({ name, specifier }) => {

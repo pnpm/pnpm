@@ -166,3 +166,32 @@ test('handles old format config deps via migration path', async () => {
   expect(manifest.name).toBe('@pnpm.e2e/foo')
   expect(manifest.version).toBe('100.0.0')
 })
+
+test('handles mixed old-format and new-format config deps together', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+
+  // One dep in old inline-integrity format, another as a clean specifier
+  const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
+  await resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foo': `100.0.0+${integrity}`,
+    '@pnpm.e2e/bar': '100.0.0',
+  }, opts)
+
+  // Both packages should be installed
+  const fooManifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')
+  expect(fooManifest.name).toBe('@pnpm.e2e/foo')
+  expect(fooManifest.version).toBe('100.0.0')
+
+  const barManifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/bar/package.json')
+  expect(barManifest.name).toBe('@pnpm.e2e/bar')
+  expect(barManifest.version).toBe('100.0.0')
+
+  // Env lockfile should have both deps
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile).not.toBeNull()
+  expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/foo']).toBeDefined()
+  expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/bar']).toBeDefined()
+  expect(envLockfile!.packages['@pnpm.e2e/foo@100.0.0']).toBeDefined()
+  expect(envLockfile!.packages['@pnpm.e2e/bar@100.0.0']).toBeDefined()
+})
