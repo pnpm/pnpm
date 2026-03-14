@@ -5,7 +5,7 @@ process.setMaxListeners(0)
 
 const argv = process.argv.slice(2)
 
-; (async () => {
+  ; (async () => {
   switch (argv[0]) {
   // commands that are passed through to npm:
   case 'access':
@@ -38,8 +38,6 @@ const argv = process.argv.slice(2)
   case 'token':
   case 'unpublish':
   case 'unstar':
-  case 'v':
-  case 'version':
   case 'view':
   case 'whoami':
   case 'xmas':

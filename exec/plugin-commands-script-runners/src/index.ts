@@ -3,5 +3,6 @@ import * as dlx from './dlx.js'
 import * as exec from './exec.js'
 import * as restart from './restart.js'
 import * as run from './run.js'
+import * as version from './version.js'
 
-export { create, dlx, exec, restart, run }
+export { create, dlx, exec, restart, run, version }
