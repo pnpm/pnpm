@@ -1,12 +1,11 @@
 import fs from 'node:fs'
 
 import { installConfigDeps } from '@pnpm/config.deps-installer'
-import { createEnvLockfile, type EnvLockfile } from '@pnpm/lockfile.fs'
+import { createEnvLockfile, type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import { loadJsonFileSync } from 'load-json-file'
-import { readYamlFileSync } from 'read-yaml-file'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -130,8 +129,8 @@ test('migration: installs from old inline integrity format and creates env lockf
     expect(configDepManifest.version).toBe('100.0.0')
   }
 
-  // Verify pnpm-lock.env.yaml was created with expected content
-  const envLockfile = readYamlFileSync<EnvLockfile>('pnpm-lock.env.yaml')
+  // Verify env lockfile was created with expected content in pnpm-lock.yaml
+  const envLockfile = (await readEnvLockfile(process.cwd()))!
   expect(envLockfile.lockfileVersion).toBeDefined()
   expect(envLockfile.importers['.'].configDependencies['@pnpm.e2e/foo']).toEqual({
     specifier: '100.0.0',

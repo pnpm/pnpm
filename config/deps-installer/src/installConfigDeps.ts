@@ -133,7 +133,7 @@ function normalizeFromLockfile (
     if (!pkgInfo) {
       throw new PnpmError(
         'ENV_LOCKFILE_CORRUPTED',
-        `pnpm-lock.env.yaml is corrupted or incomplete: missing packages entry for "${pkgKey}" ` +
+        `pnpm-lock.yaml is corrupted or incomplete: missing packages entry for "${pkgKey}" ` +
         'referenced from importers[\'.\'].configDependencies'
       )
     }
@@ -141,7 +141,7 @@ function normalizeFromLockfile (
     if (!resolution.integrity) {
       throw new PnpmError(
         'ENV_LOCKFILE_CORRUPTED',
-        `pnpm-lock.env.yaml is corrupted or incomplete: missing integrity for "${pkgKey}"`
+        `pnpm-lock.yaml is corrupted or incomplete: missing integrity for "${pkgKey}"`
       )
     }
     const registry = pickRegistryForPackage(registries, pkgName)

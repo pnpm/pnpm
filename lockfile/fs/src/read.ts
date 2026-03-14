@@ -21,6 +21,7 @@ import { autofixMergeConflicts, isDiff } from './gitMergeFile.js'
 import { convertToLockfileObject } from './lockfileFormatConverters.js'
 import { getWantedLockfileName } from './lockfileName.js'
 import { lockfileLogger as logger } from './logger.js'
+import { extractMainDocument } from './yamlDocuments.js'
 
 export async function readCurrentLockfile (
   pnpmInternalDir: string,
@@ -82,6 +83,14 @@ async function _read (
     if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
       throw err
     }
+    return {
+      lockfile: null,
+      hadConflicts: false,
+    }
+  }
+  // Skip the env lockfile document if present (first document in combined format)
+  lockfileRawContent = extractMainDocument(lockfileRawContent)
+  if (!lockfileRawContent.trim()) {
     return {
       lockfile: null,
       hadConflicts: false,
