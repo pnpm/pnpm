@@ -537,6 +537,8 @@ describe('linkExePlatformBinary', () => {
 
     // Write the placeholder file (as published in the @pnpm/exe tarball)
     fs.writeFileSync(path.join(vsExeDir, executable), 'This file intentionally left blank')
+    // Write a package.json (needed on Windows where bin.pnpm is rewritten to pnpm.exe)
+    fs.writeFileSync(path.join(vsExeDir, 'package.json'), JSON.stringify({ bin: { pnpm: 'pnpm' } }))
 
     // Write a fake platform binary
     const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm binary"'
@@ -565,6 +567,8 @@ describe('linkExePlatformBinary', () => {
     fs.mkdirSync(platformDir, { recursive: true })
 
     fs.writeFileSync(path.join(exeDir, executable), 'This file intentionally left blank')
+    // Write a package.json (needed on Windows where bin.pnpm is rewritten to pnpm.exe)
+    fs.writeFileSync(path.join(exeDir, 'package.json'), JSON.stringify({ bin: { pnpm: 'pnpm' } }))
 
     const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm binary"'
     fs.writeFileSync(path.join(platformDir, executable), fakeBinaryContent)
