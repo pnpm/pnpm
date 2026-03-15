@@ -7,47 +7,47 @@ importers:
     configDependencies: {}
     packageManagerDependencies:
       '@pnpm/exe':
-        specifier: 11.0.0-alpha.14
-        version: 11.0.0-alpha.14
+        specifier: 11.0.0-alpha.16
+        version: 11.0.0-alpha.16
       pnpm:
-        specifier: 11.0.0-alpha.14
-        version: 11.0.0-alpha.14
+        specifier: 11.0.0-alpha.16
+        version: 11.0.0-alpha.16
 
 packages:
 
-  '@pnpm/exe@11.0.0-alpha.14':
+  '@pnpm/exe@11.0.0-alpha.16':
     hasBin: true
-    resolution: {integrity: sha512-5iiOy5cmkL5bzzoQ0axrewafTVaHD9DM0459+4DjfK55yuVyUNgGZGQdbnuE3d9MUfqV400HYtp3EDHED5TCkw==}
+    resolution: {integrity: sha512-ZTSMcStelY7ET5Y1887FYCdU1ADSyoKWCVhN9Md3fRpIiUbqFnqY1W/p0lC8jhnlpJs3ZQDOIvVSs1NCrs8QeQ==}
 
-  '@pnpm/linux-arm64@11.0.0-alpha.14':
+  '@pnpm/linux-arm64@11.0.0-alpha.16':
     cpu: [arm64]
     os: [linux]
-    resolution: {integrity: sha512-ZryHdlaCO5vbmd3X/bHH6NUX4cjwCDq7V0HDjc3xXkO6rC2CSybimPZELbCSHXclnph6s3iXsQ5PrnEgeZOqqA==}
+    resolution: {integrity: sha512-F/Oo4IZEs37/G4K34JJfX9vI2Con40cRP3TjsDx6Th0ke5VWZ5hGo/3bEIoIi259jYBTfzmHovIqsZxWykRiog==}
 
-  '@pnpm/linux-x64@11.0.0-alpha.14':
+  '@pnpm/linux-x64@11.0.0-alpha.16':
     cpu: [x64]
     os: [linux]
-    resolution: {integrity: sha512-cPu1RK7ct3yCmMeYWX+T9U4j59Tphk4DicG1FY/DtvLkPKOu9wcficV7rNqW/h2PFOcF84NLYKlkoga6PiFW0w==}
+    resolution: {integrity: sha512-8VVXtnUeJmkYNAwYCaN93qDoZwXdFFXvUKoFHUk2pe1qXcoLTQRcrrfqsqQyaoex+VJKY5puWokvgdw9oRQBcw==}
 
-  '@pnpm/macos-arm64@11.0.0-alpha.14':
+  '@pnpm/macos-arm64@11.0.0-alpha.16':
     cpu: [arm64]
     os: [darwin]
-    resolution: {integrity: sha512-ZKQrZhxynoynE48bkd+i84LmyKiihffP+BuMPjVus+LK8BvpZutzz1kY3FfCslzDz8G6h04lqnc/4qMjGNENJw==}
+    resolution: {integrity: sha512-6myk++FpzyE4rY8VV42M4DimVW3EyDerlw8XUFfwJ61I/X3DrIaHInBfQCzPtif0W2B+KGU8MWJcFirgyBbI7w==}
 
-  '@pnpm/macos-x64@11.0.0-alpha.14':
+  '@pnpm/macos-x64@11.0.0-alpha.16':
     cpu: [x64]
     os: [darwin]
-    resolution: {integrity: sha512-GT1hLxgH+a8x//pkPiUgk09MIawcb+bsBNnuwMEmnkWHGiUSH2Vhwl2tVxuQLR0p5AoBk0f8bn9p8aB65BRtCQ==}
+    resolution: {integrity: sha512-HuQJe2xUCRlQ0Ec/Qqi7gJEI6ePBHG3z+GvET9t9nt5gpYtaa1c0xp9UZ6EFWIv1D3c+c6KC44lO+FN3PID3pA==}
 
-  '@pnpm/win-arm64@11.0.0-alpha.14':
+  '@pnpm/win-arm64@11.0.0-alpha.16':
     cpu: [arm64]
     os: [win32]
-    resolution: {integrity: sha512-HWbeu7IB+aZPmA1oLPj+HGIwdZvd+tlAWDZ9mEn2vVjhVtkEppBqXUVoHeGkMRIvPwpOnYOjWupbP8+jj0fEwg==}
+    resolution: {integrity: sha512-UegFBj6P4khxsalQwt7Uk0ZOwAzLMKfu0JctWoCbE4SchQoPrXv+SqlNMERucWFDwtt5IkIk+2moCpNLGPu3zw==}
 
-  '@pnpm/win-x64@11.0.0-alpha.14':
+  '@pnpm/win-x64@11.0.0-alpha.16':
     cpu: [x64]
     os: [win32]
-    resolution: {integrity: sha512-A5Wb/a38sdVgiQMJBG39DT+fYArz9ZUptout1sFO7fRS3SOXEqT+phlyGVG+eSulCLyvAOp1mM5p2dJC660hYQ==}
+    resolution: {integrity: sha512-3k7k17CcJuEYiPQDwIuSiF3CrIbC0ghOBJGolc5s5ghtpkQCWT1nfmoCjwc1waQ/gpQxz5LZbXw8YI5cNGyOAg==}
 
   '@reflink/reflink-darwin-arm64@0.1.19':
     cpu: [arm64]
@@ -105,40 +105,40 @@ packages:
     engines: {node: '>= 10'}
     resolution: {integrity: sha512-DmCG8GzysnCZ15bres3N5AHCmwBwYgp0As6xjhQ47rAUTUXxJiK+lLUxaGsX3hd/30qUpVElh05PbGuxRPgJwA==}
 
-  pnpm@11.0.0-alpha.14:
+  pnpm@11.0.0-alpha.16:
     engines: {node: '>=22.13'}
     hasBin: true
-    resolution: {integrity: sha512-ZTcL3tco39YIw7kQOBwGqf2heIWVjcULMvlTg2uoyW9uJZ3S5k/dj9bgSXskcFNgCV5dEgiZIjKrNTD9Kf4dbQ==}
+    resolution: {integrity: sha512-BXNfstjOACzr4U8xr+WSRs8cyPDBH/KWqyhE4NjDuv5xhtk1sIwz0Tr0yj4mff1eclDrQcsjMbFNFBOwRyacew==}
 
 snapshots:
 
-  '@pnpm/exe@11.0.0-alpha.14':
+  '@pnpm/exe@11.0.0-alpha.16':
     dependencies:
       '@reflink/reflink': 0.1.19
     optionalDependencies:
-      '@pnpm/win-arm64': 11.0.0-alpha.14
-      '@pnpm/macos-x64': 11.0.0-alpha.14
-      '@pnpm/win-x64': 11.0.0-alpha.14
-      '@pnpm/linux-x64': 11.0.0-alpha.14
-      '@pnpm/macos-arm64': 11.0.0-alpha.14
-      '@pnpm/linux-arm64': 11.0.0-alpha.14
+      '@pnpm/win-arm64': 11.0.0-alpha.16
+      '@pnpm/macos-arm64': 11.0.0-alpha.16
+      '@pnpm/linux-x64': 11.0.0-alpha.16
+      '@pnpm/macos-x64': 11.0.0-alpha.16
+      '@pnpm/linux-arm64': 11.0.0-alpha.16
+      '@pnpm/win-x64': 11.0.0-alpha.16
 
-  '@pnpm/linux-arm64@11.0.0-alpha.14':
+  '@pnpm/linux-arm64@11.0.0-alpha.16':
     optional: true
 
-  '@pnpm/linux-x64@11.0.0-alpha.14':
+  '@pnpm/linux-x64@11.0.0-alpha.16':
     optional: true
 
-  '@pnpm/macos-arm64@11.0.0-alpha.14':
+  '@pnpm/macos-arm64@11.0.0-alpha.16':
     optional: true
 
-  '@pnpm/macos-x64@11.0.0-alpha.14':
+  '@pnpm/macos-x64@11.0.0-alpha.16':
     optional: true
 
-  '@pnpm/win-arm64@11.0.0-alpha.14':
+  '@pnpm/win-arm64@11.0.0-alpha.16':
     optional: true
 
-  '@pnpm/win-x64@11.0.0-alpha.14':
+  '@pnpm/win-x64@11.0.0-alpha.16':
     optional: true
 
   '@reflink/reflink-darwin-arm64@0.1.19':
@@ -167,16 +167,16 @@ snapshots:
 
   '@reflink/reflink@0.1.19':
     optionalDependencies:
-      '@reflink/reflink-darwin-arm64': 0.1.19
       '@reflink/reflink-darwin-x64': 0.1.19
-      '@reflink/reflink-linux-x64-gnu': 0.1.19
       '@reflink/reflink-win32-x64-msvc': 0.1.19
-      '@reflink/reflink-linux-arm64-gnu': 0.1.19
+      '@reflink/reflink-linux-x64-gnu': 0.1.19
+      '@reflink/reflink-darwin-arm64': 0.1.19
       '@reflink/reflink-linux-arm64-musl': 0.1.19
-      '@reflink/reflink-linux-x64-musl': 0.1.19
+      '@reflink/reflink-linux-arm64-gnu': 0.1.19
       '@reflink/reflink-win32-arm64-msvc': 0.1.19
+      '@reflink/reflink-linux-x64-musl': 0.1.19
 
-  pnpm@11.0.0-alpha.14: {}
+  pnpm@11.0.0-alpha.16: {}
 
 ---
 lockfileVersion: '9.0'
@@ -1154,6 +1154,9 @@ importers:
       isexe:
         specifier: 'catalog:'
         version: 2.0.0
+      js-yaml:
+        specifier: 'catalog:'
+        version: '@zkochan/js-yaml@0.0.11'
       read-yaml-file:
         specifier: 'catalog:'
         version: 3.0.0
@@ -1170,6 +1173,9 @@ importers:
       '@types/isexe':
         specifier: 'catalog:'
         version: 2.0.2
+      '@types/js-yaml':
+        specifier: 'catalog:'
+        version: 4.0.9
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.15
