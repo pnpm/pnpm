@@ -235,10 +235,12 @@ export async function resolveDependencies (
     } else {
       updatedManifest = project.manifest
       updatedOriginalManifest = project.originalManifest
-      packageManifestLogger.debug({
-        prefix: project.rootDir,
-        updated: project.manifest,
-      })
+      if (!opts.dryRun) {
+        packageManifestLogger.debug({
+          prefix: project.rootDir,
+          updated: project.manifest,
+        })
+      }
     }
 
     if (updatedManifest != null) {
