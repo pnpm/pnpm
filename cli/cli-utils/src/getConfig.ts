@@ -3,8 +3,9 @@ import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli-meta'
 import { type CliOptions, type Config, getConfig as _getConfig } from '@pnpm/config'
-import { resolveAndInstallConfigDeps } from '@pnpm/config.deps-installer'
+import { isPackageManagerResolved, resolveAndInstallConfigDeps, resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import { formatWarn } from '@pnpm/default-reporter'
+import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createStoreController } from '@pnpm/store-connection-manager'
 import type { ConfigDependencies } from '@pnpm/types'
@@ -45,14 +46,31 @@ export async function getConfig (
 }
 
 export async function installConfigDepsAndLoadHooks (config: Config): Promise<Config> {
-  if (config.configDependencies) {
+  const rootDir = config.lockfileDir ?? config.rootProjectManifestDir
+  const wantedPmVersion = config.wantedPackageManager?.name === 'pnpm' ? config.wantedPackageManager.version : undefined
+  const needsConfigDeps = !!config.configDependencies
+  // Check if package manager integrities need resolution (without creating a store)
+  const envLockfile = wantedPmVersion ? (await readEnvLockfile(rootDir) ?? undefined) : undefined
+  const needsPmIntegrities = wantedPmVersion != null && !isPackageManagerResolved(envLockfile, wantedPmVersion)
+
+  if (needsConfigDeps || needsPmIntegrities) {
     const store = await createStoreController(config)
-    await resolveAndInstallConfigDeps(config.configDependencies, {
-      ...config,
-      store: store.ctrl,
-      storeDir: store.dir,
-      rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
-    })
+    if (needsConfigDeps) {
+      await resolveAndInstallConfigDeps(config.configDependencies!, {
+        ...config,
+        store: store.ctrl,
+        storeDir: store.dir,
+        rootDir,
+      })
+    }
+    if (needsPmIntegrities) {
+      await resolvePackageManagerIntegrities(wantedPmVersion, {
+        registries: config.registries,
+        rootDir,
+        storeController: store.ctrl,
+        storeDir: store.dir,
+      })
+    }
   }
   if (!config.ignorePnpmfile) {
     config.tryLoadDefaultPnpmfile = config.pnpmfile == null

@@ -25,6 +25,9 @@
       "path": "../../hooks/pnpmfile"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
       "path": "../../packages/error"
     },
     {

@@ -36,6 +36,7 @@
     "@pnpm/config.deps-installer": "workspace:*",
     "@pnpm/default-reporter": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/pnpmfile": "workspace:*",
