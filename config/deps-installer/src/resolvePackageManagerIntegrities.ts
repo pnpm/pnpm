@@ -1,9 +1,10 @@
-import { convertToLockfileFile, convertToLockfileObject, createEnvLockfile, readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
+import { convertToLockfileFile, createEnvLockfile, readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/package-store'
 import type { DepPath, ProjectId, Registries } from '@pnpm/types'
 
+import { convertToLockfileEnvObject } from './pruneEnvLockfile.js'
 import { resolveManifestDependencies } from './resolveManifestDependencies.js'
 
 export interface ResolvePackageManagerIntegritiesOpts {
@@ -71,20 +72,8 @@ export async function resolvePackageManagerIntegrities (
     }
     envLockfile.importers['.'].packageManagerDependencies = packageManagerDependencies
 
-    // Convert env lockfile to LockfileObject, merge new packages, prune, and split back
-    const merged = convertToLockfileObject({
-      lockfileVersion: envLockfile.lockfileVersion,
-      importers: {
-        '.': {
-          dependencies: {
-            ...envLockfile.importers['.'].configDependencies,
-            ...envLockfile.importers['.'].packageManagerDependencies,
-          },
-        },
-      },
-      packages: envLockfile.packages,
-      snapshots: envLockfile.snapshots,
-    })
+    // Merge new packages into the env lockfile object, then prune stale entries
+    const merged = convertToLockfileEnvObject(envLockfile)
     for (const [depPath, pkg] of Object.entries(lockfile.packages)) {
       merged.packages![depPath as DepPath] = pkg
     }
