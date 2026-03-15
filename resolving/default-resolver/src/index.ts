@@ -20,6 +20,7 @@ import type {
   ResolveResult,
   WantedDependency,
 } from '@pnpm/resolver-base'
+import { type AquaResolveResult, resolveAqua } from '@pnpm/resolving.aqua-resolver'
 import { type BunRuntimeResolveResult, resolveBunRuntime } from '@pnpm/resolving.bun-resolver'
 import { type DenoRuntimeResolveResult, resolveDenoRuntime } from '@pnpm/resolving.deno-resolver'
 import { resolveFromTarball, type TarballResolveResult } from '@pnpm/tarball-resolver'
@@ -45,6 +46,7 @@ export type DefaultResolveResult =
   | NodeRuntimeResolveResult
   | DenoRuntimeResolveResult
   | BunRuntimeResolveResult
+  | AquaResolveResult
   | CustomResolverResolveResult
 
 export type DefaultResolver = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<DefaultResolveResult>
@@ -99,6 +101,7 @@ export function createResolver (
   const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig })
   const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
+  const _resolveAqua = resolveAqua.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline })
   const _resolveFromCustomResolvers = pnpmOpts.customResolvers
     ? resolveFromCustomResolvers.bind(null, pnpmOpts.customResolvers)
     : null
@@ -110,6 +113,7 @@ export function createResolver (
         (wantedDependency.bareSpecifier && (
           await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
+          await _resolveAqua(wantedDependency, opts) ??
           await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
         )) ??
         await _resolveNodeRuntime(wantedDependency, opts) ??
