@@ -27,7 +27,7 @@ export type ResolveAndInstallConfigDepsOpts = CreateFetchFromRegistryOptions & R
  *
  * This handles two scenarios:
  * 1. User manually added config deps to pnpm-workspace.yaml
- * 2. User deleted pnpm-lock.env.yaml after installing config deps
+ * 2. User deleted pnpm-lock.yaml after installing config deps
  */
 export async function resolveAndInstallConfigDeps (
   configDeps: ConfigDependencies,
