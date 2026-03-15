@@ -643,7 +643,8 @@ describe('node binary linking', () => {
       // node install whose store entry was removed).
       const binLocation = path.join(binTarget, 'node')
       fs.mkdirSync(binTarget, { recursive: true })
-      fs.symlinkSync('/tmp/non-existent-target', binLocation)
+      const danglingTarget = path.join(temporaryDirectory(), 'non-existent-target')
+      fs.symlinkSync(danglingTarget, binLocation)
       // Verify it's dangling: lstat succeeds but existsSync returns false
       expect(fs.lstatSync(binLocation).isSymbolicLink()).toBe(true)
       expect(fs.existsSync(binLocation)).toBe(false)
