@@ -124,7 +124,8 @@ test('fail fast with actionable hint on non-TTY when modules purge needs confirm
   expect(util.types.isNativeError(err)).toBeTruthy()
   if (util.types.isNativeError(err)) {
     expect('code' in err && err.code).toBe('ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY')
-    expect(err.message).toContain('confirmModulesPurge')
+    expect(err.message).toContain('no TTY')
+    expect('hint' in err && typeof err.hint === 'string' && err.hint).toContain('confirmModulesPurge')
   }
 })
 
