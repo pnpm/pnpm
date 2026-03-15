@@ -4,7 +4,7 @@ import path from 'node:path'
 import { assertProject } from '@pnpm/assert-project'
 import { install, type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { getIntegrity } from '@pnpm/registry-mock'
+import { addDistTag, getIntegrity } from '@pnpm/registry-mock'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { ProjectRootDir } from '@pnpm/types'
@@ -488,6 +488,7 @@ test('injected local packages work with global virtual store', async () => {
 })
 
 test('virtualStoreOnly populates standard virtual store without importer symlinks', async () => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   prepareEmpty()
   const manifest = {
     dependencies: {
@@ -625,6 +626,7 @@ test('virtualStoreOnly with frozenLockfile populates virtual store without impor
 })
 
 test('virtualStoreOnly with frozenLockfile populates standard virtual store without importer symlinks', async () => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   prepareEmpty()
   const manifest = {
     dependencies: {
