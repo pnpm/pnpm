@@ -21,6 +21,14 @@ const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const skipOnWindows = isWindows() ? test.skip : test
 const onlyOnWindows = !isWindows() ? test.skip : test
 
+test('run command defines --raw option and shorthand mappings', () => {
+  expect(run.cliOptionsTypes()).toMatchObject({
+    raw: Boolean,
+  })
+  expect(run.shorthands.raw).toStrictEqual(['--stream', '--reporter-hide-prefix'])
+  expect(run.shorthands.R).toStrictEqual(['--raw'])
+})
+
 test('pnpm run: returns correct exit code', async () => {
   prepare({
     scripts: {

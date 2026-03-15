@@ -71,12 +71,23 @@ export const REPORTER_HIDE_PREFIX_HELP: DescriptionItem = {
   name: '--reporter-hide-prefix',
 }
 
+export const RAW_OPTION_HELP: DescriptionItem = {
+  description: 'Print raw output for recursive run by enabling --stream and --reporter-hide-prefix.',
+  name: '--raw',
+  shortAlias: '-R',
+}
+
 export const shorthands: Record<string, string[]> = {
+  R: ['--raw'],
   parallel: [
     '--workspace-concurrency=Infinity',
     '--no-sort',
     '--stream',
     '--recursive',
+  ],
+  raw: [
+    '--stream',
+    '--reporter-hide-prefix',
   ],
   sequential: [
     '--workspace-concurrency=1',
@@ -103,6 +114,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     ...IF_PRESENT_OPTION,
     recursive: Boolean,
     reverse: Boolean,
+    raw: Boolean,
     'resume-from': String,
     'report-summary': Boolean,
     'reporter-hide-prefix': Boolean,
@@ -145,6 +157,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           ...UNIVERSAL_OPTIONS,
           SEQUENTIAL_OPTION_HELP,
           REPORT_SUMMARY_OPTION_HELP,
+          RAW_OPTION_HELP,
           REPORTER_HIDE_PREFIX_HELP,
         ],
       },
@@ -157,7 +170,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
-  & { recursive?: boolean }
+  & { recursive?: boolean, raw?: boolean }
   & Pick<Config,
   | 'bin'
   | 'cliOptions'
@@ -207,6 +220,10 @@ export async function handler (
       ...opts.extraEnv,
       NODE_OPTIONS: opts.nodeOptions,
     }
+  }
+
+  if (opts.raw) {
+    opts.stream = true
   }
 
   if (opts.recursive) {
