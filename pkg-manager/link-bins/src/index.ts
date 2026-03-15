@@ -28,6 +28,20 @@ const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 const POWER_SHELL_IS_SUPPORTED = IS_WINDOWS
 
+// Maps a bin name to all packages that are legitimate owners of it, beyond
+// the default rule that a package named `X` owns the `X` bin.  For example,
+// `npx` ships inside the `npm` package, and `pnpx` ships inside both the
+// `pnpm` package and the `@pnpm/exe` package.
+const BIN_OWNER_OVERRIDES: Record<string, string[]> = {
+  npx: ['npm'],
+  pnpm: ['@pnpm/exe'],
+  pnpx: ['pnpm', '@pnpm/exe'],
+}
+
+function pkgOwnsBin (binName: string, pkgName: string): boolean {
+  return binName === pkgName || BIN_OWNER_OVERRIDES[binName]?.includes(pkgName) === true
+}
+
 export type WarningCode = 'BINARIES_CONFLICT' | 'EMPTY_BIN'
 
 export type WarnFunction = (msg: string, code: WarningCode) => void
@@ -170,6 +184,12 @@ function resolveCommandConflicts (group: CommandInfo[], binsDir: string): Comman
 }
 
 function compareCommandsInConflict (a: CommandInfo, b: CommandInfo): number {
+  // Check ownership: a package that owns the bin name gets priority
+  const aOwns = pkgOwnsBin(a.name, a.pkgName)
+  const bOwns = pkgOwnsBin(b.name, b.pkgName)
+  if (aOwns && !bOwns) return 1
+  if (!aOwns && bOwns) return -1
+  // Legacy check for backward compatibility (ownName is cmd.name === manifest.name)
   if (a.ownName && !b.ownName) return 1
   if (!a.ownName && b.ownName) return -1
   if (a.pkgName !== b.pkgName) return a.pkgName.localeCompare(b.pkgName) // it's pointless to compare versions of 2 different package

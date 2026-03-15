@@ -660,3 +660,29 @@ describe('node binary linking', () => {
     expect(fs.existsSync(path.join(binTarget, `node${CMD_EXTENSION}`))).toBe(false)
   })
 })
+
+test('linkBins() resolves conflicts using BIN_OWNER_OVERRIDES (npx owned by npm)', async () => {
+  const binTarget = temporaryDirectory()
+  const binOwnerOverrideFixture = f.prepare('bin-owner-override')
+  const warn = jest.fn()
+
+  await linkBins(path.join(binOwnerOverrideFixture, 'node_modules'), binTarget, { warn })
+
+  // npx should be linked from npm package (owner override), not node or other-pkg
+  // BIN_OWNER_OVERRIDES says: npx is owned by npm
+  expect(binsConflictLogger.debug).toHaveBeenCalledWith(
+    expect.objectContaining({
+      binaryName: 'npx',
+      binsDir: binTarget,
+      linkedPkgName: 'npm',
+      skippedPkgName: expect.any(String),
+      skippedPkgVersion: expect.any(String),
+    })
+  )
+
+  const binLocation = path.join(binTarget, 'npx')
+  expect(fs.existsSync(binLocation)).toBe(true)
+  const content = fs.readFileSync(binLocation, 'utf8')
+  // npx should come from npm package, not node or other-pkg
+  expect(content).toMatch('node_modules/npm/bin/npx-cli.js')
+})
