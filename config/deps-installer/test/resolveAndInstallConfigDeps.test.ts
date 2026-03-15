@@ -108,8 +108,8 @@ test('re-resolves all config deps when env lockfile is deleted', async () => {
     '@pnpm.e2e/foo': '100.0.0',
   }, opts)
 
-  // Now delete the env lockfile
-  fs.unlinkSync(path.join(process.cwd(), 'pnpm-lock.env.yaml'))
+  // Now delete the lockfile (env lockfile is stored inside pnpm-lock.yaml)
+  fs.unlinkSync(path.join(process.cwd(), 'pnpm-lock.yaml'))
 
   // Re-install should re-resolve and recreate the lockfile
   await resolveAndInstallConfigDeps({
