@@ -1,11 +1,14 @@
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/fetch'
 import {
+  convertToLockfileFile,
+  convertToLockfileObject,
   createEnvLockfile,
   type EnvLockfile,
   readEnvLockfile,
   writeEnvLockfile,
 } from '@pnpm/lockfile.fs'
+import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/npm-resolver'
@@ -129,6 +132,25 @@ export async function resolveAndInstallConfigDeps (
     }
     envLockfile.snapshots[pkgKey] = {}
   }))
+
+  // Prune stale packages/snapshots (e.g. old versions after a version change)
+  const merged = convertToLockfileObject({
+    lockfileVersion: envLockfile.lockfileVersion,
+    importers: {
+      '.': {
+        dependencies: {
+          ...envLockfile.importers['.'].configDependencies,
+          ...envLockfile.importers['.'].packageManagerDependencies,
+        },
+      },
+    },
+    packages: envLockfile.packages,
+    snapshots: envLockfile.snapshots,
+  })
+  const pruned = pruneSharedLockfile(merged)
+  const prunedFile = convertToLockfileFile(pruned)
+  envLockfile.packages = prunedFile.packages ?? {}
+  envLockfile.snapshots = prunedFile.snapshots ?? {}
 
   await writeEnvLockfile(opts.rootDir, envLockfile)
   await installConfigDeps(envLockfile, opts)

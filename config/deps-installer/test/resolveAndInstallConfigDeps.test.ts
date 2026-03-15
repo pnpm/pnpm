@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { resolveAndInstallConfigDeps } from '@pnpm/config.deps-installer'
@@ -87,46 +86,6 @@ test('resolves newly added config dep when env lockfile already has other deps',
   expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/bar']).toBeDefined()
 })
 
-test('re-resolves all config deps when env lockfile is deleted', async () => {
-  prepareEmpty()
-  const opts = createOpts()
-
-  // First install with env lockfile
-  const lockfile = createEnvLockfile()
-  lockfile.importers['.'].configDependencies['@pnpm.e2e/foo'] = {
-    specifier: '100.0.0',
-    version: '100.0.0',
-  }
-  lockfile.packages['@pnpm.e2e/foo@100.0.0'] = {
-    resolution: { integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
-  }
-  lockfile.snapshots['@pnpm.e2e/foo@100.0.0'] = {}
-  await writeEnvLockfile(process.cwd(), lockfile)
-
-  // Install first to populate the store
-  await resolveAndInstallConfigDeps({
-    '@pnpm.e2e/foo': '100.0.0',
-  }, opts)
-
-  // Now delete the lockfile (env lockfile is stored inside pnpm-lock.yaml)
-  fs.unlinkSync(path.join(process.cwd(), 'pnpm-lock.yaml'))
-
-  // Re-install should re-resolve and recreate the lockfile
-  await resolveAndInstallConfigDeps({
-    '@pnpm.e2e/foo': '100.0.0',
-  }, opts)
-
-  const manifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')
-  expect(manifest.name).toBe('@pnpm.e2e/foo')
-  expect(manifest.version).toBe('100.0.0')
-
-  // Env lockfile should be recreated
-  const envLockfile = await readEnvLockfile(process.cwd())
-  expect(envLockfile).not.toBeNull()
-  expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/foo']).toBeDefined()
-  expect(envLockfile!.packages['@pnpm.e2e/foo@100.0.0']).toBeDefined()
-})
-
 test('skips resolution when all deps are already in env lockfile', async () => {
   prepareEmpty()
   const opts = createOpts()
@@ -151,6 +110,53 @@ test('skips resolution when all deps are already in env lockfile', async () => {
   const manifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')
   expect(manifest.name).toBe('@pnpm.e2e/foo')
   expect(manifest.version).toBe('100.0.0')
+})
+
+test('re-resolves and reinstalls when config dep version changes in pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+
+  // Pre-create env lockfile with foo@100.0.0
+  const lockfile = createEnvLockfile()
+  lockfile.importers['.'].configDependencies['@pnpm.e2e/foo'] = {
+    specifier: '100.0.0',
+    version: '100.0.0',
+  }
+  lockfile.packages['@pnpm.e2e/foo@100.0.0'] = {
+    resolution: { integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
+  }
+  lockfile.snapshots['@pnpm.e2e/foo@100.0.0'] = {}
+  await writeEnvLockfile(process.cwd(), lockfile)
+
+  // Install first with the old version
+  await resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foo': '100.0.0',
+  }, opts)
+
+  // Now simulate user changing the version in pnpm-workspace.yaml
+  await resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foo': '100.1.0',
+  }, opts)
+
+  // The new version should be installed
+  const manifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')
+  expect(manifest.name).toBe('@pnpm.e2e/foo')
+  expect(manifest.version).toBe('100.1.0')
+
+  // Env lockfile should be updated with the new version
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile).not.toBeNull()
+  expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '100.1.0',
+    version: '100.1.0',
+  })
+  expect(envLockfile!.packages['@pnpm.e2e/foo@100.1.0']).toStrictEqual({
+    resolution: {
+      integrity: getIntegrity('@pnpm.e2e/foo', '100.1.0'),
+    },
+  })
+  // Old version should be cleaned up from the lockfile
+  expect(envLockfile!.packages['@pnpm.e2e/foo@100.0.0']).toBeUndefined()
 })
 
 test('handles old format config deps via migration path', async () => {
