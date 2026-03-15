@@ -59,8 +59,11 @@
     "typescript": "catalog:",
     "verdaccio": "catalog:"
   },
-  "engines": {
-    "pnpm": ">=9.6.0"
-  },
-  "packageManager": "pnpm@11.0.0-alpha.16"
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.0.0-alpha.16",
+      "onFail": "download"
+    }
+  }
 }
