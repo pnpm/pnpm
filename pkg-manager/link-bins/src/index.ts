@@ -310,13 +310,10 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   } else if (cmd.name === 'node') {
     // On non-Windows, node should be symlinked directly to the binary
     // instead of wrapped in a shell shim.
-    try {
-      if (existsSync(externalBinPath)) {
-        await rimraf(externalBinPath)
-      }
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
-    }
+    // Use rimraf unconditionally instead of existsSync check, because
+    // existsSync follows symlinks and returns false for broken symlinks,
+    // causing EEXIST when the dangling symlink still exists on disk.
+    await rimraf(externalBinPath)
     await fs.symlink(cmd.path, externalBinPath, 'file')
     return
   }

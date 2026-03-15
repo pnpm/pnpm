@@ -630,6 +630,42 @@ describe('node binary linking', () => {
       expect(stat.isSymbolicLink()).toBe(true)
       expect(fs.realpathSync(binLocation)).toBe(path.join(nodeBinDir, 'node'))
     })
+
+    test('linkBinsOfPackages() replaces a dangling symlink when linking node binary', async () => {
+      const binTarget = temporaryDirectory()
+      const nodeDir = temporaryDirectory()
+
+      const nodeBinDir = path.join(nodeDir, 'bin')
+      fs.mkdirSync(nodeBinDir, { recursive: true })
+      fs.writeFileSync(path.join(nodeBinDir, 'node'), 'fake-node-binary', 'utf8')
+
+      // Create a dangling symlink at the target path (simulates a previous
+      // node install whose store entry was removed).
+      const binLocation = path.join(binTarget, 'node')
+      fs.mkdirSync(binTarget, { recursive: true })
+      fs.symlinkSync('/tmp/non-existent-target', binLocation)
+      // Verify it's dangling: lstat succeeds but existsSync returns false
+      expect(fs.lstatSync(binLocation).isSymbolicLink()).toBe(true)
+      expect(fs.existsSync(binLocation)).toBe(false)
+
+      await linkBinsOfPackages(
+        [
+          {
+            location: nodeDir,
+            manifest: {
+              name: 'node',
+              version: '20.0.0',
+              bin: { node: 'bin/node' },
+            },
+          },
+        ],
+        binTarget
+      )
+
+      const stat = fs.lstatSync(binLocation)
+      expect(stat.isSymbolicLink()).toBe(true)
+      expect(fs.realpathSync(binLocation)).toBe(path.join(nodeBinDir, 'node'))
+    })
   }
 
   testOnWindows('linkBinsOfPackages() hardlinks node.exe instead of creating a cmd-shim', async () => {
