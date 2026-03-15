@@ -38,6 +38,54 @@ const h1 = chalk.cyanBright
 
 const EOL = '\n'
 
+test('does not show false dependency changes when updated manifest is not logged', async () => {
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  // During a dry run, only the initial manifest is logged (no updated manifest).
+  // The summary should only show root-level added packages, not false dependency type changes.
+  packageManifestLogger.debug({
+    initial: {
+      name: 'foo',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '^1.0.0',
+      },
+      devDependencies: {
+        'is-negative': '^1.0.0',
+      },
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/is-positive/1.0.0',
+      name: 'is-positive',
+      realName: 'is-positive',
+      version: '1.0.0',
+    },
+    prefix,
+  })
+  summaryLogger.debug({ prefix })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  // Should only show the added package, not re-list existing deps as added/removed
+  expect(output).toBe(EOL + `\
+${h1('dependencies:')}
+${ADD} is-positive ${versionColor('1.0.0')}
+`)
+})
+
 test('prints summary (of current package only)', async () => {
   const prefix = '/home/jane/project'
   const output$ = toOutput$({
