@@ -229,6 +229,7 @@ export async function getConfig (opts: {
     'embed-readme': false,
     'registry-supports-time-field': false,
     'virtual-store-dir-max-length': isWindows() ? 60 : 120,
+    'virtual-store-only': false,
     'peers-suffix-max-length': 1000,
   }
 
