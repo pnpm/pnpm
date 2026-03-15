@@ -26,7 +26,8 @@ describe('streamReadFirstYamlDocument', () => {
   })
 
   test('returns null for a non-existent file', async () => {
-    const result = await streamReadFirstYamlDocument('/tmp/does-not-exist-yaml-doc-test.yaml')
+    const dir = temporaryDirectory()
+    const result = await streamReadFirstYamlDocument(path.join(dir, 'nonexistent.yaml'))
     expect(result).toBeNull()
   })
 

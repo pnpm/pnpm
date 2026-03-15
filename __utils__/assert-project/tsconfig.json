@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../lockfile/fs"
+    },
+    {
       "path": "../../lockfile/types"
     },
     {
