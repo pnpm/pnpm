@@ -11,4 +11,5 @@ export {
   writeLockfiles,
   writeWantedLockfile,
 } from './write.js'
+export { extractMainDocument } from './yamlDocuments.js'
 export * from '@pnpm/lockfile.types'

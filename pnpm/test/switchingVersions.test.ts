@@ -138,7 +138,7 @@ test('devEngines.packageManager with onFail=download reuses resolved version fro
   expect(secondRun.stdout.toString()).toContain('Version 9.1.3')
 
   // Verify env lockfile was written
-  expect(fs.existsSync('pnpm-lock.env.yaml')).toBe(true)
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
 })
 
 test('devEngines.packageManager re-resolves when locked version no longer satisfies updated range', async () => {
@@ -158,7 +158,7 @@ test('devEngines.packageManager re-resolves when locked version no longer satisf
   })
   const firstRun = execPnpmSync(['help'], { env })
   expect(firstRun.stdout.toString()).toContain('Version 9.1.1')
-  expect(fs.existsSync('pnpm-lock.env.yaml')).toBe(true)
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
 
   // Update range so the previously locked 9.1.1 no longer satisfies it
   writeJsonFileSync('package.json', {

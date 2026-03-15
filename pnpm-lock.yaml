@@ -973,6 +973,9 @@ importers:
       isexe:
         specifier: 'catalog:'
         version: 2.0.0
+      js-yaml:
+        specifier: 'catalog:'
+        version: '@zkochan/js-yaml@0.0.11'
       read-yaml-file:
         specifier: 'catalog:'
         version: 3.0.0
@@ -989,6 +992,9 @@ importers:
       '@types/isexe':
         specifier: 'catalog:'
         version: 2.0.2
+      '@types/js-yaml':
+        specifier: 'catalog:'
+        version: 4.0.9
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.15

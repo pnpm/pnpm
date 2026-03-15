@@ -2,15 +2,14 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { ENV_LOCKFILE, LOCKFILE_VERSION } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
 import yaml from 'js-yaml'
-import stripBom from 'strip-bom'
 import writeFileAtomic from 'write-file-atomic'
 
 import { lockfileYamlDump } from './write.js'
+import { extractMainDocument, streamReadFirstYamlDocument } from './yamlDocuments.js'
 
 export function createEnvLockfile (): EnvLockfile {
   return {
@@ -26,32 +25,27 @@ export function createEnvLockfile (): EnvLockfile {
 }
 
 export async function readEnvLockfile (rootDir: string): Promise<EnvLockfile | null> {
-  const lockfilePath = path.join(rootDir, ENV_LOCKFILE)
-  let rawContent: string
-  try {
-    rawContent = stripBom(await fs.readFile(lockfilePath, 'utf8'))
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return null
-    }
-    throw err
+  const lockfilePath = path.join(rootDir, WANTED_LOCKFILE)
+  const rawContent = await streamReadFirstYamlDocument(lockfilePath)
+  if (rawContent == null) {
+    return null
   }
   const parsed = yaml.load(rawContent)
   if (parsed == null || typeof parsed !== 'object') {
-    throw new PnpmError('INVALID_ENV_LOCKFILE', `Invalid env lockfile at ${lockfilePath}: expected a YAML object`)
+    return null
   }
   const lockfile = parsed as Record<string, unknown>
   if (typeof lockfile.lockfileVersion !== 'string') {
-    throw new PnpmError('INVALID_ENV_LOCKFILE', `Invalid env lockfile at ${lockfilePath}: missing or non-string "lockfileVersion"`)
+    return null
   }
   if (lockfile.importers == null || typeof lockfile.importers !== 'object') {
-    throw new PnpmError('INVALID_ENV_LOCKFILE', `Invalid env lockfile at ${lockfilePath}: missing or invalid "importers"`)
+    return null
   }
   if (lockfile.packages == null || typeof lockfile.packages !== 'object') {
-    throw new PnpmError('INVALID_ENV_LOCKFILE', `Invalid env lockfile at ${lockfilePath}: missing or invalid "packages"`)
+    return null
   }
   if (lockfile.snapshots == null || typeof lockfile.snapshots !== 'object') {
-    throw new PnpmError('INVALID_ENV_LOCKFILE', `Invalid env lockfile at ${lockfilePath}: missing or invalid "snapshots"`)
+    return null
   }
   const envLockfile = parsed as EnvLockfile
   if (!envLockfile.importers['.']) {
@@ -63,10 +57,23 @@ export async function readEnvLockfile (rootDir: string): Promise<EnvLockfile | n
 }
 
 export async function writeEnvLockfile (rootDir: string, lockfile: EnvLockfile): Promise<void> {
-  const lockfilePath = path.join(rootDir, ENV_LOCKFILE)
+  const lockfilePath = path.join(rootDir, WANTED_LOCKFILE)
   const sorted = sortEnvLockfile(lockfile)
-  const yamlDoc = lockfileYamlDump(sorted)
-  return writeFileAtomic(lockfilePath, yamlDoc)
+  const envYaml = lockfileYamlDump(sorted)
+
+  // Read existing main lockfile document to preserve it
+  let mainDoc = ''
+  try {
+    const existing = await fs.readFile(lockfilePath, 'utf8')
+    mainDoc = extractMainDocument(existing)
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+      throw err
+    }
+  }
+
+  const combined = `---\n${envYaml}\n---\n${mainDoc}`
+  return writeFileAtomic(lockfilePath, combined)
 }
 
 function sortEnvLockfile (lockfile: EnvLockfile): EnvLockfile {

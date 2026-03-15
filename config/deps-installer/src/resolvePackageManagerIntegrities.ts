@@ -32,7 +32,7 @@ export function isPackageManagerResolved (
 /**
  * Resolves integrity checksums for `pnpm`, `@pnpm/exe`, and their dependencies
  * by calling resolveManifestDependencies.
- * Writes the results to the `packageManagerDependencies` section of pnpm-lock.env.yaml.
+ * Writes the results to the `packageManagerDependencies` section of pnpm-lock.yaml.
  */
 export async function resolvePackageManagerIntegrities (
   pnpmVersion: string,

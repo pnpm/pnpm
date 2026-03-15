@@ -12,6 +12,7 @@ import { convertToLockfileFile } from './lockfileFormatConverters.js'
 import { getWantedLockfileName } from './lockfileName.js'
 import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
+import { streamReadFirstYamlDocument, YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START } from './yamlDocuments.js'
 
 const LOCKFILE_YAML_FORMAT = {
   blankLines: true,
@@ -58,7 +59,19 @@ async function writeLockfile (
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
   const lockfileToStringify = convertToLockfileFile(wantedLockfile)
-  return writeLockfileFile(lockfilePath, lockfileToStringify)
+  const yamlDoc = yamlStringify(lockfileToStringify)
+
+  if (lockfileFilename === WANTED_LOCKFILE) {
+    // Re-read the env document from the existing lockfile to preserve it.
+    // Ideally the env document would be captured during the initial lockfile read
+    // and passed through to the write functions, but that would require threading it
+    // through 25+ call sites. Re-reading is cheap since the file is likely still
+    // in the OS page cache and streaming stops at the first separator.
+    const envDoc = await streamReadFirstYamlDocument(lockfilePath)
+    const envPrefix = envDoc != null ? `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}` : ''
+    return writeFileAtomic(lockfilePath, `${envPrefix}${yamlDoc}`)
+  }
+  return writeFileAtomic(lockfilePath, yamlDoc)
 }
 
 export function writeLockfileFile (
@@ -95,17 +108,28 @@ export async function writeLockfiles (
   const wantedLockfileToStringify = convertToLockfileFile(opts.wantedLockfile)
   const yamlDoc = yamlStringify(wantedLockfileToStringify)
 
+  // Preserve the env lockfile document at the top of pnpm-lock.yaml
+  let envPrefix = ''
+  if (wantedLockfileName === WANTED_LOCKFILE) {
+    const envDoc = await streamReadFirstYamlDocument(wantedLockfilePath)
+    if (envDoc != null) {
+      envPrefix = `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}`
+    }
+  }
+  const wantedYamlDoc = `${envPrefix}${yamlDoc}`
+
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files
   // which is more efficient
   if (opts.wantedLockfile === opts.currentLockfile) {
     await Promise.all([
-      writeFileAtomic(wantedLockfilePath, yamlDoc),
+      writeFileAtomic(wantedLockfilePath, wantedYamlDoc),
       (async () => {
         if (isEmptyLockfile(opts.wantedLockfile)) {
           await rimraf(currentLockfilePath)
         } else {
           await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
+          // Current lockfile (node_modules/.pnpm/lock.yaml) does not include the env document
           await writeFileAtomic(currentLockfilePath, yamlDoc)
         }
       })(),
@@ -122,7 +146,7 @@ export async function writeLockfiles (
   const currentYamlDoc = yamlStringify(currentLockfileToStringify)
 
   await Promise.all([
-    writeFileAtomic(wantedLockfilePath, yamlDoc),
+    writeFileAtomic(wantedLockfilePath, wantedYamlDoc),
     (async () => {
       if (isEmptyLockfile(opts.wantedLockfile)) {
         await rimraf(currentLockfilePath)
