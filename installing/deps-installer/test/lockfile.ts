@@ -1244,6 +1244,7 @@ packages:
 
 test('a lockfile v6 with merge conflicts is autofixed', async () => {
   const project = prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   fs.writeFileSync(WANTED_LOCKFILE, `\
 lockfileVersion: '${LOCKFILE_VERSION}'
