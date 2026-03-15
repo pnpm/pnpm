@@ -116,12 +116,12 @@ snapshots:
     dependencies:
       '@reflink/reflink': 0.1.19
     optionalDependencies:
-      '@pnpm/linux-x64': 11.0.0-alpha.16
-      '@pnpm/win-x64': 11.0.0-alpha.16
       '@pnpm/win-arm64': 11.0.0-alpha.16
-      '@pnpm/linux-arm64': 11.0.0-alpha.16
-      '@pnpm/macos-x64': 11.0.0-alpha.16
       '@pnpm/macos-arm64': 11.0.0-alpha.16
+      '@pnpm/linux-x64': 11.0.0-alpha.16
+      '@pnpm/macos-x64': 11.0.0-alpha.16
+      '@pnpm/linux-arm64': 11.0.0-alpha.16
+      '@pnpm/win-x64': 11.0.0-alpha.16
 
   '@pnpm/linux-arm64@11.0.0-alpha.16':
     optional: true
@@ -169,12 +169,12 @@ snapshots:
     optionalDependencies:
       '@reflink/reflink-darwin-x64': 0.1.19
       '@reflink/reflink-win32-x64-msvc': 0.1.19
-      '@reflink/reflink-linux-arm64-gnu': 0.1.19
       '@reflink/reflink-linux-x64-gnu': 0.1.19
-      '@reflink/reflink-linux-arm64-musl': 0.1.19
       '@reflink/reflink-darwin-arm64': 0.1.19
-      '@reflink/reflink-linux-x64-musl': 0.1.19
+      '@reflink/reflink-linux-arm64-musl': 0.1.19
+      '@reflink/reflink-linux-arm64-gnu': 0.1.19
       '@reflink/reflink-win32-arm64-msvc': 0.1.19
+      '@reflink/reflink-linux-x64-musl': 0.1.19
 
   pnpm@11.0.0-alpha.16: {}
 
