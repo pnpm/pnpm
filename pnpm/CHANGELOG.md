@@ -1,6 +1,6 @@
 # pnpm
 
-## 11.0.0-alpha.14
+## 11.0.0-alpha.15
 
 ### Major Changes
 
@@ -142,7 +142,7 @@
 ### Minor Changes
 
 - Config dependencies are now installed into the global virtual store (`{storeDir}/links/`) and symlinked into `node_modules/.pnpm-config/`. This allows config dependencies to be shared across projects that use the same store, avoiding redundant fetches and imports [#10910](https://github.com/pnpm/pnpm/pull/10910).
-- Store config dependency and package manager integrity info in a separate `pnpm-lock.env.yaml` lockfile instead of inlining it in `pnpm-workspace.yaml`. The workspace manifest now contains only clean version specifiers for `configDependencies`, while the resolved versions, integrity hashes, and tarball URLs are recorded in the new env lockfile. The env lockfile also stores `packageManagerDependencies` resolved during version switching and self-update. Projects using the old inline-hash format are automatically migrated on install [#10912](https://github.com/pnpm/pnpm/pull/10912).
+- Store config dependency and package manager integrity info in `pnpm-lock.yaml` instead of inlining it in `pnpm-workspace.yaml`. The workspace manifest now contains only clean version specifiers for `configDependencies`, while the resolved versions, integrity hashes, and tarball URLs are recorded in the lockfile as a separate YAML document. The env lockfile section also stores `packageManagerDependencies` resolved during version switching and self-update. Projects using the old inline-hash format are automatically migrated on install [#10912](https://github.com/pnpm/pnpm/pull/10912) [#10964](https://github.com/pnpm/pnpm/pull/10964).
 - 7fab2a2: Load environment variables whose names start with `pnpm_config_` into config. These environment variables override settings from `pnpm-workspace.yaml` but not the CLI arguments.
 - cb367b9: Support reading `allowBuilds` from `pnpm-workspace.yaml` in the global package directory for global installs.
 - 075aa99: Add support for a global YAML config file named `config.yaml`.
@@ -185,6 +185,8 @@
 - Support `.pnpmfile.mjs` as the default pnpmfile. When `.pnpmfile.mjs` exists, it takes priority over `.pnpmfile.cjs` and only one is loaded.
 - Added `-F` as a short alias for the `--filter` option.
 - When the global virtual store is enabled, packages that are not allowed to build (and don't transitively depend on packages that are) now get hashes that don't include the engine name (platform, architecture, Node.js major version). This means ~95% of packages in the GVS survive Node.js upgrades and architecture changes without re-import [#10837](https://github.com/pnpm/pnpm/issues/10837).
+- Support specifying the pnpm version via `devEngines.packageManager` in `package.json`. Unlike the `packageManager` field, this supports version ranges. The resolved version is stored in `pnpm-lock.yaml` and reused if it still satisfies the range [#10932](https://github.com/pnpm/pnpm/pull/10932).
+- Add the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides. Use `pnpm audit --fix --fix-mode=update` [#10341](https://github.com/pnpm/pnpm/pull/10341).
 
 ### Patch Changes
 
