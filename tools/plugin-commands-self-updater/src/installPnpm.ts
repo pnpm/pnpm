@@ -308,18 +308,23 @@ async function installFromResolution (
 // Its postinstall script links the correct binary into the @pnpm/exe package dir.
 // Since scripts are disabled during install (to support systems without Node.js),
 // we replicate that linking here.
-function linkExePlatformBinary (installDir: string): void {
+export function linkExePlatformBinary (installDir: string): void {
   const platform = process.platform === 'win32'
     ? 'win'
     : process.platform === 'darwin'
       ? 'macos'
       : process.platform
   const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
+  const exePkgDir = path.join(installDir, 'node_modules', '@pnpm', 'exe')
+  if (!fs.existsSync(exePkgDir)) return
+  // In pnpm's symlinked node_modules layout, the platform package is not hoisted
+  // to the top-level node_modules. It's a dependency of @pnpm/exe and lives as a
+  // sibling in the virtual store. Resolve through the @pnpm/exe symlink to find it.
+  const exeRealDir = fs.realpathSync(exePkgDir)
+  const platformPkgDir = path.join(path.dirname(exeRealDir), `${platform}-${arch}`)
   const executable = platform === 'win' ? 'pnpm.exe' : 'pnpm'
-  const platformPkgDir = path.join(installDir, 'node_modules', '@pnpm', `${platform}-${arch}`)
   const src = path.join(platformPkgDir, executable)
   if (!fs.existsSync(src)) return
-  const exePkgDir = path.join(installDir, 'node_modules', '@pnpm', 'exe')
   const dest = path.join(exePkgDir, executable)
   try {
     fs.unlinkSync(dest)

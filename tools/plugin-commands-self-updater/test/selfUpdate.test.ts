@@ -21,7 +21,7 @@ jest.unstable_mockModule('@pnpm/cli-meta', () => {
     },
   }
 })
-const { selfUpdate, installPnpm } = await import('@pnpm/tools.plugin-commands-self-updater')
+const { selfUpdate, installPnpm, linkExePlatformBinary } = await import('@pnpm/tools.plugin-commands-self-updater')
 
 afterEach(() => {
   nock.cleanAll()
@@ -508,4 +508,93 @@ test('installPnpm without env lockfile uses resolution path', async () => {
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(result.baseDir, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
   expect(fs.existsSync(result.binDir)).toBe(true)
+})
+
+describe('linkExePlatformBinary', () => {
+  const platform = process.platform === 'win32'
+    ? 'win'
+    : process.platform === 'darwin'
+      ? 'macos'
+      : process.platform
+  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
+  const executable = platform === 'win' ? 'pnpm.exe' : 'pnpm'
+  const platformPkgName = `${platform}-${arch}`
+
+  test('links platform binary in pnpm symlinked node_modules layout', () => {
+    const dir = tempDir(false)
+
+    // Create a virtual store layout like pnpm produces:
+    //   .pnpm/@pnpm+exe@1.0.0/node_modules/@pnpm/exe/     (the real @pnpm/exe dir)
+    //   .pnpm/@pnpm+exe@1.0.0/node_modules/@pnpm/<platform>-<arch>/  (platform binary)
+    //   node_modules/@pnpm/exe -> symlink to the virtual store entry
+    const vsExeDir = path.join(dir, 'node_modules', '.pnpm', '@pnpm+exe@1.0.0', 'node_modules', '@pnpm', 'exe')
+    const vsPlatformDir = path.join(dir, 'node_modules', '.pnpm', '@pnpm+exe@1.0.0', 'node_modules', '@pnpm', platformPkgName)
+    const topLevelExeDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+
+    // Create the virtual store directories
+    fs.mkdirSync(vsExeDir, { recursive: true })
+    fs.mkdirSync(vsPlatformDir, { recursive: true })
+
+    // Write the placeholder file (as published in the @pnpm/exe tarball)
+    fs.writeFileSync(path.join(vsExeDir, executable), 'This file intentionally left blank')
+
+    // Write a fake platform binary
+    const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm binary"'
+    fs.writeFileSync(path.join(vsPlatformDir, executable), fakeBinaryContent)
+
+    // Create the top-level symlink: node_modules/@pnpm/exe -> virtual store
+    fs.mkdirSync(path.join(dir, 'node_modules', '@pnpm'), { recursive: true })
+    fs.symlinkSync(vsExeDir, topLevelExeDir)
+
+    // Run the function
+    linkExePlatformBinary(dir)
+
+    // The placeholder should be replaced with the platform binary content
+    const result = fs.readFileSync(path.join(topLevelExeDir, executable), 'utf8')
+    expect(result).toBe(fakeBinaryContent)
+  })
+
+  test('also works with flat node_modules layout', () => {
+    const dir = tempDir(false)
+
+    // In a flat layout (no symlinks), both packages are at the top level
+    const exeDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
+
+    fs.mkdirSync(exeDir, { recursive: true })
+    fs.mkdirSync(platformDir, { recursive: true })
+
+    fs.writeFileSync(path.join(exeDir, executable), 'This file intentionally left blank')
+
+    const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm binary"'
+    fs.writeFileSync(path.join(platformDir, executable), fakeBinaryContent)
+
+    linkExePlatformBinary(dir)
+
+    const result = fs.readFileSync(path.join(exeDir, executable), 'utf8')
+    expect(result).toBe(fakeBinaryContent)
+  })
+
+  test('does nothing when @pnpm/exe is not installed', () => {
+    const dir = tempDir(false)
+    fs.mkdirSync(path.join(dir, 'node_modules'), { recursive: true })
+
+    // Should not throw
+    linkExePlatformBinary(dir)
+  })
+
+  test('does nothing when platform binary is not available', () => {
+    const dir = tempDir(false)
+    const exeDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    fs.mkdirSync(exeDir, { recursive: true })
+
+    const placeholder = 'This file intentionally left blank'
+    fs.writeFileSync(path.join(exeDir, executable), placeholder)
+
+    linkExePlatformBinary(dir)
+
+    // Placeholder should remain unchanged
+    const result = fs.readFileSync(path.join(exeDir, executable), 'utf8')
+    expect(result).toBe(placeholder)
+  })
 })
