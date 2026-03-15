@@ -6,7 +6,7 @@ import { getBunBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getNodeB
 import { PnpmError } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { type Command, getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/package-bins'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
@@ -27,20 +27,6 @@ const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 const POWER_SHELL_IS_SUPPORTED = IS_WINDOWS
-
-// Maps a bin name to all packages that are legitimate owners of it, beyond
-// the default rule that a package named `X` owns the `X` bin.  For example,
-// `npx` ships inside the `npm` package, and `pnpx` ships inside both the
-// `pnpm` package and the `@pnpm/exe` package.
-const BIN_OWNER_OVERRIDES: Record<string, string[]> = {
-  npx: ['npm'],
-  pnpm: ['@pnpm/exe'],
-  pnpx: ['pnpm', '@pnpm/exe'],
-}
-
-function pkgOwnsBin (binName: string, pkgName: string): boolean {
-  return binName === pkgName || BIN_OWNER_OVERRIDES[binName]?.includes(pkgName) === true
-}
 
 export type WarningCode = 'BINARIES_CONFLICT' | 'EMPTY_BIN'
 
