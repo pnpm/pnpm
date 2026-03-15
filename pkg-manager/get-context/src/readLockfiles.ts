@@ -56,7 +56,7 @@ export async function readLockfiles (
   // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds
   const lockfileOpts = {
-    ignoreIncompatible: opts.force || opts.ci === true,
+    ignoreIncompatible: opts.force || (opts.ci === true && !opts.frozenLockfile),
     wantedVersions: [LOCKFILE_VERSION],
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
