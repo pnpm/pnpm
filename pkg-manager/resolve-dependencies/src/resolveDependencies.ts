@@ -1317,6 +1317,10 @@ async function resolveDependency (
     ? getExactSinglePreferredVersions(wantedDependency, options.preferredVersion)
     : options.preferredVersions
 
+  if (ctx.injectWorkspacePackages) {
+    wantedDependency.injected = true;
+  }
+
   try {
     const calcSpecifier = options.currentDepth === 0
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
