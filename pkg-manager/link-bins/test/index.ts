@@ -684,5 +684,6 @@ test('linkBins() resolves conflicts using BIN_OWNER_OVERRIDES (npx owned by npm)
   expect(fs.existsSync(binLocation)).toBe(true)
   const content = fs.readFileSync(binLocation, 'utf8')
   // npx should come from npm package, not node or other-pkg
-  expect(content).toMatch('node_modules/npm/bin/npx-cli.js')
+  // Use a regex that matches both forward and backslashes for Windows compatibility
+  expect(content).toMatch(/node_modules[/\\]npm[/\\]bin[/\\]npx-cli\.js/)
 })
