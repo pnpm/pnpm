@@ -186,7 +186,7 @@
 - Added `-F` as a short alias for the `--filter` option.
 - When the global virtual store is enabled, packages that are not allowed to build (and don't transitively depend on packages that are) now get hashes that don't include the engine name (platform, architecture, Node.js major version). This means ~95% of packages in the GVS survive Node.js upgrades and architecture changes without re-import [#10837](https://github.com/pnpm/pnpm/issues/10837).
 - Support specifying the pnpm version via `devEngines.packageManager` in `package.json`. Unlike the `packageManager` field, this supports version ranges. The resolved version is stored in `pnpm-lock.yaml` and reused if it still satisfies the range [#10932](https://github.com/pnpm/pnpm/pull/10932).
-- Add the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides. Use `pnpm audit --fix --fix-mode=update` [#10341](https://github.com/pnpm/pnpm/pull/10341).
+- Add the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides. Use `pnpm audit --fix=update` [#10341](https://github.com/pnpm/pnpm/pull/10341).
 
 ### Patch Changes
 
