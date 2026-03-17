@@ -243,13 +243,20 @@ async function webAuthOtp (
     if (response.status === 202) {
       // Registry is still waiting for authentication.
       // Respect Retry-After header if present by waiting the additional time
-      // beyond the default poll interval already elapsed above.
+      // beyond the default poll interval already elapsed above, but do not
+      // exceed the overall timeout.
       const retryAfterSeconds = Number(response.headers.get('retry-after'))
       if (Number.isFinite(retryAfterSeconds)) {
         const additionalMs = retryAfterSeconds * 1000 - pollIntervalMs
         if (additionalMs > 0) {
+          const nowAfterPoll = Date.now()
+          const remainingMs = timeout - (nowAfterPoll - startTime)
+          if (remainingMs <= 0) {
+            throw new OtpWebAuthTimeoutError(nowAfterPoll, startTime, timeout)
+          }
+          const sleepMs = Math.min(additionalMs, remainingMs)
           // eslint-disable-next-line no-await-in-loop
-          await new Promise<void>(resolve => setTimeout(resolve, additionalMs))
+          await new Promise<void>(resolve => setTimeout(resolve, sleepMs))
         }
       }
       continue
