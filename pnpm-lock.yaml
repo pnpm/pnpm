@@ -3681,6 +3681,55 @@ importers:
         specifier: 'catalog:'
         version: 13.3.4
 
+  engine/runtime/bun-resolver:
+    dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../../core/constants
+      '@pnpm/crypto.shasums-file':
+        specifier: workspace:*
+        version: link:../../../crypto/shasums-file
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
+      '@pnpm/fetching.binary-fetcher':
+        specifier: workspace:*
+        version: link:../../../fetching/binary-fetcher
+      '@pnpm/fetching.fetcher-base':
+        specifier: workspace:*
+        version: link:../../../fetching/fetcher-base
+      '@pnpm/fetching.types':
+        specifier: workspace:*
+        version: link:../../../fetching/types
+      '@pnpm/resolving.npm-resolver':
+        specifier: workspace:*
+        version: link:../../../resolving/npm-resolver
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../../core/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../../worker
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
+    devDependencies:
+      '@pnpm/engine.runtime.bun-resolver':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/engine.runtime.deno-resolver':
+        specifier: workspace:*
+        version: link:../deno-resolver
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
+
   engine/runtime/commands:
     dependencies:
       '@pnpm/cli.utils':
@@ -3718,52 +3767,51 @@ importers:
         specifier: 'catalog:'
         version: 10.1.0
 
+  engine/runtime/deno-resolver:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../../core/constants
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: link:../../../crypto/shasums-file
-      '@pnpm/engine.runtime.node-resolver':
+      '@pnpm/error':
         specifier: workspace:*
-        version: link:../node-resolver
+        version: link:../../../core/error
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: link:../../../fetching/binary-fetcher
-      '@pnpm/fetching.tarball-fetcher':
+      '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
-        version: link:../../../fetching/tarball-fetcher
+        version: link:../../../fetching/fetcher-base
       '@pnpm/fetching.types':
         specifier: workspace:*
         version: link:../../../fetching/types
-      '@pnpm/store.create-cafs-store':
+      '@pnpm/resolving.npm-resolver':
         specifier: workspace:*
-        version: link:../../../store/create-cafs-store
-      '@pnpm/store.index':
+        version: link:../../../resolving/npm-resolver
+      '@pnpm/resolving.resolver-base':
         specifier: workspace:*
-        version: link:../../../store/index
-      detect-libc:
+        version: link:../../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../../core/types
+      '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 2.1.2
+        version: 3.0.2
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../../worker
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
     devDependencies:
-      '@jest/globals':
-        specifier: 'catalog:'
-        version: 30.0.5
+      '@pnpm/engine.runtime.deno-resolver':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../../__utils__/prepare
-      '@pnpm/store.cafs-types':
-        specifier: workspace:*
-        version: link:../../../store/cafs-types
-      '@types/adm-zip':
+      '@types/semver':
         specifier: 'catalog:'
-        version: 0.5.7
-      adm-zip:
-        specifier: 'catalog:'
-        version: 0.5.16
-      node-fetch:
-        specifier: 'catalog:'
-        version: 3.3.2
+        version: 7.7.1
 
   engine/runtime/node-resolver:
     dependencies:
@@ -4805,7 +4853,6 @@ importers:
 
   installing/client:
     dependencies:
-        specifier: workspace:*
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: link:../../fetching/binary-fetcher
@@ -7731,58 +7778,14 @@ importers:
         specifier: 'catalog:'
         version: 6.0.0
 
-  engine/runtime/bun-resolver:
-    dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../core/constants
-      '@pnpm/crypto.shasums-file':
-        specifier: workspace:*
-        version: link:../../crypto/shasums-file
-        specifier: workspace:*
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../core/error
-      '@pnpm/fetching.binary-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/binary-fetcher
-      '@pnpm/fetching.fetcher-base':
-        specifier: workspace:*
-        version: link:../../fetching/fetcher-base
-      '@pnpm/fetching.types':
-        specifier: workspace:*
-        version: link:../../fetching/types
-      '@pnpm/resolving.npm-resolver':
-        specifier: workspace:*
-        version: link:../npm-resolver
-      '@pnpm/resolving.resolver-base':
-        specifier: workspace:*
-        version: link:../resolver-base
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 3.0.2
-      '@pnpm/worker':
-        specifier: workspace:^
-        version: link:../../worker
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.4
-    devDependencies:
-      '@pnpm/engine.runtime.bun-resolver':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/engine.runtime.deno-resolver':
-        specifier: workspace:*
-        version: link:../deno-resolver
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.7.1
-
   resolving/default-resolver:
     dependencies:
+      '@pnpm/engine.runtime.bun-resolver':
+        specifier: workspace:*
+        version: link:../../engine/runtime/bun-resolver
+      '@pnpm/engine.runtime.deno-resolver':
+        specifier: workspace:*
+        version: link:../../engine/runtime/deno-resolver
       '@pnpm/engine.runtime.node-resolver':
         specifier: workspace:*
         version: link:../../engine/runtime/node-resolver
@@ -7795,12 +7798,6 @@ importers:
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
-      '@pnpm/engine.runtime.bun-resolver':
-        specifier: workspace:*
-        version: link:../bun-resolver
-      '@pnpm/engine.runtime.deno-resolver':
-        specifier: workspace:*
-        version: link:../deno-resolver
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: link:../git-resolver
@@ -7841,53 +7838,6 @@ importers:
       node-fetch:
         specifier: 'catalog:'
         version: 3.3.2
-
-  engine/runtime/deno-resolver:
-    dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../core/constants
-      '@pnpm/crypto.shasums-file':
-        specifier: workspace:*
-        version: link:../../crypto/shasums-file
-        specifier: workspace:*
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../core/error
-      '@pnpm/fetching.binary-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/binary-fetcher
-      '@pnpm/fetching.fetcher-base':
-        specifier: workspace:*
-        version: link:../../fetching/fetcher-base
-      '@pnpm/fetching.types':
-        specifier: workspace:*
-        version: link:../../fetching/types
-      '@pnpm/resolving.npm-resolver':
-        specifier: workspace:*
-        version: link:../npm-resolver
-      '@pnpm/resolving.resolver-base':
-        specifier: workspace:*
-        version: link:../resolver-base
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 3.0.2
-      '@pnpm/worker':
-        specifier: workspace:^
-        version: link:../../worker
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.4
-    devDependencies:
-      '@pnpm/engine.runtime.deno-resolver':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.7.1
 
   resolving/git-resolver:
     dependencies:
@@ -10721,13 +10671,13 @@ packages:
     resolution: {integrity: sha512-47zGgACkbZWLOmM61kaE0nkqxiYx63C6DJ4wzDsdj0iXDZJ9SJEl+T035pkhquHe8XEh3YxvwMg2BRyZSgmZ9Q==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/engine.runtime.bun-resolver@1005.0.9':
+  '@pnpm/resolving.bun-resolver@1005.0.9':
     resolution: {integrity: sha512-MpctUtxBeENIzT0vll0XjS0v5JdT4Qmp8eTlQ/gIRqiJzqXbMoS6hHRer/nY30R6oOwFryKM8kbQns1bzmKUAw==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/worker': ^1000.6.6
 
-  '@pnpm/engine.runtime.deno-resolver@1005.0.9':
+  '@pnpm/resolving.deno-resolver@1005.0.9':
     resolution: {integrity: sha512-rezgnWGcIXnZcOJoKiGj6iTbr4aGpXt/yA3Mhq8maxe4MWF5NyWvn+xw7sTKJF3zBf+qE5bvA3ng+ktFM8SkPw==}
     engines: {node: '>=18.12'}
     peerDependencies:
@@ -18258,8 +18208,8 @@ snapshots:
       '@pnpm/node.resolver': 1001.0.21(@pnpm/logger@1001.0.1)
       '@pnpm/npm-resolver': 1005.2.2(@pnpm/logger@1001.0.1)
       '@pnpm/resolver-base': 1005.4.1
-      '@pnpm/engine.runtime.bun-resolver': 1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
-      '@pnpm/engine.runtime.deno-resolver': 1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/resolving.bun-resolver': 1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/resolving.deno-resolver': 1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
       '@pnpm/tarball-resolver': 1002.2.1
     transitivePeerDependencies:
       - '@pnpm/logger'
@@ -18871,7 +18821,7 @@ snapshots:
     dependencies:
       '@pnpm/types': 1001.3.0
 
-  '@pnpm/engine.runtime.bun-resolver@1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/resolving.bun-resolver@1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
       '@pnpm/constants': 1001.3.1
       '@pnpm/crypto.shasums-file': 1001.0.4
@@ -18892,7 +18842,7 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/engine.runtime.deno-resolver@1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/resolving.deno-resolver@1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
       '@pnpm/constants': 1001.3.1
       '@pnpm/crypto.shasums-file': 1001.0.4
