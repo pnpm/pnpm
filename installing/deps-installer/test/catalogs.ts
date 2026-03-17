@@ -1,8 +1,8 @@
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import type { MutatedProject, MutateModulesOptions, ProjectOptions } from '@pnpm/core'
-import { createPeerDepGraphHash } from '@pnpm/dependency-path'
+import { createPeerDepGraphHash } from '@pnpm/deps.dependency-path'
+import type { MutatedProject, MutateModulesOptions, ProjectOptions } from '@pnpm/installing.deps-installer'
 import type { CatalogSnapshots } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -18,7 +18,7 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 })
 
 const { logger } = await import('@pnpm/logger')
-const { mutateModules, addDependenciesToPackage } = await import('@pnpm/core')
+const { mutateModules, addDependenciesToPackage } = await import('@pnpm/installing.deps-installer')
 
 function preparePackagesAndReturnObjects (manifests: Array<ProjectManifest & Required<Pick<ProjectManifest, 'name'>>>) {
   const project = prepareEmpty()

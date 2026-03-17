@@ -1,4 +1,4 @@
-import { filterPkgMetadataByPublishDate } from '@pnpm/registry.pkg-metadata-filter'
+import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 
 test('filterPkgMetadataByPublishDate', () => {
   const cutoff = new Date('2020-04-01T00:00:00.000Z')

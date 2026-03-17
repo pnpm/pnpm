@@ -1,8 +1,8 @@
 import path from 'node:path'
 
 import { formatIntegrity } from '@pnpm/crypto.integrity'
-import * as dp from '@pnpm/dependency-path'
-import { getContextForSingleImporter } from '@pnpm/get-context'
+import * as dp from '@pnpm/deps.dependency-path'
+import { getContextForSingleImporter } from '@pnpm/installing.get-context'
 import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
@@ -10,9 +10,9 @@ import {
 } from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import type { TarballResolution } from '@pnpm/store.controller-types'
 import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
 import { StoreIndex } from '@pnpm/store.index'
-import type { TarballResolution } from '@pnpm/store-controller-types'
 import type { DepPath } from '@pnpm/types'
 import dint from 'dint'
 import pFilter from 'p-filter'

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/run-npm",
+  "name": "@pnpm/exec.run-npm",
   "version": "1000.0.0",
   "description": "Runs the npm CLI",
   "keywords": [
@@ -34,7 +34,7 @@
     "path-name": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/run-npm": "workspace:*",
+    "@pnpm/exec.run-npm": "workspace:*",
     "@types/cross-spawn": "catalog:"
   },
   "engines": {

@@ -1,7 +1,7 @@
-import type { CompletionFunc } from '@pnpm/command'
-import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
+import type { CompletionFunc } from '@pnpm/cli.command'
 import type { CompletionItem } from '@pnpm/tabtab'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { findWorkspaceDir } from '@pnpm/workspace.find-workspace-dir'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { getOptionCompletions } from './getOptionType.js'

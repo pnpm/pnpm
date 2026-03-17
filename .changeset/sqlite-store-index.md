@@ -3,9 +3,9 @@
 "@pnpm/store.cafs": minor
 "@pnpm/worker": minor
 "@pnpm/store.commands": minor
-"@pnpm/package-store": minor
+"@pnpm/store.package-store": minor
 "@pnpm/store.pkg-finder": minor
-"@pnpm/reviewing.dependencies-hierarchy": minor
+"@pnpm/deps.inspection.dependencies-hierarchy": minor
 "@pnpm/building.commands": minor
 "pnpm": minor
 ---

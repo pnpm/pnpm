@@ -1,6 +1,6 @@
 ---
-"@pnpm/plugin-commands-installation": major
-"@pnpm/parse-cli-args": major
+"@pnpm/installing.commands": major
+"@pnpm/cli.parse-cli-args": major
 "pnpm": major
 ---
 

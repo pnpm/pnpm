@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { STORE_VERSION } from '@pnpm/constants'
 import { sbom } from '@pnpm/deps.compliance.commands'
-import { install } from '@pnpm/plugin-commands-installation'
+import { install } from '@pnpm/installing.commands'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 

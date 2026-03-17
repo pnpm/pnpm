@@ -6,7 +6,7 @@ import {
   install,
   type MutatedProject,
   mutateModules,
-} from '@pnpm/core'
+} from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 

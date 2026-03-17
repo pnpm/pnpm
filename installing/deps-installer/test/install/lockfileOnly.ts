@@ -6,7 +6,7 @@ import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
   install,
-} from '@pnpm/core'
+} from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 

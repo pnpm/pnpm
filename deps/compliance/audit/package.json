@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/audit",
+  "name": "@pnpm/deps.compliance.audit",
   "version": "1002.0.14",
   "description": "Audit a lockfile",
   "keywords": [
@@ -33,14 +33,14 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetch": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:"
   },
@@ -48,8 +48,8 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/audit": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/deps.compliance.audit": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",

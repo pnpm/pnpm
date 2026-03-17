@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/exportable-manifest",
+  "name": "@pnpm/pkg-manifest.exportable-manifest",
   "version": "1000.1.7",
   "description": "Creates an exportable manifest",
   "keywords": [
@@ -32,10 +32,10 @@
   },
   "dependencies": {
     "@npm/types": "catalog:",
+    "@pnpm/bins.package-bins": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/package-bins": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-map-values": "catalog:",
@@ -44,8 +44,8 @@
   "devDependencies": {
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
-    "@pnpm/exportable-manifest": "workspace:*",
-    "@pnpm/pnpmfile": "workspace:*",
+    "@pnpm/hooks.pnpmfile": "workspace:*",
+    "@pnpm/pkg-manifest.exportable-manifest": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",

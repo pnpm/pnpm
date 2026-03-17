@@ -3,13 +3,6 @@ import * as path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import {
-  addDependenciesToPackage,
-  install,
-  mutateModulesInSingleProject,
-  UnexpectedStoreError,
-  UnexpectedVirtualStoreDirError,
-} from '@pnpm/core'
 import type {
   PackageManifestLog,
   ProgressLog,
@@ -17,6 +10,13 @@ import type {
   StageLog,
   StatsLog,
 } from '@pnpm/core-loggers'
+import {
+  addDependenciesToPackage,
+  install,
+  mutateModulesInSingleProject,
+  UnexpectedStoreError,
+  UnexpectedVirtualStoreDirError,
+} from '@pnpm/installing.deps-installer'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -806,7 +806,7 @@ test('rewrites node_modules created by npm', async () => {
 
 // Covers https://github.com/pnpm/pnpm/issues/1685
 // also, there's a better version of this test (with the same name) in the pnpm package
-// TODO: move this test to @pnpm/package-store
+// TODO: move this test to @pnpm/store.package-store
 test("don't fail on case insensitive filesystems when package has 2 files with same name", async () => {
   const project = prepareEmpty()
   const reporter = jest.fn()

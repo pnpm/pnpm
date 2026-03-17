@@ -1,5 +1,5 @@
 ---
-"@pnpm/pnpmfile": minor
+"@pnpm/hooks.pnpmfile": minor
 "pnpm": minor
 ---
 

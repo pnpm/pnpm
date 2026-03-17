@@ -1,5 +1,5 @@
 ---
-"@pnpm/read-project-manifest": patch
+"@pnpm/pkg-manifest.read-project-manifest": patch
 "pnpm": patch
 ---
 

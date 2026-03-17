@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/local-resolver",
+  "name": "@pnpm/resolving.local-resolver",
   "version": "1002.1.4",
   "description": "Resolver for local packages",
   "keywords": [
@@ -36,8 +36,8 @@
   "dependencies": {
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "normalize-path": "catalog:"
   },
@@ -46,8 +46,8 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/local-resolver": "workspace:*",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
     "@types/normalize-path": "catalog:"
   },
   "engines": {

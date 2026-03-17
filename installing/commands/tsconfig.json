@@ -31,19 +31,13 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../cli/cli-utils"
-    },
-    {
       "path": "../../cli/command"
     },
     {
       "path": "../../cli/common-cli-options-help"
     },
     {
-      "path": "../../config/config"
-    },
-    {
-      "path": "../../config/config-writer"
+      "path": "../../cli/utils"
     },
     {
       "path": "../../config/deps-installer"
@@ -53,6 +47,12 @@
     },
     {
       "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../config/writer"
     },
     {
       "path": "../../deps/inspection/outdated"
@@ -106,13 +106,13 @@
       "path": "../../resolving/resolver-base"
     },
     {
+      "path": "../../store/connection-manager"
+    },
+    {
       "path": "../../store/index"
     },
     {
       "path": "../../store/package-store"
-    },
-    {
-      "path": "../../store/store-connection-manager"
     },
     {
       "path": "../../worker"

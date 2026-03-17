@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../cli/cli-meta"
+      "path": "../../cli/meta"
     },
     {
       "path": "../../engine/runtime/system-node-version"

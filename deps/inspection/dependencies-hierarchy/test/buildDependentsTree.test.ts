@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
+import { depPathToFilename, refToRelative } from '@pnpm/deps.dependency-path'
 import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
 import type { DepPath, ProjectId } from '@pnpm/types'
 

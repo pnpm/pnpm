@@ -2,14 +2,14 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { contextLogger, packageManifestLogger } from '@pnpm/core-loggers'
-import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type {
   IncludedDependencies,
   Modules,
-} from '@pnpm/modules-yaml'
-import { registerProject } from '@pnpm/package-store'
-import { readProjectsContext } from '@pnpm/read-projects-context'
-import type { WorkspacePackages } from '@pnpm/resolver-base'
+} from '@pnpm/installing.modules-yaml'
+import { readProjectsContext } from '@pnpm/installing.read-projects-context'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import { registerProject } from '@pnpm/store.package-store'
 import type {
   DependencyManifest,
   DepPath,

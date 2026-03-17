@@ -1,4 +1,4 @@
-import { getPeerDependencyIssues } from '@pnpm/core'
+import { getPeerDependencyIssues } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 

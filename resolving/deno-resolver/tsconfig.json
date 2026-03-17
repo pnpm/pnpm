@@ -22,7 +22,7 @@
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../fetching/fetching-types"
+      "path": "../../fetching/types"
     },
     {
       "path": "../../packages/constants"

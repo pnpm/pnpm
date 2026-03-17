@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { type PackageSelector, parsePackageSelector } from '@pnpm/filter-workspace-packages'
+import { type PackageSelector, parsePackageSelector } from '@pnpm/workspace.filter-workspace-packages'
 import isWindows from 'is-windows'
 
 const fixtures: Array<[string, PackageSelector]> = [

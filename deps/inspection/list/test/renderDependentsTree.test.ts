@@ -1,6 +1,6 @@
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
-import type { DependentsTree } from '@pnpm/reviewing.dependencies-hierarchy'
+import type { DependentsTree } from '@pnpm/deps.inspection.dependencies-hierarchy'
 
 import { renderDependentsJson, renderDependentsParseable, renderDependentsTree } from '../lib/renderDependentsTree.js'
 

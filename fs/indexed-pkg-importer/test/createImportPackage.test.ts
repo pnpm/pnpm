@@ -5,7 +5,7 @@ import { jest } from '@jest/globals'
 
 const testOnLinuxOnly = (process.platform === 'darwin' || process.platform === 'win32') ? test.skip : test
 
-jest.unstable_mockModule('@pnpm/graceful-fs', () => {
+jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
   const { access } = jest.requireActual<typeof fs>('fs')
   const fsMock = {
     access,
@@ -36,7 +36,7 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
   globalInfo: jest.fn(),
 }))
 
-const { default: gfs } = await import('@pnpm/graceful-fs')
+const { default: gfs } = await import('@pnpm/fs.graceful-fs')
 const { createIndexedPkgImporter } = await import('@pnpm/fs.indexed-pkg-importer')
 const { globalInfo } = await import('@pnpm/logger')
 

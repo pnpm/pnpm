@@ -1,4 +1,4 @@
-import { getAllUniqueSpecs } from '@pnpm/manifest-utils'
+import { getAllUniqueSpecs } from '@pnpm/pkg-manifest.manifest-utils'
 
 test('getAllUniqueSpecs()', () => {
   expect(getAllUniqueSpecs([

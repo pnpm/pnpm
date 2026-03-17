@@ -33,16 +33,16 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:*",
+    "@pnpm/config.parse-overrides": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/get-context": "workspace:*",
+    "@pnpm/installing.get-context": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.settings-checker": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
-    "@pnpm/parse-overrides": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*",
@@ -55,8 +55,8 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/deps.status": "workspace:*",
+    "@pnpm/pkg-manifest.write-project-manifest": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/write-project-manifest": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "engines": {

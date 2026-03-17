@@ -31,7 +31,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/cli.utils": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/fs.find-packages": "workspace:*",
     "@pnpm/types": "workspace:*",

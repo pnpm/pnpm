@@ -1,6 +1,6 @@
-import { refToRelative } from '@pnpm/dependency-path'
+import { refToRelative } from '@pnpm/deps.dependency-path'
+import type { DependencyNode } from '@pnpm/deps.inspection.dependencies-hierarchy'
 import type { PackageSnapshots } from '@pnpm/lockfile.fs'
-import type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import type { DepPath, Finder } from '@pnpm/types'
 
 import { buildDependencyGraph } from '../lib/buildDependencyGraph.js'

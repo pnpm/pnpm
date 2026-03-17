@@ -1,5 +1,5 @@
 ---
-"@pnpm/package-store": minor
+"@pnpm/store.package-store": minor
 "pnpm": minor
 ---
 

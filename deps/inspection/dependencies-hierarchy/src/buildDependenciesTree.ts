@@ -1,5 +1,8 @@
 import path from 'node:path'
 
+import { normalizeRegistries } from '@pnpm/config.normalize-registries'
+import { readModulesDir } from '@pnpm/fs.read-modules-dir'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import {
   getLockfileImporterId,
@@ -9,10 +12,7 @@ import {
   readWantedLockfile,
   type ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
-import { readModulesManifest } from '@pnpm/modules-yaml'
-import { normalizeRegistries } from '@pnpm/normalize-registries'
-import { readModulesDir } from '@pnpm/read-modules-dir'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
 import { StoreIndex } from '@pnpm/store.index'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'

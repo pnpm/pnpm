@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { addDependenciesToPackage } from '@pnpm/core'
-import { createPeerDepGraphHash } from '@pnpm/dependency-path'
+import { createPeerDepGraphHash } from '@pnpm/deps.dependency-path'
+import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import deepRequireCwd from 'deep-require-cwd'

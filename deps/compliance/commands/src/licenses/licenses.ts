@@ -1,10 +1,10 @@
+import type { CompletionFunc } from '@pnpm/cli.command'
+import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import {
   docsUrl,
   readDepNameCompletions,
-} from '@pnpm/cli-utils'
-import type { CompletionFunc } from '@pnpm/command'
-import { FILTERING } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
+} from '@pnpm/cli.utils'
+import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'

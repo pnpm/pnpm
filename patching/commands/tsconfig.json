@@ -16,13 +16,13 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../cli/cli-utils"
+      "path": "../../cli/utils"
     },
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
-      "path": "../../config/config-writer"
+      "path": "../../config/writer"
     },
     {
       "path": "../../crypto/hash"
@@ -67,10 +67,10 @@
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
-      "path": "../../store/store-connection-manager"
+      "path": "../../store/connection-manager"
     },
     {
-      "path": "../../store/store-path"
+      "path": "../../store/path"
     },
     {
       "path": "../../workspace/filter-packages-from-dir"

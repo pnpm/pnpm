@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
       "path": "../../packages/constants"

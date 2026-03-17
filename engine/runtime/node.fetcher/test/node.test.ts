@@ -2,7 +2,7 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 
 import { jest } from '@jest/globals'
-import type { FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
+import type { FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/engine.runtime.node.fetcher'
 import { tempDir } from '@pnpm/prepare'
 import { StoreIndex } from '@pnpm/store.index'
 import AdmZip from 'adm-zip'
@@ -12,7 +12,7 @@ jest.unstable_mockModule('detect-libc', () => ({
   isNonGlibcLinux: jest.fn(),
 }))
 
-const { fetchNode } = await import('@pnpm/node.fetcher')
+const { fetchNode } = await import('@pnpm/engine.runtime.node.fetcher')
 const { isNonGlibcLinux } = await import('detect-libc')
 
 // A stable fake hex digest used as placeholder sha256 in mock SHASUMS256.txt files.

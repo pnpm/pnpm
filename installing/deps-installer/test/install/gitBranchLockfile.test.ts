@@ -9,10 +9,10 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
-jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
-const { getCurrentBranch } = await import('@pnpm/git-utils')
-const { install, mutateModules } = await import('@pnpm/core')
+const { getCurrentBranch } = await import('@pnpm/network.git-utils')
+const { install, mutateModules } = await import('@pnpm/installing.deps-installer')
 
 test('install with git-branch-lockfile = true', async () => {
   prepareEmpty()

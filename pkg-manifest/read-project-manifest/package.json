@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/read-project-manifest",
+  "name": "@pnpm/pkg-manifest.read-project-manifest",
   "version": "1001.1.4",
   "description": "Read a project manifest (called package.json in most cases)",
   "keywords": [
@@ -32,11 +32,11 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/graceful-fs": "workspace:*",
-    "@pnpm/manifest-utils": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
+    "@pnpm/pkg-manifest.manifest-utils": "workspace:*",
+    "@pnpm/pkg-manifest.write-project-manifest": "workspace:*",
     "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/write-project-manifest": "workspace:*",
     "detect-indent": "catalog:",
     "fast-deep-equal": "catalog:",
     "is-windows": "catalog:",
@@ -49,7 +49,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/parse-json": "catalog:",

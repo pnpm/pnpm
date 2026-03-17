@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { assertProject } from '@pnpm/assert-project'
 import { PnpmError } from '@pnpm/error'
-import { importCommand } from '@pnpm/plugin-commands-installation'
+import { importCommand } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'

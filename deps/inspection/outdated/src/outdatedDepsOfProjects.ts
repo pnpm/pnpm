@@ -1,11 +1,11 @@
 import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { createMatcher } from '@pnpm/config.matcher'
 import {
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile.fs'
-import { createMatcher } from '@pnpm/matcher'
 import type {
   IncludedDependencies,
   ProjectManifest,

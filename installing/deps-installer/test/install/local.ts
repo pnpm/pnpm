@@ -9,7 +9,7 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
   type ProjectOptions,
-} from '@pnpm/core'
+} from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'

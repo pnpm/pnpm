@@ -46,13 +46,13 @@
       "path": "../cafs"
     },
     {
+      "path": "../controller-types"
+    },
+    {
       "path": "../create-cafs-store"
     },
     {
       "path": "../index"
-    },
-    {
-      "path": "../store-controller-types"
     }
   ]
 }

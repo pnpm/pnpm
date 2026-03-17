@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { install, type MutatedProject, mutateModules } from '@pnpm/core'
+import { install, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import type { LockfileFile, PackageSnapshots } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'

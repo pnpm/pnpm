@@ -1,6 +1,6 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
+import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.dependency-path'
 import type { LockfileObject, LockfileResolution, PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type { AllowBuild, DepPath, PkgIdWithPatchHash } from '@pnpm/types'

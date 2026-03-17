@@ -33,12 +33,12 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/deps.dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/fetching.pick-fetcher": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/pick-fetcher": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "get-npm-tarball-url": "catalog:",
     "ramda": "catalog:"

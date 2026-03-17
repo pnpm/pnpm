@@ -6,8 +6,8 @@
 "@pnpm/lockfile.utils": minor
 "@pnpm/types": patch
 "@pnpm/engine.pm.commands": minor
-"@pnpm/calc-dep-state": minor
-"@pnpm/resolve-dependencies": patch
+"@pnpm/deps.calc-dep-state": minor
+"@pnpm/installing.resolve-dependencies": patch
 "pnpm": minor
 ---
 

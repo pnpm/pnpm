@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { readProjectManifest, tryReadProjectManifest } from '@pnpm/pkg-manifest.read-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'

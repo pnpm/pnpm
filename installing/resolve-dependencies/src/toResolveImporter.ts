@@ -1,9 +1,9 @@
 import { logger } from '@pnpm/logger'
-import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
+import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.manifest-utils'
 import type {
   PreferredVersions,
   WorkspacePackages,
-} from '@pnpm/resolver-base'
+} from '@pnpm/resolving.resolver-base'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
 

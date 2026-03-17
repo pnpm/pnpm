@@ -30,9 +30,9 @@
     "test": "pnpm run compile"
   },
   "dependencies": {
-    "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/directory-fetcher": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/fetching.directory-fetcher": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*"
   },

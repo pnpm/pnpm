@@ -1,4 +1,4 @@
-import { remove } from '@pnpm/plugin-commands-installation'
+import { remove } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
 
 test('remove arg completions', async () => {

@@ -1,11 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.link-bins'
+import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkLogger } from '@pnpm/core-loggers'
-import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
-import { createMatcher } from '@pnpm/matcher'
 import type { DependenciesField, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { isSubdir } from 'is-subdir'

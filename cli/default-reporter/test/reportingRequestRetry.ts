@@ -1,5 +1,5 @@
+import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { toOutput$ } from '@pnpm/default-reporter'
 import {
   createStreamParser,
 } from '@pnpm/logger'

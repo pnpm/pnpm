@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/package-is-installable",
+  "name": "@pnpm/config.package-is-installable",
   "version": "1000.0.15",
   "description": "Checks if a package is installable on the current system",
   "keywords": [
@@ -32,9 +32,9 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/cli-meta": "workspace:*",
+    "@pnpm/cli.meta": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/env.system-node-version": "workspace:*",
+    "@pnpm/engine.runtime.system-node-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
     "detect-libc": "catalog:",
@@ -47,8 +47,8 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/package-is-installable": "workspace:*",
     "@types/semver": "catalog:"
   },
   "engines": {

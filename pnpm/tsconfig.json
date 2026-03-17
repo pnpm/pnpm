@@ -30,12 +30,6 @@
       "path": "../cache/commands"
     },
     {
-      "path": "../cli/cli-meta"
-    },
-    {
-      "path": "../cli/cli-utils"
-    },
-    {
       "path": "../cli/command"
     },
     {
@@ -48,16 +42,22 @@
       "path": "../cli/default-reporter"
     },
     {
+      "path": "../cli/meta"
+    },
+    {
       "path": "../cli/parse-cli-args"
+    },
+    {
+      "path": "../cli/utils"
     },
     {
       "path": "../config/commands"
     },
     {
-      "path": "../config/config"
+      "path": "../config/deps-installer"
     },
     {
-      "path": "../config/deps-installer"
+      "path": "../config/reader"
     },
     {
       "path": "../config/version-policy"
@@ -144,10 +144,10 @@
       "path": "../store/commands"
     },
     {
-      "path": "../store/index"
+      "path": "../store/connection-manager"
     },
     {
-      "path": "../store/store-connection-manager"
+      "path": "../store/index"
     },
     {
       "path": "../worker"

@@ -1,17 +1,17 @@
+import type { CompletionFunc } from '@pnpm/cli.command'
+import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import {
   docsUrl,
   readDepNameCompletions,
   readProjectManifest,
-} from '@pnpm/cli-utils'
-import type { CompletionFunc } from '@pnpm/command'
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
-import { mutateModulesInSingleProject } from '@pnpm/core'
+} from '@pnpm/cli.utils'
+import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { handleGlobalRemove } from '@pnpm/global.commands'
-import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.get-context'
+import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.manifest-utils'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { DependenciesField, Project, ProjectRootDir } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'

@@ -12,7 +12,7 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
   ...original,
   logger: Object.assign(() => ({ warn, info, debug }), { warn, info, debug }),
 }))
-const { install } = await import('@pnpm/plugin-commands-installation')
+const { install } = await import('@pnpm/installing.commands')
 
 afterEach(() => {
   jest.mocked(warn).mockRestore()

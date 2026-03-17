@@ -1,4 +1,4 @@
-import { packageIsInstallable } from '@pnpm/cli-utils'
+import { packageIsInstallable } from '@pnpm/cli.utils'
 import { findPackages } from '@pnpm/fs.find-packages'
 import { logger } from '@pnpm/logger'
 import type { Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'

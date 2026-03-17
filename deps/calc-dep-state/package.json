@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/calc-dep-state",
+  "name": "@pnpm/deps.calc-dep-state",
   "version": "1002.0.8",
   "description": "Calculates the state of a dependency",
   "keywords": [
@@ -33,13 +33,13 @@
   "dependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/deps.dependency-path": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/calc-dep-state": "workspace:*"
+    "@pnpm/deps.calc-dep-state": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

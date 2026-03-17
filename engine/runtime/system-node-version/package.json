@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/env.system-node-version",
+  "name": "@pnpm/engine.runtime.system-node-version",
   "version": "1000.0.11",
   "description": "Detects the current system node version",
   "keywords": [
@@ -32,13 +32,13 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/cli-meta": "workspace:*",
+    "@pnpm/cli.meta": "workspace:*",
     "execa": "catalog:",
     "memoize": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/env.system-node-version": "workspace:*"
+    "@pnpm/engine.runtime.system-node-version": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

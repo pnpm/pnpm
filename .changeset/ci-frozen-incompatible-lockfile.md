@@ -1,5 +1,5 @@
 ---
-'@pnpm/get-context': patch
+'@pnpm/installing.get-context': patch
 pnpm: patch
 ---
 

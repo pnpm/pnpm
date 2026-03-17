@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import { readModulesManifest } from '@pnpm/modules-yaml'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { writeYamlFileSync } from 'write-yaml-file'

@@ -1,4 +1,4 @@
-import type { Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config.reader'
 import type { IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import boxen from 'boxen'

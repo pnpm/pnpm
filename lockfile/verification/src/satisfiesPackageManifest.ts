@@ -1,4 +1,4 @@
-import * as dp from '@pnpm/dependency-path'
+import * as dp from '@pnpm/deps.dependency-path'
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
 import {
   DEPENDENCIES_FIELDS,

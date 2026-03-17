@@ -1,17 +1,17 @@
 import path from 'node:path'
 
+import { UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import {
   docsUrl,
   tryReadProjectManifest,
-} from '@pnpm/cli-utils'
-import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
-import { writeSettings } from '@pnpm/config.config-writer'
+} from '@pnpm/cli.utils'
+import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { writeSettings } from '@pnpm/config.writer'
+import { PnpmError } from '@pnpm/error'
 import type {
   WorkspacePackages,
-} from '@pnpm/core'
-import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+} from '@pnpm/installing.deps-installer'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.get-context'
 import { logger } from '@pnpm/logger'
 import { DEPENDENCIES_FIELDS, type Project, type ProjectManifest } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'

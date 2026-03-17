@@ -97,9 +97,6 @@
       "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/lockfile-to-pnp"
-    },
-    {
       "path": "../../lockfile/preferred-versions"
     },
     {
@@ -107,6 +104,9 @@
     },
     {
       "path": "../../lockfile/settings-checker"
+    },
+    {
+      "path": "../../lockfile/to-pnp"
     },
     {
       "path": "../../lockfile/types"
@@ -160,13 +160,13 @@
       "path": "../../store/cafs"
     },
     {
+      "path": "../../store/controller-types"
+    },
+    {
       "path": "../../store/index"
     },
     {
-      "path": "../../store/store-controller-types"
-    },
-    {
-      "path": "../../store/store-path"
+      "path": "../../store/path"
     },
     {
       "path": "../../testing/temp-store"

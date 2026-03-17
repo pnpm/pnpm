@@ -1,16 +1,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { type CafsLocker, createCafsStore, createPackageImporterAsync } from '@pnpm/create-cafs-store'
-import type { Fetchers } from '@pnpm/fetcher-base'
+import type { Fetchers } from '@pnpm/fetching.fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
-import { createPackageRequester } from '@pnpm/package-requester'
-import type { ResolveFunction } from '@pnpm/resolver-base'
-import type { StoreIndex } from '@pnpm/store.index'
+import { createPackageRequester } from '@pnpm/installing.package-requester'
+import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
 import type {
   ImportIndexedPackageAsync,
   StoreController,
-} from '@pnpm/store-controller-types'
+} from '@pnpm/store.controller-types'
+import { type CafsLocker, createCafsStore, createPackageImporterAsync } from '@pnpm/store.create-cafs-store'
+import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
 
 import { prune } from './prune.js'

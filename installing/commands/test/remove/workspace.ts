@@ -1,7 +1,7 @@
 import path from 'node:path'
 
+import { install, remove } from '@pnpm/installing.commands'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { install, remove } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { readYamlFileSync } from 'read-yaml-file'

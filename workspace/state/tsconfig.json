@@ -16,7 +16,7 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
       "path": "../../packages/logger"

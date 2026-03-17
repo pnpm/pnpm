@@ -2,8 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { getBinsFromPackageManifest } from '@pnpm/bins.package-bins'
+import { readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
 import type { PackageManifest } from '@pnpm/types'
 
 export interface GlobalPackageInfo {

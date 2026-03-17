@@ -31,16 +31,16 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../cli/cli-utils"
-    },
-    {
       "path": "../../cli/common-cli-options-help"
     },
     {
-      "path": "../../config/config"
+      "path": "../../cli/utils"
     },
     {
       "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../config/reader"
     },
     {
       "path": "../../deps/dependency-path"

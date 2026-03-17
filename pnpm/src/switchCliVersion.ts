@@ -1,14 +1,14 @@
 import path from 'node:path'
 
-import { packageManager } from '@pnpm/cli-meta'
-import type { Config } from '@pnpm/config'
+import { packageManager } from '@pnpm/cli.meta'
 import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
+import type { Config } from '@pnpm/config.reader'
 import { installPnpmToStore } from '@pnpm/engine.pm.commands'
-import { prependDirsToPath } from '@pnpm/env.path'
 import { PnpmError } from '@pnpm/error'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
-import { createStoreController } from '@pnpm/store-connection-manager'
+import { prependDirsToPath } from '@pnpm/shell.path'
+import { createStoreController } from '@pnpm/store.connection-manager'
 import spawn from 'cross-spawn'
 import semver from 'semver'
 

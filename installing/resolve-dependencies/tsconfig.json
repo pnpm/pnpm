@@ -79,7 +79,7 @@
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/controller-types"
     },
     {
       "path": "../../workspace/spec-parser"

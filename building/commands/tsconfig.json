@@ -25,16 +25,16 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../cli/cli-utils"
-    },
-    {
       "path": "../../cli/common-cli-options-help"
     },
     {
-      "path": "../../config/config"
+      "path": "../../cli/utils"
     },
     {
-      "path": "../../config/config-writer"
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../config/writer"
     },
     {
       "path": "../../crypto/object-hasher"
@@ -61,10 +61,10 @@
       "path": "../../store/cafs"
     },
     {
-      "path": "../../store/index"
+      "path": "../../store/connection-manager"
     },
     {
-      "path": "../../store/store-connection-manager"
+      "path": "../../store/index"
     },
     {
       "path": "../../workspace/filter-packages-from-dir"

@@ -5,16 +5,16 @@ import { type BuildOptions, buildProjects as rebuildAll, buildSelectedPkgs } fro
 import {
   type RecursiveSummary,
   throwOnCommandFail,
-} from '@pnpm/cli-utils'
+} from '@pnpm/cli.utils'
 import {
   type Config,
   createProjectConfigRecord,
   getWorkspaceConcurrency,
-} from '@pnpm/config'
+} from '@pnpm/config.reader'
 import { logger } from '@pnpm/logger'
-import { sortPackages } from '@pnpm/sort-packages'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import { sortPackages } from '@pnpm/workspace.sort-packages'
 import pLimit from 'p-limit'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,

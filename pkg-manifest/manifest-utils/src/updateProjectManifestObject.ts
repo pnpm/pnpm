@@ -1,5 +1,5 @@
 import { packageManifestLogger } from '@pnpm/core-loggers'
-import { isValidPeerRange } from '@pnpm/semver.peer-range'
+import { isValidPeerRange } from '@pnpm/deps.peer-range'
 import {
   DEPENDENCIES_FIELDS,
   DEPENDENCIES_OR_PEER_FIELDS,

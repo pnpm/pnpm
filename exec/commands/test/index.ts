@@ -6,7 +6,7 @@ import type { PnpmError } from '@pnpm/error'
 import {
   restart,
   run,
-} from '@pnpm/plugin-commands-script-runners'
+} from '@pnpm/exec.commands'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'

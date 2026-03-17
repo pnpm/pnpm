@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/package-store",
+  "name": "@pnpm/store.package-store",
   "version": "1004.0.0",
   "description": "A storage for packages",
   "keywords": [
@@ -44,15 +44,15 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
-    "@pnpm/package-requester": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/installing.package-requester": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
+    "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
@@ -66,10 +66,10 @@
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:*",
+    "@pnpm/installing.client": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
+    "@pnpm/store.package-store": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/ssri": "catalog:",
     "tempy": "catalog:"

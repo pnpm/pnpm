@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../cli/cli-utils"
+      "path": "../../cli/utils"
     },
     {
       "path": "../../fs/find-packages"

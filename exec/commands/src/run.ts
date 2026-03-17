@@ -1,20 +1,20 @@
 import path from 'node:path'
 
+import type { CompletionFunc } from '@pnpm/cli.command'
+import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import {
   docsUrl,
   readProjectManifestOnly,
   tryReadProjectManifest,
-} from '@pnpm/cli-utils'
-import type { CompletionFunc } from '@pnpm/command'
-import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config'
+} from '@pnpm/cli.utils'
+import { type Config, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,
   runLifecycleHook,
   type RunLifecycleHookOptions,
-} from '@pnpm/lifecycle'
+} from '@pnpm/exec.lifecycle'
 import type { PackageScripts, ProjectManifest } from '@pnpm/types'
 import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import pLimit from 'p-limit'

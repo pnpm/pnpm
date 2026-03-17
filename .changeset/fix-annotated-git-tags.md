@@ -1,5 +1,5 @@
 ---
-"@pnpm/git-resolver": patch
+"@pnpm/resolving.git-resolver": patch
 "pnpm": patch
 ---
 

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/tarball-resolver",
+  "name": "@pnpm/resolving.tarball-resolver",
   "version": "1002.1.4",
   "description": "Resolver for tarball dependencies",
   "keywords": [
@@ -32,12 +32,12 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*"
+    "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:*",
-    "@pnpm/tarball-resolver": "workspace:*"
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/resolving.tarball-resolver": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

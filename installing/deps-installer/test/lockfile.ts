@@ -3,6 +3,8 @@ import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import type { RootLog } from '@pnpm/core-loggers'
+import type { PnpmError } from '@pnpm/error'
 import {
   addDependenciesToPackage,
   install,
@@ -10,13 +12,11 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
   type ProjectOptions,
-} from '@pnpm/core'
-import type { RootLog } from '@pnpm/core-loggers'
-import type { PnpmError } from '@pnpm/error'
+} from '@pnpm/installing.deps-installer'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.fs'
 import type { LockfileFile } from '@pnpm/lockfile.types'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { DepPath, ProjectManifest, ProjectRootDir } from '@pnpm/types'
@@ -43,7 +43,7 @@ const LOCKFILE_WARN_LOG = {
 
 test('lockfile has correct format', async () => {
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
-  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes to check if the repo is public.
+  // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes to check if the repo is public.
   // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
   // resolving via the codeload tarball URL.
   const githubNock = nock('https://github.com', { allowUnmocked: true })
@@ -822,7 +822,7 @@ test('packages installed via tarball URL from the default registry are normalize
 
 test('lockfile file has correct format when lockfile directory does not equal the prefix directory', async () => {
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
-  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes to check if the repo is public.
+  // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes to check if the repo is public.
   // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
   // resolving via the codeload tarball URL.
   const githubNock = nock('https://github.com', { allowUnmocked: true })

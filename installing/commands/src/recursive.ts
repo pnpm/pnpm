@@ -6,7 +6,8 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   type RecursiveSummary,
   throwOnCommandFail,
-} from '@pnpm/cli-utils'
+} from '@pnpm/cli.utils'
+import { createMatcherWithIndex } from '@pnpm/config.matcher'
 import {
   type Config,
   createProjectConfigRecord,
@@ -14,7 +15,9 @@ import {
   getWorkspaceConcurrency,
   type OptionsFromRootManifest,
   type ProjectConfig,
-} from '@pnpm/config'
+} from '@pnpm/config.reader'
+import { PnpmError } from '@pnpm/error'
+import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import {
   addDependenciesToPackage,
   IgnoredBuildsError,
@@ -25,17 +28,13 @@ import {
   type ProjectOptions,
   type UpdateMatchingFunction,
   type WorkspacePackages,
-} from '@pnpm/core'
-import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+} from '@pnpm/installing.deps-installer'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.get-context'
 import { logger } from '@pnpm/logger'
-import { filterDependenciesByType } from '@pnpm/manifest-utils'
-import { createMatcherWithIndex } from '@pnpm/matcher'
-import type { StoreController } from '@pnpm/package-store'
-import { requireHooks } from '@pnpm/pnpmfile'
-import type { PreferredVersions } from '@pnpm/resolver-base'
-import { sortPackages } from '@pnpm/sort-packages'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { filterDependenciesByType } from '@pnpm/pkg-manifest.manifest-utils'
+import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
+import type { StoreController } from '@pnpm/store.package-store'
 import type {
   IgnoredBuilds,
   IncludedDependencies,
@@ -47,6 +46,7 @@ import type {
   ProjectsGraph,
 } from '@pnpm/types'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
+import { sortPackages } from '@pnpm/workspace.sort-packages'
 import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'

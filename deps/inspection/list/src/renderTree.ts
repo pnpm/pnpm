@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import type { DependencyNode } from '@pnpm/deps.inspection.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode, type TreeNodeGroup } from '@pnpm/text.tree-renderer'
 import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'

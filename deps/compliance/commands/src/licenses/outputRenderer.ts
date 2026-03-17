@@ -1,5 +1,5 @@
-import { TABLE_OPTIONS } from '@pnpm/cli-utils'
-import type { LicensePackage } from '@pnpm/license-scanner'
+import { TABLE_OPTIONS } from '@pnpm/cli.utils'
+import type { LicensePackage } from '@pnpm/deps.compliance.license-scanner'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { groupBy, omit, pick, sortWith } from 'ramda'

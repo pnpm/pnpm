@@ -1,10 +1,10 @@
 import path from 'node:path'
 
-import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
-import { run } from '@pnpm/plugin-commands-script-runners'
+import { run } from '@pnpm/exec.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { filterPkgsBySelectorObjects } from '@pnpm/workspace.filter-workspace-packages'
 import { safeExeca as execa } from 'execa'
 
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'

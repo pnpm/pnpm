@@ -1,5 +1,5 @@
 ---
-"@pnpm/default-reporter": patch
+"@pnpm/cli.default-reporter": patch
 "pnpm": patch
 ---
 

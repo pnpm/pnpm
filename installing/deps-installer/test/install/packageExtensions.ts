@@ -1,6 +1,6 @@
-import { addDependenciesToPackage, install, mutateModulesInSingleProject } from '@pnpm/core'
 import { hashObject as _hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
+import { addDependenciesToPackage, install, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { PackageExtension, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 

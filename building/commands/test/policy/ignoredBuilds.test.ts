@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { ignoredBuilds } from '@pnpm/building.commands'
-import { writeModulesManifest } from '@pnpm/modules-yaml'
+import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import type { DepPath } from '@pnpm/types'
 

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/resolve-workspace-range",
+  "name": "@pnpm/workspace.resolve-workspace-range",
   "version": "1000.0.0",
   "description": "Resolves a range from versions that are present inside a workspace",
   "keywords": [
@@ -35,7 +35,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/resolve-workspace-range": "workspace:*",
+    "@pnpm/workspace.resolve-workspace-range": "workspace:*",
     "@types/semver": "catalog:"
   },
   "engines": {

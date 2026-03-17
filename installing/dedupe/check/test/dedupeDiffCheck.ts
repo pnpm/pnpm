@@ -1,4 +1,4 @@
-import { DedupeCheckIssuesError, dedupeDiffCheck } from '@pnpm/dedupe.check'
+import { DedupeCheckIssuesError, dedupeDiffCheck } from '@pnpm/installing.dedupe.check'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { DepPath, ProjectId } from '@pnpm/types'
 

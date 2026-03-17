@@ -1,5 +1,5 @@
 ---
-"@pnpm/modules-yaml": major
+"@pnpm/installing.modules-yaml": major
 ---
 
 Remove options from writeModulesManifest.

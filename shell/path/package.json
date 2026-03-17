@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/env.path",
+  "name": "@pnpm/shell.path",
   "version": "1000.0.0",
   "description": "Functions for changing PATH env variable",
   "keywords": [
@@ -35,7 +35,7 @@
     "path-name": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/env.path": "workspace:*"
+    "@pnpm/shell.path": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

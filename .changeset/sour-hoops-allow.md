@@ -1,20 +1,20 @@
 ---
-"@pnpm/pick-fetcher": major
-"@pnpm/resolve-dependencies": minor
+"@pnpm/fetching.pick-fetcher": major
+"@pnpm/installing.resolve-dependencies": minor
 "@pnpm/releasing.commands": minor
-"@pnpm/store-connection-manager": minor
-"@pnpm/default-resolver": minor
-"@pnpm/license-scanner": minor
-"@pnpm/calc-dep-state": minor
-"@pnpm/resolver-base": minor
-"@pnpm/package-store": minor
-"@pnpm/client": minor
-"@pnpm/core": minor
-"@pnpm/pnpmfile": minor
+"@pnpm/store.connection-manager": minor
+"@pnpm/resolving.default-resolver": minor
+"@pnpm/deps.compliance.license-scanner": minor
+"@pnpm/deps.calc-dep-state": minor
+"@pnpm/resolving.resolver-base": minor
+"@pnpm/store.package-store": minor
+"@pnpm/installing.client": minor
+"@pnpm/installing.deps-installer": minor
+"@pnpm/hooks.pnpmfile": minor
 "@pnpm/lockfile.types": minor
 "@pnpm/hooks.types": minor
-"@pnpm/package-requester": patch
-"@pnpm/tarball-fetcher": patch
+"@pnpm/installing.package-requester": patch
+"@pnpm/fetching.tarball-fetcher": patch
 "@pnpm/deps.graph-builder": patch
 "@pnpm/lockfile.utils": patch
 ---

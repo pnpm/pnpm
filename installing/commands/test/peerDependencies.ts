@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { add, install } from '@pnpm/plugin-commands-installation'
+import { add, install } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { temporaryDirectory } from 'tempy'

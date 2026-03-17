@@ -9,7 +9,7 @@ import {
   type MutatedProject,
   mutateModules,
   mutateModulesInSingleProject,
-} from '@pnpm/core'
+} from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import type { DepPath, ProjectRootDir } from '@pnpm/types'

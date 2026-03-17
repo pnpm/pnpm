@@ -3,10 +3,10 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import { install } from '@pnpm/plugin-commands-installation'
-import type { PatchCommandOptions, PatchRemoveCommandOptions } from '@pnpm/plugin-commands-patching'
+import { install } from '@pnpm/installing.commands'
+import type { PatchCommandOptions, PatchRemoveCommandOptions } from '@pnpm/patching.commands'
+import { readProjectManifest } from '@pnpm/pkg-manifest.read-project-manifest'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
-import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
@@ -18,7 +18,7 @@ import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 const { default: enquirer } = await import('enquirer')
-const { patch, patchCommit, patchRemove } = await import('@pnpm/plugin-commands-patching')
+const { patch, patchCommit, patchRemove } = await import('@pnpm/patching.commands')
 
 const prompt = jest.mocked(enquirer.prompt)
 const f = fixtures(import.meta.dirname)

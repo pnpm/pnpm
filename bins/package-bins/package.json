@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/package-bins",
+  "name": "@pnpm/bins.package-bins",
   "version": "1000.0.11",
   "description": "Returns bins of a package",
   "keywords": [
@@ -38,7 +38,7 @@
     "tinyglobby": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/package-bins": "workspace:*",
+    "@pnpm/bins.package-bins": "workspace:*",
     "@types/node": "catalog:",
     "tempy": "catalog:"
   },

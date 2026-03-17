@@ -1,6 +1,6 @@
 import { cleanOrphanedInstallDirs } from '@pnpm/global.packages'
 import { streamParser } from '@pnpm/logger'
-import type { StoreController } from '@pnpm/store-controller-types'
+import type { StoreController } from '@pnpm/store.controller-types'
 
 import { cleanExpiredDlxCache } from './cleanExpiredDlxCache.js'
 import type { ReporterFunction } from './types.js'

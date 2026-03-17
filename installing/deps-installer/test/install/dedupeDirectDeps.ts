@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { type MutatedProject, mutateModules } from '@pnpm/core'
+import { type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'

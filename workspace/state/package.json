@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
-    "@pnpm/config": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:"
   },

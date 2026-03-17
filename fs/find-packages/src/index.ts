@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { readExactProjectManifest } from '@pnpm/read-project-manifest'
+import { readExactProjectManifest } from '@pnpm/pkg-manifest.read-project-manifest'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import pFilter from 'p-filter'

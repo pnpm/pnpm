@@ -1,5 +1,5 @@
-import { audit } from '@pnpm/audit'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { audit } from '@pnpm/deps.compliance.audit'
 import type { PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { DepPath, ProjectId } from '@pnpm/types'

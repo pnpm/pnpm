@@ -61,10 +61,10 @@
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
-      "path": "../../store/package-store"
+      "path": "../../store/controller-types"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/package-store"
     },
     {
       "path": "../../testing/temp-store"
@@ -73,10 +73,10 @@
       "path": "../../worker"
     },
     {
-      "path": "../config-writer"
+      "path": "../pick-registry-for-package"
     },
     {
-      "path": "../pick-registry-for-package"
+      "path": "../writer"
     }
   ]
 }

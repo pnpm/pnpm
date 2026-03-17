@@ -2,17 +2,17 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import type { Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { readModulesManifest } from '@pnpm/modules-yaml'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
 import {
   prepare,
   prepareEmpty,
   preparePackages,
   tempDir as makeTempDir,
 } from '@pnpm/prepare'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectManifest } from '@pnpm/types'
@@ -802,7 +802,7 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
   server1.clear()
   server2.clear()
 
-  // TODO: duplicate this test in @pnpm/headless
+  // TODO: duplicate this test in @pnpm/installing.deps-restorer
   await execPnpm(['recursive', 'install', '--frozen-lockfile', '--link-workspace-packages', '--shared-workspace-lockfile=true'])
 
   expect(server1.getLines()).toStrictEqual([

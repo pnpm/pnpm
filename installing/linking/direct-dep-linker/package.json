@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/pkg-manager.direct-dep-linker",
+  "name": "@pnpm/installing.linking.direct-dep-linker",
   "version": "1000.0.12",
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
@@ -31,8 +31,8 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/read-modules-dir": "workspace:*",
-    "@pnpm/symlink-dependency": "workspace:*",
+    "@pnpm/fs.read-modules-dir": "workspace:*",
+    "@pnpm/fs.symlink-dependency": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "ramda": "catalog:",
     "resolve-link-target": "catalog:"
@@ -41,8 +41,8 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/installing.linking.direct-dep-linker": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "engines": {

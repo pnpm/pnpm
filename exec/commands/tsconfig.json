@@ -22,16 +22,16 @@
       "path": "../../catalogs/resolver"
     },
     {
-      "path": "../../cli/cli-utils"
-    },
-    {
       "path": "../../cli/command"
     },
     {
       "path": "../../cli/common-cli-options-help"
     },
     {
-      "path": "../../config/config"
+      "path": "../../cli/utils"
+    },
+    {
+      "path": "../../config/reader"
     },
     {
       "path": "../../config/version-policy"
@@ -79,7 +79,7 @@
       "path": "../../shell/path"
     },
     {
-      "path": "../../store/store-path"
+      "path": "../../store/path"
     },
     {
       "path": "../../workspace/filter-packages-from-dir"

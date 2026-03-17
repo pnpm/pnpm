@@ -17,16 +17,16 @@
       "path": "../../../bins/link-bins"
     },
     {
-      "path": "../../../cli/cli-meta"
+      "path": "../../../cli/meta"
     },
     {
-      "path": "../../../cli/cli-utils"
-    },
-    {
-      "path": "../../../config/config"
+      "path": "../../../cli/utils"
     },
     {
       "path": "../../../config/deps-installer"
+    },
+    {
+      "path": "../../../config/reader"
     },
     {
       "path": "../../../deps/calc-dep-state"
@@ -65,10 +65,10 @@
       "path": "../../../shell/path"
     },
     {
-      "path": "../../../store/package-store"
+      "path": "../../../store/connection-manager"
     },
     {
-      "path": "../../../store/store-connection-manager"
+      "path": "../../../store/package-store"
     }
   ]
 }

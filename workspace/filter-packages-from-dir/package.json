@@ -30,7 +30,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/workspace.filter-workspace-packages": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*"
   },

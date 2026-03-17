@@ -2,7 +2,7 @@
 import path from 'node:path'
 
 import { assertProject } from '@pnpm/assert-project'
-import { importCommand } from '@pnpm/plugin-commands-installation'
+import { importCommand } from '@pnpm/installing.commands'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'

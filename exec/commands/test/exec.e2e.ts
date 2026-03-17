@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import type { PnpmError } from '@pnpm/error'
-import { exec, run } from '@pnpm/plugin-commands-script-runners'
+import { exec, run } from '@pnpm/exec.commands'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'

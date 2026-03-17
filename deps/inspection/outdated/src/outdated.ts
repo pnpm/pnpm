@@ -5,8 +5,11 @@ import {
   type WantedDependency,
 } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { createMatcher } from '@pnpm/config.matcher'
+import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import * as dp from '@pnpm/dependency-path'
+import * as dp from '@pnpm/deps.dependency-path'
 import { PnpmError } from '@pnpm/error'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import {
@@ -15,11 +18,8 @@ import {
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { createMatcher } from '@pnpm/matcher'
-import { parseBareSpecifier } from '@pnpm/npm-resolver'
-import { parseOverrides } from '@pnpm/parse-overrides'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.manifest-utils'
+import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
   DEPENDENCIES_FIELDS,
   type DependenciesField,

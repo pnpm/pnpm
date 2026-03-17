@@ -1,8 +1,8 @@
 import path from 'node:path'
 
+import { buildDependenciesTree, buildDependentsTree, createPackagesSearcher, type DependenciesTree, type DependencyNode, type ImporterInfo } from '@pnpm/deps.inspection.dependencies-hierarchy'
 import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
-import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { buildDependenciesTree, buildDependentsTree, createPackagesSearcher, type DependenciesTree, type DependencyNode, type ImporterInfo } from '@pnpm/reviewing.dependencies-hierarchy'
+import { safeReadProjectManifestOnly } from '@pnpm/pkg-manifest.read-project-manifest'
 import type { DependenciesField, Finder, Registries } from '@pnpm/types'
 
 import { renderDependentsJson, renderDependentsParseable, renderDependentsTree } from './renderDependentsTree.js'
@@ -11,7 +11,7 @@ import { renderParseable } from './renderParseable.js'
 import { renderTree } from './renderTree.js'
 import type { PackageDependencyHierarchy } from './types.js'
 
-export type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
+export type { DependencyNode } from '@pnpm/deps.inspection.dependencies-hierarchy'
 export {
   type PackageDependencyHierarchy,
   renderDependentsJson,

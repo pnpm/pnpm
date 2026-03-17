@@ -8,7 +8,7 @@ import {
   refToRelative,
   removeSuffix,
   tryGetPackageId,
-} from '@pnpm/dependency-path'
+} from '@pnpm/deps.dependency-path'
 import type { DepPath } from '@pnpm/types'
 
 test('isAbsolute()', () => {

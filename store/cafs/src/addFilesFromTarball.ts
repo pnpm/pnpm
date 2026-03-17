@@ -4,7 +4,7 @@ import type {
   AddToStoreResult,
   FilesIndex,
   FileWriteResult,
-} from '@pnpm/cafs-types'
+} from '@pnpm/store.cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
 import isGzip from 'is-gzip'
 

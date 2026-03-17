@@ -8,7 +8,7 @@ import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 
 const { default: enquirer } = await import('enquirer')
-const { update, install } = await import('@pnpm/plugin-commands-installation')
+const { update, install } = await import('@pnpm/installing.commands')
 
 const prompt = jest.mocked(enquirer.prompt)
 

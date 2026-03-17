@@ -10,7 +10,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 const { default: enquirer } = await import('enquirer')
-const { add, install, update } = await import('@pnpm/plugin-commands-installation')
+const { add, install, update } = await import('@pnpm/installing.commands')
 
 const prompt = jest.mocked(enquirer.prompt)
 

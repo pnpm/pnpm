@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { normalizeRegistries } from '@pnpm/config.normalize-registries'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   getLockfileImporterId,
   type LockfileObject,
@@ -7,8 +9,6 @@ import {
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import { readModulesManifest } from '@pnpm/modules-yaml'
-import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { StoreIndex } from '@pnpm/store.index'
 import type { DependenciesField, DependencyManifest, Finder, Registries } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'

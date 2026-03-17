@@ -2,16 +2,16 @@ import assert from 'node:assert'
 import path from 'node:path'
 import util from 'node:util'
 
-import { throwOnCommandFail } from '@pnpm/cli-utils'
-import { type Config, getWorkspaceConcurrency } from '@pnpm/config'
+import { throwOnCommandFail } from '@pnpm/cli.utils'
+import { type Config, getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
-} from '@pnpm/lifecycle'
+} from '@pnpm/exec.lifecycle'
 import { groupStart } from '@pnpm/log.group'
-import { sortPackages } from '@pnpm/sort-packages'
 import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
+import { sortPackages } from '@pnpm/workspace.sort-packages'
 import pLimit from 'p-limit'
 import { realpathMissing } from 'realpath-missing'
 

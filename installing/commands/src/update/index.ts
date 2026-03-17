@@ -1,17 +1,17 @@
+import type { CompletionFunc } from '@pnpm/cli.command'
+import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import {
   docsUrl,
   readDepNameCompletions,
   readProjectManifestOnly,
-} from '@pnpm/cli-utils'
-import type { CompletionFunc } from '@pnpm/command'
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
-import type { UpdateMatchingFunction } from '@pnpm/core'
+} from '@pnpm/cli.utils'
+import { createMatcher } from '@pnpm/config.matcher'
+import { types as allTypes } from '@pnpm/config.reader'
+import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalUpdate } from '@pnpm/global.commands'
+import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import { globalInfo } from '@pnpm/logger'
-import { createMatcher } from '@pnpm/matcher'
-import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir } from '@pnpm/types'
 import chalk from 'chalk'
 import enquirer from 'enquirer'

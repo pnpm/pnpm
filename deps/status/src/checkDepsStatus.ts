@@ -2,11 +2,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { type Config, getOptionsFromRootManifest, type OptionsFromRootManifest } from '@pnpm/config'
+import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { type Config, getOptionsFromRootManifest, type OptionsFromRootManifest } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.get-context'
 import {
   getLockfileImporterId,
   type LockfileObject,
@@ -24,8 +25,7 @@ import {
   satisfiesPackageManifest,
 } from '@pnpm/lockfile.verification'
 import { globalWarn, logger } from '@pnpm/logger'
-import { parseOverrides } from '@pnpm/parse-overrides'
-import type { WorkspacePackages } from '@pnpm/resolver-base'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type {
   DependencyManifest,
   Project,

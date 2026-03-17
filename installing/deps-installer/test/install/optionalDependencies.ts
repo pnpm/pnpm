@@ -8,7 +8,7 @@ import {
   type MutatedProject,
   mutateModules,
   mutateModulesInSingleProject,
-} from '@pnpm/core'
+} from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
@@ -325,7 +325,7 @@ test('optional subdependency is skipped', async () => {
 
   // forced headless install should install non-compatible optional deps
 
-  // TODO: move next case to @pnpm/headless tests
+  // TODO: move next case to @pnpm/installing.deps-restorer tests
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',

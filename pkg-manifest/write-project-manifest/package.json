@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/write-project-manifest",
+  "name": "@pnpm/pkg-manifest.write-project-manifest",
   "version": "1000.0.11",
   "description": "Write a project manifest (called package.json in most cases)",
   "keywords": [
@@ -38,7 +38,7 @@
     "write-yaml-file": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/write-project-manifest": "workspace:*",
+    "@pnpm/pkg-manifest.write-project-manifest": "workspace:*",
     "@types/write-file-atomic": "catalog:",
     "tempy": "catalog:"
   },

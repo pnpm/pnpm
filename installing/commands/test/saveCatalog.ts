@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { add } from '@pnpm/installing.commands'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { add } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { loadJsonFileSync } from 'load-json-file'
@@ -77,7 +77,7 @@ test('saveCatalogName works with different protocols', async () => {
     version: '0.0.0',
     private: true,
   })
-  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes.
+  // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes.
   // Without this, transient network failures cause fallback to git+https:// resolution.
   const githubNock = nock('https://github.com', { allowUnmocked: true })
     .head('/kevva/is-positive')

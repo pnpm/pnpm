@@ -1,9 +1,9 @@
 ---
-"@pnpm/plugin-commands-config": minor
+"@pnpm/config.commands": minor
 "@pnpm/workspace.manifest-writer": minor
 "@pnpm/workspace.read-manifest": minor
 "@pnpm/constants": minor
-"@pnpm/config": minor
+"@pnpm/config.reader": minor
 "pnpm": minor
 ---
 

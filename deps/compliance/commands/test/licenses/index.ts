@@ -5,7 +5,7 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { STORE_VERSION } from '@pnpm/constants'
 import { licenses } from '@pnpm/deps.compliance.commands'
-import { install } from '@pnpm/plugin-commands-installation'
+import { install } from '@pnpm/installing.commands'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'

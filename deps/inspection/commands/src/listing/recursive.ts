@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 import util from 'node:util'
 
-import type { Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config.reader'
 import { logger } from '@pnpm/logger'
 import type { IncludedDependencies, Project } from '@pnpm/types'
 

@@ -1,5 +1,5 @@
-import type { CompletionFunc } from '@pnpm/command'
-import type { ParsedCliArgs } from '@pnpm/parse-cli-args'
+import type { CompletionFunc } from '@pnpm/cli.command'
+import type { ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
 import { type CompletionItem, getShellFromEnv } from '@pnpm/tabtab'
 import tabtab from '@pnpm/tabtab'
 import { split as splitCmd } from 'split-cmd/index.modern.mjs'

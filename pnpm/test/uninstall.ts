@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
 import { prepare } from '@pnpm/prepare'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import PATH from 'path-name'
 
 import { execPnpm } from './utils/index.js'

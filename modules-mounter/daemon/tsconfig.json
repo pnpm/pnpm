@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
       "path": "../../deps/dependency-path"
@@ -37,7 +37,7 @@
       "path": "../../store/index"
     },
     {
-      "path": "../../store/store-path"
+      "path": "../../store/path"
     }
   ]
 }

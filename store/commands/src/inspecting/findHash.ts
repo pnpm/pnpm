@@ -1,8 +1,8 @@
-import type { Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex } from '@pnpm/store.index'
-import { getStorePath } from '@pnpm/store-path'
+import { getStorePath } from '@pnpm/store.path'
 import chalk from 'chalk'
 import { renderHelp } from 'render-help'
 

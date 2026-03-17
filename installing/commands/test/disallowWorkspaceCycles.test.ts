@@ -1,5 +1,5 @@
 import type { PnpmError } from '@pnpm/error'
-import { install } from '@pnpm/plugin-commands-installation'
+import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 

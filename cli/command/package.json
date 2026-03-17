@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/command",
+  "name": "@pnpm/cli.command",
   "version": "1000.0.0",
   "description": "Types and utils for pnpm commands",
   "keywords": [
@@ -33,7 +33,7 @@
     "@pnpm/tabtab": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/command": "workspace:*"
+    "@pnpm/cli.command": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

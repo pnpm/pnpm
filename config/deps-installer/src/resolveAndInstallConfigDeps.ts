@@ -1,5 +1,5 @@
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
-import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/fetch'
 import {
   createEnvLockfile,
   type EnvLockfile,
@@ -8,8 +8,8 @@ import {
 } from '@pnpm/lockfile.fs'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/npm-resolver'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
+import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/resolving.npm-resolver'
 import type { ConfigDependencies } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 

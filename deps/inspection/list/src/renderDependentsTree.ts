@@ -1,4 +1,4 @@
-import type { DependentNode, DependentsTree } from '@pnpm/reviewing.dependencies-hierarchy'
+import type { DependentNode, DependentsTree } from '@pnpm/deps.inspection.dependencies-hierarchy'
 import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
 

@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
+import { findWorkspaceDir } from '@pnpm/workspace.find-workspace-dir'
 
 const NPM_CONFIG_WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
 const FAKE_PATH = 'FAKE_PATH'

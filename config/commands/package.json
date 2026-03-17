@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/plugin-commands-config",
+  "name": "@pnpm/config.commands",
   "version": "1000.2.10",
   "description": "Commands for reading and writing settings to/from config files",
   "keywords": [
@@ -32,14 +32,14 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:*",
-    "@pnpm/config": "workspace:*",
+    "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/naming-cases": "workspace:*",
+    "@pnpm/exec.run-npm": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/object.property-path": "workspace:*",
-    "@pnpm/run-npm": "workspace:*",
+    "@pnpm/text.naming-cases": "workspace:*",
     "@pnpm/workspace.manifest-writer": "workspace:*",
     "camelcase": "catalog:",
     "ini": "catalog:",
@@ -54,8 +54,8 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/config.commands": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/plugin-commands-config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ini": "catalog:",
     "@types/lodash.kebabcase": "catalog:",

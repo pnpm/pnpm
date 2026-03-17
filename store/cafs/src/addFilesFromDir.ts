@@ -2,12 +2,12 @@ import fs, { type Stats } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import gfs from '@pnpm/fs.graceful-fs'
 import type {
   AddToStoreResult,
   FilesIndex,
   FileWriteResult,
-} from '@pnpm/cafs-types'
-import gfs from '@pnpm/graceful-fs'
+} from '@pnpm/store.cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 

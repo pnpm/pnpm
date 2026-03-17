@@ -2,7 +2,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { getRegisteredProjects, registerProject } from '@pnpm/package-store'
+import { getRegisteredProjects, registerProject } from '@pnpm/store.package-store'
 import { temporaryDirectory } from 'tempy'
 
 describe('projectRegistry', () => {

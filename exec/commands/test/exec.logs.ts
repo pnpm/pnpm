@@ -18,7 +18,7 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 })
 
 const { filterPackagesFromDir } = await import('@pnpm/workspace.filter-packages-from-dir')
-const { exec } = await import('@pnpm/plugin-commands-script-runners')
+const { exec } = await import('@pnpm/exec.commands')
 
 afterEach(() => {
   jest.mocked(debug).mockClear()

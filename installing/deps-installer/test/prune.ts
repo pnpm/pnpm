@@ -1,12 +1,12 @@
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
+import type { RootLog } from '@pnpm/core-loggers'
 import {
   addDependenciesToPackage,
   install,
   mutateModulesInSingleProject,
-} from '@pnpm/core'
-import type { RootLog } from '@pnpm/core-loggers'
+} from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectRootDir } from '@pnpm/types'

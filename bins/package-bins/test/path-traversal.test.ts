@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { getBinsFromPackageManifest } from '@pnpm/bins.package-bins'
 import { temporaryDirectory } from 'tempy'
 
 test('skip directories.bin with real path traversal', async () => {

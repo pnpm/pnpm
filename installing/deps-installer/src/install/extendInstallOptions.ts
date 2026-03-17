@@ -1,18 +1,18 @@
 import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/config.normalize-registries'
+import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import type { ProjectOptions } from '@pnpm/get-context'
-import type { HoistingLimits } from '@pnpm/headless'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import type { CustomFetcher, CustomResolver, PreResolutionHookContext } from '@pnpm/hooks.types'
+import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
+import type { ProjectOptions } from '@pnpm/installing.get-context'
+import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { IncludedDependencies } from '@pnpm/modules-yaml'
-import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/normalize-registries'
-import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
-import type { WorkspacePackages } from '@pnpm/resolver-base'
-import type { StoreController } from '@pnpm/store-controller-types'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowedDeprecatedVersions,
   PackageExtension,

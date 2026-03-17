@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { getBinsFromPackageManifest } from '@pnpm/bins.package-bins'
 
 test('getBinsFromPackageManifest()', async () => {
   expect(

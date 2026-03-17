@@ -1,4 +1,4 @@
-import { createMatcher } from '@pnpm/matcher'
+import { createMatcher } from '@pnpm/config.matcher'
 import npa from '@pnpm/npm-package-arg'
 import type { Finder, FinderContext } from '@pnpm/types'
 import semver from 'semver'

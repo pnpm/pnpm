@@ -1,7 +1,7 @@
 import path from 'node:path'
 
+import { add } from '@pnpm/installing.commands'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { add } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectId } from '@pnpm/types'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'

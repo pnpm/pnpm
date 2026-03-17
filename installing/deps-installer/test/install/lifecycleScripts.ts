@@ -3,14 +3,14 @@ import * as path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
+import type { LifecycleLog } from '@pnpm/core-loggers'
 import {
   addDependenciesToPackage,
   install,
   type MutatedProject,
   mutateModules,
   mutateModulesInSingleProject,
-} from '@pnpm/core'
-import type { LifecycleLog } from '@pnpm/core-loggers'
+} from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectRootDir } from '@pnpm/types'
@@ -214,7 +214,7 @@ test('INIT_CWD is always set to lockfile directory', async () => {
   expect(output).toStrictEqual(process.cwd())
 })
 
-// TODO: duplicate this test to @pnpm/lifecycle
+// TODO: duplicate this test to @pnpm/exec.lifecycle
 test("reports child's output", async () => {
   prepareEmpty()
 

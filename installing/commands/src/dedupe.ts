@@ -1,6 +1,6 @@
-import { docsUrl } from '@pnpm/cli-utils'
-import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { dedupeDiffCheck } from '@pnpm/dedupe.check'
+import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
+import { docsUrl } from '@pnpm/cli.utils'
+import { dedupeDiffCheck } from '@pnpm/installing.dedupe.check'
 import { omit } from 'ramda'
 import { renderHelp } from 'render-help'
 

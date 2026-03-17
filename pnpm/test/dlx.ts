@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { getConfig } from '@pnpm/config'
-import { readModulesManifest } from '@pnpm/modules-yaml'
-import { dlx } from '@pnpm/plugin-commands-script-runners'
+import { getConfig } from '@pnpm/config.reader'
+import { dlx } from '@pnpm/exec.commands'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { BaseManifest } from '@pnpm/types'

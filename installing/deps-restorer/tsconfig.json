@@ -58,7 +58,7 @@
       "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/lockfile-to-pnp"
+      "path": "../../lockfile/to-pnp"
     },
     {
       "path": "../../lockfile/utils"
@@ -91,13 +91,13 @@
       "path": "../../store/cafs"
     },
     {
+      "path": "../../store/controller-types"
+    },
+    {
       "path": "../../store/index"
     },
     {
-      "path": "../../store/store-controller-types"
-    },
-    {
-      "path": "../../store/store-path"
+      "path": "../../store/path"
     },
     {
       "path": "../../testing/temp-store"

@@ -1,7 +1,7 @@
 /// <reference path="../../../../__typings__/index.d.ts" />
 import path from 'node:path'
 
-import { getConfig } from '@pnpm/config'
+import { getConfig } from '@pnpm/config.reader'
 import type { PnpmError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
 import { catFile } from '@pnpm/store.commands'

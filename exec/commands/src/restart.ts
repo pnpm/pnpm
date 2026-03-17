@@ -1,4 +1,4 @@
-import { types as allTypes } from '@pnpm/config'
+import { types as allTypes } from '@pnpm/config.reader'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 

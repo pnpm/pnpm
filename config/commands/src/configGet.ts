@@ -1,9 +1,9 @@
 import path from 'node:path'
 
-import { types } from '@pnpm/config'
-import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
+import { types } from '@pnpm/config.reader'
+import { runNpm } from '@pnpm/exec.run-npm'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
-import { runNpm } from '@pnpm/run-npm'
+import { isCamelCase, isStrictlyKebabCase } from '@pnpm/text.naming-cases'
 import kebabCase from 'lodash.kebabcase'
 
 import type { ConfigCommandOptions } from './ConfigCommandOptions.js'

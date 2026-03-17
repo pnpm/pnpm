@@ -1,10 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
-import { createClient } from '@pnpm/client'
-import { createPackageStore } from '@pnpm/package-store'
+import { createClient } from '@pnpm/installing.client'
+import type { FetchPackageToStoreFunction } from '@pnpm/store.controller-types'
 import { StoreIndex } from '@pnpm/store.index'
-import type { FetchPackageToStoreFunction } from '@pnpm/store-controller-types'
+import { createPackageStore } from '@pnpm/store.package-store'
 import { temporaryDirectory } from 'tempy'
 
 describe('store.importPackage()', () => {

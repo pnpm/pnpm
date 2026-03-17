@@ -1,20 +1,20 @@
 import path from 'node:path'
 
-import type { Cafs } from '@pnpm/cafs-types'
-import { createCafsStore } from '@pnpm/create-cafs-store'
 import { fetchShasumsFileRaw, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
-import { downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
-import type {
-  FetchFromRegistry,
-  RetryTimeoutOptions,
-} from '@pnpm/fetching-types'
 import {
   DEFAULT_NODE_MIRROR_BASE_URL,
   getNodeArtifactAddress,
   UNOFFICIAL_NODE_MIRROR_BASE_URL,
-} from '@pnpm/node.resolver'
+} from '@pnpm/engine.runtime.node.resolver'
+import { downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
+import { createTarballFetcher } from '@pnpm/fetching.tarball-fetcher'
+import type {
+  FetchFromRegistry,
+  RetryTimeoutOptions,
+} from '@pnpm/fetching.types'
+import type { Cafs } from '@pnpm/store.cafs-types'
+import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import type { StoreIndex } from '@pnpm/store.index'
-import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import { isNonGlibcLinux } from 'detect-libc'
 
 export interface FetchNodeOptionsToDir {

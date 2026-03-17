@@ -5,12 +5,12 @@ import path from 'node:path'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import { createFetchFromRegistry } from '@pnpm/fetch'
+import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import {
   createNpmResolver,
   NoMatchingVersionError,
   RegistryResponseError,
-} from '@pnpm/npm-resolver'
+} from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectRootDir, Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'

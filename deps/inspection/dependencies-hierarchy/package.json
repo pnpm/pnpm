@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/reviewing.dependencies-hierarchy",
+  "name": "@pnpm/deps.inspection.dependencies-hierarchy",
   "version": "1001.1.3",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "keywords": [
@@ -34,16 +34,16 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/config.matcher": "workspace:*",
+    "@pnpm/config.normalize-registries": "workspace:*",
+    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/fs.read-modules-dir": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/matcher": "workspace:*",
-    "@pnpm/modules-yaml": "workspace:*",
-    "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
-    "@pnpm/read-modules-dir": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -56,7 +56,7 @@
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
-    "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
+    "@pnpm/deps.inspection.dependencies-hierarchy": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/semver": "catalog:"

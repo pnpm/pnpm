@@ -1,5 +1,5 @@
-import type { AuditAdvisory, AuditReport } from '@pnpm/audit'
-import { writeSettings } from '@pnpm/config.config-writer'
+import { writeSettings } from '@pnpm/config.writer'
+import type { AuditAdvisory, AuditReport } from '@pnpm/deps.compliance.audit'
 import { difference } from 'ramda'
 
 import type { AuditOptions } from './audit.js'

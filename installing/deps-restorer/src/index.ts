@@ -1,9 +1,9 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { linkBins, linkBinsOfPackages } from '@pnpm/bins.link-bins'
 import { buildModules } from '@pnpm/building.during-install'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
-import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -15,7 +15,8 @@ import {
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import * as dp from '@pnpm/dependency-path'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.calc-dep-state'
+import * as dp from '@pnpm/deps.dependency-path'
 import {
   type DependenciesGraph,
   type DependenciesGraphNode,
@@ -24,12 +25,20 @@ import {
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
 import { PnpmError } from '@pnpm/error'
-import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import {
   makeNodeRequireOption,
   runLifecycleHooksConcurrently,
-} from '@pnpm/lifecycle'
-import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
+} from '@pnpm/exec.lifecycle'
+import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
+import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/installing.linking.direct-dep-linker'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
+import { prune } from '@pnpm/installing.linking.modules-cleaner'
+import type { HoistingLimits } from '@pnpm/installing.linking.real-hoist'
+import {
+  type IncludedDependencies,
+  type Modules,
+  writeModulesManifest,
+} from '@pnpm/installing.modules-yaml'
 import {
   filterLockfileByEngine,
   filterLockfileByImportersAndEngine,
@@ -42,31 +51,22 @@ import {
   writeCurrentLockfile,
   writeLockfiles,
 } from '@pnpm/lockfile.fs'
+import { writePnpFile } from '@pnpm/lockfile.to-pnp'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
   type LogBase,
   logger,
   streamParser,
 } from '@pnpm/logger'
-import { prune } from '@pnpm/modules-cleaner'
-import {
-  type IncludedDependencies,
-  type Modules,
-  writeModulesManifest,
-} from '@pnpm/modules-yaml'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
-import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import type { HoistingLimits } from '@pnpm/real-hoist'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/pkg-manifest.read-project-manifest'
 import type {
   PackageFilesResponse,
   StoreController,
-} from '@pnpm/store-controller-types'
-import { symlinkDependency } from '@pnpm/symlink-dependency'
+} from '@pnpm/store.controller-types'
 import {
   type AllowBuild,
   DEPENDENCIES_FIELDS,

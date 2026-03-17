@@ -1,4 +1,4 @@
-import { refToRelative } from '@pnpm/dependency-path'
+import { refToRelative } from '@pnpm/deps.dependency-path'
 
 export { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 export { packageIdFromSnapshot } from './packageIdFromSnapshot.js'

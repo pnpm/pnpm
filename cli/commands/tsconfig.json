@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
       "path": "../../packages/error"
@@ -28,13 +28,13 @@
       "path": "../../workspace/read-manifest"
     },
     {
-      "path": "../cli-utils"
-    },
-    {
       "path": "../command"
     },
     {
       "path": "../parse-cli-args"
+    },
+    {
+      "path": "../utils"
     }
   ]
 }

@@ -1,6 +1,6 @@
-import { docsUrl } from '@pnpm/cli-utils'
-import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
+import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
+import { docsUrl } from '@pnpm/cli.utils'
+import { types as allTypes } from '@pnpm/config.reader'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 

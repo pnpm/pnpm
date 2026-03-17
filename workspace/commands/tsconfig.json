@@ -16,13 +16,13 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../cli/cli-meta"
+      "path": "../../cli/meta"
     },
     {
-      "path": "../../cli/cli-utils"
+      "path": "../../cli/utils"
     },
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
       "path": "../../object/key-sorting"

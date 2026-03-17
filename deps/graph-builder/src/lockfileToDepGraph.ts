@@ -1,26 +1,26 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
-import * as dp from '@pnpm/dependency-path'
+import * as dp from '@pnpm/deps.dependency-path'
+import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
 import {
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import type { IncludedDependencies } from '@pnpm/modules-yaml'
-import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
 import type {
   FetchResponse,
   PkgRequestFetchResult,
   StoreController,
-} from '@pnpm/store-controller-types'
+} from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   DepPath,

@@ -1,4 +1,4 @@
-import { getSpecFromPackageManifest } from '@pnpm/manifest-utils'
+import { getSpecFromPackageManifest } from '@pnpm/pkg-manifest.manifest-utils'
 
 test('getSpecFromPackageManifest()', () => {
   expect(

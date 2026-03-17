@@ -1,5 +1,6 @@
+import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import * as dp from '@pnpm/dependency-path'
+import * as dp from '@pnpm/deps.dependency-path'
 import { LockfileMissingDependencyError } from '@pnpm/error'
 import type {
   LockfileObject,
@@ -7,7 +8,6 @@ import type {
 } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { packageIsInstallable } from '@pnpm/package-is-installable'
 import type { DependenciesField, DepPath, ProjectId, SupportedArchitectures } from '@pnpm/types'
 import { map as mapValues, pickBy, unnest } from 'ramda'
 

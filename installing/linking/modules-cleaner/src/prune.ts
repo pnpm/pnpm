@@ -5,7 +5,8 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { depPathToFilename } from '@pnpm/dependency-path'
+import { depPathToFilename } from '@pnpm/deps.dependency-path'
+import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { filterLockfile, filterLockfileByImporters } from '@pnpm/lockfile.filtering'
 import type {
   LockfileObject,
@@ -14,8 +15,7 @@ import type {
 } from '@pnpm/lockfile.types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { readModulesDir } from '@pnpm/read-modules-dir'
-import type { StoreController } from '@pnpm/store-controller-types'
+import type { StoreController } from '@pnpm/store.controller-types'
 import {
   DEPENDENCIES_FIELDS,
   type DependenciesField,

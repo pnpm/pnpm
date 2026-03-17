@@ -2,9 +2,9 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import { normalizeRegistries } from '@pnpm/config.normalize-registries'
+import { type Modules, readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { getLockfileImporterId } from '@pnpm/lockfile.fs'
-import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
-import { normalizeRegistries } from '@pnpm/normalize-registries'
 import type {
   DependenciesField,
   DepPath,

@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import type { AgentOptions } from '@pnpm/network.agent'
-import type { GitResolution, PkgResolutionId, ResolveOptions, ResolveResult, TarballResolution } from '@pnpm/resolver-base'
+import type { GitResolution, PkgResolutionId, ResolveOptions, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import { gracefulGit as git } from 'graceful-git'
 import semver from 'semver'
 

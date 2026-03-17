@@ -13,10 +13,10 @@
       "path": "../../bins/link-bins"
     },
     {
-      "path": "../../config/config"
+      "path": "../../config/normalize-registries"
     },
     {
-      "path": "../../config/normalize-registries"
+      "path": "../../config/reader"
     },
     {
       "path": "../../deps/calc-dep-state"
@@ -64,13 +64,13 @@
       "path": "../../store/cafs"
     },
     {
+      "path": "../../store/connection-manager"
+    },
+    {
+      "path": "../../store/controller-types"
+    },
+    {
       "path": "../../store/index"
-    },
-    {
-      "path": "../../store/store-connection-manager"
-    },
-    {
-      "path": "../../store/store-controller-types"
     },
     {
       "path": "../../worker"

@@ -1,8 +1,8 @@
-import type { AuditReport } from '@pnpm/audit'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import type { AuditReport } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
+import { update } from '@pnpm/installing.commands'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
-import { update } from '@pnpm/plugin-commands-installation'
 import type {
   DependenciesField,
   PackageVulnerability,

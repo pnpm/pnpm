@@ -1,4 +1,4 @@
-import gfs from '@pnpm/graceful-fs'
+import gfs from '@pnpm/fs.graceful-fs'
 import type { ProjectManifest } from '@pnpm/types'
 import JSON5 from 'json5'
 import parseJson from 'parse-json'

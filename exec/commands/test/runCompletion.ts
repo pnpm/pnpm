@@ -1,4 +1,4 @@
-import { run } from '@pnpm/plugin-commands-script-runners'
+import { run } from '@pnpm/exec.commands'
 import { prepare } from '@pnpm/prepare'
 
 test('run completion', async () => {

@@ -1,7 +1,7 @@
 import path from 'node:path'
 
+import { add } from '@pnpm/installing.commands'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { add } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'

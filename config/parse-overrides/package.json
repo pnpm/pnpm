@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/parse-overrides",
+  "name": "@pnpm/config.parse-overrides",
   "version": "1001.0.3",
   "description": "Parse overrides",
   "keywords": [
@@ -34,10 +34,10 @@
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/parse-wanted-dependency": "workspace:*"
+    "@pnpm/resolving.parse-wanted-dependency": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/parse-overrides": "workspace:*"
+    "@pnpm/config.parse-overrides": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
-import { install } from '@pnpm/plugin-commands-installation'
+import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 

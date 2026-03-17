@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 
-import { parseDepPath } from '@pnpm/dependency-path'
+import { parseDepPath } from '@pnpm/deps.dependency-path'
 
 export function peersSuffixHashFromDepPath (depPath: string): string | undefined {
   const { peerDepGraphHash } = parseDepPath(depPath)

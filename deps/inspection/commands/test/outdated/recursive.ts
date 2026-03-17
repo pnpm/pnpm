@@ -2,7 +2,7 @@ import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { outdated } from '@pnpm/deps.inspection.commands'
-import { install } from '@pnpm/plugin-commands-installation'
+import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 

@@ -1,5 +1,5 @@
-import { parseBareSpecifier, type RegistryPackageSpec } from '@pnpm/npm-resolver'
-import type { WorkspacePackages, WorkspacePackagesByVersion } from '@pnpm/resolver-base'
+import { parseBareSpecifier, type RegistryPackageSpec } from '@pnpm/resolving.npm-resolver'
+import type { WorkspacePackages, WorkspacePackagesByVersion } from '@pnpm/resolving.resolver-base'
 import semver from 'semver'
 
 import type { WantedDependency } from './getNonDevWantedDependencies.js'
@@ -17,7 +17,7 @@ export function wantedDepIsLocallyAvailable (
   return pickMatchingLocalVersionOrNull(workspacePackages.get(spec.name)!, spec) !== null
 }
 
-// TODO: move this function to separate package or import from @pnpm/npm-resolver
+// TODO: move this function to separate package or import from @pnpm/resolving.npm-resolver
 function pickMatchingLocalVersionOrNull (
   versions: WorkspacePackagesByVersion,
   spec: RegistryPackageSpec

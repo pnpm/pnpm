@@ -8,7 +8,7 @@ import {
   type MutatedProject,
   mutateModules,
   type ProjectOptions,
-} from '@pnpm/core'
+} from '@pnpm/installing.deps-installer'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'

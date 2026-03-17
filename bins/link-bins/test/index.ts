@@ -25,7 +25,7 @@ const {
   linkBins,
   linkBinsOfPackages,
   linkBinsOfPkgsByAliases,
-} = await import('@pnpm/link-bins')
+} = await import('@pnpm/bins.link-bins')
 
 const binsConflictLogger = logger('bins-conflict')
 // The fixture directories are copied to before the tests run

@@ -1,9 +1,9 @@
 ---
 "@pnpm/building.commands": patch
-"@pnpm/default-reporter": patch
-"@pnpm/headless": patch
+"@pnpm/cli.default-reporter": patch
+"@pnpm/installing.deps-restorer": patch
 "@pnpm/building.during-install": patch
-"@pnpm/core": patch
+"@pnpm/installing.deps-installer": patch
 "pnpm": patch
 ---
 

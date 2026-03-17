@@ -13,10 +13,10 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../config/config"
+      "path": "../../config/parse-overrides"
     },
     {
-      "path": "../../config/parse-overrides"
+      "path": "../../config/reader"
     },
     {
       "path": "../../crypto/object-hasher"

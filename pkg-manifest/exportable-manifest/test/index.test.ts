@@ -2,7 +2,7 @@
 import path from 'node:path'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
-import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/exportable-manifest'
+import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/pkg-manifest.exportable-manifest'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'

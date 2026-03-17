@@ -6,20 +6,20 @@ import { prepareEmpty } from '@pnpm/prepare'
 
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 
-const { getSystemNodeVersion: originalGetSystemNodeVersion } = await import('@pnpm/env.system-node-version')
-jest.unstable_mockModule('@pnpm/env.system-node-version', () => ({
+const { getSystemNodeVersion: originalGetSystemNodeVersion } = await import('@pnpm/engine.runtime.system-node-version')
+jest.unstable_mockModule('@pnpm/engine.runtime.system-node-version', () => ({
   getSystemNodeVersion: jest.fn(originalGetSystemNodeVersion),
 }))
-const { add: originalAdd } = await import('@pnpm/plugin-commands-installation')
-jest.unstable_mockModule('@pnpm/plugin-commands-installation', () => ({
+const { add: originalAdd } = await import('@pnpm/installing.commands')
+jest.unstable_mockModule('@pnpm/installing.commands', () => ({
   add: {
     handler: jest.fn(originalAdd.handler),
   },
 }))
 
-const systemNodeVersion = await import('@pnpm/env.system-node-version')
-const { add } = await import('@pnpm/plugin-commands-installation')
-const { dlx } = await import('@pnpm/plugin-commands-script-runners')
+const systemNodeVersion = await import('@pnpm/engine.runtime.system-node-version')
+const { add } = await import('@pnpm/installing.commands')
+const { dlx } = await import('@pnpm/exec.commands')
 
 const testOnWindowsOnly = process.platform === 'win32' ? test : test.skip
 

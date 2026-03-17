@@ -1,11 +1,11 @@
 ---
 "@pnpm/types": major
-"@pnpm/config": major
-"@pnpm/core": major
-"@pnpm/headless": major
+"@pnpm/config.reader": major
+"@pnpm/installing.deps-installer": major
+"@pnpm/installing.deps-restorer": major
 "@pnpm/building.policy": major
 "@pnpm/building.commands": major
-"@pnpm/plugin-commands-installation": major
+"@pnpm/installing.commands": major
 "@pnpm/workspace.manifest-writer": major
 ---
 

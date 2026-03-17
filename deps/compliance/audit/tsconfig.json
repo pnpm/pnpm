@@ -13,7 +13,7 @@
       "path": "../../../__utils__/test-fixtures"
     },
     {
-      "path": "../../../fetching/fetching-types"
+      "path": "../../../fetching/types"
     },
     {
       "path": "../../../lockfile/detect-dep-types"

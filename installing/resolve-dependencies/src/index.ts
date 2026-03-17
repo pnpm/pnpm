@@ -1,21 +1,21 @@
 import path from 'node:path'
 
-import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
-import { isRuntimeDepPath } from '@pnpm/dependency-path'
+import { iterateHashedGraphNodes } from '@pnpm/deps.calc-dep-state'
+import { isRuntimeDepPath } from '@pnpm/deps.dependency-path'
 import type {
   LockfileObject,
   ProjectSnapshot,
 } from '@pnpm/lockfile.types'
+import { verifyPatches } from '@pnpm/patching.config'
 import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,
-} from '@pnpm/manifest-utils'
-import { verifyPatches } from '@pnpm/patching.config'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+} from '@pnpm/pkg-manifest.manifest-utils'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
 import {
   type AllowBuild,
   DEPENDENCIES_FIELDS,

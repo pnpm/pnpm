@@ -1,4 +1,4 @@
-import * as dp from '@pnpm/dependency-path'
+import * as dp from '@pnpm/deps.dependency-path'
 import type { PackageSnapshot } from '@pnpm/lockfile.types'
 import type { DepPath, PkgId } from '@pnpm/types'
 

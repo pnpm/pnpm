@@ -3,12 +3,12 @@ import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
+import type { RootLog } from '@pnpm/core-loggers'
+import { depPathToFilename } from '@pnpm/deps.dependency-path'
 import {
   addDependenciesToPackage,
   install,
-} from '@pnpm/core'
-import type { RootLog } from '@pnpm/core-loggers'
-import { depPathToFilename } from '@pnpm/dependency-path'
+} from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -27,7 +27,7 @@ afterEach(() => {
 
 test('from a github repo', async () => {
   const project = prepareEmpty()
-  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes.
+  // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes.
   // Without this, transient network failures cause fallback to git+https:// resolution.
   const githubNock = nock('https://github.com', { allowUnmocked: true })
     .head('/kevva/is-negative')

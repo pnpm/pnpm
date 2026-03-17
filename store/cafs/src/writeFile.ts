@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import fs from '@pnpm/graceful-fs'
+import fs from '@pnpm/fs.graceful-fs'
 
 const dirs = new Set()
 

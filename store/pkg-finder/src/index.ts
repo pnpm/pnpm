@@ -1,8 +1,8 @@
 import path from 'node:path'
 
-import { parse } from '@pnpm/dependency-path'
-import { fetchFromDir } from '@pnpm/directory-fetcher'
-import type { Resolution } from '@pnpm/resolver-base'
+import { parse } from '@pnpm/deps.dependency-path'
+import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
+import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, type StoreIndex, storeIndexKey } from '@pnpm/store.index'
 

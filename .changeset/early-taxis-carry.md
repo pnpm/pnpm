@@ -1,5 +1,5 @@
 ---
-"@pnpm/exportable-manifest": minor
+"@pnpm/pkg-manifest.exportable-manifest": minor
 "pnpm": minor
 ---
 

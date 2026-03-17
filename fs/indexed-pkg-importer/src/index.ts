@@ -4,9 +4,9 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
-import fs from '@pnpm/graceful-fs'
+import fs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store-controller-types'
+import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.controller-types'
 
 import { type ImportFile, importIndexedDir } from './importIndexedDir.js'
 

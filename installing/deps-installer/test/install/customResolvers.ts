@@ -1,5 +1,5 @@
-import { addDependenciesToPackage } from '@pnpm/core'
 import type { CustomResolver } from '@pnpm/hooks.types'
+import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 

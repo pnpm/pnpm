@@ -1,5 +1,5 @@
+import { hoist } from '@pnpm/installing.linking.real-hoist'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
-import { hoist } from '@pnpm/real-hoist'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectId } from '@pnpm/types'
 

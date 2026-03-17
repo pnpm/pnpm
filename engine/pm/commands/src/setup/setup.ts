@@ -2,8 +2,8 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli-meta'
-import { docsUrl } from '@pnpm/cli-utils'
+import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli.meta'
+import { docsUrl } from '@pnpm/cli.utils'
 import { logger } from '@pnpm/logger'
 import {
   addDirToEnvPath,

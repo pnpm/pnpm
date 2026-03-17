@@ -1,7 +1,7 @@
 import path from 'node:path'
 
-import { parse } from '@pnpm/dependency-path'
-import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
+import { parse } from '@pnpm/deps.dependency-path'
+import { type Modules, readModulesManifest } from '@pnpm/installing.modules-yaml'
 
 import type { IgnoredBuildsCommandOpts } from './ignoredBuilds.js'
 

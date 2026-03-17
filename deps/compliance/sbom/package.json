@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/sbom",
+  "name": "@pnpm/deps.compliance.sbom",
   "version": "1000.0.0-0",
   "description": "Generate SBOM from pnpm lockfile",
   "keywords": [
@@ -39,7 +39,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/store.pkg-finder": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -51,8 +51,8 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/deps.compliance.sbom": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/sbom": "workspace:*",
     "@types/ssri": "catalog:"
   },
   "engines": {

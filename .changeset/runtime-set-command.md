@@ -1,5 +1,5 @@
 ---
-"@pnpm/runtime.commands": patch
+"@pnpm/engine.runtime.commands": patch
 "pnpm": minor
 ---
 

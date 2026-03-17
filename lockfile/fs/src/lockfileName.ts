@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { getCurrentBranch } from '@pnpm/git-utils'
+import { getCurrentBranch } from '@pnpm/network.git-utils'
 
 export interface GetWantedLockfileNameOptions {
   useGitBranchLockfile?: boolean

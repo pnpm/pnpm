@@ -2,11 +2,11 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
-import { logger } from '@pnpm/logger'
 import type {
   IncludedDependencies,
   Modules,
-} from '@pnpm/modules-yaml'
+} from '@pnpm/installing.modules-yaml'
+import { logger } from '@pnpm/logger'
 import {
   DEPENDENCIES_FIELDS,
   type ProjectRootDir,

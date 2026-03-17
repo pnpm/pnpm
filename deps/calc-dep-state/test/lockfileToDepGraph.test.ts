@@ -1,4 +1,4 @@
-import { lockfileToDepGraph } from '@pnpm/calc-dep-state'
+import { lockfileToDepGraph } from '@pnpm/deps.calc-dep-state'
 import type { DepPath } from '@pnpm/types'
 
 test('lockfileToDepGraph', () => {
