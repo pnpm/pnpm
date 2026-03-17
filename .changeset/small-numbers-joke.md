@@ -3,7 +3,7 @@
 "@pnpm/releasing.commands": major
 "@pnpm/exec.commands": major
 "@pnpm/engine.runtime.commands": major
-"@pnpm/workspace.find-packages": major
+"@pnpm/workspace.project-finder": major
 "@pnpm/constants": major
 "@pnpm/installing.deps-installer": major
 "@pnpm/exec.lifecycle": major

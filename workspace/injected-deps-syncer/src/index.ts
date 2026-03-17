@@ -6,7 +6,7 @@ import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { logger as createLogger } from '@pnpm/logger'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
 import type { DependencyManifest } from '@pnpm/types'
-import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
+import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.project-finder'
 import normalizePath from 'normalize-path'
 
 import { DirPatcher } from './DirPatcher.js'

@@ -13,7 +13,7 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../../workspace/find-workspace-dir"
+      "path": "../../workspace/root-finder"
     }
   ]
 }

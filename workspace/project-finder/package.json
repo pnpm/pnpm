@@ -1,15 +1,15 @@
 {
-  "name": "@pnpm/workspace.resolve-workspace-range",
-  "version": "1000.0.0",
-  "description": "Resolves a range from versions that are present inside a workspace",
+  "name": "@pnpm/workspace.project-finder",
+  "version": "1000.0.43",
+  "description": "Finds packages inside a workspace",
   "keywords": [
     "pnpm",
     "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/workspace/resolve-workspace-range",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/workspace/resolve-workspace-range#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/workspace/project-finder",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/workspace/project-finder#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -24,7 +24,6 @@
     "!*.map"
   ],
   "scripts": {
-    "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
@@ -32,11 +31,20 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "semver": "catalog:"
+    "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/fs.find-packages": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/workspace.resolve-workspace-range": "workspace:*",
-    "@types/semver": "catalog:"
+    "@jest/globals": "catalog:",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/workspace.project-finder": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

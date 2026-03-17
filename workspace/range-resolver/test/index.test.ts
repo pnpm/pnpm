@@ -1,4 +1,4 @@
-import { resolveWorkspaceRange } from '@pnpm/workspace.resolve-workspace-range'
+import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 
 describe('resolveWorkspaceRange', () => {
   const versions = ['1.0.0', '2.0.0', '3.0.0-beta.1']

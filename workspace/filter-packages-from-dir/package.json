@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@pnpm/workspace.filter-workspace-packages": "workspace:*",
-    "@pnpm/workspace.find-packages": "workspace:*",
+    "@pnpm/workspace.project-finder": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*"
   },
   "devDependencies": {

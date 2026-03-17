@@ -16,7 +16,7 @@ import {
 import { addDistTag } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectManifest } from '@pnpm/types'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { findWorkspacePackages } from '@pnpm/workspace.project-finder'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'

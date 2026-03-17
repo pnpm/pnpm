@@ -34,7 +34,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/nopt": "catalog:",
-    "@pnpm/workspace.find-workspace-dir": "workspace:*",
+    "@pnpm/workspace.root-finder": "workspace:*",
     "didyoumean2": "catalog:"
   },
   "devDependencies": {

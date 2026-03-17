@@ -41,8 +41,8 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/releasing.exportable-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.find-workspace-dir": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@pnpm/workspace.root-finder": "workspace:*",
     "ramda": "catalog:",
     "rename-overwrite": "catalog:"
   },

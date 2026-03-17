@@ -46,7 +46,7 @@
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../../workspace/find-packages"
+      "path": "../../workspace/project-finder"
     },
     {
       "path": "../../workspace/project-manifest-writer"

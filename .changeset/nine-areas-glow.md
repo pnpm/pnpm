@@ -1,5 +1,5 @@
 ---
-"@pnpm/workspace.resolve-workspace-range": minor
+"@pnpm/workspace.range-resolver": minor
 "@pnpm/releasing.exportable-manifest": minor
 "@pnpm/resolving.npm-resolver": minor
 pnpm: minor

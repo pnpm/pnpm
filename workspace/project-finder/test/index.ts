@@ -5,7 +5,7 @@ import { logger } from '@pnpm/logger'
 import {
   findWorkspacePackages,
   findWorkspacePackagesNoCheck,
-} from '@pnpm/workspace.find-packages'
+} from '@pnpm/workspace.project-finder'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 beforeEach(() => {

@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { findWorkspaceDir } from '@pnpm/workspace.find-workspace-dir'
+import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 
 import { makeDedicatedLockfile } from './index.js'
 

@@ -25,10 +25,10 @@
       "path": "../../releasing/exportable-manifest"
     },
     {
-      "path": "../../workspace/find-workspace-dir"
+      "path": "../../workspace/project-manifest-reader"
     },
     {
-      "path": "../../workspace/project-manifest-reader"
+      "path": "../../workspace/root-finder"
     },
     {
       "path": "../fs"

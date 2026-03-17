@@ -1,7 +1,7 @@
 import { createMatcher } from '@pnpm/config.matcher'
 import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
-import { findWorkspacePackages, type Project } from '@pnpm/workspace.find-packages'
 import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.pkgs-graph'
+import { findWorkspacePackages, type Project } from '@pnpm/workspace.project-finder'
 import { isSubdir } from 'is-subdir'
 import * as micromatch from 'micromatch'
 import { difference, partition, pick } from 'ramda'

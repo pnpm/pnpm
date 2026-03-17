@@ -118,19 +118,19 @@
       "path": "../../workspace/filter-workspace-packages"
     },
     {
-      "path": "../../workspace/find-packages"
-    },
-    {
-      "path": "../../workspace/find-workspace-dir"
-    },
-    {
       "path": "../../workspace/pkgs-graph"
+    },
+    {
+      "path": "../../workspace/project-finder"
     },
     {
       "path": "../../workspace/project-manifest-reader"
     },
     {
       "path": "../../workspace/project-manifest-writer"
+    },
+    {
+      "path": "../../workspace/root-finder"
     },
     {
       "path": "../../workspace/sort-packages"

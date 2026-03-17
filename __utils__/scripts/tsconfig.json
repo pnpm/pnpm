@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../workspace/project-finder"
+    },
+    {
       "path": "../../workspace/workspace-manifest-reader"
     }
   ]

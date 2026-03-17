@@ -19,10 +19,10 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../find-packages"
+      "path": "../pkgs-graph"
     },
     {
-      "path": "../pkgs-graph"
+      "path": "../project-finder"
     }
   ]
 }

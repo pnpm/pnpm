@@ -97,7 +97,6 @@ catalog:
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
   '@pnpm/util.lex-comparator': ^3.0.2
-  '@pnpm/workspace.find-packages': ^1000.0.15
   '@reflink/reflink': 0.1.19
   '@rushstack/worker-pool': 0.7.1
   '@stylistic/eslint-plugin': ^4.4.1

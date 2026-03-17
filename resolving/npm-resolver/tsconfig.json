@@ -55,7 +55,7 @@
       "path": "../../worker"
     },
     {
-      "path": "../../workspace/resolve-workspace-range"
+      "path": "../../workspace/range-resolver"
     },
     {
       "path": "../../workspace/spec-parser"

@@ -30,7 +30,7 @@ import type {
 import {
   readPkgFromCafs,
 } from '@pnpm/worker'
-import { resolveWorkspaceRange } from '@pnpm/workspace.resolve-workspace-range'
+import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'

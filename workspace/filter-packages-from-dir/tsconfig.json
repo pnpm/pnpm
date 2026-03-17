@@ -16,7 +16,7 @@
       "path": "../filter-workspace-packages"
     },
     {
-      "path": "../find-packages"
+      "path": "../project-finder"
     },
     {
       "path": "../workspace-manifest-reader"

@@ -13,7 +13,7 @@
 "@pnpm/workspace.filter-packages-from-dir": major
 "@pnpm/patching.commands": major
 "@pnpm/installing.read-projects-context": major
-"@pnpm/workspace.resolve-workspace-range": major
+"@pnpm/workspace.range-resolver": major
 "@pnpm/config.pick-registry-for-package": major
 "@pnpm/lockfile.make-dedicated-lockfile": major
 "@pnpm/resolving.parse-wanted-dependency": major
@@ -31,7 +31,7 @@
 "@pnpm/installing.package-requester": major
 "@pnpm/building.commands": major
 "@pnpm/store.controller-types": major
-"@pnpm/workspace.find-workspace-dir": major
+"@pnpm/workspace.root-finder": major
 "@pnpm/cli.common-cli-options-help": major
 "@pnpm/config.normalize-registries": major
 "@pnpm/lockfile.preferred-versions": major
@@ -71,7 +71,7 @@
 "@pnpm/resolving.deno-resolver": major
 "@pnpm/resolving.resolver-base": major
 "@pnpm/store.create-cafs-store": major
-"@pnpm/workspace.find-packages": major
+"@pnpm/workspace.project-finder": major
 "@pnpm/workspace.workspace-manifest-reader": major
 "@pnpm/workspace.sort-packages": major
 "@pnpm/assert-store": major

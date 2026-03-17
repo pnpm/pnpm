@@ -31,8 +31,8 @@ import type {
   VulnerabilitySeverity,
 } from '@pnpm/types'
 import { filterPkgsBySelectorObjects } from '@pnpm/workspace.filter-workspace-packages'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
+import { findWorkspacePackages } from '@pnpm/workspace.project-finder'
 import { sequenceGraph } from '@pnpm/workspace.sort-packages'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
