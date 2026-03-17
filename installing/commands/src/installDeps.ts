@@ -162,6 +162,12 @@ export async function installDeps (
       ignoreFilteredInstallCache: true,
     })
     if (upToDate) {
+      if (opts.hooks?.customResolvers?.some(r => r.shouldRefreshResolution)) {
+        logger.warn({
+          message: 'shouldRefreshResolution hooks were skipped because optimistic-repeat-install is enabled.',
+          prefix: opts.dir,
+        })
+      }
       globalInfo('Already up to date')
       return
     }
