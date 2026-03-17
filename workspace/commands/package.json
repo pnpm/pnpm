@@ -38,7 +38,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.write-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-writer": "workspace:*",
     "camelcase-keys": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"

@@ -11,7 +11,7 @@
   "dependencies": {
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.find-workspace-dir": "workspace:*",
-    "@pnpm/workspace.read-manifest": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "esbuild": "catalog:"
   },
   "devDependencies": {

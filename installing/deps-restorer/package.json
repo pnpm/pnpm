@@ -65,7 +65,7 @@
     "@pnpm/pkg-manifest.read-package-json": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "p-limit": "catalog:",
     "path-absolute": "catalog:",

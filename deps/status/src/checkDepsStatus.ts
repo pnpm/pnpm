@@ -33,8 +33,8 @@ import type {
   ProjectManifest,
 } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { loadWorkspaceState, updateWorkspaceState, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals, filter, isEmpty, once } from 'ramda'
 
 import { assertLockfilesEqual } from './assertLockfilesEqual.js'

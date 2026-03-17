@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare-temp-dir'
-import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
+import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 

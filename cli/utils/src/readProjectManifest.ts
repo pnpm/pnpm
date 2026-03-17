@@ -1,5 +1,5 @@
 import type { ProjectManifest, SupportedArchitectures } from '@pnpm/types'
-import * as utils from '@pnpm/workspace.read-project-manifest'
+import * as utils from '@pnpm/workspace.project-manifest-reader'
 
 import { packageIsInstallable } from './packageIsInstallable.js'
 

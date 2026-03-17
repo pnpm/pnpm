@@ -6,7 +6,7 @@ import {
   findWorkspacePackages,
   findWorkspacePackagesNoCheck,
 } from '@pnpm/workspace.find-packages'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 beforeEach(() => {
   jest.spyOn(logger, 'warn')

@@ -172,7 +172,7 @@
       "path": "../../worker"
     },
     {
-      "path": "../../workspace/read-project-manifest"
+      "path": "../../workspace/project-manifest-reader"
     },
     {
       "path": "../context"

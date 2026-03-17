@@ -32,10 +32,10 @@ import type {
 } from '@pnpm/types'
 import { filterPkgsBySelectorObjects } from '@pnpm/workspace.filter-workspace-packages'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { sequenceGraph } from '@pnpm/workspace.sort-packages'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'

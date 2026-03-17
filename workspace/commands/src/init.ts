@@ -7,7 +7,7 @@ import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/con
 import { PnpmError } from '@pnpm/error'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import type { ProjectManifest } from '@pnpm/types'
-import { writeProjectManifest } from '@pnpm/workspace.write-project-manifest'
+import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 

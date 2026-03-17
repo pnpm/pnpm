@@ -80,7 +80,7 @@ import {
   type SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
-import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/workspace.read-project-manifest'
+import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
 import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'

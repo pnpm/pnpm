@@ -6,7 +6,7 @@ import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-upda
 import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
 import type { ProjectId, ProjectManifest } from '@pnpm/types'
 import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import { loadJsonFileSync } from 'load-json-file'
 import normalizePath from 'normalize-path'

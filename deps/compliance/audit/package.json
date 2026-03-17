@@ -41,7 +41,7 @@
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "ramda": "catalog:"
   },
   "peerDependencies": {

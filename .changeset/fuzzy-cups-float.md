@@ -1,5 +1,5 @@
 ---
-"@pnpm/workspace.manifest-writer": minor
+"@pnpm/workspace.workspace-manifest-writer": minor
 "@pnpm/config.writer": minor
 ---
 

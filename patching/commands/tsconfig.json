@@ -73,10 +73,10 @@
       "path": "../../workspace/filter-packages-from-dir"
     },
     {
-      "path": "../../workspace/read-manifest"
+      "path": "../../workspace/project-manifest-reader"
     },
     {
-      "path": "../../workspace/read-project-manifest"
+      "path": "../../workspace/workspace-manifest-reader"
     },
     {
       "path": "../apply-patch"

@@ -6,7 +6,7 @@
 "@pnpm/building.policy": major
 "@pnpm/building.commands": major
 "@pnpm/installing.commands": major
-"@pnpm/workspace.manifest-writer": major
+"@pnpm/workspace.workspace-manifest-writer": major
 ---
 
 Remove deprecated build dependency settings: `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, and `ignoredBuiltDependencies`.

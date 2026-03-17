@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/workspace.write-project-manifest",
+  "name": "@pnpm/workspace.project-manifest-writer",
   "version": "1000.0.11",
   "description": "Write a project manifest (called package.json in most cases)",
   "keywords": [
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/workspace/write-project-manifest",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/workspace/write-project-manifest#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/workspace/project-manifest-writer",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/workspace/project-manifest-writer#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -38,7 +38,7 @@
     "write-yaml-file": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/workspace.write-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-writer": "workspace:*",
     "@types/write-file-atomic": "catalog:",
     "tempy": "catalog:"
   },

@@ -45,8 +45,8 @@ import type {
   ProjectRootDirRealPath,
   ProjectsGraph,
 } from '@pnpm/types'
-import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { sortPackages } from '@pnpm/workspace.sort-packages'
+import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'

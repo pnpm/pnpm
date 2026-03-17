@@ -38,7 +38,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "normalize-path": "catalog:"
   },
   "peerDependencies": {

@@ -48,7 +48,7 @@
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:",

@@ -37,7 +37,7 @@
   "devDependencies": {
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
-    "@pnpm/workspace.read-manifest": "workspace:*"
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

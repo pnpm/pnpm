@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "@pnpm/workspace.find-packages": "catalog:",
-    "@pnpm/workspace.read-manifest": "catalog:",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "execa": "catalog:",
     "fast-glob": "catalog:",
     "make-empty-dir": "catalog:",

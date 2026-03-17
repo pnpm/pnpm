@@ -8,7 +8,7 @@ import { packlist } from '@pnpm/fs.packlist'
 import { logger } from '@pnpm/logger'
 import type { FilesMap } from '@pnpm/store.cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
-import { safeReadProjectManifestOnly } from '@pnpm/workspace.read-project-manifest'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
 const directoryFetcherLogger = logger('directory-fetcher')
 

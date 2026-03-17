@@ -42,7 +42,7 @@
     "@pnpm/releasing.exportable-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-workspace-dir": "workspace:*",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "ramda": "catalog:",
     "rename-overwrite": "catalog:"
   },

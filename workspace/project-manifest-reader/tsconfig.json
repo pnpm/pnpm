@@ -28,7 +28,7 @@
       "path": "../../text/comments-parser"
     },
     {
-      "path": "../write-project-manifest"
+      "path": "../project-manifest-writer"
     }
   ]
 }

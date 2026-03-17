@@ -40,7 +40,7 @@
     "@pnpm/pkg-manifest.read-package-json": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/cmd-shim": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "bin-links": "catalog:",

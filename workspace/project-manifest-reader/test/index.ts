@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
-import { readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.read-project-manifest'
+import { readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)

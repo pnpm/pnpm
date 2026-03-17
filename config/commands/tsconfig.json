@@ -37,7 +37,7 @@
       "path": "../../text/naming-cases"
     },
     {
-      "path": "../../workspace/manifest-writer"
+      "path": "../../workspace/workspace-manifest-writer"
     },
     {
       "path": "../reader"

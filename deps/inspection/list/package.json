@@ -42,7 +42,7 @@
     "@pnpm/text.tree-renderer": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "chalk": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:"

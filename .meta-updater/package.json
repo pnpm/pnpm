@@ -14,7 +14,7 @@
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
-    "@pnpm/workspace.read-manifest": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@types/normalize-path": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",

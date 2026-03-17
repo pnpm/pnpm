@@ -40,7 +40,7 @@
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/object.property-path": "workspace:*",
     "@pnpm/text.naming-cases": "workspace:*",
-    "@pnpm/workspace.manifest-writer": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-writer": "workspace:*",
     "camelcase": "catalog:",
     "ini": "catalog:",
     "lodash.kebabcase": "catalog:",

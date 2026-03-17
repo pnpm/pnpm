@@ -75,7 +75,7 @@ import type {
   ReadPackageHook,
 } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { safeReadProjectManifestOnly } from '@pnpm/workspace.read-project-manifest'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import { clone, isEmpty, map as mapValues, pipeWith, props } from 'ramda'

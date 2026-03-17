@@ -13,10 +13,10 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../workspace/manifest-writer"
+      "path": "../../workspace/project-manifest-reader"
     },
     {
-      "path": "../../workspace/read-project-manifest"
+      "path": "../../workspace/workspace-manifest-writer"
     }
   ]
 }

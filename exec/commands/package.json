@@ -57,7 +57,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.injected-deps-syncer": "workspace:*",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.sort-packages": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "didyoumean2": "catalog:",

@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
-import { writeProjectManifest } from '@pnpm/workspace.write-project-manifest'
+import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import { temporaryDirectory } from 'tempy'
 
 const readFile = promisify(fs.readFile)

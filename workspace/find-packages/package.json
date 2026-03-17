@@ -44,7 +44,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
-    "@pnpm/workspace.read-manifest": "workspace:*"
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

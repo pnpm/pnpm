@@ -68,7 +68,7 @@
       "path": "../../../store/controller"
     },
     {
-      "path": "../../../workspace/read-project-manifest"
+      "path": "../../../workspace/project-manifest-reader"
     }
   ]
 }

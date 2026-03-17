@@ -105,7 +105,7 @@
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "enquirer": "catalog:",
     "is-inner-link": "catalog:",

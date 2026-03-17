@@ -1,5 +1,5 @@
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
-import { readProjectManifest } from '@pnpm/workspace.read-project-manifest'
+import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 
 export async function readDepNameCompletions (dir?: string): Promise<Array<{ name: string }>> {
   const { manifest } = await readProjectManifest(dir ?? process.cwd())

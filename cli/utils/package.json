@@ -42,7 +42,7 @@
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "chalk": "catalog:",
     "load-json-file": "catalog:"
   },

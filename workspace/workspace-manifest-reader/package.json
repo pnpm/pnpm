@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/workspace.read-manifest",
+  "name": "@pnpm/workspace.workspace-manifest-reader",
   "version": "1000.2.5",
   "description": "Reads a workspace manifest file",
   "keywords": [
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/workspace/read-manifest",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/workspace/read-manifest#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/workspace/workspace-manifest-reader",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/workspace/workspace-manifest-reader#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -37,7 +37,7 @@
     "read-yaml-file": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/workspace.read-manifest": "workspace:*"
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

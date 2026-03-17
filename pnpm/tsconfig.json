@@ -162,16 +162,16 @@
       "path": "../workspace/pkgs-graph"
     },
     {
-      "path": "../workspace/read-manifest"
+      "path": "../workspace/project-manifest-reader"
     },
     {
-      "path": "../workspace/read-project-manifest"
+      "path": "../workspace/project-manifest-writer"
     },
     {
       "path": "../workspace/state"
     },
     {
-      "path": "../workspace/write-project-manifest"
+      "path": "../workspace/workspace-manifest-reader"
     }
   ]
 }

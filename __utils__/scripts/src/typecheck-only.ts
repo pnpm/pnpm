@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { sync as execa } from 'execa'
 import glob from 'fast-glob'
 import normalizePath from 'normalize-path'

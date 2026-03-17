@@ -4,9 +4,9 @@
 "@pnpm/cli.commands": major
 "@pnpm/releasing.commands": major
 "@pnpm/exec.commands": major
-"@pnpm/workspace.write-project-manifest": major
+"@pnpm/workspace.project-manifest-writer": major
 "@pnpm/workspace.filter-workspace-packages": major
-"@pnpm/workspace.read-project-manifest": major
+"@pnpm/workspace.project-manifest-reader": major
 "@pnpm/deps.compliance.commands": major
 "@pnpm/deps.inspection.commands": major
 "@pnpm/engine.pm.commands": major
@@ -45,7 +45,7 @@
 "@pnpm/lockfile.detect-dep-types": major
 "@pnpm/lockfile.settings-checker": major
 "@pnpm/deps.compliance.license-scanner": major
-"@pnpm/workspace.manifest-writer": major
+"@pnpm/workspace.workspace-manifest-writer": major
 "@pnpm/catalogs.protocol-parser": major
 "@pnpm/fetching.tarball-fetcher": major
 "@pnpm/lockfile.to-pnp": major
@@ -66,7 +66,7 @@
 "@pnpm/resolving.resolver-base": major
 "@pnpm/store.create-cafs-store": major
 "@pnpm/workspace.find-packages": major
-"@pnpm/workspace.read-manifest": major
+"@pnpm/workspace.workspace-manifest-reader": major
 "@pnpm/workspace.sort-packages": major
 "@pnpm/config.parse-overrides": major
 "@pnpm/installing.dedupe.issues-renderer": major

@@ -25,7 +25,7 @@
       "path": "../../workspace/find-workspace-dir"
     },
     {
-      "path": "../../workspace/read-manifest"
+      "path": "../../workspace/workspace-manifest-reader"
     },
     {
       "path": "../command"

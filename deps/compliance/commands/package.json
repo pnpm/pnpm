@@ -54,7 +54,7 @@
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
     "memoize": "catalog:",

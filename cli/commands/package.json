@@ -40,7 +40,7 @@
     "@pnpm/tabtab": "catalog:",
     "@pnpm/workspace.find-packages": "workspace:^",
     "@pnpm/workspace.find-workspace-dir": "workspace:^",
-    "@pnpm/workspace.read-manifest": "workspace:^",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:^",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "split-cmd": "catalog:"

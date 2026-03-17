@@ -45,8 +45,8 @@
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
-    "@pnpm/workspace.read-manifest": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "ramda": "catalog:"
   },
   "peerDependencies": {
@@ -56,7 +56,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/deps.status": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/workspace.write-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-writer": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "engines": {

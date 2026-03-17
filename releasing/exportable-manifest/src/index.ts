@@ -6,7 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
-import { tryReadProjectManifest } from '@pnpm/workspace.read-project-manifest'
+import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { pMapValues } from 'p-map-values'
 import { omit } from 'ramda'
 

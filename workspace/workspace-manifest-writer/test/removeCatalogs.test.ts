@@ -5,7 +5,7 @@ import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { findPackages } from '@pnpm/fs.find-packages'
 import { prepare } from '@pnpm/prepare'
 import { tempDir } from '@pnpm/prepare-temp-dir'
-import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
+import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 

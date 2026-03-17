@@ -6,7 +6,7 @@ import childProcess from 'child_process'
 import { createRequire } from 'module'
 import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
 import { findWorkspaceDir } from '@pnpm/workspace.find-workspace-dir'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(import.meta.dirname, 'package.json'), 'utf8'))
 

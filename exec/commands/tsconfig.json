@@ -88,7 +88,7 @@
       "path": "../../workspace/injected-deps-syncer"
     },
     {
-      "path": "../../workspace/read-project-manifest"
+      "path": "../../workspace/project-manifest-reader"
     },
     {
       "path": "../../workspace/sort-packages"

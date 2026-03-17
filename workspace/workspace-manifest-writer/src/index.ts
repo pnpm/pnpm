@@ -9,7 +9,7 @@ import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import type {
   Project,
 } from '@pnpm/types'
-import { validateWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { validateWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { patchDocument } from '@pnpm/yaml.document-sync'
 import { equals } from 'ramda'
 import writeFileAtomic from 'write-file-atomic'

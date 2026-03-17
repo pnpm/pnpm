@@ -26,7 +26,7 @@
       "path": "../workspace/find-packages"
     },
     {
-      "path": "../workspace/read-manifest"
+      "path": "../workspace/workspace-manifest-reader"
     }
   ]
 }

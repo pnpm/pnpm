@@ -40,10 +40,10 @@
       "path": "../../text/naming-cases"
     },
     {
-      "path": "../../workspace/read-manifest"
+      "path": "../../workspace/project-manifest-reader"
     },
     {
-      "path": "../../workspace/read-project-manifest"
+      "path": "../../workspace/workspace-manifest-reader"
     },
     {
       "path": "../matcher"

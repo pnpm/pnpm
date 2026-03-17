@@ -14,7 +14,7 @@ import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { DependenciesField, Project, ProjectRootDir } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
+import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { pick, without } from 'ramda'
 import { renderHelp } from 'render-help'
 

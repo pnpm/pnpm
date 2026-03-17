@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 test('readWorkspaceManifest() works with a valid workspace file', async () => {
   const manifest = await readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/ok'))

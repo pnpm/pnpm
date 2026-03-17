@@ -5,7 +5,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { readProjectManifestOnly } from '@pnpm/workspace.read-project-manifest'
+import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from '../utils/index.js'

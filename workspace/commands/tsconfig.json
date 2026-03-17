@@ -34,7 +34,7 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../write-project-manifest"
+      "path": "../project-manifest-writer"
     }
   ]
 }

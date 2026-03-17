@@ -74,7 +74,7 @@
       "path": "../../../workspace/filter-workspace-packages"
     },
     {
-      "path": "../../../workspace/read-project-manifest"
+      "path": "../../../workspace/project-manifest-reader"
     },
     {
       "path": "../audit"

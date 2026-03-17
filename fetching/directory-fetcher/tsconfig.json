@@ -31,7 +31,7 @@
       "path": "../../store/cafs-types"
     },
     {
-      "path": "../../workspace/read-project-manifest"
+      "path": "../../workspace/project-manifest-reader"
     },
     {
       "path": "../fetcher-base"

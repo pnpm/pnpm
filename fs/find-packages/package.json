@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "p-filter": "catalog:",
     "tinyglobby": "catalog:"
   },

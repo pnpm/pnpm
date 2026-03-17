@@ -37,7 +37,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.read-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "p-map-values": "catalog:",
     "ramda": "catalog:"
   },

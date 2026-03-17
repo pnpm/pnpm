@@ -37,7 +37,7 @@
       "path": "../../resolving/jsr-specifier-parser"
     },
     {
-      "path": "../../workspace/read-project-manifest"
+      "path": "../../workspace/project-manifest-reader"
     }
   ]
 }
