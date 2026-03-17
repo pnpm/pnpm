@@ -1,5 +1,5 @@
 ---
-"@pnpm/package-store": patch
+"@pnpm/store.controller": patch
 "pnpm": patch
 ---
 

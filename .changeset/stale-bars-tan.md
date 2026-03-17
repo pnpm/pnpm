@@ -1,6 +1,6 @@
 ---
-"@pnpm/dependency-path": patch
-"@pnpm/calc-dep-state": patch
+"@pnpm/deps.path": patch
+"@pnpm/deps.graph-hasher": patch
 ---
 
 Fix dependency graph hash calculation for runtime dependencies (like Node.js, Deno).

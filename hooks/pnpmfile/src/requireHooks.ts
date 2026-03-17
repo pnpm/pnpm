@@ -3,7 +3,7 @@ import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import type { CustomFetcher, CustomResolver, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import type { ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
+import type { ImportIndexedPackageAsync } from '@pnpm/store.controller-types'
 import type { BaseManifest, BeforePackingHook, ReadPackageHook } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
 

@@ -10,16 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../../core/core-loggers"
+    },
+    {
+      "path": "../../../core/logger"
+    },
+    {
       "path": "../../../fs/read-modules-dir"
     },
     {
       "path": "../../../fs/symlink-dependency"
-    },
-    {
-      "path": "../../../packages/core-loggers"
-    },
-    {
-      "path": "../../../packages/logger"
     }
   ]
 }

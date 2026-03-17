@@ -31,10 +31,10 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/cafs-types": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {

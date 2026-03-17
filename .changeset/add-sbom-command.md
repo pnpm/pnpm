@@ -1,6 +1,6 @@
 ---
-"@pnpm/sbom": minor
-"@pnpm/plugin-commands-sbom": minor
+"@pnpm/deps.compliance.sbom": minor
+"@pnpm/deps.compliance.commands": minor
 "pnpm": minor
 ---
 

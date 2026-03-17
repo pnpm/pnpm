@@ -1,5 +1,5 @@
 ---
-"@pnpm/calc-dep-state": major
+"@pnpm/deps.graph-hasher": major
 "pnpm": minor
 ---
 

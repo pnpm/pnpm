@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import type { PackageMeta } from '@pnpm/npm-resolver'
+import type { PackageMeta } from '@pnpm/resolving.npm-resolver'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import getRegistryName from 'encode-registry'
 import { glob } from 'tinyglobby'

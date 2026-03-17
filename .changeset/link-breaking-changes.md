@@ -1,6 +1,6 @@
 ---
 "pnpm": major
-"@pnpm/plugin-commands-installation": major
+"@pnpm/installing.commands": major
 ---
 
 Breaking changes to `pnpm link`:

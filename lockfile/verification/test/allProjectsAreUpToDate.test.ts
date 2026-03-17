@@ -7,7 +7,7 @@ import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { allProjectsAreUpToDate } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
-import type { WorkspacePackages } from '@pnpm/resolver-base'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
 import tar from 'tar-stream'
 

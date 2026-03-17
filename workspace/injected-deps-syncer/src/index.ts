@@ -1,12 +1,12 @@
 import path from 'node:path'
 
+import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { PnpmError } from '@pnpm/error'
-import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { logger as createLogger } from '@pnpm/logger'
-import { readModulesManifest } from '@pnpm/modules-yaml'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { DependencyManifest } from '@pnpm/types'
-import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
+import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.projects-reader'
 import normalizePath from 'normalize-path'
 
 import { DirPatcher } from './DirPatcher.js'

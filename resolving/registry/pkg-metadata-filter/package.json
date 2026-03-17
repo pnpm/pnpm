@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/registry.pkg-metadata-filter",
+  "name": "@pnpm/resolving.registry.pkg-metadata-filter",
   "version": "1000.1.1",
   "description": "Filters the package metadata from the registry",
   "keywords": [
@@ -33,7 +33,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/registry.types": "workspace:*",
+    "@pnpm/resolving.registry.types": "workspace:*",
     "semver": "catalog:"
   },
   "peerDependencies": {
@@ -41,7 +41,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",
-    "@pnpm/registry.pkg-metadata-filter": "workspace:*",
+    "@pnpm/resolving.registry.pkg-metadata-filter": "workspace:*",
     "@types/semver": "catalog:"
   },
   "engines": {

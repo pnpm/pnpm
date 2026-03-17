@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/make-dedicated-lockfile",
+  "name": "@pnpm/lockfile.make-dedicated-lockfile",
   "version": "1000.0.28",
   "description": "Creates a dedicated lockfile for a subset of workspace projects",
   "keywords": [
@@ -36,18 +36,18 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/exec": "catalog:",
-    "@pnpm/exportable-manifest": "workspace:*",
-    "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/releasing.exportable-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@pnpm/workspace.root-finder": "workspace:*",
     "ramda": "catalog:",
     "rename-overwrite": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/make-dedicated-lockfile": "workspace:*",
+    "@pnpm/lockfile.make-dedicated-lockfile": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",
     "execa": "catalog:"

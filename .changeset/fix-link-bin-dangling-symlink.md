@@ -1,5 +1,5 @@
 ---
-"@pnpm/link-bins": patch
+"@pnpm/bins.linker": patch
 "pnpm": patch
 ---
 

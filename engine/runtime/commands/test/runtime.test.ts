@@ -6,7 +6,7 @@ jest.unstable_mockModule('@pnpm/exec.pnpm-cli-runner', () => ({
   runPnpmCli: mockRunPnpmCli,
 }))
 
-const { runtime } = await import('@pnpm/runtime.commands')
+const { runtime } = await import('@pnpm/engine.runtime.commands')
 
 beforeEach(() => {
   mockRunPnpmCli.mockClear()

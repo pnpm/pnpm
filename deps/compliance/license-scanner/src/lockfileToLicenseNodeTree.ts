@@ -1,3 +1,4 @@
+import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, packageIdFromSnapshot } from '@pnpm/lockfile.utils'
@@ -5,7 +6,6 @@ import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
 } from '@pnpm/lockfile.walker'
-import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { StoreIndex } from '@pnpm/store.index'
 import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
 import { map as mapValues } from 'ramda'

@@ -2,9 +2,9 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import util from 'node:util'
 
-import type { FilesMap, PackageFileInfo, PackageFiles, SideEffects } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
-import gfs from '@pnpm/graceful-fs'
+import gfs from '@pnpm/fs.graceful-fs'
+import type { FilesMap, PackageFileInfo, PackageFiles, SideEffects } from '@pnpm/store.cafs-types'
 import type { BundledManifest } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/git-fetcher",
+  "name": "@pnpm/fetching.git-fetcher",
   "version": "1003.0.0",
   "description": "A fetcher for git-hosted packages",
   "keywords": [
@@ -33,9 +33,9 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/exec.prepare-package": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
-    "@pnpm/prepare-package": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:"
@@ -46,10 +46,10 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/create-cafs-store": "workspace:*",
-    "@pnpm/git-fetcher": "workspace:*",
+    "@pnpm/fetching.git-fetcher": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "tempy": "catalog:"

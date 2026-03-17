@@ -5,8 +5,8 @@ import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
-import type { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolver-base'
-import type { StoreController } from '@pnpm/store-controller-types'
+import type { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   AllowedDeprecatedVersions,

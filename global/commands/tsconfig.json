@@ -10,40 +10,40 @@
   ],
   "references": [
     {
-      "path": "../../bins/link-bins"
+      "path": "../../bins/linker"
     },
     {
-      "path": "../../bins/package-bins"
+      "path": "../../bins/remover"
     },
     {
-      "path": "../../bins/remove-bins"
+      "path": "../../bins/resolver"
     },
     {
-      "path": "../../building/policy-commands"
+      "path": "../../building/commands"
     },
     {
-      "path": "../../cli/cli-utils"
-    },
-    {
-      "path": "../../config/config"
+      "path": "../../cli/utils"
     },
     {
       "path": "../../config/matcher"
     },
     {
-      "path": "../../installing/core"
+      "path": "../../config/reader"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../core/error"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../core/types"
     },
     {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../installing/deps-installer"
     },
     {
-      "path": "../../store/store-connection-manager"
+      "path": "../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../store/connection-manager"
     },
     {
       "path": "../packages"

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/modules-yaml",
+  "name": "@pnpm/installing.modules-yaml",
   "version": "1000.3.6",
   "description": "Reads/writes `node_modules/.modules.yaml`",
   "keywords": [
@@ -33,14 +33,14 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "is-windows": "catalog:",
     "ramda": "catalog:",
     "read-yaml-file": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/modules-yaml": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:",
     "tempy": "catalog:"

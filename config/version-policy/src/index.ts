@@ -1,5 +1,5 @@
+import { createMatcher, type Matcher } from '@pnpm/config.matcher'
 import { PnpmError } from '@pnpm/error'
-import { createMatcher, type Matcher } from '@pnpm/matcher'
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 

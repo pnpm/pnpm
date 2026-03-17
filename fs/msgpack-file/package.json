@@ -32,7 +32,7 @@
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "dependencies": {
-    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "msgpackr": "catalog:"
   },
   "devDependencies": {

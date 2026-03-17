@@ -28,6 +28,18 @@
       "path": "../../../config/version-policy"
     },
     {
+      "path": "../../../core/constants"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/logger"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
       "path": "../../../hooks/read-package-hook"
     },
     {
@@ -40,19 +52,7 @@
       "path": "../../../lockfile/utils"
     },
     {
-      "path": "../../../packages/constants"
-    },
-    {
-      "path": "../../../packages/error"
-    },
-    {
-      "path": "../../../packages/logger"
-    },
-    {
-      "path": "../../../packages/types"
-    },
-    {
-      "path": "../../../pkg-manifest/manifest-utils"
+      "path": "../../../pkg-manifest/utils"
     },
     {
       "path": "../../../resolving/npm-resolver"
@@ -61,7 +61,7 @@
       "path": "../../../resolving/resolver-base"
     },
     {
-      "path": "../../dependency-path"
+      "path": "../../path"
     }
   ]
 }

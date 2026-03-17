@@ -1,18 +1,18 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import type { Cafs, FilesMap, PackageFilesResponse } from '@pnpm/cafs-types'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
   type CafsLocker,
   createCafs,
 } from '@pnpm/store.cafs'
+import type { Cafs, FilesMap, PackageFilesResponse } from '@pnpm/store.cafs-types'
 import type {
   ImportIndexedPackage,
   ImportIndexedPackageAsync,
   ImportPackageFunction,
   ImportPackageFunctionAsync,
-} from '@pnpm/store-controller-types'
+} from '@pnpm/store.controller-types'
 import memoize from 'memoize'
 import { pathTemp } from 'path-temp'
 

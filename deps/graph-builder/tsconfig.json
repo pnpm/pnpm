@@ -13,6 +13,18 @@
       "path": "../../config/package-is-installable"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../hooks/types"
     },
     {
@@ -25,31 +37,19 @@
       "path": "../../lockfile/utils"
     },
     {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
       "path": "../../patching/config"
     },
     {
       "path": "../../patching/types"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/controller-types"
     },
     {
-      "path": "../calc-dep-state"
+      "path": "../graph-hasher"
     },
     {
-      "path": "../dependency-path"
+      "path": "../path"
     }
   ]
 }

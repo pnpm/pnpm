@@ -1,4 +1,4 @@
-import * as dp from '@pnpm/dependency-path'
+import * as dp from '@pnpm/deps.path'
 import {
   type LockfileObject,
   type PackageSnapshot,

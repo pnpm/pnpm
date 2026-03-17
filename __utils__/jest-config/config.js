@@ -10,7 +10,7 @@ const config = {
   testEnvironment: "node",
   collectCoverage: true,
   coveragePathIgnorePatterns: ["/node_modules/"],
-  testPathIgnorePatterns: ["/fixtures/", "/__fixtures__/", "<rootDir>/test/utils/.+"],
+  testPathIgnorePatterns: ["/fixtures/", "/__fixtures__/", "/test/(.+/)?utils/"],
   modulePathIgnorePatterns: ['\/__fixtures__\/.*'],
   testTimeout: 4 * 60 * 1000, // 4 minutes
   setupFilesAfterEnv: [path.join(import.meta.dirname, "setupFilesAfterEnv.js")],

@@ -10,10 +10,19 @@
   ],
   "references": [
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/path"
     },
     {
       "path": "../../lockfile/fs"
@@ -22,22 +31,13 @@
       "path": "../../lockfile/utils"
     },
     {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
       "path": "../../store/cafs"
     },
     {
       "path": "../../store/index"
     },
     {
-      "path": "../../store/store-path"
+      "path": "../../store/path"
     }
   ]
 }

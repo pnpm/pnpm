@@ -1,5 +1,5 @@
 ---
-"@pnpm/npm-resolver": patch
+"@pnpm/resolving.npm-resolver": patch
 "pnpm": patch
 ---
 

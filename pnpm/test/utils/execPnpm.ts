@@ -1,7 +1,7 @@
 import type { ChildProcess as NodeChildProcess, StdioOptions } from 'node:child_process'
 import path from 'node:path'
 
-import type { Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config.reader'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import crossSpawn from 'cross-spawn'
 import isWindows from 'is-windows'

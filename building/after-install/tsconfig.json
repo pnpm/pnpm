@@ -10,28 +10,40 @@
   ],
   "references": [
     {
-      "path": "../../bins/link-bins"
-    },
-    {
-      "path": "../../config/config"
+      "path": "../../bins/linker"
     },
     {
       "path": "../../config/normalize-registries"
     },
     {
-      "path": "../../deps/calc-dep-state"
+      "path": "../../config/reader"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/graph-hasher"
     },
     {
       "path": "../../deps/graph-sequencer"
     },
     {
+      "path": "../../deps/path"
+    },
+    {
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../installing/get-context"
+      "path": "../../installing/context"
     },
     {
       "path": "../../installing/modules-yaml"
@@ -46,31 +58,19 @@
       "path": "../../lockfile/walker"
     },
     {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     },
     {
       "path": "../../store/cafs"
     },
     {
+      "path": "../../store/connection-manager"
+    },
+    {
+      "path": "../../store/controller-types"
+    },
+    {
       "path": "../../store/index"
-    },
-    {
-      "path": "../../store/store-connection-manager"
-    },
-    {
-      "path": "../../store/store-controller-types"
     },
     {
       "path": "../../worker"

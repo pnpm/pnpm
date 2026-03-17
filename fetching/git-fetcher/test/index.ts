@@ -2,7 +2,7 @@
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import { createCafsStore } from '@pnpm/create-cafs-store'
+import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { temporaryDirectory } from 'tempy'
@@ -29,7 +29,7 @@ import { temporaryDirectory } from 'tempy'
 
 const { globalWarn } = await import('@pnpm/logger')
 const { safeExeca: execa } = await import('execa')
-const { createGitFetcher } = await import('@pnpm/git-fetcher')
+const { createGitFetcher } = await import('@pnpm/fetching.git-fetcher')
 
 const storeIndexes: StoreIndex[] = []
 afterAll(() => {

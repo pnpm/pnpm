@@ -1,6 +1,6 @@
 ---
-"@pnpm/manifest-utils": patch
-"@pnpm/resolve-dependencies": patch
+"@pnpm/pkg-manifest.utils": patch
+"@pnpm/installing.resolve-dependencies": patch
 pnpm: patch
 ---
 

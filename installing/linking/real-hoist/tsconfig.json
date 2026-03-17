@@ -15,19 +15,19 @@
       "path": "../../../__utils__/test-fixtures"
     },
     {
-      "path": "../../../deps/dependency-path"
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
+      "path": "../../../deps/path"
     },
     {
       "path": "../../../lockfile/fs"
     },
     {
       "path": "../../../lockfile/utils"
-    },
-    {
-      "path": "../../../packages/error"
-    },
-    {
-      "path": "../../../packages/types"
     }
   ]
 }

@@ -1,5 +1,5 @@
 ---
-"@pnpm/package-requester": minor
+"@pnpm/installing.package-requester": minor
 "@pnpm/worker": minor
 "pnpm": minor
 ---

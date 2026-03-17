@@ -1,5 +1,5 @@
 ---
-"@pnpm/list": patch
+"@pnpm/deps.inspection.list": patch
 "pnpm": patch
 ---
 

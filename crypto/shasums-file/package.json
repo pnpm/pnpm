@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*"
+    "@pnpm/fetching.types": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/crypto.shasums-file": "workspace:*"

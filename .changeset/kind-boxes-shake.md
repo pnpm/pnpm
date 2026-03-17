@@ -1,5 +1,5 @@
 ---
-"@pnpm/package-bins": patch
+"@pnpm/bins.resolver": patch
 "pnpm": patch
 ---
 

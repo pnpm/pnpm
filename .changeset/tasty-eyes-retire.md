@@ -1,7 +1,7 @@
 ---
-"@pnpm/common-cli-options-help": minor
-"@pnpm/core": minor
-"@pnpm/config": minor
+"@pnpm/cli.common-cli-options-help": minor
+"@pnpm/installing.deps-installer": minor
+"@pnpm/config.reader": minor
 "pnpm": minor
 ---
 

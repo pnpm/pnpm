@@ -1,4 +1,4 @@
-import { createMatcher } from '@pnpm/matcher'
+import { createMatcher } from '@pnpm/config.matcher'
 import type { BaseManifest, ReadPackageHook } from '@pnpm/types'
 
 export function createOptionalDependenciesRemover (toBeRemoved: string[]): ReadPackageHook {

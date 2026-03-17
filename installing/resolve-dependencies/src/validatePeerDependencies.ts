@@ -1,5 +1,5 @@
+import { isValidPeerRange } from '@pnpm/deps.peer-range'
 import { PnpmError } from '@pnpm/error'
-import { isValidPeerRange } from '@pnpm/semver.peer-range'
 import type { ProjectManifest } from '@pnpm/types'
 
 export interface ProjectToValidate {

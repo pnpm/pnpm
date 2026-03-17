@@ -16,7 +16,19 @@
       "path": "../../config/package-is-installable"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/path"
     },
     {
       "path": "../../fetching/fetcher-base"
@@ -34,18 +46,6 @@
       "path": "../../hooks/types"
     },
     {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
       "path": "../../resolving/resolver-base"
     },
     {
@@ -55,13 +55,13 @@
       "path": "../../store/cafs-types"
     },
     {
+      "path": "../../store/controller-types"
+    },
+    {
       "path": "../../store/create-cafs-store"
     },
     {
       "path": "../../store/index"
-    },
-    {
-      "path": "../../store/store-controller-types"
     },
     {
       "path": "../../worker"

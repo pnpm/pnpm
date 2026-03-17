@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/parse-wanted-dependency",
+  "name": "@pnpm/resolving.parse-wanted-dependency",
   "version": "1001.0.0",
   "description": "Parse dependency specifier",
   "keywords": [
@@ -33,7 +33,7 @@
     "validate-npm-package-name": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@types/validate-npm-package-name": "catalog:"
   },
   "engines": {

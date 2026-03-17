@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-init": minor
+"@pnpm/workspace.commands": minor
 "pnpm": minor
 ---
 

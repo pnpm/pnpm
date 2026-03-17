@@ -1,7 +1,7 @@
 import { convertToLockfileFile, createEnvLockfile, readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
-import type { StoreController } from '@pnpm/package-store'
+import type { StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, Registries } from '@pnpm/types'
 
 import { convertToLockfileEnvObject } from './pruneEnvLockfile.js'

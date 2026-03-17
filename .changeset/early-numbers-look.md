@@ -1,5 +1,5 @@
 ---
-"@pnpm/builder.policy": minor
+"@pnpm/building.policy": minor
 "pnpm": patch
 ---
 

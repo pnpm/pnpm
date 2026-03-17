@@ -3,12 +3,12 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
-import type { FilesMap } from '@pnpm/cafs-types'
-import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
+import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { logger } from '@pnpm/logger'
-import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+import type { FilesMap } from '@pnpm/store.cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
 const directoryFetcherLogger = logger('directory-fetcher')
 

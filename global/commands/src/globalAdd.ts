@@ -1,7 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { approveBuilds } from '@pnpm/building.policy-commands'
+import { linkBinsOfPackages } from '@pnpm/bins.linker'
+import { removeBin } from '@pnpm/bins.remover'
+import { approveBuilds } from '@pnpm/building.commands'
 import {
   cleanOrphanedInstallDirs,
   createGlobalCacheKey,
@@ -10,10 +12,8 @@ import {
   getHashLink,
   getInstalledBinNames,
 } from '@pnpm/global.packages'
-import { linkBinsOfPackages } from '@pnpm/link-bins'
-import { readPackageJsonFromDirRawSync } from '@pnpm/read-package-json'
-import { removeBin } from '@pnpm/remove-bins'
-import type { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
+import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import { isSubdir } from 'is-subdir'
 import symlinkDir from 'symlink-dir'
 

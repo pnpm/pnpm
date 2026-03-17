@@ -1,0 +1,3 @@
+export { selfUpdate } from './self-updater/index.js'
+export { installPnpm, installPnpmToStore, linkExePlatformBinary } from './self-updater/installPnpm.js'
+export { setup } from './setup/index.js'

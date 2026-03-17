@@ -13,7 +13,19 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../deps/calc-dep-state"
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/graph-hasher"
     },
     {
       "path": "../../fs/read-modules-dir"
@@ -40,19 +52,7 @@
       "path": "../../network/fetch"
     },
     {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     },
     {
       "path": "../../resolving/npm-resolver"
@@ -61,10 +61,10 @@
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
-      "path": "../../store/package-store"
+      "path": "../../store/controller"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/controller-types"
     },
     {
       "path": "../../testing/temp-store"
@@ -73,10 +73,10 @@
       "path": "../../worker"
     },
     {
-      "path": "../config-writer"
+      "path": "../pick-registry-for-package"
     },
     {
-      "path": "../pick-registry-for-package"
+      "path": "../writer"
     }
   ]
 }

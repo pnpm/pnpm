@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { prependDirsToPath } from '@pnpm/env.path'
+import { prependDirsToPath } from '@pnpm/shell.path'
 import PATH from 'path-name'
 
 test('prependDirsToPath', () => {

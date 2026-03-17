@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import gfs from '@pnpm/graceful-fs'
+import gfs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import { rimrafSync } from '@zkochan/rimraf'
 import fsx from 'fs-extra'

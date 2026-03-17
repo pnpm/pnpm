@@ -10,19 +10,25 @@
   ],
   "references": [
     {
-      "path": "../../../cli/cli-utils"
+      "path": "../../../cli/utils"
     },
     {
-      "path": "../../../config/config"
+      "path": "../../../config/reader"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/logger"
     },
     {
       "path": "../../../exec/pnpm-cli-runner"
     },
     {
-      "path": "../../../packages/error"
+      "path": "../../../network/fetch"
     },
     {
-      "path": "../../../packages/logger"
+      "path": "../node-resolver"
     }
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/runtime.commands",
+  "name": "@pnpm/engine.runtime.commands",
   "version": "1000.0.0-0",
   "description": "pnpm commands for managing runtimes",
   "keywords": [
@@ -32,10 +32,12 @@
     "test": "pnpm run compile && pnpm run _test"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:*",
-    "@pnpm/config": "workspace:*",
+    "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/engine.runtime.node-resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
     "render-help": "catalog:"
   },
   "peerDependencies": {
@@ -43,8 +45,8 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/engine.runtime.commands": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/runtime.commands": "workspace:*",
     "cross-env": "catalog:"
   },
   "engines": {

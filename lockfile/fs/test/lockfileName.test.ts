@@ -1,9 +1,9 @@
 import { jest } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 
-jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
-const { getCurrentBranch } = await import('@pnpm/git-utils')
+const { getCurrentBranch } = await import('@pnpm/network.git-utils')
 const { getWantedLockfileName } = await import('../lib/lockfileName.js')
 
 describe('lockfileName', () => {

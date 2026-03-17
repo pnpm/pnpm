@@ -1,4 +1,4 @@
-import type { PackageFilesResponse } from '@pnpm/cafs-types'
+import type { PackageFilesResponse } from '@pnpm/store.cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
 
 export interface PkgNameVersion {

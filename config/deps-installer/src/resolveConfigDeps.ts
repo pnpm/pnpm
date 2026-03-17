@@ -1,6 +1,6 @@
-import { writeSettings } from '@pnpm/config.config-writer'
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
-import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/fetch'
 import {
   createEnvLockfile,
   type EnvLockfile,
@@ -9,9 +9,9 @@ import {
 } from '@pnpm/lockfile.fs'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/npm-resolver'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
+import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/resolving.npm-resolver'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { ConfigDependencies, ConfigDependencySpecifiers } from '@pnpm/types'
 
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'

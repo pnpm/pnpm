@@ -1,4 +1,4 @@
-import gfs from '@pnpm/graceful-fs'
+import gfs from '@pnpm/fs.graceful-fs'
 import { Packr } from 'msgpackr'
 
 /**

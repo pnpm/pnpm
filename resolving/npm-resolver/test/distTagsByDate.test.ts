@@ -1,5 +1,5 @@
-import { createFetchFromRegistry } from '@pnpm/fetch'
-import { createNpmResolver } from '@pnpm/npm-resolver'
+import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import type { Registries } from '@pnpm/types'
 import nock from 'nock'
 import { temporaryDirectory } from 'tempy'

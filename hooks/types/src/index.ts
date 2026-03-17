@@ -1,7 +1,7 @@
-import type { Cafs } from '@pnpm/cafs-types'
-import type { Fetchers, FetchOptions, FetchResult } from '@pnpm/fetcher-base'
+import type { Fetchers, FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
-import type { Resolution, WantedDependency } from '@pnpm/resolver-base'
+import type { Resolution, WantedDependency } from '@pnpm/resolving.resolver-base'
+import type { Cafs } from '@pnpm/store.cafs-types'
 import type { Registries } from '@pnpm/types'
 
 // Custom resolution types must use scoped naming to avoid conflicts with pnpm's built-in types

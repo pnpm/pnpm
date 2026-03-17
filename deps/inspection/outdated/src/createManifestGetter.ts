@@ -1,9 +1,9 @@
+import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import {
   type ClientOptions,
   createResolver,
   type ResolveFunction,
-} from '@pnpm/client'
-import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
+} from '@pnpm/installing.client'
 import type { DependencyManifest, PackageVersionPolicy } from '@pnpm/types'
 
 interface GetManifestOpts {

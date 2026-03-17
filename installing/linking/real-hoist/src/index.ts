@@ -1,4 +1,4 @@
-import * as dp from '@pnpm/dependency-path'
+import * as dp from '@pnpm/deps.path'
 import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
   type LockfileObject,

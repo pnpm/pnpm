@@ -1,9 +1,9 @@
 import path from 'node:path'
 
-import type { Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config.reader'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'

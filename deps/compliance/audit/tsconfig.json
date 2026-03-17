@@ -13,7 +13,19 @@
       "path": "../../../__utils__/test-fixtures"
     },
     {
-      "path": "../../../fetching/fetching-types"
+      "path": "../../../core/constants"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/logger"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
+      "path": "../../../fetching/types"
     },
     {
       "path": "../../../lockfile/detect-dep-types"
@@ -34,19 +46,7 @@
       "path": "../../../network/fetch"
     },
     {
-      "path": "../../../packages/constants"
-    },
-    {
-      "path": "../../../packages/error"
-    },
-    {
-      "path": "../../../packages/logger"
-    },
-    {
-      "path": "../../../packages/types"
-    },
-    {
-      "path": "../../../pkg-manifest/read-project-manifest"
+      "path": "../../../workspace/project-manifest-reader"
     }
   ]
 }

@@ -1,15 +1,15 @@
-import type { Cafs } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
 import type {
   FetchFunction,
   FetchOptions,
   FetchResult,
-} from '@pnpm/fetcher-base'
+} from '@pnpm/fetching.fetcher-base'
 import type {
   FetchFromRegistry,
   GetAuthHeader,
   RetryTimeoutOptions,
-} from '@pnpm/fetching-types'
+} from '@pnpm/fetching.types'
+import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { TarballIntegrityError } from '@pnpm/worker'
 

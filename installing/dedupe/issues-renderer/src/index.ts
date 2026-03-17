@@ -3,7 +3,7 @@ import type {
   ResolutionChange,
   ResolutionChangesByAlias,
   SnapshotsChanges,
-} from '@pnpm/dedupe.types'
+} from '@pnpm/installing.dedupe.types'
 import { renderTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
 

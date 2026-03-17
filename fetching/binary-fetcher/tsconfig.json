@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../packages/error"
+      "path": "../../core/error"
     },
     {
       "path": "../../store/index"
@@ -22,7 +22,7 @@
       "path": "../fetcher-base"
     },
     {
-      "path": "../fetching-types"
+      "path": "../types"
     }
   ]
 }

@@ -1,13 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import {
   type GlobalPackageInfo,
   scanGlobalPackages,
 } from '@pnpm/global.packages'
-import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { DependencyManifest } from '@pnpm/types'
 
 // Maps a bin name to all packages that are legitimate owners of it, beyond

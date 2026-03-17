@@ -242,7 +242,7 @@ test('directories and symlinks', async () => {
     ).toStrictEqual(['foo.txt'])
 
     // should recreate the structure of the symlinks at the injected location
-    // NOTE: The current implementation of @pnpm/directory-fetcher would treat symlinks to dir at real dir
+    // NOTE: The current implementation of @pnpm/fetching.directory-fetcher would treat symlinks to dir at real dir
     //       because it uses fs.stat instead of fs.lstat, so testing with fs.realpathSync wouldn't work.
     expect(fs.readFileSync('node_modules/.pnpm/foo@file+foo/node_modules/foo/link-to-a-file', 'utf-8')).toBe('This is foo_bar')
     expect(

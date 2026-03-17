@@ -1,4 +1,4 @@
-import type { PreferredVersions } from '@pnpm/resolver-base'
+import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import semver from 'semver'
 

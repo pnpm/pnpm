@@ -1,4 +1,4 @@
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
 import { runLifecycleHooksConcurrently, type RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently.js'
