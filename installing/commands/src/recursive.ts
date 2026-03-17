@@ -34,7 +34,7 @@ import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.manifest-utils'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
-import type { StoreController } from '@pnpm/store.package-store'
+import type { StoreController } from '@pnpm/store.controller'
 import type {
   IgnoredBuilds,
   IncludedDependencies,

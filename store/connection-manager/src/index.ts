@@ -1,5 +1,5 @@
 import type { Config } from '@pnpm/config.reader'
-import type { StoreController } from '@pnpm/store.package-store'
+import type { StoreController } from '@pnpm/store.controller'
 import { getStorePath } from '@pnpm/store.path'
 
 import { createNewStoreController, type CreateNewStoreControllerOptions } from './createNewStoreController.js'

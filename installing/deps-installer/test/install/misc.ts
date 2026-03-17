@@ -806,7 +806,7 @@ test('rewrites node_modules created by npm', async () => {
 
 // Covers https://github.com/pnpm/pnpm/issues/1685
 // also, there's a better version of this test (with the same name) in the pnpm package
-// TODO: move this test to @pnpm/store.package-store
+// TODO: move this test to @pnpm/store.controller
 test("don't fail on case insensitive filesystems when package has 2 files with same name", async () => {
   const project = prepareEmpty()
   const reporter = jest.fn()

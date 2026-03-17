@@ -73,7 +73,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/store.commands": "workspace:*",
-    "@pnpm/store.package-store": "workspace:*",
+    "@pnpm/store.controller": "workspace:*",
     "@types/archy": "catalog:",
     "@types/ramda": "catalog:",
     "@types/ssri": "catalog:",

@@ -68,7 +68,7 @@
       "path": "../../../store/connection-manager"
     },
     {
-      "path": "../../../store/package-store"
+      "path": "../../../store/controller"
     }
   ]
 }

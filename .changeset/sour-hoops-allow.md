@@ -7,7 +7,7 @@
 "@pnpm/deps.compliance.license-scanner": minor
 "@pnpm/deps.graph-hasher": minor
 "@pnpm/resolving.resolver-base": minor
-"@pnpm/store.package-store": minor
+"@pnpm/store.controller": minor
 "@pnpm/installing.client": minor
 "@pnpm/installing.deps-installer": minor
 "@pnpm/hooks.pnpmfile": minor

@@ -79,13 +79,13 @@
       "path": "../connection-manager"
     },
     {
+      "path": "../controller"
+    },
+    {
       "path": "../controller-types"
     },
     {
       "path": "../index"
-    },
-    {
-      "path": "../package-store"
     },
     {
       "path": "../path"

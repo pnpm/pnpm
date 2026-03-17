@@ -13,13 +13,13 @@
       "path": "../../installing/client"
     },
     {
+      "path": "../../store/controller"
+    },
+    {
       "path": "../../store/controller-types"
     },
     {
       "path": "../../store/index"
-    },
-    {
-      "path": "../../store/package-store"
     }
   ]
 }

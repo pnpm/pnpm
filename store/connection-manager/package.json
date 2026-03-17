@@ -34,8 +34,8 @@
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
+    "@pnpm/store.controller": "workspace:*",
     "@pnpm/store.index": "workspace:*",
-    "@pnpm/store.package-store": "workspace:*",
     "@pnpm/store.path": "workspace:*",
     "dir-is-case-sensitive": "catalog:"
   },

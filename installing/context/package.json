@@ -38,7 +38,7 @@
     "@pnpm/installing.read-projects-context": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
-    "@pnpm/store.package-store": "workspace:*",
+    "@pnpm/store.controller": "workspace:*",
     "@pnpm/types": "workspace:*",
     "path-absolute": "catalog:",
     "ramda": "catalog:"

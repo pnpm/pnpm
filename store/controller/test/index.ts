@@ -2,9 +2,9 @@
 import path from 'node:path'
 
 import { createClient } from '@pnpm/installing.client'
+import { createPackageStore } from '@pnpm/store.controller'
 import type { FetchPackageToStoreFunction } from '@pnpm/store.controller-types'
 import { StoreIndex } from '@pnpm/store.index'
-import { createPackageStore } from '@pnpm/store.package-store'
 import { temporaryDirectory } from 'tempy'
 
 describe('store.importPackage()', () => {

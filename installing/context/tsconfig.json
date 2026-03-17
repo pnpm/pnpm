@@ -28,7 +28,7 @@
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../../store/package-store"
+      "path": "../../store/controller"
     },
     {
       "path": "../modules-yaml"

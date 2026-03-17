@@ -3,7 +3,7 @@
 "@pnpm/store.cafs": minor
 "@pnpm/worker": minor
 "@pnpm/store.commands": minor
-"@pnpm/store.package-store": minor
+"@pnpm/store.controller": minor
 "@pnpm/store.pkg-finder": minor
 "@pnpm/deps.inspection.tree-builder": minor
 "@pnpm/building.commands": minor

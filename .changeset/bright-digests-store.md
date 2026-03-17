@@ -2,7 +2,7 @@
 "@pnpm/store.cafs-types": major
 "@pnpm/store.cafs": major
 "@pnpm/worker": major
-"@pnpm/store.package-store": major
+"@pnpm/store.controller": major
 "@pnpm/store.commands": major
 "@pnpm/deps.compliance.license-scanner": major
 "@pnpm/modules-mounter.daemon": major

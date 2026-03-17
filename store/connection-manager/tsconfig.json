@@ -22,10 +22,10 @@
       "path": "../../packages/logger"
     },
     {
-      "path": "../index"
+      "path": "../controller"
     },
     {
-      "path": "../package-store"
+      "path": "../index"
     },
     {
       "path": "../path"

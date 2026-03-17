@@ -9,7 +9,7 @@ import type {
 import { readProjectsContext } from '@pnpm/installing.read-projects-context'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import { registerProject } from '@pnpm/store.package-store'
+import { registerProject } from '@pnpm/store.controller'
 import type {
   DependencyManifest,
   DepPath,

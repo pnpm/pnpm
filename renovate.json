@@ -32,7 +32,7 @@
     "@pnpm/deps.inspection.outdated",
     "@pnpm/config.package-is-installable",
     "@pnpm/installing.package-requester",
-    "@pnpm/store.package-store",
+    "@pnpm/store.controller",
     "@pnpm/pkgid-to-filename",
     "@pnpm/lockfile.pruner",
     "@pnpm/installing.read-projects-context",

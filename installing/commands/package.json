@@ -64,7 +64,7 @@
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/store.connection-manager": "workspace:*",
-    "@pnpm/store.package-store": "workspace:*",
+    "@pnpm/store.controller": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.filter-workspace-packages": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",

@@ -19,7 +19,7 @@ import {
 } from '@pnpm/global.packages'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
-import type { StoreController } from '@pnpm/store.package-store'
+import type { StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
 import symlinkDir from 'symlink-dir'
 

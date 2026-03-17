@@ -2369,12 +2369,12 @@ importers:
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
+      '@pnpm/store.controller':
+        specifier: workspace:*
+        version: link:../../store/controller
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../store/controller-types
-      '@pnpm/store.package-store':
-        specifier: workspace:*
-        version: link:../../store/package-store
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3595,9 +3595,9 @@ importers:
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../../../store/connection-manager
-      '@pnpm/store.package-store':
+      '@pnpm/store.controller':
         specifier: workspace:*
-        version: link:../../../store/package-store
+        version: link:../../../store/controller
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../packages/types
@@ -4925,9 +4925,9 @@ importers:
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../../store/connection-manager
-      '@pnpm/store.package-store':
+      '@pnpm/store.controller':
         specifier: workspace:*
-        version: link:../../store/package-store
+        version: link:../../store/controller
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5115,9 +5115,9 @@ importers:
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
-      '@pnpm/store.package-store':
+      '@pnpm/store.controller':
         specifier: workspace:*
-        version: link:../../store/package-store
+        version: link:../../store/controller
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -8489,9 +8489,9 @@ importers:
       '@pnpm/store.commands':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/store.package-store':
+      '@pnpm/store.controller':
         specifier: workspace:*
-        version: link:../package-store
+        version: link:../controller
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.36
@@ -8528,12 +8528,12 @@ importers:
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../../installing/client
+      '@pnpm/store.controller':
+        specifier: workspace:*
+        version: link:../controller
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../index
-      '@pnpm/store.package-store':
-        specifier: workspace:*
-        version: link:../package-store
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../path
@@ -8547,6 +8547,82 @@ importers:
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: 'link:'
+
+  store/controller:
+    dependencies:
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fetching.fetcher-base':
+        specifier: workspace:*
+        version: link:../../fetching/fetcher-base
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: link:../../hooks/types
+      '@pnpm/installing.package-requester':
+        specifier: workspace:*
+        version: link:../../installing/package-requester
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../cafs
+      '@pnpm/store.controller-types':
+        specifier: workspace:*
+        version: link:../controller-types
+      '@pnpm/store.create-cafs-store':
+        specifier: workspace:*
+        version: link:../create-cafs-store
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../index
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
+      '@zkochan/rimraf':
+        specifier: 'catalog:'
+        version: 4.0.0
+      is-subdir:
+        specifier: 'catalog:'
+        version: 2.0.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      ssri:
+        specifier: 'catalog:'
+        version: 13.0.0
+      symlink-dir:
+        specifier: 'catalog:'
+        version: 7.1.0
+    devDependencies:
+      '@pnpm/installing.client':
+        specifier: workspace:*
+        version: link:../../installing/client
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/store.controller':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+      '@types/ssri':
+        specifier: 'catalog:'
+        version: 7.1.5
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
 
   store/controller-types:
     dependencies:
@@ -8622,82 +8698,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.15
-      tempy:
-        specifier: 'catalog:'
-        version: 3.0.0
-
-  store/package-store:
-    dependencies:
-      '@pnpm/crypto.hash':
-        specifier: workspace:*
-        version: link:../../crypto/hash
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/fetching.fetcher-base':
-        specifier: workspace:*
-        version: link:../../fetching/fetcher-base
-      '@pnpm/hooks.types':
-        specifier: workspace:*
-        version: link:../../hooks/types
-      '@pnpm/installing.package-requester':
-        specifier: workspace:*
-        version: link:../../installing/package-requester
-      '@pnpm/resolving.resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
-      '@pnpm/store.cafs':
-        specifier: workspace:*
-        version: link:../cafs
-      '@pnpm/store.controller-types':
-        specifier: workspace:*
-        version: link:../controller-types
-      '@pnpm/store.create-cafs-store':
-        specifier: workspace:*
-        version: link:../create-cafs-store
-      '@pnpm/store.index':
-        specifier: workspace:*
-        version: link:../index
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@pnpm/worker':
-        specifier: workspace:^
-        version: link:../../worker
-      '@zkochan/rimraf':
-        specifier: 'catalog:'
-        version: 4.0.0
-      is-subdir:
-        specifier: 'catalog:'
-        version: 2.0.0
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-      ssri:
-        specifier: 'catalog:'
-        version: 13.0.0
-      symlink-dir:
-        specifier: 'catalog:'
-        version: 7.1.0
-    devDependencies:
-      '@pnpm/installing.client':
-        specifier: workspace:*
-        version: link:../../installing/client
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare
-      '@pnpm/store.package-store':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
-      '@types/ssri':
-        specifier: 'catalog:'
-        version: 7.1.5
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -8781,15 +8781,15 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.2(verdaccio@6.2.7(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/store.controller':
+        specifier: workspace:*
+        version: link:../../store/controller
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../store/controller-types
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
-      '@pnpm/store.package-store':
-        specifier: workspace:*
-        version: link:../../store/package-store
     devDependencies:
       '@pnpm/testing.temp-store':
         specifier: workspace:*

@@ -161,7 +161,7 @@ async function updateTSConfig (
     if (!fs.existsSync(path.join(linkedPkgDir, 'tsconfig.json'))) continue
     if (!isSubdir(context.workspaceDir, linkedPkgDir)) continue
     if (
-      depName === '@pnpm/store.package-store' && (
+      depName === '@pnpm/store.controller' && (
         manifest.name === '@pnpm/fetching.git-fetcher' ||
         manifest.name === '@pnpm/fetching.tarball-fetcher' ||
         manifest.name === '@pnpm/installing.package-requester'

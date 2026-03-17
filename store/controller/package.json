@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/store.package-store",
+  "name": "@pnpm/store.controller",
   "version": "1004.0.0",
   "description": "A storage for packages",
   "keywords": [
@@ -15,8 +15,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/store/package-store",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/store/package-store#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/store/controller",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/store/controller#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -69,7 +69,7 @@
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/store.package-store": "workspace:*",
+    "@pnpm/store.controller": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/ssri": "catalog:",
     "tempy": "catalog:"

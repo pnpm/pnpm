@@ -109,10 +109,10 @@
       "path": "../../store/connection-manager"
     },
     {
-      "path": "../../store/index"
+      "path": "../../store/controller"
     },
     {
-      "path": "../../store/package-store"
+      "path": "../../store/index"
     },
     {
       "path": "../../worker"

@@ -107,7 +107,7 @@
 "@pnpm/crypto.shasums-file": major
 "@pnpm/fs.read-modules-dir": major
 "@pnpm/network.auth-header": major
-"@pnpm/store.package-store": major
+"@pnpm/store.controller": major
 "@pnpm/tsconfig": major
 "@pnpm/cli.parse-cli-args": major
 "@pnpm/deps.graph-builder": major

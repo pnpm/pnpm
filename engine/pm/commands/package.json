@@ -47,7 +47,7 @@
     "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",
-    "@pnpm/store.package-store": "workspace:*",
+    "@pnpm/store.controller": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:",
     "render-help": "catalog:",
