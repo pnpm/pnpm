@@ -1,7 +1,7 @@
 ---
 "@pnpm/installing.resolve-dependencies": major
 "@pnpm/deps.dependency-path": major
-"@pnpm/deps.calc-dep-state": major
+"@pnpm/deps.graph-hasher": major
 "@pnpm/installing.deps-restorer": major
 "@pnpm/deps.graph-builder": major
 "@pnpm/installing.deps-installer": major

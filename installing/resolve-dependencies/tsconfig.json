@@ -19,10 +19,10 @@
       "path": "../../config/version-policy"
     },
     {
-      "path": "../../deps/calc-dep-state"
+      "path": "../../deps/dependency-path"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/graph-hasher"
     },
     {
       "path": "../../deps/peer-range"

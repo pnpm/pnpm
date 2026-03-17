@@ -16,10 +16,10 @@
       "path": "../../config/reader"
     },
     {
-      "path": "../../deps/calc-dep-state"
+      "path": "../../deps/dependency-path"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/graph-hasher"
     },
     {
       "path": "../../deps/graph-sequencer"

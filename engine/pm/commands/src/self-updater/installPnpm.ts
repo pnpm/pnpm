@@ -8,7 +8,7 @@ import {
   iterateHashedGraphNodes,
   iteratePkgMeta,
   lockfileToDepGraph,
-} from '@pnpm/deps.calc-dep-state'
+} from '@pnpm/deps.graph-hasher'
 import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
 import {
   cleanOrphanedInstallDirs,

@@ -5,7 +5,7 @@
 "@pnpm/store.connection-manager": minor
 "@pnpm/resolving.default-resolver": minor
 "@pnpm/deps.compliance.license-scanner": minor
-"@pnpm/deps.calc-dep-state": minor
+"@pnpm/deps.graph-hasher": minor
 "@pnpm/resolving.resolver-base": minor
 "@pnpm/store.package-store": minor
 "@pnpm/installing.client": minor

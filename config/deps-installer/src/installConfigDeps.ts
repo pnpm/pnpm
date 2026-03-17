@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { installingConfigDepsLogger } from '@pnpm/core-loggers'
-import { calcLeafGlobalVirtualStorePath } from '@pnpm/deps.calc-dep-state'
+import { calcLeafGlobalVirtualStorePath } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'

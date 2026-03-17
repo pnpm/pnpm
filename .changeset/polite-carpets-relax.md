@@ -59,7 +59,7 @@
 "@pnpm/fetching.binary-fetcher": major
 "@pnpm/fs.indexed-pkg-importer": major
 "@pnpm/hooks.read-package-hook": major
-"@pnpm/deps.calc-dep-state": major
+"@pnpm/deps.graph-hasher": major
 "@pnpm/installing.context": major
 "@pnpm/bins.remover": major
 "@pnpm/resolving.deno-resolver": major

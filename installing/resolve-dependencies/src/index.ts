@@ -4,8 +4,8 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
-import { iterateHashedGraphNodes } from '@pnpm/deps.calc-dep-state'
 import { isRuntimeDepPath } from '@pnpm/deps.dependency-path'
+import { iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
 import type {
   LockfileObject,
   ProjectSnapshot,

@@ -36,7 +36,7 @@
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.deps-installer": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
-    "@pnpm/deps.calc-dep-state": "workspace:*",
+    "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/global.commands": "workspace:*",
     "@pnpm/global.packages": "workspace:*",

@@ -13,7 +13,7 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../deps/calc-dep-state"
+      "path": "../../deps/graph-hasher"
     },
     {
       "path": "../../fs/read-modules-dir"

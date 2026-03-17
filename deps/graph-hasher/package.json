@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/deps.calc-dep-state",
+  "name": "@pnpm/deps.graph-hasher",
   "version": "1002.0.8",
   "description": "Calculates the state of a dependency",
   "keywords": [
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/calc-dep-state",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/calc-dep-state#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/graph-hasher",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/graph-hasher#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -39,7 +39,7 @@
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/deps.calc-dep-state": "workspace:*"
+    "@pnpm/deps.graph-hasher": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

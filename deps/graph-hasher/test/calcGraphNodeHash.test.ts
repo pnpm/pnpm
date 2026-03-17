@@ -1,6 +1,6 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { calcGraphNodeHash, type DepsGraph, type DepsStateCache, type PkgMeta } from '@pnpm/deps.calc-dep-state'
+import { calcGraphNodeHash, type DepsGraph, type DepsStateCache, type PkgMeta } from '@pnpm/deps.graph-hasher'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
 describe('calcGraphNodeHash', () => {

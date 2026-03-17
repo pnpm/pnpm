@@ -6,7 +6,7 @@ import {
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache } from '@pnpm/deps.calc-dep-state'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'

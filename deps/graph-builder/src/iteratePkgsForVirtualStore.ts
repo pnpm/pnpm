@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import * as dp from '@pnpm/deps.dependency-path'
 import {
   calcGraphNodeHash,
   type DepsGraph,
@@ -9,8 +10,7 @@ import {
   iteratePkgMeta,
   lockfileToDepGraph,
   type PkgMetaAndSnapshot,
-} from '@pnpm/deps.calc-dep-state'
-import * as dp from '@pnpm/deps.dependency-path'
+} from '@pnpm/deps.graph-hasher'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,

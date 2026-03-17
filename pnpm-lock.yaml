@@ -1573,12 +1573,12 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.calc-dep-state':
-        specifier: workspace:*
-        version: link:../../deps/calc-dep-state
       '@pnpm/deps.dependency-path':
         specifier: workspace:*
         version: link:../../deps/dependency-path
+      '@pnpm/deps.graph-hasher':
+        specifier: workspace:*
+        version: link:../../deps/graph-hasher
       '@pnpm/deps.graph-sequencer':
         specifier: workspace:*
         version: link:../../deps/graph-sequencer
@@ -1776,12 +1776,12 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.calc-dep-state':
-        specifier: workspace:*
-        version: link:../../deps/calc-dep-state
       '@pnpm/deps.dependency-path':
         specifier: workspace:*
         version: link:../../deps/dependency-path
+      '@pnpm/deps.graph-hasher':
+        specifier: workspace:*
+        version: link:../../deps/graph-hasher
       '@pnpm/deps.graph-sequencer':
         specifier: workspace:*
         version: link:../../deps/graph-sequencer
@@ -2327,9 +2327,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.calc-dep-state':
+      '@pnpm/deps.graph-hasher':
         specifier: workspace:*
-        version: link:../../deps/calc-dep-state
+        version: link:../../deps/graph-hasher
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -2752,31 +2752,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  deps/calc-dep-state:
-    dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
-      '@pnpm/crypto.object-hasher':
-        specifier: workspace:*
-        version: link:../../crypto/object-hasher
-      '@pnpm/deps.dependency-path':
-        specifier: workspace:*
-        version: link:../dependency-path
-      '@pnpm/lockfile.types':
-        specifier: workspace:*
-        version: link:../../lockfile/types
-      '@pnpm/lockfile.utils':
-        specifier: workspace:*
-        version: link:../../lockfile/utils
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-    devDependencies:
-      '@pnpm/deps.calc-dep-state':
-        specifier: workspace:*
-        version: 'link:'
-
   deps/compliance/audit:
     dependencies:
       '@pnpm/error':
@@ -3105,12 +3080,12 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.calc-dep-state':
-        specifier: workspace:*
-        version: link:../calc-dep-state
       '@pnpm/deps.dependency-path':
         specifier: workspace:*
         version: link:../dependency-path
+      '@pnpm/deps.graph-hasher':
+        specifier: workspace:*
+        version: link:../graph-hasher
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
@@ -3151,6 +3126,31 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+
+  deps/graph-hasher:
+    dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
+      '@pnpm/deps.dependency-path':
+        specifier: workspace:*
+        version: link:../dependency-path
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../lockfile/utils
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/deps.graph-hasher':
+        specifier: workspace:*
+        version: 'link:'
 
   deps/graph-sequencer:
     devDependencies:
@@ -3562,9 +3562,9 @@ importers:
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../../config/reader
-      '@pnpm/deps.calc-dep-state':
+      '@pnpm/deps.graph-hasher':
         specifier: workspace:*
-        version: link:../../../deps/calc-dep-state
+        version: link:../../../deps/graph-hasher
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../packages/error
@@ -5226,12 +5226,12 @@ importers:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
-      '@pnpm/deps.calc-dep-state':
-        specifier: workspace:*
-        version: link:../../deps/calc-dep-state
       '@pnpm/deps.dependency-path':
         specifier: workspace:*
         version: link:../../deps/dependency-path
+      '@pnpm/deps.graph-hasher':
+        specifier: workspace:*
+        version: link:../../deps/graph-hasher
       '@pnpm/deps.graph-sequencer':
         specifier: workspace:*
         version: link:../../deps/graph-sequencer
@@ -5497,15 +5497,15 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.calc-dep-state':
-        specifier: workspace:*
-        version: link:../../deps/calc-dep-state
       '@pnpm/deps.dependency-path':
         specifier: workspace:*
         version: link:../../deps/dependency-path
       '@pnpm/deps.graph-builder':
         specifier: workspace:*
         version: link:../../deps/graph-builder
+      '@pnpm/deps.graph-hasher':
+        specifier: workspace:*
+        version: link:../../deps/graph-hasher
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -6013,12 +6013,12 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.calc-dep-state':
-        specifier: workspace:*
-        version: link:../../deps/calc-dep-state
       '@pnpm/deps.dependency-path':
         specifier: workspace:*
         version: link:../../deps/dependency-path
+      '@pnpm/deps.graph-hasher':
+        specifier: workspace:*
+        version: link:../../deps/graph-hasher
       '@pnpm/deps.peer-range':
         specifier: workspace:*
         version: link:../../deps/peer-range

@@ -6,11 +6,11 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache } from '@pnpm/deps.calc-dep-state'
 import type {
   DependenciesGraph,
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { logger } from '@pnpm/logger'
 import type {
   PackageFilesResponse,

@@ -29,7 +29,7 @@
       "path": "../../../config/reader"
     },
     {
-      "path": "../../../deps/calc-dep-state"
+      "path": "../../../deps/graph-hasher"
     },
     {
       "path": "../../../global/commands"
