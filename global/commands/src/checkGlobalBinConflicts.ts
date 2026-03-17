@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { getBinsFromPackageManifest } from '@pnpm/bins.package-bins'
+import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import {
   type GlobalPackageInfo,

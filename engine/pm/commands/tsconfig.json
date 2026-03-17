@@ -14,7 +14,7 @@
       "path": "../../../__utils__/prepare"
     },
     {
-      "path": "../../../bins/link-bins"
+      "path": "../../../bins/linker"
     },
     {
       "path": "../../../cli/meta"

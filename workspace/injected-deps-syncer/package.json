@@ -31,7 +31,7 @@
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "dependencies": {
-    "@pnpm/bins.link-bins": "workspace:*",
+    "@pnpm/bins.linker": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",

@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { removeBin, removeBinsOfDependency } from '@pnpm/bins.remove-bins'
+import { removeBin, removeBinsOfDependency } from '@pnpm/bins.remover'
 import { rootLogger } from '@pnpm/core-loggers'
 import type { DependenciesField, ProjectRootDir } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'

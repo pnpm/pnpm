@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { linkBins, linkBinsOfPackages } from '@pnpm/bins.link-bins'
+import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction } from '@pnpm/building.policy'

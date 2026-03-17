@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { linkBins } from '@pnpm/bins.link-bins'
+import { linkBins } from '@pnpm/bins.linker'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'

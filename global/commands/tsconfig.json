@@ -10,13 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../bins/link-bins"
+      "path": "../../bins/linker"
     },
     {
-      "path": "../../bins/package-bins"
+      "path": "../../bins/remover"
     },
     {
-      "path": "../../bins/remove-bins"
+      "path": "../../bins/resolver"
     },
     {
       "path": "../../building/commands"

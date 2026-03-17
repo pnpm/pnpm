@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.link-bins'
+import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.linker'
 import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkLogger } from '@pnpm/core-loggers'

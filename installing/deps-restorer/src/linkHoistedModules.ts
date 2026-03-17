@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { linkBins } from '@pnpm/bins.link-bins'
+import { linkBins } from '@pnpm/bins.linker'
 import {
   progressLogger,
   removalLogger,

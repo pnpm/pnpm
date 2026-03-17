@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import util from 'node:util'
 
-import { linkBins, linkBinsOfPackages } from '@pnpm/bins.link-bins'
+import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.calc-dep-state'

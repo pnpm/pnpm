@@ -16,7 +16,7 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../bins/package-bins"
+      "path": "../../bins/resolver"
     },
     {
       "path": "../../catalogs/resolver"

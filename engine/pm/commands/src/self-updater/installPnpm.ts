@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { linkBins } from '@pnpm/bins.link-bins'
+import { linkBins } from '@pnpm/bins.linker'
 import { getCurrentPackageName } from '@pnpm/cli.meta'
 import {
   iterateHashedGraphNodes,

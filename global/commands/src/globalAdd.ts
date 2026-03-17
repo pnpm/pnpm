@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { linkBinsOfPackages } from '@pnpm/bins.link-bins'
-import { removeBin } from '@pnpm/bins.remove-bins'
+import { linkBinsOfPackages } from '@pnpm/bins.linker'
+import { removeBin } from '@pnpm/bins.remover'
 import { approveBuilds } from '@pnpm/building.commands'
 import {
   cleanOrphanedInstallDirs,

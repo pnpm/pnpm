@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/bins.link-bins",
+  "name": "@pnpm/bins.linker",
   "version": "1000.2.6",
   "description": "Link bins to node_modules/.bin",
   "keywords": [
@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/bins/link-bins",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/bins/link-bins#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/bins/linker",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/bins/linker#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -33,7 +33,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/bins.package-bins": "workspace:*",
+    "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
@@ -56,7 +56,7 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/bins.link-bins": "workspace:*",
+    "@pnpm/bins.linker": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "catalog:",

@@ -34,7 +34,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/bins.link-bins": "workspace:*",
+    "@pnpm/bins.linker": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",

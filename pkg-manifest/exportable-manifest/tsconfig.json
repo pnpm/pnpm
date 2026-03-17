@@ -13,7 +13,7 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../bins/package-bins"
+      "path": "../../bins/resolver"
     },
     {
       "path": "../../catalogs/config"

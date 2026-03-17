@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { linkBins, linkBinsOfPackages } from '@pnpm/bins.link-bins'
+import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildModules } from '@pnpm/building.during-install'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import {

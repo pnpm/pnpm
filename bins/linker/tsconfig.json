@@ -10,7 +10,16 @@
   ],
   "references": [
     {
-      "path": "../../packages/core-loggers"
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../fs/read-modules-dir"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/error"
     },
     {
       "path": "../../packages/logger"
@@ -19,10 +28,16 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../pkg-manifest/manifest-utils"
+    },
+    {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../package-bins"
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../resolver"
     }
   ]
 }

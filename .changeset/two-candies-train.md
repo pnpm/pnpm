@@ -1,7 +1,7 @@
 ---
 "@pnpm/pkg-manifest.read-project-manifest": minor
 "@pnpm/installing.resolve-dependencies": minor
-"@pnpm/bins.link-bins": minor
+"@pnpm/bins.linker": minor
 "@pnpm/types": minor
 "pnpm": minor
 ---

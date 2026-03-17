@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { linkBins, linkBinsOfPackages } from '@pnpm/bins.link-bins'
+import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { PnpmError } from '@pnpm/error'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { logger as createLogger } from '@pnpm/logger'

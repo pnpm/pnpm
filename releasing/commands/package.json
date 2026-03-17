@@ -32,7 +32,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/bins.package-bins": "workspace:*",
+    "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",

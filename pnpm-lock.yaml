@@ -1403,11 +1403,11 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  bins/link-bins:
+  bins/linker:
     dependencies:
-      '@pnpm/bins.package-bins':
+      '@pnpm/bins.resolver':
         specifier: workspace:*
-        version: link:../package-bins
+        version: link:../resolver
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -1460,7 +1460,7 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.0.5
-      '@pnpm/bins.link-bins':
+      '@pnpm/bins.linker':
         specifier: workspace:*
         version: 'link:'
       '@pnpm/logger':
@@ -1491,33 +1491,11 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
 
-  bins/package-bins:
+  bins/remover:
     dependencies:
-      '@pnpm/types':
+      '@pnpm/bins.resolver':
         specifier: workspace:*
-        version: link:../../packages/types
-      is-subdir:
-        specifier: 'catalog:'
-        version: 2.0.0
-      tinyglobby:
-        specifier: 'catalog:'
-        version: 0.2.15
-    devDependencies:
-      '@pnpm/bins.package-bins':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/node':
-        specifier: 'catalog:'
-        version: 22.19.15
-      tempy:
-        specifier: 'catalog:'
-        version: 3.0.0
-
-  bins/remove-bins:
-    dependencies:
-      '@pnpm/bins.package-bins':
-        specifier: workspace:*
-        version: link:../package-bins
+        version: link:../resolver
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
@@ -1537,7 +1515,7 @@ importers:
         specifier: 'catalog:'
         version: 1.0.2
     devDependencies:
-      '@pnpm/bins.remove-bins':
+      '@pnpm/bins.remover':
         specifier: workspace:*
         version: 'link:'
       '@pnpm/logger':
@@ -1550,11 +1528,33 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
 
+  bins/resolver:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      is-subdir:
+        specifier: 'catalog:'
+        version: 2.0.0
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.15
+    devDependencies:
+      '@pnpm/bins.resolver':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.15
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
+
   building/after-install:
     dependencies:
-      '@pnpm/bins.link-bins':
+      '@pnpm/bins.linker':
         specifier: workspace:*
-        version: link:../../bins/link-bins
+        version: link:../../bins/linker
       '@pnpm/building.pkg-requires-build':
         specifier: workspace:*
         version: link:../pkg-requires-build
@@ -1767,9 +1767,9 @@ importers:
 
   building/during-install:
     dependencies:
-      '@pnpm/bins.link-bins':
+      '@pnpm/bins.linker':
         specifier: workspace:*
-        version: link:../../bins/link-bins
+        version: link:../../bins/linker
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
@@ -3547,9 +3547,9 @@ importers:
 
   engine/pm/commands:
     dependencies:
-      '@pnpm/bins.link-bins':
+      '@pnpm/bins.linker':
         specifier: workspace:*
-        version: link:../../../bins/link-bins
+        version: link:../../../bins/linker
       '@pnpm/cli.meta':
         specifier: workspace:*
         version: link:../../../cli/meta
@@ -3792,9 +3792,9 @@ importers:
 
   exec/commands:
     dependencies:
-      '@pnpm/bins.package-bins':
+      '@pnpm/bins.resolver':
         specifier: workspace:*
-        version: link:../../bins/package-bins
+        version: link:../../bins/resolver
       '@pnpm/catalogs.resolver':
         specifier: workspace:*
         version: link:../../catalogs/resolver
@@ -3949,9 +3949,9 @@ importers:
 
   exec/lifecycle:
     dependencies:
-      '@pnpm/bins.link-bins':
+      '@pnpm/bins.linker':
         specifier: workspace:*
-        version: link:../../bins/link-bins
+        version: link:../../bins/linker
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
@@ -4577,15 +4577,15 @@ importers:
 
   global/commands:
     dependencies:
-      '@pnpm/bins.link-bins':
+      '@pnpm/bins.linker':
         specifier: workspace:*
-        version: link:../../bins/link-bins
-      '@pnpm/bins.package-bins':
+        version: link:../../bins/linker
+      '@pnpm/bins.remover':
         specifier: workspace:*
-        version: link:../../bins/package-bins
-      '@pnpm/bins.remove-bins':
+        version: link:../../bins/remover
+      '@pnpm/bins.resolver':
         specifier: workspace:*
-        version: link:../../bins/remove-bins
+        version: link:../../bins/resolver
       '@pnpm/building.commands':
         specifier: workspace:*
         version: link:../../building/commands
@@ -4632,9 +4632,9 @@ importers:
 
   global/packages:
     dependencies:
-      '@pnpm/bins.package-bins':
+      '@pnpm/bins.resolver':
         specifier: workspace:*
-        version: link:../../bins/package-bins
+        version: link:../../bins/resolver
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
@@ -5138,12 +5138,12 @@ importers:
 
   installing/deps-installer:
     dependencies:
-      '@pnpm/bins.link-bins':
+      '@pnpm/bins.linker':
         specifier: workspace:*
-        version: link:../../bins/link-bins
-      '@pnpm/bins.remove-bins':
+        version: link:../../bins/linker
+      '@pnpm/bins.remover':
         specifier: workspace:*
-        version: link:../../bins/remove-bins
+        version: link:../../bins/remover
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../../building/after-install
@@ -5436,9 +5436,9 @@ importers:
 
   installing/deps-restorer:
     dependencies:
-      '@pnpm/bins.link-bins':
+      '@pnpm/bins.linker':
         specifier: workspace:*
-        version: link:../../bins/link-bins
+        version: link:../../bins/linker
       '@pnpm/building.during-install':
         specifier: workspace:*
         version: link:../../building/during-install
@@ -5679,9 +5679,9 @@ importers:
 
   installing/linking/hoist:
     dependencies:
-      '@pnpm/bins.link-bins':
+      '@pnpm/bins.linker':
         specifier: workspace:*
-        version: link:../../../bins/link-bins
+        version: link:../../../bins/linker
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../../config/matcher
@@ -5722,9 +5722,9 @@ importers:
 
   installing/linking/modules-cleaner:
     dependencies:
-      '@pnpm/bins.remove-bins':
+      '@pnpm/bins.remover':
         specifier: workspace:*
-        version: link:../../../bins/remove-bins
+        version: link:../../../bins/remover
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../../packages/core-loggers
@@ -7036,9 +7036,9 @@ importers:
       '@npm/types':
         specifier: 'catalog:'
         version: 2.1.0
-      '@pnpm/bins.package-bins':
+      '@pnpm/bins.resolver':
         specifier: workspace:*
-        version: link:../../bins/package-bins
+        version: link:../../bins/resolver
       '@pnpm/catalogs.resolver':
         specifier: workspace:*
         version: link:../../catalogs/resolver
@@ -7636,9 +7636,9 @@ importers:
 
   releasing/commands:
     dependencies:
-      '@pnpm/bins.package-bins':
+      '@pnpm/bins.resolver':
         specifier: workspace:*
-        version: link:../../bins/package-bins
+        version: link:../../bins/resolver
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
@@ -9053,9 +9053,9 @@ importers:
 
   workspace/injected-deps-syncer:
     dependencies:
-      '@pnpm/bins.link-bins':
+      '@pnpm/bins.linker':
         specifier: workspace:*
-        version: link:../../bins/link-bins
+        version: link:../../bins/linker
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error

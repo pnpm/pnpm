@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { type Command, getBinsFromPackageManifest } from '@pnpm/bins.package-bins'
+import { type Command, getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { getBunBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'

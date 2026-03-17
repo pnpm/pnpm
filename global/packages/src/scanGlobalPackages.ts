@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { getBinsFromPackageManifest } from '@pnpm/bins.package-bins'
+import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
 import type { PackageManifest } from '@pnpm/types'
 

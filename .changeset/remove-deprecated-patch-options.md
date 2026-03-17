@@ -2,7 +2,7 @@
 "@pnpm/installing.commands": major
 "@pnpm/releasing.commands": major
 "@pnpm/patching.commands": major
-"@pnpm/bins.package-bins": major
+"@pnpm/bins.resolver": major
 "@pnpm/patching.apply-patch": major
 "@pnpm/patching.config": major
 "@pnpm/patching.types": major

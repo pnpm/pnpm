@@ -22,7 +22,7 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../bins/link-bins"
+      "path": "../../bins/linker"
     },
     {
       "path": "../../building/during-install"

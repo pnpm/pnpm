@@ -31,7 +31,7 @@
     "test": "pnpm run compile"
   },
   "dependencies": {
-    "@pnpm/bins.link-bins": "workspace:*",
+    "@pnpm/bins.linker": "workspace:*",
     "@pnpm/building.pkg-requires-build": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
     "@pnpm/config.normalize-registries": "workspace:*",

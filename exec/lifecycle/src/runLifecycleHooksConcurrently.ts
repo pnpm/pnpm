@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { linkBins } from '@pnpm/bins.link-bins'
+import { linkBins } from '@pnpm/bins.linker'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { logger } from '@pnpm/logger'
 import type { FilesMap } from '@pnpm/store.cafs-types'

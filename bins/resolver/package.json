@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/bins.package-bins",
+  "name": "@pnpm/bins.resolver",
   "version": "1000.0.11",
   "description": "Returns bins of a package",
   "keywords": [
@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/bins/package-bins",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/bins/package-bins#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/bins/resolver",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/bins/resolver#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -38,7 +38,7 @@
     "tinyglobby": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/bins.package-bins": "workspace:*",
+    "@pnpm/bins.resolver": "workspace:*",
     "@types/node": "catalog:",
     "tempy": "catalog:"
   },

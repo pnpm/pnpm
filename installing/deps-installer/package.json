@@ -56,8 +56,8 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/bins.link-bins": "workspace:*",
-    "@pnpm/bins.remove-bins": "workspace:*",
+    "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/bins.remover": "workspace:*",
     "@pnpm/building.after-install": "workspace:*",
     "@pnpm/building.during-install": "workspace:*",
     "@pnpm/building.policy": "workspace:*",

@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../bins/package-bins"
+      "path": "../../bins/resolver"
     },
     {
       "path": "../../crypto/hash"

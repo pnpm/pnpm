@@ -25,10 +25,10 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../bins/link-bins"
+      "path": "../../bins/linker"
     },
     {
-      "path": "../../bins/remove-bins"
+      "path": "../../bins/remover"
     },
     {
       "path": "../../building/after-install"

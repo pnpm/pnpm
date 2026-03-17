@@ -2,7 +2,7 @@
 "@pnpm/fs.indexed-pkg-importer": patch
 "@pnpm/exec.commands": patch
 "@pnpm/installing.deps-installer": patch
-"@pnpm/bins.link-bins": patch
+"@pnpm/bins.linker": patch
 "pnpm": patch
 ---
 

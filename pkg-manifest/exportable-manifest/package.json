@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@npm/types": "catalog:",
-    "@pnpm/bins.package-bins": "workspace:*",
+    "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",

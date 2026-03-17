@@ -2,7 +2,7 @@ import assert from 'node:assert'
 import path from 'node:path'
 import util from 'node:util'
 
-import { linkBins } from '@pnpm/bins.link-bins'
+import { linkBins } from '@pnpm/bins.linker'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import {

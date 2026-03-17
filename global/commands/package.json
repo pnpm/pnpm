@@ -32,9 +32,9 @@
     "test": "pnpm run compile && pnpm run _test"
   },
   "dependencies": {
-    "@pnpm/bins.link-bins": "workspace:*",
-    "@pnpm/bins.package-bins": "workspace:*",
-    "@pnpm/bins.remove-bins": "workspace:*",
+    "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/bins.remover": "workspace:*",
+    "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/building.commands": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",

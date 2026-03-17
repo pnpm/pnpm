@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createGzip } from 'node:zlib'
 
-import { getBinsFromPackageManifest } from '@pnpm/bins.package-bins'
+import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { readProjectManifest } from '@pnpm/cli.utils'

@@ -2,7 +2,7 @@ import fs, { type Stats } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { getBinsFromPackageManifest } from '@pnpm/bins.package-bins'
+import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import {
   type CatalogResolver,
   resolveFromCatalog,

@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../bins/link-bins"
+      "path": "../../bins/linker"
     },
     {
       "path": "../../config/reader"

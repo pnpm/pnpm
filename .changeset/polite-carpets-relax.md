@@ -51,7 +51,7 @@
 "@pnpm/lockfile.to-pnp": major
 "@pnpm/deps.dependency-path": major
 "@pnpm/installing.modules-yaml": major
-"@pnpm/bins.package-bins": major
+"@pnpm/bins.resolver": major
 "@pnpm/resolving.local-resolver": major
 "@pnpm/engine.runtime.commands": major
 "@pnpm/engine.runtime.system-node-version": major
@@ -61,7 +61,7 @@
 "@pnpm/hooks.read-package-hook": major
 "@pnpm/deps.calc-dep-state": major
 "@pnpm/installing.get-context": major
-"@pnpm/bins.remove-bins": major
+"@pnpm/bins.remover": major
 "@pnpm/resolving.deno-resolver": major
 "@pnpm/resolving.resolver-base": major
 "@pnpm/store.create-cafs-store": major
@@ -82,7 +82,7 @@
 "@pnpm/fs.symlink-dependency": major
 "@pnpm/lockfile.verification": major
 "@pnpm/core-loggers": major
-"@pnpm/bins.link-bins": major
+"@pnpm/bins.linker": major
 "@pnpm/workspace.spec-parser": major
 "@pnpm/cli.default-reporter": major
 "@pnpm/config.writer": major

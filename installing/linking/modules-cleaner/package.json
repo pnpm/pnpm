@@ -31,7 +31,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/bins.remove-bins": "workspace:*",
+    "@pnpm/bins.remover": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.dependency-path": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
