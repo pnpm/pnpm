@@ -10,19 +10,19 @@
   ],
   "references": [
     {
+      "path": "../../deps/dependency-path"
+    },
+    {
+      "path": "../../network/git-utils"
+    },
+    {
       "path": "../../object/key-sorting"
     },
     {
       "path": "../../packages/constants"
     },
     {
-      "path": "../../packages/dependency-path"
-    },
-    {
       "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/git-utils"
     },
     {
       "path": "../../packages/logger"

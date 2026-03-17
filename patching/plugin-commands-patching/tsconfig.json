@@ -34,6 +34,12 @@
       "path": "../../fs/packlist"
     },
     {
+      "path": "../../installing/modules-yaml"
+    },
+    {
+      "path": "../../installing/plugin-commands-installation"
+    },
+    {
       "path": "../../lockfile/fs"
     },
     {
@@ -49,22 +55,16 @@
       "path": "../../packages/logger"
     },
     {
-      "path": "../../packages/parse-wanted-dependency"
-    },
-    {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/modules-yaml"
-    },
-    {
-      "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../resolving/parse-wanted-dependency"
     },
     {
       "path": "../../store/store-connection-manager"

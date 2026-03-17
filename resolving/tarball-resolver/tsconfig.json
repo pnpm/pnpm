@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../network/fetch"
+      "path": "../../fetching/fetching-types"
     },
     {
-      "path": "../../network/fetching-types"
+      "path": "../../network/fetch"
     },
     {
       "path": "../resolver-base"

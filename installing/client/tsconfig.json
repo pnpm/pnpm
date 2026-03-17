@@ -1,0 +1,55 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../engine/runtime/node.fetcher"
+    },
+    {
+      "path": "../../fetching/binary-fetcher"
+    },
+    {
+      "path": "../../fetching/directory-fetcher"
+    },
+    {
+      "path": "../../fetching/fetcher-base"
+    },
+    {
+      "path": "../../fetching/fetching-types"
+    },
+    {
+      "path": "../../fetching/git-fetcher"
+    },
+    {
+      "path": "../../fetching/tarball-fetcher"
+    },
+    {
+      "path": "../../hooks/types"
+    },
+    {
+      "path": "../../network/auth-header"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../resolving/default-resolver"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../store/index"
+    }
+  ]
+}

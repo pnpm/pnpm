@@ -16,6 +16,9 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../bins/package-bins"
+    },
+    {
       "path": "../../catalogs/config"
     },
     {
@@ -34,7 +37,7 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
-      "path": "../../env/plugin-commands-env"
+      "path": "../../engine/runtime/plugin-commands-env"
     },
     {
       "path": "../../exec/lifecycle"
@@ -46,25 +49,22 @@
       "path": "../../hooks/pnpmfile"
     },
     {
+      "path": "../../installing/client"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../network/git-utils"
     },
     {
-      "path": "../../packages/git-utils"
+      "path": "../../packages/error"
     },
     {
       "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/client"
-    },
-    {
-      "path": "../../pkg-manager/package-bins"
     },
     {
       "path": "../../pkg-manifest/exportable-manifest"

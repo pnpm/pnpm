@@ -16,22 +16,19 @@
       "path": "../../hooks/types"
     },
     {
+      "path": "../../installing/modules-yaml"
+    },
+    {
       "path": "../../lockfile/fs"
     },
     {
       "path": "../../lockfile/utils"
     },
     {
-      "path": "../../packages/calc-dep-state"
-    },
-    {
       "path": "../../packages/constants"
     },
     {
       "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/dependency-path"
     },
     {
       "path": "../../packages/logger"
@@ -46,10 +43,13 @@
       "path": "../../patching/types"
     },
     {
-      "path": "../../pkg-manager/modules-yaml"
+      "path": "../../store/store-controller-types"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../calc-dep-state"
+    },
+    {
+      "path": "../dependency-path"
     }
   ]
 }

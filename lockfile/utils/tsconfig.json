@@ -10,13 +10,13 @@
   ],
   "references": [
     {
+      "path": "../../deps/dependency-path"
+    },
+    {
       "path": "../../fetching/pick-fetcher"
     },
     {
       "path": "../../hooks/types"
-    },
-    {
-      "path": "../../packages/dependency-path"
     },
     {
       "path": "../../packages/error"

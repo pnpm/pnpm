@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../fetching/fetching-types"
+    },
+    {
       "path": "../../packages/core-loggers"
     },
     {
@@ -17,9 +20,6 @@
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../fetching-types"
     }
   ]
 }

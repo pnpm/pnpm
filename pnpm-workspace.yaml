@@ -8,12 +8,15 @@ packages:
   - cache/*
   - catalogs/*
   - cli/*
-  - completion/*
   - config/*
   - crypto/*
-  - dedupe/*
+  - installing/dedupe/*
   - deps/*
-  - env/*
+  - deps/compliance/*
+  - deps/inspection/*
+  - engine/*
+  - engine/pm/*
+  - engine/runtime/*
   - exec/*
   - fetching/*
   - fs/*
@@ -24,21 +27,20 @@ packages:
   - modules-mounter/*
   - object/*
   - packages/*
-  - pkg-manager/*
+  - bins/*
+  - installing/*
+  - installing/linking/*
   - pkg-manifest/*
   - patching/*
   - pnpm
   - pnpm/dev
   - testing/*
-  - tools/*
   - worker
   - pnpm/artifacts/*
-  - registry/*
   - releasing/*
   - resolving/*
-  - reviewing/*
-  - runtime/*
-  - semver/*
+  - resolving/registry/*
+  - shell/*
   - store/*
   - text/*
   - workspace/*

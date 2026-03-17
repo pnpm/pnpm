@@ -22,6 +22,12 @@
       "path": "../../hooks/types"
     },
     {
+      "path": "../../installing/client"
+    },
+    {
+      "path": "../../installing/package-requester"
+    },
+    {
       "path": "../../packages/error"
     },
     {
@@ -29,12 +35,6 @@
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/client"
-    },
-    {
-      "path": "../../pkg-manager/package-requester"
     },
     {
       "path": "../../resolving/resolver-base"

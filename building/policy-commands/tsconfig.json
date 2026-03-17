@@ -22,16 +22,16 @@
       "path": "../../config/config-writer"
     },
     {
-      "path": "../../packages/dependency-path"
+      "path": "../../deps/dependency-path"
+    },
+    {
+      "path": "../../installing/modules-yaml"
     },
     {
       "path": "../../packages/error"
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/modules-yaml"
     },
     {
       "path": "../build-commands"

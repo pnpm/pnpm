@@ -1,0 +1,70 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../__utils__/prepare"
+    },
+    {
+      "path": "../../../bins/link-bins"
+    },
+    {
+      "path": "../../../cli/cli-meta"
+    },
+    {
+      "path": "../../../cli/cli-utils"
+    },
+    {
+      "path": "../../../config/config"
+    },
+    {
+      "path": "../../../config/deps-installer"
+    },
+    {
+      "path": "../../../deps/calc-dep-state"
+    },
+    {
+      "path": "../../../global/commands"
+    },
+    {
+      "path": "../../../global/packages"
+    },
+    {
+      "path": "../../../installing/client"
+    },
+    {
+      "path": "../../../installing/headless"
+    },
+    {
+      "path": "../../../lockfile/types"
+    },
+    {
+      "path": "../../../packages/error"
+    },
+    {
+      "path": "../../../packages/types"
+    },
+    {
+      "path": "../../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../../shell/path"
+    },
+    {
+      "path": "../../../store/package-store"
+    },
+    {
+      "path": "../../../store/store-connection-manager"
+    }
+  ]
+}

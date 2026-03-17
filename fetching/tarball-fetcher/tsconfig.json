@@ -25,9 +25,6 @@
       "path": "../../network/fetch"
     },
     {
-      "path": "../../network/fetching-types"
-    },
-    {
       "path": "../../packages/core-loggers"
     },
     {
@@ -53,6 +50,9 @@
     },
     {
       "path": "../fetcher-base"
+    },
+    {
+      "path": "../fetching-types"
     }
   ]
 }
