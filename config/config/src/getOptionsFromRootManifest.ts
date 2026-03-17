@@ -1,4 +1,5 @@
 import path from 'node:path'
+import util from 'node:util'
 
 import { envReplace } from '@pnpm/config.env-replace'
 import { PnpmError } from '@pnpm/error'
@@ -76,15 +77,26 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
 function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
   const newSettings: PnpmSettings = {}
   for (const [key, value] of Object.entries(settings)) {
-    const newKey = envReplace(key, process.env)
+    const newKey = safeEnvReplace(key)
     if (typeof value === 'string') {
       // @ts-expect-error
-      newSettings[newKey as keyof PnpmSettings] = envReplace(value, process.env)
+      newSettings[newKey as keyof PnpmSettings] = safeEnvReplace(value)
     } else {
       newSettings[newKey as keyof PnpmSettings] = value
     }
   }
   return newSettings
+}
+
+function safeEnvReplace (str: string): string {
+  try {
+    return envReplace(str, process.env)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err)) {
+      throw new PnpmError('CONFIG_UNRESOLVED_ENV_VAR', err.message)
+    }
+    throw err
+  }
 }
 
 function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: string) => string {
