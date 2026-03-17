@@ -169,6 +169,18 @@ export async function main (inputArgv: string[]): Promise<void> {
     write = (text) => process.stdout.write(stripAnsi(text))
   }
 
+  if (
+    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds' || cmd === 'audit') &&
+    typeof workspaceDir === 'string'
+  ) {
+    cliOptions['recursive'] = true
+    config.recursive = true
+
+    if (!config.recursiveInstall && !config.filter && !config.filterProd) {
+      config.filter = ['{.}...']
+    }
+  }
+
   const reporterType: ReporterType = (() => {
     if (config.loglevel === 'silent') return 'silent'
     if (config.reporter) return config.reporter as ReporterType
@@ -183,18 +195,6 @@ export async function main (inputArgv: string[]): Promise<void> {
       config,
     })
     global[REPORTER_INITIALIZED] = reporterType
-  }
-
-  if (
-    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds' || cmd === 'audit') &&
-    typeof workspaceDir === 'string'
-  ) {
-    cliOptions['recursive'] = true
-    config.recursive = true
-
-    if (!config.recursiveInstall && !config.filter && !config.filterProd) {
-      config.filter = ['{.}...']
-    }
   }
 
   if (cliOptions['recursive']) {
