@@ -38,9 +38,6 @@
     },
     {
       "path": "../../../worker"
-    },
-    {
-      "path": "../deno-resolver"
     }
   ]
 }
