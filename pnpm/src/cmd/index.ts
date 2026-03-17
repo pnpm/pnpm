@@ -1,22 +1,15 @@
-import { rebuild } from '@pnpm/building.build-commands'
-import { approveBuilds, ignoredBuilds } from '@pnpm/building.policy-commands'
+import { approveBuilds, ignoredBuilds, rebuild } from '@pnpm/building.commands'
 import { cache } from '@pnpm/cache.commands'
+import { createCompletionServer, doctor, generateCompletion } from '@pnpm/cli.commands'
 import type { CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
-import { audit } from '@pnpm/plugin-commands-audit'
-import { createCompletionServer, generateCompletion } from '@pnpm/plugin-commands-completion'
+import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
+import { list, ll, outdated, why } from '@pnpm/deps.inspection.commands'
+import { selfUpdate, setup } from '@pnpm/engine.pm.commands'
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
-import { deploy } from '@pnpm/plugin-commands-deploy'
-import { doctor } from '@pnpm/plugin-commands-doctor'
-import { env } from '@pnpm/plugin-commands-env'
 import { init } from '@pnpm/plugin-commands-init'
 import { add, ci, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
-import { licenses } from '@pnpm/plugin-commands-licenses'
-import { list, ll, why } from '@pnpm/plugin-commands-listing'
-import { outdated } from '@pnpm/plugin-commands-outdated'
 import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
-import { pack, publish } from '@pnpm/plugin-commands-publishing'
-import { sbom } from '@pnpm/plugin-commands-sbom'
 import {
   create,
   dlx,
@@ -24,11 +17,9 @@ import {
   restart,
   run,
 } from '@pnpm/plugin-commands-script-runners'
-import { setup } from '@pnpm/plugin-commands-setup'
-import { store } from '@pnpm/plugin-commands-store'
-import { catFile, catIndex, findHash } from '@pnpm/plugin-commands-store-inspecting'
-import { runtime } from '@pnpm/runtime.commands'
-import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
+import { deploy, pack, publish } from '@pnpm/releasing.commands'
+import { env, runtime } from '@pnpm/runtime.commands'
+import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
 import { pick } from 'ramda'
 
 import { parseCliArgs } from '../parseCliArgs.js'

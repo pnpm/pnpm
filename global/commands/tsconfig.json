@@ -19,7 +19,7 @@
       "path": "../../bins/remove-bins"
     },
     {
-      "path": "../../building/policy-commands"
+      "path": "../../building/commands"
     },
     {
       "path": "../../cli/cli-utils"

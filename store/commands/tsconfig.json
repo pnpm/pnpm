@@ -1,0 +1,94 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/assert-store"
+    },
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../crypto/integrity"
+    },
+    {
+      "path": "../../deps/dependency-path"
+    },
+    {
+      "path": "../../exec/commands"
+    },
+    {
+      "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../global/packages"
+    },
+    {
+      "path": "../../installing/client"
+    },
+    {
+      "path": "../../installing/get-context"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../object/key-sorting"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
+      "path": "../cafs"
+    },
+    {
+      "path": "../index"
+    },
+    {
+      "path": "../package-store"
+    },
+    {
+      "path": "../store-connection-manager"
+    },
+    {
+      "path": "../store-controller-types"
+    },
+    {
+      "path": "../store-path"
+    }
+  ]
+}

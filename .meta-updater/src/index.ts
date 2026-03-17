@@ -254,7 +254,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/lockfile.types':
     scripts = { ...manifest.scripts }
     break
-  case '@pnpm/building.policy-commands':
+  case '@pnpm/building.commands':
   case '@pnpm/config.deps-installer':
   case '@pnpm/headless':
   case '@pnpm/outdated':
@@ -262,15 +262,15 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/cache.commands':
   case '@pnpm/plugin-commands-import':
   case '@pnpm/plugin-commands-installation':
-  case '@pnpm/plugin-commands-listing':
-  case '@pnpm/plugin-commands-outdated':
+  case '@pnpm/deps.inspection.commands':
+  // merged into deps.inspection.commands
   case '@pnpm/plugin-commands-patching':
-  case '@pnpm/plugin-commands-publishing':
-  case '@pnpm/building.build-commands':
+  case '@pnpm/releasing.commands':
+  // merged into building.commands
   case '@pnpm/plugin-commands-script-runners':
-  case '@pnpm/plugin-commands-store':
-  case '@pnpm/plugin-commands-deploy':
-  case '@pnpm/plugin-commands-audit':
+  case '@pnpm/store.commands':
+  // merged into releasing.commands
+  case '@pnpm/deps.compliance.commands':
   case CLI_PKG_NAME:
   case '@pnpm/core': {
     preset = '@pnpm/jest-config/with-registry'

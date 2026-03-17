@@ -1,0 +1,103 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
+      "path": "../../bins/package-bins"
+    },
+    {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../cli/command"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/version-policy"
+    },
+    {
+      "path": "../../crypto/hash"
+    },
+    {
+      "path": "../../deps/status"
+    },
+    {
+      "path": "../../engine/runtime/commands"
+    },
+    {
+      "path": "../../engine/runtime/system-node-version"
+    },
+    {
+      "path": "../../installing/client"
+    },
+    {
+      "path": "../../installing/commands"
+    },
+    {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
+      "path": "../../shell/path"
+    },
+    {
+      "path": "../../store/store-path"
+    },
+    {
+      "path": "../../workspace/filter-packages-from-dir"
+    },
+    {
+      "path": "../../workspace/filter-workspace-packages"
+    },
+    {
+      "path": "../../workspace/injected-deps-syncer"
+    },
+    {
+      "path": "../../workspace/sort-packages"
+    },
+    {
+      "path": "../lifecycle"
+    },
+    {
+      "path": "../pnpm-cli-runner"
+    }
+  ]
+}

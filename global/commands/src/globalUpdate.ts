@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { approveBuilds } from '@pnpm/building.policy-commands'
+import { approveBuilds } from '@pnpm/building.commands'
 import {
   cleanOrphanedInstallDirs,
   createInstallDir,
