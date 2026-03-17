@@ -11,11 +11,11 @@ import type {
   ProjectSnapshot,
 } from '@pnpm/lockfile.types'
 import { verifyPatches } from '@pnpm/patching.config'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
 import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,
-} from '@pnpm/pkg-manifest.manifest-utils'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+} from '@pnpm/pkg-manifest.utils'
 import {
   type AllowBuild,
   DEPENDENCIES_FIELDS,

@@ -1,4 +1,4 @@
-import { filterDependenciesByType } from '@pnpm/pkg-manifest.manifest-utils'
+import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import type {
   Dependencies,
   DependenciesMeta,

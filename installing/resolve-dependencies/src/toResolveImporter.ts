@@ -1,5 +1,5 @@
 import { logger } from '@pnpm/logger'
-import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.manifest-utils'
+import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import type {
   PreferredVersions,
   WorkspacePackages,

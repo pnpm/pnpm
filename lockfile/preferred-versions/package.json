@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/pkg-manifest.manifest-utils": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "version-selector-type": "catalog:"

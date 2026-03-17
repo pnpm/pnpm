@@ -45,7 +45,7 @@
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/pkg-manifest.manifest-utils": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:",

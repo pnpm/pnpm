@@ -37,7 +37,7 @@
 "@pnpm/lockfile.preferred-versions": major
 "@pnpm/installing.render-peer-issues": major
 "@pnpm/installing.linking.modules-cleaner": major
-"@pnpm/pkg-manifest.manifest-utils": major
+"@pnpm/pkg-manifest.utils": major
 "@pnpm/fetching.directory-fetcher": major
 "@pnpm/fs.is-empty-dir-or-nothing": major
 "@pnpm/resolving.default-resolver": major

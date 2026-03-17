@@ -18,7 +18,7 @@ import {
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.manifest-utils'
+import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
   DEPENDENCIES_FIELDS,

@@ -58,7 +58,7 @@ import { writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
-import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.manifest-utils'
+import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
 import type {
   PreferredVersions,
 } from '@pnpm/resolving.resolver-base'

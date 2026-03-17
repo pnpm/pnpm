@@ -22,7 +22,7 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manifest/manifest-utils"
+      "path": "../../pkg-manifest/utils"
     },
     {
       "path": "../../text/comments-parser"

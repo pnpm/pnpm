@@ -1,5 +1,5 @@
 import { nameVerFromPkgSnapshot, type PackageSnapshots } from '@pnpm/lockfile.utils'
-import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.manifest-utils'
+import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import { DIRECT_DEP_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import getVersionSelectorType from 'version-selector-type'

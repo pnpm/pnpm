@@ -1,7 +1,7 @@
 import {
   type PackageSpecObject,
   updateProjectManifestObject,
-} from '@pnpm/pkg-manifest.manifest-utils'
+} from '@pnpm/pkg-manifest.utils'
 import type { ProjectManifest } from '@pnpm/types'
 
 import type { ImporterToResolve } from './index.js'

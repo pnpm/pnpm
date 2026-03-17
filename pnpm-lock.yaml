@@ -1417,12 +1417,12 @@ importers:
       '@pnpm/fs.read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
-      '@pnpm/pkg-manifest.manifest-utils':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/manifest-utils
       '@pnpm/pkg-manifest.read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/utils
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2202,9 +2202,9 @@ importers:
       '@pnpm/hooks.pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
-      '@pnpm/pkg-manifest.manifest-utils':
+      '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
-        version: link:../../pkg-manifest/manifest-utils
+        version: link:../../pkg-manifest/utils
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../../store/connection-manager
@@ -3335,9 +3335,9 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../../lockfile/utils
-      '@pnpm/pkg-manifest.manifest-utils':
+      '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
-        version: link:../../../pkg-manifest/manifest-utils
+        version: link:../../../pkg-manifest/utils
       '@pnpm/resolving.npm-resolver':
         specifier: workspace:*
         version: link:../../../resolving/npm-resolver
@@ -4901,12 +4901,12 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
-      '@pnpm/pkg-manifest.manifest-utils':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/manifest-utils
       '@pnpm/pkg-manifest.read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/utils
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
@@ -5310,9 +5310,9 @@ importers:
       '@pnpm/patching.config':
         specifier: workspace:*
         version: link:../../patching/config
-      '@pnpm/pkg-manifest.manifest-utils':
+      '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
-        version: link:../../pkg-manifest/manifest-utils
+        version: link:../../pkg-manifest/utils
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
@@ -6049,12 +6049,12 @@ importers:
       '@pnpm/patching.types':
         specifier: workspace:*
         version: link:../../patching/types
-      '@pnpm/pkg-manifest.manifest-utils':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/manifest-utils
       '@pnpm/pkg-manifest.read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/utils
       '@pnpm/resolving.npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
@@ -6379,9 +6379,9 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../utils
-      '@pnpm/pkg-manifest.manifest-utils':
+      '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
-        version: link:../../pkg-manifest/manifest-utils
+        version: link:../../pkg-manifest/utils
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -7031,34 +7031,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  pkg-manifest/manifest-utils:
-    dependencies:
-      '@pnpm/core-loggers':
-        specifier: workspace:*
-        version: link:../../packages/core-loggers
-      '@pnpm/deps.peer-range':
-        specifier: workspace:*
-        version: link:../../deps/peer-range
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.4
-    devDependencies:
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@pnpm/pkg-manifest.manifest-utils':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.7.1
-
   pkg-manifest/read-package-json:
     dependencies:
       '@pnpm/error':
@@ -7080,6 +7052,34 @@ importers:
       '@types/normalize-package-data':
         specifier: 'catalog:'
         version: 2.4.4
+
+  pkg-manifest/utils:
+    dependencies:
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
+      '@pnpm/deps.peer-range':
+        specifier: workspace:*
+        version: link:../../deps/peer-range
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
+    devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
 
   pnpm:
     dependencies:
@@ -9124,9 +9124,9 @@ importers:
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
-      '@pnpm/pkg-manifest.manifest-utils':
+      '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
-        version: link:../../pkg-manifest/manifest-utils
+        version: link:../../pkg-manifest/utils
       '@pnpm/text.comments-parser':
         specifier: workspace:*
         version: link:../../text/comments-parser

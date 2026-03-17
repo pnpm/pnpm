@@ -88,10 +88,10 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manifest/manifest-utils"
+      "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/utils"
     },
     {
       "path": "../../resolving/parse-wanted-dependency"

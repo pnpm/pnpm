@@ -33,7 +33,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
-    "@pnpm/pkg-manifest.manifest-utils": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.write-project-manifest": "workspace:*",

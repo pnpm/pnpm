@@ -2,7 +2,7 @@ import { promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
-import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.manifest-utils'
+import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import { type CommentSpecifier, extractComments } from '@pnpm/text.comments-parser'
 import type { EngineDependency, ProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/workspace.write-project-manifest'

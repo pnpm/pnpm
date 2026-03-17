@@ -21,7 +21,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
-import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.manifest-utils'
+import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   type DirectoryResolution,

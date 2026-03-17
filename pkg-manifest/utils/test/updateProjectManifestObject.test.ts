@@ -1,4 +1,4 @@
-import { guessDependencyType, updateProjectManifestObject } from '@pnpm/pkg-manifest.manifest-utils'
+import { guessDependencyType, updateProjectManifestObject } from '@pnpm/pkg-manifest.utils'
 
 test('guessDependencyType()', () => {
   expect(

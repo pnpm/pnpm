@@ -1,4 +1,4 @@
-import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.manifest-utils'
+import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import { readProjectManifest } from '@pnpm/workspace.read-project-manifest'
 
 export async function readDepNameCompletions (dir?: string): Promise<Array<{ name: string }>> {

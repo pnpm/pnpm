@@ -13,7 +13,7 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manifest/manifest-utils"
+      "path": "../../pkg-manifest/utils"
     },
     {
       "path": "../../resolving/resolver-base"

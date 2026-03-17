@@ -38,7 +38,7 @@
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
-    "@pnpm/pkg-manifest.manifest-utils": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",

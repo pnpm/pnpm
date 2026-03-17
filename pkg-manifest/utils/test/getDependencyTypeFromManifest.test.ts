@@ -1,4 +1,4 @@
-import { getDependencyTypeFromManifest } from '@pnpm/pkg-manifest.manifest-utils'
+import { getDependencyTypeFromManifest } from '@pnpm/pkg-manifest.utils'
 
 test('getDependencyTypeFromManifest()', () => {
   expect(

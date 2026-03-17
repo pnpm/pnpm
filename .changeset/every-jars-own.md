@@ -1,5 +1,5 @@
 ---
-"@pnpm/pkg-manifest.manifest-utils": minor
+"@pnpm/pkg-manifest.utils": minor
 ---
 
 Added convertEnginesRuntimeToDependencies.
