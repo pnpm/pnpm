@@ -16,6 +16,12 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../engine/runtime/bun-resolver"
+    },
+    {
+      "path": "../../engine/runtime/deno-resolver"
+    },
+    {
       "path": "../../engine/runtime/node-resolver"
     },
     {
@@ -35,12 +41,6 @@
     },
     {
       "path": "../../store/cafs-types"
-    },
-    {
-      "path": "../../engine/runtime/bun-resolver"
-    },
-    {
-      "path": "../../engine/runtime/deno-resolver"
     },
     {
       "path": "../git-resolver"

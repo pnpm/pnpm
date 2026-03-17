@@ -33,12 +33,12 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/engine.runtime.bun-resolver": "workspace:*",
+    "@pnpm/engine.runtime.deno-resolver": "workspace:*",
     "@pnpm/engine.runtime.node-resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
-    "@pnpm/engine.runtime.bun-resolver": "workspace:*",
-    "@pnpm/engine.runtime.deno-resolver": "workspace:*",
     "@pnpm/resolving.git-resolver": "workspace:*",
     "@pnpm/resolving.local-resolver": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",

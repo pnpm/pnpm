@@ -31,13 +31,13 @@
       "path": "../../../fetching/types"
     },
     {
-      "path": "../../../worker"
-    },
-    {
       "path": "../../../resolving/npm-resolver"
     },
     {
       "path": "../../../resolving/resolver-base"
+    },
+    {
+      "path": "../../../worker"
     }
   ]
 }

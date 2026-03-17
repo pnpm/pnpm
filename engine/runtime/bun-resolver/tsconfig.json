@@ -31,16 +31,16 @@
       "path": "../../../fetching/types"
     },
     {
-      "path": "../../../worker"
-    },
-    {
-      "path": "../deno-resolver"
-    },
-    {
       "path": "../../../resolving/npm-resolver"
     },
     {
       "path": "../../../resolving/resolver-base"
+    },
+    {
+      "path": "../../../worker"
+    },
+    {
+      "path": "../deno-resolver"
     }
   ]
 }
