@@ -164,12 +164,9 @@ export async function publishWithOtpHandling ({
     }
     let otp: string | undefined
     if (error.body?.authUrl && error.body?.doneUrl) {
-      // Web auth flow: display authUrl with QR code, poll doneUrl for token
       otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, { Date, setTimeout, fetch, globalInfo }, fetchOptions)
     } else {
-      // Display npm-notice URL with QR code if available
       displayNpmNotice(error, globalInfo)
-      // Prompt for manual OTP entry
       const enquirerResponse = await enquirer.prompt({
         message: 'This operation requires a one-time password.\nEnter OTP:',
         name: 'otp',
