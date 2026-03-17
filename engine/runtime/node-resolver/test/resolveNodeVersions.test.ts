@@ -1,4 +1,4 @@
-import { resolveNodeVersions } from '@pnpm/engine.runtime.node.resolver'
+import { resolveNodeVersions } from '@pnpm/engine.runtime.node-resolver'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 
 const fetch = createFetchFromRegistry({})

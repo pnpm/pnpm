@@ -28,7 +28,7 @@
       "path": "../../../network/fetch"
     },
     {
-      "path": "../node.resolver"
+      "path": "../node-resolver"
     }
   ]
 }

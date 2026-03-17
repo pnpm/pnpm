@@ -68,7 +68,7 @@
 "@pnpm/deps.graph-hasher": major
 "@pnpm/installing.context": major
 "@pnpm/bins.remover": major
-"@pnpm/resolving.deno-resolver": major
+"@pnpm/engine.runtime.deno-resolver": major
 "@pnpm/resolving.resolver-base": major
 "@pnpm/store.create-cafs-store": major
 "@pnpm/workspace.projects-reader": major
@@ -80,7 +80,7 @@
 "@pnpm/modules-mounter.daemon": major
 "@pnpm/fetching.types": major
 "@pnpm/installing.linking.real-hoist": major
-"@pnpm/resolving.bun-resolver": major
+"@pnpm/engine.runtime.bun-resolver": major
 "@pnpm/resolving.git-resolver": major
 "@pnpm/resolving.npm-resolver": major
 "@pnpm/jest-config": major
@@ -123,10 +123,9 @@
 "@pnpm/prepare": major
 "@pnpm/scripts": major
 "@pnpm/catalogs.resolver": major
-"@pnpm/engine.runtime.node.resolver": major
+"@pnpm/engine.runtime.node-resolver": major
 "@pnpm/installing.linking.hoist": major
 "@pnpm/deps.peer-range": major
-"@pnpm/engine.runtime.node.fetcher": major
 "@pnpm/fs.find-packages": major
 "@pnpm/fs.hard-link-dir": major
 "@pnpm/installing.deps-installer": major

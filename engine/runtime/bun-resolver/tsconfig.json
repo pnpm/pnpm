@@ -10,7 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../../__utils__/prepare"
+      "path": "../../../core/constants"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/types"
     },
     {
       "path": "../../../crypto/shasums-file"
@@ -19,22 +25,22 @@
       "path": "../../../fetching/binary-fetcher"
     },
     {
-      "path": "../../../fetching/tarball-fetcher"
+      "path": "../../../fetching/fetcher-base"
     },
     {
       "path": "../../../fetching/types"
     },
     {
-      "path": "../../../store/cafs-types"
+      "path": "../../../worker"
     },
     {
-      "path": "../../../store/create-cafs-store"
+      "path": "../deno-resolver"
     },
     {
-      "path": "../../../store/index"
+      "path": "../../../resolving/npm-resolver"
     },
     {
-      "path": "../node.resolver"
+      "path": "../../../resolving/resolver-base"
     }
   ]
 }

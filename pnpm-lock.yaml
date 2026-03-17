@@ -3689,9 +3689,9 @@ importers:
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../../config/reader
-      '@pnpm/engine.runtime.node.resolver':
+      '@pnpm/engine.runtime.node-resolver':
         specifier: workspace:*
-        version: link:../node.resolver
+        version: link:../node-resolver
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../core/error
@@ -3718,14 +3718,13 @@ importers:
         specifier: 'catalog:'
         version: 10.1.0
 
-  engine/runtime/node.fetcher:
     dependencies:
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: link:../../../crypto/shasums-file
-      '@pnpm/engine.runtime.node.resolver':
+      '@pnpm/engine.runtime.node-resolver':
         specifier: workspace:*
-        version: link:../node.resolver
+        version: link:../node-resolver
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: link:../../../fetching/binary-fetcher
@@ -3748,7 +3747,6 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.0.5
-      '@pnpm/engine.runtime.node.fetcher':
         specifier: workspace:*
         version: 'link:'
       '@pnpm/prepare':
@@ -3767,7 +3765,7 @@ importers:
         specifier: 'catalog:'
         version: 3.3.2
 
-  engine/runtime/node.resolver:
+  engine/runtime/node-resolver:
     dependencies:
       '@pnpm/config.reader':
         specifier: workspace:*
@@ -3797,7 +3795,7 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
-      '@pnpm/engine.runtime.node.resolver':
+      '@pnpm/engine.runtime.node-resolver':
         specifier: workspace:*
         version: 'link:'
       '@pnpm/network.fetch':
@@ -4807,9 +4805,7 @@ importers:
 
   installing/client:
     dependencies:
-      '@pnpm/engine.runtime.node.fetcher':
         specifier: workspace:*
-        version: link:../../engine/runtime/node.fetcher
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: link:../../fetching/binary-fetcher
@@ -7735,7 +7731,7 @@ importers:
         specifier: 'catalog:'
         version: 6.0.0
 
-  resolving/bun-resolver:
+  engine/runtime/bun-resolver:
     dependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -7743,9 +7739,7 @@ importers:
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: link:../../crypto/shasums-file
-      '@pnpm/engine.runtime.node.fetcher':
         specifier: workspace:*
-        version: link:../../engine/runtime/node.fetcher
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -7777,10 +7771,10 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
-      '@pnpm/resolving.bun-resolver':
+      '@pnpm/engine.runtime.bun-resolver':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/resolving.deno-resolver':
+      '@pnpm/engine.runtime.deno-resolver':
         specifier: workspace:*
         version: link:../deno-resolver
       '@types/semver':
@@ -7789,9 +7783,9 @@ importers:
 
   resolving/default-resolver:
     dependencies:
-      '@pnpm/engine.runtime.node.resolver':
+      '@pnpm/engine.runtime.node-resolver':
         specifier: workspace:*
-        version: link:../../engine/runtime/node.resolver
+        version: link:../../engine/runtime/node-resolver
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -7801,10 +7795,10 @@ importers:
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
-      '@pnpm/resolving.bun-resolver':
+      '@pnpm/engine.runtime.bun-resolver':
         specifier: workspace:*
         version: link:../bun-resolver
-      '@pnpm/resolving.deno-resolver':
+      '@pnpm/engine.runtime.deno-resolver':
         specifier: workspace:*
         version: link:../deno-resolver
       '@pnpm/resolving.git-resolver':
@@ -7848,7 +7842,7 @@ importers:
         specifier: 'catalog:'
         version: 3.3.2
 
-  resolving/deno-resolver:
+  engine/runtime/deno-resolver:
     dependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -7856,9 +7850,7 @@ importers:
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: link:../../crypto/shasums-file
-      '@pnpm/engine.runtime.node.fetcher':
         specifier: workspace:*
-        version: link:../../engine/runtime/node.fetcher
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -7890,7 +7882,7 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
-      '@pnpm/resolving.deno-resolver':
+      '@pnpm/engine.runtime.deno-resolver':
         specifier: workspace:*
         version: 'link:'
       '@types/semver':
@@ -10729,13 +10721,13 @@ packages:
     resolution: {integrity: sha512-47zGgACkbZWLOmM61kaE0nkqxiYx63C6DJ4wzDsdj0iXDZJ9SJEl+T035pkhquHe8XEh3YxvwMg2BRyZSgmZ9Q==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/resolving.bun-resolver@1005.0.9':
+  '@pnpm/engine.runtime.bun-resolver@1005.0.9':
     resolution: {integrity: sha512-MpctUtxBeENIzT0vll0XjS0v5JdT4Qmp8eTlQ/gIRqiJzqXbMoS6hHRer/nY30R6oOwFryKM8kbQns1bzmKUAw==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/worker': ^1000.6.6
 
-  '@pnpm/resolving.deno-resolver@1005.0.9':
+  '@pnpm/engine.runtime.deno-resolver@1005.0.9':
     resolution: {integrity: sha512-rezgnWGcIXnZcOJoKiGj6iTbr4aGpXt/yA3Mhq8maxe4MWF5NyWvn+xw7sTKJF3zBf+qE5bvA3ng+ktFM8SkPw==}
     engines: {node: '>=18.12'}
     peerDependencies:
@@ -18266,8 +18258,8 @@ snapshots:
       '@pnpm/node.resolver': 1001.0.21(@pnpm/logger@1001.0.1)
       '@pnpm/npm-resolver': 1005.2.2(@pnpm/logger@1001.0.1)
       '@pnpm/resolver-base': 1005.4.1
-      '@pnpm/resolving.bun-resolver': 1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
-      '@pnpm/resolving.deno-resolver': 1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/engine.runtime.bun-resolver': 1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
+      '@pnpm/engine.runtime.deno-resolver': 1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)
       '@pnpm/tarball-resolver': 1002.2.1
     transitivePeerDependencies:
       - '@pnpm/logger'
@@ -18879,7 +18871,7 @@ snapshots:
     dependencies:
       '@pnpm/types': 1001.3.0
 
-  '@pnpm/resolving.bun-resolver@1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/engine.runtime.bun-resolver@1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
       '@pnpm/constants': 1001.3.1
       '@pnpm/crypto.shasums-file': 1001.0.4
@@ -18900,7 +18892,7 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/resolving.deno-resolver@1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
+  '@pnpm/engine.runtime.deno-resolver@1005.0.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.6(@pnpm/logger@1001.0.1)(@types/node@22.19.15))(typanion@3.14.0)':
     dependencies:
       '@pnpm/constants': 1001.3.1
       '@pnpm/crypto.shasums-file': 1001.0.4

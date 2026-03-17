@@ -2,7 +2,7 @@
 "@pnpm/constants": patch
 "@pnpm/resolving.resolver-base": patch
 "@pnpm/lockfile.types": patch
-"@pnpm/engine.runtime.node.resolver": patch
+"@pnpm/engine.runtime.node-resolver": patch
 "@pnpm/engine.runtime.commands": patch
 ---
 

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/resolving.deno-resolver",
+  "name": "@pnpm/engine.runtime.deno-resolver",
   "version": "1002.0.1",
   "description": "Resolves the Deno runtime",
   "keywords": [
@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/resolving/deno-resolver",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/resolving/deno-resolver#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/engine/runtime/deno-resolver",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/engine/runtime/deno-resolver#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -34,7 +34,6 @@
   "dependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.shasums-file": "workspace:*",
-    "@pnpm/engine.runtime.node.fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
@@ -49,7 +48,7 @@
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
-    "@pnpm/resolving.deno-resolver": "workspace:*",
+    "@pnpm/engine.runtime.deno-resolver": "workspace:*",
     "@types/semver": "catalog:"
   },
   "engines": {

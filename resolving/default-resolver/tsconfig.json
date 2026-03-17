@@ -16,7 +16,7 @@
       "path": "../../core/types"
     },
     {
-      "path": "../../engine/runtime/node.resolver"
+      "path": "../../engine/runtime/node-resolver"
     },
     {
       "path": "../../fetching/fetcher-base"
@@ -37,10 +37,10 @@
       "path": "../../store/cafs-types"
     },
     {
-      "path": "../bun-resolver"
+      "path": "../../engine/runtime/bun-resolver"
     },
     {
-      "path": "../deno-resolver"
+      "path": "../../engine/runtime/deno-resolver"
     },
     {
       "path": "../git-resolver"

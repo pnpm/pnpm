@@ -13,9 +13,6 @@
       "path": "../../core/types"
     },
     {
-      "path": "../../engine/runtime/node.fetcher"
-    },
-    {
       "path": "../../fetching/binary-fetcher"
     },
     {
