@@ -4,8 +4,8 @@ import esbuild from 'esbuild'
 import pathLib from 'path'
 import childProcess from 'child_process'
 import { createRequire } from 'module'
-import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
-import { findWorkspaceDir } from '@pnpm/workspace.find-workspace-dir'
+import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(import.meta.dirname, 'package.json'), 'utf8'))

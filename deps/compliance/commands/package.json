@@ -69,7 +69,6 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
-    "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/zkochan__table": "catalog:",
