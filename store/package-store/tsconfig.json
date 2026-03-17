@@ -19,10 +19,13 @@
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../fs/msgpack-file"
+      "path": "../../hooks/types"
     },
     {
-      "path": "../../hooks/types"
+      "path": "../../installing/client"
+    },
+    {
+      "path": "../../installing/package-requester"
     },
     {
       "path": "../../packages/error"
@@ -32,12 +35,6 @@
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/client"
-    },
-    {
-      "path": "../../pkg-manager/package-requester"
     },
     {
       "path": "../../resolving/resolver-base"
@@ -50,6 +47,9 @@
     },
     {
       "path": "../create-cafs-store"
+    },
+    {
+      "path": "../index"
     },
     {
       "path": "../store-controller-types"

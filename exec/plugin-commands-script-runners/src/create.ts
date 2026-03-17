@@ -1,6 +1,7 @@
-import renderHelp from 'render-help'
 import { docsUrl } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
+import { renderHelp } from 'render-help'
+
 import * as dlx from './dlx.js'
 
 export const commandNames = ['create']

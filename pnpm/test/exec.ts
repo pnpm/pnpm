@@ -1,6 +1,8 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare } from '@pnpm/prepare'
+
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 test("exec should respect the caller's current working directory", async () => {

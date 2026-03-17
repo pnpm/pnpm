@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../packages/constants"
+      "path": "../../deps/dependency-path"
     },
     {
-      "path": "../../packages/dependency-path"
+      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/types"

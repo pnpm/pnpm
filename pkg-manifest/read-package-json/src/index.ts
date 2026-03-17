@@ -1,7 +1,8 @@
-import path from 'path'
-import util from 'util'
+import path from 'node:path'
+import util from 'node:util'
+
 import { PnpmError } from '@pnpm/error'
-import { type PackageManifest } from '@pnpm/types'
+import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFile, loadJsonFileSync } from 'load-json-file'
 import normalizePackageData from 'normalize-package-data'
 

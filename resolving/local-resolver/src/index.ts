@@ -1,11 +1,13 @@
-import { existsSync } from 'fs'
-import path from 'path'
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DirectoryResolution, type Resolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
-import { type DependencyManifest, type PkgResolutionId } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
+import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
+import type { DirectoryResolution, Resolution, ResolveResult, TarballResolution } from '@pnpm/resolver-base'
+import type { DependencyManifest, PkgResolutionId } from '@pnpm/types'
+
 import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier.js'
 
 export { type WantedLocalDependency }

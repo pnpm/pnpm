@@ -1,9 +1,11 @@
-import os from 'os'
-import { type Config } from '@pnpm/config'
-import { type Log, type RegistryLog } from '@pnpm/core-loggers'
-import { type LogLevel } from '@pnpm/logger'
+import os from 'node:os'
+
+import type { Config } from '@pnpm/config'
+import type { Log, RegistryLog } from '@pnpm/core-loggers'
+import type { LogLevel } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
+
 import { reportError } from '../reportError.js'
 import { formatWarn } from './utils/formatWarn.js'
 import { autozoom } from './utils/zooming.js'

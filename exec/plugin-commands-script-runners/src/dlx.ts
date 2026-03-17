@@ -1,28 +1,30 @@
-import fs, { type Stats } from 'fs'
-import path from 'path'
-import util from 'util'
+import fs, { type Stats } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
+import {
+  type CatalogResolver,
+  resolveFromCatalog,
+} from '@pnpm/catalogs.resolver'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { createResolver } from '@pnpm/client'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
+import { getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { type PackageManifest, type PnpmSettings, type SupportedArchitectures } from '@pnpm/types'
+import type { PackageManifest, PnpmSettings, SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import execa from 'execa'
+import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 import symlinkDir from 'symlink-dir'
+
 import { makeEnv } from './makeEnv.js'
-import {
-  type CatalogResolver,
-  resolveFromCatalog,
-} from '@pnpm/catalogs.resolver'
 
 export const skipPackageManagerCheck = true
 
@@ -162,12 +164,12 @@ export async function handler (
     try {
       await symlinkDir(cachedDir, cacheLink, { overwrite: true })
     } catch (error) {
-      // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
-      // Similarly, EEXIST means that another dlx process has created the cache link before this process.
+      // EBUSY/EEXIST/EPERM means that there is another dlx process running in parallel that has acquired the cache link first.
+      // EPERM can happen on Windows when another process has the symlink open while this process tries to unlink it.
       // The link created by the other process is just as up-to-date as the link the current process was attempting
       // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
       // the other link stay. The current process should yield.
-      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
+      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST' && error.code !== 'EPERM')) {
         throw error
       }
     }

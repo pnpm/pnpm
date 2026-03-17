@@ -1,0 +1,130 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/assert-project"
+    },
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
+      "path": "../../bins/link-bins"
+    },
+    {
+      "path": "../../building/during-install"
+    },
+    {
+      "path": "../../building/policy"
+    },
+    {
+      "path": "../../config/package-is-installable"
+    },
+    {
+      "path": "../../crypto/object-hasher"
+    },
+    {
+      "path": "../../deps/calc-dep-state"
+    },
+    {
+      "path": "../../deps/dependency-path"
+    },
+    {
+      "path": "../../deps/graph-builder"
+    },
+    {
+      "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
+      "path": "../../lockfile/filtering"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/lockfile-to-pnp"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../patching/config"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/index"
+    },
+    {
+      "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../store/store-path"
+    },
+    {
+      "path": "../../testing/temp-store"
+    },
+    {
+      "path": "../../worker"
+    },
+    {
+      "path": "../linking/direct-dep-linker"
+    },
+    {
+      "path": "../linking/hoist"
+    },
+    {
+      "path": "../linking/modules-cleaner"
+    },
+    {
+      "path": "../linking/real-hoist"
+    },
+    {
+      "path": "../modules-yaml"
+    },
+    {
+      "path": "../package-requester"
+    },
+    {
+      "path": "../read-projects-context"
+    }
+  ]
+}

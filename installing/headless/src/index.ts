@@ -1,0 +1,1033 @@
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
+import { buildModules } from '@pnpm/building.during-install'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
+import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
+import {
+  LAYOUT_VERSION,
+  WANTED_LOCKFILE,
+} from '@pnpm/constants'
+import {
+  packageManifestLogger,
+  progressLogger,
+  stageLogger,
+  statsLogger,
+  summaryLogger,
+} from '@pnpm/core-loggers'
+import * as dp from '@pnpm/dependency-path'
+import {
+  type DependenciesGraph,
+  type DependenciesGraphNode,
+  type DirectDependenciesByImporterId,
+  lockfileToDepGraph,
+  type LockfileToDepGraphOptions,
+} from '@pnpm/deps.graph-builder'
+import { PnpmError } from '@pnpm/error'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
+import {
+  makeNodeRequireOption,
+  runLifecycleHooksConcurrently,
+} from '@pnpm/lifecycle'
+import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
+import {
+  filterLockfileByEngine,
+  filterLockfileByImportersAndEngine,
+} from '@pnpm/lockfile.filtering'
+import {
+  getLockfileImporterId,
+  type LockfileObject,
+  readCurrentLockfile,
+  readWantedLockfile,
+  writeCurrentLockfile,
+  writeLockfiles,
+} from '@pnpm/lockfile.fs'
+import {
+  nameVerFromPkgSnapshot,
+} from '@pnpm/lockfile.utils'
+import { writePnpFile } from '@pnpm/lockfile-to-pnp'
+import {
+  type LogBase,
+  logger,
+  streamParser,
+} from '@pnpm/logger'
+import { prune } from '@pnpm/modules-cleaner'
+import {
+  type IncludedDependencies,
+  type Modules,
+  writeModulesManifest,
+} from '@pnpm/modules-yaml'
+import type { PatchGroupRecord } from '@pnpm/patching.config'
+import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+import type { HoistingLimits } from '@pnpm/real-hoist'
+import type {
+  PackageFilesResponse,
+  StoreController,
+} from '@pnpm/store-controller-types'
+import { symlinkDependency } from '@pnpm/symlink-dependency'
+import {
+  type AllowBuild,
+  DEPENDENCIES_FIELDS,
+  type DependencyManifest,
+  type DepPath,
+  type HoistedDependencies,
+  type IgnoredBuilds,
+  type ProjectId,
+  type ProjectManifest,
+  type ProjectRootDir,
+  type Registries,
+  type SupportedArchitectures,
+} from '@pnpm/types'
+import { symlinkAllModules } from '@pnpm/worker'
+import pLimit from 'p-limit'
+import { pathAbsolute } from 'path-absolute'
+import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'
+import { realpathMissing } from 'realpath-missing'
+
+import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
+import { linkHoistedModules } from './linkHoistedModules.js'
+import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
+export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
+
+export type { HoistingLimits }
+
+export type ReporterFunction = (logObj: LogBase) => void
+
+export interface Project {
+  binsDir: string
+  buildIndex: number
+  manifest: ProjectManifest
+  modulesDir: string
+  id: ProjectId
+  pruneDirectDependencies?: boolean
+  rootDir: ProjectRootDir
+}
+
+export interface HeadlessOptions {
+  allowBuilds?: Record<string, boolean | string>
+  autoInstallPeers?: boolean
+  childConcurrency?: number
+  currentLockfile?: LockfileObject
+  currentEngine: {
+    nodeVersion?: string
+    pnpmVersion: string
+  }
+  dedupeDirectDeps?: boolean
+  enablePnp?: boolean
+  engineStrict: boolean
+  excludeLinksFromLockfile?: boolean
+  extraBinPaths?: string[]
+  extraEnv?: Record<string, string>
+  extraNodePaths?: string[]
+  preferSymlinkedExecutables?: boolean
+  hoistingLimits?: HoistingLimits
+  externalDependencies?: Set<string>
+  ignoreDepScripts: boolean
+  ignoreScripts: boolean
+  ignorePackageManifest?: boolean
+  /**
+   * When true, skip fetching local dependencies (file: protocol pointing to directories).
+   * This is used by `pnpm fetch` which only downloads packages from the registry
+   * and doesn't need local packages that won't be available (e.g., in Docker builds).
+   */
+  ignoreLocalPackages?: boolean
+  include: IncludedDependencies
+  selectedProjectDirs: string[]
+  allProjects: Record<string, Project>
+  prunedAt?: string
+  hoistedDependencies: HoistedDependencies
+  hoistPattern?: string[]
+  publicHoistPattern?: string[]
+  currentHoistPattern?: string[]
+  currentPublicHoistPattern?: string[]
+  currentHoistedLocations?: Record<string, string[]>
+  lockfileDir: string
+  modulesDir?: string
+  enableGlobalVirtualStore?: boolean
+  globalVirtualStoreDir: string
+  virtualStoreDir?: string
+  virtualStoreDirMaxLength: number
+  patchedDependencies?: PatchGroupRecord
+  scriptsPrependNodePath?: boolean | 'warn-only'
+  scriptShell?: string
+  shellEmulator?: boolean
+  storeController: StoreController
+  sideEffectsCacheRead: boolean
+  sideEffectsCacheWrite: boolean
+  symlink?: boolean
+  disableRelinkLocalDirDeps?: boolean
+  force: boolean
+  storeDir: string
+  rawConfig: object
+  unsafePerm: boolean
+  userAgent: string
+  registries: Registries
+  reporter?: ReporterFunction
+  packageManager: {
+    name: string
+    version: string
+  }
+  pruneStore: boolean
+  pruneVirtualStore?: boolean
+  wantedLockfile?: LockfileObject
+  ownLifecycleHooksStdio?: 'inherit' | 'pipe'
+  pendingBuilds: string[]
+  resolveSymlinksInInjectedDirs?: boolean
+  skipped: Set<DepPath>
+  enableModulesDir?: boolean
+  virtualStoreOnly?: boolean
+  nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
+  useGitBranchLockfile?: boolean
+  useLockfile?: boolean
+  supportedArchitectures?: SupportedArchitectures
+  hoistWorkspacePackages?: boolean
+  modulesFile?: Modules | null
+}
+
+export interface InstallationResultStats {
+  added: number
+  removed: number
+  linkedToRoot: number
+}
+
+export interface InstallationResult {
+  stats: InstallationResultStats
+  ignoredBuilds: IgnoredBuilds | undefined
+}
+
+export async function headlessInstall (opts: HeadlessOptions): Promise<InstallationResult> {
+  const reporter = opts.reporter
+  if ((reporter != null) && typeof reporter === 'function') {
+    streamParser.on('data', reporter)
+  }
+
+  const lockfileDir = opts.lockfileDir
+  const wantedLockfile = opts.wantedLockfile ?? await readWantedLockfile(lockfileDir, {
+    ignoreIncompatible: false,
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    // mergeGitBranchLockfiles is intentionally not supported in headless
+    mergeGitBranchLockfiles: false,
+  })
+
+  if (wantedLockfile == null) {
+    throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
+  }
+
+  const depsStateCache: DepsStateCache = {}
+  const relativeModulesDir = opts.modulesDir ?? 'node_modules'
+  const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
+  const internalPnpmDir = path.join(rootModulesDir, '.pnpm')
+  const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
+  const hoistedModulesDir = path.join(
+    opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir,
+    'node_modules'
+  )
+  const publicHoistedModulesDir = rootModulesDir
+  const selectedProjects = Object.values(pick(opts.selectedProjectDirs, opts.allProjects))
+
+  const scriptsOpts = {
+    optional: false,
+    extraBinPaths: opts.extraBinPaths,
+    extraNodePaths: opts.extraNodePaths,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+    extraEnv: opts.extraEnv,
+    rawConfig: opts.rawConfig,
+    resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
+    scriptsPrependNodePath: opts.scriptsPrependNodePath,
+    scriptShell: opts.scriptShell,
+    shellEmulator: opts.shellEmulator,
+    stdio: opts.ownLifecycleHooksStdio ?? 'inherit',
+    storeController: opts.storeController,
+    unsafePerm: opts.unsafePerm || false,
+  }
+
+  if (opts.virtualStoreOnly && opts.enableModulesDir === false && !opts.enableGlobalVirtualStore) {
+    throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR',
+      'Cannot use virtualStoreOnly when enableModulesDir is false (the standard virtual store requires node_modules/.pnpm)')
+  }
+  const skipPostImportLinking = opts.virtualStoreOnly === true
+
+  const skipped = opts.skipped || new Set<DepPath>()
+  const filterOpts = {
+    include: opts.include,
+    registries: opts.registries,
+    skipped,
+    currentEngine: opts.currentEngine,
+    engineStrict: opts.engineStrict,
+    failOnMissingDependencies: true,
+    includeIncompatiblePackages: opts.force,
+    lockfileDir,
+    supportedArchitectures: opts.supportedArchitectures,
+  }
+  let removed = 0
+  if (opts.nodeLinker !== 'hoisted') {
+    if (currentLockfile != null && !opts.ignorePackageManifest) {
+      const removedDepPaths = await prune(
+        selectedProjects,
+        {
+          currentLockfile,
+          dedupeDirectDeps: opts.dedupeDirectDeps,
+          dryRun: false,
+          hoistedDependencies: opts.hoistedDependencies,
+          hoistedModulesDir: (opts.hoistPattern == null) ? undefined : hoistedModulesDir,
+          include: opts.include,
+          lockfileDir,
+          pruneStore: opts.pruneStore,
+          pruneVirtualStore: opts.pruneVirtualStore,
+          publicHoistedModulesDir: (opts.publicHoistPattern == null) ? undefined : publicHoistedModulesDir,
+          skipped,
+          storeController: opts.storeController,
+          virtualStoreDir,
+          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+          wantedLockfile: filterLockfileByEngine(wantedLockfile, filterOpts).lockfile,
+        }
+      )
+      removed = removedDepPaths.size
+    } else {
+      statsLogger.debug({
+        prefix: lockfileDir,
+        removed: 0,
+      })
+    }
+  }
+
+  stageLogger.debug({
+    prefix: lockfileDir,
+    stage: 'importing_started',
+  })
+
+  const initialImporterIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
+    ? Object.keys(wantedLockfile.importers) as ProjectId[]
+    : selectedProjects.map(({ id }) => id)
+  const { lockfile: filteredLockfile, selectedImporterIds: importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, filterOpts)
+  if (opts.excludeLinksFromLockfile) {
+    for (const { id, manifest, rootDir } of selectedProjects) {
+      if (filteredLockfile.importers[id]) {
+        for (const depType of DEPENDENCIES_FIELDS) {
+          filteredLockfile.importers[id][depType] = {
+            ...filteredLockfile.importers[id][depType],
+            ...Object.entries(manifest[depType] ?? {})
+              .filter(([_, spec]) => spec.startsWith('link:'))
+              .reduce((acc, [depName, spec]) => {
+                const linkPath = spec.substring(5)
+                acc[depName] = path.isAbsolute(linkPath) ? `link:${path.relative(rootDir, spec.substring(5))}` : spec
+                return acc
+              }, {} as Record<string, string>),
+          }
+        }
+      }
+    }
+  }
+
+  // Update selectedProjects to add missing projects. importerIds will have the updated ids, found from deeply linked workspace projects
+  const initialImporterIdSet = new Set(initialImporterIds)
+  const missingIds = importerIds.filter((importerId) => !initialImporterIdSet.has(importerId))
+  if (missingIds.length > 0) {
+    for (const project of Object.values(opts.allProjects)) {
+      if (missingIds.includes(project.id)) {
+        selectedProjects.push(project)
+      }
+    }
+  }
+
+  const allowBuild = createAllowBuildFunction(opts)
+  const lockfileToDepGraphOpts = {
+    ...opts,
+    allowBuild,
+    importerIds,
+    lockfileDir,
+    skipped,
+    virtualStoreDir,
+    nodeVersion: opts.currentEngine.nodeVersion,
+    pnpmVersion: opts.currentEngine.pnpmVersion,
+    supportedArchitectures: opts.supportedArchitectures,
+    includeUnchangedDeps: (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) ||
+      (!equals(opts.currentPublicHoistPattern ?? [], opts.publicHoistPattern ?? [])) ||
+      (opts.enableGlobalVirtualStore === true && !equals(opts.modulesFile?.allowBuilds ?? {}, opts.allowBuilds ?? {})),
+  } as LockfileToDepGraphOptions
+  const {
+    directDependenciesByImporterId,
+    graph,
+    hierarchy,
+    hoistedLocations,
+    injectionTargetsByDepPath,
+    prevGraph,
+    symlinkedDirectDependenciesByImporterId,
+  } = await (
+    opts.nodeLinker === 'hoisted'
+      ? lockfileToHoistedDepGraph(
+        filteredLockfile,
+        currentLockfile,
+        lockfileToDepGraphOpts
+      )
+      : lockfileToDepGraph(
+        filteredLockfile,
+        opts.force ? null : currentLockfile,
+        lockfileToDepGraphOpts
+      )
+  )
+  if (opts.enablePnp) {
+    const importerNames = Object.fromEntries(
+      selectedProjects.map(({ manifest, id }) => [id, manifest.name ?? id])
+    )
+    await writePnpFile(filteredLockfile, {
+      importerNames,
+      lockfileDir,
+      virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      registries: opts.registries,
+    })
+  }
+  const depNodes = Object.values(graph)
+
+  const added = depNodes.filter(({ fetching }) => fetching).length
+  statsLogger.debug({
+    added,
+    prefix: lockfileDir,
+  })
+
+  function warn (message: string) {
+    logger.info({
+      message,
+      prefix: lockfileDir,
+    })
+  }
+
+  let newHoistedDependencies!: HoistedDependencies
+  let linkedToRoot = 0
+  if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
+    if (!skipPostImportLinking) {
+      await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
+        allowBuild,
+        depsStateCache,
+        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+        force: opts.force,
+        ignoreScripts: opts.ignoreScripts,
+        lockfileDir: opts.lockfileDir,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        sideEffectsCacheRead: opts.sideEffectsCacheRead,
+      })
+      stageLogger.debug({
+        prefix: lockfileDir,
+        stage: 'importing_done',
+      })
+
+      linkedToRoot = await symlinkDirectDependencies({
+        directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
+        dedupe: Boolean(opts.dedupeDirectDeps),
+        filteredLockfile,
+        lockfileDir,
+        projects: selectedProjects,
+        registries: opts.registries,
+        symlink: opts.symlink,
+      })
+    }
+  } else if (opts.enableModulesDir !== false || opts.enableGlobalVirtualStore) {
+    if (opts.enableModulesDir !== false) {
+      await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+    }
+    await Promise.all([
+      opts.symlink === false || opts.enableModulesDir === false
+        ? Promise.resolve()
+        : linkAllModules(depNodes, {
+          optional: opts.include.optionalDependencies,
+        }),
+      linkAllPkgs(opts.storeController, depNodes, {
+        allowBuild,
+        force: opts.force,
+        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+        depGraph: graph,
+        depsStateCache,
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+        ignoreScripts: opts.ignoreScripts,
+        lockfileDir: opts.lockfileDir,
+        sideEffectsCacheRead: opts.sideEffectsCacheRead,
+        storeDir: opts.storeDir,
+      }),
+    ])
+
+    stageLogger.debug({
+      prefix: lockfileDir,
+      stage: 'importing_done',
+    })
+
+    if (opts.ignorePackageManifest !== true && !skipPostImportLinking && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
+      newHoistedDependencies = {
+        ...opts.hoistedDependencies,
+        ...await hoist({
+          extraNodePath: opts.extraNodePaths,
+          graph,
+          directDepsByImporterId: Object.fromEntries(Object.entries(directDependenciesByImporterId).map(([projectId, deps]) => [
+            projectId,
+            new Map(Object.entries(deps)),
+          ])),
+          importerIds,
+          preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+          privateHoistedModulesDir: hoistedModulesDir,
+          privateHoistPattern: opts.hoistPattern ?? [],
+          publicHoistedModulesDir,
+          publicHoistPattern: opts.publicHoistPattern ?? [],
+          virtualStoreDir,
+          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+          hoistedWorkspacePackages: opts.hoistWorkspacePackages
+            ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
+              if (project.manifest.name && project.id !== '.') {
+                hoistedWorkspacePackages[project.id] = {
+                  dir: project.rootDir,
+                  name: project.manifest.name,
+                }
+              }
+              return hoistedWorkspacePackages
+            }, {} as Record<string, HoistedWorkspaceProject>)
+            : undefined,
+          skipped: opts.skipped,
+        }),
+      }
+    } else {
+      newHoistedDependencies = {}
+    }
+
+    if (!skipPostImportLinking) {
+      await linkAllBins(graph, {
+        extraNodePaths: opts.extraNodePaths,
+        optional: opts.include.optionalDependencies,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        warn,
+      })
+    }
+
+    if ((currentLockfile != null) && !equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
+      Object.assign(filteredLockfile.packages!, currentLockfile.packages)
+    }
+
+    /** Skip linking and due to no project manifest */
+    if (!opts.ignorePackageManifest && !skipPostImportLinking) {
+      linkedToRoot = await symlinkDirectDependencies({
+        dedupe: Boolean(opts.dedupeDirectDeps),
+        directDependenciesByImporterId,
+        filteredLockfile,
+        lockfileDir,
+        projects: selectedProjects,
+        registries: opts.registries,
+        symlink: opts.symlink,
+      })
+    }
+  }
+
+  if (opts.ignoreScripts) {
+    for (const { id, manifest } of selectedProjects) {
+      if (opts.ignoreScripts && ((manifest?.scripts) != null) &&
+        (manifest.scripts.preinstall ?? manifest.scripts.prepublish ??
+          manifest.scripts.install ??
+          manifest.scripts.postinstall ??
+          manifest.scripts.prepare)
+      ) {
+        opts.pendingBuilds.push(id)
+      }
+    }
+    // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
+    opts.pendingBuilds = opts.pendingBuilds
+      .concat(
+        depNodes
+          .filter(({ requiresBuild }) => requiresBuild)
+          .map(({ depPath }) => depPath)
+      )
+  }
+  let ignoredBuilds: IgnoredBuilds | undefined
+  if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
+    const directNodes = new Set<string>()
+    for (const id of union(importerIds, ['.'])) {
+      const directDependencies = directDependenciesByImporterId[id]
+      for (const alias in directDependencies) {
+        const loc = directDependencies[alias]
+        if (!graph[loc]) continue
+        directNodes.add(loc)
+      }
+    }
+    const extraBinPaths = [...opts.extraBinPaths ?? []]
+    if (opts.hoistPattern != null) {
+      extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
+    }
+    let extraEnv: Record<string, string> | undefined = opts.extraEnv
+    if (opts.enablePnp) {
+      extraEnv = {
+        ...extraEnv,
+        ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
+      }
+    }
+    ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
+      allowBuild,
+      childConcurrency: opts.childConcurrency,
+      extraBinPaths,
+      extraEnv,
+      depsStateCache,
+      ignoreScripts: opts.ignoreScripts || opts.ignoreDepScripts,
+      hoistedLocations,
+      lockfileDir,
+      optional: opts.include.optionalDependencies,
+      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      rawConfig: opts.rawConfig,
+      rootModulesDir: virtualStoreDir,
+      scriptsPrependNodePath: opts.scriptsPrependNodePath,
+      scriptShell: opts.scriptShell,
+      shellEmulator: opts.shellEmulator,
+      sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+      storeController: opts.storeController,
+      unsafePerm: opts.unsafePerm,
+      userAgent: opts.userAgent,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+    })).ignoredBuilds
+    if (opts.modulesFile?.ignoredBuilds?.size) {
+      ignoredBuilds ??= new Set()
+      for (const ignoredBuild of opts.modulesFile.ignoredBuilds.values()) {
+        if (filteredLockfile.packages?.[ignoredBuild]) {
+          ignoredBuilds.add(ignoredBuild)
+        }
+      }
+    }
+  }
+
+  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath)
+
+  if (opts.enableModulesDir !== false) {
+    if (!skipPostImportLinking) {
+      const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
+      /** Skip linking and due to no project manifest */
+      if (!opts.ignorePackageManifest) {
+        await Promise.all(selectedProjects.map(async (project) => {
+          if (opts.nodeLinker === 'hoisted' || opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
+            await linkBinsOfImporter(project, {
+              extraNodePaths: opts.extraNodePaths,
+              preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            })
+          } else {
+            let directPkgDirs: string[]
+            if (project.id === '.') {
+              directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
+            } else {
+              directPkgDirs = []
+              for (const [alias, dir] of Object.entries(directDependenciesByImporterId[project.id])) {
+                if (rootProjectDeps[alias] !== dir) {
+                  directPkgDirs.push(dir)
+                }
+              }
+            }
+            await linkBinsOfPackages(
+              (
+                await Promise.all(
+                  directPkgDirs.map(async (dir) => ({
+                    location: dir,
+                    manifest: await safeReadProjectManifestOnly(dir),
+                  }))
+                )
+              )
+                .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+              project.binsDir,
+              {
+                extraNodePaths: opts.extraNodePaths,
+                preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+              }
+            )
+          }
+        }))
+      }
+    }
+    const injectedDeps: Record<string, string[]> = {}
+    for (const project of projectsToBeBuilt) {
+      if (project.targetDirs.length > 0) {
+        injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
+      }
+    }
+    await writeModulesManifest(rootModulesDir, {
+      hoistedDependencies: newHoistedDependencies,
+      hoistPattern: opts.hoistPattern,
+      included: opts.include,
+      injectedDeps,
+      ignoredBuilds,
+      layoutVersion: LAYOUT_VERSION,
+      hoistedLocations,
+      nodeLinker: opts.nodeLinker,
+      packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
+      pendingBuilds: opts.pendingBuilds,
+      publicHoistPattern: opts.publicHoistPattern,
+      prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
+        ? new Date().toUTCString()
+        : opts.prunedAt,
+      registries: opts.registries,
+      skipped: Array.from(skipped),
+      storeDir: opts.storeDir,
+      virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      allowBuilds: opts.allowBuilds,
+    })
+    const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
+    if (opts.useLockfile) {
+      // We need to write the wanted lockfile as well.
+      // Even though it will only be changed if the workspace will have new projects with no dependencies.
+      await writeLockfiles({
+        wantedLockfileDir: opts.lockfileDir,
+        currentLockfileDir,
+        wantedLockfile,
+        currentLockfile: filteredLockfile,
+      })
+    } else {
+      await writeCurrentLockfile(currentLockfileDir, filteredLockfile)
+    }
+  }
+
+  // waiting till package requests are finished
+  await Promise.all(depNodes.map(async ({ fetching }) => {
+    try {
+      await fetching?.()
+    } catch {}
+  }))
+
+  summaryLogger.debug({ prefix: lockfileDir })
+
+  if (!opts.ignoreScripts && !opts.ignorePackageManifest && !skipPostImportLinking) {
+    await runLifecycleHooksConcurrently(
+      ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
+      projectsToBeBuilt,
+      opts.childConcurrency ?? 5,
+      scriptsOpts
+    )
+  }
+
+  if ((reporter != null) && typeof reporter === 'function') {
+    streamParser.removeListener('data', reporter)
+  }
+  return {
+    stats: {
+      added,
+      removed,
+      linkedToRoot,
+    },
+    ignoredBuilds,
+  }
+}
+
+type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registries' | 'symlink' | 'lockfileDir'> & {
+  filteredLockfile: LockfileObject
+  dedupe: boolean
+  directDependenciesByImporterId: DirectDependenciesByImporterId
+  projects: Project[]
+}
+
+async function symlinkDirectDependencies (
+  {
+    filteredLockfile,
+    dedupe,
+    directDependenciesByImporterId,
+    lockfileDir,
+    projects,
+    registries,
+    symlink,
+  }: SymlinkDirectDependenciesOpts
+): Promise<number> {
+  for (const { rootDir, manifest } of projects) {
+    // Even though headless installation will never update the package.json
+    // this needs to be logged because otherwise install summary won't be printed
+    packageManifestLogger.debug({
+      prefix: rootDir,
+      updated: manifest,
+    })
+  }
+  if (symlink === false) return 0
+  const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }
+  for (const { id, manifest } of projects) {
+    importerManifestsByImporterId[id] = manifest
+  }
+  const projectsToLink = Object.fromEntries(await Promise.all(
+    projects.map(async ({ rootDir, id, modulesDir }) => ([id, {
+      dir: rootDir,
+      modulesDir,
+      dependencies: await getRootPackagesToLink(filteredLockfile, {
+        importerId: id,
+        importerModulesDir: modulesDir,
+        lockfileDir,
+        projectDir: rootDir,
+        importerManifestsByImporterId,
+        registries,
+        rootDependencies: directDependenciesByImporterId[id],
+      }),
+    }]))
+  ))
+  const rootProject = projectsToLink['.']
+  if (rootProject && dedupe) {
+    const rootDeps = Object.fromEntries(rootProject.dependencies.map((dep: LinkedDirectDep) => [dep.alias, dep.dir]))
+    for (const project of Object.values(omit(['.'], projectsToLink))) {
+      project.dependencies = project.dependencies.filter((dep: LinkedDirectDep) => dep.dir !== rootDeps[dep.alias])
+    }
+  }
+  return linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe) })
+}
+
+async function linkBinsOfImporter (
+  { manifest, modulesDir, binsDir, rootDir }: {
+    binsDir: string
+    manifest: ProjectManifest
+    modulesDir: string
+    rootDir: ProjectRootDir
+  },
+  { extraNodePaths, preferSymlinkedExecutables }: { extraNodePaths?: string[], preferSymlinkedExecutables?: boolean } = {}
+): Promise<string[]> {
+  const warn = (message: string) => {
+    logger.info({ message, prefix: rootDir })
+  }
+  return linkBins(modulesDir, binsDir, {
+    extraNodePaths,
+    allowExoticManifests: true,
+    preferSymlinkedExecutables,
+    projectManifest: manifest,
+    warn,
+  })
+}
+
+async function getRootPackagesToLink (
+  lockfile: LockfileObject,
+  opts: {
+    registries: Registries
+    projectDir: string
+    importerId: ProjectId
+    importerModulesDir: string
+    importerManifestsByImporterId: { [id: string]: ProjectManifest }
+    lockfileDir: string
+    rootDependencies: { [alias: string]: string }
+  }
+): Promise<LinkedDirectDep[]> {
+  const projectSnapshot = lockfile.importers[opts.importerId]
+  const allDeps = {
+    ...projectSnapshot.devDependencies,
+    ...projectSnapshot.dependencies,
+    ...projectSnapshot.optionalDependencies,
+  }
+  return (await Promise.all(
+    Object.entries(allDeps)
+      .map(async ([alias, ref]) => {
+        if (ref.startsWith('link:')) {
+          const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
+          const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
+          ref = ref.slice(5)
+          const packageDir = path.isAbsolute(ref) ? ref : path.join(opts.projectDir, ref)
+          const linkedPackage = await (async () => {
+            const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
+            if (opts.importerManifestsByImporterId[importerId]) {
+              return opts.importerManifestsByImporterId[importerId]
+            }
+            try {
+              // TODO: cover this case with a test
+              return await readProjectManifestOnly(packageDir) as DependencyManifest
+            } catch (err: any) { // eslint-disable-line
+              if (err['code'] !== 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') throw err
+              return { name: alias, version: '0.0.0' }
+            }
+          })() as DependencyManifest
+          return {
+            alias,
+            name: linkedPackage.name,
+            version: linkedPackage.version,
+            dir: packageDir,
+            id: ref,
+            isExternalLink: true,
+            dependencyType: isDev && 'dev' ||
+              isOptional && 'optional' ||
+              'prod',
+          }
+        }
+        const dir = opts.rootDependencies[alias]
+        // Skipping linked packages
+        if (!dir) {
+          return
+        }
+        const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
+        const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
+
+        const depPath = dp.refToRelative(ref, alias)
+        if (depPath === null) return
+        const pkgSnapshot = lockfile.packages?.[depPath]
+        if (pkgSnapshot == null) return // this won't ever happen. Just making typescript happy
+        const pkgId = pkgSnapshot.id ?? dp.refToRelative(ref, alias) ?? undefined
+        const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+        return {
+          alias,
+          isExternalLink: false,
+          name: pkgInfo.name,
+          version: pkgInfo.version,
+          dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
+          dir,
+          id: pkgId,
+        }
+      })
+  ))
+    .filter(Boolean) as LinkedDirectDep[]
+}
+
+const limitLinking = pLimit(16)
+
+async function linkAllPkgs (
+  storeController: StoreController,
+  depNodes: DependenciesGraphNode[],
+  opts: {
+    allowBuild?: AllowBuild
+    depGraph: DependenciesGraph
+    depsStateCache: DepsStateCache
+    disableRelinkLocalDirDeps?: boolean
+    enableGlobalVirtualStore?: boolean
+    force: boolean
+    ignoreScripts: boolean
+    lockfileDir: string
+    sideEffectsCacheRead: boolean
+    storeDir: string
+  }
+): Promise<void> {
+  // Create a marker source file that will be added to filesMap for GVS packages
+  // that need building. The importer treats it as just another file, so it's
+  // atomically included in the staged directory and renamed with the package.
+  let needsBuildMarkerSrc: string | undefined
+  if (opts.enableGlobalVirtualStore) {
+    needsBuildMarkerSrc = path.join(opts.storeDir, '.pnpm-needs-build-marker')
+    await fs.writeFile(needsBuildMarkerSrc, '')
+  }
+  await Promise.all(
+    depNodes.map(async (depNode) => {
+      if (!depNode.fetching) return
+      let filesResponse!: PackageFilesResponse
+      try {
+        filesResponse = (await depNode.fetching()).files
+      } catch (err: any) { // eslint-disable-line
+        if (depNode.optional) return
+        throw err
+      }
+
+      depNode.requiresBuild = filesResponse.requiresBuild
+      let sideEffectsCacheKey: string | undefined
+      if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
+        if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
+          sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
+            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
+            patchFileHash: depNode.patch?.hash,
+          })
+        }
+      }
+      // For GVS packages that need building, add a .pnpm-needs-build marker to the
+      // filesMap. The import pipeline treats it as a normal file, so it gets
+      // written into the staging directory and atomically renamed with the rest
+      // of the package. On the next install, GVS fast paths detect the marker
+      // and force a re-fetch/re-import/re-build.
+      // Skip the marker when cached side effects will be applied (the package
+      // is already built and no build will run).
+      const hasCachedSideEffects = sideEffectsCacheKey != null &&
+        filesResponse.sideEffectsMaps?.has(sideEffectsCacheKey) === true
+      const needsBuildMarker = needsBuildMarkerSrc != null &&
+        !hasCachedSideEffects &&
+        (depNode.requiresBuild || depNode.patch != null)
+      let effectiveFilesResponse = filesResponse
+      if (needsBuildMarker) {
+        effectiveFilesResponse = {
+          ...filesResponse,
+          filesMap: new Map([...filesResponse.filesMap, ['.pnpm-needs-build', needsBuildMarkerSrc!]]),
+        }
+      }
+
+      const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
+        filesResponse: effectiveFilesResponse,
+        force: depNode.forceImportPackage ?? opts.force,
+        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+        requiresBuild: depNode.patch != null || depNode.requiresBuild,
+        safeToSkip: opts.enableGlobalVirtualStore,
+        sideEffectsCacheKey,
+      })
+      if (importMethod) {
+        progressLogger.debug({
+          method: importMethod,
+          requester: opts.lockfileDir,
+          status: 'imported',
+          to: depNode.dir,
+        })
+      }
+      depNode.isBuilt = isBuilt
+
+      const selfDep = depNode.children[depNode.name]
+      if (selfDep) {
+        const pkg = opts.depGraph[selfDep]
+        if (!pkg) return
+        const targetModulesDir = path.join(depNode.modules, depNode.name, 'node_modules')
+        await limitLinking(async () => symlinkDependency(pkg.dir, targetModulesDir, depNode.name))
+      }
+    })
+  )
+}
+
+async function linkAllBins (
+  depGraph: DependenciesGraph,
+  opts: {
+    extraNodePaths?: string[]
+    optional: boolean
+    preferSymlinkedExecutables?: boolean
+    warn: (message: string) => void
+  }
+): Promise<void> {
+  await Promise.all(
+    Object.values(depGraph)
+      .map(async (depNode) => limitLinking(async () => {
+        const childrenToLink: Record<string, string> = opts.optional
+          ? depNode.children
+          : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
+
+        const binPath = path.join(depNode.dir, 'node_modules/.bin')
+        const pkgSnapshots = props<string, DependenciesGraphNode>(Object.values(childrenToLink), depGraph)
+
+        if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line
+          await linkBins(depNode.modules, binPath, {
+            extraNodePaths: opts.extraNodePaths,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            warn: opts.warn,
+          })
+        } else {
+          const pkgs = await Promise.all(
+            pkgSnapshots
+              .filter(({ hasBin }) => hasBin)
+              .map(async ({ dir }) => ({
+                location: dir,
+                manifest: await readPackageJsonFromDir(dir) as DependencyManifest,
+              }))
+          )
+
+          await linkBinsOfPackages(pkgs, binPath, {
+            extraNodePaths: opts.extraNodePaths,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+          })
+        }
+
+        // link also the bundled dependencies` bins
+        if (depNode.hasBundledDependencies) {
+          const bundledModules = path.join(depNode.dir, 'node_modules')
+          await linkBins(bundledModules, binPath, {
+            extraNodePaths: opts.extraNodePaths,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            warn: opts.warn,
+          })
+        }
+      }))
+  )
+}
+
+async function linkAllModules (
+  depNodes: Array<Pick<DependenciesGraphNode, 'children' | 'optionalDependencies' | 'modules' | 'name'>>,
+  opts: {
+    optional: boolean
+  }
+): Promise<void> {
+  await symlinkAllModules({
+    deps: depNodes.map((depNode) => ({
+      children: opts.optional
+        ? depNode.children
+        : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children),
+      modules: depNode.modules,
+      name: depNode.name,
+    })),
+  })
+}

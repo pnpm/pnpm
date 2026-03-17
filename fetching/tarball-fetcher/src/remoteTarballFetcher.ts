@@ -1,15 +1,18 @@
-import assert from 'assert'
-import { type IncomingMessage } from 'http'
-import util from 'util'
+import assert from 'node:assert'
+import type { IncomingMessage } from 'node:http'
+import util from 'node:util'
+
+import type { Cafs } from '@pnpm/cafs-types'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError } from '@pnpm/error'
-import { type FetchResult, type FetchOptions } from '@pnpm/fetcher-base'
-import { type Cafs } from '@pnpm/cafs-types'
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import type { FetchOptions, FetchResult } from '@pnpm/fetcher-base'
+import type { FetchFromRegistry } from '@pnpm/fetching-types'
 import { globalWarn } from '@pnpm/logger'
+import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
 import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
+
 import { BadTarballError } from './errorTypes/index.js'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
@@ -25,6 +28,7 @@ export type DownloadOptions = {
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   integrity?: string
+  storeIndex: StoreIndex
 } & Pick<FetchOptions, 'pkg' | 'appendManifest' | 'readManifest' | 'filesIndexFile'>
 
 export type DownloadFunction = (url: string, opts: DownloadOptions) => Promise<FetchResult>
@@ -165,6 +169,7 @@ export function createDownloader (
       return addFilesFromTarball({
         buffer: data,
         storeDir: opts.cafs.storeDir,
+        storeIndex: opts.storeIndex,
         readManifest: opts.readManifest,
         integrity: opts.integrity,
         filesIndexFile: opts.filesIndexFile,

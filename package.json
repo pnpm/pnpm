@@ -26,8 +26,9 @@
     "lint:meta": "pnpm run meta-updater --test",
     "copy-artifacts": "node __utils__/scripts/src/copy-artifacts.ts",
     "make-release-description": "pnpm --filter=@pnpm/get-release-text run write-release-text",
-    "release": "pnpm --filter=@pnpm/exe publish --tag=next-11 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=next-11 --access=public",
-    "dev-setup": "pnpm -C=./pnpm/dev link -g"
+    "release": "pnpm --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pnpm publish --filter=pnpm --tag=next-11 --access=public --provenance",
+    "dev-setup": "pnpm -C=./pnpm/dev link -g",
+    "worktree:new": "node __utils__/scripts/src/worktree-new.ts"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
@@ -61,5 +62,5 @@
   "engines": {
     "pnpm": ">=9.6.0"
   },
-  "packageManager": "pnpm@11.0.0-alpha.12"
+  "packageManager": "pnpm@11.0.0-alpha.16"
 }

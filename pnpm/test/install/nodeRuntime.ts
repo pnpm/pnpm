@@ -1,5 +1,7 @@
-import fs from 'fs'
+import fs from 'node:fs'
+
 import { prepare } from '@pnpm/prepare'
+
 import { execPnpm } from '../utils/index.js'
 
 test('installing a CLI tool that requires a specific version of Node.js to be installed alongside it', async () => {

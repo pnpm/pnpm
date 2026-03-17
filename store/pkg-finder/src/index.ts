@@ -1,12 +1,14 @@
-import path from 'path'
-import { depPathToFilename, parse } from '@pnpm/dependency-path'
+import path from 'node:path'
+
+import { parse } from '@pnpm/dependency-path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { readMsgpackFile } from '@pnpm/fs.msgpack-file'
-import { type Resolution } from '@pnpm/resolver-base'
-import { getFilePathByModeInCafs, getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import type { Resolution } from '@pnpm/resolver-base'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { gitHostedStoreIndexKey, type StoreIndex, storeIndexKey } from '@pnpm/store.index'
 
 export interface ReadPackageFileMapOptions {
   storeDir: string
+  storeIndex: StoreIndex
   lockfileDir: string
   virtualStoreDirMaxLength: number
 }
@@ -47,23 +49,26 @@ export async function readPackageFileMap (
   let pkgIndexFilePath: string
   if (isPackageWithIntegrity) {
     const parsedId = parse(packageId)
-    pkgIndexFilePath = getIndexFilePathInCafs(
-      opts.storeDir,
+    pkgIndexFilePath = storeIndexKey(
       packageResolution.integrity as string,
       parsedId.nonSemverVersion ?? `${parsedId.name}@${parsedId.version}`
     )
   } else if (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) {
-    const packageDirInStore = depPathToFilename(parse(packageId).nonSemverVersion ?? packageId, opts.virtualStoreDirMaxLength)
-    pkgIndexFilePath = path.join(
-      opts.storeDir,
-      packageDirInStore,
-      'integrity.mpk'
-    )
+    pkgIndexFilePath = gitHostedStoreIndexKey(packageId, { built: true })
   } else {
     return undefined
   }
 
-  const { files: indexFiles } = await readMsgpackFile<PackageFilesIndex>(pkgIndexFilePath)
+  const pkgFilesIndex = opts.storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
+  if (!pkgFilesIndex) {
+    const err: NodeJS.ErrnoException = new Error(
+      `ENOENT: package index not found for '${pkgIndexFilePath}'`
+    )
+    err.code = 'ENOENT'
+    err.path = pkgIndexFilePath
+    throw err
+  }
+  const { files: indexFiles } = pkgFilesIndex
   const files = new Map<string, string>()
   for (const [name, info] of indexFiles) {
     files.set(name, getFilePathByModeInCafs(opts.storeDir, info.digest, info.mode))

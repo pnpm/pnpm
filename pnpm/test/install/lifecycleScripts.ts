@@ -1,12 +1,14 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare } from '@pnpm/prepare'
-import { type PackageManifest, type ProjectManifest } from '@pnpm/types'
-import PATH from 'path-name'
-import { loadJsonFileSync } from 'load-json-file'
-import writeYamlFile from 'write-yaml-file'
-import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
+import type { PackageManifest, ProjectManifest } from '@pnpm/types'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { loadJsonFileSync } from 'load-json-file'
+import PATH from 'path-name'
+import { writeYamlFile } from 'write-yaml-file'
+
+import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 
 const pkgRoot = path.join(import.meta.dirname, '..', '..')
 const pnpmPkg = loadJsonFileSync<PackageManifest>(path.join(pkgRoot, 'package.json'))

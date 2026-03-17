@@ -1,14 +1,15 @@
-import fs from 'fs'
-import util from 'util'
-import fsx from 'fs-extra'
-import path from 'path'
-import { globalWarn, logger } from '@pnpm/logger'
-import { sync as rimraf } from '@zkochan/rimraf'
-import { sync as makeEmptyDir } from 'make-empty-dir'
-import sanitizeFilename from 'sanitize-filename'
-import { fastPathTemp as pathTemp } from 'path-temp'
-import renameOverwrite from 'rename-overwrite'
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
 import gfs from '@pnpm/graceful-fs'
+import { globalInfo, globalWarn, logger } from '@pnpm/logger'
+import { rimrafSync } from '@zkochan/rimraf'
+import fsx from 'fs-extra'
+import { makeEmptyDirSync } from 'make-empty-dir'
+import { fastPathTemp as pathTemp } from 'path-temp'
+import { renameOverwriteSync } from 'rename-overwrite'
+import sanitizeFilename from 'sanitize-filename'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
 
@@ -20,6 +21,7 @@ export function importIndexedDir (
   filenames: Map<string, string>,
   opts: {
     keepModulesDir?: boolean
+    safeToSkip?: boolean
   }
 ): void {
   const stage = pathTemp(newDir)
@@ -31,7 +33,7 @@ export function importIndexedDir (
     }
   } catch (err: unknown) {
     try {
-      rimraf(stage)
+      rimrafSync(stage)
     } catch {} // eslint-disable-line:no-empty
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
       const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
@@ -61,36 +63,59 @@ They were renamed.`)
     }
     throw err
   }
-  try {
-    renameOverwrite.sync(stage, newDir)
-  } catch (renameErr: unknown) {
-    // When enableGlobalVirtualStore is true, multiple worker threads may import
-    // the same package to the same global store location concurrently. Their
-    // rename operations can race. If the rename fails but the target already
-    // has the expected content, another thread completed the import.
+  if (opts.safeToSkip) {
+    // Content-addressable target (e.g. global virtual store): if the target
+    // already exists and has all expected files, it has the correct content.
+    // Skip instead of doing a swap-rename that temporarily removes the target
+    // directory — which breaks junctions read by other processes.
     try {
-      rimraf(stage)
-    } catch {} // eslint-disable-line:no-empty
-    if (util.types.isNativeError(renameErr) && 'code' in renameErr && (renameErr.code === 'ENOTEMPTY' || renameErr.code === 'EEXIST')) {
-      const firstFile = filenames.keys().next().value
-      if (firstFile) {
-        const targetFile = path.join(newDir, firstFile)
-        // Retry with short delays. With 3+ concurrent workers, a third thread
-        // may have rimrafed the target (inside its own renameOverwrite) but not
-        // yet completed its own rename. A short wait lets it finish.
-        for (let attempt = 0; attempt < 4; attempt++) {
-          if (attempt > 0) {
-            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50)
-          }
-          if (fs.existsSync(targetFile)) {
-            logger('_virtual-store-race').debug({ target: newDir })
-            return
-          }
+      fs.renameSync(stage, newDir)
+      return
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST' || err.code === 'EPERM')) {
+        if (allFilesMatch(newDir, filenames)) {
+          try {
+            rimrafSync(stage)
+          } catch {} // eslint-disable-line:no-empty
+          return
         }
       }
+      // Files missing or other error — fall through to renameOverwriteSync
     }
+  }
+  try {
+    renameOverwriteSync(stage, newDir)
+  } catch (renameErr: unknown) {
+    try {
+      rimrafSync(stage)
+    } catch {} // eslint-disable-line:no-empty
     throw renameErr
   }
+}
+
+function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
+  for (const [f, src] of filenames) {
+    const target = path.join(dir, f)
+    try {
+      const targetStat = gfs.statSync(target)
+      const srcStat = gfs.statSync(src)
+      // Fast path: hardlinks share the same inode
+      if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) continue
+      // Copy path: compare size first, then content
+      if (targetStat.size !== srcStat.size) {
+        globalInfo(`Re-importing "${dir}" because file "${f}" has a different size`)
+        return false
+      }
+      if (!gfs.readFileSync(target).equals(gfs.readFileSync(src))) {
+        globalInfo(`Re-importing "${dir}" because file "${f}" has different content`)
+        return false
+      }
+    } catch {
+      globalInfo(`Re-importing "${dir}" because file "${f}" is missing or unreadable`)
+      return false
+    }
+  }
+  return true
 }
 
 interface SanitizeFilenamesResult {
@@ -112,7 +137,7 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
 }
 
 function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Map<string, string>): void {
-  makeEmptyDir(newDir, { recursive: true })
+  makeEmptyDirSync(newDir, { recursive: true })
   const allDirs = new Set<string>()
   for (const f of filenames.keys()) {
     const dir = path.dirname(f)

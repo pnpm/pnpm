@@ -1,0 +1,42 @@
+import type { Config } from '@pnpm/config'
+
+export type NvmNodeCommandOptions = Pick<Config,
+| 'bin'
+| 'global'
+| 'fetchRetries'
+| 'fetchRetryFactor'
+| 'fetchRetryMaxtimeout'
+| 'fetchRetryMintimeout'
+| 'fetchTimeout'
+| 'userAgent'
+| 'ca'
+| 'cert'
+| 'httpProxy'
+| 'httpsProxy'
+| 'key'
+| 'localAddress'
+| 'noProxy'
+| 'rawConfig'
+| 'strictSsl'
+| 'storeDir'
+| 'pnpmHomeDir'
+> & Partial<Pick<Config,
+| 'cacheDir'
+| 'configDir'
+| 'cliOptions'
+| 'sslConfigs'
+// Fields needed to forward opts to add.handler for env use
+| 'registries'
+| 'rawLocalConfig'
+| 'lockfileDir'
+| 'nodeLinker'
+| 'modulesDir'
+| 'symlink'
+| 'frozenLockfile'
+| 'preferFrozenLockfile'
+| 'sideEffectsCache'
+| 'sideEffectsCacheReadonly'
+| 'supportedArchitectures'
+>> & {
+  remote?: boolean
+}

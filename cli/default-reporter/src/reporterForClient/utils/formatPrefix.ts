@@ -1,5 +1,7 @@
-import path from 'path'
+import path from 'node:path'
+
 import normalize from 'normalize-path'
+
 import { PREFIX_MAX_LENGTH } from '../outputConstants.js'
 
 export function formatPrefix (cwd: string, prefix: string): string {

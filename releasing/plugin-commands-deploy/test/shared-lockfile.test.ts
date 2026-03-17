@@ -1,15 +1,17 @@
-import fs from 'fs'
-import path from 'path'
-import url from 'url'
-import { install } from '@pnpm/plugin-commands-installation'
-import { assertProject } from '@pnpm/assert-project'
-import { preparePackages } from '@pnpm/prepare'
-import { type PatchFile, type LockfileFile, type LockfilePackageSnapshot } from '@pnpm/lockfile.types'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectManifest } from '@pnpm/types'
+import fs from 'node:fs'
+import path from 'node:path'
+import url from 'node:url'
+
 import { jest } from '@jest/globals'
-import writeYamlFile from 'write-yaml-file'
+import { assertProject } from '@pnpm/assert-project'
+import type { LockfileFile, LockfilePackageSnapshot } from '@pnpm/lockfile.types'
+import { install } from '@pnpm/plugin-commands-installation'
+import { preparePackages } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
+import type { ProjectManifest } from '@pnpm/types'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { writeYamlFile } from 'write-yaml-file'
+
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -839,6 +841,8 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     dir: process.cwd(),
     patchedDependencies,
     recursive: true,
+    rootProjectManifest: preparedManifests.root,
+    rootProjectManifestDir: process.cwd(),
     selectedProjectsGraph,
     sharedWorkspaceLockfile: true,
     lockfileDir: process.cwd(),
@@ -850,13 +854,10 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
 
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
-    'is-positive': {
-      hash: expect.any(String),
-      path: '../__patches__/is-positive.patch',
-    },
-  } as Record<string, PatchFile>)
+    'is-positive': expect.any(String),
+  })
 
-  const patchFile = lockfile.patchedDependencies['is-positive']
+  const patchHash = lockfile.patchedDependencies['is-positive']
 
   const manifest = readPackageJson('deploy') as ProjectManifest
   expect(manifest).toStrictEqual({
@@ -878,7 +879,7 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
   expect(project1Name).toBeDefined()
   if (process.platform !== 'win32') {
     expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project1Name}/node_modules/is-positive`)).toBe(
-      path.resolve(`deploy/node_modules/.pnpm/is-positive@1.0.0_patch_hash=${patchFile.hash}/node_modules/is-positive`)
+      path.resolve(`deploy/node_modules/.pnpm/is-positive@1.0.0_patch_hash=${patchHash}/node_modules/is-positive`)
     )
   }
   expect(

@@ -1,0 +1,202 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/assert-project"
+    },
+    {
+      "path": "../../__utils__/assert-store"
+    },
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
+      "path": "../../bins/link-bins"
+    },
+    {
+      "path": "../../bins/remove-bins"
+    },
+    {
+      "path": "../../building/after-install"
+    },
+    {
+      "path": "../../building/during-install"
+    },
+    {
+      "path": "../../building/policy"
+    },
+    {
+      "path": "../../catalogs/protocol-parser"
+    },
+    {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
+      "path": "../../config/matcher"
+    },
+    {
+      "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../config/parse-overrides"
+    },
+    {
+      "path": "../../crypto/hash"
+    },
+    {
+      "path": "../../crypto/object-hasher"
+    },
+    {
+      "path": "../../deps/calc-dep-state"
+    },
+    {
+      "path": "../../deps/dependency-path"
+    },
+    {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
+      "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../fs/msgpack-file"
+    },
+    {
+      "path": "../../fs/read-modules-dir"
+    },
+    {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
+      "path": "../../hooks/read-package-hook"
+    },
+    {
+      "path": "../../hooks/types"
+    },
+    {
+      "path": "../../lockfile/filtering"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/lockfile-to-pnp"
+    },
+    {
+      "path": "../../lockfile/preferred-versions"
+    },
+    {
+      "path": "../../lockfile/pruner"
+    },
+    {
+      "path": "../../lockfile/settings-checker"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../lockfile/verification"
+    },
+    {
+      "path": "../../lockfile/walker"
+    },
+    {
+      "path": "../../network/git-utils"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../patching/config"
+    },
+    {
+      "path": "../../pkg-manifest/manifest-utils"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/index"
+    },
+    {
+      "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../store/store-path"
+    },
+    {
+      "path": "../../testing/temp-store"
+    },
+    {
+      "path": "../../worker"
+    },
+    {
+      "path": "../get-context"
+    },
+    {
+      "path": "../headless"
+    },
+    {
+      "path": "../linking/direct-dep-linker"
+    },
+    {
+      "path": "../linking/hoist"
+    },
+    {
+      "path": "../linking/modules-cleaner"
+    },
+    {
+      "path": "../modules-yaml"
+    },
+    {
+      "path": "../package-requester"
+    },
+    {
+      "path": "../resolve-dependencies"
+    }
+  ]
+}

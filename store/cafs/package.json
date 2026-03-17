@@ -31,7 +31,6 @@
     "prepublishOnly": "pnpm run compile"
   },
   "dependencies": {
-    "@pnpm/crypto.integrity": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",

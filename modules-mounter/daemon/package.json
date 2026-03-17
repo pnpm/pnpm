@@ -38,12 +38,12 @@
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "hyperdrive-schemas": "catalog:",
     "normalize-path": "catalog:"
@@ -66,6 +66,9 @@
     "node": ">=22.13"
   },
   "jest": {
-    "preset": "@pnpm/jest-config"
+    "preset": "@pnpm/jest-config",
+    "moduleNameMapper": {
+      "^fuse-native$": "<rootDir>/__mocks__/fuse-native.js"
+    }
   }
 }

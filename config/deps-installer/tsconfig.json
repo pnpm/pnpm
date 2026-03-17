@@ -13,7 +13,25 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../deps/calc-dep-state"
+    },
+    {
       "path": "../../fs/read-modules-dir"
+    },
+    {
+      "path": "../../installing/resolve-dependencies"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/pruner"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../network/auth-header"
@@ -22,13 +40,13 @@
       "path": "../../network/fetch"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/core-loggers"
     },
     {
       "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/parse-wanted-dependency"
     },
     {
       "path": "../../packages/types"
@@ -40,10 +58,19 @@
       "path": "../../resolving/npm-resolver"
     },
     {
+      "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
       "path": "../../store/package-store"
     },
     {
+      "path": "../../store/store-controller-types"
+    },
+    {
       "path": "../../testing/temp-store"
+    },
+    {
+      "path": "../../worker"
     },
     {
       "path": "../config-writer"

@@ -14,10 +14,13 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../dedupe/issues-renderer"
+      "path": "../../installing/dedupe/issues-renderer"
     },
     {
-      "path": "../../dedupe/types"
+      "path": "../../installing/dedupe/types"
+    },
+    {
+      "path": "../../installing/render-peer-issues"
     },
     {
       "path": "../../packages/core-loggers"
@@ -27,9 +30,6 @@
     },
     {
       "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/render-peer-issues"
     },
     {
       "path": "../../packages/types"

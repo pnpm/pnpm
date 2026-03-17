@@ -1,6 +1,6 @@
-import { type Log } from '@pnpm/core-loggers'
+import type { Log } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
-import { logger, createStreamParser } from '@pnpm/logger'
+import { createStreamParser, logger } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
 
 test('logger with filterLog hook', async () => {

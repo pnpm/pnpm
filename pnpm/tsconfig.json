@@ -24,6 +24,12 @@
       "path": "../__utils__/test-ipc-server"
     },
     {
+      "path": "../building/build-commands"
+    },
+    {
+      "path": "../building/policy-commands"
+    },
+    {
       "path": "../cache/commands"
     },
     {
@@ -45,10 +51,16 @@
       "path": "../cli/parse-cli-args"
     },
     {
-      "path": "../completion/plugin-commands-completion"
+      "path": "../cli/plugin-commands-completion"
+    },
+    {
+      "path": "../cli/plugin-commands-doctor"
     },
     {
       "path": "../config/config"
+    },
+    {
+      "path": "../config/deps-installer"
     },
     {
       "path": "../config/plugin-commands-config"
@@ -60,16 +72,34 @@
       "path": "../crypto/hash"
     },
     {
-      "path": "../env/path"
+      "path": "../deps/compliance/plugin-commands-audit"
     },
     {
-      "path": "../env/plugin-commands-env"
+      "path": "../deps/compliance/plugin-commands-licenses"
     },
     {
-      "path": "../exec/build-commands"
+      "path": "../deps/compliance/plugin-commands-sbom"
     },
     {
-      "path": "../exec/plugin-commands-rebuild"
+      "path": "../deps/dependency-path"
+    },
+    {
+      "path": "../deps/inspection/plugin-commands-listing"
+    },
+    {
+      "path": "../deps/inspection/plugin-commands-outdated"
+    },
+    {
+      "path": "../engine/pm/plugin-commands-self-updater"
+    },
+    {
+      "path": "../engine/pm/plugin-commands-setup"
+    },
+    {
+      "path": "../engine/runtime/commands"
+    },
+    {
+      "path": "../engine/runtime/plugin-commands-env"
     },
     {
       "path": "../exec/plugin-commands-script-runners"
@@ -81,7 +111,16 @@
       "path": "../fs/msgpack-file"
     },
     {
-      "path": "../lockfile/plugin-commands-audit"
+      "path": "../installing/client"
+    },
+    {
+      "path": "../installing/modules-yaml"
+    },
+    {
+      "path": "../installing/plugin-commands-installation"
+    },
+    {
+      "path": "../lockfile/fs"
     },
     {
       "path": "../lockfile/types"
@@ -93,37 +132,16 @@
       "path": "../packages/core-loggers"
     },
     {
-      "path": "../packages/dependency-path"
-    },
-    {
       "path": "../packages/error"
     },
     {
       "path": "../packages/logger"
     },
     {
-      "path": "../packages/plugin-commands-doctor"
-    },
-    {
-      "path": "../packages/plugin-commands-init"
-    },
-    {
-      "path": "../packages/plugin-commands-setup"
-    },
-    {
       "path": "../packages/types"
     },
     {
       "path": "../patching/plugin-commands-patching"
-    },
-    {
-      "path": "../pkg-manager/client"
-    },
-    {
-      "path": "../pkg-manager/modules-yaml"
-    },
-    {
-      "path": "../pkg-manager/plugin-commands-installation"
     },
     {
       "path": "../pkg-manifest/read-package-json"
@@ -141,22 +159,13 @@
       "path": "../releasing/plugin-commands-publishing"
     },
     {
-      "path": "../reviewing/plugin-commands-licenses"
-    },
-    {
-      "path": "../reviewing/plugin-commands-listing"
-    },
-    {
-      "path": "../reviewing/plugin-commands-outdated"
-    },
-    {
-      "path": "../reviewing/plugin-commands-sbom"
-    },
-    {
-      "path": "../runtime/commands"
+      "path": "../shell/path"
     },
     {
       "path": "../store/cafs"
+    },
+    {
+      "path": "../store/index"
     },
     {
       "path": "../store/plugin-commands-store"
@@ -165,10 +174,7 @@
       "path": "../store/plugin-commands-store-inspecting"
     },
     {
-      "path": "../tools/path"
-    },
-    {
-      "path": "../tools/plugin-commands-self-updater"
+      "path": "../store/store-connection-manager"
     },
     {
       "path": "../worker"
@@ -184,6 +190,9 @@
     },
     {
       "path": "../workspace/pkgs-graph"
+    },
+    {
+      "path": "../workspace/plugin-commands-init"
     },
     {
       "path": "../workspace/read-manifest"

@@ -10,10 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../env/node.resolver"
+      "path": "../../engine/runtime/node.resolver"
     },
     {
       "path": "../../fetching/fetcher-base"
+    },
+    {
+      "path": "../../fetching/fetching-types"
     },
     {
       "path": "../../fetching/tarball-fetcher"
@@ -23,9 +26,6 @@
     },
     {
       "path": "../../network/fetch"
-    },
-    {
-      "path": "../../network/fetching-types"
     },
     {
       "path": "../../packages/error"

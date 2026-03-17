@@ -1,10 +1,11 @@
-import { promises as fs } from 'fs'
-import path from 'path'
-import { insertComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
-import { type ProjectManifest } from '@pnpm/types'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
+import { type CommentSpecifier, insertComments } from '@pnpm/text.comments-parser'
+import type { ProjectManifest } from '@pnpm/types'
 import JSON5 from 'json5'
 import writeFileAtomic from 'write-file-atomic'
-import writeYamlFile from 'write-yaml-file'
+import { writeYamlFile } from 'write-yaml-file'
 
 const YAML_FORMAT = {
   noCompatMode: true,

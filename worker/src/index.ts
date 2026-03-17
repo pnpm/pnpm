@@ -1,20 +1,23 @@
 // cspell:ignore checkin
-import path from 'path'
-import os from 'os'
-import { WorkerPool } from '@rushstack/worker-pool'
+import { execSync } from 'node:child_process'
+import os from 'node:os'
+import path from 'node:path'
+
+import type { FilesMap, PackageFilesResponse } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
-import { execSync } from 'child_process'
-import isWindows from 'is-windows'
-import { type PackageFilesResponse, type FilesMap } from '@pnpm/cafs-types'
-import { type BundledManifest } from '@pnpm/types'
-import pLimit from 'p-limit'
 import { globalWarn } from '@pnpm/logger'
-import {
-  type TarballExtractMessage,
-  type AddDirToStoreMessage,
-  type LinkPkgMessage,
-  type SymlinkAllModulesMessage,
-  type HardLinkDirMessage,
+import type { StoreIndex } from '@pnpm/store.index'
+import type { BundledManifest } from '@pnpm/types'
+import { WorkerPool } from '@rushstack/worker-pool'
+import isWindows from 'is-windows'
+import pLimit from 'p-limit'
+
+import type {
+  AddDirToStoreMessage,
+  HardLinkDirMessage,
+  LinkPkgMessage,
+  SymlinkAllModulesMessage,
+  TarballExtractMessage,
 } from './types.js'
 
 let workerPool: WorkerPool | undefined
@@ -26,7 +29,11 @@ export async function restartWorkerPool (): Promise<void> {
 
 export async function finishWorkers (): Promise<void> {
   // @ts-expect-error
-  await global.finishWorkers?.()
+  const finish = global.finishWorkers
+  // @ts-expect-error
+  global.finishWorkers = undefined
+  await finish?.()
+  workerPool = undefined
 }
 
 function createTarballWorkerPool (): WorkerPool {
@@ -74,7 +81,9 @@ interface AddFilesResult {
   integrity?: string
 }
 
-type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest' | 'includeNodeModules'>
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest' | 'includeNodeModules'> & {
+  storeIndex: StoreIndex
+}
 
 export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
   if (!workerPool) {
@@ -82,11 +91,16 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<AddFilesResult>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }) => {
+    localWorker.once('message', ({ status, error, value, indexWrites }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         reject(new PnpmError(error.code ?? 'GIT_FETCH_FAILED', error.message as string))
         return
+      }
+      if (indexWrites) {
+        // Write immediately so that subsequent worker reads (e.g. side effects)
+        // see the committed data without waiting for nextTick.
+        opts.storeIndex.setRawMany(indexWrites)
       }
       resolve(value)
     })
@@ -140,6 +154,7 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
 }
 
 type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest'> & {
+  storeIndex: StoreIndex
   url: string
 }
 
@@ -149,7 +164,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<AddFilesResult>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }) => {
+    localWorker.once('message', ({ status, error, value, indexWrites }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         if (error.type === 'integrity_validation_failed') {
@@ -161,6 +176,9 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
         }
         reject(new PnpmError(error.code ?? 'TARBALL_EXTRACT', `Failed to add tarball from "${opts.url}" to store: ${error.message as string}`))
         return
+      }
+      if (indexWrites) {
+        opts.storeIndex.queueWrites(indexWrites)
       }
       resolve(value)
     })
@@ -244,7 +262,7 @@ export async function importPackage (
       localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         workerPool!.checkinWorker(localWorker)
         if (status === 'error') {
-          reject(new PnpmError(error.code ?? 'LINKING_FAILED', error.message as string))
+          reject(new PnpmError(error.code ?? 'LINKING_FAILED', `[importPackage ${opts.targetDir}] ${error.message as string}`))
           return
         }
         resolve(value)
@@ -269,7 +287,7 @@ export async function symlinkAllModules (
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         const hint = opts.deps?.[0]?.modules != null ? createErrorHint(error, opts.deps[0].modules) : undefined
-        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string, { hint }))
+        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', `[symlinkAllModules] ${error.message as string}`, { hint }))
         return
       }
       resolve(value)

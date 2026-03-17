@@ -1,6 +1,7 @@
-import assert from 'assert'
-import path from 'path'
-import util from 'util'
+import assert from 'node:assert'
+import path from 'node:path'
+import util from 'node:util'
+
 import { throwOnCommandFail } from '@pnpm/cli-utils'
 import { type Config, getWorkspaceConcurrency } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -10,13 +11,14 @@ import {
 } from '@pnpm/lifecycle'
 import { groupStart } from '@pnpm/log.group'
 import { sortPackages } from '@pnpm/sort-packages'
+import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
 import pLimit from 'p-limit'
-import realpathMissing from 'realpath-missing'
-import { existsInDir } from './existsInDir.js'
+import { realpathMissing } from 'realpath-missing'
+
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec.js'
-import { type RunScriptOptions, runScript } from './run.js'
+import { existsInDir } from './existsInDir.js'
 import { tryBuildRegExpFromCommand } from './regexpCommand.js'
-import { type PackageScripts, type ProjectRootDir } from '@pnpm/types'
+import { runScript, type RunScriptOptions } from './run.js'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'bin'

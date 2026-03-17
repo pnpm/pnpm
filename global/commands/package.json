@@ -25,17 +25,18 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsgo --build && pnpm run lint --fix",
-    "test": "pnpm run compile"
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test": "pnpm run compile && pnpm run _test"
   },
   "dependencies": {
+    "@pnpm/building.policy-commands": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/core": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/exec.build-commands": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/matcher": "workspace:*",

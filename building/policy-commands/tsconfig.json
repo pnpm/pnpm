@@ -1,0 +1,40 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/prepare-temp-dir"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/config-writer"
+    },
+    {
+      "path": "../../deps/dependency-path"
+    },
+    {
+      "path": "../../installing/modules-yaml"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../build-commands"
+    }
+  ]
+}

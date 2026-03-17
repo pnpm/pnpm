@@ -1,22 +1,24 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { readMsgpackFileSync, writeMsgpackFileSync } from '@pnpm/fs.msgpack-file'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getIntegrity } from '@pnpm/registry-mock'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
-import { fixtures } from '@pnpm/test-fixtures'
-import dirIsCaseSensitive from 'dir-is-case-sensitive'
-import { sync as readYamlFile } from 'read-yaml-file'
-import { sync as rimraf } from '@zkochan/rimraf'
-import isWindows from 'is-windows'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { rimrafSync } from '@zkochan/rimraf'
 import crossSpawn from 'cross-spawn'
+import { dirIsCaseSensitive } from 'dir-is-case-sensitive'
+import isWindows from 'is-windows'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import {
   execPnpm,
   execPnpmSync,
@@ -24,6 +26,11 @@ import {
 
 const skipOnWindows = isWindows() ? test.skip : test
 const f = fixtures(import.meta.dirname)
+
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
 
 test('bin files are found by lifecycle scripts', () => {
   prepare({
@@ -75,7 +82,7 @@ test('write to stderr when --use-stderr is used', async () => {
 test('install with lockfile being false in pnpm-workspace.yaml', async () => {
   const project = prepare()
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     lockfile: false,
   })
 
@@ -108,7 +115,7 @@ test('install with external lockfile directory', async () => {
 
   project.has('is-positive')
 
-  const lockfile = readYamlFile<LockfileObject>(path.resolve('..', WANTED_LOCKFILE))
+  const lockfile = readYamlFileSync<LockfileObject>(path.resolve('..', WANTED_LOCKFILE))
 
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project'])
 })
@@ -159,13 +166,20 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
-  const { files: integrityFile } = readMsgpackFileSync<PackageFilesIndex>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
-  const packageFiles = Array.from(integrityFile.keys()).sort(lexCompare)
+  const storeDir = project.getStorePath()
+  const indexKey = storeIndexKey(getIntegrity('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'), '@pnpm.e2e/with-same-file-in-different-cases@1.0.0')
+  const si = new StoreIndex(storeDir)
+  let filesIndex: PackageFilesIndex
+  try {
+    filesIndex = si.get(indexKey) as PackageFilesIndex
+  } finally {
+    si.close()
+  }
+  const packageFiles = Array.from(filesIndex.files.keys()).sort(lexCompare)
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
-  const storeDir = project.getStorePath()
-  if (await dirIsCaseSensitive.default(storeDir)) {
+  if (await dirIsCaseSensitive(storeDir)) {
     expect([...files].sort(lexCompare)).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
     expect([...files].map((f) => f.toLowerCase()).sort(lexCompare)).toStrictEqual(['foo.js', 'package.json'])
@@ -398,8 +412,8 @@ test('using a custom virtual-store-dir location', async () => {
   expect(fs.existsSync('node_modules/.pnpm/lock.yaml')).toBeTruthy()
   expect(fs.existsSync('.pnpm/node_modules/once/package.json')).toBeTruthy()
 
-  rimraf('node_modules')
-  rimraf('.pnpm')
+  rimrafSync('node_modules')
+  rimrafSync('.pnpm')
 
   await execPnpm(['install', '--virtual-store-dir=.pnpm', '--frozen-lockfile'])
 
@@ -430,7 +444,7 @@ test('installing in a CI environment', async () => {
 
   await execPnpm(['install', '--no-frozen-lockfile'], { env: { CI: 'true' } })
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   project.writePackageJson({
     dependencies: { rimraf: '2' },
   })
@@ -505,14 +519,16 @@ test('installation fails when the stored package name and version do not match t
 
   await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
 
-  const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
-  const cacheIntegrity = readMsgpackFileSync<PackageFilesIndex>(cacheIntegrityPath)
-  writeMsgpackFileSync(cacheIntegrityPath, {
+  const cacheIntegrityKey = storeIndexKey(getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+  const storeIndex = new StoreIndex(path.join(storeDir, STORE_VERSION))
+  storeIndexes.push(storeIndex)
+  const cacheIntegrity = storeIndex.get(cacheIntegrityKey) as PackageFilesIndex
+  storeIndex.set(cacheIntegrityKey, {
     ...cacheIntegrity,
     manifest: { ...cacheIntegrity.manifest, name: 'foo' },
   })
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
   await expect(
     execPnpm(['install', ...settings])
   ).rejects.toThrow()

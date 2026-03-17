@@ -1,0 +1,88 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
+      "path": "../../config/version-policy"
+    },
+    {
+      "path": "../../deps/calc-dep-state"
+    },
+    {
+      "path": "../../deps/dependency-path"
+    },
+    {
+      "path": "../../deps/peer-range"
+    },
+    {
+      "path": "../../fetching/pick-fetcher"
+    },
+    {
+      "path": "../../hooks/types"
+    },
+    {
+      "path": "../../lockfile/preferred-versions"
+    },
+    {
+      "path": "../../lockfile/pruner"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../patching/config"
+    },
+    {
+      "path": "../../patching/types"
+    },
+    {
+      "path": "../../pkg-manifest/manifest-utils"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../workspace/spec-parser"
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "name": "@pnpm/package-requester",
+  "version": "1008.0.0",
+  "description": "Concurrent downloader of npm-compatible packages",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "npm",
+    "resolver"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/package-requester",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/package-requester#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "start": "tsgo --watch",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
+    "@pnpm/package-is-installable": "workspace:*",
+    "@pnpm/pick-fetcher": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "detect-libc": "catalog:",
+    "load-json-file": "catalog:",
+    "p-defer": "catalog:",
+    "p-limit": "catalog:",
+    "p-queue": "catalog:",
+    "promise-share": "catalog:",
+    "ramda": "catalog:",
+    "semver": "catalog:",
+    "ssri": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/client": "workspace:*",
+    "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/fs.msgpack-file": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/package-requester": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@types/normalize-path": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
+    "@types/ssri": "catalog:",
+    "delay": "catalog:",
+    "nock": "catalog:",
+    "normalize-path": "catalog:",
+    "tempy": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config/with-registry"
+  }
+}

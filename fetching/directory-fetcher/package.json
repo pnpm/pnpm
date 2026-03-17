@@ -32,8 +32,8 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/building.pkg-requires-build": "workspace:*",
     "@pnpm/cafs-types": "workspace:*",
-    "@pnpm/exec.pkg-requires-build": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",

@@ -19,7 +19,7 @@
       "path": "../../fs/graceful-fs"
     },
     {
-      "path": "../../fs/msgpack-file"
+      "path": "../../installing/client"
     },
     {
       "path": "../../lockfile/types"
@@ -31,16 +31,16 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../../packages/parse-wanted-dependency"
-    },
-    {
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manager/client"
+      "path": "../../resolving/parse-wanted-dependency"
     },
     {
       "path": "../cafs"
+    },
+    {
+      "path": "../index"
     },
     {
       "path": "../store-path"

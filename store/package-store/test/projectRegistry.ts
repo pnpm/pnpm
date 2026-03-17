@@ -1,7 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { promises as fs } from 'fs'
-import path from 'path'
-import { registerProject, getRegisteredProjects } from '@pnpm/package-store'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
+import { getRegisteredProjects, registerProject } from '@pnpm/package-store'
 import { temporaryDirectory } from 'tempy'
 
 describe('projectRegistry', () => {

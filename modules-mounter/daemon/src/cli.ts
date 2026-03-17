@@ -1,9 +1,10 @@
-import { getConfig } from '@pnpm/config'
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 
+import { getConfig } from '@pnpm/config'
 import { getStorePath } from '@pnpm/store-path'
 import Fuse from 'fuse-native'
+
 import { createFuseHandlers } from './createFuseHandlers.js'
 (async () => {
   const mnt = path.join(process.cwd(), 'node_modules')

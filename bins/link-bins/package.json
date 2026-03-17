@@ -1,0 +1,76 @@
+{
+  "name": "@pnpm/link-bins",
+  "version": "1000.2.6",
+  "description": "Link bins to node_modules/.bin",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "bin"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/bins/link-bins",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/bins/link-bins#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "fix": "tslint -c tslint.json --project . --fix",
+    "compile": "tsgo --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/manifest-utils": "workspace:*",
+    "@pnpm/package-bins": "workspace:*",
+    "@pnpm/read-modules-dir": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@zkochan/cmd-shim": "catalog:",
+    "@zkochan/rimraf": "catalog:",
+    "bin-links": "catalog:",
+    "is-subdir": "catalog:",
+    "is-windows": "catalog:",
+    "normalize-path": "catalog:",
+    "ramda": "catalog:",
+    "semver": "catalog:",
+    "symlink-dir": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/link-bins": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@types/is-windows": "catalog:",
+    "@types/node": "catalog:",
+    "@types/normalize-path": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
+    "cmd-extension": "catalog:",
+    "tempy": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

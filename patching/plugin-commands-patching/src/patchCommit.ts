@@ -1,27 +1,29 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { createShortHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
+import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getStorePath } from '@pnpm/store-path'
-import { type ProjectRootDir } from '@pnpm/types'
-import { glob } from 'tinyglobby'
-import normalizePath from 'normalize-path'
-import { pick, equals } from 'ramda'
-import execa from 'safe-execa'
+import type { ProjectRootDir } from '@pnpm/types'
 import escapeStringRegexp from 'escape-string-regexp'
-import makeEmptyDir from 'make-empty-dir'
-import renderHelp from 'render-help'
-import { type WritePackageOptions, writePackage } from './writePackage.js'
-import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
+import { makeEmptyDir } from 'make-empty-dir'
+import normalizePath from 'normalize-path'
+import { equals, pick } from 'ramda'
+import { renderHelp } from 'render-help'
+import { safeExeca as execa } from 'safe-execa'
+import { glob } from 'tinyglobby'
+
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency.js'
 import { readEditDirState } from './stateFile.js'
 import { updatePatchedDependencies } from './updatePatchedDependencies.js'
+import { writePackage, type WritePackageOptions } from './writePackage.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -174,11 +176,11 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
       },
       stripFinalNewline: false,
     })
-    stdout = result.stdout
-    stderr = result.stderr
+    stdout = result.stdout as string
+    stderr = result.stderr as string
   } catch (err: any) { // eslint-disable-line
-    stdout = err.stdout
-    stderr = err.stderr
+    stdout = err.stdout as string
+    stderr = err.stderr as string
   }
   // we cannot rely on exit code, because --no-index implies --exit-code
   // i.e. git diff will exit with 1 if there were differences

@@ -1,4 +1,4 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import {
   fetchingProgressLogger,
   progressLogger,
@@ -10,10 +10,11 @@ import {
   createStreamParser,
   logger,
 } from '@pnpm/logger'
-import { firstValueFrom } from 'rxjs'
-import { map, skip, take, toArray } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
+import { firstValueFrom } from 'rxjs'
+import { map, skip, take, toArray } from 'rxjs/operators'
+
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
 
 const hlValue = chalk.cyanBright

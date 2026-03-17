@@ -1,13 +1,15 @@
-import path from 'path'
+import path from 'node:path'
+
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
-import { type Catalogs } from '@pnpm/catalogs.types'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
-import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
+import type { Hooks } from '@pnpm/pnpmfile'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
-import { type Hooks } from '@pnpm/pnpmfile'
-import { type Dependencies, type ProjectManifest } from '@pnpm/types'
+import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
+import type { Dependencies, ProjectManifest } from '@pnpm/types'
+import { pMapValues } from 'p-map-values'
 import { omit } from 'ramda'
-import pMapValues from 'p-map-values'
+
 import { overridePublishConfig } from './overridePublishConfig.js'
 import { type ExportedManifest, transform } from './transform/index.js'
 
@@ -105,8 +107,8 @@ async function makePublishDependencies (
   { modulesDir, convertDependencyForPublish }: MakePublishDependenciesOpts
 ): Promise<Dependencies | undefined> {
   if (dependencies == null) return dependencies
-  const publishDependencies = await pMapValues.default(
-    async (depSpec, depName) => convertDependencyForPublish(depName, depSpec, dir, modulesDir),
+  const publishDependencies = await pMapValues(
+    async (depSpec: string, depName: string) => convertDependencyForPublish(depName, depSpec, dir, modulesDir),
     dependencies
   )
   return publishDependencies

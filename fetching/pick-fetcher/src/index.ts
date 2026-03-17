@@ -1,8 +1,8 @@
-import type { AtomicResolution } from '@pnpm/resolver-base'
-import type { Fetchers, FetchFunction, DirectoryFetcher, GitFetcher, BinaryFetcher, FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
-import { type CustomFetcher } from '@pnpm/hooks.types'
+import type { BinaryFetcher, DirectoryFetcher, Fetchers, FetchFunction, FetchOptions, GitFetcher } from '@pnpm/fetcher-base'
+import type { CustomFetcher } from '@pnpm/hooks.types'
+import type { AtomicResolution } from '@pnpm/resolver-base'
 
 export async function pickFetcher (
   fetcherByHostingType: Fetchers,

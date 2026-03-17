@@ -25,9 +25,6 @@
       "path": "../../network/fetch"
     },
     {
-      "path": "../../network/fetching-types"
-    },
-    {
       "path": "../../packages/core-loggers"
     },
     {
@@ -46,10 +43,16 @@
       "path": "../../store/create-cafs-store"
     },
     {
+      "path": "../../store/index"
+    },
+    {
       "path": "../../worker"
     },
     {
       "path": "../fetcher-base"
+    },
+    {
+      "path": "../fetching-types"
     }
   ]
 }

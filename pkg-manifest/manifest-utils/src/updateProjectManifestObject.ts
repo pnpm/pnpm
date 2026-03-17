@@ -1,14 +1,14 @@
 import { packageManifestLogger } from '@pnpm/core-loggers'
 import { isValidPeerRange } from '@pnpm/semver.peer-range'
-import semver from 'semver'
 import {
-  type DependenciesOrPeersField,
-  type DependenciesField,
   DEPENDENCIES_FIELDS,
   DEPENDENCIES_OR_PEER_FIELDS,
+  type DependenciesField,
+  type DependenciesOrPeersField,
   type PinnedVersion,
   type ProjectManifest,
 } from '@pnpm/types'
+import semver from 'semver'
 
 export interface PackageSpecObject {
   alias: string

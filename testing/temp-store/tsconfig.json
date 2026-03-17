@@ -10,7 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../pkg-manager/client"
+      "path": "../../installing/client"
+    },
+    {
+      "path": "../../store/index"
     },
     {
       "path": "../../store/package-store"

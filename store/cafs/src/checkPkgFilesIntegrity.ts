@@ -1,11 +1,13 @@
-import crypto from 'crypto'
-import fs from 'fs'
-import util from 'util'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import util from 'node:util'
+
+import type { FilesMap, PackageFileInfo, PackageFiles, SideEffects } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
-import { type PackageFiles, type PackageFileInfo, type SideEffects, type FilesMap } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
-import { type BundledManifest } from '@pnpm/types'
-import rimraf from '@zkochan/rimraf'
+import type { BundledManifest } from '@pnpm/types'
+import { rimrafSync } from '@zkochan/rimraf'
+
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 
 export interface Integrity {
@@ -157,7 +159,7 @@ function verifyFile (
   if (currentFile == null) return false
   if (currentFile.isModified) {
     if (currentFile.size !== fstat.size) {
-      rimraf.sync(filename)
+      rimrafSync(filename)
       return false
     }
     return verifyFileIntegrity(filename, { digest: fstat.digest, algorithm })

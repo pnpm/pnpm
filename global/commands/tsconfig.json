@@ -10,6 +10,18 @@
   ],
   "references": [
     {
+      "path": "../../bins/link-bins"
+    },
+    {
+      "path": "../../bins/package-bins"
+    },
+    {
+      "path": "../../bins/remove-bins"
+    },
+    {
+      "path": "../../building/policy-commands"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -19,25 +31,13 @@
       "path": "../../config/matcher"
     },
     {
-      "path": "../../exec/build-commands"
+      "path": "../../installing/core"
     },
     {
       "path": "../../packages/error"
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/core"
-    },
-    {
-      "path": "../../pkg-manager/link-bins"
-    },
-    {
-      "path": "../../pkg-manager/package-bins"
-    },
-    {
-      "path": "../../pkg-manager/remove-bins"
     },
     {
       "path": "../../pkg-manifest/read-package-json"

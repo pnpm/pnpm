@@ -13,7 +13,13 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../bins/link-bins"
+    },
+    {
       "path": "../../fetching/directory-fetcher"
+    },
+    {
+      "path": "../../installing/modules-yaml"
     },
     {
       "path": "../../packages/error"
@@ -23,12 +29,6 @@
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/link-bins"
-    },
-    {
-      "path": "../../pkg-manager/modules-yaml"
     },
     {
       "path": "../../pkg-manifest/read-package-json"

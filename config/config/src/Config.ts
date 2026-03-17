@@ -1,23 +1,21 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
-import {
-  type Finder,
-  type Project,
-  type ProjectManifest,
-  type ProjectsGraph,
-  type Registries,
-  type SslConfig,
-  type TrustPolicy,
-} from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
-import { type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
-import { type AuthInfo } from './parseAuthInfo.js'
+import type {
+  EngineDependency,
+  Finder,
+  Project,
+  ProjectManifest,
+  ProjectsGraph,
+  Registries,
+  SslConfig,
+  TrustPolicy,
+} from '@pnpm/types'
+
+import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+import type { AuthInfo } from './parseAuthInfo.js'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
-export interface WantedPackageManager {
-  name: string
-  version?: string
-}
 
 export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
 
@@ -89,7 +87,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
     name: string
     version: string
   }
-  wantedPackageManager?: WantedPackageManager
+  wantedPackageManager?: EngineDependency
   preferOffline?: boolean
   sideEffectsCache?: boolean // for backward compatibility
   sideEffectsCacheReadonly?: boolean // for backward compatibility
@@ -133,6 +131,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   stateDir: string
   storeDir?: string
   virtualStoreDir?: string
+  virtualStoreOnly?: boolean
   enableGlobalVirtualStore?: boolean
   verifyStoreIntegrity?: boolean
   maxSockets?: number

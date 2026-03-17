@@ -1,7 +1,9 @@
-import fs from 'fs'
-import path from 'path'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import type { ProjectId } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 import yaml from 'yaml-tag'
 
@@ -12,6 +14,7 @@ const {
   readCurrentLockfile,
   readWantedLockfile,
   writeLockfiles,
+  writeWantedLockfile,
 } = await import('@pnpm/lockfile.fs')
 
 test('writeLockfiles()', async () => {
@@ -233,4 +236,119 @@ test('writeLockfiles() when useGitBranchLockfile', async () => {
   })
   expect(fs.existsSync(path.join(projectPath, WANTED_LOCKFILE))).toBeFalsy()
   expect(fs.existsSync(path.join(projectPath, `pnpm-lock.${branchName}.yaml`))).toBeTruthy()
+})
+
+test('writeLockfiles() preserves env document prefix in pnpm-lock.yaml', async () => {
+  const projectPath = temporaryDirectory()
+  const envDoc = '---\nlockfileVersion: env-1.0\nimporters:\n  .:\n    configDependencies:\n      typescript: 5.0.0\n\n---\n'
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'is-positive@1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  }
+
+  // Write lockfile with an env document prefix already present
+  fs.writeFileSync(path.join(projectPath, WANTED_LOCKFILE), envDoc + 'lockfileVersion: "9.0"\n')
+
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })
+
+  const written = fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')
+  // The env document should be preserved at the top
+  expect(written.startsWith('---\n')).toBe(true)
+  expect(written).toContain('configDependencies')
+  expect(written).toContain('typescript: 5.0.0')
+
+  // The main lockfile should still be readable
+  const lockfile = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+  expect(lockfile).toBeTruthy()
+  expect(lockfile!.importers['.' as ProjectId].dependencies).toEqual({ 'is-positive': '1.0.0' })
+})
+
+test('writeWantedLockfile() preserves env document prefix', async () => {
+  const projectPath = temporaryDirectory()
+  const envDoc = '---\nlockfileVersion: env-1.0\nimporters:\n  .:\n    configDependencies:\n      typescript: 5.0.0\n\n---\n'
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'is-positive@1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  }
+
+  // Pre-seed with env document
+  fs.writeFileSync(path.join(projectPath, WANTED_LOCKFILE), envDoc + 'lockfileVersion: "9.0"\n')
+
+  await writeWantedLockfile(projectPath, wantedLockfile)
+
+  const written = fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')
+  expect(written.startsWith('---\n')).toBe(true)
+  expect(written).toContain('typescript: 5.0.0')
+
+  // Main lockfile should be readable
+  const lockfile = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+  expect(lockfile!.importers['.' as ProjectId].dependencies).toEqual({ 'is-positive': '1.0.0' })
+})
+
+test('readWantedLockfile() skips env document in combined lockfile', async () => {
+  const projectPath = temporaryDirectory()
+  const envDoc = '---\nlockfileVersion: env-1.0\nimporters:\n  .:\n    configDependencies:\n      typescript: 5.0.0\n\n---\n'
+  const mainDoc = `lockfileVersion: '${LOCKFILE_VERSION}'
+importers:
+  .:
+    dependencies:
+      is-positive:
+        version: 1.0.0
+        specifier: ^1.0.0
+packages:
+  is-positive@1.0.0:
+    resolution:
+      integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=
+`
+  fs.writeFileSync(path.join(projectPath, WANTED_LOCKFILE), envDoc + mainDoc)
+
+  const lockfile = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+  expect(lockfile).toBeTruthy()
+  expect(lockfile!.lockfileVersion).toBe(LOCKFILE_VERSION)
+  expect(lockfile!.importers['.' as ProjectId].dependencies).toEqual({ 'is-positive': '1.0.0' })
+})
+
+test('readWantedLockfile() returns null for env-only lockfile with no main document', async () => {
+  const projectPath = temporaryDirectory()
+  fs.writeFileSync(path.join(projectPath, WANTED_LOCKFILE), '---\nlockfileVersion: env-1.0\n')
+
+  const lockfile = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+  expect(lockfile).toBeNull()
 })

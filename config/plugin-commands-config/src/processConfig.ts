@@ -1,5 +1,6 @@
-import camelcase from 'camelcase'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
+import camelcase from 'camelcase'
+
 import { censorProtectedSettings } from './protectedSettings.js'
 
 const shouldChangeCase = (key: string): boolean => key[0] !== '@' && !key.startsWith('//')

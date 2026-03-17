@@ -1,10 +1,11 @@
-import { type ChildProcess as NodeChildProcess, type StdioOptions } from 'child_process'
-import path from 'path'
+import type { ChildProcess as NodeChildProcess, StdioOptions } from 'node:child_process'
+import path from 'node:path'
+
+import type { Config } from '@pnpm/config'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type Config } from '@pnpm/config'
-import isWindows from 'is-windows'
 import crossSpawn from 'cross-spawn'
-import { sync as readYamlFile } from 'read-yaml-file'
+import isWindows from 'is-windows'
+import { readYamlFileSync } from 'read-yaml-file'
 
 export const binDir = path.join(import.meta.dirname, '../..', isWindows() ? 'dist' : 'bin')
 export const pnpmBinLocation = path.join(binDir, 'pnpm.mjs')
@@ -25,18 +26,34 @@ export async function execPnpm (
   }
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const proc = spawnPnpm(args, opts)
+    const proc = crossSpawn.spawn(process.execPath, [pnpmBinLocation, ...args], {
+      env: {
+        ...createEnv(opts),
+        ...opts?.env,
+      } as NodeJS.ProcessEnv,
+      stdio: ['inherit', 'pipe', 'pipe'],
+    })
 
     const timeout = opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT
     const timeoutId = registerProcessTimeout(proc, timeout, reject)
 
+    const output: Buffer[] = []
+    proc.stdout!.on('data', (chunk: Buffer) => {
+      output.push(chunk); process.stdout.write(chunk)
+    })
+    proc.stderr!.on('data', (chunk: Buffer) => {
+      output.push(chunk); process.stderr.write(chunk)
+    })
+
     proc.on('error', reject)
 
-    proc.on('close', (code: number) => {
+    proc.on('close', (code: number | null, signal: string | null) => {
       clearTimeout(timeoutId)
 
-      if (code > 0) {
-        reject(new Error(`Exit code ${code}`))
+      if (signal) {
+        reject(new Error(`Killed by signal ${signal}\n\n${Buffer.concat(output).toString()}`))
+      } else if (code) {
+        reject(new Error(`Exit code ${code}\n\n${Buffer.concat(output).toString()}`))
       } else {
         resolve()
       }
@@ -150,7 +167,7 @@ export function execPnpxSync (
 function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
   let workspaceManifest: Record<string, unknown> | undefined
   try {
-    workspaceManifest = readYamlFile('pnpm-workspace.yaml')
+    workspaceManifest = readYamlFileSync('pnpm-workspace.yaml')
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
       workspaceManifest = undefined

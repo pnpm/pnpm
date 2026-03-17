@@ -1,13 +1,14 @@
-import assert from 'assert'
-import fs from 'fs'
-import path from 'path'
-import util from 'util'
+import assert from 'node:assert'
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type AllowBuild, type PackageManifest } from '@pnpm/types'
-import rimraf from '@zkochan/rimraf'
-import preferredPM from 'preferred-pm'
+import type { AllowBuild, PackageManifest } from '@pnpm/types'
+import { rimraf } from '@zkochan/rimraf'
+import { preferredPM } from 'preferred-pm'
 import { omit } from 'ramda'
 
 // We don't run prepublishOnly to prepare the dependency.

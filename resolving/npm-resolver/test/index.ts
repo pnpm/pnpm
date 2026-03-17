@@ -1,22 +1,24 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import {
   createNpmResolver,
-  RegistryResponseError,
   NoMatchingVersionError,
+  RegistryResponseError,
 } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type Registries, type ProjectRootDir } from '@pnpm/types'
+import type { ProjectRootDir, Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import { omit } from 'ramda'
 import { temporaryDirectory } from 'tempy'
-import { delay, retryLoadMsgpackFile } from './utils/index.js'
+
+import { delay, retryLoadJsonFile } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -74,7 +76,7 @@ test('resolveFromNpm()', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.mpk')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -127,7 +129,7 @@ test('resolveFromNpm() does not save mutated meta to the cache', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.mpk')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.versions['1.0.0'].version).toBe('1.0.0')
 })
 
@@ -149,7 +151,7 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, `registry.npmjs.org/JSON_${createHexHash('JSON')}.mpk`)) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, `registry.npmjs.org/JSON_${createHexHash('JSON')}.json`)) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -691,6 +693,32 @@ test('prefer the version that has bigger weight in preferred selectors', async (
   expect(resolveResult!.id).toBe('is-positive@3.0.0')
 })
 
+test('versions without selector weights should have higher priority than negatively weighted versions', async () => {
+  nock(registries.default)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': {
+        // Penalize 3.0.0, but don't mention 3.1.0
+        '3.0.0': { selectorType: 'version', weight: -1 },
+      },
+    },
+  })
+
+  // 3.1.0 should be selected because it has default weight 0, higher than 3.0.0's -1
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
 test('offline resolution fails when package meta not found in the store', async () => {
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
@@ -702,7 +730,7 @@ test('offline resolution fails when package meta not found in the store', async 
 
   await expect(resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})).rejects
     .toThrow(
-      new PnpmError('NO_OFFLINE_META', `Failed to resolve is-positive@1.0.0 in package mirror ${path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.mpk')}`)
+      new PnpmError('NO_OFFLINE_META', `Failed to resolve is-positive@1.0.0 in package mirror ${path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.json')}`)
     )
 })
 
@@ -916,6 +944,31 @@ test('error is thrown when package needs authorization', async () => {
     )
 })
 
+test('error is thrown when registry returns 400 Bad Request', async () => {
+  nock(registries.default)
+    .get('/bad-pkg')
+    .reply(400)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  await expect(resolveFromNpm({ alias: 'bad-pkg', bareSpecifier: '1.0.0' }, {})).rejects
+    .toThrow(
+      new RegistryResponseError(
+        {
+          url: `${registries.default}bad-pkg`,
+        },
+        {
+          status: 400,
+          statusText: '',
+        },
+        'bad-pkg'
+      )
+    )
+})
+
 test('error is thrown when there is no package found for the requested range', async () => {
   nock(registries.default)
     .get('/is-positive')
@@ -1022,7 +1075,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.mpk')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -1055,7 +1108,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.mpk')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -1829,7 +1882,7 @@ test('resolveFromNpm() should always return the name of the package that is spec
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadMsgpackFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.mpk')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()

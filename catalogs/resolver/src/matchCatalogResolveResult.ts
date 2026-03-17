@@ -1,4 +1,4 @@
-import { type CatalogResolutionUnused, type CatalogResolutionResult, type CatalogResolutionFound, type CatalogResolutionMisconfiguration } from './resolveFromCatalog.js'
+import type { CatalogResolutionFound, CatalogResolutionMisconfiguration, CatalogResolutionResult, CatalogResolutionUnused } from './resolveFromCatalog.js'
 
 export interface CatalogResultMatcher<T> {
   readonly found: (found: CatalogResolutionFound) => T

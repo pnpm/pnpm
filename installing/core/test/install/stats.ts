@@ -1,0 +1,59 @@
+import {
+  type MutatedProject,
+  mutateModules,
+} from '@pnpm/core'
+import { prepareEmpty } from '@pnpm/prepare'
+import type { ProjectRootDir } from '@pnpm/types'
+import { rimrafSync } from '@zkochan/rimraf'
+
+import { testDefaults } from '../utils/index.js'
+
+test('spec not specified in package.json.dependencies', async () => {
+  prepareEmpty()
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+  ]
+  {
+    const { stats } = await mutateModules(importers, testDefaults({ allProjects }))
+    expect(stats.added).toBe(1)
+    expect(stats.removed).toBe(0)
+    expect(stats.linkedToRoot).toBe(1)
+  }
+  rimrafSync('node_modules')
+  {
+    const { stats } = await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))
+    expect(stats.added).toBe(1)
+    expect(stats.removed).toBe(0)
+    expect(stats.linkedToRoot).toBe(1)
+  }
+  {
+    const { stats } = await mutateModules([
+      {
+        mutation: 'uninstallSome',
+        dependencyNames: ['is-positive'],
+        rootDir: process.cwd() as ProjectRootDir,
+      },
+    ], testDefaults({ allProjects, frozenLockfile: true }))
+    expect(stats.added).toBe(0)
+    expect(stats.removed).toBe(1)
+    expect(stats.linkedToRoot).toBe(0)
+  }
+})

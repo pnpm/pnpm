@@ -1,19 +1,25 @@
-import path from 'path'
-import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
-import { type LifecycleMessage, lifecycleLogger } from '@pnpm/core-loggers'
+import path from 'node:path'
+
+import { docsUrl, readProjectManifestOnly, type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types, getWorkspaceConcurrency } from '@pnpm/config'
-import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
+import { type Config, getWorkspaceConcurrency, types } from '@pnpm/config'
+import { lifecycleLogger, type LifecycleMessage } from '@pnpm/core-loggers'
+import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
+import { prependDirsToPath } from '@pnpm/env.path'
+import { PnpmError } from '@pnpm/error'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { sortPackages } from '@pnpm/sort-packages'
-import { type Project, type ProjectsGraph, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
-import execa from 'execa'
+import type { Project, ProjectRootDir, ProjectRootDirRealPath, ProjectsGraph } from '@pnpm/types'
+import { safeExeca as execa } from 'execa'
 import pLimit from 'p-limit'
-import { prependDirsToPath } from '@pnpm/env.path'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
+import which from 'which'
+import { writeJsonFile } from 'write-json-file'
+
+import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint.js'
 import { existsInDir } from './existsInDir.js'
 import { makeEnv } from './makeEnv.js'
 import {
@@ -22,10 +28,6 @@ import {
   RESUME_FROM_OPTION_HELP,
   shorthands as runShorthands,
 } from './run.js'
-import { PnpmError } from '@pnpm/error'
-import which from 'which'
-import { writeJsonFile } from 'write-json-file'
-import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
 
 export const shorthands: Record<string, string | string[]> = {

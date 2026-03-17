@@ -25,22 +25,22 @@
       "path": "../../hooks/pnpmfile"
     },
     {
+      "path": "../../network/git-utils"
+    },
+    {
       "path": "../../packages/constants"
     },
     {
       "path": "../../packages/error"
     },
     {
-      "path": "../../packages/git-utils"
-    },
-    {
-      "path": "../../packages/naming-cases"
-    },
-    {
       "path": "../../packages/types"
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../text/naming-cases"
     },
     {
       "path": "../../workspace/read-manifest"

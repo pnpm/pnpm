@@ -1,0 +1,46 @@
+{
+  "name": "@pnpm/env.path",
+  "version": "1000.0.0",
+  "description": "Functions for changing PATH env variable",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "env"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/shell/path",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/shell/path#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "path-name": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/env.path": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

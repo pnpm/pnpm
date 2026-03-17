@@ -1,9 +1,9 @@
 // cspell:ignore sshurl
-import urlLib, { URL } from 'url'
-import { fetchWithAgent } from '@pnpm/fetch'
-import { type AgentOptions } from '@pnpm/network.agent'
+import urlLib, { URL } from 'node:url'
 
-import git from 'graceful-git'
+import { fetchWithAgent } from '@pnpm/fetch'
+import type { AgentOptions } from '@pnpm/network.agent'
+import { gracefulGit as git } from 'graceful-git'
 import HostedGit from 'hosted-git-info'
 
 export interface HostedPackageSpec {

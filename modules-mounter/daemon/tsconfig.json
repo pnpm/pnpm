@@ -13,7 +13,7 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../fs/msgpack-file"
+      "path": "../../deps/dependency-path"
     },
     {
       "path": "../../lockfile/fs"
@@ -25,9 +25,6 @@
       "path": "../../packages/constants"
     },
     {
-      "path": "../../packages/dependency-path"
-    },
-    {
       "path": "../../packages/logger"
     },
     {
@@ -35,6 +32,9 @@
     },
     {
       "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/index"
     },
     {
       "path": "../../store/store-path"

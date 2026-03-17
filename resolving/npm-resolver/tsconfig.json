@@ -22,16 +22,13 @@
       "path": "../../crypto/hash"
     },
     {
+      "path": "../../fetching/fetching-types"
+    },
+    {
       "path": "../../fs/graceful-fs"
     },
     {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../network/fetch"
-    },
-    {
-      "path": "../../network/fetching-types"
     },
     {
       "path": "../../packages/constants"
@@ -49,13 +46,10 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../registry/pkg-metadata-filter"
-    },
-    {
-      "path": "../../registry/types"
-    },
-    {
       "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/index"
     },
     {
       "path": "../../worker"
@@ -68,6 +62,12 @@
     },
     {
       "path": "../jsr-specifier-parser"
+    },
+    {
+      "path": "../registry/pkg-metadata-filter"
+    },
+    {
+      "path": "../registry/types"
     },
     {
       "path": "../resolver-base"

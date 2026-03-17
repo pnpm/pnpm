@@ -1,5 +1,6 @@
 import { parseString, stripComments } from 'strip-comments-strings'
-import { type CommentSpecifier } from './CommentSpecifier.js'
+
+import type { CommentSpecifier } from './CommentSpecifier.js'
 
 interface ExtractedComments {
   text: string

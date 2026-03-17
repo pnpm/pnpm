@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../installing/modules-yaml"
+    },
+    {
       "path": "../../lockfile/types"
     },
     {
@@ -17,9 +20,6 @@
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/modules-yaml"
     },
     {
       "path": "../assert-store"

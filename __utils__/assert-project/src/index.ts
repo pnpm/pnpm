@@ -1,14 +1,17 @@
-import fs from 'fs'
-import path from 'path'
-import util from 'util'
-import { createRequire } from 'module'
+import fs from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+import util from 'node:util'
+
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type LockfileFile } from '@pnpm/lockfile.types'
-import { type Modules } from '@pnpm/modules-yaml'
+import type { LockfileFile } from '@pnpm/lockfile.types'
+import type { Modules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { sync as readYamlFile } from 'read-yaml-file'
+import yaml from 'js-yaml'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writePackageSync } from 'write-package'
+
 import isExecutable from './isExecutable.js'
 
 const require = createRequire(import.meta.url)
@@ -141,7 +144,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     },
     readCurrentLockfile () {
       try {
-        return readYamlFile(path.join(getVirtualStoreDir(), 'lock.yaml'))
+        return readYamlFileSync(path.join(getVirtualStoreDir(), 'lock.yaml'))
       } catch (err: unknown) {
         if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
         throw err
@@ -150,7 +153,16 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     readModulesManifest: () => readModulesManifest(modules),
     readLockfile (lockfileName: string = WANTED_LOCKFILE) {
       try {
-        return readYamlFile(path.join(projectPath, lockfileName))
+        const raw = fs.readFileSync(path.join(projectPath, lockfileName), 'utf8')
+        // Skip the env lockfile document if present (first document in combined format).
+        // Cannot import from @pnpm/lockfile.fs here due to circular dependency.
+        let content = raw
+        if (raw.startsWith('---\n')) {
+          const sep = raw.indexOf('\n---\n')
+          content = sep !== -1 ? raw.slice(sep + '\n---\n'.length) : ''
+        }
+        if (!content.trim()) return null!
+        return yaml.load(content) as Required<LockfileFile>
       } catch (err: unknown) {
         if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
         throw err
@@ -164,7 +176,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
 
 function readModulesManifest (modulesDir: string): Modules {
   try {
-    return readYamlFile<Modules>(path.join(modulesDir, '.modules.yaml'))
+    return readYamlFileSync<Modules>(path.join(modulesDir, '.modules.yaml'))
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
     throw err

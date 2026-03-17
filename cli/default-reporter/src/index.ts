@@ -1,14 +1,15 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import type * as logs from '@pnpm/core-loggers'
-import { type LogLevel, type StreamParser } from '@pnpm/logger'
+import type { LogLevel, StreamParser } from '@pnpm/logger'
+import createDiffer from 'ansi-diff'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
-import createDiffer from 'ansi-diff'
+
 import { EOL } from './constants.js'
 import { mergeOutputs } from './mergeOutputs.js'
 import { reporterForClient } from './reporterForClient/index.js'
+import type { FilterPkgsDiff } from './reporterForClient/reportSummary.js'
 import { formatWarn } from './reporterForClient/utils/formatWarn.js'
-import { type FilterPkgsDiff } from './reporterForClient/reportSummary.js'
 
 export { formatWarn }
 
@@ -275,7 +276,7 @@ export function toOutput$ (
       throttleProgress: opts.reportingOptions?.throttleProgress,
       width: opts.reportingOptions?.outputMaxWidth,
       hideAddedPkgsProgress: opts.reportingOptions?.hideAddedPkgsProgress,
-      hideProgressPrefix: opts.reportingOptions?.hideProgressPrefix ?? (cmd === 'dlx'),
+      hideProgressPrefix: opts.reportingOptions?.hideProgressPrefix ?? (cmd === 'dlx' || opts.context.config?.global === true),
       hideLifecycleOutput: opts.reportingOptions?.hideLifecycleOutput,
       hideLifecyclePrefix: opts.reportingOptions?.hideLifecyclePrefix,
       approveBuildsInstructionText: opts.reportingOptions?.approveBuildsInstructionText,

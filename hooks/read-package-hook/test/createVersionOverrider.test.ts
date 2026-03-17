@@ -1,4 +1,5 @@
-import path from 'path'
+import path from 'node:path'
+
 import { createVersionsOverrider } from '../src/createVersionsOverrider.js'
 
 test('createVersionsOverrider() matches sub-ranges', () => {

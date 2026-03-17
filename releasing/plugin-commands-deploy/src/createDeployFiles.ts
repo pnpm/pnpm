@@ -1,23 +1,24 @@
-import path from 'path'
-import url from 'url'
-import normalizePath from 'normalize-path'
+import path from 'node:path'
+import url from 'node:url'
+
 import * as dp from '@pnpm/dependency-path'
-import {
-  type DirectoryResolution,
-  type LockfileObject,
-  type LockfileResolution,
-  type PackageSnapshot,
-  type PackageSnapshots,
-  type ProjectSnapshot,
-  type ResolvedDependencies,
+import type {
+  DirectoryResolution,
+  LockfileObject,
+  LockfileResolution,
+  PackageSnapshot,
+  PackageSnapshots,
+  ProjectSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile.types'
-import {
-  type DependenciesField,
-  type DepPath,
-  type Project,
-  type ProjectId,
-  type ProjectManifest,
+import type {
+  DependenciesField,
+  DepPath,
+  Project,
+  ProjectId,
+  ProjectManifest,
 } from '@pnpm/types'
+import normalizePath from 'normalize-path'
 
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
 
@@ -152,17 +153,14 @@ export function createDeployFiles ({
   }
 
   if (lockfile.patchedDependencies) {
-    result.lockfile.patchedDependencies = {}
-    result.manifest.pnpm!.patchedDependencies = {}
-
-    for (const name in lockfile.patchedDependencies) {
-      const patchInfo = lockfile.patchedDependencies[name]
-      const resolvedPath = path.resolve(rootProjectManifestDir, patchInfo.path)
-      const relativePath = normalizePath(path.relative(deployDir, resolvedPath))
-      result.manifest.pnpm!.patchedDependencies[name] = relativePath
-      result.lockfile.patchedDependencies[name] = {
-        hash: patchInfo.hash,
-        path: relativePath,
+    const manifestPatchedDeps = rootProjectManifest?.pnpm?.patchedDependencies
+    if (manifestPatchedDeps) {
+      result.lockfile.patchedDependencies = { ...lockfile.patchedDependencies }
+      result.manifest.pnpm!.patchedDependencies = {}
+      for (const name in manifestPatchedDeps) {
+        const resolvedPath = path.resolve(rootProjectManifestDir, manifestPatchedDeps[name])
+        const relativePath = normalizePath(path.relative(deployDir, resolvedPath))
+        result.manifest.pnpm!.patchedDependencies[name] = relativePath
       }
     }
   }

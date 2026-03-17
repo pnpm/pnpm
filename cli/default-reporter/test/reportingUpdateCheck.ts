@@ -1,10 +1,11 @@
 import { setTimeout } from 'node:timers/promises'
-import { type Config } from '@pnpm/config'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
+
+import type { Config } from '@pnpm/config'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
-import { stripVTControlCharacters as stripAnsi } from 'util'
 
 const NO_OUTPUT = Symbol('test should not log anything')
 

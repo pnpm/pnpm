@@ -10,19 +10,19 @@
   ],
   "references": [
     {
+      "path": "../../deps/dependency-path"
+    },
+    {
       "path": "../../fetching/directory-fetcher"
-    },
-    {
-      "path": "../../fs/msgpack-file"
-    },
-    {
-      "path": "../../packages/dependency-path"
     },
     {
       "path": "../../resolving/resolver-base"
     },
     {
       "path": "../cafs"
+    },
+    {
+      "path": "../index"
     }
   ]
 }

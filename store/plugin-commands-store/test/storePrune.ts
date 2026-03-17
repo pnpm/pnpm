@@ -1,14 +1,15 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
 import { assertStore } from '@pnpm/assert-store'
 import { STORE_VERSION } from '@pnpm/constants'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { sync as rimraf } from '@zkochan/rimraf'
-import { jest } from '@jest/globals'
-import execa from 'execa'
+import { rimrafSync } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
@@ -99,7 +100,7 @@ test('remove packages that are used by project that no longer exist', async () =
 
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
 
-  rimraf('node_modules')
+  rimrafSync('node_modules')
 
   cafsHas('is-negative', '2.1.0')
 
@@ -519,7 +520,7 @@ describe('global virtual store prune', () => {
     ], { cwd: project2Dir })
 
     // Delete project1
-    rimraf(project1Dir)
+    rimrafSync(project1Dir)
 
     // Verify package still exists in links/@/ directory
     const linksDir = path.join(storeDir, STORE_VERSION, 'links')
@@ -546,7 +547,7 @@ describe('global virtual store prune', () => {
     const afterPrune = fs.readdirSync(unscopedDir)
     expect(afterPrune).toContain('is-positive')
 
-    rimraf(project2Dir)
+    rimrafSync(project2Dir)
   })
 
   test('prune removes packages when project using them is deleted', async () => {
@@ -596,7 +597,7 @@ describe('global virtual store prune', () => {
     expect(beforePrune).toContain('is-negative')
 
     // Delete project1 (which uses is-positive)
-    rimraf(project1Dir)
+    rimrafSync(project1Dir)
 
     // Run prune
     await store.handler({
@@ -619,7 +620,7 @@ describe('global virtual store prune', () => {
     // is-negative should remain since project2 still exists
     expect(afterPrune).toContain('is-negative')
 
-    rimraf(project2Dir)
+    rimrafSync(project2Dir)
   })
 
   test('prune preserves transitive dependencies and removes isolated ones', async () => {

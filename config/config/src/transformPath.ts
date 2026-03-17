@@ -1,5 +1,6 @@
-import { join } from 'path'
-import { type Config } from './Config.js'
+import { join } from 'node:path'
+
+import type { Config } from './Config.js'
 
 const REGEX = /^~[/\\]/
 

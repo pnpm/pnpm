@@ -22,6 +22,9 @@
       "path": "../../crypto/object-hasher"
     },
     {
+      "path": "../../installing/get-context"
+    },
+    {
       "path": "../../lockfile/fs"
     },
     {
@@ -38,9 +41,6 @@
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/get-context"
     },
     {
       "path": "../../pkg-manifest/write-project-manifest"

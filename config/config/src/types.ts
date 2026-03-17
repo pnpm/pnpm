@@ -1,5 +1,5 @@
 import npmTypes from '@pnpm/npm-conf/lib/types.js'
-import { type TrustPolicy } from '@pnpm/types'
+import type { TrustPolicy } from '@pnpm/types'
 
 export const pnpmTypes = {
   'auto-install-peers': Boolean,
@@ -123,6 +123,7 @@ export const pnpmTypes = {
   'verify-store-integrity': Boolean,
   'global-virtual-store-dir': String,
   'virtual-store-dir': String,
+  'virtual-store-only': Boolean,
   'virtual-store-dir-max-length': Number,
   'peers-suffix-max-length': Number,
   'workspace-concurrency': Number,

@@ -1,5 +1,6 @@
 import npmTypes from '@pnpm/npm-conf/lib/types.js'
-import { type pnpmTypes } from './types.js'
+
+import type { pnpmTypes } from './types.js'
 
 type NpmKey = keyof typeof npmTypes.types
 type PnpmKey = keyof typeof pnpmTypes
@@ -138,6 +139,7 @@ export const excludedPnpmKeys = [
   'global-virtual-store-dir',
   'virtual-store-dir',
   'virtual-store-dir-max-length',
+  'virtual-store-only',
   'peers-suffix-max-length',
   'workspace-concurrency',
   'workspace-packages',

@@ -1,0 +1,61 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../bins/link-bins"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../deps/calc-dep-state"
+    },
+    {
+      "path": "../../deps/dependency-path"
+    },
+    {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
+      "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../fs/hard-link-dir"
+    },
+    {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../patching/apply-patch"
+    },
+    {
+      "path": "../../patching/types"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../worker"
+    }
+  ]
+}

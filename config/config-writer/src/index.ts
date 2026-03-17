@@ -1,5 +1,5 @@
-import { type ProjectManifest, type PnpmSettings } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import type { PnpmSettings, ProjectManifest } from '@pnpm/types'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { equals } from 'ramda'
 
