@@ -10,7 +10,6 @@
 "@pnpm/deps.compliance.commands": major
 "@pnpm/deps.inspection.commands": major
 "@pnpm/engine.pm.commands": major
-"@pnpm/workspace.projects-filter": major
 "@pnpm/patching.commands": major
 "@pnpm/installing.read-projects-context": major
 "@pnpm/workspace.range-resolver": major

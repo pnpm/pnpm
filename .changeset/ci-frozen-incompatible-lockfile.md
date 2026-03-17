@@ -1,5 +1,5 @@
 ---
-'@pnpm/installing.context': patch
+"@pnpm/installing.context": patch
 pnpm: patch
 ---
 
