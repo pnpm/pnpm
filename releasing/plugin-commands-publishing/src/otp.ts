@@ -119,7 +119,6 @@ export function * extractUrlsFromString (text: string): Generator<string> {
 /**
  * Publish a package, handling OTP challenges:
  * - Web based authentication flow (authUrl/doneUrl in error body with doneUrl polling)
- * - npm-notice flow (URL in npm-notice header with QR code display, then OTP prompt)
  * - Classic OTP prompt (manual code entry)
  *
  * @throws {@link OtpWebAuthTimeoutError} if the webauth browser flow times out.
