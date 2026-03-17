@@ -8,6 +8,7 @@ import {
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config.reader'
 import { checkDepsStatus } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   IgnoredBuildsError,
   install,
@@ -16,7 +17,6 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.manifest-utils'

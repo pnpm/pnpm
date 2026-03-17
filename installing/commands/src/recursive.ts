@@ -18,6 +18,7 @@ import {
 } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   addDependenciesToPackage,
   IgnoredBuildsError,
@@ -29,7 +30,6 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.manifest-utils'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
