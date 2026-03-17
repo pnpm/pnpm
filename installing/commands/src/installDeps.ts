@@ -16,7 +16,7 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.get-context'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.manifest-utils'

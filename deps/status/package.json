@@ -38,7 +38,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/installing.get-context": "workspace:*",
+    "@pnpm/installing.context": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.settings-checker": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",

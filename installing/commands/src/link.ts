@@ -11,7 +11,7 @@ import { PnpmError } from '@pnpm/error'
 import type {
   WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.get-context'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import { logger } from '@pnpm/logger'
 import { DEPENDENCIES_FIELDS, type Project, type ProjectManifest } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'

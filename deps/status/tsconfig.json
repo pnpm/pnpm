@@ -22,7 +22,7 @@
       "path": "../../crypto/object-hasher"
     },
     {
-      "path": "../../installing/get-context"
+      "path": "../../installing/context"
     },
     {
       "path": "../../lockfile/fs"

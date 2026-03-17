@@ -1,5 +1,5 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
-import type { ProjectOptions } from '@pnpm/installing.get-context'
+import type { ProjectOptions } from '@pnpm/installing.context'
 import type {
   LockfileObject,
 } from '@pnpm/lockfile.types'

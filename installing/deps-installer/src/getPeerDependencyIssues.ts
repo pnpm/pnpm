@@ -1,7 +1,7 @@
 import { DEFAULT_REGISTRIES } from '@pnpm/config.normalize-registries'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
-import { getContext, type GetContextOptions, type ProjectOptions } from '@pnpm/installing.get-context'
+import { getContext, type GetContextOptions, type ProjectOptions } from '@pnpm/installing.context'
 import { getWantedDependencies, resolveDependencies } from '@pnpm/installing.resolve-dependencies'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import type { PeerDependencyIssuesByProjects } from '@pnpm/types'

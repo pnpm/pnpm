@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/installing.get-context",
+  "name": "@pnpm/installing.context",
   "version": "1001.1.8",
   "description": "Gets context information about a project",
   "keywords": [
@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/get-context",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/get-context#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/context",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/context#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -47,7 +47,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/installing.get-context": "workspace:*",
+    "@pnpm/installing.context": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"
   },

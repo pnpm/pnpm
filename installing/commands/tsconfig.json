@@ -142,13 +142,13 @@
       "path": "../../workspace/state"
     },
     {
+      "path": "../context"
+    },
+    {
       "path": "../dedupe/check"
     },
     {
       "path": "../deps-installer"
-    },
-    {
-      "path": "../get-context"
     },
     {
       "path": "../modules-yaml"

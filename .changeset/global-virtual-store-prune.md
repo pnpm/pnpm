@@ -1,6 +1,6 @@
 ---
 "@pnpm/store.package-store": minor
-"@pnpm/installing.get-context": minor
+"@pnpm/installing.context": minor
 "pnpm": minor
 ---
 

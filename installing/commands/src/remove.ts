@@ -9,7 +9,7 @@ import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnp
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalRemove } from '@pnpm/global.commands'
 import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.get-context'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.manifest-utils'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { DependenciesField, Project, ProjectRootDir } from '@pnpm/types'

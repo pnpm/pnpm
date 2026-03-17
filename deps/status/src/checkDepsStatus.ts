@@ -7,7 +7,7 @@ import { type Config, getOptionsFromRootManifest, type OptionsFromRootManifest }
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.get-context'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   getLockfileImporterId,
   type LockfileObject,

@@ -1588,9 +1588,9 @@ importers:
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
-      '@pnpm/installing.get-context':
+      '@pnpm/installing.context':
         specifier: workspace:*
-        version: link:../../installing/get-context
+        version: link:../../installing/context
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: link:../../installing/modules-yaml
@@ -3495,9 +3495,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/installing.get-context':
+      '@pnpm/installing.context':
         specifier: workspace:*
-        version: link:../../installing/get-context
+        version: link:../../installing/context
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -4889,15 +4889,15 @@ importers:
       '@pnpm/hooks.pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
+      '@pnpm/installing.context':
+        specifier: workspace:*
+        version: link:../context
       '@pnpm/installing.dedupe.check':
         specifier: workspace:*
         version: link:../dedupe/check
       '@pnpm/installing.deps-installer':
         specifier: workspace:*
         version: link:../deps-installer
-      '@pnpm/installing.get-context':
-        specifier: workspace:*
-        version: link:../get-context
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -5095,6 +5095,49 @@ importers:
         specifier: 'catalog:'
         version: 6.0.0
 
+  installing/context:
+    dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
+      '@pnpm/installing.modules-yaml':
+        specifier: workspace:*
+        version: link:../modules-yaml
+      '@pnpm/installing.read-projects-context':
+        specifier: workspace:*
+        version: link:../read-projects-context
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/store.package-store':
+        specifier: workspace:*
+        version: link:../../store/package-store
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      path-absolute:
+        specifier: 'catalog:'
+        version: 2.0.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+    devDependencies:
+      '@pnpm/installing.context':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+
   installing/dedupe/check:
     dependencies:
       '@pnpm/error':
@@ -5210,12 +5253,12 @@ importers:
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
+      '@pnpm/installing.context':
+        specifier: workspace:*
+        version: link:../context
       '@pnpm/installing.deps-restorer':
         specifier: workspace:*
         version: link:../deps-restorer
-      '@pnpm/installing.get-context':
-        specifier: workspace:*
-        version: link:../get-context
       '@pnpm/installing.linking.direct-dep-linker':
         specifier: workspace:*
         version: link:../linking/direct-dep-linker
@@ -5602,49 +5645,6 @@ importers:
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
-
-  installing/get-context:
-    dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
-      '@pnpm/core-loggers':
-        specifier: workspace:*
-        version: link:../../packages/core-loggers
-      '@pnpm/installing.modules-yaml':
-        specifier: workspace:*
-        version: link:../modules-yaml
-      '@pnpm/installing.read-projects-context':
-        specifier: workspace:*
-        version: link:../read-projects-context
-      '@pnpm/lockfile.fs':
-        specifier: workspace:*
-        version: link:../../lockfile/fs
-      '@pnpm/resolving.resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
-      '@pnpm/store.package-store':
-        specifier: workspace:*
-        version: link:../../store/package-store
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      path-absolute:
-        specifier: 'catalog:'
-        version: 2.0.0
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-    devDependencies:
-      '@pnpm/installing.get-context':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
 
   installing/linking/direct-dep-linker:
     dependencies:
@@ -6568,9 +6568,9 @@ importers:
       '@pnpm/deps.dependency-path':
         specifier: workspace:*
         version: link:../../deps/dependency-path
-      '@pnpm/installing.get-context':
+      '@pnpm/installing.context':
         specifier: workspace:*
-        version: link:../../installing/get-context
+        version: link:../../installing/context
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
@@ -8407,9 +8407,9 @@ importers:
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../../installing/client
-      '@pnpm/installing.get-context':
+      '@pnpm/installing.context':
         specifier: workspace:*
-        version: link:../../installing/get-context
+        version: link:../../installing/context
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types

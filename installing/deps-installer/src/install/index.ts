@@ -28,7 +28,7 @@ import {
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
 import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
-import { getContext, type PnpmContext } from '@pnpm/installing.get-context'
+import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   type DependenciesGraph,

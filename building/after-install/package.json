@@ -43,7 +43,7 @@
     "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
-    "@pnpm/installing.get-context": "workspace:*",
+    "@pnpm/installing.context": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",

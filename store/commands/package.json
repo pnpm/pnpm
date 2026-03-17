@@ -41,7 +41,7 @@
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
-    "@pnpm/installing.get-context": "workspace:*",
+    "@pnpm/installing.context": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",

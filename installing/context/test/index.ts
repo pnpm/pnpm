@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { arrayOfWorkspacePackagesToMap, getContext } from '@pnpm/installing.get-context'
+import { arrayOfWorkspacePackagesToMap, getContext } from '@pnpm/installing.context'
 import type { ProjectId, ProjectRootDir } from '@pnpm/types'
 
 import type { GetContextOptions } from '../src/index.js'

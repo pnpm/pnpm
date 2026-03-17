@@ -18,7 +18,7 @@ import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/exec.lifecycle'
-import { getContext, type PnpmContext } from '@pnpm/installing.get-context'
+import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { TarballResolution } from '@pnpm/lockfile.types'
 import {
