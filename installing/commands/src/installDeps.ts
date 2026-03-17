@@ -30,9 +30,9 @@ import type {
   ProjectsGraph,
   VulnerabilitySeverity,
 } from '@pnpm/types'
-import { filterPkgsBySelectorObjects } from '@pnpm/workspace.filter-workspace-packages'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
-import { findWorkspacePackages } from '@pnpm/workspace.project-finder'
+import { filterPkgsBySelectorObjects } from '@pnpm/workspace.projects-filter'
+import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.sort-packages'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'

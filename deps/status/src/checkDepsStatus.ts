@@ -32,7 +32,7 @@ import type {
   ProjectId,
   ProjectManifest,
 } from '@pnpm/types'
-import { findWorkspacePackages } from '@pnpm/workspace.project-finder'
+import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
 import { loadWorkspaceState, updateWorkspaceState, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals, filter, isEmpty, once } from 'ramda'

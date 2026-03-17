@@ -1,9 +1,10 @@
 import type { SupportedArchitectures } from '@pnpm/types'
-import { filterPkgsBySelectorObjects, type PackageSelector, type ReadProjectsResult } from '@pnpm/workspace.filter-workspace-packages'
-import { findWorkspacePackages } from '@pnpm/workspace.project-finder'
+import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
-export async function filterPackagesFromDir (
+import { filterPkgsBySelectorObjects, type PackageSelector, type ReadProjectsResult } from './index.js'
+
+export async function filterPkgsBySelectorObjectsFromDir (
   workspaceDir: string,
   pkgSelectors: PackageSelector[],
   opts?: {

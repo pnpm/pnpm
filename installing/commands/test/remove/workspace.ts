@@ -3,7 +3,7 @@ import path from 'node:path'
 import { install, remove } from '@pnpm/installing.commands'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
@@ -40,14 +40,14 @@ test('remove --filter only changes the specified dependency, when run with link-
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), []),
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
     ...sharedOpts,
   })
 
   await remove.handler({
     ...DEFAULT_OPTS,
     // Only remove is-negative from project-2
-    ...await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-2' }]),
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-2' }]),
     ...sharedOpts,
   }, ['is-negative'])
 
@@ -117,7 +117,7 @@ test('remove from within a workspace package dir only affects the specified depe
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), []),
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
     ...sharedOpts,
     recursive: true,
   })

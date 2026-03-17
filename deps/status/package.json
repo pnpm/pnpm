@@ -44,7 +44,7 @@
     "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.project-finder": "workspace:*",
+    "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "ramda": "catalog:"

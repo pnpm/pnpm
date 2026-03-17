@@ -34,7 +34,7 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../project-finder"
+      "path": "../projects-reader"
     }
   ]
 }

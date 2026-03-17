@@ -100,7 +100,7 @@
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../../workspace/filter-packages-from-dir"
+      "path": "../../workspace/projects-filter"
     },
     {
       "path": "../../workspace/sort-packages"

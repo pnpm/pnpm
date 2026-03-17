@@ -10,13 +10,19 @@
   ],
   "references": [
     {
+      "path": "../../config/matcher"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../../packages/types"
     },
     {
-      "path": "../filter-workspace-packages"
+      "path": "../pkgs-graph"
     },
     {
-      "path": "../project-finder"
+      "path": "../projects-reader"
     },
     {
       "path": "../workspace-manifest-reader"

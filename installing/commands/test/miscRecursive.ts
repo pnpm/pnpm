@@ -7,7 +7,7 @@ import type { LockfileFile } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { loadJsonFile } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
@@ -36,7 +36,7 @@ test('recursive add/remove', async () => {
     },
   ])
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -97,7 +97,7 @@ test('recursive add/remove in workspace with many lockfiles', async () => {
     },
   ])
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -187,7 +187,7 @@ test('recursive install with package that has link', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), []),
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
@@ -222,7 +222,7 @@ test('running `pnpm recursive` on a subset of packages', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), []),
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
@@ -274,7 +274,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), []),
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
@@ -309,7 +309,7 @@ test('recursive installation fails when installation in one of the packages fail
   try {
     await install.handler({
       ...DEFAULT_OPTS,
-      ...await filterPackagesFromDir(process.cwd(), []),
+      ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
       dir: process.cwd(),
       recursive: true,
       workspaceDir: process.cwd(),
@@ -336,7 +336,7 @@ test('second run of `recursive install` after package.json has been edited manua
     },
   ])
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -407,7 +407,7 @@ test('recursive --filter ignore excluded packages', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), [
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [
       { includeDependencies: true, namePattern: 'project-1' },
     ]),
     dir: process.cwd(),
@@ -451,7 +451,7 @@ test('recursive filter multiple times', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), [
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [
       { namePattern: 'project-1' },
       { namePattern: 'project-2' },
     ]),
@@ -489,7 +489,7 @@ test('recursive install --no-bail', async () => {
   try {
     await install.handler({
       ...DEFAULT_OPTS,
-      ...await filterPackagesFromDir(process.cwd(), []),
+      ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
       bail: false,
       dir: process.cwd(),
       recursive: true,
@@ -522,7 +522,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 
   await update.handler({
     ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), []),
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
     dir: process.cwd(),
     linkWorkspacePackages: false,
     lockfileDir: process.cwd(),
@@ -563,7 +563,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 
   await update.handler({
     ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), []),
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
     dir: process.cwd(),
     linkWorkspacePackages: false,
     lockfileDir: process.cwd(),
@@ -607,7 +607,7 @@ test('recursive install on workspace with custom lockfile-dir', async () => {
   ])
 
   const lockfileDir = path.resolve('_')
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -643,7 +643,7 @@ test('recursive install in a monorepo with different modules directories specifi
     },
   ])
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -682,7 +682,7 @@ test('recursive install in a monorepo with different modules directories specifi
     },
   ])
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -727,7 +727,7 @@ test('prefer-workspace-package', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), []),
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
     dir: process.cwd(),
     linkWorkspacePackages: true,
     preferWorkspacePackages: true,
@@ -755,7 +755,7 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
   const virtualPath = process.cwd() + '-virtual-disk'
   // symlink simulates windows' subst
   await symlinkDir(process.cwd(), virtualPath)
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(virtualPath, [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(virtualPath, [])
   await install.handler({
     ...DEFAULT_OPTS,
     lockfileDir: virtualPath,

@@ -13,7 +13,7 @@
     "@pnpm/meta-updater": "catalog:",
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.project-finder": "workspace:*",
+    "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@types/normalize-path": "catalog:",
     "is-subdir": "catalog:",

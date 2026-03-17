@@ -77,7 +77,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
-    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
+    "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",

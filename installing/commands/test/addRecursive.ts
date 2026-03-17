@@ -4,7 +4,7 @@ import { add } from '@pnpm/installing.commands'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectId } from '@pnpm/types'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -21,7 +21,7 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
 
   await add.handler({
     ...DEFAULT_OPTS,
@@ -111,7 +111,7 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
 
   await add.handler({
     ...DEFAULT_OPTS,

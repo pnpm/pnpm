@@ -1075,9 +1075,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
-      '@pnpm/workspace.project-finder':
+      '@pnpm/workspace.projects-reader':
         specifier: workspace:*
-        version: link:../workspace/project-finder
+        version: link:../workspace/projects-reader
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: link:../workspace/workspace-manifest-reader
@@ -1322,9 +1322,9 @@ importers:
 
   __utils__/scripts:
     dependencies:
-      '@pnpm/workspace.project-finder':
+      '@pnpm/workspace.projects-reader':
         specifier: workspace:*
-        version: link:../../workspace/project-finder
+        version: link:../../workspace/projects-reader
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/workspace-manifest-reader
@@ -1737,9 +1737,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
-      '@pnpm/workspace.filter-packages-from-dir':
+      '@pnpm/workspace.projects-filter':
         specifier: workspace:*
-        version: link:../../workspace/filter-packages-from-dir
+        version: link:../../workspace/projects-filter
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -2009,9 +2009,9 @@ importers:
       '@pnpm/tabtab':
         specifier: 'catalog:'
         version: 0.5.4
-      '@pnpm/workspace.project-finder':
+      '@pnpm/workspace.projects-reader':
         specifier: workspace:^
-        version: link:../../workspace/project-finder
+        version: link:../../workspace/projects-reader
       '@pnpm/workspace.root-finder':
         specifier: workspace:^
         version: link:../../workspace/root-finder
@@ -2897,12 +2897,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../../__utils__/test-fixtures
-      '@pnpm/workspace.filter-packages-from-dir':
+      '@pnpm/workspace.projects-filter':
         specifier: workspace:*
-        version: link:../../../workspace/filter-packages-from-dir
-      '@pnpm/workspace.filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../../workspace/filter-workspace-packages
+        version: link:../../../workspace/projects-filter
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -3223,12 +3220,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../../__utils__/test-fixtures
-      '@pnpm/workspace.filter-packages-from-dir':
+      '@pnpm/workspace.projects-filter':
         specifier: workspace:*
-        version: link:../../../workspace/filter-packages-from-dir
-      '@pnpm/workspace.filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../../workspace/filter-workspace-packages
+        version: link:../../../workspace/projects-filter
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -3510,9 +3504,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/workspace.project-finder':
+      '@pnpm/workspace.projects-reader':
         specifier: workspace:*
-        version: link:../../workspace/project-finder
+        version: link:../../workspace/projects-reader
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: link:../../workspace/state
@@ -3919,12 +3913,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
-      '@pnpm/workspace.filter-packages-from-dir':
+      '@pnpm/workspace.projects-filter':
         specifier: workspace:*
-        version: link:../../workspace/filter-packages-from-dir
-      '@pnpm/workspace.filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
+        version: link:../../workspace/projects-filter
       '@types/is-windows':
         specifier: 'catalog:'
         version: 1.0.2
@@ -4919,21 +4910,21 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/workspace.filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
-      '@pnpm/workspace.project-finder':
-        specifier: workspace:*
-        version: link:../../workspace/project-finder
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-reader
       '@pnpm/workspace.project-manifest-writer':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-writer
+      '@pnpm/workspace.projects-filter':
+        specifier: workspace:*
+        version: link:../../workspace/projects-filter
+      '@pnpm/workspace.projects-reader':
+        specifier: workspace:*
+        version: link:../../workspace/projects-reader
       '@pnpm/workspace.root-finder':
         specifier: workspace:*
         version: link:../../workspace/root-finder
@@ -5031,9 +5022,6 @@ importers:
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
-      '@pnpm/workspace.filter-packages-from-dir':
-        specifier: workspace:*
-        version: link:../../workspace/filter-packages-from-dir
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
@@ -6972,9 +6960,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
-      '@pnpm/workspace.filter-packages-from-dir':
+      '@pnpm/workspace.projects-filter':
         specifier: workspace:*
-        version: link:../../workspace/filter-packages-from-dir
+        version: link:../../workspace/projects-filter
       '@types/is-windows':
         specifier: 'catalog:'
         version: 1.0.2
@@ -7243,21 +7231,21 @@ importers:
       '@pnpm/workspace.commands':
         specifier: workspace:*
         version: link:../workspace/commands
-      '@pnpm/workspace.filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../workspace/filter-workspace-packages
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../workspace/pkgs-graph
-      '@pnpm/workspace.project-finder':
-        specifier: workspace:*
-        version: link:../workspace/project-finder
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../workspace/project-manifest-reader
       '@pnpm/workspace.project-manifest-writer':
         specifier: workspace:*
         version: link:../workspace/project-manifest-writer
+      '@pnpm/workspace.projects-filter':
+        specifier: workspace:*
+        version: link:../workspace/projects-filter
+      '@pnpm/workspace.projects-reader':
+        specifier: workspace:*
+        version: link:../workspace/projects-reader
       '@pnpm/workspace.root-finder':
         specifier: workspace:*
         version: link:../workspace/root-finder
@@ -7464,9 +7452,9 @@ importers:
 
   pnpm/dev:
     dependencies:
-      '@pnpm/workspace.project-finder':
+      '@pnpm/workspace.projects-reader':
         specifier: workspace:*
-        version: link:../../workspace/project-finder
+        version: link:../../workspace/projects-reader
       '@pnpm/workspace.root-finder':
         specifier: workspace:*
         version: link:../../workspace/root-finder
@@ -7649,9 +7637,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
-      '@pnpm/workspace.filter-packages-from-dir':
+      '@pnpm/workspace.projects-filter':
         specifier: workspace:*
-        version: link:../../workspace/filter-packages-from-dir
+        version: link:../../workspace/projects-filter
       '@types/cross-spawn':
         specifier: 'catalog:'
         version: 6.0.6
@@ -8832,86 +8820,6 @@ importers:
         specifier: 'catalog:'
         version: 7.0.1
 
-  workspace/filter-packages-from-dir:
-    dependencies:
-      '@pnpm/workspace.filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../filter-workspace-packages
-      '@pnpm/workspace.project-finder':
-        specifier: workspace:*
-        version: link:../project-finder
-      '@pnpm/workspace.workspace-manifest-reader':
-        specifier: workspace:*
-        version: link:../workspace-manifest-reader
-    devDependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@pnpm/workspace.filter-packages-from-dir':
-        specifier: workspace:*
-        version: 'link:'
-
-  workspace/filter-workspace-packages:
-    dependencies:
-      '@pnpm/config.matcher':
-        specifier: workspace:*
-        version: link:../../config/matcher
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/workspace.pkgs-graph':
-        specifier: workspace:*
-        version: link:../pkgs-graph
-      '@pnpm/workspace.project-finder':
-        specifier: workspace:*
-        version: link:../project-finder
-      execa:
-        specifier: 'catalog:'
-        version: safe-execa@0.3.0
-      find-up:
-        specifier: 'catalog:'
-        version: 7.0.0
-      is-subdir:
-        specifier: 'catalog:'
-        version: 2.0.0
-      micromatch:
-        specifier: 'catalog:'
-        version: 4.0.8
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-    devDependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@pnpm/workspace.filter-workspace-packages':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/is-windows':
-        specifier: 'catalog:'
-        version: 1.0.2
-      '@types/micromatch':
-        specifier: 'catalog:'
-        version: 4.0.10
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
-      '@types/touch':
-        specifier: 'catalog:'
-        version: 3.1.5
-      ci-info:
-        specifier: 'catalog:'
-        version: 4.4.0
-      is-windows:
-        specifier: 'catalog:'
-        version: 1.0.2
-      tempy:
-        specifier: 'catalog:'
-        version: 3.0.0
-      touch:
-        specifier: 'catalog:'
-        version: 3.1.0
-
   workspace/injected-deps-syncer:
     dependencies:
       '@pnpm/bins.linker':
@@ -8935,9 +8843,9 @@ importers:
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
         version: 3.0.2
-      '@pnpm/workspace.project-finder':
+      '@pnpm/workspace.projects-reader':
         specifier: workspace:*
-        version: link:../project-finder
+        version: link:../projects-reader
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
@@ -8985,37 +8893,6 @@ importers:
       better-path-resolve:
         specifier: 'catalog:'
         version: 2.0.0
-
-  workspace/project-finder:
-    dependencies:
-      '@pnpm/cli.utils':
-        specifier: workspace:*
-        version: link:../../cli/utils
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
-      '@pnpm/fs.find-packages':
-        specifier: workspace:*
-        version: link:../../fs/find-packages
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 3.0.2
-    devDependencies:
-      '@jest/globals':
-        specifier: 'catalog:'
-        version: 30.0.5
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@pnpm/workspace.project-finder':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/workspace.workspace-manifest-reader':
-        specifier: workspace:*
-        version: link:../workspace-manifest-reader
 
   workspace/project-manifest-reader:
     dependencies:
@@ -9105,6 +8982,101 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+
+  workspace/projects-filter:
+    dependencies:
+      '@pnpm/config.matcher':
+        specifier: workspace:*
+        version: link:../../config/matcher
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/workspace.pkgs-graph':
+        specifier: workspace:*
+        version: link:../pkgs-graph
+      '@pnpm/workspace.projects-reader':
+        specifier: workspace:*
+        version: link:../projects-reader
+      '@pnpm/workspace.workspace-manifest-reader':
+        specifier: workspace:*
+        version: link:../workspace-manifest-reader
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.3.0
+      find-up:
+        specifier: 'catalog:'
+        version: 7.0.0
+      is-subdir:
+        specifier: 'catalog:'
+        version: 2.0.0
+      micromatch:
+        specifier: 'catalog:'
+        version: 4.0.8
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+    devDependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/workspace.projects-filter':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/is-windows':
+        specifier: 'catalog:'
+        version: 1.0.2
+      '@types/micromatch':
+        specifier: 'catalog:'
+        version: 4.0.10
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+      '@types/touch':
+        specifier: 'catalog:'
+        version: 3.1.5
+      ci-info:
+        specifier: 'catalog:'
+        version: 4.4.0
+      is-windows:
+        specifier: 'catalog:'
+        version: 1.0.2
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
+      touch:
+        specifier: 'catalog:'
+        version: 3.1.0
+
+  workspace/projects-reader:
+    dependencies:
+      '@pnpm/cli.utils':
+        specifier: workspace:*
+        version: link:../../cli/utils
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/fs.find-packages':
+        specifier: workspace:*
+        version: link:../../fs/find-packages
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/workspace.projects-reader':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/workspace.workspace-manifest-reader':
+        specifier: workspace:*
+        version: link:../workspace-manifest-reader
 
   workspace/range-resolver:
     dependencies:

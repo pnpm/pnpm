@@ -1,6 +1,6 @@
 import type { CompletionFunc } from '@pnpm/cli.command'
 import type { CompletionItem } from '@pnpm/tabtab'
-import { findWorkspacePackages } from '@pnpm/workspace.project-finder'
+import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
 import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 

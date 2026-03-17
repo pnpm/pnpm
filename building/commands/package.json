@@ -67,7 +67,7 @@
     "@pnpm/store.index": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
-    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
+    "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/ramda": "catalog:",
     "execa": "catalog:",
     "load-json-file": "catalog:",

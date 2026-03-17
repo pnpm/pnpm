@@ -23,7 +23,7 @@
       "path": "../packages/types"
     },
     {
-      "path": "../workspace/project-finder"
+      "path": "../workspace/projects-reader"
     },
     {
       "path": "../workspace/workspace-manifest-reader"

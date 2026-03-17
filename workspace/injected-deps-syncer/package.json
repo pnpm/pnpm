@@ -38,7 +38,7 @@
     "@pnpm/pkg-manifest.read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
-    "@pnpm/workspace.project-finder": "workspace:*",
+    "@pnpm/workspace.projects-reader": "workspace:*",
     "@types/normalize-path": "catalog:",
     "normalize-path": "catalog:"
   },

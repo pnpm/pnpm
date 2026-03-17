@@ -46,10 +46,10 @@
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../../workspace/project-finder"
+      "path": "../../workspace/project-manifest-writer"
     },
     {
-      "path": "../../workspace/project-manifest-writer"
+      "path": "../../workspace/projects-reader"
     },
     {
       "path": "../../workspace/state"

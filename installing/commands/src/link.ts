@@ -14,7 +14,7 @@ import type {
 } from '@pnpm/installing.deps-installer'
 import { logger } from '@pnpm/logger'
 import { DEPENDENCIES_FIELDS, type Project, type ProjectManifest } from '@pnpm/types'
-import { findWorkspacePackages } from '@pnpm/workspace.project-finder'
+import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
 import normalize from 'normalize-path'
 import { partition, pick } from 'ramda'
 import { renderHelp } from 'render-help'

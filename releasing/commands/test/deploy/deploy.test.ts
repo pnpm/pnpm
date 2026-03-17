@@ -5,7 +5,7 @@ import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -73,7 +73,7 @@ test('deploy without existing lockfile', async () => {
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   }
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
     ...DEFAULT_OPTS,
@@ -145,7 +145,7 @@ test('deploy in workspace with shared-workspace-lockfile=false', async () => {
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   }
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
     ...DEFAULT_OPTS,
@@ -220,7 +220,7 @@ test('deploy with node-linker=hoisted', async () => {
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   })
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
     ...DEFAULT_OPTS,
@@ -287,7 +287,7 @@ test.each(['isolated', 'hoisted'] as const)(
       },
     ])
 
-    const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+    const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
     await deploy.handler({
       ...DEFAULT_OPTS,
@@ -332,7 +332,7 @@ test('deploy fails when the destination directory exists and is not empty', asyn
   fs.writeFileSync(deployPath, 'aaa', 'utf8')
   const deployFullPath = path.resolve(deployPath)
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project' }])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
 
   await expect(() =>
     deploy.handler({
@@ -372,7 +372,7 @@ test('forced deploy succeeds with a warning when destination directory exists an
   fs.writeFileSync(deployPath, 'aaa', 'utf8')
   const deployFullPath = path.resolve(deployPath)
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project' }])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
 
   await deploy.handler({
     ...DEFAULT_OPTS,
@@ -431,7 +431,7 @@ test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDepen
     },
   ])
 
-  const { allProjects, selectedProjectsGraph, allProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const { allProjects, selectedProjectsGraph, allProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
     ...DEFAULT_OPTS,
@@ -478,7 +478,7 @@ test('deploy works when workspace packages use catalog protocol', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
     ...DEFAULT_OPTS,
@@ -518,7 +518,7 @@ test('deploy does not preserve the inject workspace packages settings in the loc
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project' }])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
 
   await install.handler({
     ...DEFAULT_OPTS,

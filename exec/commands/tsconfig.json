@@ -79,16 +79,13 @@
       "path": "../../store/path"
     },
     {
-      "path": "../../workspace/filter-packages-from-dir"
-    },
-    {
-      "path": "../../workspace/filter-workspace-packages"
-    },
-    {
       "path": "../../workspace/injected-deps-syncer"
     },
     {
       "path": "../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../../workspace/projects-filter"
     },
     {
       "path": "../../workspace/sort-packages"

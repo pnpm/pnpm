@@ -67,7 +67,7 @@
       "path": "../../store/index"
     },
     {
-      "path": "../../workspace/filter-packages-from-dir"
+      "path": "../../workspace/projects-filter"
     },
     {
       "path": "../../workspace/sort-packages"

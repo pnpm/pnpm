@@ -19,7 +19,7 @@
       "path": "../../packages/logger"
     },
     {
-      "path": "../../workspace/project-finder"
+      "path": "../../workspace/projects-reader"
     },
     {
       "path": "../../workspace/root-finder"

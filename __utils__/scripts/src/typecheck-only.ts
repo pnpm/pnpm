@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { findWorkspacePackages } from '@pnpm/workspace.project-finder'
+import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { sync as execa } from 'execa'
 import glob from 'fast-glob'

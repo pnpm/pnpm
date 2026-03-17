@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/workspace.project-finder",
+  "name": "@pnpm/workspace.projects-reader",
   "version": "1000.0.43",
   "description": "Finds packages inside a workspace",
   "keywords": [
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/workspace/project-finder",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/workspace/project-finder#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/workspace/projects-reader",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/workspace/projects-reader#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -43,7 +43,7 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/workspace.project-finder": "workspace:*",
+    "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*"
   },
   "engines": {

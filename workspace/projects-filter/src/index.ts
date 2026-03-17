@@ -1,15 +1,16 @@
 import { createMatcher } from '@pnpm/config.matcher'
 import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
 import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.pkgs-graph'
-import { findWorkspacePackages, type Project } from '@pnpm/workspace.project-finder'
+import { findWorkspacePackages, type Project } from '@pnpm/workspace.projects-reader'
 import { isSubdir } from 'is-subdir'
 import * as micromatch from 'micromatch'
 import { difference, partition, pick } from 'ramda'
 
+import { filterPkgsBySelectorObjectsFromDir } from './filterPackagesFromDir.js'
 import { getChangedPackages } from './getChangedPackages.js'
 import { type PackageSelector, parsePackageSelector } from './parsePackageSelector.js'
 
-export { type PackageSelector, parsePackageSelector }
+export { filterPkgsBySelectorObjectsFromDir, type PackageSelector, parsePackageSelector }
 
 export interface WorkspaceFilter {
   filter: string

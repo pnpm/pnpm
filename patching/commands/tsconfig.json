@@ -70,10 +70,10 @@
       "path": "../../store/path"
     },
     {
-      "path": "../../workspace/filter-packages-from-dir"
+      "path": "../../workspace/project-manifest-reader"
     },
     {
-      "path": "../../workspace/project-manifest-reader"
+      "path": "../../workspace/projects-filter"
     },
     {
       "path": "../../workspace/workspace-manifest-reader"

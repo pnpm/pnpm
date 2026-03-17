@@ -5,12 +5,12 @@
 "@pnpm/releasing.commands": major
 "@pnpm/exec.commands": major
 "@pnpm/workspace.project-manifest-writer": major
-"@pnpm/workspace.filter-workspace-packages": major
+"@pnpm/workspace.projects-filter": major
 "@pnpm/workspace.project-manifest-reader": major
 "@pnpm/deps.compliance.commands": major
 "@pnpm/deps.inspection.commands": major
 "@pnpm/engine.pm.commands": major
-"@pnpm/workspace.filter-packages-from-dir": major
+"@pnpm/workspace.projects-filter": major
 "@pnpm/patching.commands": major
 "@pnpm/installing.read-projects-context": major
 "@pnpm/workspace.range-resolver": major
@@ -71,7 +71,7 @@
 "@pnpm/resolving.deno-resolver": major
 "@pnpm/resolving.resolver-base": major
 "@pnpm/store.create-cafs-store": major
-"@pnpm/workspace.project-finder": major
+"@pnpm/workspace.projects-reader": major
 "@pnpm/workspace.workspace-manifest-reader": major
 "@pnpm/workspace.sort-packages": major
 "@pnpm/assert-store": major
