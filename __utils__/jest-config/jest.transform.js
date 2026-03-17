@@ -7,7 +7,11 @@ import { transformSync } from '@babel/core'
 
 export default {
   process(sourceText, sourcePath) {
-    const code = stripTypeScriptTypes(sourceText, { mode: 'strip' })
+    const code = stripTypeScriptTypes(sourceText, {
+      mode: 'strip',
+      sourceMap: true,
+      sourceUrl: sourcePath,
+    })
 
     // Using the presence of the DisposableStack global to feature detect
     // whether the current Node.js runtime supports explicit resource
