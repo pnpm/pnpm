@@ -1,7 +1,7 @@
 ---
-"@pnpm/git-resolver": minor
-"@pnpm/tarball-resolver": minor
-"@pnpm/default-resolver": minor
+"@pnpm/resolving.git-resolver": minor
+"@pnpm/resolving.tarball-resolver": minor
+"@pnpm/resolving.default-resolver": minor
 "pnpm": patch
 ---
 

@@ -1,6 +1,6 @@
 ---
 "@pnpm/deps.compliance.commands": minor
-"@pnpm/config": minor
+"@pnpm/config.reader": minor
 "pnpm": minor
 ---
 

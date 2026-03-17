@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/lifecycle",
+  "name": "@pnpm/exec.lifecycle",
   "version": "1001.0.25",
   "description": "Package lifecycle hook runner",
   "keywords": [
@@ -34,14 +34,14 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/bins.linker": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/link-bins": "workspace:*",
+    "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/npm-lifecycle": "catalog:",
-    "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "is-windows": "catalog:",
     "path-exists": "catalog:",
@@ -52,7 +52,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/lifecycle": "workspace:*",
+    "@pnpm/exec.lifecycle": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

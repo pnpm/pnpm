@@ -10,13 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../../config/config"
+      "path": "../../../config/reader"
     },
     {
       "path": "../../../crypto/shasums-file"
     },
     {
-      "path": "../../../fetching/fetching-types"
+      "path": "../../../fetching/types"
     },
     {
       "path": "../../../network/fetch"

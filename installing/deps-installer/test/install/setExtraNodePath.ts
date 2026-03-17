@@ -5,7 +5,7 @@ import {
   install,
   type MutatedProject,
   mutateModules,
-} from '@pnpm/core'
+} from '@pnpm/installing.deps-installer'
 import { preparePackages, tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectRootDir } from '@pnpm/types'

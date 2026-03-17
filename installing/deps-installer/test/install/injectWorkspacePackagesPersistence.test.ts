@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { assertProject } from '@pnpm/assert-project'
-import { mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/core'
+import { mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 

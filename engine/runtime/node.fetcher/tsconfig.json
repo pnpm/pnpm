@@ -19,10 +19,10 @@
       "path": "../../../fetching/binary-fetcher"
     },
     {
-      "path": "../../../fetching/fetching-types"
+      "path": "../../../fetching/tarball-fetcher"
     },
     {
-      "path": "../../../fetching/tarball-fetcher"
+      "path": "../../../fetching/types"
     },
     {
       "path": "../../../store/cafs-types"

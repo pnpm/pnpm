@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
-import { buildPurl } from '@pnpm/sbom'
+import { buildPurl } from '@pnpm/deps.compliance.sbom'
 
 describe('buildPurl', () => {
   it('should build a basic PURL for an unscoped package', () => {

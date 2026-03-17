@@ -1,5 +1,5 @@
 import type { PnpmError } from '@pnpm/error'
-import { remove } from '@pnpm/plugin-commands-installation'
+import { remove } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
 
 import { DEFAULT_OPTS } from '../utils/index.js'

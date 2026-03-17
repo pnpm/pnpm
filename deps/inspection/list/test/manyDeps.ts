@@ -1,4 +1,4 @@
-import { list } from '@pnpm/list'
+import { list } from '@pnpm/deps.inspection.list'
 import { fixtures } from '@pnpm/test-fixtures'
 
 const f = fixtures(import.meta.dirname)

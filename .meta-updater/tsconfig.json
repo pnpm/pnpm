@@ -23,10 +23,10 @@
       "path": "../packages/types"
     },
     {
-      "path": "../workspace/find-packages"
+      "path": "../workspace/projects-reader"
     },
     {
-      "path": "../workspace/read-manifest"
+      "path": "../workspace/workspace-manifest-reader"
     }
   ]
 }

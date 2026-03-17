@@ -13,16 +13,16 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../config/config"
+      "path": "../../config/parse-overrides"
     },
     {
-      "path": "../../config/parse-overrides"
+      "path": "../../config/reader"
     },
     {
       "path": "../../crypto/object-hasher"
     },
     {
-      "path": "../../installing/get-context"
+      "path": "../../installing/context"
     },
     {
       "path": "../../lockfile/fs"
@@ -43,19 +43,19 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manifest/write-project-manifest"
-    },
-    {
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../../workspace/find-packages"
+      "path": "../../workspace/project-manifest-writer"
     },
     {
-      "path": "../../workspace/read-manifest"
+      "path": "../../workspace/projects-reader"
     },
     {
       "path": "../../workspace/state"
+    },
+    {
+      "path": "../../workspace/workspace-manifest-reader"
     }
   ]
 }

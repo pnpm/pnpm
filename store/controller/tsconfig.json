@@ -1,0 +1,58 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../crypto/hash"
+    },
+    {
+      "path": "../../fetching/fetcher-base"
+    },
+    {
+      "path": "../../hooks/types"
+    },
+    {
+      "path": "../../installing/client"
+    },
+    {
+      "path": "../../installing/package-requester"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../worker"
+    },
+    {
+      "path": "../cafs"
+    },
+    {
+      "path": "../controller-types"
+    },
+    {
+      "path": "../create-cafs-store"
+    },
+    {
+      "path": "../index"
+    }
+  ]
+}

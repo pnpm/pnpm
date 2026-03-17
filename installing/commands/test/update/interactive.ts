@@ -4,13 +4,13 @@ import { jest } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import { readYamlFileSync } from 'read-yaml-file'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 const { default: enquirer } = await import('enquirer')
-const { add, install, update } = await import('@pnpm/plugin-commands-installation')
+const { add, install, update } = await import('@pnpm/installing.commands')
 
 const prompt = jest.mocked(enquirer.prompt)
 
@@ -233,7 +233,7 @@ test('interactive update of dev dependencies only', async () => {
     ],
   })
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(
     process.cwd(),
     []
   )

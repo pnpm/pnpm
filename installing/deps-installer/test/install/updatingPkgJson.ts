@@ -2,7 +2,7 @@ import {
   addDependenciesToPackage,
   install,
   mutateModulesInSingleProject,
-} from '@pnpm/core'
+} from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'

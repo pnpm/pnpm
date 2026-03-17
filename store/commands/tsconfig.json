@@ -16,19 +16,19 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../cli/cli-utils"
-    },
-    {
-      "path": "../../config/config"
+      "path": "../../cli/utils"
     },
     {
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../config/reader"
+    },
+    {
       "path": "../../crypto/integrity"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/path"
     },
     {
       "path": "../../exec/commands"
@@ -43,7 +43,7 @@
       "path": "../../installing/client"
     },
     {
-      "path": "../../installing/get-context"
+      "path": "../../installing/context"
     },
     {
       "path": "../../lockfile/fs"
@@ -76,19 +76,19 @@
       "path": "../cafs"
     },
     {
+      "path": "../connection-manager"
+    },
+    {
+      "path": "../controller"
+    },
+    {
+      "path": "../controller-types"
+    },
+    {
       "path": "../index"
     },
     {
-      "path": "../package-store"
-    },
-    {
-      "path": "../store-connection-manager"
-    },
-    {
-      "path": "../store-controller-types"
-    },
-    {
-      "path": "../store-path"
+      "path": "../path"
     }
   ]
 }

@@ -13,7 +13,7 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../cli/cli-utils"
+      "path": "../../cli/utils"
     },
     {
       "path": "../../exec/run-npm"
@@ -37,10 +37,10 @@
       "path": "../../text/naming-cases"
     },
     {
-      "path": "../../workspace/manifest-writer"
+      "path": "../../workspace/workspace-manifest-writer"
     },
     {
-      "path": "../config"
+      "path": "../reader"
     }
   ]
 }

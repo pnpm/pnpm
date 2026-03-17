@@ -1,7 +1,7 @@
 import {
   type MutatedProject,
   mutateModules,
-} from '@pnpm/core'
+} from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'

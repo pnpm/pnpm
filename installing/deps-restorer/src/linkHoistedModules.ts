@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
+import { linkBins } from '@pnpm/bins.linker'
 import {
   progressLogger,
   removalLogger,
@@ -10,12 +10,12 @@ import type {
   DependenciesGraph,
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
-import { linkBins } from '@pnpm/link-bins'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { logger } from '@pnpm/logger'
 import type {
   PackageFilesResponse,
   StoreController,
-} from '@pnpm/store-controller-types'
+} from '@pnpm/store.controller-types'
 import type { AllowBuild } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'

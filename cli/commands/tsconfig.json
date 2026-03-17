@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
       "path": "../../packages/error"
@@ -19,22 +19,22 @@
       "path": "../../packages/logger"
     },
     {
-      "path": "../../workspace/find-packages"
+      "path": "../../workspace/projects-reader"
     },
     {
-      "path": "../../workspace/find-workspace-dir"
+      "path": "../../workspace/root-finder"
     },
     {
-      "path": "../../workspace/read-manifest"
-    },
-    {
-      "path": "../cli-utils"
+      "path": "../../workspace/workspace-manifest-reader"
     },
     {
       "path": "../command"
     },
     {
       "path": "../parse-cli-args"
+    },
+    {
+      "path": "../utils"
     }
   ]
 }

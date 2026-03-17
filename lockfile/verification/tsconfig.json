@@ -19,10 +19,10 @@
       "path": "../../crypto/hash"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/path"
     },
     {
-      "path": "../../installing/get-context"
+      "path": "../../installing/context"
     },
     {
       "path": "../../packages/constants"

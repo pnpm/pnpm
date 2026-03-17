@@ -1,5 +1,5 @@
 'use strict'
-const createResolveFromNpm = require('@pnpm/git-resolver').default
+const createResolveFromNpm = require('@pnpm/resolving.git-resolver').default
 
 const resolveFromNpm = createResolveFromNpm({})
 

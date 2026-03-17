@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/registry.types",
+  "name": "@pnpm/resolving.registry.types",
   "version": "1000.0.1",
   "description": "Types related to the npm registry",
   "keywords": [
@@ -34,7 +34,7 @@
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/registry.types": "workspace:*"
+    "@pnpm/resolving.registry.types": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

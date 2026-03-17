@@ -1,7 +1,7 @@
 import os from 'node:os'
 
+import { parseCliArgs } from '@pnpm/cli.parse-cli-args'
 import type { PnpmError } from '@pnpm/error'
-import { parseCliArgs } from '@pnpm/parse-cli-args'
 import { temporaryDirectory } from 'tempy'
 
 const DEFAULT_OPTS = {

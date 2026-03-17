@@ -25,10 +25,10 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../bins/link-bins"
+      "path": "../../bins/linker"
     },
     {
-      "path": "../../bins/remove-bins"
+      "path": "../../bins/remover"
     },
     {
       "path": "../../building/after-install"
@@ -64,13 +64,13 @@
       "path": "../../crypto/object-hasher"
     },
     {
-      "path": "../../deps/calc-dep-state"
-    },
-    {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/graph-hasher"
     },
     {
       "path": "../../deps/graph-sequencer"
+    },
+    {
+      "path": "../../deps/path"
     },
     {
       "path": "../../exec/lifecycle"
@@ -97,9 +97,6 @@
       "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/lockfile-to-pnp"
-    },
-    {
       "path": "../../lockfile/preferred-versions"
     },
     {
@@ -107,6 +104,9 @@
     },
     {
       "path": "../../lockfile/settings-checker"
+    },
+    {
+      "path": "../../lockfile/to-pnp"
     },
     {
       "path": "../../lockfile/types"
@@ -142,13 +142,10 @@
       "path": "../../patching/config"
     },
     {
-      "path": "../../pkg-manifest/manifest-utils"
-    },
-    {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
+      "path": "../../pkg-manifest/utils"
     },
     {
       "path": "../../resolving/parse-wanted-dependency"
@@ -160,13 +157,13 @@
       "path": "../../store/cafs"
     },
     {
+      "path": "../../store/controller-types"
+    },
+    {
       "path": "../../store/index"
     },
     {
-      "path": "../../store/store-controller-types"
-    },
-    {
-      "path": "../../store/store-path"
+      "path": "../../store/path"
     },
     {
       "path": "../../testing/temp-store"
@@ -175,10 +172,13 @@
       "path": "../../worker"
     },
     {
-      "path": "../deps-restorer"
+      "path": "../../workspace/project-manifest-reader"
     },
     {
-      "path": "../get-context"
+      "path": "../context"
+    },
+    {
+      "path": "../deps-restorer"
     },
     {
       "path": "../linking/direct-dep-linker"

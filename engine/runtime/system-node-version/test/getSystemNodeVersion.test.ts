@@ -2,7 +2,7 @@ import { jest } from '@jest/globals'
 
 let isSea = false
 
-jest.unstable_mockModule('@pnpm/cli-meta', () => ({
+jest.unstable_mockModule('@pnpm/cli.meta', () => ({
   detectIfCurrentPkgIsExecutable: jest.fn(() => isSea),
 }))
 

@@ -1,7 +1,7 @@
 import path from 'node:path'
 
+import { install, update } from '@pnpm/installing.commands'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { install, update } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import type { ProjectManifest } from '@pnpm/types'

@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { createClient, createResolver } from '@pnpm/client'
+import { createClient, createResolver } from '@pnpm/installing.client'
 import { StoreIndex } from '@pnpm/store.index'
 
 const storeIndexes: StoreIndex[] = []

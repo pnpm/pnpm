@@ -1,8 +1,8 @@
 import path from 'node:path'
 
 import { audit } from '@pnpm/deps.compliance.commands'
-import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
+import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import nock from 'nock'
 import { readYamlFileSync } from 'read-yaml-file'
 

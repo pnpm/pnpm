@@ -13,7 +13,7 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../deps/calc-dep-state"
+      "path": "../../deps/graph-hasher"
     },
     {
       "path": "../../fs/read-modules-dir"
@@ -61,10 +61,10 @@
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
-      "path": "../../store/package-store"
+      "path": "../../store/controller"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/controller-types"
     },
     {
       "path": "../../testing/temp-store"
@@ -73,10 +73,10 @@
       "path": "../../worker"
     },
     {
-      "path": "../config-writer"
+      "path": "../pick-registry-for-package"
     },
     {
-      "path": "../pick-registry-for-package"
+      "path": "../writer"
     }
   ]
 }

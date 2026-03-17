@@ -1,6 +1,6 @@
 ---
-"@pnpm/node.fetcher": minor
-"@pnpm/runtime.commands": minor
+"@pnpm/engine.runtime.node.fetcher": minor
+"@pnpm/engine.runtime.commands": minor
 "pnpm": minor
 ---
 

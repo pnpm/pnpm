@@ -10,19 +10,19 @@
   ],
   "references": [
     {
-      "path": "../../bins/link-bins"
+      "path": "../../bins/linker"
     },
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
-      "path": "../../deps/calc-dep-state"
-    },
-    {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/graph-hasher"
     },
     {
       "path": "../../deps/graph-sequencer"
+    },
+    {
+      "path": "../../deps/path"
     },
     {
       "path": "../../exec/lifecycle"
@@ -52,7 +52,7 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/controller-types"
     },
     {
       "path": "../../worker"

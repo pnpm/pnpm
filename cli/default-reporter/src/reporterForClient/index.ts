@@ -1,4 +1,4 @@
-import type { Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config.reader'
 import type * as logs from '@pnpm/core-loggers'
 import type { LogLevel } from '@pnpm/logger'
 import type * as Rx from 'rxjs'

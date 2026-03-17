@@ -1,9 +1,9 @@
-import { docsUrl } from '@pnpm/cli-utils'
-import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
+import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
+import { docsUrl } from '@pnpm/cli.utils'
+import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import type { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 

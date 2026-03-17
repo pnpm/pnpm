@@ -3,16 +3,16 @@ import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import {
-  addDependenciesToPackage,
-  mutateModules,
-  mutateModulesInSingleProject,
-} from '@pnpm/core'
 import type {
   PackageManifestLog,
   RootLog,
   StatsLog,
 } from '@pnpm/core-loggers'
+import {
+  addDependenciesToPackage,
+  mutateModules,
+  mutateModulesInSingleProject,
+} from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

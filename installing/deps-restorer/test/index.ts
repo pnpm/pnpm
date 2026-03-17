@@ -12,9 +12,9 @@ import type {
   StatsLog,
 } from '@pnpm/core-loggers'
 import { hashObject } from '@pnpm/crypto.object-hasher'
-import { headlessInstall } from '@pnpm/headless'
+import { headlessInstall } from '@pnpm/installing.deps-restorer'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
-import { readModulesManifest } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'

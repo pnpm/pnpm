@@ -33,7 +33,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "path-temp": "catalog:",
     "rename-overwrite": "catalog:"
   },

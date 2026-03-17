@@ -1,21 +1,21 @@
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import type { CompletionFunc } from '@pnpm/cli.command'
+import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import {
   docsUrl,
   readDepNameCompletions,
   readProjectManifestOnly,
   TABLE_OPTIONS,
-} from '@pnpm/cli-utils'
+} from '@pnpm/cli.utils'
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
-import type { CompletionFunc } from '@pnpm/command'
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
-import { PnpmError } from '@pnpm/error'
-import { scanGlobalPackages } from '@pnpm/global.packages'
+import { type Config, types as allTypes } from '@pnpm/config.reader'
 import {
   outdatedDepsOfProjects,
   type OutdatedPackage,
-} from '@pnpm/outdated'
+} from '@pnpm/deps.inspection.outdated'
+import { PnpmError } from '@pnpm/error'
+import { scanGlobalPackages } from '@pnpm/global.packages'
 import semverDiff from '@pnpm/semver-diff'
 import type { DependenciesField, PackageManifest, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'

@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { prepare } from '@pnpm/prepare'
 import type { PackageManifest, ProjectManifest } from '@pnpm/types'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
 import { writeYamlFile } from 'write-yaml-file'

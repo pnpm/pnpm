@@ -43,13 +43,13 @@
       "path": "../../patching/types"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/controller-types"
     },
     {
-      "path": "../calc-dep-state"
+      "path": "../graph-hasher"
     },
     {
-      "path": "../dependency-path"
+      "path": "../path"
     }
   ]
 }

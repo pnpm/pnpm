@@ -1,8 +1,8 @@
-import { docsUrl } from '@pnpm/cli-utils'
-import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
-import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/core'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
+import { docsUrl } from '@pnpm/cli.utils'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config.reader'
+import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { ProjectRootDir } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 

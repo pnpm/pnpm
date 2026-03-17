@@ -1,11 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import type { FilesMap } from '@pnpm/cafs-types'
-import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { linkBins } from '@pnpm/link-bins'
+import { linkBins } from '@pnpm/bins.linker'
+import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { logger } from '@pnpm/logger'
-import type { StoreController } from '@pnpm/store-controller-types'
+import type { FilesMap } from '@pnpm/store.cafs-types'
+import type { StoreController } from '@pnpm/store.controller-types'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { runGroups } from 'run-groups'
 

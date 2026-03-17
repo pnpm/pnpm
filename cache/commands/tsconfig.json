@@ -13,10 +13,10 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../cli/cli-utils"
+      "path": "../../cli/utils"
     },
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
       "path": "../../packages/constants"
@@ -28,7 +28,7 @@
       "path": "../../packages/logger"
     },
     {
-      "path": "../../store/store-path"
+      "path": "../../store/path"
     },
     {
       "path": "../api"

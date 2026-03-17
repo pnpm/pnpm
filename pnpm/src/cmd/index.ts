@@ -1,25 +1,25 @@
 import { approveBuilds, ignoredBuilds, rebuild } from '@pnpm/building.commands'
 import { cache } from '@pnpm/cache.commands'
+import type { CompletionFunc } from '@pnpm/cli.command'
 import { createCompletionServer, doctor, generateCompletion } from '@pnpm/cli.commands'
-import type { CompletionFunc } from '@pnpm/command'
-import { types as allTypes } from '@pnpm/config'
+import { config, getCommand, setCommand } from '@pnpm/config.commands'
+import { types as allTypes } from '@pnpm/config.reader'
 import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
 import { list, ll, outdated, why } from '@pnpm/deps.inspection.commands'
 import { selfUpdate, setup } from '@pnpm/engine.pm.commands'
-import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
-import { init } from '@pnpm/plugin-commands-init'
-import { add, ci, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
-import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
+import { env, runtime } from '@pnpm/engine.runtime.commands'
 import {
   create,
   dlx,
   exec,
   restart,
   run,
-} from '@pnpm/plugin-commands-script-runners'
+} from '@pnpm/exec.commands'
+import { add, ci, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
+import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
 import { deploy, pack, publish } from '@pnpm/releasing.commands'
-import { env, runtime } from '@pnpm/runtime.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
+import { init } from '@pnpm/workspace.commands'
 import { pick } from 'ramda'
 
 import { parseCliArgs } from '../parseCliArgs.js'

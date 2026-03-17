@@ -31,7 +31,7 @@
       "path": "../cafs-types"
     },
     {
-      "path": "../store-controller-types"
+      "path": "../controller-types"
     }
   ]
 }

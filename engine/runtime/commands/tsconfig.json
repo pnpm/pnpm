@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../../cli/cli-utils"
+      "path": "../../../cli/utils"
     },
     {
-      "path": "../../../config/config"
+      "path": "../../../config/reader"
     },
     {
       "path": "../../../exec/pnpm-cli-runner"

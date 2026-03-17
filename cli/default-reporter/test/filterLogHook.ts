@@ -1,5 +1,5 @@
+import { toOutput$ } from '@pnpm/cli.default-reporter'
 import type { Log } from '@pnpm/core-loggers'
-import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser, logger } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
 

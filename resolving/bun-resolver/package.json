@@ -34,13 +34,13 @@
   "dependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.shasums-file": "workspace:*",
+    "@pnpm/engine.runtime.node.fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
     "@pnpm/fetching.binary-fetcher": "workspace:*",
-    "@pnpm/node.fetcher": "workspace:*",
-    "@pnpm/npm-resolver": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "semver": "catalog:"

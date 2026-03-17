@@ -1,4 +1,4 @@
-import { createMatcher, createMatcherWithIndex } from '@pnpm/matcher'
+import { createMatcher, createMatcherWithIndex } from '@pnpm/config.matcher'
 
 test('matcher()', () => {
   {

@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { addDependenciesToPackage } from '@pnpm/core'
+import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag, getIntegrity } from '@pnpm/registry-mock'
 

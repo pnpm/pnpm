@@ -1,4 +1,4 @@
-import { parse as parseDepPath } from '@pnpm/dependency-path'
+import { parse as parseDepPath } from '@pnpm/deps.path'
 import type { ProjectId } from '@pnpm/types'
 
 export function extendProjectsWithTargetDirs<T> (

@@ -52,7 +52,7 @@
       "path": "../fetcher-base"
     },
     {
-      "path": "../fetching-types"
+      "path": "../types"
     }
   ]
 }

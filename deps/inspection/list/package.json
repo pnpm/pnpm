@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/list",
+  "name": "@pnpm/deps.inspection.list",
   "version": "1000.1.3",
   "description": "List installed packages in a symlinked `node_modules`",
   "keywords": [
@@ -30,25 +30,25 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepareFixtures": "cd test && node ../../pnpm recursive install --no-link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
     "prepublishOnly": "pnpm run compile",
-    "pretest": "pnpm run --filter dependencies-hierarchy pretest",
+    "pretest": "pnpm run --filter tree-builder pretest",
     "_test": "pnpm pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/deps.inspection.tree-builder": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
+    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
     "@pnpm/text.tree-renderer": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "chalk": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/list": "workspace:*",
+    "@pnpm/deps.inspection.list": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:"
   },

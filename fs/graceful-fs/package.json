@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/graceful-fs",
+  "name": "@pnpm/fs.graceful-fs",
   "version": "1000.0.1",
   "description": "Promisified graceful-fs",
   "keywords": [
@@ -33,7 +33,7 @@
     "graceful-fs": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "@types/graceful-fs": "catalog:"
   },
   "engines": {

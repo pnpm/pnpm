@@ -19,10 +19,10 @@
       "path": "../../config/version-policy"
     },
     {
-      "path": "../../deps/calc-dep-state"
+      "path": "../../deps/graph-hasher"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/path"
     },
     {
       "path": "../../deps/peer-range"
@@ -67,10 +67,10 @@
       "path": "../../patching/types"
     },
     {
-      "path": "../../pkg-manifest/manifest-utils"
+      "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/utils"
     },
     {
       "path": "../../resolving/npm-resolver"
@@ -79,7 +79,7 @@
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/controller-types"
     },
     {
       "path": "../../workspace/spec-parser"

@@ -31,11 +31,11 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/config.matcher": "workspace:*",
+    "@pnpm/config.parse-overrides": "workspace:*",
+    "@pnpm/deps.peer-range": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/matcher": "workspace:*",
-    "@pnpm/parse-overrides": "workspace:*",
-    "@pnpm/parse-wanted-dependency": "workspace:*",
-    "@pnpm/semver.peer-range": "workspace:*",
+    "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@yarnpkg/extensions": "catalog:",
     "normalize-path": "catalog:",

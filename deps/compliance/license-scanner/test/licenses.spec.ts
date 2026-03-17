@@ -43,7 +43,7 @@ jest.unstable_mockModule('../lib/getPkgInfo.js', () => {
   }
 })
 
-const { findDependencyLicenses } = await import('@pnpm/license-scanner')
+const { findDependencyLicenses } = await import('@pnpm/deps.compliance.license-scanner')
 
 describe('licences', () => {
   test('findDependencyLicenses()', async () => {

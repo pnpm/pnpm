@@ -4,8 +4,11 @@ import { buildProjects } from '@pnpm/building.after-install'
 import {
   readProjectManifestOnly,
   tryReadProjectManifest,
-} from '@pnpm/cli-utils'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
+} from '@pnpm/cli.utils'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config.reader'
+import { checkDepsStatus } from '@pnpm/deps.status'
+import { PnpmError } from '@pnpm/error'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   IgnoredBuildsError,
   install,
@@ -13,17 +16,12 @@ import {
   type MutateModulesOptions,
   type UpdateMatchingFunction,
   type WorkspacePackages,
-} from '@pnpm/core'
-import { checkDepsStatus } from '@pnpm/deps.status'
-import { PnpmError } from '@pnpm/error'
-import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+} from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
-import { filterDependenciesByType } from '@pnpm/manifest-utils'
-import type { PreferredVersions, VersionSelectors } from '@pnpm/resolver-base'
-import { sequenceGraph } from '@pnpm/sort-packages'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
+import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type {
   IncludedDependencies,
   PackageVulnerabilityAudit,
@@ -32,10 +30,12 @@ import type {
   ProjectsGraph,
   VulnerabilitySeverity,
 } from '@pnpm/types'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
+import { filterPkgsBySelectorObjects } from '@pnpm/workspace.projects-filter'
+import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
+import { sequenceGraph } from '@pnpm/workspace.sort-packages'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
@@ -478,7 +478,7 @@ function severityStringToNumber (severity: VulnerabilitySeverity): number {
 
 function getVulnerabilityPenalty (severity: VulnerabilitySeverity): number {
   switch (severity) {
-  case 'low': return -1100 // 100 more than DIRECT_DEP_SELECTOR_WEIGHT from @pnpm/resolver-base
+  case 'low': return -1100 // 100 more than DIRECT_DEP_SELECTOR_WEIGHT from @pnpm/resolving.resolver-base
   case 'moderate': return -2000
   case 'high': return -3000
   case 'critical': return -4000

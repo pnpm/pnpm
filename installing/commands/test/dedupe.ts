@@ -1,13 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { DedupeCheckIssuesError } from '@pnpm/dedupe.check'
+import { dedupe, install } from '@pnpm/installing.commands'
+import { DedupeCheckIssuesError } from '@pnpm/installing.dedupe.check'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { dedupe, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { diff } from 'jest-diff'
 import { readYamlFileSync } from 'read-yaml-file'
 
@@ -146,7 +146,7 @@ async function testFixture (fixtureName: string) {
   const project = prepare(undefined)
   f.copy(fixtureName, project.dir())
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(project.dir(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(project.dir(), [])
 
   const opts = {
     ...DEFAULT_OPTS,

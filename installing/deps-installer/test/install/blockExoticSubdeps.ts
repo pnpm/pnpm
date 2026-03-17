@@ -1,4 +1,4 @@
-import { addDependenciesToPackage } from '@pnpm/core'
+import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import nock from 'nock'
 
@@ -20,7 +20,7 @@ test('blockExoticSubdeps disallows git dependencies in subdependencies', async (
 })
 
 test('blockExoticSubdeps allows git dependencies in direct dependencies', async () => {
-  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes to check if the repo is public.
+  // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes to check if the repo is public.
   // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
   // resolving via the codeload tarball URL.
   const githubNock = nock('https://github.com', { allowUnmocked: true })

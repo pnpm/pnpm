@@ -1,5 +1,5 @@
-import { docsUrl } from '@pnpm/cli-utils'
-import type { Config } from '@pnpm/config'
+import { docsUrl } from '@pnpm/cli.utils'
+import type { Config } from '@pnpm/config.reader'
 import { logger } from '@pnpm/logger'
 import { renderHelp } from 'render-help'
 

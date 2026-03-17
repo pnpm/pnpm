@@ -1,4 +1,4 @@
-import { docsUrl } from '@pnpm/cli-utils'
+import { docsUrl } from '@pnpm/cli.utils'
 import { PnpmError } from '@pnpm/error'
 import { renderHelp } from 'render-help'
 

@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-installation": patch
+"@pnpm/installing.commands": patch
 "@pnpm/releasing.commands": patch
 pnpm: patch
 ---

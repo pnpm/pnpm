@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import type { PnpmError } from '@pnpm/error'
-import { add, remove } from '@pnpm/plugin-commands-installation'
+import { add, remove } from '@pnpm/installing.commands'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { ProjectManifest } from '@pnpm/types'

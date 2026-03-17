@@ -1,5 +1,5 @@
-import { fetch } from '@pnpm/fetch'
 import { globalInfo } from '@pnpm/logger'
+import { fetch } from '@pnpm/network.fetch'
 import ciInfo from 'ci-info'
 
 import type { AuthTokenContext } from '../authToken.js'

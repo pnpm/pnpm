@@ -1,11 +1,11 @@
 import { jest } from '@jest/globals'
 
-jest.unstable_mockModule('@pnpm/run-npm', () => ({
+jest.unstable_mockModule('@pnpm/exec.run-npm', () => ({
   runNpm: jest.fn(),
 }))
 
-const { config } = await import('@pnpm/plugin-commands-config')
-const { runNpm } = await import('@pnpm/run-npm')
+const { config } = await import('@pnpm/config.commands')
+const { runNpm } = await import('@pnpm/exec.run-npm')
 
 describe.each(
   [

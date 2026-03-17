@@ -2,10 +2,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { addDependenciesToPackage, install } from '@pnpm/core'
+import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
-import type { VariationsResolution } from '@pnpm/resolver-base'
+import type { VariationsResolution } from '@pnpm/resolving.resolver-base'
 import { rimrafSync } from '@zkochan/rimraf'
 import { writeYamlFileSync } from 'write-yaml-file'
 

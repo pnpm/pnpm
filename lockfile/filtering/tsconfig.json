@@ -13,7 +13,7 @@
       "path": "../../config/package-is-installable"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/path"
     },
     {
       "path": "../../packages/constants"

@@ -5,10 +5,10 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { STORE_VERSION } from '@pnpm/constants'
 import { licenses } from '@pnpm/deps.compliance.commands'
-import { install } from '@pnpm/plugin-commands-installation'
+import { install } from '@pnpm/installing.commands'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -128,7 +128,7 @@ test('pnpm licenses: path should be correct for workspaces', async () => {
   f.copy('workspace-licenses', workspaceDir)
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } =
-    await filterPackagesFromDir(workspaceDir, [])
+    await filterPkgsBySelectorObjectsFromDir(workspaceDir, [])
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
@@ -178,7 +178,7 @@ test('pnpm licenses: filter outputs', async () => {
   f.copy('workspace-licenses', workspaceDir)
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } =
-    await filterPackagesFromDir(workspaceDir, [])
+    await filterPkgsBySelectorObjectsFromDir(workspaceDir, [])
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({

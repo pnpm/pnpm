@@ -14,22 +14,22 @@
       "path": "../../../__utils__/prepare"
     },
     {
-      "path": "../../../bins/link-bins"
+      "path": "../../../bins/linker"
     },
     {
-      "path": "../../../cli/cli-meta"
+      "path": "../../../cli/meta"
     },
     {
-      "path": "../../../cli/cli-utils"
-    },
-    {
-      "path": "../../../config/config"
+      "path": "../../../cli/utils"
     },
     {
       "path": "../../../config/deps-installer"
     },
     {
-      "path": "../../../deps/calc-dep-state"
+      "path": "../../../config/reader"
+    },
+    {
+      "path": "../../../deps/graph-hasher"
     },
     {
       "path": "../../../global/commands"
@@ -56,19 +56,19 @@
       "path": "../../../packages/types"
     },
     {
-      "path": "../../../pkg-manifest/read-project-manifest"
-    },
-    {
       "path": "../../../resolving/npm-resolver"
     },
     {
       "path": "../../../shell/path"
     },
     {
-      "path": "../../../store/package-store"
+      "path": "../../../store/connection-manager"
     },
     {
-      "path": "../../../store/store-connection-manager"
+      "path": "../../../store/controller"
+    },
+    {
+      "path": "../../../workspace/project-manifest-reader"
     }
   ]
 }

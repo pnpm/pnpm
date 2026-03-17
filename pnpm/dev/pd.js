@@ -4,9 +4,9 @@ import esbuild from 'esbuild'
 import pathLib from 'path'
 import childProcess from 'child_process'
 import { createRequire } from 'module'
-import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
-import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(import.meta.dirname, 'package.json'), 'utf8'))
 
@@ -25,7 +25,7 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(import.meta.dirn
   const spnpmImportsPlugin = {
     name: 'spnpmImports',
     setup: (build) => {
-      // E.g. @pnpm/config -> /<some_dir>/pnpm/packages/config/src/index.ts
+      // E.g. @pnpm/config.reader -> /<some_dir>/pnpm/packages/config/src/index.ts
       build.onResolve({ filter: /@pnpm\// }, ({ path }) => {
         // Bail if the package isn't present locally
         if (!localPackages.includes(path)) {

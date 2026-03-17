@@ -1,9 +1,9 @@
-import { TABLE_OPTIONS } from '@pnpm/cli-utils'
-import { PnpmError } from '@pnpm/error'
+import { TABLE_OPTIONS } from '@pnpm/cli.utils'
 import {
   outdatedDepsOfProjects,
   type OutdatedPackage,
-} from '@pnpm/outdated'
+} from '@pnpm/deps.inspection.outdated'
+import { PnpmError } from '@pnpm/error'
 import type {
   DependenciesField,
   IncludedDependencies,

@@ -1,9 +1,9 @@
-import { docsUrl } from '@pnpm/cli-utils'
-import { type Config, types as allTypes } from '@pnpm/config'
+import { docsUrl } from '@pnpm/cli.utils'
+import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { type LogBase, logger } from '@pnpm/logger'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { getStorePath } from '@pnpm/store-path'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
+import { getStorePath } from '@pnpm/store.path'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 

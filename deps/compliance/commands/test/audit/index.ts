@@ -1,9 +1,9 @@
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
-import { AuditEndpointNotExistsError } from '@pnpm/audit'
+import { AuditEndpointNotExistsError } from '@pnpm/deps.compliance.audit'
 import { audit } from '@pnpm/deps.compliance.commands'
-import { install } from '@pnpm/plugin-commands-installation'
+import { install } from '@pnpm/installing.commands'
 import { fixtures } from '@pnpm/test-fixtures'
 import nock from 'nock'
 

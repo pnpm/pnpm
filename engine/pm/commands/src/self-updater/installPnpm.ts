@@ -2,12 +2,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import { linkBins } from '@pnpm/bins.linker'
+import { getCurrentPackageName } from '@pnpm/cli.meta'
 import {
   iterateHashedGraphNodes,
   iteratePkgMeta,
   lockfileToDepGraph,
-} from '@pnpm/calc-dep-state'
-import { getCurrentPackageName } from '@pnpm/cli-meta'
+} from '@pnpm/deps.graph-hasher'
 import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
 import {
   cleanOrphanedInstallDirs,
@@ -16,10 +17,9 @@ import {
   findGlobalPackage,
   getHashLink,
 } from '@pnpm/global.packages'
-import { headlessInstall } from '@pnpm/headless'
-import { linkBins } from '@pnpm/link-bins'
+import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
-import type { StoreController } from '@pnpm/package-store'
+import type { StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
 import symlinkDir from 'symlink-dir'
 

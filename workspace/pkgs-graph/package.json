@@ -32,9 +32,9 @@
   },
   "dependencies": {
     "@pnpm/npm-package-arg": "catalog:",
-    "@pnpm/npm-resolver": "workspace:*",
-    "@pnpm/resolve-workspace-range": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.range-resolver": "workspace:*",
     "ramda": "catalog:"
   },
   "devDependencies": {

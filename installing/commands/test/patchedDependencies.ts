@@ -17,7 +17,7 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 })
 
 const { globalWarn } = await import('@pnpm/logger')
-const { add, install } = await import('@pnpm/plugin-commands-installation')
+const { add, install } = await import('@pnpm/installing.commands')
 
 beforeEach(() => {
   jest.mocked(globalWarn).mockClear()

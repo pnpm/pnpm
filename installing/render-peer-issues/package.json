@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/render-peer-issues",
+  "name": "@pnpm/installing.render-peer-issues",
   "version": "1002.0.5",
   "description": "Visualizes peer dependency issues",
   "keywords": [
@@ -38,7 +38,7 @@
     "cli-columns": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/render-peer-issues": "workspace:*"
+    "@pnpm/installing.render-peer-issues": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

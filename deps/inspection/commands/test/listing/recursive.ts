@@ -3,10 +3,10 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { list, why } from '@pnpm/deps.inspection.commands'
 import type { PnpmError } from '@pnpm/error'
-import { install } from '@pnpm/plugin-commands-installation'
+import { install } from '@pnpm/installing.commands'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -35,7 +35,7 @@ test('recursive list', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -103,7 +103,7 @@ test('recursive list with sharedWorkspaceLockfile', async () => {
     sharedWorkspaceLockfile: true,
   })
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -175,7 +175,7 @@ test('recursive list --filter', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), []),
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
     cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     recursive: true,
@@ -186,7 +186,7 @@ test('recursive list --filter', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     recursive: true,
-    ...await filterPackagesFromDir(process.cwd(), [
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [
       { includeDependencies: true, namePattern: 'project-1' },
     ]),
   }, [])
@@ -233,7 +233,7 @@ test('recursive list --filter link-workspace-packages=false', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), [], { linkWorkspacePackages: false }),
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [], { linkWorkspacePackages: false }),
     cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     linkWorkspacePackages: false,
@@ -245,7 +245,7 @@ test('recursive list --filter link-workspace-packages=false', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     recursive: true,
-    ...await filterPackagesFromDir(process.cwd(), [
+    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [
       { includeDependencies: true, namePattern: 'project-1' },
     ], { linkWorkspacePackages: false }),
   }, [])
@@ -268,7 +268,7 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
   try {
     await why.handler({
       ...DEFAULT_OPTS,
-      ...await filterPackagesFromDir(process.cwd(), []),
+      ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
       dir: process.cwd(),
       recursive: true,
     }, [])

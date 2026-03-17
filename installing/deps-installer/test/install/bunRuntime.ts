@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { addDependenciesToPackage, install } from '@pnpm/core'
+import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'

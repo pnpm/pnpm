@@ -10,28 +10,28 @@
   ],
   "references": [
     {
-      "path": "../../bins/link-bins"
-    },
-    {
-      "path": "../../config/config"
+      "path": "../../bins/linker"
     },
     {
       "path": "../../config/normalize-registries"
     },
     {
-      "path": "../../deps/calc-dep-state"
+      "path": "../../config/reader"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/graph-hasher"
     },
     {
       "path": "../../deps/graph-sequencer"
     },
     {
+      "path": "../../deps/path"
+    },
+    {
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../installing/get-context"
+      "path": "../../installing/context"
     },
     {
       "path": "../../installing/modules-yaml"
@@ -64,13 +64,13 @@
       "path": "../../store/cafs"
     },
     {
+      "path": "../../store/connection-manager"
+    },
+    {
+      "path": "../../store/controller-types"
+    },
+    {
       "path": "../../store/index"
-    },
-    {
-      "path": "../../store/store-connection-manager"
-    },
-    {
-      "path": "../../store/store-controller-types"
     },
     {
       "path": "../../worker"

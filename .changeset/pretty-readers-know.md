@@ -1,6 +1,6 @@
 ---
-"@pnpm/run-npm": minor
-"@pnpm/plugin-commands-config": patch
+"@pnpm/exec.run-npm": minor
+"@pnpm/config.commands": patch
 "pnpm": patch
 ---
 

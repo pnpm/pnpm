@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/mount-modules",
+  "name": "@pnpm/modules-mounter.daemon",
   "version": "1001.0.34",
   "description": "Mounts a node_modules directory with FUSE",
   "keywords": [
@@ -36,14 +36,14 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
+    "@pnpm/store.path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "hyperdrive-schemas": "catalog:",
     "normalize-path": "catalog:"
@@ -58,7 +58,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/mount-modules": "workspace:*",
+    "@pnpm/modules-mounter.daemon": "workspace:*",
     "@types/normalize-path": "catalog:",
     "rimraf": "catalog:"
   },

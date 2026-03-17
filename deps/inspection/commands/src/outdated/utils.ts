@@ -1,4 +1,4 @@
-import type { OutdatedPackage } from '@pnpm/outdated'
+import type { OutdatedPackage } from '@pnpm/deps.inspection.outdated'
 import type { SEMVER_CHANGE } from '@pnpm/semver-diff'
 
 export interface OutdatedWithVersionDiff extends OutdatedPackage {

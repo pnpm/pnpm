@@ -1,6 +1,6 @@
 import type { Catalog } from '@pnpm/catalogs.types'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import type { WantedDependency } from '@pnpm/resolve-dependencies'
+import type { WantedDependency } from '@pnpm/installing.resolve-dependencies'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { Dependencies } from '@pnpm/types'
 
 export function parseWantedDependencies (

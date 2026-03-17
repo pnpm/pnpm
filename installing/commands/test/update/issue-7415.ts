@@ -3,12 +3,12 @@ import path from 'node:path'
 import { jest } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 
 const { default: enquirer } = await import('enquirer')
-const { update, install } = await import('@pnpm/plugin-commands-installation')
+const { update, install } = await import('@pnpm/installing.commands')
 
 const prompt = jest.mocked(enquirer.prompt)
 
@@ -71,7 +71,7 @@ test('interactive recursive should not error on git specifier override', async (
     updateDependencies: [],
   })
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
   const sharedOptions = {
     ...DEFAULT_OPTIONS,
     allProjects,

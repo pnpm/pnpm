@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/naming-cases",
+  "name": "@pnpm/text.naming-cases",
   "version": "1100.0.0-0",
   "description": "manipulate and check naming cases",
   "keywords": [
@@ -32,7 +32,7 @@
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "devDependencies": {
-    "@pnpm/naming-cases": "workspace:*"
+    "@pnpm/text.naming-cases": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

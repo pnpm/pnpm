@@ -3,7 +3,7 @@ import { LOCKFILE_VERSION } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
   type PackageManifest,
-} from '@pnpm/core'
+} from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'

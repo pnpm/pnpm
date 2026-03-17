@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 
-import type { Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import type { ExportedManifest } from '@pnpm/exportable-manifest'
 import { globalInfo, globalWarn } from '@pnpm/logger'
+import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import { publish, type PublishOptions } from 'libnpmpublish'
 
 import { displayError } from './displayError.js'

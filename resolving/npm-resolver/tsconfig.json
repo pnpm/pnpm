@@ -22,7 +22,7 @@
       "path": "../../crypto/hash"
     },
     {
-      "path": "../../fetching/fetching-types"
+      "path": "../../fetching/types"
     },
     {
       "path": "../../fs/graceful-fs"
@@ -55,7 +55,7 @@
       "path": "../../worker"
     },
     {
-      "path": "../../workspace/resolve-workspace-range"
+      "path": "../../workspace/range-resolver"
     },
     {
       "path": "../../workspace/spec-parser"

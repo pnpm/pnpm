@@ -1,6 +1,6 @@
 ---
-"@pnpm/reviewing.dependencies-hierarchy": minor
-"@pnpm/list": minor
+"@pnpm/deps.inspection.tree-builder": minor
+"@pnpm/deps.inspection.list": minor
 "@pnpm/deps.inspection.commands": minor
 "pnpm": minor
 ---

@@ -25,7 +25,7 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 })
 
 const { logger } = await import('@pnpm/logger')
-const { install, link } = await import('@pnpm/plugin-commands-installation')
+const { install, link } = await import('@pnpm/installing.commands')
 
 const f = fixtures(import.meta.dirname)
 

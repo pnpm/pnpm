@@ -4,8 +4,8 @@ import {
   addDependenciesToPackage,
   install,
   mutateModulesInSingleProject,
-} from '@pnpm/core'
-import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
+} from '@pnpm/installing.deps-installer'
+import { readModulesManifest, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 

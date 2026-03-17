@@ -16,7 +16,7 @@
       "path": "../../resolving/npm-resolver"
     },
     {
-      "path": "../resolve-workspace-range"
+      "path": "../range-resolver"
     }
   ]
 }

@@ -1,21 +1,20 @@
 import { createReadStream, promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import type { Cafs } from '@pnpm/cafs-types'
+import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
-import { depPathToFilename } from '@pnpm/dependency-path'
+import { depPathToFilename } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type {
   DirectoryFetcherResult,
   Fetchers,
   FetchOptions,
   FetchResult,
-} from '@pnpm/fetcher-base'
-import gfs from '@pnpm/graceful-fs'
+} from '@pnpm/fetching.fetcher-base'
+import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
+import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
-import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { pickFetcher } from '@pnpm/pick-fetcher'
 import type {
   AtomicResolution,
   DirectoryResolution,
@@ -25,11 +24,11 @@ import type {
   ResolveFunction,
   ResolveResult,
   TarballResolution,
-} from '@pnpm/resolver-base'
+} from '@pnpm/resolving.resolver-base'
 import {
   normalizeBundledManifest,
 } from '@pnpm/store.cafs'
-import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
+import type { Cafs } from '@pnpm/store.cafs-types'
 import type {
   BundledManifest,
   FetchPackageToStoreFunction,
@@ -41,7 +40,8 @@ import type {
   RequestPackageFunction,
   RequestPackageOptions,
   WantedDependency,
-} from '@pnpm/store-controller-types'
+} from '@pnpm/store.controller-types'
+import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
 import type { DependencyManifest, SupportedArchitectures } from '@pnpm/types'
 import {
   calcMaxWorkers,

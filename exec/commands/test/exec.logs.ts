@@ -17,8 +17,8 @@ jest.unstable_mockModule('@pnpm/logger', () => {
   }
 })
 
-const { filterPackagesFromDir } = await import('@pnpm/workspace.filter-packages-from-dir')
-const { exec } = await import('@pnpm/plugin-commands-script-runners')
+const { filterPkgsBySelectorObjectsFromDir } = await import('@pnpm/workspace.projects-filter')
+const { exec } = await import('@pnpm/exec.commands')
 
 afterEach(() => {
   jest.mocked(debug).mockClear()
@@ -40,7 +40,7 @@ test('pnpm exec --recursive --no-reporter-hide-prefix prints prefixes', async ()
     packages: ['packages/*'],
   })
 
-  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
 
   const scriptFile = path.resolve('script.js')
   fs.writeFileSync(scriptFile, `
@@ -103,7 +103,7 @@ test('pnpm exec --recursive --reporter-hide-prefix does not print prefixes', asy
     packages: ['packages/*'],
   })
 
-  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
 
   const scriptFile = path.resolve('script.js')
   fs.writeFileSync(scriptFile, `
@@ -140,7 +140,7 @@ test('pnpm exec --recursive does not print prefixes by default', async () => {
     packages: ['packages/*'],
   })
 
-  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
 
   const scriptFile = path.resolve('script.js')
   fs.writeFileSync(scriptFile, `

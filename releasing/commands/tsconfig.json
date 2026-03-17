@@ -22,7 +22,7 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../bins/package-bins"
+      "path": "../../bins/resolver"
     },
     {
       "path": "../../catalogs/config"
@@ -31,19 +31,19 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../cli/cli-utils"
-    },
-    {
       "path": "../../cli/common-cli-options-help"
     },
     {
-      "path": "../../config/config"
+      "path": "../../cli/utils"
     },
     {
       "path": "../../config/pick-registry-for-package"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../deps/path"
     },
     {
       "path": "../../engine/runtime/commands"
@@ -97,16 +97,16 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manifest/exportable-manifest"
-    },
-    {
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../../workspace/filter-packages-from-dir"
+      "path": "../../workspace/projects-filter"
     },
     {
       "path": "../../workspace/sort-packages"
+    },
+    {
+      "path": "../exportable-manifest"
     }
   ]
 }

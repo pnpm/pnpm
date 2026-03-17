@@ -1,6 +1,6 @@
 ---
-"@pnpm/resolve-dependencies": patch
-"@pnpm/core": patch
+"@pnpm/installing.resolve-dependencies": patch
+"@pnpm/installing.deps-installer": patch
 "pnpm": patch
 ---
 

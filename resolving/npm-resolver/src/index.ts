@@ -1,14 +1,13 @@
 import path from 'node:path'
 
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import type {
   FetchFromRegistry,
   GetAuthHeader,
   RetryTimeoutOptions,
-} from '@pnpm/fetching-types'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import type { PackageInRegistry, PackageMeta } from '@pnpm/registry.types'
-import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
+} from '@pnpm/fetching.types'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
   PkgResolutionId,
@@ -19,7 +18,7 @@ import type {
   WorkspacePackage,
   WorkspacePackages,
   WorkspacePackagesByVersion,
-} from '@pnpm/resolver-base'
+} from '@pnpm/resolving.resolver-base'
 import { storeIndexKey } from '@pnpm/store.index'
 import type {
   DependencyManifest,
@@ -31,6 +30,7 @@ import type {
 import {
   readPkgFromCafs,
 } from '@pnpm/worker'
+import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'

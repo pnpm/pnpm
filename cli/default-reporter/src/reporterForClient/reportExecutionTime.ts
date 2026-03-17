@@ -1,4 +1,4 @@
-import { packageManager } from '@pnpm/cli-meta'
+import { packageManager } from '@pnpm/cli.meta'
 import type { ExecutionTimeLog } from '@pnpm/core-loggers'
 import prettyMs from 'pretty-ms'
 import * as Rx from 'rxjs'

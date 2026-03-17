@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../../bins/remove-bins"
+      "path": "../../../bins/remover"
     },
     {
-      "path": "../../../deps/dependency-path"
+      "path": "../../../deps/path"
     },
     {
       "path": "../../../fs/read-modules-dir"
@@ -37,7 +37,7 @@
       "path": "../../../packages/types"
     },
     {
-      "path": "../../../store/store-controller-types"
+      "path": "../../../store/controller-types"
     }
   ]
 }

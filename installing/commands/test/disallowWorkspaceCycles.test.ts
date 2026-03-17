@@ -1,7 +1,7 @@
 import type { PnpmError } from '@pnpm/error'
-import { install } from '@pnpm/plugin-commands-installation'
+import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -19,7 +19,7 @@ test('should error if disallow-workspace-cycles is set', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
 
   let err!: PnpmError
   try {
@@ -52,7 +52,7 @@ test('should not error if disallow-workspace-cycles is not set', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
 
   let err!: PnpmError
   try {
@@ -83,7 +83,7 @@ test('should not error if there are no cyclic dependencies', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
 
   let err!: PnpmError
   try {

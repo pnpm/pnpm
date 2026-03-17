@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { docsUrl } from '@pnpm/cli-utils'
-import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
+import { docsUrl } from '@pnpm/cli.utils'
+import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.projects-reader'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
 import { pathExists } from 'path-exists'

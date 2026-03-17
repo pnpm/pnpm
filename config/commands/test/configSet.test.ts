@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { config } from '@pnpm/config.commands'
 import { PnpmError } from '@pnpm/error'
-import { config } from '@pnpm/plugin-commands-config'
 import { tempDir } from '@pnpm/prepare'
 import { readIniFileSync } from 'read-ini-file'
 import { readYamlFileSync } from 'read-yaml-file'

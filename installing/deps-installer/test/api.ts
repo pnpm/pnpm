@@ -1,4 +1,4 @@
-import * as pnpm from '@pnpm/core'
+import * as pnpm from '@pnpm/installing.deps-installer'
 
 import { testDefaults } from './utils/index.js'
 

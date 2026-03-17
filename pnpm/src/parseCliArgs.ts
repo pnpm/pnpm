@@ -1,4 +1,4 @@
-import { parseCliArgs as parseCliArgsLib, type ParsedCliArgs } from '@pnpm/parse-cli-args'
+import { parseCliArgs as parseCliArgsLib, type ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
 
 import {
   getCliOptionsTypes,

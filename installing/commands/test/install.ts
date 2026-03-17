@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { STORE_VERSION } from '@pnpm/constants'
-import { add, install } from '@pnpm/plugin-commands-installation'
+import { add, install } from '@pnpm/installing.commands'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { rimrafSync } from '@zkochan/rimraf'
 import delay from 'delay'

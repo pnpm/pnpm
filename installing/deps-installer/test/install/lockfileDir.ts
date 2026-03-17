@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
+import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'

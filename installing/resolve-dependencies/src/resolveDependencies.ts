@@ -6,7 +6,7 @@ import {
   progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import * as dp from '@pnpm/dependency-path'
+import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import type {
@@ -19,9 +19,9 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { convertEnginesRuntimeToDependencies } from '@pnpm/manifest-utils'
 import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
+import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   type DirectoryResolution,
@@ -29,12 +29,12 @@ import {
   type PreferredVersions,
   type Resolution,
   type WorkspacePackages,
-} from '@pnpm/resolver-base'
+} from '@pnpm/resolving.resolver-base'
 import type {
   PackageResponse,
   PkgRequestFetchResult,
   StoreController,
-} from '@pnpm/store-controller-types'
+} from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   AllowedDeprecatedVersions,

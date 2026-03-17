@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import type { StoreController } from '@pnpm/store-controller-types'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
+import type { StoreController } from '@pnpm/store.controller-types'
 import type { SupportedArchitectures } from '@pnpm/types'
 
 import type { ReporterFunction } from './types.js'

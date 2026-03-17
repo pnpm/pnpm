@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
@@ -18,17 +19,26 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
-import * as dp from '@pnpm/dependency-path'
+import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
-import { getContext, type PnpmContext } from '@pnpm/get-context'
-import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/headless'
 import {
   makeNodeRequireOption,
   runLifecycleHook,
   runLifecycleHooksConcurrently,
   type RunLifecycleHooksConcurrentlyOptions,
-} from '@pnpm/lifecycle'
-import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
+} from '@pnpm/exec.lifecycle'
+import { getContext, type PnpmContext } from '@pnpm/installing.context'
+import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
+import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
+import {
+  type DependenciesGraph,
+  type DependenciesGraphNode,
+  getWantedDependencies,
+  type PinnedVersion,
+  resolveDependencies,
+  type UpdateMatchingFunction,
+  type WantedDependency,
+} from '@pnpm/installing.resolve-dependencies'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
@@ -44,25 +54,14 @@ import {
   createOverridesMapFromParsed,
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
+import { writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
-import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
-import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
-import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
-import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import {
-  type DependenciesGraph,
-  type DependenciesGraphNode,
-  getWantedDependencies,
-  type PinnedVersion,
-  resolveDependencies,
-  type UpdateMatchingFunction,
-  type WantedDependency,
-} from '@pnpm/resolve-dependencies'
+import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
 import type {
   PreferredVersions,
-} from '@pnpm/resolver-base'
+} from '@pnpm/resolving.resolver-base'
 import type {
   AllowBuild,
   DependenciesField,
@@ -76,6 +75,7 @@ import type {
   ReadPackageHook,
 } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import { clone, isEmpty, map as mapValues, pipeWith, props } from 'ramda'

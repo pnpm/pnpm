@@ -1,7 +1,7 @@
 import { getNodeBinsForCurrentOS } from '@pnpm/constants'
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
-import type { FetchFromRegistry } from '@pnpm/fetching-types'
+import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type {
   BinaryResolution,
   PlatformAssetResolution,
@@ -10,7 +10,7 @@ import type {
   ResolveResult,
   VariationsResolution,
   WantedDependency,
-} from '@pnpm/resolver-base'
+} from '@pnpm/resolving.resolver-base'
 import type { PkgResolutionId } from '@pnpm/types'
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'

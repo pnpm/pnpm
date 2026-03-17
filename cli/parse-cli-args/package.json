@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/parse-cli-args",
+  "name": "@pnpm/cli.parse-cli-args",
   "version": "1000.1.4",
   "description": "Parses the CLI args passed to pnpm",
   "keywords": [
@@ -33,12 +33,12 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/nopt": "catalog:",
+    "@pnpm/workspace.root-finder": "workspace:*",
     "didyoumean2": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/parse-cli-args": "workspace:*",
+    "@pnpm/cli.parse-cli-args": "workspace:*",
     "tempy": "catalog:"
   },
   "engines": {

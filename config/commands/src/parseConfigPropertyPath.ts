@@ -1,4 +1,4 @@
-import { types } from '@pnpm/config'
+import { types } from '@pnpm/config.reader'
 import { parsePropertyPath } from '@pnpm/object.property-path'
 import kebabCase from 'lodash.kebabcase'
 

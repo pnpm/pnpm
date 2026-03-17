@@ -4,13 +4,13 @@ import path from 'node:path'
 import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import {
   addDependenciesToPackage,
   type MutatedProject,
   mutateModules,
   mutateModulesInSingleProject,
-} from '@pnpm/core'
-import { createPeerDepGraphHash } from '@pnpm/dependency-path'
+} from '@pnpm/installing.deps-installer'
 import { readCurrentLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'

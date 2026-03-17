@@ -16,7 +16,7 @@ jest.unstable_mockModule('fs', () => ({
 }))
 const fs = await import('node:fs')
 const { cleanExpiredDlxCache, cleanOrphans } = await import('../../src/store/cleanExpiredDlxCache.js')
-const { dlx } = await import('@pnpm/plugin-commands-script-runners')
+const { dlx } = await import('@pnpm/exec.commands')
 
 beforeEach(() => {
   jest.mocked(fs.readdirSync).mockClear()

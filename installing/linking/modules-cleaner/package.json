@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/modules-cleaner",
+  "name": "@pnpm/installing.linking.modules-cleaner",
   "version": "1001.0.23",
   "description": "Exports util functions to clean up node_modules",
   "keywords": [
@@ -31,14 +31,14 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/bins.remover": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/lockfile.filtering": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/read-modules-dir": "workspace:*",
-    "@pnpm/remove-bins": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "ramda": "catalog:"
@@ -47,8 +47,8 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/installing.linking.modules-cleaner": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/modules-cleaner": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "engines": {

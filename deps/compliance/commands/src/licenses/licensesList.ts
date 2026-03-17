@@ -1,12 +1,12 @@
 import path from 'node:path'
 
-import { readProjectManifestOnly } from '@pnpm/cli-utils'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
+import { readProjectManifestOnly } from '@pnpm/cli.utils'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { findDependencyLicenses } from '@pnpm/deps.compliance.license-scanner'
 import { PnpmError } from '@pnpm/error'
-import { findDependencyLicenses } from '@pnpm/license-scanner'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
-import { getStorePath } from '@pnpm/store-path'
+import { getStorePath } from '@pnpm/store.path'
 
 import type { LicensesCommandResult } from './LicensesCommandResult.js'
 import { renderLicences } from './outputRenderer.js'

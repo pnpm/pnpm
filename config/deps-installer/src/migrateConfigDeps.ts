@@ -1,8 +1,8 @@
-import { writeSettings } from '@pnpm/config.config-writer'
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import { createEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import type { ConfigDependencies, ConfigDependencySpecifiers, Registries } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 

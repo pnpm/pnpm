@@ -1,8 +1,8 @@
 import { jest } from '@jest/globals'
+import type { DeprecationLog } from '@pnpm/core-loggers'
 import {
   addDependenciesToPackage,
-} from '@pnpm/core'
-import type { DeprecationLog } from '@pnpm/core-loggers'
+} from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { testDefaults } from '../utils/index.js'

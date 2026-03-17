@@ -1,13 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { packageManager } from '@pnpm/cli-meta'
-import { docsUrl } from '@pnpm/cli-utils'
-import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config'
+import { packageManager } from '@pnpm/cli.meta'
+import { docsUrl } from '@pnpm/cli.utils'
+import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import type { ProjectManifest } from '@pnpm/types'
-import { writeProjectManifest } from '@pnpm/write-project-manifest'
+import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 

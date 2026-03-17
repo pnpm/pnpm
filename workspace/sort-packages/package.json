@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/sort-packages",
+  "name": "@pnpm/workspace.sort-packages",
   "version": "1000.0.11",
   "description": "Sort packages",
   "keywords": [
@@ -34,7 +34,7 @@
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/sort-packages": "workspace:*"
+    "@pnpm/workspace.sort-packages": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/real-hoist",
+  "name": "@pnpm/installing.linking.real-hoist",
   "version": "1001.0.20",
   "description": "Hoists dependencies in a node_modules created by pnpm",
   "keywords": [
@@ -32,14 +32,14 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@yarnpkg/nm": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/installing.linking.real-hoist": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
-    "@pnpm/real-hoist": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*"
   },

@@ -1,7 +1,7 @@
 import path from 'node:path'
 
-import type { PackageSelector, VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
-import { isValidPeerRange } from '@pnpm/semver.peer-range'
+import type { PackageSelector, VersionOverride as VersionOverrideBase } from '@pnpm/config.parse-overrides'
+import { isValidPeerRange } from '@pnpm/deps.peer-range'
 import type { Dependencies, PackageManifest, ReadPackageHook } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import { partition } from 'ramda'

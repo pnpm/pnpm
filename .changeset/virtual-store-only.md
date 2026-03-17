@@ -1,8 +1,8 @@
 ---
-"@pnpm/config": patch
-"@pnpm/core": minor
-"@pnpm/headless": minor
-"@pnpm/plugin-commands-installation": minor
+"@pnpm/config.reader": patch
+"@pnpm/installing.deps-installer": minor
+"@pnpm/installing.deps-restorer": minor
+"@pnpm/installing.commands": minor
 "pnpm": minor
 ---
 

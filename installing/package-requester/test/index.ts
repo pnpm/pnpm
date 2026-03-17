@@ -3,15 +3,15 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import { createClient } from '@pnpm/client'
-import { createCafsStore } from '@pnpm/create-cafs-store'
-import { depPathToFilename } from '@pnpm/dependency-path'
+import { depPathToFilename } from '@pnpm/deps.path'
+import { createClient } from '@pnpm/installing.client'
+import { createPackageRequester, type PackageResponse } from '@pnpm/installing.package-requester'
 import { streamParser } from '@pnpm/logger'
-import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PkgRequestFetchResult, PkgResolutionId, RequestPackageOptions } from '@pnpm/store.controller-types'
+import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
-import type { PkgRequestFetchResult, PkgResolutionId, RequestPackageOptions } from '@pnpm/store-controller-types'
 import { fixtures } from '@pnpm/test-fixtures'
 import { restartWorkerPool } from '@pnpm/worker'
 import delay from 'delay'
@@ -883,7 +883,7 @@ test('fetch a git package without a package.json', async () => {
   const repo = 'denolib/camelcase'
   const commit = 'aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b'
 
-  // Mock the HEAD request that isRepoPublic() in @pnpm/git-resolver makes to check if the repo is public.
+  // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes to check if the repo is public.
   // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
   // resolving via the codeload tarball URL.
   const githubNock = nock('https://github.com', { allowUnmocked: true })

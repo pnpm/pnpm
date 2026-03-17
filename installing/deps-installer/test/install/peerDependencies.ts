@@ -4,6 +4,7 @@ import path from 'node:path'
 import { jest } from '@jest/globals'
 import type { Project } from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { createPeerDepGraphHash, depPathToFilename } from '@pnpm/deps.path'
 import {
   addDependenciesToPackage,
   install,
@@ -12,8 +13,7 @@ import {
   mutateModulesInSingleProject,
   type PeerDependencyIssuesError,
   type ProjectOptions,
-} from '@pnpm/core'
-import { createPeerDepGraphHash, depPathToFilename } from '@pnpm/dependency-path'
+} from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

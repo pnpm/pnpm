@@ -31,9 +31,9 @@
     "test": "pnpm run compile"
   },
   "dependencies": {
+    "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
-    "@pnpm/package-bins": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:"
   },

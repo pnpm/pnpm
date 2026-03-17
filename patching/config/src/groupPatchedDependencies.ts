@@ -1,4 +1,4 @@
-import * as dp from '@pnpm/dependency-path'
+import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type { PatchGroup, PatchGroupRecord, PatchInfo } from '@pnpm/patching.types'
 import { validRange } from 'semver'

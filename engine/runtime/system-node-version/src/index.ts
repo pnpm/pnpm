@@ -1,4 +1,4 @@
-import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
+import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli.meta'
 import * as execa from 'execa'
 import mem from 'memoize'
 

@@ -1,5 +1,5 @@
-import { createFetchFromRegistry } from '@pnpm/fetch'
-import { getNodeMirror, parseNodeSpecifier, resolveNodeVersions } from '@pnpm/node.resolver'
+import { getNodeMirror, parseNodeSpecifier, resolveNodeVersions } from '@pnpm/engine.runtime.node.resolver'
+import { createFetchFromRegistry } from '@pnpm/network.fetch'
 
 import type { NvmNodeCommandOptions } from './node.js'
 

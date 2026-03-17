@@ -1,8 +1,8 @@
 import path from 'node:path'
 import util from 'node:util'
 
-import { readProjectManifest, type WriteProjectManifest } from '@pnpm/read-project-manifest'
-import { writeProjectManifest } from '@pnpm/write-project-manifest'
+import { readProjectManifest, type WriteProjectManifest } from '@pnpm/workspace.project-manifest-reader'
+import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 
 export async function createProjectManifestWriter (projectDir: string): Promise<WriteProjectManifest> {
   try {

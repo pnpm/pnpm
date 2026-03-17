@@ -3,16 +3,16 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import { prependDirsToPath } from '@pnpm/env.path'
 import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
+import { prependDirsToPath } from '@pnpm/shell.path'
 import spawn from 'cross-spawn'
 import nock from 'nock'
 
 const require = createRequire(import.meta.dirname)
 const pnpmTarballPath = require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-9.1.0.tgz')
 
-const actualModule = await import('@pnpm/cli-meta')
-jest.unstable_mockModule('@pnpm/cli-meta', () => {
+const actualModule = await import('@pnpm/cli.meta')
+jest.unstable_mockModule('@pnpm/cli.meta', () => {
   return {
     ...actualModule,
     packageManager: {

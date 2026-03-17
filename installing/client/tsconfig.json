@@ -22,13 +22,13 @@
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../fetching/fetching-types"
-    },
-    {
       "path": "../../fetching/git-fetcher"
     },
     {
       "path": "../../fetching/tarball-fetcher"
+    },
+    {
+      "path": "../../fetching/types"
     },
     {
       "path": "../../hooks/types"

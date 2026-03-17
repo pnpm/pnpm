@@ -2,11 +2,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { type Config, getOptionsFromRootManifest, type OptionsFromRootManifest } from '@pnpm/config'
+import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { type Config, getOptionsFromRootManifest, type OptionsFromRootManifest } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   getLockfileImporterId,
   type LockfileObject,
@@ -24,17 +25,16 @@ import {
   satisfiesPackageManifest,
 } from '@pnpm/lockfile.verification'
 import { globalWarn, logger } from '@pnpm/logger'
-import { parseOverrides } from '@pnpm/parse-overrides'
-import type { WorkspacePackages } from '@pnpm/resolver-base'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type {
   DependencyManifest,
   Project,
   ProjectId,
   ProjectManifest,
 } from '@pnpm/types'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
 import { loadWorkspaceState, updateWorkspaceState, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals, filter, isEmpty, once } from 'ramda'
 
 import { assertLockfilesEqual } from './assertLockfilesEqual.js'

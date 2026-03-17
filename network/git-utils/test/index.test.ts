@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { getCurrentBranch, isGitRepo, isWorkingTreeClean } from '@pnpm/git-utils'
+import { getCurrentBranch, isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 

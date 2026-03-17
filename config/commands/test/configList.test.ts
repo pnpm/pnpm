@@ -1,4 +1,4 @@
-import { config } from '@pnpm/plugin-commands-config'
+import { config } from '@pnpm/config.commands'
 
 import { getOutputString } from './utils/index.js'
 

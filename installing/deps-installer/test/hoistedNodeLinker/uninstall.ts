@@ -1,12 +1,12 @@
 import { jest } from '@jest/globals'
-import {
-  addDependenciesToPackage,
-  mutateModulesInSingleProject,
-} from '@pnpm/core'
 import type {
   PackageManifestLog,
   StatsLog,
 } from '@pnpm/core-loggers'
+import {
+  addDependenciesToPackage,
+  mutateModulesInSingleProject,
+} from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 

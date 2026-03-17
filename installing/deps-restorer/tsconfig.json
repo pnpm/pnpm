@@ -22,7 +22,7 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../bins/link-bins"
+      "path": "../../bins/linker"
     },
     {
       "path": "../../building/during-install"
@@ -37,13 +37,13 @@
       "path": "../../crypto/object-hasher"
     },
     {
-      "path": "../../deps/calc-dep-state"
-    },
-    {
-      "path": "../../deps/dependency-path"
-    },
-    {
       "path": "../../deps/graph-builder"
+    },
+    {
+      "path": "../../deps/graph-hasher"
+    },
+    {
+      "path": "../../deps/path"
     },
     {
       "path": "../../exec/lifecycle"
@@ -58,7 +58,7 @@
       "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/lockfile-to-pnp"
+      "path": "../../lockfile/to-pnp"
     },
     {
       "path": "../../lockfile/utils"
@@ -85,25 +85,25 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
+      "path": "../../store/cafs"
     },
     {
-      "path": "../../store/cafs"
+      "path": "../../store/controller-types"
     },
     {
       "path": "../../store/index"
     },
     {
-      "path": "../../store/store-controller-types"
-    },
-    {
-      "path": "../../store/store-path"
+      "path": "../../store/path"
     },
     {
       "path": "../../testing/temp-store"
     },
     {
       "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/project-manifest-reader"
     },
     {
       "path": "../linking/direct-dep-linker"

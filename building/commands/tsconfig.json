@@ -25,22 +25,22 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../cli/cli-utils"
-    },
-    {
       "path": "../../cli/common-cli-options-help"
     },
     {
-      "path": "../../config/config"
+      "path": "../../cli/utils"
     },
     {
-      "path": "../../config/config-writer"
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../config/writer"
     },
     {
       "path": "../../crypto/object-hasher"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/path"
     },
     {
       "path": "../../installing/modules-yaml"
@@ -61,13 +61,13 @@
       "path": "../../store/cafs"
     },
     {
+      "path": "../../store/connection-manager"
+    },
+    {
       "path": "../../store/index"
     },
     {
-      "path": "../../store/store-connection-manager"
-    },
-    {
-      "path": "../../workspace/filter-packages-from-dir"
+      "path": "../../workspace/projects-filter"
     },
     {
       "path": "../../workspace/sort-packages"

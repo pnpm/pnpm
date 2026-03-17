@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import type {
   FetchFromRegistry,
-} from '@pnpm/fetching-types'
+} from '@pnpm/fetching.types'
 
 export interface ShasumsFileItem {
   integrity: string

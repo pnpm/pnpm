@@ -1,6 +1,6 @@
-import { docsUrl } from '@pnpm/cli-utils'
-import { FILTERING } from '@pnpm/common-cli-options-help'
-import { getDefaultWorkspaceConcurrency } from '@pnpm/config'
+import { FILTERING } from '@pnpm/cli.common-cli-options-help'
+import { docsUrl } from '@pnpm/cli.utils'
+import { getDefaultWorkspaceConcurrency } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { renderHelp } from 'render-help'
 

@@ -1,5 +1,5 @@
 ---
-"@pnpm/cafs-types": minor
+"@pnpm/store.cafs-types": minor
 "@pnpm/store.cafs": minor
 ---
 

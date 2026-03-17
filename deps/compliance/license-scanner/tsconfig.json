@@ -49,7 +49,7 @@
       "path": "../../../store/pkg-finder"
     },
     {
-      "path": "../../dependency-path"
+      "path": "../../path"
     }
   ]
 }

@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import type { VerifyDepsBeforeRun } from '@pnpm/config'
+import type { VerifyDepsBeforeRun } from '@pnpm/config.reader'
 import { prepare } from '@pnpm/prepare'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -21,7 +21,7 @@ jest.unstable_mockModule('enquirer', () => ({
   },
 }))
 
-const { run } = await import('@pnpm/plugin-commands-script-runners')
+const { run } = await import('@pnpm/exec.commands')
 const { default: enquirer } = await import('enquirer')
 const { globalWarn } = await import('@pnpm/logger')
 

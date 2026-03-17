@@ -16,13 +16,13 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../cli/cli-utils"
+      "path": "../../cli/utils"
     },
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
-      "path": "../../config/config-writer"
+      "path": "../../config/writer"
     },
     {
       "path": "../../crypto/hash"
@@ -61,22 +61,22 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
-      "path": "../../store/store-connection-manager"
+      "path": "../../store/connection-manager"
     },
     {
-      "path": "../../store/store-path"
+      "path": "../../store/path"
     },
     {
-      "path": "../../workspace/filter-packages-from-dir"
+      "path": "../../workspace/project-manifest-reader"
     },
     {
-      "path": "../../workspace/read-manifest"
+      "path": "../../workspace/projects-filter"
+    },
+    {
+      "path": "../../workspace/workspace-manifest-reader"
     },
     {
       "path": "../apply-patch"

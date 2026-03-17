@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { assertProject } from '@pnpm/assert-project'
-import { type MutatedProject, mutateModules } from '@pnpm/core'
+import { type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'

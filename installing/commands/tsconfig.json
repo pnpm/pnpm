@@ -31,19 +31,13 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../cli/cli-utils"
-    },
-    {
       "path": "../../cli/command"
     },
     {
       "path": "../../cli/common-cli-options-help"
     },
     {
-      "path": "../../config/config"
-    },
-    {
-      "path": "../../config/config-writer"
+      "path": "../../cli/utils"
     },
     {
       "path": "../../config/deps-installer"
@@ -53,6 +47,12 @@
     },
     {
       "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../config/writer"
     },
     {
       "path": "../../deps/inspection/outdated"
@@ -88,16 +88,10 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manifest/manifest-utils"
-    },
-    {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
-      "path": "../../pkg-manifest/write-project-manifest"
+      "path": "../../pkg-manifest/utils"
     },
     {
       "path": "../../resolving/parse-wanted-dependency"
@@ -106,34 +100,34 @@
       "path": "../../resolving/resolver-base"
     },
     {
+      "path": "../../store/connection-manager"
+    },
+    {
+      "path": "../../store/controller"
+    },
+    {
       "path": "../../store/index"
-    },
-    {
-      "path": "../../store/package-store"
-    },
-    {
-      "path": "../../store/store-connection-manager"
     },
     {
       "path": "../../worker"
     },
     {
-      "path": "../../workspace/filter-packages-from-dir"
-    },
-    {
-      "path": "../../workspace/filter-workspace-packages"
-    },
-    {
-      "path": "../../workspace/find-packages"
-    },
-    {
-      "path": "../../workspace/find-workspace-dir"
-    },
-    {
-      "path": "../../workspace/manifest-writer"
-    },
-    {
       "path": "../../workspace/pkgs-graph"
+    },
+    {
+      "path": "../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../../workspace/project-manifest-writer"
+    },
+    {
+      "path": "../../workspace/projects-filter"
+    },
+    {
+      "path": "../../workspace/projects-reader"
+    },
+    {
+      "path": "../../workspace/root-finder"
     },
     {
       "path": "../../workspace/sort-packages"
@@ -142,13 +136,16 @@
       "path": "../../workspace/state"
     },
     {
+      "path": "../../workspace/workspace-manifest-writer"
+    },
+    {
+      "path": "../context"
+    },
+    {
       "path": "../dedupe/check"
     },
     {
       "path": "../deps-installer"
-    },
-    {
-      "path": "../get-context"
     },
     {
       "path": "../modules-yaml"

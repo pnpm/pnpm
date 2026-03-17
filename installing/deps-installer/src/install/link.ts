@@ -1,29 +1,29 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   progressLogger,
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import type { InstallationResultStats } from '@pnpm/headless'
-import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
+import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
+import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
+import { prune } from '@pnpm/installing.linking.modules-cleaner'
+import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
+import type {
+  DependenciesGraph,
+  DependenciesGraphNode,
+  LinkedDependency,
+} from '@pnpm/installing.resolve-dependencies'
 import {
   filterLockfileByImporters,
 } from '@pnpm/lockfile.filtering'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
-import { prune } from '@pnpm/modules-cleaner'
-import type { IncludedDependencies } from '@pnpm/modules-yaml'
-import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
-import type {
-  DependenciesGraph,
-  DependenciesGraphNode,
-  LinkedDependency,
-} from '@pnpm/resolve-dependencies'
-import type { StoreController, TarballResolution } from '@pnpm/store-controller-types'
-import { symlinkDependency } from '@pnpm/symlink-dependency'
+import type { StoreController, TarballResolution } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   DepPath,
@@ -312,7 +312,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
 
 const isAbsolutePath = /^\/|^[A-Z]:/i
 
-// This function is copied from @pnpm/local-resolver
+// This function is copied from @pnpm/resolving.local-resolver
 function resolvePath (where: string, spec: string): string {
   if (isAbsolutePath.test(spec)) return spec
   return path.resolve(where, spec)

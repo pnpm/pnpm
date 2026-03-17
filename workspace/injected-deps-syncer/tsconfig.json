@@ -13,7 +13,7 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../bins/link-bins"
+      "path": "../../bins/linker"
     },
     {
       "path": "../../fetching/directory-fetcher"
@@ -34,7 +34,7 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../find-packages"
+      "path": "../projects-reader"
     }
   ]
 }

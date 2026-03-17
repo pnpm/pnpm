@@ -9,7 +9,7 @@ jest.unstable_mockModule('execa', () => ({
 }))
 
 const { safeExeca: execa } = await import('execa')
-const { exec } = await import('@pnpm/plugin-commands-script-runners')
+const { exec } = await import('@pnpm/exec.commands')
 
 beforeEach(() => jest.mocked(execa).mockClear())
 

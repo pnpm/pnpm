@@ -1,5 +1,5 @@
 ---
-"@pnpm/node.resolver": patch
+"@pnpm/engine.runtime.node.resolver": patch
 "pnpm": patch
 ---
 

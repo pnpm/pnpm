@@ -1,9 +1,9 @@
 ---
 "@pnpm/global.packages": minor
 "@pnpm/global.commands": minor
-"@pnpm/plugin-commands-installation": major
+"@pnpm/installing.commands": major
 "@pnpm/deps.inspection.commands": minor
-"@pnpm/plugin-commands-script-runners": minor
+"@pnpm/exec.commands": minor
 "pnpm": major
 ---
 

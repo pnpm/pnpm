@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { LAYOUT_VERSION } from '@pnpm/constants'
-import type { Modules } from '@pnpm/modules-yaml'
+import type { Modules } from '@pnpm/installing.modules-yaml'
 
 import { ModulesBreakingChangeError } from './ModulesBreakingChangeError.js'
 import { UnexpectedStoreError } from './UnexpectedStoreError.js'

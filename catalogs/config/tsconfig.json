@@ -14,7 +14,7 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../../workspace/read-manifest"
+      "path": "../../workspace/workspace-manifest-reader"
     },
     {
       "path": "../types"
