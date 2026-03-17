@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import type { RebuildCommandOpts, ApproveBuildsCommandOpts } from '@pnpm/building.commands'
+import type { ApproveBuildsCommandOpts, RebuildCommandOpts } from '@pnpm/building.commands'
 import { getConfig } from '@pnpm/config'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { prepare } from '@pnpm/prepare'

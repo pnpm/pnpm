@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { audit } from '@pnpm/deps.compliance.commands'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
-import { audit } from '@pnpm/deps.compliance.commands'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'

@@ -263,13 +263,10 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-import':
   case '@pnpm/plugin-commands-installation':
   case '@pnpm/deps.inspection.commands':
-  // merged into deps.inspection.commands
   case '@pnpm/plugin-commands-patching':
   case '@pnpm/releasing.commands':
-  // merged into building.commands
   case '@pnpm/plugin-commands-script-runners':
   case '@pnpm/store.commands':
-  // merged into releasing.commands
   case '@pnpm/deps.compliance.commands':
   case CLI_PKG_NAME:
   case '@pnpm/core': {

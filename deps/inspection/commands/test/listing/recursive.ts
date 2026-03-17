@@ -1,9 +1,9 @@
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { list, why } from '@pnpm/deps.inspection.commands'
 import type { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/plugin-commands-installation'
-import { list, why } from '@pnpm/deps.inspection.commands'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'

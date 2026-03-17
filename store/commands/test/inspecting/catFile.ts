@@ -3,8 +3,8 @@ import path from 'node:path'
 
 import { getConfig } from '@pnpm/config'
 import type { PnpmError } from '@pnpm/error'
-import { catFile } from '@pnpm/store.commands'
 import { prepare } from '@pnpm/prepare'
+import { catFile } from '@pnpm/store.commands'
 import { safeExeca as execa } from 'execa'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')

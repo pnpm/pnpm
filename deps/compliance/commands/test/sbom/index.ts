@@ -2,8 +2,8 @@
 import path from 'node:path'
 
 import { STORE_VERSION } from '@pnpm/constants'
-import { install } from '@pnpm/plugin-commands-installation'
 import { sbom } from '@pnpm/deps.compliance.commands'
+import { install } from '@pnpm/plugin-commands-installation'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 

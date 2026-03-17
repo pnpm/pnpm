@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals'
-import { logger } from '@pnpm/logger'
 import { doctor } from '@pnpm/cli.commands'
+import { logger } from '@pnpm/logger'
 
 beforeEach(() => {
   jest.spyOn(logger, 'warn')
