@@ -37,6 +37,9 @@
       "path": "../../store/cafs-types"
     },
     {
+      "path": "../aqua-resolver"
+    },
+    {
       "path": "../bun-resolver"
     },
     {
