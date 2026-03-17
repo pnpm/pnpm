@@ -34,7 +34,7 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
+      "path": "../../workspace/read-project-manifest"
     },
     {
       "path": "../resolver"

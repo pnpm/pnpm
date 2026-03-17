@@ -43,9 +43,6 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manifest/write-project-manifest"
-    },
-    {
       "path": "../../resolving/resolver-base"
     },
     {
@@ -56,6 +53,9 @@
     },
     {
       "path": "../../workspace/state"
+    },
+    {
+      "path": "../../workspace/write-project-manifest"
     }
   ]
 }

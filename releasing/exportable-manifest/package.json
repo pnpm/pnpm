@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/pkg-manifest.exportable-manifest",
+  "name": "@pnpm/releasing.exportable-manifest",
   "version": "1000.1.7",
   "description": "Creates an exportable manifest",
   "keywords": [
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/pkg-manifest/exportable-manifest",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/pkg-manifest/exportable-manifest#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/releasing/exportable-manifest",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/releasing/exportable-manifest#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -35,9 +35,9 @@
     "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.read-project-manifest": "workspace:*",
     "p-map-values": "catalog:",
     "ramda": "catalog:"
   },
@@ -45,8 +45,8 @@
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
-    "@pnpm/pkg-manifest.exportable-manifest": "workspace:*",
     "@pnpm/prepare": "workspace:*",
+    "@pnpm/releasing.exportable-manifest": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
     "cross-spawn": "catalog:",

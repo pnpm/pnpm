@@ -2,9 +2,9 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { readExactProjectManifest } from '@pnpm/pkg-manifest.read-project-manifest'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { readExactProjectManifest } from '@pnpm/workspace.read-project-manifest'
 import pFilter from 'p-filter'
 import { glob } from 'tinyglobby'
 

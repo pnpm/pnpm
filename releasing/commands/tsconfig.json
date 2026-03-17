@@ -97,9 +97,6 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manifest/exportable-manifest"
-    },
-    {
       "path": "../../resolving/resolver-base"
     },
     {
@@ -107,6 +104,9 @@
     },
     {
       "path": "../../workspace/sort-packages"
+    },
+    {
+      "path": "../exportable-manifest"
     }
   ]
 }

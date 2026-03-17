@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import { createGzip } from 'node:zlib'
 
-import type { ExportedManifest } from '@pnpm/pkg-manifest.exportable-manifest'
 import { prepareEmpty } from '@pnpm/prepare'
+import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import tar from 'tar-stream'
 
 import {

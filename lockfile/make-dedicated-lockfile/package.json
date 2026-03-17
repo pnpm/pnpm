@@ -39,10 +39,10 @@
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/pkg-manifest.exportable-manifest": "workspace:*",
-    "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
+    "@pnpm/releasing.exportable-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-workspace-dir": "workspace:*",
+    "@pnpm/workspace.read-project-manifest": "workspace:*",
     "ramda": "catalog:",
     "rename-overwrite": "catalog:"
   },

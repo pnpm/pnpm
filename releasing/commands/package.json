@@ -53,7 +53,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
-    "@pnpm/pkg-manifest.exportable-manifest": "workspace:*",
+    "@pnpm/releasing.exportable-manifest": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.sort-packages": "workspace:*",

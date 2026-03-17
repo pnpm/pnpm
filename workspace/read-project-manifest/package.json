@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/pkg-manifest.read-project-manifest",
+  "name": "@pnpm/workspace.read-project-manifest",
   "version": "1001.1.4",
   "description": "Read a project manifest (called package.json in most cases)",
   "keywords": [
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/pkg-manifest/read-project-manifest",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/pkg-manifest/read-project-manifest#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/workspace/read-project-manifest",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/workspace/read-project-manifest#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -34,9 +34,9 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/pkg-manifest.manifest-utils": "workspace:*",
-    "@pnpm/pkg-manifest.write-project-manifest": "workspace:*",
     "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.write-project-manifest": "workspace:*",
     "detect-indent": "catalog:",
     "fast-deep-equal": "catalog:",
     "is-windows": "catalog:",
@@ -49,8 +49,8 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/workspace.read-project-manifest": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/parse-json": "catalog:",
     "tempy": "catalog:"

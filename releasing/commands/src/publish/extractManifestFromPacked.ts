@@ -3,7 +3,7 @@ import path from 'node:path'
 import { createGunzip } from 'node:zlib'
 
 import { PnpmError } from '@pnpm/error'
-import type { ExportedManifest } from '@pnpm/pkg-manifest.exportable-manifest'
+import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import tar from 'tar-stream'
 
 const TARBALL_SUFFIXES = ['.tar.gz', '.tgz'] as const

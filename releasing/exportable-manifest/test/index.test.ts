@@ -2,8 +2,8 @@
 import path from 'node:path'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
-import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/pkg-manifest.exportable-manifest'
 import { preparePackages } from '@pnpm/prepare'
+import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
 import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
 import { writeYamlFileSync } from 'write-yaml-file'

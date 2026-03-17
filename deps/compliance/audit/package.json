@@ -40,8 +40,8 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
-    "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.read-project-manifest": "workspace:*",
     "ramda": "catalog:"
   },
   "peerDependencies": {

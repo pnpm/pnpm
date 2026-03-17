@@ -62,7 +62,6 @@ import {
 } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
-import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/pkg-manifest.read-project-manifest'
 import type {
   PackageFilesResponse,
   StoreController,
@@ -81,6 +80,7 @@ import {
   type SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
+import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/workspace.read-project-manifest'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
 import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'

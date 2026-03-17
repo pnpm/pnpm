@@ -1423,12 +1423,12 @@ importers:
       '@pnpm/pkg-manifest.read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
       '@zkochan/cmd-shim':
         specifier: 'catalog:'
         version: 8.0.1
@@ -2205,9 +2205,6 @@ importers:
       '@pnpm/pkg-manifest.manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../../store/connection-manager
@@ -2217,6 +2214,9 @@ importers:
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
         version: 3.0.2
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
@@ -2543,9 +2543,6 @@ importers:
       '@pnpm/npm-conf':
         specifier: 'catalog:'
         version: 3.0.2
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/text.naming-cases':
         specifier: workspace:*
         version: link:../../text/naming-cases
@@ -2555,6 +2552,9 @@ importers:
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../../workspace/read-manifest
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
       better-path-resolve:
         specifier: 'catalog:'
         version: 2.0.0
@@ -2662,15 +2662,15 @@ importers:
 
   config/writer:
     dependencies:
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/workspace.manifest-writer':
         specifier: workspace:*
         version: link:../../workspace/manifest-writer
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -2778,12 +2778,12 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../../network/fetch
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../../pkg-manifest/read-project-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../packages/types
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../../workspace/read-project-manifest
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -2860,15 +2860,15 @@ importers:
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../../network/auth-header
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../../pkg-manifest/read-project-manifest
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../../store/path
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../packages/types
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../../workspace/read-project-manifest
       '@zkochan/table':
         specifier: 'catalog:'
         version: 2.0.1
@@ -3262,9 +3262,6 @@ importers:
       '@pnpm/pkg-manifest.read-package-json':
         specifier: workspace:*
         version: link:../../../pkg-manifest/read-package-json
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../../pkg-manifest/read-project-manifest
       '@pnpm/text.tree-renderer':
         specifier: workspace:*
         version: link:../../../text/tree-renderer
@@ -3274,6 +3271,9 @@ importers:
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
         version: 3.0.2
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../../workspace/read-project-manifest
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
@@ -3535,12 +3535,12 @@ importers:
       '@pnpm/deps.status':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/pkg-manifest.write-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/write-project-manifest
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@pnpm/workspace.write-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/write-project-manifest
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -3586,9 +3586,6 @@ importers:
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
         version: 2.0.3
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../../pkg-manifest/read-project-manifest
       '@pnpm/resolving.npm-resolver':
         specifier: workspace:*
         version: link:../../../resolving/npm-resolver
@@ -3601,6 +3598,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../packages/types
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../../workspace/read-project-manifest
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -3846,9 +3846,6 @@ importers:
       '@pnpm/pkg-manifest.read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
@@ -3867,6 +3864,9 @@ importers:
       '@pnpm/workspace.injected-deps-syncer':
         specifier: workspace:*
         version: link:../../workspace/injected-deps-syncer
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
       '@pnpm/workspace.sort-packages':
         specifier: workspace:*
         version: link:../../workspace/sort-packages
@@ -4143,9 +4143,6 @@ importers:
       '@pnpm/fs.packlist':
         specifier: workspace:*
         version: link:../../fs/packlist
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -4155,6 +4152,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -4398,15 +4398,15 @@ importers:
 
   fs/find-packages:
     dependencies:
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
         version: 3.0.2
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
       p-filter:
         specifier: 'catalog:'
         version: 4.1.0
@@ -4907,12 +4907,6 @@ importers:
       '@pnpm/pkg-manifest.read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
-      '@pnpm/pkg-manifest.write-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/write-project-manifest
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
@@ -4946,12 +4940,18 @@ importers:
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
       '@pnpm/workspace.sort-packages':
         specifier: workspace:*
         version: link:../../workspace/sort-packages
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: link:../../workspace/state
+      '@pnpm/workspace.write-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/write-project-manifest
       '@yarnpkg/core':
         specifier: 'catalog:'
         version: 4.2.0(typanion@3.14.0)
@@ -5313,9 +5313,6 @@ importers:
       '@pnpm/pkg-manifest.manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
@@ -5334,6 +5331,9 @@ importers:
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
@@ -5551,9 +5551,6 @@ importers:
       '@pnpm/pkg-manifest.read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../store/controller-types
@@ -5563,6 +5560,9 @@ importers:
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
@@ -6314,18 +6314,18 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
-      '@pnpm/pkg-manifest.exportable-manifest':
+      '@pnpm/releasing.exportable-manifest':
         specifier: workspace:*
-        version: link:../../pkg-manifest/exportable-manifest
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
+        version: link:../../releasing/exportable-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/workspace.find-workspace-dir':
         specifier: workspace:*
         version: link:../../workspace/find-workspace-dir
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -6902,9 +6902,6 @@ importers:
       '@pnpm/pkg-manifest.read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
@@ -6920,6 +6917,9 @@ importers:
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../../workspace/read-manifest
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
@@ -7031,64 +7031,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  pkg-manifest/exportable-manifest:
-    dependencies:
-      '@npm/types':
-        specifier: 'catalog:'
-        version: 2.1.0
-      '@pnpm/bins.resolver':
-        specifier: workspace:*
-        version: link:../../bins/resolver
-      '@pnpm/catalogs.resolver':
-        specifier: workspace:*
-        version: link:../../catalogs/resolver
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../read-project-manifest
-      '@pnpm/resolving.jsr-specifier-parser':
-        specifier: workspace:*
-        version: link:../../resolving/jsr-specifier-parser
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      p-map-values:
-        specifier: 'catalog:'
-        version: 0.1.0
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-    devDependencies:
-      '@pnpm/catalogs.config':
-        specifier: workspace:*
-        version: link:../../catalogs/config
-      '@pnpm/catalogs.types':
-        specifier: workspace:*
-        version: link:../../catalogs/types
-      '@pnpm/hooks.pnpmfile':
-        specifier: workspace:*
-        version: link:../../hooks/pnpmfile
-      '@pnpm/pkg-manifest.exportable-manifest':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare
-      '@types/cross-spawn':
-        specifier: 'catalog:'
-        version: 6.0.6
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
-      cross-spawn:
-        specifier: 'catalog:'
-        version: 7.0.6
-      write-yaml-file:
-        specifier: 'catalog:'
-        version: 6.0.0
-
   pkg-manifest/manifest-utils:
     dependencies:
       '@pnpm/core-loggers':
@@ -7138,95 +7080,6 @@ importers:
       '@types/normalize-package-data':
         specifier: 'catalog:'
         version: 2.4.4
-
-  pkg-manifest/read-project-manifest:
-    dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/fs.graceful-fs':
-        specifier: workspace:*
-        version: link:../../fs/graceful-fs
-      '@pnpm/logger':
-        specifier: 'catalog:'
-        version: 1001.0.1
-      '@pnpm/pkg-manifest.manifest-utils':
-        specifier: workspace:*
-        version: link:../manifest-utils
-      '@pnpm/pkg-manifest.write-project-manifest':
-        specifier: workspace:*
-        version: link:../write-project-manifest
-      '@pnpm/text.comments-parser':
-        specifier: workspace:*
-        version: link:../../text/comments-parser
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      detect-indent:
-        specifier: 'catalog:'
-        version: 7.0.1
-      fast-deep-equal:
-        specifier: 'catalog:'
-        version: 3.1.3
-      is-windows:
-        specifier: 'catalog:'
-        version: 1.0.2
-      json5:
-        specifier: 'catalog:'
-        version: 2.2.3
-      parse-json:
-        specifier: 'catalog:'
-        version: 8.3.0
-      read-yaml-file:
-        specifier: 'catalog:'
-        version: 3.0.0
-      strip-bom:
-        specifier: 'catalog:'
-        version: 5.0.0
-    devDependencies:
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/test-fixtures':
-        specifier: workspace:*
-        version: link:../../__utils__/test-fixtures
-      '@types/is-windows':
-        specifier: 'catalog:'
-        version: 1.0.2
-      '@types/parse-json':
-        specifier: 'catalog:'
-        version: 4.0.2
-      tempy:
-        specifier: 'catalog:'
-        version: 3.0.0
-
-  pkg-manifest/write-project-manifest:
-    dependencies:
-      '@pnpm/text.comments-parser':
-        specifier: workspace:*
-        version: link:../../text/comments-parser
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      json5:
-        specifier: 'catalog:'
-        version: 2.2.3
-      write-file-atomic:
-        specifier: 'catalog:'
-        version: 7.0.1
-      write-yaml-file:
-        specifier: 'catalog:'
-        version: 6.0.0
-    devDependencies:
-      '@pnpm/pkg-manifest.write-project-manifest':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/write-file-atomic':
-        specifier: 'catalog:'
-        version: 4.0.3
-      tempy:
-        specifier: 'catalog:'
-        version: 3.0.0
 
   pnpm:
     dependencies:
@@ -7351,12 +7204,6 @@ importers:
       '@pnpm/pkg-manifest.read-package-json':
         specifier: workspace:*
         version: link:../pkg-manifest/read-package-json
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../pkg-manifest/read-project-manifest
-      '@pnpm/pkg-manifest.write-project-manifest':
-        specifier: workspace:*
-        version: link:../pkg-manifest/write-project-manifest
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../__utils__/prepare
@@ -7417,9 +7264,15 @@ importers:
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../workspace/read-manifest
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../workspace/read-project-manifest
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: link:../workspace/state
+      '@pnpm/workspace.write-project-manifest':
+        specifier: workspace:*
+        version: link:../workspace/write-project-manifest
       '@types/cross-spawn':
         specifier: 'catalog:'
         version: 6.0.6
@@ -7699,9 +7552,9 @@ importers:
       '@pnpm/network.git-utils':
         specifier: workspace:*
         version: link:../../network/git-utils
-      '@pnpm/pkg-manifest.exportable-manifest':
+      '@pnpm/releasing.exportable-manifest':
         specifier: workspace:*
-        version: link:../../pkg-manifest/exportable-manifest
+        version: link:../exportable-manifest
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -7841,6 +7694,64 @@ importers:
       tar:
         specifier: 'catalog:'
         version: 7.5.11
+
+  releasing/exportable-manifest:
+    dependencies:
+      '@npm/types':
+        specifier: 'catalog:'
+        version: 2.1.0
+      '@pnpm/bins.resolver':
+        specifier: workspace:*
+        version: link:../../bins/resolver
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/resolving.jsr-specifier-parser':
+        specifier: workspace:*
+        version: link:../../resolving/jsr-specifier-parser
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
+      p-map-values:
+        specifier: 'catalog:'
+        version: 0.1.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+    devDependencies:
+      '@pnpm/catalogs.config':
+        specifier: workspace:*
+        version: link:../../catalogs/config
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
+      '@pnpm/hooks.pnpmfile':
+        specifier: workspace:*
+        version: link:../../hooks/pnpmfile
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/releasing.exportable-manifest':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/cross-spawn':
+        specifier: 'catalog:'
+        version: 6.0.6
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+      cross-spawn:
+        specifier: 'catalog:'
+        version: 7.0.6
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 6.0.0
 
   resolving/bun-resolver:
     dependencies:
@@ -8065,15 +7976,15 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/pkg-manifest.read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-project-manifest
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -8895,12 +8806,12 @@ importers:
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../object/key-sorting
-      '@pnpm/pkg-manifest.write-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/write-project-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/workspace.write-project-manifest':
+        specifier: workspace:*
+        version: link:../write-project-manifest
       camelcase-keys:
         specifier: 'catalog:'
         version: 10.0.2
@@ -9202,6 +9113,67 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  workspace/read-project-manifest:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fs.graceful-fs':
+        specifier: workspace:*
+        version: link:../../fs/graceful-fs
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 1001.0.1
+      '@pnpm/pkg-manifest.manifest-utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/manifest-utils
+      '@pnpm/text.comments-parser':
+        specifier: workspace:*
+        version: link:../../text/comments-parser
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/workspace.write-project-manifest':
+        specifier: workspace:*
+        version: link:../write-project-manifest
+      detect-indent:
+        specifier: 'catalog:'
+        version: 7.0.1
+      fast-deep-equal:
+        specifier: 'catalog:'
+        version: 3.1.3
+      is-windows:
+        specifier: 'catalog:'
+        version: 1.0.2
+      json5:
+        specifier: 'catalog:'
+        version: 2.2.3
+      parse-json:
+        specifier: 'catalog:'
+        version: 8.3.0
+      read-yaml-file:
+        specifier: 'catalog:'
+        version: 3.0.0
+      strip-bom:
+        specifier: 'catalog:'
+        version: 5.0.0
+    devDependencies:
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
+      '@pnpm/workspace.read-project-manifest':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/is-windows':
+        specifier: 'catalog:'
+        version: 1.0.2
+      '@types/parse-json':
+        specifier: 'catalog:'
+        version: 4.0.2
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
+
   workspace/resolve-workspace-range:
     dependencies:
       semver:
@@ -9264,6 +9236,34 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+
+  workspace/write-project-manifest:
+    dependencies:
+      '@pnpm/text.comments-parser':
+        specifier: workspace:*
+        version: link:../../text/comments-parser
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      json5:
+        specifier: 'catalog:'
+        version: 2.2.3
+      write-file-atomic:
+        specifier: 'catalog:'
+        version: 7.0.1
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 6.0.0
+    devDependencies:
+      '@pnpm/workspace.write-project-manifest':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/write-file-atomic':
+        specifier: 'catalog:'
+        version: 4.0.3
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
 
   yaml/document-sync:
     dependencies:

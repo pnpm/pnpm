@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
-import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/pkg-manifest.exportable-manifest'
 import { prepare } from '@pnpm/prepare'
+import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 const defaultOpts: MakePublishManifestOptions = {

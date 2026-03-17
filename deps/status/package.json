@@ -55,8 +55,8 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/deps.status": "workspace:*",
-    "@pnpm/pkg-manifest.write-project-manifest": "workspace:*",
     "@pnpm/prepare": "workspace:*",
+    "@pnpm/workspace.write-project-manifest": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "engines": {

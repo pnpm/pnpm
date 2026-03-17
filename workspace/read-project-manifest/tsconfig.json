@@ -22,10 +22,10 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../text/comments-parser"
+      "path": "../../pkg-manifest/manifest-utils"
     },
     {
-      "path": "../manifest-utils"
+      "path": "../../text/comments-parser"
     },
     {
       "path": "../write-project-manifest"

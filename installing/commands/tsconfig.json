@@ -94,12 +94,6 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
-      "path": "../../pkg-manifest/write-project-manifest"
-    },
-    {
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
@@ -136,10 +130,16 @@
       "path": "../../workspace/pkgs-graph"
     },
     {
+      "path": "../../workspace/read-project-manifest"
+    },
+    {
       "path": "../../workspace/sort-packages"
     },
     {
       "path": "../../workspace/state"
+    },
+    {
+      "path": "../../workspace/write-project-manifest"
     },
     {
       "path": "../context"

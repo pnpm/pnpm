@@ -2,7 +2,7 @@
 "@pnpm/releasing.commands": major
 "pnpm": major
 "@pnpm/lockfile.make-dedicated-lockfile": minor
-"@pnpm/pkg-manifest.exportable-manifest": minor
+"@pnpm/releasing.exportable-manifest": minor
 "@pnpm/types": minor
 "@pnpm/config.reader": minor
 ---

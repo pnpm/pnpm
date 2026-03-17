@@ -2,9 +2,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { readProjectManifest, tryReadProjectManifest } from '@pnpm/pkg-manifest.read-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
+import { readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.read-project-manifest'
 import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)

@@ -22,13 +22,13 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manifest/exportable-manifest"
-    },
-    {
-      "path": "../../pkg-manifest/read-project-manifest"
+      "path": "../../releasing/exportable-manifest"
     },
     {
       "path": "../../workspace/find-workspace-dir"
+    },
+    {
+      "path": "../../workspace/read-project-manifest"
     },
     {
       "path": "../fs"

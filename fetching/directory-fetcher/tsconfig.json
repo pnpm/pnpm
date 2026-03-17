@@ -25,13 +25,13 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
       "path": "../../resolving/resolver-base"
     },
     {
       "path": "../../store/cafs-types"
+    },
+    {
+      "path": "../../workspace/read-project-manifest"
     },
     {
       "path": "../fetcher-base"

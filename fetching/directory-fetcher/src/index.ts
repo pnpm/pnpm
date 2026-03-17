@@ -6,9 +6,9 @@ import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { logger } from '@pnpm/logger'
-import { safeReadProjectManifestOnly } from '@pnpm/pkg-manifest.read-project-manifest'
 import type { FilesMap } from '@pnpm/store.cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.read-project-manifest'
 
 const directoryFetcherLogger = logger('directory-fetcher')
 

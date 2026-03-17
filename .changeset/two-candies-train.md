@@ -1,5 +1,5 @@
 ---
-"@pnpm/pkg-manifest.read-project-manifest": minor
+"@pnpm/workspace.read-project-manifest": minor
 "@pnpm/installing.resolve-dependencies": minor
 "@pnpm/bins.linker": minor
 "@pnpm/types": minor

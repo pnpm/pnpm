@@ -5,8 +5,8 @@ import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import type { EnvLockfile, LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
-import { safeReadProjectManifestOnly } from '@pnpm/pkg-manifest.read-project-manifest'
 import type { DependenciesField, ProjectId } from '@pnpm/types'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.read-project-manifest'
 import { map as mapValues } from 'ramda'
 
 export interface AuditNode {

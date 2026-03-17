@@ -37,10 +37,10 @@
       "path": "../../pkg-manifest/manifest-utils"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
+      "path": "../../store/connection-manager"
     },
     {
-      "path": "../../store/connection-manager"
+      "path": "../../workspace/read-project-manifest"
     },
     {
       "path": "../default-reporter"

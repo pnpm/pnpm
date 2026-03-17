@@ -85,9 +85,6 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
       "path": "../../store/cafs"
     },
     {
@@ -104,6 +101,9 @@
     },
     {
       "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/read-project-manifest"
     },
     {
       "path": "../linking/direct-dep-linker"

@@ -35,10 +35,10 @@
     "@pnpm/building.pkg-requires-build": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
-    "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.cafs-types": "workspace:*",
-    "@pnpm/types": "workspace:*"
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.read-project-manifest": "workspace:*"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

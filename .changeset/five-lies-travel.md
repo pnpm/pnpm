@@ -4,9 +4,9 @@
 "@pnpm/cli.commands": major
 "@pnpm/releasing.commands": major
 "@pnpm/exec.commands": major
-"@pnpm/pkg-manifest.write-project-manifest": major
+"@pnpm/workspace.write-project-manifest": major
 "@pnpm/workspace.filter-workspace-packages": major
-"@pnpm/pkg-manifest.read-project-manifest": major
+"@pnpm/workspace.read-project-manifest": major
 "@pnpm/deps.compliance.commands": major
 "@pnpm/deps.inspection.commands": major
 "@pnpm/engine.pm.commands": major
@@ -18,7 +18,7 @@
 "@pnpm/lockfile.make-dedicated-lockfile": major
 "@pnpm/resolving.parse-wanted-dependency": major
 "@pnpm/installing.resolve-dependencies": major
-"@pnpm/pkg-manifest.exportable-manifest": major
+"@pnpm/releasing.exportable-manifest": major
 "@pnpm/deps.inspection.tree-builder": major
 "@pnpm/pkg-manifest.read-package-json": major
 "@pnpm/resolving.jsr-specifier-parser": major

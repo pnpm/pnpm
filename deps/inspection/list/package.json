@@ -39,10 +39,10 @@
     "@pnpm/deps.inspection.tree-builder": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/pkg-manifest.read-package-json": "workspace:*",
-    "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
     "@pnpm/text.tree-renderer": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
+    "@pnpm/workspace.read-project-manifest": "workspace:*",
     "chalk": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:"

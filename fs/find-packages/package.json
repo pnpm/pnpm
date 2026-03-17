@@ -33,9 +33,9 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
+    "@pnpm/workspace.read-project-manifest": "workspace:*",
     "p-filter": "catalog:",
     "tinyglobby": "catalog:"
   },

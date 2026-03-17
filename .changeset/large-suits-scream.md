@@ -1,5 +1,5 @@
 ---
-"@pnpm/pkg-manifest.read-project-manifest": patch
+"@pnpm/workspace.read-project-manifest": patch
 "pnpm": patch
 ---
 

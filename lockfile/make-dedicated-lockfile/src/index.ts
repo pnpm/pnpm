@@ -8,9 +8,9 @@ import {
   writeWantedLockfile,
 } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
-import { createExportableManifest } from '@pnpm/pkg-manifest.exportable-manifest'
-import { readProjectManifest } from '@pnpm/pkg-manifest.read-project-manifest'
+import { createExportableManifest } from '@pnpm/releasing.exportable-manifest'
 import { DEPENDENCIES_FIELDS, type ProjectId, type ProjectManifest } from '@pnpm/types'
+import { readProjectManifest } from '@pnpm/workspace.read-project-manifest'
 import { pickBy } from 'ramda'
 import { renameOverwrite } from 'rename-overwrite'
 

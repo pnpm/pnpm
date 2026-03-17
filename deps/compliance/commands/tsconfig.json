@@ -65,9 +65,6 @@
       "path": "../../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../../pkg-manifest/read-project-manifest"
-    },
-    {
       "path": "../../../store/path"
     },
     {
@@ -75,6 +72,9 @@
     },
     {
       "path": "../../../workspace/filter-workspace-packages"
+    },
+    {
+      "path": "../../../workspace/read-project-manifest"
     },
     {
       "path": "../audit"

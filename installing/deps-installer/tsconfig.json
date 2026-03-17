@@ -148,9 +148,6 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
@@ -173,6 +170,9 @@
     },
     {
       "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/read-project-manifest"
     },
     {
       "path": "../context"

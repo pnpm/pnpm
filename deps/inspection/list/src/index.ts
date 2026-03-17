@@ -2,8 +2,8 @@ import path from 'node:path'
 
 import { buildDependenciesTree, buildDependentsTree, createPackagesSearcher, type DependenciesTree, type DependencyNode, type ImporterInfo } from '@pnpm/deps.inspection.tree-builder'
 import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
-import { safeReadProjectManifestOnly } from '@pnpm/pkg-manifest.read-project-manifest'
 import type { DependenciesField, Finder, Registries } from '@pnpm/types'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.read-project-manifest'
 
 import { renderDependentsJson, renderDependentsParseable, renderDependentsTree } from './renderDependentsTree.js'
 import { renderJson } from './renderJson.js'

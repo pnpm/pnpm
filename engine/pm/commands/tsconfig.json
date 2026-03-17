@@ -56,9 +56,6 @@
       "path": "../../../packages/types"
     },
     {
-      "path": "../../../pkg-manifest/read-project-manifest"
-    },
-    {
       "path": "../../../resolving/npm-resolver"
     },
     {
@@ -69,6 +66,9 @@
     },
     {
       "path": "../../../store/controller"
+    },
+    {
+      "path": "../../../workspace/read-project-manifest"
     }
   ]
 }

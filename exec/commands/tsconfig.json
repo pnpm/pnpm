@@ -70,9 +70,6 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
@@ -89,6 +86,9 @@
     },
     {
       "path": "../../workspace/injected-deps-syncer"
+    },
+    {
+      "path": "../../workspace/read-project-manifest"
     },
     {
       "path": "../../workspace/sort-packages"

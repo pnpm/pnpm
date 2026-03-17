@@ -59,7 +59,6 @@ import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.manifest-utils'
-import { safeReadProjectManifestOnly } from '@pnpm/pkg-manifest.read-project-manifest'
 import type {
   PreferredVersions,
 } from '@pnpm/resolving.resolver-base'
@@ -76,6 +75,7 @@ import type {
   ReadPackageHook,
 } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.read-project-manifest'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import { clone, isEmpty, map as mapValues, pipeWith, props } from 'ramda'

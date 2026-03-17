@@ -4,9 +4,9 @@ import path from 'node:path'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import { readProjectManifestOnly } from '@pnpm/pkg-manifest.read-project-manifest'
 import type { DirectoryResolution, Resolution, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, PkgResolutionId } from '@pnpm/types'
+import { readProjectManifestOnly } from '@pnpm/workspace.read-project-manifest'
 
 import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier.js'
 

@@ -36,9 +36,9 @@
   "dependencies": {
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.read-project-manifest": "workspace:*",
     "normalize-path": "catalog:"
   },
   "peerDependencies": {

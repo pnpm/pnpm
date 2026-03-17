@@ -61,9 +61,6 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
@@ -77,6 +74,9 @@
     },
     {
       "path": "../../workspace/read-manifest"
+    },
+    {
+      "path": "../../workspace/read-project-manifest"
     },
     {
       "path": "../apply-patch"

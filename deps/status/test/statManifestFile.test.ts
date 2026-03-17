@@ -1,6 +1,6 @@
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
-import { writeProjectManifest } from '@pnpm/pkg-manifest.write-project-manifest'
 import { prepareEmpty } from '@pnpm/prepare'
+import { writeProjectManifest } from '@pnpm/workspace.write-project-manifest'
 
 import { statManifestFile } from '../src/statManifestFile.js'
 

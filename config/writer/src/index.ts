@@ -1,6 +1,6 @@
-import { tryReadProjectManifest } from '@pnpm/pkg-manifest.read-project-manifest'
 import type { PnpmSettings, ProjectManifest } from '@pnpm/types'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
+import { tryReadProjectManifest } from '@pnpm/workspace.read-project-manifest'
 import { equals } from 'ramda'
 
 export interface WriteSettingsOptions {

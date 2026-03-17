@@ -4,9 +4,9 @@ import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolve
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
-import { tryReadProjectManifest } from '@pnpm/pkg-manifest.read-project-manifest'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
+import { tryReadProjectManifest } from '@pnpm/workspace.read-project-manifest'
 import { pMapValues } from 'p-map-values'
 import { omit } from 'ramda'
 

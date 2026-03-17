@@ -46,7 +46,7 @@
       "path": "../../../packages/types"
     },
     {
-      "path": "../../../pkg-manifest/read-project-manifest"
+      "path": "../../../workspace/read-project-manifest"
     }
   ]
 }
