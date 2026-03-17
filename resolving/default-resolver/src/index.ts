@@ -1,9 +1,9 @@
+import { type BunRuntimeResolveResult, resolveBunRuntime } from '@pnpm/engine.runtime.bun-resolver'
+import { type DenoRuntimeResolveResult, resolveDenoRuntime } from '@pnpm/engine.runtime.deno-resolver'
 import { type NodeRuntimeResolveResult, resolveNodeRuntime } from '@pnpm/engine.runtime.node-resolver'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { checkCustomResolverCanResolve, type CustomResolver } from '@pnpm/hooks.types'
-import { type BunRuntimeResolveResult, resolveBunRuntime } from '@pnpm/engine.runtime.bun-resolver'
-import { type DenoRuntimeResolveResult, resolveDenoRuntime } from '@pnpm/engine.runtime.deno-resolver'
 import { createGitResolver, type GitResolveResult } from '@pnpm/resolving.git-resolver'
 import { type LocalResolveResult, resolveFromLocal } from '@pnpm/resolving.local-resolver'
 import {
