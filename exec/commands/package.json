@@ -50,7 +50,7 @@
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/log.group": "catalog:",
-    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/shell.path": "workspace:*",
     "@pnpm/store.path": "workspace:*",

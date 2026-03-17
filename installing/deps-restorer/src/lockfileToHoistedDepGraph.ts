@@ -22,7 +22,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type {
   FetchPackageToStoreFunction,
   StoreController,

@@ -13,6 +13,15 @@
       "path": "../../../bins/remover"
     },
     {
+      "path": "../../../core/core-loggers"
+    },
+    {
+      "path": "../../../core/logger"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
       "path": "../../../deps/path"
     },
     {
@@ -26,15 +35,6 @@
     },
     {
       "path": "../../../lockfile/utils"
-    },
-    {
-      "path": "../../../packages/core-loggers"
-    },
-    {
-      "path": "../../../packages/logger"
-    },
-    {
-      "path": "../../../packages/types"
     },
     {
       "path": "../../../store/controller-types"

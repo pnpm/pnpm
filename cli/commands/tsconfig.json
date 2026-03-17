@@ -13,10 +13,10 @@
       "path": "../../config/reader"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../core/error"
     },
     {
-      "path": "../../packages/logger"
+      "path": "../../core/logger"
     },
     {
       "path": "../../workspace/projects-reader"

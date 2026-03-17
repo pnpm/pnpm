@@ -11,7 +11,7 @@ import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,

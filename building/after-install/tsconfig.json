@@ -19,6 +19,18 @@
       "path": "../../config/reader"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../deps/graph-hasher"
     },
     {
@@ -46,19 +58,7 @@
       "path": "../../lockfile/walker"
     },
     {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     },
     {
       "path": "../../store/cafs"

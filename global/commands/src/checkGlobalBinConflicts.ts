@@ -7,7 +7,7 @@ import {
   type GlobalPackageInfo,
   scanGlobalPackages,
 } from '@pnpm/global.packages'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { DependencyManifest } from '@pnpm/types'
 
 // Maps a bin name to all packages that are legitimate owners of it, beyond

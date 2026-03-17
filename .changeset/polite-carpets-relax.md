@@ -19,7 +19,7 @@
 "@pnpm/installing.resolve-dependencies": major
 "@pnpm/releasing.exportable-manifest": major
 "@pnpm/deps.inspection.tree-builder": major
-"@pnpm/pkg-manifest.read-package-json": major
+"@pnpm/pkg-manifest.reader": major
 "@pnpm/resolving.jsr-specifier-parser": major
 "@pnpm/store.connection-manager": major
 "@pnpm/workspace.injected-deps-syncer": major

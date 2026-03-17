@@ -7,7 +7,7 @@ import type {
   ProjectSnapshot,
 } from '@pnpm/lockfile.types'
 import { refIsLocalDirectory } from '@pnpm/lockfile.utils'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { DirectoryResolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,

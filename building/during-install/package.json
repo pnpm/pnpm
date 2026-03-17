@@ -44,7 +44,7 @@
     "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
     "@pnpm/patching.types": "workspace:*",
-    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-defer": "catalog:",

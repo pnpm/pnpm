@@ -55,6 +55,18 @@
       "path": "../../config/writer"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../deps/inspection/outdated"
     },
     {
@@ -76,19 +88,7 @@
       "path": "../../lockfile/types"
     },
     {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     },
     {
       "path": "../../pkg-manifest/utils"

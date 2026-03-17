@@ -16,6 +16,18 @@
       "path": "../../config/reader"
     },
     {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../deps/graph-hasher"
     },
     {
@@ -31,25 +43,13 @@
       "path": "../../fs/hard-link-dir"
     },
     {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
       "path": "../../patching/apply-patch"
     },
     {
       "path": "../../patching/types"
     },
     {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     },
     {
       "path": "../../store/controller-types"

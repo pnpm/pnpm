@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../crypto/hash"
+      "path": "../../core/types"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../crypto/hash"
     }
   ]
 }

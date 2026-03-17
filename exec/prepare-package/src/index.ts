@@ -5,7 +5,7 @@ import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { AllowBuild, PackageManifest } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import { preferredPM } from 'preferred-pm'

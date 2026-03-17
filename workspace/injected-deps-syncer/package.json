@@ -35,7 +35,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
-    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.projects-reader": "workspace:*",

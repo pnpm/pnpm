@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../fetching/fetcher-base"
+      "path": "../../core/types"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../fetching/fetcher-base"
     },
     {
       "path": "../../resolving/resolver-base"

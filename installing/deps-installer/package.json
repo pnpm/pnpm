@@ -132,7 +132,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
-    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/store.cafs": "workspace:*",

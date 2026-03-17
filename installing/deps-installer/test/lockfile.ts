@@ -15,7 +15,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.fs'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'

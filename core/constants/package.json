@@ -1,16 +1,16 @@
 {
-  "name": "@pnpm/types",
-  "version": "1000.9.0",
-  "description": "Basic types used by pnpm",
+  "name": "@pnpm/constants",
+  "version": "1001.3.1",
+  "description": "pnpm constants",
   "keywords": [
     "pnpm",
     "pnpm11",
-    "types"
+    "constants"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/packages/types",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/packages/types#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/core/constants",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/core/constants#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -27,11 +27,11 @@
   "scripts": {
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix",
-    "lint": "eslint \"src/**/*.ts\""
+    "lint": "eslint \"src/**/*.ts\"",
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "devDependencies": {
-    "@pnpm/types": "workspace:*"
+    "@pnpm/constants": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

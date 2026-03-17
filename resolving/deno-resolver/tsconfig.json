@@ -10,6 +10,15 @@
   ],
   "references": [
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../crypto/shasums-file"
     },
     {
@@ -23,15 +32,6 @@
     },
     {
       "path": "../../fetching/types"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../worker"

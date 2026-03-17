@@ -25,13 +25,13 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../hooks/pnpmfile"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../resolving/jsr-specifier-parser"

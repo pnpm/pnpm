@@ -12,7 +12,7 @@ import {
   readWantedLockfile,
   type ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { StoreIndex } from '@pnpm/store.index'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'

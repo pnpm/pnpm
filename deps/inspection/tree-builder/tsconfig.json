@@ -19,6 +19,12 @@
       "path": "../../../config/normalize-registries"
     },
     {
+      "path": "../../../core/constants"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
       "path": "../../../fs/read-modules-dir"
     },
     {
@@ -34,13 +40,7 @@
       "path": "../../../lockfile/utils"
     },
     {
-      "path": "../../../packages/constants"
-    },
-    {
-      "path": "../../../packages/types"
-    },
-    {
-      "path": "../../../pkg-manifest/read-package-json"
+      "path": "../../../pkg-manifest/reader"
     },
     {
       "path": "../../../store/cafs"

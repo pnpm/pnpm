@@ -39,7 +39,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/npm-lifecycle": "catalog:",
-    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",

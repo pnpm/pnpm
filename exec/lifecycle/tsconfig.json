@@ -22,22 +22,22 @@
       "path": "../../bins/linker"
     },
     {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../fetching/directory-fetcher"
     },
     {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     },
     {
       "path": "../../store/cafs-types"

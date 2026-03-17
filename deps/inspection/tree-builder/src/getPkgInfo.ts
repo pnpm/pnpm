@@ -11,7 +11,7 @@ import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
-import { readPackageJsonFromDirSync } from '@pnpm/pkg-manifest.read-package-json'
+import { readPackageJsonFromDirSync } from '@pnpm/pkg-manifest.reader'
 import type { StoreIndex } from '@pnpm/store.index'
 import type { DependencyManifest, Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'

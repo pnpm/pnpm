@@ -6,7 +6,7 @@ import type { Config } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import {
   prepare,
   prepareEmpty,

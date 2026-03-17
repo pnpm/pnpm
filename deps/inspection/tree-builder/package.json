@@ -43,7 +43,7 @@
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
-    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",

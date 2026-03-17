@@ -1,16 +1,16 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
-import { readPackageJson, readPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { readPackageJson, readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 
 const fixtures = path.join(import.meta.dirname, 'fixtures')
 
 test('readPackageJson()', async () => {
-  expect((await readPackageJson(path.join(import.meta.dirname, '..', 'package.json'))).name).toBe('@pnpm/pkg-manifest.read-package-json')
+  expect((await readPackageJson(path.join(import.meta.dirname, '..', 'package.json'))).name).toBe('@pnpm/pkg-manifest.reader')
 })
 
 test('fromDir()', async () => {
-  expect((await readPackageJsonFromDir(path.join(import.meta.dirname, '..'))).name).toBe('@pnpm/pkg-manifest.read-package-json')
+  expect((await readPackageJsonFromDir(path.join(import.meta.dirname, '..'))).name).toBe('@pnpm/pkg-manifest.reader')
 })
 
 test('readPackageJson() throw error when name is invalid', async () => {

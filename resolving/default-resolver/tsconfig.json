@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../engine/runtime/node.resolver"
     },
     {
@@ -26,12 +32,6 @@
     },
     {
       "path": "../../network/fetch"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../store/cafs-types"

@@ -13,6 +13,18 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../deps/graph-hasher"
     },
     {
@@ -40,19 +52,7 @@
       "path": "../../network/fetch"
     },
     {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     },
     {
       "path": "../../resolving/npm-resolver"

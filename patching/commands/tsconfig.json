@@ -25,6 +25,18 @@
       "path": "../../config/writer"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../crypto/hash"
     },
     {
@@ -46,19 +58,7 @@
       "path": "../../lockfile/utils"
     },
     {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     },
     {
       "path": "../../resolving/parse-wanted-dependency"

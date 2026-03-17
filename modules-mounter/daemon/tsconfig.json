@@ -13,6 +13,15 @@
       "path": "../../config/reader"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../deps/path"
     },
     {
@@ -20,15 +29,6 @@
     },
     {
       "path": "../../lockfile/utils"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../store/cafs"

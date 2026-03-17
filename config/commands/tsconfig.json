@@ -16,6 +16,15 @@
       "path": "../../cli/utils"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
       "path": "../../exec/run-npm"
     },
     {
@@ -23,15 +32,6 @@
     },
     {
       "path": "../../object/property-path"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
     },
     {
       "path": "../../text/naming-cases"

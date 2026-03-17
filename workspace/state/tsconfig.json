@@ -19,10 +19,10 @@
       "path": "../../config/reader"
     },
     {
-      "path": "../../packages/logger"
+      "path": "../../core/logger"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../core/types"
     }
   ]
 }

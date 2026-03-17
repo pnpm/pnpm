@@ -56,7 +56,7 @@
     "@pnpm/installing.dedupe.check": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",

@@ -43,6 +43,18 @@
       "path": "../../config/reader"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../deps/path"
     },
     {
@@ -83,18 +95,6 @@
     },
     {
       "path": "../../network/git-utils"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../resolving/resolver-base"

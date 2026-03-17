@@ -4,7 +4,7 @@ import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import {
   removalLogger,
 } from '@pnpm/core-loggers'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { DependencyManifest } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import { cmdExtension as CMD_EXTENSION } from 'cmd-extension'

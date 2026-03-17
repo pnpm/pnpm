@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../engine/runtime/node.fetcher"
     },
     {
@@ -38,9 +41,6 @@
     },
     {
       "path": "../../network/fetch"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../resolving/default-resolver"

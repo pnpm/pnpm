@@ -13,16 +13,16 @@
       "path": "../../cli/utils"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../fs/find-packages"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../workspace-manifest-reader"

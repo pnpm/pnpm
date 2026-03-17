@@ -19,6 +19,12 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../fs/find-packages"
     },
     {
@@ -26,12 +32,6 @@
     },
     {
       "path": "../../object/key-sorting"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../yaml/document-sync"

@@ -29,6 +29,15 @@
       "path": "../../../config/reader"
     },
     {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/logger"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
       "path": "../../../deps/graph-hasher"
     },
     {
@@ -45,15 +54,6 @@
     },
     {
       "path": "../../../lockfile/types"
-    },
-    {
-      "path": "../../../packages/error"
-    },
-    {
-      "path": "../../../packages/logger"
-    },
-    {
-      "path": "../../../packages/types"
     },
     {
       "path": "../../../resolving/npm-resolver"

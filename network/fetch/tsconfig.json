@@ -10,16 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../fetching/types"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
     }
   ]
 }

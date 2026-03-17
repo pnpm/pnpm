@@ -13,6 +13,15 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../crypto/hash"
     },
     {
@@ -26,15 +35,6 @@
     },
     {
       "path": "../../installing/package-requester"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../resolving/resolver-base"

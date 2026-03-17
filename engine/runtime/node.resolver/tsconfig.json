@@ -13,6 +13,15 @@
       "path": "../../../config/reader"
     },
     {
+      "path": "../../../core/constants"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
       "path": "../../../crypto/shasums-file"
     },
     {
@@ -20,15 +29,6 @@
     },
     {
       "path": "../../../network/fetch"
-    },
-    {
-      "path": "../../../packages/constants"
-    },
-    {
-      "path": "../../../packages/error"
-    },
-    {
-      "path": "../../../packages/types"
     },
     {
       "path": "../../../resolving/resolver-base"

@@ -13,6 +13,18 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../crypto/hash"
     },
     {
@@ -20,18 +32,6 @@
     },
     {
       "path": "../../lockfile/types"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../store/controller-types"

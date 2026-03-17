@@ -64,7 +64,7 @@
   },
   "devDependencies": {
     "@pnpm/deps.compliance.commands": "workspace:*",
-    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
