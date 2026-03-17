@@ -18,7 +18,7 @@ pnpm publish --no-git-checks
 
 If the registry requests OTP while the user has not provided the OTP via either the `PNPM_CONFIG_OTP` env nor the `--otp` flag, pnpm would prompt the user directly for OTP code.
 
-If the registry requests WebAuth, pnpm would print a scannable QR code along with the URL.
+If the registry requests web-based authentication, pnpm would print a scannable QR code along with the URL.
 
 If the registry sends `npm-notice`, pnpm would print scannable QR code for the URLs within it.
 
