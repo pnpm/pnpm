@@ -163,6 +163,7 @@ export async function publishWithOtpHandling ({
       },
       timeout: publishOptions.timeout,
     }
+
     let otp: string | undefined
 
     if (error.body?.authUrl && error.body?.doneUrl) {
@@ -183,6 +184,7 @@ export async function publishWithOtpHandling ({
       // Use || (not ??) so that empty-string input is treated as "no OTP provided"
       otp = enquirerResponse?.otp || undefined
     }
+
     if (otp != null) {
       try {
         return await publish(manifest, tarballData, { ...publishOptions, otp })
