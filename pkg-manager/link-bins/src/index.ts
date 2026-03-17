@@ -123,7 +123,6 @@ export async function linkBinsOfPackages (
 }
 
 interface CommandInfo extends Command {
-  ownName: boolean
   pkgName: string
   pkgVersion: string
   makePowerShellShim: boolean
@@ -175,9 +174,6 @@ function compareCommandsInConflict (a: CommandInfo, b: CommandInfo): number {
   const bOwns = pkgOwnsBin(b.name, b.pkgName)
   if (aOwns && !bOwns) return 1
   if (!aOwns && bOwns) return -1
-  // Legacy check for backward compatibility (ownName is cmd.name === manifest.name)
-  if (a.ownName && !b.ownName) return 1
-  if (!a.ownName && b.ownName) return -1
   if (a.pkgName !== b.pkgName) return a.pkgName.localeCompare(b.pkgName) // it's pointless to compare versions of 2 different package
   return semver.compare(a.pkgVersion, b.pkgVersion)
 }
@@ -217,7 +213,6 @@ async function getPackageBins (
       return [{
         name: 'node',
         path: path.join(target, getNodeBinLocationForCurrentOS()),
-        ownName: true,
         pkgName: '',
         pkgVersion: '',
         makePowerShellShim: false,
@@ -226,7 +221,6 @@ async function getPackageBins (
       return [{
         name: 'deno',
         path: path.join(target, getDenoBinLocationForCurrentOS()),
-        ownName: true,
         pkgName: '',
         pkgVersion: '',
         makePowerShellShim: false,
@@ -235,7 +229,6 @@ async function getPackageBins (
       return [{
         name: 'bun',
         path: path.join(target, getBunBinLocationForCurrentOS()),
-        ownName: true,
         pkgName: '',
         pkgVersion: '',
         makePowerShellShim: false,
@@ -273,7 +266,6 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
   }
   return cmds.map((cmd) => ({
     ...cmd,
-    ownName: cmd.name === manifest.name,
     pkgName: manifest.name,
     pkgVersion: manifest.version,
     makePowerShellShim: POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm',
