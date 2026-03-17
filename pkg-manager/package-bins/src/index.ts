@@ -9,6 +9,20 @@ export interface Command {
   path: string
 }
 
+// Maps a bin name to all packages that are legitimate owners of it, beyond
+// the default rule that a package named `X` owns the `X` bin.  For example,
+// `npx` ships inside the `npm` package, and `pnpx` ships inside both the
+// `pnpm` package and the `@pnpm/exe` package.
+export const BIN_OWNER_OVERRIDES: Record<string, string[]> = {
+  npx: ['npm'],
+  pnpm: ['@pnpm/exe'],
+  pnpx: ['pnpm', '@pnpm/exe'],
+}
+
+export function pkgOwnsBin (binName: string, pkgName: string): boolean {
+  return binName === pkgName || BIN_OWNER_OVERRIDES[binName]?.includes(pkgName) === true
+}
+
 export async function getBinsFromPackageManifest (manifest: DependencyManifest, pkgPath: string): Promise<Command[]> {
   if (manifest.bin) {
     return commandsFromBin(manifest.bin, manifest.name, pkgPath)

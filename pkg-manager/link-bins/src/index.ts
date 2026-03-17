@@ -6,7 +6,7 @@ import { getBunBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getNodeB
 import { PnpmError } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { type Command, getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/package-bins'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
@@ -123,7 +123,6 @@ export async function linkBinsOfPackages (
 }
 
 interface CommandInfo extends Command {
-  ownName: boolean
   pkgName: string
   pkgVersion: string
   makePowerShellShim: boolean
@@ -170,8 +169,11 @@ function resolveCommandConflicts (group: CommandInfo[], binsDir: string): Comman
 }
 
 function compareCommandsInConflict (a: CommandInfo, b: CommandInfo): number {
-  if (a.ownName && !b.ownName) return 1
-  if (!a.ownName && b.ownName) return -1
+  // Check ownership: a package that owns the bin name gets priority
+  const aOwns = pkgOwnsBin(a.name, a.pkgName)
+  const bOwns = pkgOwnsBin(b.name, b.pkgName)
+  if (aOwns && !bOwns) return 1
+  if (!aOwns && bOwns) return -1
   if (a.pkgName !== b.pkgName) return a.pkgName.localeCompare(b.pkgName) // it's pointless to compare versions of 2 different package
   return semver.compare(a.pkgVersion, b.pkgVersion)
 }
@@ -211,7 +213,6 @@ async function getPackageBins (
       return [{
         name: 'node',
         path: path.join(target, getNodeBinLocationForCurrentOS()),
-        ownName: true,
         pkgName: '',
         pkgVersion: '',
         makePowerShellShim: false,
@@ -220,7 +221,6 @@ async function getPackageBins (
       return [{
         name: 'deno',
         path: path.join(target, getDenoBinLocationForCurrentOS()),
-        ownName: true,
         pkgName: '',
         pkgVersion: '',
         makePowerShellShim: false,
@@ -229,7 +229,6 @@ async function getPackageBins (
       return [{
         name: 'bun',
         path: path.join(target, getBunBinLocationForCurrentOS()),
-        ownName: true,
         pkgName: '',
         pkgVersion: '',
         makePowerShellShim: false,
@@ -267,7 +266,6 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
   }
   return cmds.map((cmd) => ({
     ...cmd,
-    ownName: cmd.name === manifest.name,
     pkgName: manifest.name,
     pkgVersion: manifest.version,
     makePowerShellShim: POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm',
