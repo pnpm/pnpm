@@ -168,6 +168,10 @@ export async function publishWithOtpHandling ({
     if (error.body?.authUrl && error.body?.doneUrl) {
       otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, { Date, setTimeout, fetch, globalInfo }, fetchOptions)
     } else {
+      // NOTE: I worry that this notice may mislead the user,
+      //       I will wait for @zkochan to test the OTP again
+      //       before deciding whether to delete or keep this
+      //       line.
       displayNpmNotice(error, globalInfo)
 
       const enquirerResponse = await enquirer.prompt({
