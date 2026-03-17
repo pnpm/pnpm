@@ -11,7 +11,7 @@ import {
 } from '@pnpm/exec.lifecycle'
 import { groupStart } from '@pnpm/log.group'
 import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
-import { sortPackages } from '@pnpm/workspace.sort-packages'
+import { sortPackages } from '@pnpm/workspace.projects-sorter'
 import pLimit from 'p-limit'
 import { realpathMissing } from 'realpath-missing'
 

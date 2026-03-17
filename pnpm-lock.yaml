@@ -1682,9 +1682,9 @@ importers:
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
         version: 3.0.2
-      '@pnpm/workspace.sort-packages':
+      '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
-        version: link:../../workspace/sort-packages
+        version: link:../../workspace/projects-sorter
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
@@ -3855,9 +3855,9 @@ importers:
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-reader
-      '@pnpm/workspace.sort-packages':
+      '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
-        version: link:../../workspace/sort-packages
+        version: link:../../workspace/projects-sorter
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
@@ -4910,9 +4910,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/workspace.pkgs-graph':
+      '@pnpm/workspace.projects-graph':
         specifier: workspace:*
-        version: link:../../workspace/pkgs-graph
+        version: link:../../workspace/projects-graph
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-reader
@@ -4928,9 +4928,9 @@ importers:
       '@pnpm/workspace.root-finder':
         specifier: workspace:*
         version: link:../../workspace/root-finder
-      '@pnpm/workspace.sort-packages':
+      '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
-        version: link:../../workspace/sort-packages
+        version: link:../../workspace/projects-sorter
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: link:../../workspace/state
@@ -7231,9 +7231,9 @@ importers:
       '@pnpm/workspace.commands':
         specifier: workspace:*
         version: link:../workspace/commands
-      '@pnpm/workspace.pkgs-graph':
+      '@pnpm/workspace.projects-graph':
         specifier: workspace:*
-        version: link:../workspace/pkgs-graph
+        version: link:../workspace/projects-graph
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../workspace/project-manifest-reader
@@ -7543,9 +7543,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/workspace.sort-packages':
+      '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
-        version: link:../../workspace/sort-packages
+        version: link:../../workspace/projects-sorter
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
@@ -8866,7 +8866,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  workspace/pkgs-graph:
+  workspace/projects-graph:
     dependencies:
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
@@ -8884,7 +8884,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
-      '@pnpm/workspace.pkgs-graph':
+      '@pnpm/workspace.projects-graph':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
@@ -8991,9 +8991,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/workspace.pkgs-graph':
+      '@pnpm/workspace.projects-graph':
         specifier: workspace:*
-        version: link:../pkgs-graph
+        version: link:../projects-graph
       '@pnpm/workspace.projects-reader':
         specifier: workspace:*
         version: link:../projects-reader
@@ -9104,7 +9104,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  workspace/sort-packages:
+  workspace/projects-sorter:
     dependencies:
       '@pnpm/deps.graph-sequencer':
         specifier: workspace:*
@@ -9113,7 +9113,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
     devDependencies:
-      '@pnpm/workspace.sort-packages':
+      '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: 'link:'
 

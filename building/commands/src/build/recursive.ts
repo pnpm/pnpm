@@ -14,7 +14,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
-import { sortPackages } from '@pnpm/workspace.sort-packages'
+import { sortPackages } from '@pnpm/workspace.projects-sorter'
 import pLimit from 'p-limit'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,

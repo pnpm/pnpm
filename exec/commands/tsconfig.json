@@ -88,7 +88,7 @@
       "path": "../../workspace/projects-filter"
     },
     {
-      "path": "../../workspace/sort-packages"
+      "path": "../../workspace/projects-sorter"
     },
     {
       "path": "../lifecycle"

@@ -129,7 +129,7 @@
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.projects-reader": "workspace:*",
-    "@pnpm/workspace.pkgs-graph": "workspace:*",
+    "@pnpm/workspace.projects-graph": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
     "@pnpm/workspace.project-manifest-writer": "workspace:*",

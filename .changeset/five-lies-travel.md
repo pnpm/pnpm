@@ -73,7 +73,7 @@
 "@pnpm/store.create-cafs-store": major
 "@pnpm/workspace.projects-reader": major
 "@pnpm/workspace.workspace-manifest-reader": major
-"@pnpm/workspace.sort-packages": major
+"@pnpm/workspace.projects-sorter": major
 "@pnpm/assert-store": major
 "@pnpm/config.parse-overrides": major
 "@pnpm/installing.dedupe.issues-renderer": major
@@ -103,7 +103,7 @@
 "@pnpm/patching.apply-patch": major
 "@pnpm/installing.deps-restorer": major
 "@pnpm/text.comments-parser": major
-"@pnpm/workspace.pkgs-graph": major
+"@pnpm/workspace.projects-graph": major
 "@pnpm/crypto.shasums-file": major
 "@pnpm/fs.read-modules-dir": major
 "@pnpm/network.auth-header": major

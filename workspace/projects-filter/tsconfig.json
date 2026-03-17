@@ -19,7 +19,7 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../pkgs-graph"
+      "path": "../projects-graph"
     },
     {
       "path": "../projects-reader"

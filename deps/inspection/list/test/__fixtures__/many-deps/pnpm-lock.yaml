@@ -2368,7 +2368,7 @@ packages:
     resolution: {integrity: sha512-BYa9COEIfnjbY8sER9HvooHdt7xW4HUsdxA4QiSB7lsX0Lmtkqe0fHmloHh2Snqm/p2/jjoyHLoSz4/wENHZCA==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/workspace.pkgs-graph@1000.0.33':
+  '@pnpm/workspace.projects-graph@1000.0.33':
     resolution: {integrity: sha512-u5AMhn9mXY5f74VXbN4pNCqI8BelXOGKuHdPD+9/eOLkQ3Ct1LtBzOjsMMF3l7XeWKXOrN0+ICHE9HKhlivSVA==}
     engines: {node: '>=18.12'}
 
@@ -22754,7 +22754,7 @@ snapshots:
       ramda: '@pnpm/ramda@0.28.1'
       write-yaml-file: 5.0.0
 
-  '@pnpm/workspace.pkgs-graph@1000.0.33(@pnpm/logger@1001.0.1)':
+  '@pnpm/workspace.projects-graph@1000.0.33(@pnpm/logger@1001.0.1)':
     dependencies:
       '@pnpm/npm-package-arg': 2.0.0
       '@pnpm/npm-resolver': 1005.1.0(@pnpm/logger@1001.0.1)
@@ -43993,7 +43993,7 @@ snapshots:
       '@pnpm/store-connection-manager': 1002.3.9(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.1(@pnpm/logger@1001.0.1)(@types/node@25.2.2))(typanion@3.14.0)
       '@pnpm/types': 1001.2.0
       '@pnpm/worker': 1000.6.1(@pnpm/logger@1001.0.1)(@types/node@25.2.2)
-      '@pnpm/workspace.pkgs-graph': 1000.0.33(@pnpm/logger@1001.0.1)
+      '@pnpm/workspace.projects-graph': 1000.0.33(@pnpm/logger@1001.0.1)
       '@teambit/bit-error': 0.0.404
       '@teambit/cli': 0.0.1299(@types/react@17.0.91)(encoding@0.1.13)(react@17.0.2)
       '@teambit/cloud': 0.0.1163(3a8a6f4f6b1aed1af363fc7ff11bf4eb)

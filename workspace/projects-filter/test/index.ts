@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 
 import type { PnpmError } from '@pnpm/error'
 import type { ProjectRootDir } from '@pnpm/types'
-import type { Package } from '@pnpm/workspace.pkgs-graph'
+import type { Package } from '@pnpm/workspace.projects-graph'
 import { filterWorkspacePackages, type PackageGraph } from '@pnpm/workspace.projects-filter'
 import { isCI } from 'ci-info'
 import { safeExeca as execa } from 'execa'

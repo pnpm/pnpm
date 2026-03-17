@@ -150,9 +150,6 @@
       "path": "../workspace/commands"
     },
     {
-      "path": "../workspace/pkgs-graph"
-    },
-    {
       "path": "../workspace/project-manifest-reader"
     },
     {
@@ -160,6 +157,9 @@
     },
     {
       "path": "../workspace/projects-filter"
+    },
+    {
+      "path": "../workspace/projects-graph"
     },
     {
       "path": "../workspace/projects-reader"

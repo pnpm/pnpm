@@ -112,9 +112,6 @@
       "path": "../../worker"
     },
     {
-      "path": "../../workspace/pkgs-graph"
-    },
-    {
       "path": "../../workspace/project-manifest-reader"
     },
     {
@@ -124,13 +121,16 @@
       "path": "../../workspace/projects-filter"
     },
     {
+      "path": "../../workspace/projects-graph"
+    },
+    {
       "path": "../../workspace/projects-reader"
     },
     {
-      "path": "../../workspace/root-finder"
+      "path": "../../workspace/projects-sorter"
     },
     {
-      "path": "../../workspace/sort-packages"
+      "path": "../../workspace/root-finder"
     },
     {
       "path": "../../workspace/state"

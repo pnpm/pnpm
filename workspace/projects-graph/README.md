@@ -1,4 +1,4 @@
-# @pnpm/workspace.pkgs-graph
+# @pnpm/workspace.projects-graph
 
 > Create a graph from an array of packages
 
@@ -7,7 +7,7 @@
 ## Installation
 
 ```
-pnpm add @pnpm/workspace.pkgs-graph
+pnpm add @pnpm/workspace.projects-graph
 ```
 
 ## Usage

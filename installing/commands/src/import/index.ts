@@ -15,7 +15,7 @@ import {
 import type { Project, ProjectsGraph } from '@pnpm/types'
 import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
-import { sequenceGraph } from '@pnpm/workspace.sort-packages'
+import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import * as structUtils from '@yarnpkg/core/structUtils'
 import type { LockFileObject } from '@yarnpkg/lockfile'
 import yarnLockfileLib from '@yarnpkg/lockfile'
