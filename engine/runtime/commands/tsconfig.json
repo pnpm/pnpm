@@ -19,10 +19,16 @@
       "path": "../../../exec/pnpm-cli-runner"
     },
     {
+      "path": "../../../network/fetch"
+    },
+    {
       "path": "../../../packages/error"
     },
     {
       "path": "../../../packages/logger"
+    },
+    {
+      "path": "../node.resolver"
     }
   ]
 }

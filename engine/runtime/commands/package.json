@@ -36,6 +36,8 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
+    "@pnpm/node.resolver": "workspace:*",
     "render-help": "catalog:"
   },
   "peerDependencies": {

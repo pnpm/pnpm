@@ -1,5 +1,5 @@
 ---
-"@pnpm/exec.build-commands": minor
+"@pnpm/building.commands": minor
 "pnpm": minor
 ---
 

@@ -1,6 +1,6 @@
 ---
 "@pnpm/reviewing.dependencies-hierarchy": patch
-"@pnpm/reviewing.plugin-commands-listing": patch
+"@pnpm/deps.inspection.commands": patch
 "pnpm": patch
 ---
 

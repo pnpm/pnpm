@@ -1,6 +1,5 @@
 ---
-"@pnpm/plugin-commands-env": patch
-"@pnpm/runtime.commands": minor
+"@pnpm/runtime.commands": patch
 "pnpm": minor
 ---
 

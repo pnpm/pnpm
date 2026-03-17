@@ -32,7 +32,7 @@
     "test": "pnpm run compile && pnpm run _test"
   },
   "dependencies": {
-    "@pnpm/building.policy-commands": "workspace:*",
+    "@pnpm/building.commands": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/core": "workspace:*",

@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-listing": minor
+"@pnpm/deps.inspection.commands": minor
 "@pnpm/reviewing.dependencies-hierarchy": minor
 "@pnpm/list": minor
 ---

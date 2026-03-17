@@ -1,3 +1,2 @@
-import * as runtime from './runtime.js'
-
-export { runtime }
+export { env } from './env/index.js'
+export { runtime } from './runtime/index.js'
