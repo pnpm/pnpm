@@ -17,7 +17,7 @@ export interface OtpWebAuthFetchOptions {
 }
 
 export interface OtpWebAuthFetchResponseHeaders {
-  get: (name: 'retry-after') => string | null
+  get: (this: this, name: 'retry-after') => string | null
 }
 
 export interface OtpWebAuthFetchResponse {
