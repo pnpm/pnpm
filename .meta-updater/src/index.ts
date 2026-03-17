@@ -5,7 +5,7 @@ import { type LockfileObject, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
 import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
 import type { ProjectId, ProjectManifest } from '@pnpm/types'
-import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import { loadJsonFileSync } from 'load-json-file'
@@ -27,7 +27,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
   if (lockfile == null) {
     throw new Error('no lockfile found')
   }
-  const workspacePackages = await findWorkspacePackagesNoCheck(workspaceDir, { patterns: workspaceManifest?.packages })
+  const workspacePackages = await findWorkspaceProjectsNoCheck(workspaceDir, { patterns: workspaceManifest?.packages })
   const workspacePackageNames = new Set(workspacePackages.map(pkg => pkg.manifest.name).filter(Boolean))
   return createUpdateOptions({
     'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }: { dir: string }) => {

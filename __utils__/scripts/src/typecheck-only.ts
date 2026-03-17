@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { sync as execa } from 'execa'
 import glob from 'fast-glob'
@@ -14,7 +14,7 @@ const typingsDir = path.resolve(import.meta.dirname, '__typings__')
 
 async function main (): Promise<void> {
   const workspace = await readWorkspaceManifest(repoRoot)
-  const packages = await findWorkspacePackages(repoRoot, {
+  const packages = await findWorkspaceProjects(repoRoot, {
     patterns: workspace!.packages,
   })
   const patterns = packages

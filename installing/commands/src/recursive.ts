@@ -45,7 +45,7 @@ import type {
   ProjectRootDirRealPath,
   ProjectsGraph,
 } from '@pnpm/types'
-import { sortPackages } from '@pnpm/workspace.projects-sorter'
+import { sortProjects } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
@@ -553,7 +553,7 @@ export function makeIgnorePatterns (ignoredDependencies: string[]): string[] {
 
 function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: ProjectsGraph, sort?: boolean): ProjectOptions[] {
   const chunks = sort !== false
-    ? sortPackages(allProjectsGraph)
+    ? sortProjects(allProjectsGraph)
     : [(Object.keys(allProjectsGraph) as ProjectRootDir[]).sort()]
   return chunks.map((prefixes, buildIndex) => prefixes.map((rootDir) => {
     const { rootDirRealPath, modulesDir } = allProjectsGraph[rootDir].package

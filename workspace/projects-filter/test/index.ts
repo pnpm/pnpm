@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 
 import type { PnpmError } from '@pnpm/error'
 import type { ProjectRootDir } from '@pnpm/types'
-import { filterWorkspacePackages, type PackageGraph } from '@pnpm/workspace.projects-filter'
+import { filterWorkspaceProjects, type PackageGraph } from '@pnpm/workspace.projects-filter'
 import type { Package } from '@pnpm/workspace.projects-graph'
 import { isCI } from 'ci-info'
 import { safeExeca as execa } from 'execa'
@@ -13,7 +13,7 @@ import { omit } from 'ramda'
 import { temporaryDirectory } from 'tempy'
 import touchCB from 'touch'
 
-import './parsePackageSelector.js'
+import './parseProjectSelector.js'
 
 const touch = promisify(touchCB)
 const mkdir = promisify(fs.mkdir)
@@ -123,7 +123,7 @@ const PKGS_GRAPH: PackageGraph<Package> = {
 }
 
 test('select only package dependencies (excluding the package itself)', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: true,
       includeDependencies: true,
@@ -135,7 +135,7 @@ test('select only package dependencies (excluding the package itself)', async ()
 })
 
 test('select package with dependencies', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: false,
       includeDependencies: true,
@@ -147,7 +147,7 @@ test('select package with dependencies', async () => {
 })
 
 test('select package with dependencies and dependents, including dependent dependencies', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: true,
       includeDependencies: true,
@@ -160,7 +160,7 @@ test('select package with dependencies and dependents, including dependent depen
 })
 
 test('select package with dependents', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: false,
       includeDependents: true,
@@ -172,7 +172,7 @@ test('select package with dependents', async () => {
 })
 
 test('select dependents excluding package itself', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: true,
       includeDependents: true,
@@ -184,7 +184,7 @@ test('select dependents excluding package itself', async () => {
 })
 
 test('filter using two selectors: one selects dependencies another selects dependents', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: true,
       includeDependents: true,
@@ -201,7 +201,7 @@ test('filter using two selectors: one selects dependencies another selects depen
 })
 
 test('select just a package by name', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: false,
       namePattern: 'project-2',
@@ -224,7 +224,7 @@ test('select package without specifying its scope', async () => {
       },
     },
   }
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: false,
       namePattern: 'bar',
@@ -257,7 +257,7 @@ test('when a scoped package with the same name exists, only pick the exact match
       },
     },
   }
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: false,
       namePattern: 'bar',
@@ -290,7 +290,7 @@ test('when two scoped packages match the searched name, don\'t select any', asyn
       },
     },
   }
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: false,
       namePattern: 'bar',
@@ -301,7 +301,7 @@ test('when two scoped packages match the searched name, don\'t select any', asyn
 })
 
 test('select by parentDir', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: false,
       parentDir: '/packages',
@@ -312,7 +312,7 @@ test('select by parentDir', async () => {
 })
 
 test('select by parentDir using glob', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: false,
       parentDir: '/packages/*',
@@ -323,7 +323,7 @@ test('select by parentDir using glob', async () => {
 })
 
 test('select by parentDir using globstar', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: false,
       parentDir: '/project-5/**',
@@ -334,7 +334,7 @@ test('select by parentDir using globstar', async () => {
 })
 
 test('select by parentDir with no glob', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: false,
       parentDir: '/project-5',
@@ -444,14 +444,14 @@ test('select changed packages', async () => {
   }
 
   {
-    const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(pkgsGraph, [{
       diff: 'HEAD~1',
     }], { workspaceDir })
 
     expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg1Dir, pkg2Dir, pkgKorDir])
   }
   {
-    const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(pkgsGraph, [{
       diff: 'HEAD~1',
       parentDir: pkg2Dir,
     }], { workspaceDir })
@@ -459,7 +459,7 @@ test('select changed packages', async () => {
     expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg2Dir])
   }
   {
-    const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(pkgsGraph, [{
       diff: 'HEAD~1',
       namePattern: 'package-2*',
     }], { workspaceDir })
@@ -467,7 +467,7 @@ test('select changed packages', async () => {
     expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg2Dir])
   }
   {
-    const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
+    const { selectedProjectsGraph } = await filterWorkspaceProjects(pkgsGraph, [{
       diff: 'HEAD~1',
       includeDependents: true,
     }], { workspaceDir, testPattern: ['*/file2.js'] })
@@ -542,7 +542,7 @@ test('select changed packages when operating under a git worktree', async () => 
     },
   }
 
-  const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(pkgsGraph, [{
     diff: 'HEAD~1',
   }], { workspaceDir: worktreeDir })
 
@@ -552,7 +552,7 @@ test('select changed packages when operating under a git worktree', async () => 
 test('selection should fail when diffing to a branch that does not exist', async () => {
   let err!: PnpmError
   try {
-    await filterWorkspacePackages(PKGS_GRAPH, [{ diff: 'branch-does-no-exist' }], { workspaceDir: process.cwd() })
+    await filterWorkspaceProjects(PKGS_GRAPH, [{ diff: 'branch-does-no-exist' }], { workspaceDir: process.cwd() })
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -562,7 +562,7 @@ test('selection should fail when diffing to a branch that does not exist', async
 })
 
 test('should return unmatched filters', async () => {
-  const { unmatchedFilters } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { unmatchedFilters } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: true,
       includeDependencies: true,
@@ -574,7 +574,7 @@ test('should return unmatched filters', async () => {
 })
 
 test('select all packages except one', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       exclude: true,
       excludeSelf: false,
@@ -588,7 +588,7 @@ test('select all packages except one', async () => {
 })
 
 test('select by parentDir and exclude one package by pattern', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: false,
       parentDir: '/packages',
@@ -605,7 +605,7 @@ test('select by parentDir and exclude one package by pattern', async () => {
 })
 
 test('select by parentDir with glob and exclude one package by pattern', async () => {
-  const { selectedProjectsGraph } = await filterWorkspacePackages(PKGS_GRAPH, [
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PKGS_GRAPH, [
     {
       excludeSelf: false,
       parentDir: '/packages/*',

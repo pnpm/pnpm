@@ -3,8 +3,8 @@ import path from 'node:path'
 import { run } from '@pnpm/exec.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
-import { filterPkgsBySelectorObjects } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
 
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
@@ -54,7 +54,7 @@ test('pnpm recursive test', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa('node', [
     pnpmBin,
     'install',
@@ -107,7 +107,7 @@ test('`pnpm recursive test` does not fail if none of the packages has a test com
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa('node', [
     pnpmBin,
     'install',
@@ -153,8 +153,8 @@ test('pnpm recursive test with filtering', async () => {
     },
   ])
 
-  const { allProjects } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
-  const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+  const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
     allProjects,
     [{ namePattern: 'project-1' }],
     { workspaceDir: process.cwd() }

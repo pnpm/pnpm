@@ -30,9 +30,9 @@ import type {
   ProjectsGraph,
   VulnerabilitySeverity,
 } from '@pnpm/types'
-import { filterPkgsBySelectorObjects } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter'
 import { createPkgGraph } from '@pnpm/workspace.projects-graph'
-import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
@@ -198,7 +198,7 @@ when running add/update with the --workspace option')
     typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined'
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir
-      ? await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
+      ? await findWorkspaceProjects(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
       : []
   )
   if (opts.workspaceDir) {
@@ -392,7 +392,7 @@ when running add/update with the --workspace option')
   }
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
-    const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(allProjects, [
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(allProjects, [
       {
         excludeSelf: true,
         includeDependencies: true,

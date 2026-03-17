@@ -14,7 +14,7 @@ interface ChangedDir {
   dir: string, changeType: ChangeType
 }
 
-export async function getChangedPackages (
+export async function getChangedProjects (
   packageDirs: ProjectRootDir[],
   commit: string,
   opts: { workspaceDir: string, testPattern?: string[], changedFilesIgnorePattern?: string[] }

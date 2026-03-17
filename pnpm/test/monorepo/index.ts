@@ -16,7 +16,7 @@ import {
 import { addDistTag } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectManifest } from '@pnpm/types'
-import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
@@ -1417,7 +1417,7 @@ test('root package is included when not specified', async () => {
   )
   const workspacePackagePatterns = ['project-', '!store/**']
   writeYamlFileSync('pnpm-workspace.yaml', { packages: workspacePackagePatterns })
-  const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
+  const workspacePackages = await findWorkspaceProjects(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
 
   expect(workspacePackages.some(project => {
     const relativePath = path.join('.', path.relative(tempDir, project.rootDir))
@@ -1455,7 +1455,7 @@ test("root package can't be ignored using '!.' (or any other such glob)", async 
   )
   const workspacePackagePatterns = ['project-', '!.', '!./', '!store/**']
   writeYamlFileSync('pnpm-workspace.yaml', { packages: workspacePackagePatterns })
-  const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
+  const workspacePackages = await findWorkspaceProjects(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
 
   expect(workspacePackages.some(project => {
     const relativePath = path.join('.', path.relative(tempDir, project.rootDir))

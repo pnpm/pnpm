@@ -15,7 +15,7 @@ export function sequenceGraph (pkgGraph: ProjectsGraph): GraphSequencerResult<Pr
   return graphSequencer(graph, keys)
 }
 
-export function sortPackages (pkgGraph: ProjectsGraph): ProjectRootDir[][] {
+export function sortProjects (pkgGraph: ProjectsGraph): ProjectRootDir[][] {
   const graphSequencerResult = sequenceGraph(pkgGraph)
   return graphSequencerResult.chunks
 }

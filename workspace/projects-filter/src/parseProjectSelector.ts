@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-export interface PackageSelector {
+export interface ProjectSelector {
   diff?: string
   exclude?: boolean
   excludeSelf?: boolean
@@ -11,7 +11,7 @@ export interface PackageSelector {
   followProdDepsOnly?: boolean
 }
 
-export function parsePackageSelector (rawSelector: string, prefix: string): PackageSelector {
+export function parseProjectSelector (rawSelector: string, prefix: string): ProjectSelector {
   let exclude = false
   if (rawSelector[0] === '!') {
     exclude = true

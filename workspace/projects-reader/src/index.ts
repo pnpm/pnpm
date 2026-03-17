@@ -6,9 +6,9 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export type { Project }
 
-export type WorkspacePackagesPatterns = 'all-packages' | string[]
+export type WorkspaceProjectsPatterns = 'all-packages' | string[]
 
-export interface FindWorkspacePackagesOpts {
+export interface FindWorkspaceProjectsOpts {
   /**
    * An array of globs for the packages included in the workspace.
    *
@@ -25,11 +25,11 @@ export interface FindWorkspacePackagesOpts {
   supportedArchitectures?: SupportedArchitectures
 }
 
-export async function findWorkspacePackages (
+export async function findWorkspaceProjects (
   workspaceRoot: string,
-  opts?: FindWorkspacePackagesOpts
+  opts?: FindWorkspaceProjectsOpts
 ): Promise<Project[]> {
-  const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
+  const pkgs = await findWorkspaceProjectsNoCheck(workspaceRoot, opts)
   for (const pkg of pkgs) {
     packageIsInstallable(pkg.rootDir, pkg.manifest, {
       ...opts,
@@ -48,7 +48,7 @@ export async function findWorkspacePackages (
   return pkgs
 }
 
-export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
+export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
   const pkgs = await findPackages(workspaceRoot, {
     ignore: [
       '**/node_modules/**',
