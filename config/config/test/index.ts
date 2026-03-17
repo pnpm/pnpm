@@ -816,7 +816,7 @@ test('reads workspacePackagePatterns', async () => {
 })
 
 test('workspacePackagePatterns defaults to ["."] when pnpm-workspace.yaml has no packages field', async () => {
-  const workspaceDir = path.join(__dirname, 'fixtures/workspace-yaml-without-packages')
+  const workspaceDir = path.join(import.meta.dirname, 'fixtures/workspace-yaml-without-packages')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
     cliOptions: {},
