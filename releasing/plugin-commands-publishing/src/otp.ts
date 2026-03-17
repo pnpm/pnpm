@@ -118,7 +118,7 @@ export function * extractUrlsFromString (text: string): Generator<string> {
 
 /**
  * Publish a package, handling OTP challenges:
- * - Web auth flow (authUrl/doneUrl in error body with doneUrl polling)
+ * - Web based authentication flow (authUrl/doneUrl in error body with doneUrl polling)
  * - npm-notice flow (URL in npm-notice header with QR code display, then OTP prompt)
  * - Classic OTP prompt (manual code entry)
  *
@@ -145,6 +145,7 @@ export async function publishWithOtpHandling ({
   tarballData,
 }: OtpParams): Promise<OtpPublishResponse> {
   let response: OtpPublishResponse
+
   try {
     response = await publish(manifest, tarballData, publishOptions)
   } catch (error) {
@@ -152,6 +153,7 @@ export async function publishWithOtpHandling ({
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
       throw new OtpNonInteractiveError()
     }
+
     const fetchOptions: OtpWebAuthFetchOptions = {
       method: 'GET',
       retry: {
@@ -163,15 +165,18 @@ export async function publishWithOtpHandling ({
       timeout: publishOptions.timeout,
     }
     let otp: string | undefined
+
     if (error.body?.authUrl && error.body?.doneUrl) {
       otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, { Date, setTimeout, fetch, globalInfo }, fetchOptions)
     } else {
       displayNpmNotice(error, globalInfo)
+
       const enquirerResponse = await enquirer.prompt({
         message: 'This operation requires a one-time password.\nEnter OTP:',
         name: 'otp',
         type: 'input',
       })
+
       // Use || (not ??) so that empty-string input is treated as "no OTP provided"
       otp = enquirerResponse?.otp || undefined
     }
@@ -182,11 +187,14 @@ export async function publishWithOtpHandling ({
         if (isOtpError(retryError)) {
           throw new OtpSecondChallengeError()
         }
+
         throw retryError
       }
     }
+
     throw error
   }
+
   return response
 }
 
@@ -287,7 +295,7 @@ export class OtpWebAuthTimeoutError extends PnpmError {
   readonly startTime: number
   readonly timeout: number
   constructor (endTime: number, startTime: number, timeout: number) {
-    super('WEBAUTH_TIMEOUT', 'Web authentication timed out', {
+    super('WEBAUTH_TIMEOUT', 'Web based authentication timed out', {
       hint: 'Try again, do not take too long this time',
     })
     this.endTime = endTime
