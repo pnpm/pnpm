@@ -1473,6 +1473,75 @@ test.each([
   expect(config.autoConfirmAllPrompts).toBe(expectedValue)
 })
 
+describe('workspace overrides', () => {
+  test('overrides from package.json resolutions and pnpm-workspace.yaml should be merged', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('package.json', JSON.stringify({
+      name: 'test-project',
+      resolutions: {
+        'foo': '1.0.0',
+        'bar': '2.0.0',
+      },
+    }, null, 2))
+
+    writeYamlFile('pnpm-workspace.yaml', {
+      packages: [],
+      overrides: {
+        'baz': '3.0.0',
+        'bar': '2.5.0',
+      },
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.overrides).toStrictEqual({
+      'foo': '1.0.0',
+      'bar': '2.5.0',
+      'baz': '3.0.0',
+    })
+  })
+
+  test('workspace-only overrides should be applied even when package.json has resolutions', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('package.json', JSON.stringify({
+      name: 'test-project',
+      resolutions: {
+        'foo': '1.0.0',
+      },
+    }, null, 2))
+
+    writeYamlFile('pnpm-workspace.yaml', {
+      packages: [],
+      overrides: {
+        'bar': '2.0.0',
+      },
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.overrides).toStrictEqual({
+      'foo': '1.0.0',
+      'bar': '2.0.0',
+    })
+  })
+})
+
 describe('global config.yaml', () => {
   let XDG_CONFIG_HOME: string | undefined
 
