@@ -16,16 +16,16 @@
       "path": "../../config/parse-overrides"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../deps/peer-range"
     },
     {
-      "path": "../../packages/parse-wanted-dependency"
+      "path": "../../packages/error"
     },
     {
       "path": "../../packages/types"
     },
     {
-      "path": "../../semver/peer-range"
+      "path": "../../resolving/parse-wanted-dependency"
     }
   ]
 }

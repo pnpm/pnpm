@@ -1,0 +1,61 @@
+{
+  "name": "@pnpm/make-dedicated-lockfile",
+  "version": "1000.0.28",
+  "description": "Creates a dedicated lockfile for a subset of workspace projects",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "make-dedicated-lockfile"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/lockfile/make-dedicated-lockfile",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/lockfile/make-dedicated-lockfile#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map",
+    "bin"
+  ],
+  "bin": "./bin/make-dedicated-lockfile.js",
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/error": "workspace:*",
+    "@pnpm/exec": "catalog:",
+    "@pnpm/exportable-manifest": "workspace:*",
+    "@pnpm/find-workspace-dir": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.pruner": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "ramda": "catalog:",
+    "rename-overwrite": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/make-dedicated-lockfile": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@types/ramda": "catalog:",
+    "execa": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

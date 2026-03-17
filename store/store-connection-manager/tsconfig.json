@@ -16,10 +16,10 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../packages/logger"
+      "path": "../../installing/client"
     },
     {
-      "path": "../../pkg-manager/client"
+      "path": "../../packages/logger"
     },
     {
       "path": "../index"

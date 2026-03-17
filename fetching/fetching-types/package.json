@@ -1,0 +1,46 @@
+{
+  "name": "@pnpm/fetching-types",
+  "version": "1000.2.0",
+  "description": "Types for fetching",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "types"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/fetching/fetching-types",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/fetching/fetching-types#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "compile": "tsgo --build && pnpm run lint --fix",
+    "lint": "eslint \"src/**/*.ts\"",
+    "prepublishOnly": "pnpm run compile",
+    "test": "pnpm run compile"
+  },
+  "dependencies": {
+    "@zkochan/retry": "catalog:",
+    "node-fetch": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/fetching-types": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

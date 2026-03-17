@@ -19,6 +19,9 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../bins/link-bins"
+    },
+    {
       "path": "../../fetching/directory-fetcher"
     },
     {
@@ -32,9 +35,6 @@
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/link-bins"
     },
     {
       "path": "../../pkg-manifest/read-package-json"

@@ -19,19 +19,19 @@
       "path": "../../crypto/hash"
     },
     {
-      "path": "../../packages/constants"
+      "path": "../../deps/dependency-path"
     },
     {
-      "path": "../../packages/dependency-path"
+      "path": "../../installing/get-context"
+    },
+    {
+      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/get-context"
     },
     {
       "path": "../../pkg-manifest/read-package-json"

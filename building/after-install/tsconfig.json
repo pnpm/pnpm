@@ -10,16 +10,31 @@
   ],
   "references": [
     {
+      "path": "../../bins/link-bins"
+    },
+    {
       "path": "../../config/config"
     },
     {
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../deps/calc-dep-state"
+    },
+    {
+      "path": "../../deps/dependency-path"
+    },
+    {
       "path": "../../deps/graph-sequencer"
     },
     {
       "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../installing/get-context"
+    },
+    {
+      "path": "../../installing/modules-yaml"
     },
     {
       "path": "../../lockfile/types"
@@ -31,31 +46,16 @@
       "path": "../../lockfile/walker"
     },
     {
-      "path": "../../packages/calc-dep-state"
-    },
-    {
       "path": "../../packages/constants"
     },
     {
       "path": "../../packages/core-loggers"
     },
     {
-      "path": "../../packages/dependency-path"
-    },
-    {
       "path": "../../packages/error"
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/get-context"
-    },
-    {
-      "path": "../../pkg-manager/link-bins"
-    },
-    {
-      "path": "../../pkg-manager/modules-yaml"
     },
     {
       "path": "../../pkg-manifest/read-package-json"

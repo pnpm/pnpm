@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../packages/dependency-path"
+      "path": "../../deps/dependency-path"
     },
     {
       "path": "../../packages/types"

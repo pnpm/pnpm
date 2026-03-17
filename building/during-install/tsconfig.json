@@ -10,7 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../bins/link-bins"
+    },
+    {
       "path": "../../config/config"
+    },
+    {
+      "path": "../../deps/calc-dep-state"
+    },
+    {
+      "path": "../../deps/dependency-path"
     },
     {
       "path": "../../deps/graph-sequencer"
@@ -22,13 +31,7 @@
       "path": "../../fs/hard-link-dir"
     },
     {
-      "path": "../../packages/calc-dep-state"
-    },
-    {
       "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/dependency-path"
     },
     {
       "path": "../../packages/error"
@@ -44,9 +47,6 @@
     },
     {
       "path": "../../patching/types"
-    },
-    {
-      "path": "../../pkg-manager/link-bins"
     },
     {
       "path": "../../pkg-manifest/read-package-json"

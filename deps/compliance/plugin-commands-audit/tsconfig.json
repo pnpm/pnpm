@@ -1,0 +1,62 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src",
+    "ignoreDeprecations": "5.0"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../../cli/cli-utils"
+    },
+    {
+      "path": "../../../config/config"
+    },
+    {
+      "path": "../../../config/config-writer"
+    },
+    {
+      "path": "../../../installing/plugin-commands-installation"
+    },
+    {
+      "path": "../../../lockfile/fs"
+    },
+    {
+      "path": "../../../lockfile/types"
+    },
+    {
+      "path": "../../../lockfile/utils"
+    },
+    {
+      "path": "../../../lockfile/walker"
+    },
+    {
+      "path": "../../../network/auth-header"
+    },
+    {
+      "path": "../../../packages/constants"
+    },
+    {
+      "path": "../../../packages/error"
+    },
+    {
+      "path": "../../../packages/types"
+    },
+    {
+      "path": "../../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../../workspace/filter-workspace-packages"
+    },
+    {
+      "path": "../audit"
+    }
+  ]
+}

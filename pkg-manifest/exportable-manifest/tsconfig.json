@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../bins/package-bins"
+    },
+    {
       "path": "../../catalogs/config"
     },
     {
@@ -29,9 +32,6 @@
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/package-bins"
     },
     {
       "path": "../../resolving/jsr-specifier-parser"

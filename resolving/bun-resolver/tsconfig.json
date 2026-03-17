@@ -13,7 +13,7 @@
       "path": "../../crypto/shasums-file"
     },
     {
-      "path": "../../env/node.fetcher"
+      "path": "../../engine/runtime/node.fetcher"
     },
     {
       "path": "../../fetching/binary-fetcher"
@@ -22,7 +22,7 @@
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../network/fetching-types"
+      "path": "../../fetching/fetching-types"
     },
     {
       "path": "../../packages/constants"

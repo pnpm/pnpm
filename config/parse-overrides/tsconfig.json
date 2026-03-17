@@ -19,7 +19,7 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../../packages/parse-wanted-dependency"
+      "path": "../../resolving/parse-wanted-dependency"
     }
   ]
 }

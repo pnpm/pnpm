@@ -28,6 +28,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../deps/dependency-path"
+    },
+    {
       "path": "../../fetching/directory-fetcher"
     },
     {
@@ -35,6 +38,9 @@
     },
     {
       "path": "../../fs/is-empty-dir-or-nothing"
+    },
+    {
+      "path": "../../installing/plugin-commands-installation"
     },
     {
       "path": "../../lockfile/fs"
@@ -46,9 +52,6 @@
       "path": "../../packages/constants"
     },
     {
-      "path": "../../packages/dependency-path"
-    },
-    {
       "path": "../../packages/error"
     },
     {
@@ -56,9 +59,6 @@
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
       "path": "../../workspace/filter-packages-from-dir"

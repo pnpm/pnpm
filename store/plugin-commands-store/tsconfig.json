@@ -28,10 +28,16 @@
       "path": "../../crypto/integrity"
     },
     {
+      "path": "../../deps/dependency-path"
+    },
+    {
       "path": "../../exec/plugin-commands-script-runners"
     },
     {
       "path": "../../global/packages"
+    },
+    {
+      "path": "../../installing/get-context"
     },
     {
       "path": "../../lockfile/fs"
@@ -43,22 +49,16 @@
       "path": "../../packages/constants"
     },
     {
-      "path": "../../packages/dependency-path"
-    },
-    {
       "path": "../../packages/error"
     },
     {
       "path": "../../packages/logger"
     },
     {
-      "path": "../../packages/parse-wanted-dependency"
-    },
-    {
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manager/get-context"
+      "path": "../../resolving/parse-wanted-dependency"
     },
     {
       "path": "../cafs"

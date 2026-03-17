@@ -1,0 +1,29 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src",
+    "target": "es2020"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../__utils__/prepare"
+    },
+    {
+      "path": "../../../cli/cli-meta"
+    },
+    {
+      "path": "../../../cli/cli-utils"
+    },
+    {
+      "path": "../../../packages/error"
+    },
+    {
+      "path": "../../../packages/logger"
+    }
+  ]
+}

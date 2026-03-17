@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../network/fetching-types"
-    },
-    {
       "path": "../../packages/error"
     },
     {
@@ -23,6 +20,9 @@
     },
     {
       "path": "../fetcher-base"
+    },
+    {
+      "path": "../fetching-types"
     }
   ]
 }
