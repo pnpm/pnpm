@@ -11,7 +11,7 @@
   ],
   "references": [
     {
-      "path": "../../packages/error"
+      "path": "../../core/error"
     },
     {
       "path": "../protocol-parser"

@@ -13,10 +13,10 @@
       "path": "../../config/reader"
     },
     {
-      "path": "../../packages/constants"
+      "path": "../../core/constants"
     },
     {
-      "path": "../../packages/logger"
+      "path": "../../core/logger"
     },
     {
       "path": "../../resolving/npm-resolver"

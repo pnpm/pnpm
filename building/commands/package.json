@@ -44,7 +44,7 @@
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
-    "@pnpm/workspace.sort-packages": "workspace:*",
+    "@pnpm/workspace.projects-sorter": "workspace:*",
     "chalk": "catalog:",
     "enquirer": "catalog:",
     "p-limit": "catalog:",

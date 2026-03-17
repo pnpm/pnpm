@@ -34,7 +34,7 @@
   "dependencies": {
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
-    "@pnpm/engine.runtime.node.resolver": "workspace:*",
+    "@pnpm/engine.runtime.node-resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",

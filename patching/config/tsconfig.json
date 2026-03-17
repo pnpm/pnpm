@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../deps/path"
+      "path": "../../core/error"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../deps/path"
     },
     {
       "path": "../types"

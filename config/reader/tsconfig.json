@@ -22,19 +22,19 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../hooks/pnpmfile"
     },
     {
       "path": "../../network/git-utils"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../text/naming-cases"

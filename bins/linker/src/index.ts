@@ -7,7 +7,7 @@ import { getBunBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getNodeB
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { globalWarn, logger } from '@pnpm/logger'
-import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import type { DependencyManifest, EngineDependency, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'

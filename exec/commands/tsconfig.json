@@ -37,6 +37,18 @@
       "path": "../../config/version-policy"
     },
     {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../crypto/hash"
     },
     {
@@ -55,19 +67,7 @@
       "path": "../../installing/commands"
     },
     {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     },
     {
       "path": "../../resolving/parse-wanted-dependency"
@@ -88,7 +88,7 @@
       "path": "../../workspace/projects-filter"
     },
     {
-      "path": "../../workspace/sort-packages"
+      "path": "../../workspace/projects-sorter"
     },
     {
       "path": "../lifecycle"

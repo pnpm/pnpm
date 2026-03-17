@@ -13,13 +13,13 @@
       "path": "../../bins/resolver"
     },
     {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../crypto/hash"
     },
     {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     }
   ]
 }

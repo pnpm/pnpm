@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../packages/constants"
+      "path": "../../core/constants"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../core/error"
     }
   ]
 }

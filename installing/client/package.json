@@ -33,7 +33,6 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/engine.runtime.node.fetcher": "workspace:*",
     "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/fetching.git-fetcher": "workspace:*",

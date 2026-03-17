@@ -25,13 +25,13 @@
       "path": "../../config/reader"
     },
     {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../object/key-sorting"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../project-manifest-writer"

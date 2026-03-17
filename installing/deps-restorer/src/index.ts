@@ -61,7 +61,7 @@ import {
   streamParser,
 } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
-import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type {
   PackageFilesResponse,
   StoreController,

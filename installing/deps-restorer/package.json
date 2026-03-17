@@ -62,7 +62,7 @@
     "@pnpm/lockfile.to-pnp": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
-    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",

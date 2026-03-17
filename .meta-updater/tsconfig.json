@@ -11,16 +11,16 @@
   ],
   "references": [
     {
+      "path": "../core/logger"
+    },
+    {
+      "path": "../core/types"
+    },
+    {
       "path": "../lockfile/fs"
     },
     {
       "path": "../object/key-sorting"
-    },
-    {
-      "path": "../packages/logger"
-    },
-    {
-      "path": "../packages/types"
     },
     {
       "path": "../workspace/projects-reader"

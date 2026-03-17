@@ -19,13 +19,13 @@
       "path": "../../config/reader"
     },
     {
-      "path": "../../packages/constants"
+      "path": "../../core/constants"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../core/error"
     },
     {
-      "path": "../../packages/logger"
+      "path": "../../core/logger"
     },
     {
       "path": "../../store/path"

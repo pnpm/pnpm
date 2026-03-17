@@ -37,6 +37,18 @@
       "path": "../../config/writer"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../crypto/object-hasher"
     },
     {
@@ -44,18 +56,6 @@
     },
     {
       "path": "../../installing/modules-yaml"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../store/cafs"
@@ -70,7 +70,7 @@
       "path": "../../workspace/projects-filter"
     },
     {
-      "path": "../../workspace/sort-packages"
+      "path": "../../workspace/projects-sorter"
     },
     {
       "path": "../after-install"

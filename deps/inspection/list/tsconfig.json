@@ -13,13 +13,13 @@
       "path": "../../../__utils__/test-fixtures"
     },
     {
+      "path": "../../../core/types"
+    },
+    {
       "path": "../../../lockfile/fs"
     },
     {
-      "path": "../../../packages/types"
-    },
-    {
-      "path": "../../../pkg-manifest/read-package-json"
+      "path": "../../../pkg-manifest/reader"
     },
     {
       "path": "../../../text/tree-renderer"

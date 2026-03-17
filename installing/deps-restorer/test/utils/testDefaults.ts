@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import type { HeadlessOptions } from '@pnpm/installing.deps-restorer'
 import { readProjectsContext } from '@pnpm/installing.read-projects-context'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { getStorePath } from '@pnpm/store.path'
 import { createTempStore } from '@pnpm/testing.temp-store'

@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../deps/path"
     },
     {
@@ -17,12 +23,6 @@
     },
     {
       "path": "../../hooks/types"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../resolving/resolver-base"

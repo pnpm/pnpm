@@ -11,7 +11,7 @@ import type {
   ProjectSnapshot,
 } from '@pnpm/lockfile.types'
 import { verifyPatches } from '@pnpm/patching.config'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,

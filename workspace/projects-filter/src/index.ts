@@ -1,6 +1,6 @@
 import { createMatcher } from '@pnpm/config.matcher'
 import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
-import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.pkgs-graph'
+import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.projects-graph'
 import { findWorkspacePackages, type Project } from '@pnpm/workspace.projects-reader'
 import { isSubdir } from 'is-subdir'
 import * as micromatch from 'micromatch'
