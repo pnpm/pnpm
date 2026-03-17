@@ -40,7 +40,7 @@
       "path": "../../crypto/object-hasher"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/path"
     },
     {
       "path": "../../installing/modules-yaml"

@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { refToRelative } from '@pnpm/deps.dependency-path'
+import { refToRelative } from '@pnpm/deps.path'
 import type {
   LockfileObject,
   PackageSnapshots,

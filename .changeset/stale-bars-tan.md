@@ -1,5 +1,5 @@
 ---
-"@pnpm/deps.dependency-path": patch
+"@pnpm/deps.path": patch
 "@pnpm/deps.graph-hasher": patch
 ---
 

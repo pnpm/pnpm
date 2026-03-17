@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { depPathToFilename } from '@pnpm/deps.dependency-path'
+import { depPathToFilename } from '@pnpm/deps.path'
 
 /**
  * Resolves the filesystem path for a package identified by its depPath.

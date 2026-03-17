@@ -69,10 +69,10 @@
       "path": "../deps/compliance/commands"
     },
     {
-      "path": "../deps/dependency-path"
+      "path": "../deps/inspection/commands"
     },
     {
-      "path": "../deps/inspection/commands"
+      "path": "../deps/path"
     },
     {
       "path": "../engine/pm/commands"

@@ -1,7 +1,7 @@
 import path from 'node:path'
 import url from 'node:url'
 
-import * as dp from '@pnpm/deps.dependency-path'
+import * as dp from '@pnpm/deps.path'
 import type {
   DirectoryResolution,
   LockfileObject,

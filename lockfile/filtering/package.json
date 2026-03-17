@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",

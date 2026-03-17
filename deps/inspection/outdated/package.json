@@ -39,7 +39,7 @@
     "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.read-package-hook": "workspace:*",
     "@pnpm/installing.client": "workspace:*",

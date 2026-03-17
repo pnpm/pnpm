@@ -33,7 +33,7 @@
   "dependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
-    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/types": "workspace:*"

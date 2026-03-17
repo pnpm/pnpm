@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { createPeerDepGraphHash, depPathToFilename, type PeerId } from '@pnpm/deps.dependency-path'
+import { createPeerDepGraphHash, depPathToFilename, type PeerId } from '@pnpm/deps.path'
 import type {
   DepPath,
   ParentPackages,

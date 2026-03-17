@@ -39,7 +39,7 @@
     "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/engine.runtime.commands": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",

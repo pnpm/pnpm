@@ -6,7 +6,7 @@ import {
   progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import * as dp from '@pnpm/deps.dependency-path'
+import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import type {

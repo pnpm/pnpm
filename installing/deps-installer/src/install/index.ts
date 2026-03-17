@@ -19,7 +19,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
-import * as dp from '@pnpm/deps.dependency-path'
+import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,

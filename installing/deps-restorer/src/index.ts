@@ -15,7 +15,6 @@ import {
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import * as dp from '@pnpm/deps.dependency-path'
 import {
   type DependenciesGraph,
   type DependenciesGraphNode,
@@ -24,6 +23,7 @@ import {
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,

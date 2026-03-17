@@ -46,10 +46,10 @@
       "path": "../../store/controller-types"
     },
     {
-      "path": "../dependency-path"
+      "path": "../graph-hasher"
     },
     {
-      "path": "../graph-hasher"
+      "path": "../path"
     }
   ]
 }

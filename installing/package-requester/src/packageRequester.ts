@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
-import { depPathToFilename } from '@pnpm/deps.dependency-path'
+import { depPathToFilename } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type {
   DirectoryFetcherResult,

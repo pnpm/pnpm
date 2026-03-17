@@ -36,7 +36,7 @@
   "dependencies": {
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.normalize-registries": "workspace:*",
-    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",

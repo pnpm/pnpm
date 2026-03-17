@@ -10,9 +10,9 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import * as dp from '@pnpm/deps.dependency-path'
 import { calcDepState, type DepsStateCache, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
+import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
   runLifecycleHooksConcurrently,

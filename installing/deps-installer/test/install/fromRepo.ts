@@ -4,7 +4,7 @@ import path from 'node:path'
 import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import type { RootLog } from '@pnpm/core-loggers'
-import { depPathToFilename } from '@pnpm/deps.dependency-path'
+import { depPathToFilename } from '@pnpm/deps.path'
 import {
   addDependenciesToPackage,
   install,

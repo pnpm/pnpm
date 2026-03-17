@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { createPeerDepGraphHash } from '@pnpm/deps.dependency-path'
+import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'

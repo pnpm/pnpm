@@ -33,7 +33,7 @@
   "dependencies": {
     "@pnpm/bins.remover": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/lockfile.filtering": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

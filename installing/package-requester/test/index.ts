@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import { depPathToFilename } from '@pnpm/deps.dependency-path'
+import { depPathToFilename } from '@pnpm/deps.path'
 import { createClient } from '@pnpm/installing.client'
 import { createPackageRequester, type PackageResponse } from '@pnpm/installing.package-requester'
 import { streamParser } from '@pnpm/logger'

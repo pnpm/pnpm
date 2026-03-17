@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import { createPeerDepGraphHash } from '@pnpm/deps.dependency-path'
+import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import type { MutatedProject, MutateModulesOptions, ProjectOptions } from '@pnpm/installing.deps-installer'
 import type { CatalogSnapshots } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'

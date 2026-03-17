@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { assertProject } from '@pnpm/assert-project'
-import { createPeerDepGraphHash } from '@pnpm/deps.dependency-path'
+import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject, type PackageManifest } from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

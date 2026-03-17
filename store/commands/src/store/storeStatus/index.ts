@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { formatIntegrity } from '@pnpm/crypto.integrity'
-import * as dp from '@pnpm/deps.dependency-path'
+import * as dp from '@pnpm/deps.path'
 import { getContextForSingleImporter } from '@pnpm/installing.context'
 import {
   nameVerFromPkgSnapshot,

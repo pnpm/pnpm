@@ -1573,15 +1573,15 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.dependency-path':
-        specifier: workspace:*
-        version: link:../../deps/dependency-path
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../../deps/graph-hasher
       '@pnpm/deps.graph-sequencer':
         specifier: workspace:*
         version: link:../../deps/graph-sequencer
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -1667,9 +1667,9 @@ importers:
       '@pnpm/config.writer':
         specifier: workspace:*
         version: link:../../config/writer
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -1776,15 +1776,15 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.dependency-path':
-        specifier: workspace:*
-        version: link:../../deps/dependency-path
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../../deps/graph-hasher
       '@pnpm/deps.graph-sequencer':
         specifier: workspace:*
         version: link:../../deps/graph-sequencer
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -2936,9 +2936,9 @@ importers:
       '@pnpm/config.package-is-installable':
         specifier: workspace:*
         version: link:../../../config/package-is-installable
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../dependency-path
+        version: link:../../path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../packages/error
@@ -3050,25 +3050,6 @@ importers:
         specifier: 'catalog:'
         version: 7.1.5
 
-  deps/dependency-path:
-    dependencies:
-      '@pnpm/crypto.hash':
-        specifier: workspace:*
-        version: link:../../crypto/hash
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.4
-    devDependencies:
-      '@pnpm/deps.dependency-path':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.7.1
-
   deps/graph-builder:
     dependencies:
       '@pnpm/config.package-is-installable':
@@ -3080,12 +3061,12 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.dependency-path':
-        specifier: workspace:*
-        version: link:../dependency-path
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../graph-hasher
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../path
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
@@ -3135,9 +3116,9 @@ importers:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../dependency-path
+        version: link:../path
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -3336,9 +3317,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../packages/constants
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../dependency-path
+        version: link:../../path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../packages/error
@@ -3397,9 +3378,9 @@ importers:
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../../config/normalize-registries
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../dependency-path
+        version: link:../../path
       '@pnpm/fs.read-modules-dir':
         specifier: workspace:*
         version: link:../../../fs/read-modules-dir
@@ -3461,6 +3442,25 @@ importers:
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
+
+  deps/path:
+    dependencies:
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
+    devDependencies:
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: 'link:'
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1
@@ -5226,15 +5226,15 @@ importers:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
-      '@pnpm/deps.dependency-path':
-        specifier: workspace:*
-        version: link:../../deps/dependency-path
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../../deps/graph-hasher
       '@pnpm/deps.graph-sequencer':
         specifier: workspace:*
         version: link:../../deps/graph-sequencer
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -5497,15 +5497,15 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.dependency-path':
-        specifier: workspace:*
-        version: link:../../deps/dependency-path
       '@pnpm/deps.graph-builder':
         specifier: workspace:*
         version: link:../../deps/graph-builder
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../../deps/graph-hasher
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -5728,9 +5728,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../../packages/core-loggers
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../../deps/dependency-path
+        version: link:../../../deps/path
       '@pnpm/fs.read-modules-dir':
         specifier: workspace:*
         version: link:../../../fs/read-modules-dir
@@ -5768,9 +5768,9 @@ importers:
 
   installing/linking/real-hoist:
     dependencies:
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../../deps/dependency-path
+        version: link:../../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../packages/error
@@ -5833,9 +5833,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -6013,12 +6013,12 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.dependency-path':
-        specifier: workspace:*
-        version: link:../../deps/dependency-path
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../../deps/graph-hasher
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../deps/path
       '@pnpm/deps.peer-range':
         specifier: workspace:*
         version: link:../../deps/peer-range
@@ -6137,9 +6137,9 @@ importers:
 
   lockfile/detect-dep-types:
     dependencies:
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
@@ -6162,9 +6162,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -6214,9 +6214,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -6401,9 +6401,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
@@ -6460,9 +6460,9 @@ importers:
 
   lockfile/to-pnp:
     dependencies:
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../fs
@@ -6513,9 +6513,9 @@ importers:
 
   lockfile/utils:
     dependencies:
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -6565,9 +6565,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/installing.context':
         specifier: workspace:*
         version: link:../../installing/context
@@ -6626,9 +6626,9 @@ importers:
 
   lockfile/walker:
     dependencies:
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
@@ -6648,9 +6648,9 @@ importers:
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -7002,9 +7002,9 @@ importers:
 
   patching/config:
     dependencies:
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -7300,12 +7300,12 @@ importers:
       '@pnpm/deps.compliance.commands':
         specifier: workspace:*
         version: link:../deps/compliance/commands
-      '@pnpm/deps.dependency-path':
-        specifier: workspace:*
-        version: link:../deps/dependency-path
       '@pnpm/deps.inspection.commands':
         specifier: workspace:*
         version: link:../deps/inspection/commands
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../deps/path
       '@pnpm/engine.pm.commands':
         specifier: workspace:*
         version: link:../engine/pm/commands
@@ -7657,9 +7657,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/engine.runtime.commands':
         specifier: workspace:*
         version: link:../../engine/runtime/commands
@@ -8392,9 +8392,9 @@ importers:
       '@pnpm/crypto.integrity':
         specifier: workspace:*
         version: link:../../crypto/integrity
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -8753,9 +8753,9 @@ importers:
 
   store/pkg-finder:
     dependencies:
-      '@pnpm/deps.dependency-path':
+      '@pnpm/deps.path':
         specifier: workspace:*
-        version: link:../../deps/dependency-path
+        version: link:../../deps/path
       '@pnpm/fetching.directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher

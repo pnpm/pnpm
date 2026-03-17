@@ -1,6 +1,6 @@
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import * as dp from '@pnpm/deps.dependency-path'
+import * as dp from '@pnpm/deps.path'
 import { LockfileMissingDependencyError } from '@pnpm/error'
 import type {
   LockfileObject,

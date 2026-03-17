@@ -15,7 +15,7 @@
       "path": "../../../__utils__/test-fixtures"
     },
     {
-      "path": "../../../deps/dependency-path"
+      "path": "../../../deps/path"
     },
     {
       "path": "../../../lockfile/fs"

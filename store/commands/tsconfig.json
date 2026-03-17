@@ -28,7 +28,7 @@
       "path": "../../crypto/integrity"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/path"
     },
     {
       "path": "../../exec/commands"

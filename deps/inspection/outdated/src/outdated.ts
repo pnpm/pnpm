@@ -9,7 +9,7 @@ import { createMatcher } from '@pnpm/config.matcher'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import * as dp from '@pnpm/deps.dependency-path'
+import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import {

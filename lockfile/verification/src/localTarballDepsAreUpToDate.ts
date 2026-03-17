@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
-import * as dp from '@pnpm/deps.dependency-path'
+import * as dp from '@pnpm/deps.path'
 import type {
   PackageSnapshots,
   ProjectSnapshot,

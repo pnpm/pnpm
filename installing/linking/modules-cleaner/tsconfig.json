@@ -13,7 +13,7 @@
       "path": "../../../bins/remover"
     },
     {
-      "path": "../../../deps/dependency-path"
+      "path": "../../../deps/path"
     },
     {
       "path": "../../../fs/read-modules-dir"

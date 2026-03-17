@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { createPeerDepGraphHash } from '@pnpm/deps.dependency-path'
+import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'

@@ -61,7 +61,7 @@
       "path": "../../../resolving/resolver-base"
     },
     {
-      "path": "../../dependency-path"
+      "path": "../../path"
     }
   ]
 }

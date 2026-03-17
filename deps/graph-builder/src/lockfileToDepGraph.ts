@@ -6,7 +6,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
-import * as dp from '@pnpm/deps.dependency-path'
+import * as dp from '@pnpm/deps.path'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
 import {

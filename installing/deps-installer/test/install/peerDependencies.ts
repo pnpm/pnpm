@@ -4,7 +4,7 @@ import path from 'node:path'
 import { jest } from '@jest/globals'
 import type { Project } from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { createPeerDepGraphHash, depPathToFilename } from '@pnpm/deps.dependency-path'
+import { createPeerDepGraphHash, depPathToFilename } from '@pnpm/deps.path'
 import {
   addDependenciesToPackage,
   install,

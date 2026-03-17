@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { refToRelative, removeSuffix } from '@pnpm/deps.dependency-path'
+import { refToRelative, removeSuffix } from '@pnpm/deps.path'
 import type {
   LockfileFile,
   LockfileFileProjectResolvedDependencies,

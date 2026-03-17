@@ -5,7 +5,7 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { depPathToFilename } from '@pnpm/deps.dependency-path'
+import { depPathToFilename } from '@pnpm/deps.path'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { filterLockfile, filterLockfileByImporters } from '@pnpm/lockfile.filtering'
 import type {

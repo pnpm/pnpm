@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/deps.dependency-path",
+  "name": "@pnpm/deps.path",
   "version": "1001.1.3",
   "description": "Utilities for working with symlinked node_modules",
   "keywords": [
@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/dependency-path",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/dependency-path#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/path",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/path#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -38,7 +38,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@types/semver": "catalog:"
   },
   "engines": {

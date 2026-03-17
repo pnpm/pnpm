@@ -33,7 +33,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.pick-fetcher": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",

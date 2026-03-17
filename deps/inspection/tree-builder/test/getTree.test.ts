@@ -1,5 +1,5 @@
-import { refToRelative } from '@pnpm/deps.dependency-path'
 import type { DependencyNode } from '@pnpm/deps.inspection.tree-builder'
+import { refToRelative } from '@pnpm/deps.path'
 import type { PackageSnapshots } from '@pnpm/lockfile.fs'
 import type { DepPath, Finder } from '@pnpm/types'
 

@@ -53,7 +53,7 @@
     "@pnpm/utils",
     "@pnpm/pkg-manifest.write-project-manifest",
     "tree-builder",
-    "@pnpm/deps.dependency-path",
+    "@pnpm/deps.path",
     "fetch-from-npm-registry",
     "find-packages",
     "npm",

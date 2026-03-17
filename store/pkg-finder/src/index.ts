@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { parse } from '@pnpm/deps.dependency-path'
+import { parse } from '@pnpm/deps.path'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'

@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",
-    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.merger": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

@@ -4,7 +4,7 @@ import path from 'node:path'
 import { jest } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { createPeerDepGraphHash } from '@pnpm/deps.dependency-path'
+import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import {
   addDependenciesToPackage,
   type MutatedProject,

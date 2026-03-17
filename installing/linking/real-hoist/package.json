@@ -32,7 +32,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@yarnpkg/nm": "catalog:"

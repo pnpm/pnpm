@@ -53,7 +53,7 @@
 "@pnpm/catalogs.protocol-parser": major
 "@pnpm/fetching.tarball-fetcher": major
 "@pnpm/lockfile.to-pnp": major
-"@pnpm/deps.dependency-path": major
+"@pnpm/deps.path": major
 "@pnpm/installing.modules-yaml": major
 "@pnpm/bins.resolver": major
 "@pnpm/resolving.local-resolver": major

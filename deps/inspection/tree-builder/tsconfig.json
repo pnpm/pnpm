@@ -49,7 +49,7 @@
       "path": "../../../store/index"
     },
     {
-      "path": "../../dependency-path"
+      "path": "../../path"
     }
   ]
 }

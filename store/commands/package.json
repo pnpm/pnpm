@@ -36,7 +36,7 @@
     "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/crypto.integrity": "workspace:*",
-    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/global.packages": "workspace:*",

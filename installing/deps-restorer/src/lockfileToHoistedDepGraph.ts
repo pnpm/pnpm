@@ -1,13 +1,13 @@
 import path from 'node:path'
 
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
-import * as dp from '@pnpm/deps.dependency-path'
 import type {
   DependenciesGraph,
   DepHierarchy,
   DirectDependenciesByImporterId,
   LockfileToDepGraphResult,
 } from '@pnpm/deps.graph-builder'
+import * as dp from '@pnpm/deps.path'
 import { hoist, type HoisterResult, type HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type {

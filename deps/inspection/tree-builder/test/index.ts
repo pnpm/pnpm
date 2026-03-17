@@ -3,8 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { depPathToFilename } from '@pnpm/deps.dependency-path'
 import { buildDependenciesTree, type DependencyNode } from '@pnpm/deps.inspection.tree-builder'
+import { depPathToFilename } from '@pnpm/deps.path'
 import { fixtures } from '@pnpm/test-fixtures'
 
 const virtualStoreDirMaxLength = process.platform === 'win32' ? 60 : 120

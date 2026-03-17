@@ -64,13 +64,13 @@
       "path": "../../crypto/object-hasher"
     },
     {
-      "path": "../../deps/dependency-path"
-    },
-    {
       "path": "../../deps/graph-hasher"
     },
     {
       "path": "../../deps/graph-sequencer"
+    },
+    {
+      "path": "../../deps/path"
     },
     {
       "path": "../../exec/lifecycle"

@@ -34,7 +34,7 @@
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
-    "@pnpm/deps.dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/installing.context": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
