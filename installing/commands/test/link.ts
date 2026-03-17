@@ -138,6 +138,13 @@ test('relative link with --file flag', async () => {
 
   const rootManifest = JSON.parse(fs.readFileSync('package.json', 'utf8'))
   expect(rootManifest.dependencies?.['linked-file']).toBe('file:../linked-file')
+  const wantedLockfile = project.readLockfile()
+  expect(wantedLockfile.importers['.'].dependencies?.['linked-file']).toStrictEqual({
+    specifier: 'file:../linked-file',
+    version: 'file:../linked-file',
+  })
+  const currentLockfile = project.readCurrentLockfile()
+  expect(currentLockfile.importers['.'].dependencies?.['linked-file'].version).toBe('file:../linked-file')
 })
 
 test('relative link with --link flag', async () => {
@@ -161,6 +168,13 @@ test('relative link with --link flag', async () => {
 
   const rootManifest = JSON.parse(fs.readFileSync('package.json', 'utf8'))
   expect(rootManifest.dependencies?.['linked-link']).toBe('link:../linked-link')
+  const wantedLockfile = project.readLockfile()
+  expect(wantedLockfile.importers['.'].dependencies?.['linked-link']).toStrictEqual({
+    specifier: 'link:../linked-link',
+    version: 'link:../linked-link',
+  })
+  const currentLockfile = project.readCurrentLockfile()
+  expect(currentLockfile.importers['.'].dependencies?.['linked-link'].version).toBe('link:../linked-link')
 })
 
 test('absolute link', async () => {
