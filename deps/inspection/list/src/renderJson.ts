@@ -1,4 +1,4 @@
-import type { DependencyNode } from '@pnpm/deps.inspection.dependencies-hierarchy'
+import type { DependencyNode } from '@pnpm/deps.inspection.tree-builder'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { type Ord, path, sortBy } from 'ramda'
 

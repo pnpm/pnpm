@@ -1,5 +1,5 @@
 'use strict'
-const hierarchyForPackages = require('dependencies-hierarchy').forPackages
+const hierarchyForPackages = require('tree-builder').forPackages
 
 hierarchyForPackages(['graceful-fs', {name: 'pify', range: '2'}], import.meta.dirname, {depth: 2})
   .then(tree => {

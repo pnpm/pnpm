@@ -19,7 +19,7 @@
 "@pnpm/resolving.parse-wanted-dependency": major
 "@pnpm/installing.resolve-dependencies": major
 "@pnpm/pkg-manifest.exportable-manifest": major
-"@pnpm/deps.inspection.dependencies-hierarchy": major
+"@pnpm/deps.inspection.tree-builder": major
 "@pnpm/pkg-manifest.read-package-json": major
 "@pnpm/resolving.jsr-specifier-parser": major
 "@pnpm/store.connection-manager": major

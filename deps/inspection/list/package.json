@@ -30,13 +30,13 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepareFixtures": "cd test && node ../../pnpm recursive install --no-link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
     "prepublishOnly": "pnpm run compile",
-    "pretest": "pnpm run --filter dependencies-hierarchy pretest",
+    "pretest": "pnpm run --filter tree-builder pretest",
     "_test": "pnpm pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/deps.inspection.dependencies-hierarchy": "workspace:*",
+    "@pnpm/deps.inspection.tree-builder": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/pkg-manifest.read-package-json": "workspace:*",
     "@pnpm/pkg-manifest.read-project-manifest": "workspace:*",

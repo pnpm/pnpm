@@ -4,7 +4,7 @@
 "@pnpm/worker": major
 "@pnpm/installing.package-requester": major
 "@pnpm/resolving.npm-resolver": major
-"@pnpm/deps.inspection.dependencies-hierarchy": major
+"@pnpm/deps.inspection.tree-builder": major
 "@pnpm/building.during-install": major
 "pnpm": major
 ---

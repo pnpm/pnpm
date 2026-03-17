@@ -5,7 +5,7 @@
 "@pnpm/store.commands": minor
 "@pnpm/store.package-store": minor
 "@pnpm/store.pkg-finder": minor
-"@pnpm/deps.inspection.dependencies-hierarchy": minor
+"@pnpm/deps.inspection.tree-builder": minor
 "@pnpm/building.commands": minor
 "pnpm": minor
 ---

@@ -28,7 +28,7 @@
       "path": "../../../text/tree-renderer"
     },
     {
-      "path": "../dependencies-hierarchy"
+      "path": "../tree-builder"
     }
   ]
 }

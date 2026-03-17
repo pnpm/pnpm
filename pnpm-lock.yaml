@@ -3270,87 +3270,11 @@ importers:
         specifier: 'catalog:'
         version: 6.0.0
 
-  deps/inspection/dependencies-hierarchy:
-    dependencies:
-      '@pnpm/config.matcher':
-        specifier: workspace:*
-        version: link:../../../config/matcher
-      '@pnpm/config.normalize-registries':
-        specifier: workspace:*
-        version: link:../../../config/normalize-registries
-      '@pnpm/deps.dependency-path':
-        specifier: workspace:*
-        version: link:../../dependency-path
-      '@pnpm/fs.read-modules-dir':
-        specifier: workspace:*
-        version: link:../../../fs/read-modules-dir
-      '@pnpm/installing.modules-yaml':
-        specifier: workspace:*
-        version: link:../../../installing/modules-yaml
-      '@pnpm/lockfile.detect-dep-types':
-        specifier: workspace:*
-        version: link:../../../lockfile/detect-dep-types
-      '@pnpm/lockfile.fs':
-        specifier: workspace:*
-        version: link:../../../lockfile/fs
-      '@pnpm/lockfile.utils':
-        specifier: workspace:*
-        version: link:../../../lockfile/utils
-      '@pnpm/npm-package-arg':
-        specifier: 'catalog:'
-        version: 2.0.0
-      '@pnpm/pkg-manifest.read-package-json':
-        specifier: workspace:*
-        version: link:../../../pkg-manifest/read-package-json
-      '@pnpm/store.cafs':
-        specifier: workspace:*
-        version: link:../../../store/cafs
-      '@pnpm/store.index':
-        specifier: workspace:*
-        version: link:../../../store/index
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../../packages/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 3.0.2
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
-      normalize-path:
-        specifier: 'catalog:'
-        version: 3.0.0
-      realpath-missing:
-        specifier: 'catalog:'
-        version: 2.0.0
-      resolve-link-target:
-        specifier: 'catalog:'
-        version: 3.0.0
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.4
-    devDependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../../packages/constants
-      '@pnpm/deps.inspection.dependencies-hierarchy':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/test-fixtures':
-        specifier: workspace:*
-        version: link:../../../__utils__/test-fixtures
-      '@types/normalize-path':
-        specifier: 'catalog:'
-        version: 3.0.2
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.7.1
-
   deps/inspection/list:
     dependencies:
-      '@pnpm/deps.inspection.dependencies-hierarchy':
+      '@pnpm/deps.inspection.tree-builder':
         specifier: workspace:*
-        version: link:../dependencies-hierarchy
+        version: link:../tree-builder
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs
@@ -3461,6 +3385,82 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
+
+  deps/inspection/tree-builder:
+    dependencies:
+      '@pnpm/config.matcher':
+        specifier: workspace:*
+        version: link:../../../config/matcher
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../../config/normalize-registries
+      '@pnpm/deps.dependency-path':
+        specifier: workspace:*
+        version: link:../../dependency-path
+      '@pnpm/fs.read-modules-dir':
+        specifier: workspace:*
+        version: link:../../../fs/read-modules-dir
+      '@pnpm/installing.modules-yaml':
+        specifier: workspace:*
+        version: link:../../../installing/modules-yaml
+      '@pnpm/lockfile.detect-dep-types':
+        specifier: workspace:*
+        version: link:../../../lockfile/detect-dep-types
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../../lockfile/fs
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../../lockfile/utils
+      '@pnpm/npm-package-arg':
+        specifier: 'catalog:'
+        version: 2.0.0
+      '@pnpm/pkg-manifest.read-package-json':
+        specifier: workspace:*
+        version: link:../../../pkg-manifest/read-package-json
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../../store/index
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
+      normalize-path:
+        specifier: 'catalog:'
+        version: 3.0.0
+      realpath-missing:
+        specifier: 'catalog:'
+        version: 2.0.0
+      resolve-link-target:
+        specifier: 'catalog:'
+        version: 3.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
+    devDependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../../packages/constants
+      '@pnpm/deps.inspection.tree-builder':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../../__utils__/test-fixtures
+      '@types/normalize-path':
+        specifier: 'catalog:'
+        version: 3.0.2
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1

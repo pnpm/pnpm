@@ -1,6 +1,6 @@
 ---
 "@pnpm/installing.commands": patch
-"@pnpm/deps.inspection.dependencies-hierarchy": patch
+"@pnpm/deps.inspection.tree-builder": patch
 "@pnpm/lockfile.detect-dep-types": patch
 "@pnpm/installing.dedupe.check": patch
 pnpm: patch

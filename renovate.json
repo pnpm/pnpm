@@ -52,7 +52,7 @@
     "@pnpm/types",
     "@pnpm/utils",
     "@pnpm/pkg-manifest.write-project-manifest",
-    "dependencies-hierarchy",
+    "tree-builder",
     "@pnpm/deps.dependency-path",
     "fetch-from-npm-registry",
     "find-packages",
@@ -67,9 +67,9 @@
   "ignorePaths": [
     "fixtures",
     "test/",
-    "packages/dependencies-hierarchy/fixtures",
-    "packages/dependencies-hierarchy/fixtureWithLinks",
-    "packages/dependencies-hierarchy/example",
+    "packages/tree-builder/fixtures",
+    "packages/tree-builder/fixtureWithLinks",
+    "packages/tree-builder/example",
     "packages/list/test/",
     "packages/list/example/"
   ],

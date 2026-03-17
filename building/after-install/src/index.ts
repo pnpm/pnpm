@@ -77,7 +77,7 @@ function findPackages (
     })
 }
 
-// TODO: move this logic to separate package as this is also used in dependencies-hierarchy
+// TODO: move this logic to separate package as this is also used in tree-builder
 function matches (
   searched: PackageSelector[],
   manifest: { name: string, version?: string }
