@@ -28,8 +28,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/core",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/core#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/deps-installer",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/deps-installer#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

@@ -175,10 +175,10 @@
       "path": "../../worker"
     },
     {
-      "path": "../get-context"
+      "path": "../deps-restorer"
     },
     {
-      "path": "../headless"
+      "path": "../get-context"
     },
     {
       "path": "../linking/direct-dep-linker"

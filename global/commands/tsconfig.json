@@ -31,7 +31,7 @@
       "path": "../../config/matcher"
     },
     {
-      "path": "../../installing/core"
+      "path": "../../installing/deps-installer"
     },
     {
       "path": "../../packages/error"

@@ -142,10 +142,10 @@
       "path": "../../workspace/state"
     },
     {
-      "path": "../core"
+      "path": "../dedupe/check"
     },
     {
-      "path": "../dedupe/check"
+      "path": "../deps-installer"
     },
     {
       "path": "../get-context"

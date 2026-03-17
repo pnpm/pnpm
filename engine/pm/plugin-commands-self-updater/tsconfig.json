@@ -40,7 +40,7 @@
       "path": "../../../installing/client"
     },
     {
-      "path": "../../../installing/headless"
+      "path": "../../../installing/deps-restorer"
     },
     {
       "path": "../../../lockfile/types"

@@ -3791,7 +3791,7 @@ importers:
         version: link:../../../global/packages
       '@pnpm/headless':
         specifier: workspace:*
-        version: link:../../../installing/headless
+        version: link:../../../installing/deps-restorer
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../../bins/link-bins
@@ -4859,7 +4859,7 @@ importers:
         version: link:../../config/config
       '@pnpm/core':
         specifier: workspace:*
-        version: link:../../installing/core
+        version: link:../../installing/deps-installer
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -5098,7 +5098,48 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
 
-  installing/core:
+  installing/dedupe/check:
+    dependencies:
+      '@pnpm/dedupe.types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../packages/error
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../../lockfile/types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../../packages/types
+    devDependencies:
+      '@pnpm/dedupe.check':
+        specifier: workspace:*
+        version: 'link:'
+
+  installing/dedupe/issues-renderer:
+    dependencies:
+      '@pnpm/dedupe.types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/text.tree-renderer':
+        specifier: workspace:*
+        version: link:../../../text/tree-renderer
+      chalk:
+        specifier: 'catalog:'
+        version: 5.6.2
+    devDependencies:
+      '@pnpm/dedupe.issues-renderer':
+        specifier: workspace:*
+        version: 'link:'
+
+  installing/dedupe/types:
+    devDependencies:
+      '@pnpm/dedupe.types':
+        specifier: workspace:*
+        version: 'link:'
+
+  installing/deps-installer:
     dependencies:
       '@pnpm/building.after-install':
         specifier: workspace:*
@@ -5147,7 +5188,7 @@ importers:
         version: link:../get-context
       '@pnpm/headless':
         specifier: workspace:*
-        version: link:../headless
+        version: link:../deps-restorer
       '@pnpm/hoist':
         specifier: workspace:*
         version: link:../linking/hoist
@@ -5396,91 +5437,7 @@ importers:
         specifier: 'catalog:'
         version: 6.0.0
 
-  installing/dedupe/check:
-    dependencies:
-      '@pnpm/dedupe.types':
-        specifier: workspace:*
-        version: link:../types
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../../packages/error
-      '@pnpm/lockfile.types':
-        specifier: workspace:*
-        version: link:../../../lockfile/types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../../packages/types
-    devDependencies:
-      '@pnpm/dedupe.check':
-        specifier: workspace:*
-        version: 'link:'
-
-  installing/dedupe/issues-renderer:
-    dependencies:
-      '@pnpm/dedupe.types':
-        specifier: workspace:*
-        version: link:../types
-      '@pnpm/text.tree-renderer':
-        specifier: workspace:*
-        version: link:../../../text/tree-renderer
-      chalk:
-        specifier: 'catalog:'
-        version: 5.6.2
-    devDependencies:
-      '@pnpm/dedupe.issues-renderer':
-        specifier: workspace:*
-        version: 'link:'
-
-  installing/dedupe/types:
-    devDependencies:
-      '@pnpm/dedupe.types':
-        specifier: workspace:*
-        version: 'link:'
-
-  installing/get-context:
-    dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
-      '@pnpm/core-loggers':
-        specifier: workspace:*
-        version: link:../../packages/core-loggers
-      '@pnpm/lockfile.fs':
-        specifier: workspace:*
-        version: link:../../lockfile/fs
-      '@pnpm/modules-yaml':
-        specifier: workspace:*
-        version: link:../modules-yaml
-      '@pnpm/package-store':
-        specifier: workspace:*
-        version: link:../../store/package-store
-      '@pnpm/read-projects-context':
-        specifier: workspace:*
-        version: link:../read-projects-context
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      path-absolute:
-        specifier: 'catalog:'
-        version: 2.0.0
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-    devDependencies:
-      '@pnpm/get-context':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
-
-  installing/headless:
+  installing/deps-restorer:
     dependencies:
       '@pnpm/building.during-install':
         specifier: workspace:*
@@ -5648,6 +5605,49 @@ importers:
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
+
+  installing/get-context:
+    dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/modules-yaml':
+        specifier: workspace:*
+        version: link:../modules-yaml
+      '@pnpm/package-store':
+        specifier: workspace:*
+        version: link:../../store/package-store
+      '@pnpm/read-projects-context':
+        specifier: workspace:*
+        version: link:../read-projects-context
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      path-absolute:
+        specifier: 'catalog:'
+        version: 2.0.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+    devDependencies:
+      '@pnpm/get-context':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
 
   installing/linking/direct-dep-linker:
     dependencies:
@@ -5989,7 +5989,7 @@ importers:
         version: link:../../packages/constants
       '@pnpm/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../deps-installer
       '@pnpm/dedupe.check':
         specifier: workspace:*
         version: link:../dedupe/check

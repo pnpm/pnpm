@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/headless",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/headless#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/deps-restorer",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/deps-restorer#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
