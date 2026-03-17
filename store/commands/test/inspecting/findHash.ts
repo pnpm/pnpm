@@ -1,4 +1,4 @@
-/// <reference path="../../../__typings__/index.d.ts" />
+/// <reference path="../../../../__typings__/index.d.ts" />
 import path from 'node:path'
 
 import { getConfig } from '@pnpm/config'
@@ -8,7 +8,7 @@ import { findHash } from '@pnpm/store.commands'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
-const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
 test('print index file path with hash', async () => {
   const { PACKAGE_INFO_CLR } = findHash

@@ -8,7 +8,7 @@ import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { safeExeca as execa } from 'execa'
 
-const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../../../pnpm/bin/pnpm.mjs')
 
 test('`pnpm why` should fail if no package name was provided', async () => {
   prepare()

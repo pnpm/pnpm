@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-publishing": major
+"@pnpm/releasing.commands": major
 "pnpm": major
 "@pnpm/make-dedicated-lockfile": minor
 "@pnpm/exportable-manifest": minor

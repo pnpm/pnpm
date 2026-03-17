@@ -21,7 +21,7 @@ const { approveBuilds } = await import('@pnpm/building.commands')
 const prompt = jest.mocked(enquirer.prompt)
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
-const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
 async function execPnpmInstall (): Promise<void> {
   await execa('node', [

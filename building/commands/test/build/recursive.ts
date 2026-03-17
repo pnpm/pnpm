@@ -11,7 +11,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS, REGISTRY } from './utils/index.js'
 
-const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
 test('pnpm recursive rebuild', async () => {
   const projects = preparePackages([

@@ -1,4 +1,4 @@
-/// <reference path="../../../__typings__/index.d.ts" />
+/// <reference path="../../../../__typings__/index.d.ts" />
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -16,7 +16,7 @@ import { safeExeca as execa } from 'execa'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
-const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 const f = fixtures(import.meta.dirname)
 
 const storeIndexes: StoreIndex[] = []

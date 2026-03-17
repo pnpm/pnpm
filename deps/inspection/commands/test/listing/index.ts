@@ -1,4 +1,4 @@
-/// <reference path="../../../../__typings__/index.d.ts" />
+/// <reference path="../../../../../__typings__/index.d.ts" />
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
@@ -8,7 +8,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { safeExeca as execa } from 'execa'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../../../pnpm/bin/pnpm.mjs')
 
 test('listing packages', async () => {
   prepare({

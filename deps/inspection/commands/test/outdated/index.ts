@@ -1,4 +1,4 @@
-/// <reference path="../../../../__typings__/index.d.ts" />
+/// <reference path="../../../../../__typings__/index.d.ts" />
 import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'

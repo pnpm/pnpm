@@ -1,4 +1,4 @@
-/// <reference path="../../../__typings__/index.d.ts" />
+/// <reference path="../../../../__typings__/index.d.ts" />
 import path from 'node:path'
 
 import { getConfig } from '@pnpm/config'
@@ -7,7 +7,7 @@ import { prepare } from '@pnpm/prepare'
 import { catIndex } from '@pnpm/store.commands'
 import { safeExeca as execa } from 'execa'
 
-const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
 // cat-index
 test('print cat index file content', async () => {

@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-store": patch
+"@pnpm/store.commands": patch
 "pnpm": patch
 ---
 

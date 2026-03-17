@@ -1,7 +1,7 @@
 ---
 "@pnpm/pick-fetcher": major
 "@pnpm/resolve-dependencies": minor
-"@pnpm/plugin-commands-deploy": minor
+"@pnpm/releasing.commands": minor
 "@pnpm/store-connection-manager": minor
 "@pnpm/default-resolver": minor
 "@pnpm/license-scanner": minor

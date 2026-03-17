@@ -1,8 +1,8 @@
 ---
-"@pnpm/plugin-commands-rebuild": patch
+"@pnpm/building.commands": patch
 "@pnpm/default-reporter": patch
 "@pnpm/headless": patch
-"@pnpm/build-modules": patch
+"@pnpm/building.during-install": patch
 "@pnpm/core": patch
 "pnpm": patch
 ---

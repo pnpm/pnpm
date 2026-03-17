@@ -3,7 +3,7 @@
 "@pnpm/store.cafs": major
 "@pnpm/worker": major
 "@pnpm/package-store": major
-"@pnpm/plugin-commands-store-inspecting": major
+"@pnpm/store.commands": major
 "@pnpm/license-scanner": major
 "@pnpm/mount-modules": major
 "pnpm": major

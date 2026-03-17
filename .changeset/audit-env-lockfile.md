@@ -1,6 +1,6 @@
 ---
 "@pnpm/audit": minor
-"@pnpm/plugin-commands-audit": minor
+"@pnpm/deps.compliance.commands": minor
 "pnpm": minor
 ---
 

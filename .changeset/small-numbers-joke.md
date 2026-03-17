@@ -1,9 +1,8 @@
 ---
 "@pnpm/plugin-commands-installation": major
-"@pnpm/plugin-commands-publishing": major
+"@pnpm/releasing.commands": major
 "@pnpm/plugin-commands-script-runners": major
-"@pnpm/plugin-commands-deploy": major
-"@pnpm/plugin-commands-env": major
+"@pnpm/runtime.commands": major
 "@pnpm/workspace.find-packages": major
 "@pnpm/constants": major
 "@pnpm/core": major

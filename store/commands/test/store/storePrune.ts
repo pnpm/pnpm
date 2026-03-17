@@ -12,7 +12,7 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
-const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
   packages,

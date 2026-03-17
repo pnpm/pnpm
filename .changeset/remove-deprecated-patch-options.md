@@ -1,13 +1,13 @@
 ---
 "@pnpm/plugin-commands-installation": major
-"@pnpm/plugin-commands-deploy": major
+"@pnpm/releasing.commands": major
 "@pnpm/plugin-commands-patching": major
 "@pnpm/package-bins": major
 "@pnpm/patching.apply-patch": major
 "@pnpm/patching.config": major
 "@pnpm/patching.types": major
 "@pnpm/headless": major
-"@pnpm/build-modules": major
+"@pnpm/building.during-install": major
 "@pnpm/core": major
 "@pnpm/types": major
 "@pnpm/config": major

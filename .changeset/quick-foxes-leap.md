@@ -5,7 +5,7 @@
 "@pnpm/package-requester": major
 "@pnpm/npm-resolver": major
 "@pnpm/reviewing.dependencies-hierarchy": major
-"@pnpm/build-modules": major
+"@pnpm/building.during-install": major
 "pnpm": major
 ---
 

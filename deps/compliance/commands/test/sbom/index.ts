@@ -1,4 +1,4 @@
-/// <reference path="../../../../__typings__/index.d.ts" />
+/// <reference path="../../../../../__typings__/index.d.ts" />
 import path from 'node:path'
 
 import { STORE_VERSION } from '@pnpm/constants'

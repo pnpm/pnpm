@@ -2,12 +2,11 @@
 "@pnpm/store.index": minor
 "@pnpm/store.cafs": minor
 "@pnpm/worker": minor
-"@pnpm/plugin-commands-store-inspecting": minor
-"@pnpm/plugin-commands-store": minor
+"@pnpm/store.commands": minor
 "@pnpm/package-store": minor
 "@pnpm/store.pkg-finder": minor
 "@pnpm/reviewing.dependencies-hierarchy": minor
-"@pnpm/plugin-commands-rebuild": minor
+"@pnpm/building.commands": minor
 "pnpm": minor
 ---
 
