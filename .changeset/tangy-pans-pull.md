@@ -16,10 +16,10 @@ export PNPM_CONFIG_OTP='<your OTP here>'
 pnpm publish --no-git-checks
 ```
 
-If the registry requests OTP while the user has not provided the OTP via either the `PNPM_CONFIG_OTP` env nor the `--otp` flag, pnpm would prompt the user directly for OTP code.
+If the registry requests OTP and the user has not provided it via the `PNPM_CONFIG_OTP` environment variable or the `--otp` flag, pnpm will prompt the user directly for an OTP code.
 
-If the registry requests web-based authentication, pnpm would print a scannable QR code along with the URL.
+If the registry requests web-based authentication, pnpm will print a scannable QR code along with the URL.
 
-If the registry sends `npm-notice`, pnpm would print scannable QR code for the URLs within it.
+If the registry sends an `npm-notice`, pnpm will print a scannable QR code for the URLs within it.
 
 Since the new `pnpm publish` no longer calls `npm publish`, some undocumented features may have been unknowingly dropped. If you rely on a feature that is now gone, please open an issue at <https://github.com/pnpm/pnpm/issues>. In the meantime, you can use `pnpm pack && npm publish *.tgz` as a workaround.
