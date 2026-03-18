@@ -863,7 +863,7 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
   expect(fs.existsSync(workspaceManifestPath)).toBeTruthy()
   const workspaceManifestText = fs.readFileSync(workspaceManifestPath, 'utf-8')
   expect(workspaceManifestText).toContain('patchedDependencies:')
-  expect(workspaceManifestText).toContain("'is-positive': '../__patches__/is-positive.patch'")
+  expect(workspaceManifestText).toContain('is-positive: ../__patches__/is-positive.patch')
 
   const project1Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.includes('project-1@'))
   expect(project1Name).toBeDefined()

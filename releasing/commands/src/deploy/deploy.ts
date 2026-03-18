@@ -283,6 +283,7 @@ async function deployFromSharedLockfile (
       frozenLockfile: true,
       injectWorkspacePackages: undefined, // the effects of injecting workspace packages should already be part of the package snapshots
       overrides: undefined, // the effects of the overrides should already be part of the package snapshots
+      packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
       hooks: {
         ...opts.hooks,
         readPackage: [
