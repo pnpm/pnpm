@@ -6,35 +6,35 @@ import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
 import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import { map as mapValues } from 'ramda'
 
-export interface Package {
+export interface BaseProject {
   manifest: BaseManifest
   rootDir: ProjectRootDir
 }
 
-export interface PackageNode<Pkg extends Package> {
+export interface ProjectGraphNode<Pkg extends BaseProject> {
   package: Pkg
   dependencies: ProjectRootDir[]
 }
 
-export function createProjectsGraph<Pkg extends Package> (projects: Pkg[], opts?: {
+export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], opts?: {
   ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
 }): {
-    graph: Record<ProjectRootDir, PackageNode<Pkg>>
+    graph: Record<ProjectRootDir, ProjectGraphNode<Pkg>>
     unmatched: Array<{ pkgName: string, range: string }>
   } {
   const projectMap = createProjectMap(projects)
   const projectMapValues = Object.values(projectMap)
-  let projectMapByManifestName: Record<string, Package[] | undefined> | undefined
-  let projectMapByDir: Record<string, Package | undefined> | undefined
+  let projectMapByManifestName: Record<string, BaseProject[] | undefined> | undefined
+  let projectMapByDir: Record<string, BaseProject | undefined> | undefined
   const unmatched: Array<{ pkgName: string, range: string }> = []
   const graph = mapValues((project) => ({
     dependencies: createNode(project),
     package: project,
-  }), projectMap) as Record<ProjectRootDir, PackageNode<Pkg>>
+  }), projectMap) as Record<ProjectRootDir, ProjectGraphNode<Pkg>>
   return { graph, unmatched }
 
-  function createNode (project: Package): string[] {
+  function createNode (project: BaseProject): string[] {
     const dependencies = {
       ...project.manifest.peerDependencies,
       ...(!opts?.ignoreDevDeps && project.manifest.devDependencies),
@@ -108,16 +108,16 @@ export function createProjectsGraph<Pkg extends Package> (projects: Pkg[], opts?
   }
 }
 
-function createProjectMap (projects: Package[]): Record<ProjectRootDir, Package> {
-  const projectMap: Record<ProjectRootDir, Package> = {}
+function createProjectMap (projects: BaseProject[]): Record<ProjectRootDir, BaseProject> {
+  const projectMap: Record<ProjectRootDir, BaseProject> = {}
   for (const project of projects) {
     projectMap[project.rootDir] = project
   }
   return projectMap
 }
 
-function getProjectMapByManifestName (projectMapValues: Package[]): Record<string, Package[] | undefined> {
-  const projectMapByManifestName: Record<string, Package[] | undefined> = {}
+function getProjectMapByManifestName (projectMapValues: BaseProject[]): Record<string, BaseProject[] | undefined> {
+  const projectMapByManifestName: Record<string, BaseProject[] | undefined> = {}
   for (const project of projectMapValues) {
     if (project.manifest.name) {
       (projectMapByManifestName[project.manifest.name] ??= []).push(project)
@@ -126,8 +126,8 @@ function getProjectMapByManifestName (projectMapValues: Package[]): Record<strin
   return projectMapByManifestName
 }
 
-function getProjectMapByDir (projectMapValues: Package[]): Record<string, Package | undefined> {
-  const projectMapByDir: Record<string, Package | undefined> = {}
+function getProjectMapByDir (projectMapValues: BaseProject[]): Record<string, BaseProject | undefined> {
+  const projectMapByDir: Record<string, BaseProject | undefined> = {}
   for (const project of projectMapValues) {
     projectMapByDir[path.resolve(project.rootDir)] = project
   }

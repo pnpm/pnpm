@@ -1,6 +1,6 @@
 import { createMatcher } from '@pnpm/config.matcher'
 import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
-import { createProjectsGraph, type Package, type PackageNode } from '@pnpm/workspace.projects-graph'
+import { createProjectsGraph, type BaseProject, type ProjectGraphNode } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects, type Project } from '@pnpm/workspace.projects-reader'
 import { isSubdir } from 'is-subdir'
 import * as micromatch from 'micromatch'
@@ -17,23 +17,23 @@ export interface WorkspaceFilter {
   followProdDepsOnly: boolean
 }
 
-export interface PackageGraph<Pkg extends Package> {
-  [id: ProjectRootDir]: PackageNode<Pkg>
+export interface ProjectGraph<Pkg extends BaseProject> {
+  [id: ProjectRootDir]: ProjectGraphNode<Pkg>
 }
 
 interface Graph {
   [nodeId: ProjectRootDir]: ProjectRootDir[]
 }
 
-interface FilteredGraph<Pkg extends Package> {
-  selectedProjectsGraph: PackageGraph<Pkg>
+interface FilteredGraph<Pkg extends BaseProject> {
+  selectedProjectsGraph: ProjectGraph<Pkg>
   unmatchedFilters: string[]
 }
 
 export interface ReadProjectsResult {
   allProjects: Project[]
-  allProjectsGraph: PackageGraph<Project>
-  selectedProjectsGraph: PackageGraph<Project>
+  allProjectsGraph: ProjectGraph<Project>
+  selectedProjectsGraph: ProjectGraph<Project>
 }
 
 export interface FilterProjectsOptions {
@@ -73,13 +73,13 @@ export async function filterProjectsFromDir (
   }
 }
 
-export interface FilterProjectsResult<Pkg extends Package> {
-  allProjectsGraph: PackageGraph<Pkg>
-  selectedProjectsGraph: PackageGraph<Pkg>
+export interface FilterProjectsResult<Pkg extends BaseProject> {
+  allProjectsGraph: ProjectGraph<Pkg>
+  selectedProjectsGraph: ProjectGraph<Pkg>
   unmatchedFilters: string[]
 }
 
-export async function filterProjects<Pkg extends Package> (
+export async function filterProjects<Pkg extends BaseProject> (
   projects: Pkg[],
   filter: WorkspaceFilter[],
   opts: FilterProjectsOptions
@@ -89,7 +89,7 @@ export async function filterProjects<Pkg extends Package> (
   return filterProjectsBySelectorObjects(projects, projectSelectors, opts)
 }
 
-export async function filterProjectsBySelectorObjects<Pkg extends Package> (
+export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
   projects: Pkg[],
   projectSelectors: ProjectSelector[],
   opts: {
@@ -100,8 +100,8 @@ export async function filterProjectsBySelectorObjects<Pkg extends Package> (
     useGlobDirFiltering?: boolean
   }
 ): Promise<{
-    allProjectsGraph: PackageGraph<Pkg>
-    selectedProjectsGraph: PackageGraph<Pkg>
+    allProjectsGraph: ProjectGraph<Pkg>
+    selectedProjectsGraph: ProjectGraph<Pkg>
     unmatchedFilters: string[]
   }> {
   const [prodProjectSelectors, allProjectSelectors] = partition(({ followProdDepsOnly }) => !!followProdDepsOnly, projectSelectors)
@@ -148,8 +148,8 @@ export async function filterProjectsBySelectorObjects<Pkg extends Package> (
   }
 }
 
-export async function filterWorkspaceProjects<Pkg extends Package> (
-  projectsGraph: PackageGraph<Pkg>,
+export async function filterWorkspaceProjects<Pkg extends BaseProject> (
+  projectsGraph: ProjectGraph<Pkg>,
   projectSelectors: ProjectSelector[],
   opts: {
     workspaceDir: string
@@ -158,7 +158,7 @@ export async function filterWorkspaceProjects<Pkg extends Package> (
     useGlobDirFiltering?: boolean
   }
 ): Promise<{
-    selectedProjectsGraph: PackageGraph<Pkg>
+    selectedProjectsGraph: ProjectGraph<Pkg>
     unmatchedFilters: string[]
   }> {
   const [excludeSelectors, includeSelectors] = partition<ProjectSelector>(
@@ -179,8 +179,8 @@ export async function filterWorkspaceProjects<Pkg extends Package> (
   }
 }
 
-async function _filterGraph<Pkg extends Package> (
-  projectsGraph: PackageGraph<Pkg>,
+async function _filterGraph<Pkg extends BaseProject> (
+  projectsGraph: ProjectGraph<Pkg>,
   opts: {
     workspaceDir: string
     testPattern?: string[]
@@ -274,7 +274,7 @@ async function _filterGraph<Pkg extends Package> (
   }
 }
 
-function projectsGraphToGraph<Pkg extends Package> (projectsGraph: PackageGraph<Pkg>): Graph {
+function projectsGraphToGraph<Pkg extends BaseProject> (projectsGraph: ProjectGraph<Pkg>): Graph {
   const graph: Graph = {}
   for (const nodeId of Object.keys(projectsGraph) as ProjectRootDir[]) {
     graph[nodeId] = projectsGraph[nodeId].dependencies
@@ -296,8 +296,8 @@ function reverseGraph (graph: Graph): Graph {
   return reversedGraph
 }
 
-function matchProjects<Pkg extends Package> (
-  graph: PackageGraph<Pkg>,
+function matchProjects<Pkg extends BaseProject> (
+  graph: ProjectGraph<Pkg>,
   pattern: string
 ): ProjectRootDir[] {
   const match = createMatcher(pattern)
@@ -309,15 +309,15 @@ function matchProjects<Pkg extends Package> (
   return matches
 }
 
-function matchProjectsByExactPath<Pkg extends Package> (
-  graph: PackageGraph<Pkg>,
+function matchProjectsByExactPath<Pkg extends BaseProject> (
+  graph: ProjectGraph<Pkg>,
   pathStartsWith: string
 ): ProjectRootDir[] {
   return (Object.keys(graph) as ProjectRootDir[]).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
 }
 
-function matchProjectsByGlob<Pkg extends Package> (
-  graph: PackageGraph<Pkg>,
+function matchProjectsByGlob<Pkg extends BaseProject> (
+  graph: ProjectGraph<Pkg>,
   pathStartsWith: string
 ): ProjectRootDir[] {
   const format = (str: string) => str.replace(/\/$/, '')
