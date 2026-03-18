@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/local.d.ts"/>
-import { createPkgGraph } from '@pnpm/workspace.projects-graph'
+import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
 import { betterPathResolve as pathResolve } from 'better-path-resolve'
 
 const BAR1_PATH = pathResolve('/zkochan/src/bar')
@@ -11,7 +11,7 @@ const BAR4_PATH = pathResolve('/zkochan/src/bar@4')
 const BAR5_PATH = pathResolve('/zkochan/src/bar@5')
 
 test('create package graph', () => {
-  const result = createPkgGraph([
+  const result = createProjectsGraph([
     {
       rootDir: BAR1_PATH,
       manifest: {
@@ -113,7 +113,7 @@ test('create package graph', () => {
 })
 
 test('create package graph using peer dependencies', () => {
-  const result = createPkgGraph([
+  const result = createProjectsGraph([
     {
       rootDir: BAR1_PATH,
       manifest: {
@@ -165,7 +165,7 @@ test('create package graph using peer dependencies', () => {
 })
 
 test('create package graph for local directory dependencies', () => {
-  const result = createPkgGraph([
+  const result = createProjectsGraph([
     {
       rootDir: BAR1_PATH,
       manifest: {
@@ -269,7 +269,7 @@ test('create package graph for local directory dependencies', () => {
 })
 
 test('create package graph ignoring the workspace protocol', () => {
-  const result = createPkgGraph([
+  const result = createProjectsGraph([
     {
       rootDir: BAR1_PATH,
       manifest: {
@@ -421,7 +421,7 @@ test('create package graph ignoring the workspace protocol', () => {
 })
 
 test('create package graph respects linked-workspace-packages = false', () => {
-  const result = createPkgGraph([
+  const result = createProjectsGraph([
     {
       rootDir: BAR1_PATH,
       manifest: {
@@ -569,7 +569,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
 })
 
 test('create package graph respects ignoreDevDeps = true', () => {
-  const result = createPkgGraph([
+  const result = createProjectsGraph([
     {
       rootDir: BAR1_PATH,
       manifest: {
@@ -675,7 +675,7 @@ test('create package graph respects ignoreDevDeps = true', () => {
 })
 
 test('* matches prerelease versions', () => {
-  const result = createPkgGraph([
+  const result = createProjectsGraph([
     {
       rootDir: BAR1_PATH,
       manifest: {
@@ -724,7 +724,7 @@ test('* matches prerelease versions', () => {
 
 // fix: https://github.com/pnpm/pnpm/issues/3933
 test('successfully create a package graph even when a workspace package has no version', async () => {
-  const result = createPkgGraph([
+  const result = createProjectsGraph([
     {
       rootDir: BAR1_PATH,
       manifest: {
@@ -771,7 +771,7 @@ test('successfully create a package graph even when a workspace package has no v
 })
 
 test('create package graph respects workspace alias syntax', async () => {
-  const result = createPkgGraph([
+  const result = createProjectsGraph([
     {
       rootDir: BAR1_PATH,
       manifest: {

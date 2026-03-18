@@ -1,9 +1,9 @@
 import path from 'node:path'
 
-import { type PackageSelector, parsePackageSelector } from '@pnpm/workspace.projects-filter'
+import { parseProjectSelector, type ProjectSelector } from '@pnpm/workspace.projects-filter'
 import isWindows from 'is-windows'
 
-const fixtures: Array<[string, PackageSelector]> = [
+const fixtures: Array<[string, ProjectSelector]> = [
   [
     'foo',
     {
@@ -194,18 +194,18 @@ const fixtures: Array<[string, PackageSelector]> = [
   ],
 ]
 
-test('parsePackageSelector()', () => {
+test('parseProjectSelector()', () => {
   for (const fixture of fixtures) {
     expect(
-      parsePackageSelector(fixture[0], process.cwd())).toStrictEqual(fixture[1])
+      parseProjectSelector(fixture[0], process.cwd())).toStrictEqual(fixture[1])
   }
   if (isWindows()) {
     expect(
-      parsePackageSelector('.\\foo', process.cwd())).toStrictEqual(
+      parseProjectSelector('.\\foo', process.cwd())).toStrictEqual(
       { exclude: false, excludeSelf: false, parentDir: path.resolve('foo') }
     )
     expect(
-      parsePackageSelector('..\\foo', process.cwd())).toStrictEqual(
+      parseProjectSelector('..\\foo', process.cwd())).toStrictEqual(
       { exclude: false, excludeSelf: false, parentDir: path.resolve('../foo') }
     )
   }

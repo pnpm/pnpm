@@ -14,8 +14,8 @@ interface ChangedDir {
   dir: string, changeType: ChangeType
 }
 
-export async function getChangedPackages (
-  packageDirs: ProjectRootDir[],
+export async function getChangedProjects (
+  projectDirs: ProjectRootDir[],
   commit: string,
   opts: { workspaceDir: string, testPattern?: string[], changedFilesIgnorePattern?: string[] }
 ): Promise<[ProjectRootDir[], ProjectRootDir[]]> {
@@ -28,34 +28,34 @@ export async function getChangedPackages (
 
   const changedDirs = (await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPattern ?? [], opts.changedFilesIgnorePattern ?? []))
     .map(changedDir => ({ ...changedDir, dir: path.join(repoRoot, changedDir.dir) }))
-  const pkgChangeTypes = new Map<ProjectRootDir, ChangeType | undefined>()
-  for (const pkgDir of packageDirs) {
-    pkgChangeTypes.set(pkgDir, undefined)
+  const projectChangeTypes = new Map<ProjectRootDir, ChangeType | undefined>()
+  for (const projectDir of projectDirs) {
+    projectChangeTypes.set(projectDir, undefined)
   }
   for (const changedDir of changedDirs) {
     let currentDir = changedDir.dir
-    while (!pkgChangeTypes.has(currentDir as ProjectRootDir)) {
+    while (!projectChangeTypes.has(currentDir as ProjectRootDir)) {
       const nextDir = path.dirname(currentDir)
       if (nextDir === currentDir) break
       currentDir = nextDir
     }
-    if (pkgChangeTypes.get(currentDir as ProjectRootDir) === 'source') continue
-    pkgChangeTypes.set(currentDir as ProjectRootDir, changedDir.changeType)
+    if (projectChangeTypes.get(currentDir as ProjectRootDir) === 'source') continue
+    projectChangeTypes.set(currentDir as ProjectRootDir, changedDir.changeType)
   }
 
-  const changedPkgs = [] as ProjectRootDir[]
+  const changedProjects = [] as ProjectRootDir[]
   const ignoreDependentForPkgs = [] as ProjectRootDir[]
-  for (const [changedDir, changeType] of pkgChangeTypes.entries()) {
+  for (const [changedDir, changeType] of projectChangeTypes.entries()) {
     switch (changeType) {
     case 'source':
-      changedPkgs.push(changedDir)
+      changedProjects.push(changedDir)
       break
     case 'test':
       ignoreDependentForPkgs.push(changedDir)
       break
     }
   }
-  return [changedPkgs, ignoreDependentForPkgs]
+  return [changedProjects, ignoreDependentForPkgs]
 }
 
 async function getChangedDirsSinceCommit (commit: string, workingDir: string, testPattern: string[], changedFilesIgnorePattern: string[]): Promise<ChangedDir[]> {

@@ -6,9 +6,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export type { Project }
 
-export type WorkspacePackagesPatterns = 'all-packages' | string[]
-
-export interface FindWorkspacePackagesOpts {
+export interface FindWorkspaceProjectsOpts {
   /**
    * An array of globs for the packages included in the workspace.
    *
@@ -25,13 +23,13 @@ export interface FindWorkspacePackagesOpts {
   supportedArchitectures?: SupportedArchitectures
 }
 
-export async function findWorkspacePackages (
+export async function findWorkspaceProjects (
   workspaceRoot: string,
-  opts?: FindWorkspacePackagesOpts
+  opts?: FindWorkspaceProjectsOpts
 ): Promise<Project[]> {
-  const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
-  for (const pkg of pkgs) {
-    packageIsInstallable(pkg.rootDir, pkg.manifest, {
+  const projects = await findWorkspaceProjectsNoCheck(workspaceRoot, opts)
+  for (const project of projects) {
+    packageIsInstallable(project.rootDir, project.manifest, {
       ...opts,
       supportedArchitectures: opts?.supportedArchitectures ?? {
         os: ['current'],
@@ -40,16 +38,16 @@ export async function findWorkspacePackages (
       },
     })
     // When setting shared-workspace-lockfile=false, `pnpm` can be set in sub-project's package.json.
-    if (opts?.sharedWorkspaceLockfile && pkg.rootDir !== workspaceRoot) {
-      checkNonRootProjectManifest(pkg)
+    if (opts?.sharedWorkspaceLockfile && project.rootDir !== workspaceRoot) {
+      checkNonRootProjectManifest(project)
     }
   }
 
-  return pkgs
+  return projects
 }
 
-export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
-  const pkgs = await findPackages(workspaceRoot, {
+export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
+  const projects = await findPackages(workspaceRoot, {
     ignore: [
       '**/node_modules/**',
       '**/bower_components/**',
@@ -57,8 +55,8 @@ export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?
     includeRoot: true,
     patterns: opts?.patterns,
   })
-  pkgs.sort((pkg1: { rootDir: string }, pkg2: { rootDir: string }) => lexCompare(pkg1.rootDir, pkg2.rootDir))
-  return pkgs
+  projects.sort((project1: { rootDir: string }, project2: { rootDir: string }) => lexCompare(project1.rootDir, project2.rootDir))
+  return projects
 }
 
 const uselessNonRootManifestFields: Array<keyof ProjectManifest> = ['resolutions']
@@ -69,9 +67,6 @@ function checkNonRootProjectManifest ({ manifest, rootDir }: Project): void {
     if (field in manifest) {
       warn(field)
     }
-  }
-  for (const field in manifest.pnpm) {
-    warn(`pnpm.${field}`)
   }
 }
 

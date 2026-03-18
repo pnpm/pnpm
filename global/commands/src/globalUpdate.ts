@@ -30,7 +30,7 @@ export type GlobalUpdateOptions = CreateStoreControllerOptions & {
   saveExact?: boolean
   savePrefix?: string
   supportedArchitectures?: { libc?: string[] }
-  rootProjectManifest?: { pnpm?: { supportedArchitectures?: { libc?: string[] } } }
+  rootProjectManifest?: unknown
 }
 
 export async function handleGlobalUpdate (
@@ -86,7 +86,7 @@ async function updateGlobalPackageGroup (
     devDependencies: false,
     optionalDependencies: true,
   }
-  const fetchFullMetadata = (opts.supportedArchitectures?.libc ?? opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc) && true
+  const fetchFullMetadata = opts.supportedArchitectures?.libc != null && true
   const allowBuilds = opts.allowBuilds ?? {}
 
   const ignoredBuilds = await installGlobalPackages({

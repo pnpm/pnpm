@@ -14,23 +14,26 @@ const defaultOpts: MakePublishManifestOptions = {
   catalogs: {},
 }
 
-test('the pnpm options are removed', async () => {
+test('prepublish scripts and packageManager are removed', async () => {
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
     dependencies: {
       qar: '2',
     },
-    pnpm: {
-      overrides: {
-        bar: '1',
-      },
+    scripts: {
+      postinstall: 'echo hello',
+      prepublishOnly: 'echo',
     },
+    packageManager: 'pnpm@10.0.0',
   }, defaultOpts)).toStrictEqual({
     name: 'foo',
     version: '1.0.0',
     dependencies: {
       qar: '2',
+    },
+    scripts: {
+      postinstall: 'echo hello',
     },
   })
 })

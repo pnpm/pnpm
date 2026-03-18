@@ -1,7 +1,5 @@
 import type { PnpmSettings, ProjectManifest } from '@pnpm/types'
-import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
-import { equals } from 'ramda'
 
 export interface WriteSettingsOptions {
   updatedSettings?: PnpmSettings
@@ -12,41 +10,6 @@ export interface WriteSettingsOptions {
 }
 
 export async function writeSettings (opts: WriteSettingsOptions): Promise<void> {
-  if (opts.rootProjectManifest?.pnpm != null) {
-    const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir)
-    if (manifest) {
-      manifest.pnpm ??= {}
-      let shouldBeUpdated = false
-      if (opts.updatedSettings) {
-        for (const [key, value] of Object.entries(opts.updatedSettings)) {
-          if (!equals(manifest.pnpm[key as keyof PnpmSettings], value)) {
-            shouldBeUpdated = true
-            if (value == null) {
-              delete manifest.pnpm[key as keyof PnpmSettings]
-            } else {
-              manifest.pnpm[key as keyof PnpmSettings] = value
-            }
-          }
-        }
-      }
-      if (opts.updatedOverrides) {
-        manifest.pnpm.overrides ??= {}
-        for (const [key, value] of Object.entries(opts.updatedOverrides)) {
-          if (!equals(manifest.pnpm.overrides[key], value)) {
-            shouldBeUpdated = true
-            manifest.pnpm.overrides[key] = value
-          }
-        }
-      }
-      if (Object.keys(manifest.pnpm).length === 0) {
-        delete manifest.pnpm
-      }
-      if (shouldBeUpdated) {
-        await writeProjectManifest(manifest)
-      }
-      return
-    }
-  }
   await updateWorkspaceManifest(opts.workspaceDir, {
     updatedFields: opts.updatedSettings,
     updatedOverrides: opts.updatedOverrides,

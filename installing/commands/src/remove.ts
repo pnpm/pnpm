@@ -5,7 +5,7 @@ import {
   readDepNameCompletions,
   readProjectManifest,
 } from '@pnpm/cli.utils'
-import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config.reader'
+import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalRemove } from '@pnpm/global.commands'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
@@ -13,7 +13,7 @@ import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { DependenciesField, Project, ProjectRootDir } from '@pnpm/types'
-import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { pick, without } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -186,7 +186,6 @@ export async function handler (
     return
   }
   const removeOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     storeController: store.ctrl,
     storeDir: store.dir,
@@ -194,7 +193,7 @@ export async function handler (
   })
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir
-      ? await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
+      ? await findWorkspaceProjects(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
       : undefined
   )
   // @ts-expect-error

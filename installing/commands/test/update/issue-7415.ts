@@ -3,7 +3,7 @@ import path from 'node:path'
 import { jest } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 
@@ -49,13 +49,7 @@ test('interactive recursive should not error on git specifier override', async (
   preparePackages([
     {
       location: '.',
-      package: {
-        pnpm: {
-          overrides: {
-            'is-negative': 'github:kevva/is-negative#2.1.0',
-          },
-        },
-      },
+      package: {},
     },
     {
       location: './project-1',
@@ -71,7 +65,7 @@ test('interactive recursive should not error on git specifier override', async (
     updateDependencies: [],
   })
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   const sharedOptions = {
     ...DEFAULT_OPTIONS,
     allProjects,
@@ -83,6 +77,9 @@ test('interactive recursive should not error on git specifier override', async (
     dir: process.cwd(),
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
+    overrides: {
+      'is-negative': 'github:kevva/is-negative#2.1.0',
+    },
   }
 
   await install.handler({

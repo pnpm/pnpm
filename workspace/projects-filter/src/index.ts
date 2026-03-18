@@ -1,42 +1,42 @@
 import { createMatcher } from '@pnpm/config.matcher'
 import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
-import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.projects-graph'
-import { findWorkspacePackages, type Project } from '@pnpm/workspace.projects-reader'
+import { type BaseProject, createProjectsGraph, type ProjectGraphNode } from '@pnpm/workspace.projects-graph'
+import { findWorkspaceProjects, type Project } from '@pnpm/workspace.projects-reader'
 import { isSubdir } from 'is-subdir'
 import * as micromatch from 'micromatch'
 import { difference, partition, pick } from 'ramda'
 
-import { filterPkgsBySelectorObjectsFromDir } from './filterPackagesFromDir.js'
-import { getChangedPackages } from './getChangedPackages.js'
-import { type PackageSelector, parsePackageSelector } from './parsePackageSelector.js'
+import { filterProjectsBySelectorObjectsFromDir } from './filterProjectsFromDir.js'
+import { getChangedProjects } from './getChangedProjects.js'
+import { parseProjectSelector, type ProjectSelector } from './parseProjectSelector.js'
 
-export { filterPkgsBySelectorObjectsFromDir, type PackageSelector, parsePackageSelector }
+export { filterProjectsBySelectorObjectsFromDir, parseProjectSelector, type ProjectSelector }
 
 export interface WorkspaceFilter {
   filter: string
   followProdDepsOnly: boolean
 }
 
-export interface PackageGraph<Pkg extends Package> {
-  [id: ProjectRootDir]: PackageNode<Pkg>
+export interface ProjectGraph<Pkg extends BaseProject> {
+  [id: ProjectRootDir]: ProjectGraphNode<Pkg>
 }
 
 interface Graph {
   [nodeId: ProjectRootDir]: ProjectRootDir[]
 }
 
-interface FilteredGraph<Pkg extends Package> {
-  selectedProjectsGraph: PackageGraph<Pkg>
+interface FilteredGraph<Pkg extends BaseProject> {
+  selectedProjectsGraph: ProjectGraph<Pkg>
   unmatchedFilters: string[]
 }
 
 export interface ReadProjectsResult {
   allProjects: Project[]
-  allProjectsGraph: PackageGraph<Project>
-  selectedProjectsGraph: PackageGraph<Project>
+  allProjectsGraph: ProjectGraph<Project>
+  selectedProjectsGraph: ProjectGraph<Project>
 }
 
-export interface FilterPackagesOptions {
+export interface FilterProjectsOptions {
   linkWorkspacePackages?: boolean
   prefix: string
   workspaceDir: string
@@ -46,21 +46,21 @@ export interface FilterPackagesOptions {
   sharedWorkspaceLockfile?: boolean
 }
 
-export interface FilterPackagesFromDirResult extends FilterPackagesResult<Project> {
+export interface FilterProjectsFromDirResult extends FilterProjectsResult<Project> {
   allProjects: Project[]
 }
 
-export async function filterPackagesFromDir (
+export async function filterProjectsFromDir (
   workspaceDir: string,
   filter: WorkspaceFilter[],
-  opts: FilterPackagesOptions & {
+  opts: FilterProjectsOptions & {
     engineStrict?: boolean
     nodeVersion?: string
     patterns?: string[]
     supportedArchitectures?: SupportedArchitectures
   }
-): Promise<FilterPackagesFromDirResult> {
-  const allProjects = await findWorkspacePackages(workspaceDir, {
+): Promise<FilterProjectsFromDirResult> {
+  const allProjects = await findWorkspaceProjects(workspaceDir, {
     engineStrict: opts?.engineStrict,
     patterns: opts.patterns,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
@@ -69,29 +69,29 @@ export async function filterPackagesFromDir (
   })
   return {
     allProjects,
-    ...(await filterPackages(allProjects, filter, opts)),
+    ...(await filterProjects(allProjects, filter, opts)),
   }
 }
 
-export interface FilterPackagesResult<Pkg extends Package> {
-  allProjectsGraph: PackageGraph<Pkg>
-  selectedProjectsGraph: PackageGraph<Pkg>
+export interface FilterProjectsResult<Pkg extends BaseProject> {
+  allProjectsGraph: ProjectGraph<Pkg>
+  selectedProjectsGraph: ProjectGraph<Pkg>
   unmatchedFilters: string[]
 }
 
-export async function filterPackages<Pkg extends Package> (
-  pkgs: Pkg[],
+export async function filterProjects<Pkg extends BaseProject> (
+  projects: Pkg[],
   filter: WorkspaceFilter[],
-  opts: FilterPackagesOptions
-): Promise<FilterPackagesResult<Pkg>> {
-  const packageSelectors = filter.map(({ filter: f, followProdDepsOnly }) => ({ ...parsePackageSelector(f, opts.prefix), followProdDepsOnly }))
+  opts: FilterProjectsOptions
+): Promise<FilterProjectsResult<Pkg>> {
+  const projectSelectors = filter.map(({ filter: f, followProdDepsOnly }) => ({ ...parseProjectSelector(f, opts.prefix), followProdDepsOnly }))
 
-  return filterPkgsBySelectorObjects(pkgs, packageSelectors, opts)
+  return filterProjectsBySelectorObjects(projects, projectSelectors, opts)
 }
 
-export async function filterPkgsBySelectorObjects<Pkg extends Package> (
-  pkgs: Pkg[],
-  packageSelectors: PackageSelector[],
+export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
+  projects: Pkg[],
+  projectSelectors: ProjectSelector[],
   opts: {
     linkWorkspacePackages?: boolean
     workspaceDir: string
@@ -100,18 +100,18 @@ export async function filterPkgsBySelectorObjects<Pkg extends Package> (
     useGlobDirFiltering?: boolean
   }
 ): Promise<{
-    allProjectsGraph: PackageGraph<Pkg>
-    selectedProjectsGraph: PackageGraph<Pkg>
+    allProjectsGraph: ProjectGraph<Pkg>
+    selectedProjectsGraph: ProjectGraph<Pkg>
     unmatchedFilters: string[]
   }> {
-  const [prodPackageSelectors, allPackageSelectors] = partition(({ followProdDepsOnly }) => !!followProdDepsOnly, packageSelectors)
+  const [prodProjectSelectors, allProjectSelectors] = partition(({ followProdDepsOnly }) => !!followProdDepsOnly, projectSelectors)
 
-  if ((allPackageSelectors.length > 0) || (prodPackageSelectors.length > 0)) {
+  if ((allProjectSelectors.length > 0) || (prodProjectSelectors.length > 0)) {
     let filteredGraph: FilteredGraph<Pkg> | undefined
-    const { graph } = createPkgGraph<Pkg>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
+    const { graph } = createProjectsGraph<Pkg>(projects, { linkWorkspacePackages: opts.linkWorkspacePackages })
 
-    if (allPackageSelectors.length > 0) {
-      filteredGraph = await filterWorkspacePackages(graph, allPackageSelectors, {
+    if (allProjectSelectors.length > 0) {
+      filteredGraph = await filterWorkspaceProjects(graph, allProjectSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
         changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
@@ -121,9 +121,9 @@ export async function filterPkgsBySelectorObjects<Pkg extends Package> (
 
     let prodFilteredGraph: FilteredGraph<Pkg> | undefined
 
-    if (prodPackageSelectors.length > 0) {
-      const { graph } = createPkgGraph<Pkg>(pkgs, { ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages })
-      prodFilteredGraph = await filterWorkspacePackages(graph, prodPackageSelectors, {
+    if (prodProjectSelectors.length > 0) {
+      const { graph } = createProjectsGraph<Pkg>(projects, { ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages })
+      prodFilteredGraph = await filterWorkspaceProjects(graph, prodProjectSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
         changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
@@ -143,14 +143,14 @@ export async function filterPkgsBySelectorObjects<Pkg extends Package> (
       ],
     }
   } else {
-    const { graph } = createPkgGraph<Pkg>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
+    const { graph } = createProjectsGraph<Pkg>(projects, { linkWorkspacePackages: opts.linkWorkspacePackages })
     return { allProjectsGraph: graph, selectedProjectsGraph: graph, unmatchedFilters: [] }
   }
 }
 
-export async function filterWorkspacePackages<Pkg extends Package> (
-  pkgGraph: PackageGraph<Pkg>,
-  packageSelectors: PackageSelector[],
+export async function filterWorkspaceProjects<Pkg extends BaseProject> (
+  projectsGraph: ProjectGraph<Pkg>,
+  projectSelectors: ProjectSelector[],
   opts: {
     workspaceDir: string
     testPattern?: string[]
@@ -158,57 +158,57 @@ export async function filterWorkspacePackages<Pkg extends Package> (
     useGlobDirFiltering?: boolean
   }
 ): Promise<{
-    selectedProjectsGraph: PackageGraph<Pkg>
+    selectedProjectsGraph: ProjectGraph<Pkg>
     unmatchedFilters: string[]
   }> {
-  const [excludeSelectors, includeSelectors] = partition<PackageSelector>(
-    (selector: PackageSelector) => selector.exclude === true,
-    packageSelectors
+  const [excludeSelectors, includeSelectors] = partition<ProjectSelector>(
+    (selector: ProjectSelector) => selector.exclude === true,
+    projectSelectors
   )
-  const fg = _filterGraph.bind(null, pkgGraph, opts)
+  const fg = _filterGraph.bind(null, projectsGraph, opts)
   const include = includeSelectors.length === 0
-    ? { selected: Object.keys(pkgGraph), unmatchedFilters: [] }
+    ? { selected: Object.keys(projectsGraph), unmatchedFilters: [] }
     : await fg(includeSelectors)
   const exclude = await fg(excludeSelectors)
   return {
     selectedProjectsGraph: pick(
       difference(include.selected, exclude.selected) as ProjectRootDir[],
-      pkgGraph
+      projectsGraph
     ),
     unmatchedFilters: [...include.unmatchedFilters, ...exclude.unmatchedFilters],
   }
 }
 
-async function _filterGraph<Pkg extends Package> (
-  pkgGraph: PackageGraph<Pkg>,
+async function _filterGraph<Pkg extends BaseProject> (
+  projectsGraph: ProjectGraph<Pkg>,
   opts: {
     workspaceDir: string
     testPattern?: string[]
     changedFilesIgnorePattern?: string[]
     useGlobDirFiltering?: boolean
   },
-  packageSelectors: PackageSelector[]
+  projectSelectors: ProjectSelector[]
 ): Promise<{
     selected: ProjectRootDir[]
     unmatchedFilters: string[]
   }> {
-  const cherryPickedPackages = [] as ProjectRootDir[]
+  const cherryPickedProjects = [] as ProjectRootDir[]
   const walkedDependencies = new Set<ProjectRootDir>()
   const walkedDependents = new Set<ProjectRootDir>()
   const walkedDependentsDependencies = new Set<ProjectRootDir>()
-  const graph = pkgGraphToGraph(pkgGraph)
+  const graph = projectsGraphToGraph(projectsGraph)
   const unmatchedFilters = [] as string[]
   let reversedGraph: Graph | undefined
-  const matchPackagesByPath = opts.useGlobDirFiltering === true
-    ? matchPackagesByGlob
-    : matchPackagesByExactPath
-  for (const selector of packageSelectors) {
-    let entryPackages: ProjectRootDir[] | null = null
+  const matchProjectsByPath = opts.useGlobDirFiltering === true
+    ? matchProjectsByGlob
+    : matchProjectsByExactPath
+  for (const selector of projectSelectors) {
+    let entryProjects: ProjectRootDir[] | null = null
     if (selector.diff) {
-      let ignoreDependentForPkgs: ProjectRootDir[] = []
+      let ignoreDependentForProjects: ProjectRootDir[] = []
       // eslint-disable-next-line no-await-in-loop
-      ;[entryPackages, ignoreDependentForPkgs] = await getChangedPackages(
-        Object.keys(pkgGraph) as ProjectRootDir[],
+      ;[entryProjects, ignoreDependentForProjects] = await getChangedProjects(
+        Object.keys(projectsGraph) as ProjectRootDir[],
         selector.diff,
         {
           changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
@@ -219,23 +219,23 @@ async function _filterGraph<Pkg extends Package> (
       selectEntries({
         ...selector,
         includeDependents: false,
-      }, ignoreDependentForPkgs)
+      }, ignoreDependentForProjects)
     } else if (selector.parentDir) {
-      entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
+      entryProjects = matchProjectsByPath(projectsGraph, selector.parentDir)
     }
     if (selector.namePattern) {
-      if (entryPackages == null) {
-        entryPackages = matchPackages(pkgGraph, selector.namePattern)
+      if (entryProjects == null) {
+        entryProjects = matchProjects(projectsGraph, selector.namePattern)
       } else {
-        entryPackages = matchPackages(pick(entryPackages, pkgGraph), selector.namePattern)
+        entryProjects = matchProjects(pick(entryProjects, projectsGraph), selector.namePattern)
       }
     }
 
-    if (entryPackages == null) {
-      throw new Error(`Unsupported package selector: ${JSON.stringify(selector)}`)
+    if (entryProjects == null) {
+      throw new Error(`Unsupported project selector: ${JSON.stringify(selector)}`)
     }
 
-    if (entryPackages.length === 0) {
+    if (entryProjects.length === 0) {
       if (selector.namePattern) {
         unmatchedFilters.push(selector.namePattern)
       }
@@ -244,24 +244,24 @@ async function _filterGraph<Pkg extends Package> (
       }
     }
 
-    selectEntries(selector, entryPackages)
+    selectEntries(selector, entryProjects)
   }
   const walked = new Set([...walkedDependencies, ...walkedDependents, ...walkedDependentsDependencies])
-  cherryPickedPackages.forEach((cherryPickedPackage) => walked.add(cherryPickedPackage))
+  cherryPickedProjects.forEach((cherryPickedProject) => walked.add(cherryPickedProject))
   return {
     selected: Array.from(walked),
     unmatchedFilters,
   }
 
-  function selectEntries (selector: PackageSelector, entryPackages: ProjectRootDir[]) {
+  function selectEntries (selector: ProjectSelector, entryProjects: ProjectRootDir[]) {
     if (selector.includeDependencies) {
-      pickSubgraph(graph, entryPackages, walkedDependencies, { includeRoot: !selector.excludeSelf })
+      pickSubgraph(graph, entryProjects, walkedDependencies, { includeRoot: !selector.excludeSelf })
     }
     if (selector.includeDependents) {
       if (reversedGraph == null) {
         reversedGraph = reverseGraph(graph)
       }
-      pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !selector.excludeSelf })
+      pickSubgraph(reversedGraph, entryProjects, walkedDependents, { includeRoot: !selector.excludeSelf })
     }
 
     if (selector.includeDependencies && selector.includeDependents) {
@@ -269,15 +269,15 @@ async function _filterGraph<Pkg extends Package> (
     }
 
     if (!selector.includeDependencies && !selector.includeDependents) {
-      cherryPickedPackages.push(...entryPackages)
+      cherryPickedProjects.push(...entryProjects)
     }
   }
 }
 
-function pkgGraphToGraph<Pkg extends Package> (pkgGraph: PackageGraph<Pkg>): Graph {
+function projectsGraphToGraph<Pkg extends BaseProject> (projectsGraph: ProjectGraph<Pkg>): Graph {
   const graph: Graph = {}
-  for (const nodeId of Object.keys(pkgGraph) as ProjectRootDir[]) {
-    graph[nodeId] = pkgGraph[nodeId].dependencies
+  for (const nodeId of Object.keys(projectsGraph) as ProjectRootDir[]) {
+    graph[nodeId] = projectsGraph[nodeId].dependencies
   }
   return graph
 }
@@ -296,28 +296,28 @@ function reverseGraph (graph: Graph): Graph {
   return reversedGraph
 }
 
-function matchPackages<Pkg extends Package> (
-  graph: PackageGraph<Pkg>,
+function matchProjects<Pkg extends BaseProject> (
+  graph: ProjectGraph<Pkg>,
   pattern: string
 ): ProjectRootDir[] {
   const match = createMatcher(pattern)
   const matches = (Object.keys(graph) as ProjectRootDir[]).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name!))
   if (matches.length === 0 && !(pattern[0] === '@') && !pattern.includes('/')) {
-    const scopedMatches = matchPackages(graph, `@*/${pattern}`)
+    const scopedMatches = matchProjects(graph, `@*/${pattern}`)
     return scopedMatches.length !== 1 ? [] : scopedMatches
   }
   return matches
 }
 
-function matchPackagesByExactPath<Pkg extends Package> (
-  graph: PackageGraph<Pkg>,
+function matchProjectsByExactPath<Pkg extends BaseProject> (
+  graph: ProjectGraph<Pkg>,
   pathStartsWith: string
 ): ProjectRootDir[] {
   return (Object.keys(graph) as ProjectRootDir[]).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
 }
 
-function matchPackagesByGlob<Pkg extends Package> (
-  graph: PackageGraph<Pkg>,
+function matchProjectsByGlob<Pkg extends BaseProject> (
+  graph: ProjectGraph<Pkg>,
   pathStartsWith: string
 ): ProjectRootDir[] {
   const format = (str: string) => str.replace(/\/$/, '')
