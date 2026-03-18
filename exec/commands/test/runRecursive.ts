@@ -5,8 +5,8 @@ import type { PnpmError } from '@pnpm/error'
 import { run } from '@pnpm/exec.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
-import { filterPkgsBySelectorObjects } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -59,7 +59,7 @@ test('pnpm recursive run', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -126,7 +126,7 @@ test('pnpm recursive run with enable-pre-post-scripts', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -194,7 +194,7 @@ test('pnpm recursive run reversed', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -240,7 +240,7 @@ test('pnpm recursive run concurrently', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -292,7 +292,7 @@ test('`pnpm recursive run` fails when run without filters and no package has the
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -360,7 +360,7 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
   console.log('recursive run does not fail when if-present is true')
   await run.handler({
     ...DEFAULT_OPTS,
-    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
     dir: process.cwd(),
     ifPresent: true,
     recursive: true,
@@ -371,7 +371,7 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
   try {
     await run.handler({
       ...DEFAULT_OPTS,
-      ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
       dir: process.cwd(),
       recursive: true,
       workspaceDir: process.cwd(),
@@ -410,7 +410,7 @@ test('`pnpm recursive run` fails when run against a subset of packages and no pa
     },
   ])
 
-  const { allProjects } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -419,7 +419,7 @@ test('`pnpm recursive run` fails when run against a subset of packages and no pa
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
     allProjects,
     [{ namePattern: 'project-1' }],
     { workspaceDir: process.cwd() }
@@ -481,7 +481,7 @@ test('"pnpm run --filter <pkg>" without specifying the script name', async () =>
     },
   ])
 
-  const { allProjects } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -493,7 +493,7 @@ test('"pnpm run --filter <pkg>" without specifying the script name', async () =>
 
   console.log('prints the list of available commands if a single project is selected')
   {
-    const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
       allProjects,
       [{ namePattern: 'project-1' }],
       { workspaceDir: process.cwd() }
@@ -518,7 +518,7 @@ Commands available via "pnpm run":
   }
   console.log('throws an error if several projects are selected')
   {
-    const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
       allProjects,
       [{ includeDependents: true, namePattern: 'project-1' }],
       { workspaceDir: process.cwd() }
@@ -579,7 +579,7 @@ test('testing the bail config with "pnpm recursive run"', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -651,8 +651,8 @@ test('pnpm recursive run with filtering', async () => {
     },
   ])
 
-  const { allProjects } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
-  const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+  const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
     allProjects,
     [{ namePattern: 'project-1' }],
     { workspaceDir: process.cwd() }
@@ -705,7 +705,7 @@ test('`pnpm recursive run` should always trust the scripts', async () => {
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
-    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), []),
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
   }, ['build'])
   delete process.env.npm_config_unsafe_perm
 
@@ -754,7 +754,7 @@ test('`pnpm run -r` should avoid infinite recursion', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
   await run.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -796,7 +796,7 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
   try {
     await run.handler({
       ...DEFAULT_OPTS,
-      ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
       dir: process.cwd(),
       recursive: true,
       requiredScripts: ['build'],
@@ -856,7 +856,7 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
 
   await run.handler({
     ...DEFAULT_OPTS,
-    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
     dir: process.cwd(),
     recursive: true,
     resumeFrom: 'project-3',
@@ -922,7 +922,7 @@ test('pnpm run with RegExp script selector should work on recursive', async () =
   ])
   await run.handler({
     ...DEFAULT_OPTS,
-    ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
     dir: process.cwd(),
     recursive: true,
     rootProjectManifest: {
@@ -991,7 +991,7 @@ test('pnpm recursive run report summary', async () => {
   try {
     await run.handler({
       ...DEFAULT_OPTS,
-      ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
       dir: process.cwd(),
       recursive: true,
       reportSummary: true,
@@ -1053,7 +1053,7 @@ test('pnpm recursive run report summary with --bail', async () => {
   try {
     await run.handler({
       ...DEFAULT_OPTS,
-      ...await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
+      ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
       dir: process.cwd(),
       recursive: true,
       reportSummary: true,
@@ -1087,7 +1087,7 @@ test('pnpm recursive run with custom node-options', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
 
   await run.handler({
     ...DEFAULT_OPTS,

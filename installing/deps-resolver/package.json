@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/installing.resolve-dependencies",
+  "name": "@pnpm/installing.deps-resolver",
   "version": "1008.3.1",
   "description": "Resolves dependency graph of a package",
   "keywords": [
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/resolve-dependencies",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/resolve-dependencies#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/deps-resolver",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/deps-resolver#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -77,7 +77,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/installing.resolve-dependencies": "workspace:*",
+    "@pnpm/installing.deps-resolver": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",

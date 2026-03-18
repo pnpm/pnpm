@@ -1,5 +1,5 @@
 ---
-"@pnpm/installing.resolve-dependencies": patch
+"@pnpm/installing.deps-resolver": patch
 "@pnpm/resolving.npm-resolver": patch
 "@pnpm/cli.default-reporter": patch
 "@pnpm/deps.inspection.outdated": patch

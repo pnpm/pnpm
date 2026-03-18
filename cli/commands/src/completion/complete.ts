@@ -1,6 +1,6 @@
 import type { CompletionFunc } from '@pnpm/cli.command'
 import type { CompletionItem } from '@pnpm/tabtab'
-import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
@@ -35,7 +35,7 @@ export async function complete (
     if (input.lastOption === '--filter') {
       const workspaceDir = await findWorkspaceDir(process.cwd()) ?? process.cwd()
       const workspaceManifest = await readWorkspaceManifest(workspaceDir)
-      const allProjects = await findWorkspacePackages(workspaceDir, {
+      const allProjects = await findWorkspaceProjects(workspaceDir, {
         patterns: workspaceManifest?.packages,
         supportedArchitectures: {
           os: ['current'],

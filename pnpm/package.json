@@ -85,7 +85,7 @@
     "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
-    "@pnpm/config.deps-installer": "workspace:*",
+    "@pnpm/installing.env-installer": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",

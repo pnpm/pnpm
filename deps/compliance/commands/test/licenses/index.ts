@@ -8,7 +8,7 @@ import { licenses } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -128,7 +128,7 @@ test('pnpm licenses: path should be correct for workspaces', async () => {
   f.copy('workspace-licenses', workspaceDir)
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } =
-    await filterPkgsBySelectorObjectsFromDir(workspaceDir, [])
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
@@ -178,7 +178,7 @@ test('pnpm licenses: filter outputs', async () => {
   f.copy('workspace-licenses', workspaceDir)
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } =
-    await filterPkgsBySelectorObjectsFromDir(workspaceDir, [])
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({

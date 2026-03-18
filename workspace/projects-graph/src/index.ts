@@ -6,40 +6,40 @@ import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
 import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import { map as mapValues } from 'ramda'
 
-export interface Package {
+export interface BaseProject {
   manifest: BaseManifest
   rootDir: ProjectRootDir
 }
 
-export interface PackageNode<Pkg extends Package> {
+export interface ProjectGraphNode<Pkg extends BaseProject> {
   package: Pkg
   dependencies: ProjectRootDir[]
 }
 
-export function createPkgGraph<Pkg extends Package> (pkgs: Pkg[], opts?: {
+export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], opts?: {
   ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
 }): {
-    graph: Record<ProjectRootDir, PackageNode<Pkg>>
+    graph: Record<ProjectRootDir, ProjectGraphNode<Pkg>>
     unmatched: Array<{ pkgName: string, range: string }>
   } {
-  const pkgMap = createPkgMap(pkgs)
-  const pkgMapValues = Object.values(pkgMap)
-  let pkgMapByManifestName: Record<string, Package[] | undefined> | undefined
-  let pkgMapByDir: Record<string, Package | undefined> | undefined
+  const projectMap = createProjectMap(projects)
+  const projectMapValues = Object.values(projectMap)
+  let projectMapByManifestName: Record<string, BaseProject[] | undefined> | undefined
+  let projectMapByDir: Record<string, BaseProject | undefined> | undefined
   const unmatched: Array<{ pkgName: string, range: string }> = []
-  const graph = mapValues((pkg) => ({
-    dependencies: createNode(pkg),
-    package: pkg,
-  }), pkgMap) as Record<ProjectRootDir, PackageNode<Pkg>>
+  const graph = mapValues((project) => ({
+    dependencies: createNode(project),
+    package: project,
+  }), projectMap) as Record<ProjectRootDir, ProjectGraphNode<Pkg>>
   return { graph, unmatched }
 
-  function createNode (pkg: Package): string[] {
+  function createNode (project: BaseProject): string[] {
     const dependencies = {
-      ...pkg.manifest.peerDependencies,
-      ...(!opts?.ignoreDevDeps && pkg.manifest.devDependencies),
-      ...pkg.manifest.optionalDependencies,
-      ...pkg.manifest.dependencies,
+      ...project.manifest.peerDependencies,
+      ...(!opts?.ignoreDevDeps && project.manifest.devDependencies),
+      ...project.manifest.optionalDependencies,
+      ...project.manifest.dependencies,
     }
 
     return Object.entries(dependencies)
@@ -52,35 +52,35 @@ export function createPkgGraph<Pkg extends Package> (pkgs: Pkg[], opts?: {
             rawSpec = fetchSpec
             depName = name
           }
-          spec = npa.resolve(depName, rawSpec, pkg.rootDir)
+          spec = npa.resolve(depName, rawSpec, project.rootDir)
         } catch {
           return ''
         }
 
         if (spec.type === 'directory') {
-          pkgMapByDir ??= getPkgMapByDir(pkgMapValues)
-          const resolvedPath = path.resolve(pkg.rootDir, spec.fetchSpec)
-          const found = pkgMapByDir[resolvedPath]
+          projectMapByDir ??= getProjectMapByDir(projectMapValues)
+          const resolvedPath = path.resolve(project.rootDir, spec.fetchSpec)
+          const found = projectMapByDir[resolvedPath]
           if (found) {
             return found.rootDir
           }
 
           // Slow path; only needed when there are case mismatches on case-insensitive filesystems.
-          const matchedPkg = pkgMapValues.find(pkg => path.relative(pkg.rootDir, spec.fetchSpec) === '')
-          if (matchedPkg == null) {
+          const matchedProject = projectMapValues.find(p => path.relative(p.rootDir, spec.fetchSpec) === '')
+          if (matchedProject == null) {
             return ''
           }
-          pkgMapByDir[resolvedPath] = matchedPkg
-          return matchedPkg.rootDir
+          projectMapByDir[resolvedPath] = matchedProject
+          return matchedProject.rootDir
         }
 
         if (spec.type !== 'version' && spec.type !== 'range') return ''
 
-        pkgMapByManifestName ??= getPkgMapByManifestName(pkgMapValues)
-        const pkgs = pkgMapByManifestName[depName]
-        if (!pkgs || pkgs.length === 0) return ''
-        const versions = pkgs.filter(({ manifest }) => manifest.version)
-          .map(pkg => pkg.manifest.version) as string[]
+        projectMapByManifestName ??= getProjectMapByManifestName(projectMapValues)
+        const candidates = projectMapByManifestName[depName]
+        if (!candidates || candidates.length === 0) return ''
+        const versions = candidates.filter(({ manifest }) => manifest.version)
+          .map(p => p.manifest.version) as string[]
 
         // explicitly check if false, backwards-compatibility (can be undefined)
         const strictWorkspaceMatching = opts?.linkWorkspacePackages === false && !isWorkspaceSpec
@@ -89,47 +89,47 @@ export function createPkgGraph<Pkg extends Package> (pkgs: Pkg[], opts?: {
           return ''
         }
         if (isWorkspaceSpec && versions.length === 0) {
-          const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName)
-          return matchedPkg!.rootDir
+          const matchedProject = candidates.find(p => p.manifest.name === depName)
+          return matchedProject!.rootDir
         }
         if (versions.includes(rawSpec)) {
-          const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === rawSpec)
-          return matchedPkg!.rootDir
+          const matchedProject = candidates.find(p => p.manifest.name === depName && p.manifest.version === rawSpec)
+          return matchedProject!.rootDir
         }
         const matched = resolveWorkspaceRange(rawSpec, versions)
         if (!matched) {
           unmatched.push({ pkgName: depName, range: rawSpec })
           return ''
         }
-        const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === matched)
-        return matchedPkg!.rootDir
+        const matchedProject = candidates.find(p => p.manifest.name === depName && p.manifest.version === matched)
+        return matchedProject!.rootDir
       })
       .filter(Boolean)
   }
 }
 
-function createPkgMap (pkgs: Package[]): Record<ProjectRootDir, Package> {
-  const pkgMap: Record<ProjectRootDir, Package> = {}
-  for (const pkg of pkgs) {
-    pkgMap[pkg.rootDir] = pkg
+function createProjectMap (projects: BaseProject[]): Record<ProjectRootDir, BaseProject> {
+  const projectMap: Record<ProjectRootDir, BaseProject> = {}
+  for (const project of projects) {
+    projectMap[project.rootDir] = project
   }
-  return pkgMap
+  return projectMap
 }
 
-function getPkgMapByManifestName (pkgMapValues: Package[]): Record<string, Package[] | undefined> {
-  const pkgMapByManifestName: Record<string, Package[] | undefined> = {}
-  for (const pkg of pkgMapValues) {
-    if (pkg.manifest.name) {
-      (pkgMapByManifestName[pkg.manifest.name] ??= []).push(pkg)
+function getProjectMapByManifestName (projectMapValues: BaseProject[]): Record<string, BaseProject[] | undefined> {
+  const projectMapByManifestName: Record<string, BaseProject[] | undefined> = {}
+  for (const project of projectMapValues) {
+    if (project.manifest.name) {
+      (projectMapByManifestName[project.manifest.name] ??= []).push(project)
     }
   }
-  return pkgMapByManifestName
+  return projectMapByManifestName
 }
 
-function getPkgMapByDir (pkgMapValues: Package[]): Record<string, Package | undefined> {
-  const pkgMapByDir: Record<string, Package | undefined> = {}
-  for (const pkg of pkgMapValues) {
-    pkgMapByDir[path.resolve(pkg.rootDir)] = pkg
+function getProjectMapByDir (projectMapValues: BaseProject[]): Record<string, BaseProject | undefined> {
+  const projectMapByDir: Record<string, BaseProject | undefined> = {}
+  for (const project of projectMapValues) {
+    projectMapByDir[path.resolve(project.rootDir)] = project
   }
-  return pkgMapByDir
+  return projectMapByDir
 }

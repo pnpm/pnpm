@@ -1,7 +1,7 @@
 ---
 "@pnpm/deps.graph-hasher": minor
 "@pnpm/deps.graph-builder": minor
-"@pnpm/installing.resolve-dependencies": minor
+"@pnpm/installing.deps-resolver": minor
 "pnpm": minor
 ---
 

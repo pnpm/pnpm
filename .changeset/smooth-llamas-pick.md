@@ -1,7 +1,7 @@
 ---
 "@pnpm/installing.commands": minor
 "@pnpm/exec.commands": minor
-"@pnpm/installing.resolve-dependencies": minor
+"@pnpm/installing.deps-resolver": minor
 "@pnpm/store.connection-manager": minor
 "@pnpm/installing.package-requester": minor
 "@pnpm/store.controller-types": minor

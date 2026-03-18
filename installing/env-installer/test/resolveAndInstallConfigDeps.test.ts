@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { resolveAndInstallConfigDeps } from '@pnpm/config.deps-installer'
+import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { createEnvLockfile, readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

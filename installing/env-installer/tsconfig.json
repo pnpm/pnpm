@@ -13,6 +13,12 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../config/writer"
+    },
+    {
       "path": "../../core/constants"
     },
     {
@@ -29,9 +35,6 @@
     },
     {
       "path": "../../fs/read-modules-dir"
-    },
-    {
-      "path": "../../installing/resolve-dependencies"
     },
     {
       "path": "../../lockfile/fs"
@@ -73,10 +76,7 @@
       "path": "../../worker"
     },
     {
-      "path": "../pick-registry-for-package"
-    },
-    {
-      "path": "../writer"
+      "path": "../deps-resolver"
     }
   ]
 }

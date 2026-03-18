@@ -33,11 +33,11 @@
   "dependencies": {
     "@pnpm/cli.default-reporter": "workspace:*",
     "@pnpm/cli.meta": "workspace:*",
-    "@pnpm/config.deps-installer": "workspace:*",
     "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
+    "@pnpm/installing.env-installer": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/types": "workspace:*",

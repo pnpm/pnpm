@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { pack } from '@pnpm/releasing.commands'
-import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import * as tar from 'tar'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -642,7 +642,7 @@ test('pack: recursive pack and display in json format', async () => {
 
   writeYamlFileSync(path.join(dir, 'pnpm-workspace.yaml'), { packages: pkgs.filter(pkg => pkg).map(pkg => pkg.name) })
 
-  const { selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(dir, [])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(dir, [])
 
   const output = await pack.handler({
     ...DEFAULT_OPTS,
@@ -727,7 +727,7 @@ test('pack: recursive pack with filter', async () => {
 
   writeYamlFileSync(path.join(dir, 'pnpm-workspace.yaml'), { packages: pkgs.filter(pkg => pkg).map(pkg => pkg.name) })
 
-  const { selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(dir, [{ namePattern: '@pnpmtest/*' }])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(dir, [{ namePattern: '@pnpmtest/*' }])
 
   const output = await pack.handler({
     ...DEFAULT_OPTS,

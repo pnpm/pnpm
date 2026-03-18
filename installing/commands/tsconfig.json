@@ -40,9 +40,6 @@
       "path": "../../cli/utils"
     },
     {
-      "path": "../../config/deps-installer"
-    },
-    {
       "path": "../../config/matcher"
     },
     {
@@ -146,6 +143,9 @@
     },
     {
       "path": "../deps-installer"
+    },
+    {
+      "path": "../env-installer"
     },
     {
       "path": "../modules-yaml"

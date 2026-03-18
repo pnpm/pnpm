@@ -23,9 +23,6 @@
       "path": "../../../cli/utils"
     },
     {
-      "path": "../../../config/deps-installer"
-    },
-    {
       "path": "../../../config/reader"
     },
     {
@@ -51,6 +48,9 @@
     },
     {
       "path": "../../../installing/deps-restorer"
+    },
+    {
+      "path": "../../../installing/env-installer"
     },
     {
       "path": "../../../lockfile/types"

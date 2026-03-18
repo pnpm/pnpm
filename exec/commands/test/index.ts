@@ -9,7 +9,7 @@ import {
 } from '@pnpm/exec.commands'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -339,7 +339,7 @@ test('"pnpm run" prints the list of available commands, including commands of th
   writeYamlFileSync('pnpm-workspace.yaml', {})
   const workspaceDir = process.cwd()
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
 
   {
     process.chdir('foo')
@@ -437,7 +437,7 @@ test('if a script is not found but is present in the root, print an info message
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
 
   let err!: PnpmError
   try {

@@ -9,7 +9,7 @@ import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
-import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { temporaryDirectory } from 'tempy'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -997,7 +997,7 @@ describe('patch and commit in workspaces', () => {
   })
 
   test('patch commit should work in workspaces', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -1054,7 +1054,7 @@ describe('patch and commit in workspaces', () => {
   })
 
   test('patch and patch-commit should work with shared-workspace-lockfile=false', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -1118,7 +1118,7 @@ describe('patch and commit in workspaces', () => {
   })
 
   test('reusing existing patch file should work with shared-workspace-lockfile=false', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -1186,7 +1186,7 @@ describe('patch and commit in workspaces', () => {
   })
 
   test('patch and patch-commit for git hosted dependency', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -1283,7 +1283,7 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
   })
 
   test('should work with custom modules-dir and virtual-store-dir', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(customModulesDirFixture, [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(customModulesDirFixture, [])
     await install.handler({
       ...DEFAULT_OPTS,
       ...defaultPatchOption,

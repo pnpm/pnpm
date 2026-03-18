@@ -54,9 +54,6 @@
       "path": "../config/commands"
     },
     {
-      "path": "../config/deps-installer"
-    },
-    {
       "path": "../config/reader"
     },
     {
@@ -109,6 +106,9 @@
     },
     {
       "path": "../installing/commands"
+    },
+    {
+      "path": "../installing/env-installer"
     },
     {
       "path": "../installing/modules-yaml"

@@ -18,7 +18,7 @@ import { PnpmError } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { EngineDependency } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
-import { filterPackagesFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import loudRejection from 'loud-rejection'
 import { isEmpty } from 'ramda'
@@ -214,7 +214,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
     }
 
-    const filterResults = await filterPackagesFromDir(wsDir, filters, {
+    const filterResults = await filterProjectsFromDir(wsDir, filters, {
       engineStrict: config.engineStrict,
       nodeVersion: config.nodeVersion,
       patterns: config.workspacePackagePatterns,

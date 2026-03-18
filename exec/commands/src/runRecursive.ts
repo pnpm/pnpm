@@ -11,7 +11,7 @@ import {
 } from '@pnpm/exec.lifecycle'
 import { groupStart } from '@pnpm/log.group'
 import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
-import { sortPackages } from '@pnpm/workspace.projects-sorter'
+import { sortProjects } from '@pnpm/workspace.projects-sorter'
 import pLimit from 'p-limit'
 import { realpathMissing } from 'realpath-missing'
 
@@ -53,7 +53,7 @@ export async function runRecursive (
   let hasCommand = 0
 
   const sortedPackageChunks = opts.sort
-    ? sortPackages(opts.selectedProjectsGraph)
+    ? sortProjects(opts.selectedProjectsGraph)
     : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
   let packageChunks: ProjectRootDir[][] = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
 

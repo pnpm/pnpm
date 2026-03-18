@@ -9,7 +9,7 @@ import type { LockfileFile, LockfilePackageSnapshot } from '@pnpm/lockfile.types
 import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
-import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { writeYamlFile } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -107,7 +107,7 @@ test('deploy with a shared lockfile after full install', async () => {
     allProjects,
     allProjectsGraph,
     selectedProjectsGraph,
-  } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -305,7 +305,7 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
     allProjects,
     allProjectsGraph,
     selectedProjectsGraph,
-  } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -395,7 +395,7 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
     allProjects,
     allProjectsGraph,
     selectedProjectsGraph,
-  } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'prod-0' }])
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'prod-0' }])
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -497,7 +497,7 @@ test('deploy with a shared lockfile should correctly handle workspace dependenci
     allProjects,
     allProjectsGraph,
     selectedProjectsGraph,
-  } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -574,7 +574,7 @@ test('deploy with a shared lockfile should correctly handle package that depends
     allProjects,
     allProjectsGraph,
     selectedProjectsGraph,
-  } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -691,7 +691,7 @@ test('deploy with a shared lockfile should correctly handle packageExtensions', 
     allProjects,
     allProjectsGraph,
     selectedProjectsGraph,
-  } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -808,7 +808,7 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     allProjects,
     allProjectsGraph,
     selectedProjectsGraph,
-  } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -921,7 +921,7 @@ test('deploy with a shared lockfile that has peer dependencies suffix in workspa
     allProjects,
     allProjectsGraph,
     selectedProjectsGraph,
-  } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -1092,7 +1092,7 @@ test('deploy with a shared lockfile should keep files created by lifecycle scrip
     allProjects,
     allProjectsGraph,
     selectedProjectsGraph,
-  } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-0' }])
 
   await install.handler({
     ...DEFAULT_OPTS,
