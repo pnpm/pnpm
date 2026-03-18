@@ -1339,6 +1339,7 @@ describe('patch-remove', () => {
     defaultPatchRemoveOption = {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       cacheDir,
       storeDir,
     }
