@@ -1,0 +1,34 @@
+{
+  "name": "pnpm",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "mounts": [
+    "source=pnpm-store,target=/home/node/.local/share/pnpm/store,type=volume"
+  ],
+  "updateContentCommand": "sudo chown -R node:node /home/node/.local/share/pnpm && sudo corepack enable && pnpm install",
+  "remoteUser": "node",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "EditorConfig.EditorConfig",
+        "streetsidesoftware.code-spell-checker",
+        "Orta.vscode-jest",
+        "eamodio.gitlens",
+        "usernamehw.errorlens",
+        "yoavbls.pretty-ts-errors",
+        "christian-kohler.path-intellisense",
+        "vivaxy.vscode-conventional-commits",
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "GitHub.vscode-pull-request-github"
+      ],
+      "settings": {
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "eslint.useFlatConfig": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        }
+      }
+    }
+  }
+}
