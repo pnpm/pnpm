@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { existsSync, promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
@@ -492,6 +492,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 
     if (!skipPostImportLinking) {
       await linkAllBins(graph, {
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         extraNodePaths: opts.extraNodePaths,
         optional: opts.include.optionalDependencies,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
@@ -940,6 +941,7 @@ async function linkAllPkgs (
         safeToSkip: opts.enableGlobalVirtualStore,
         sideEffectsCacheKey,
       })
+      depNode.freshlyImported = importMethod != null
       if (importMethod) {
         progressLogger.debug({
           method: importMethod,
@@ -955,6 +957,11 @@ async function linkAllPkgs (
         const pkg = opts.depGraph[selfDep]
         if (!pkg) return
         const targetModulesDir = path.join(depNode.modules, depNode.name, 'node_modules')
+        // In GVS mode, skip when the self-dep symlink already exists —
+        // it was created during the original import and the directory may
+        // be read-only.
+        if (opts.enableGlobalVirtualStore && !depNode.freshlyImported &&
+          existsSync(path.join(targetModulesDir, depNode.name))) return
         await limitLinking(async () => symlinkDependency(pkg.dir, targetModulesDir, depNode.name))
       }
     })
@@ -964,6 +971,7 @@ async function linkAllPkgs (
 async function linkAllBins (
   depGraph: DependenciesGraph,
   opts: {
+    enableGlobalVirtualStore?: boolean
     extraNodePaths?: string[]
     optional: boolean
     preferSymlinkedExecutables?: boolean
@@ -978,6 +986,10 @@ async function linkAllBins (
           : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
 
         const binPath = path.join(depNode.dir, 'node_modules/.bin')
+        // In GVS mode, skip bin linking when the .bin directory already exists —
+        // the bins were linked during the original import and the directory may
+        // be read-only (e.g. Nix store).
+        if (opts.enableGlobalVirtualStore && !depNode.freshlyImported && existsSync(binPath)) return
         const pkgSnapshots = props<string, DependenciesGraphNode>(Object.values(childrenToLink), depGraph)
 
         if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line

@@ -44,6 +44,7 @@ export interface DependenciesGraphNode {
   version: string
   fetching?: () => Promise<PkgRequestFetchResult>
   forceImportPackage?: boolean // Used to force re-imports from the store of local tarballs that have changed.
+  freshlyImported?: boolean // Set to true when importPackage wrote to disk (importMethod returned).
   dir: string
   children: Record<string, string>
   optionalDependencies: Set<string>
