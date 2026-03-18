@@ -15,7 +15,7 @@ import {
   restart,
   run,
 } from '@pnpm/exec.commands'
-import { add, ci, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
+import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
 import { deploy, pack, publish } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
@@ -26,6 +26,7 @@ import { parseCliArgs } from '../parseCliArgs.js'
 import { shorthands as universalShorthands } from '../shorthands.js'
 import type { PnpmOptions } from '../types.js'
 import * as bin from './bin.js'
+import * as ci from './ci.js'
 import * as clean from './clean.js'
 import { createHelp } from './help.js'
 import * as installTest from './installTest.js'
