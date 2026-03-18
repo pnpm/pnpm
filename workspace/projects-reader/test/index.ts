@@ -44,14 +44,11 @@ test('findWorkspaceProjects() outputs warnings for non-root workspace project', 
     sharedWorkspaceLockfile: true,
   })
   expect(pkgs).toHaveLength(3)
-  const fooPath = path.join(fixturePath, 'packages/foo')
   const barPath = path.join(fixturePath, 'packages/bar')
   expect(
     jest.mocked(logger.warn).mock.calls
       .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
   ).toStrictEqual([
-    [{ prefix: barPath, message: `The field "pnpm.overrides" was found in ${barPath}/package.json. This will not take effect. You should configure "pnpm.overrides" at the root of the workspace instead.` }],
-    [{ prefix: fooPath, message: `The field "pnpm.overrides" was found in ${fooPath}/package.json. This will not take effect. You should configure "pnpm.overrides" at the root of the workspace instead.` }],
     [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. You should configure "resolutions" at the root of the workspace instead.` }],
   ])
 })

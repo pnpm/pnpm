@@ -221,7 +221,6 @@ async function deployFromSharedLockfile (
   const {
     allProjects,
     lockfileDir,
-    rootProjectManifest,
     rootProjectManifestDir,
     workspaceDir,
   } = opts
@@ -243,7 +242,7 @@ async function deployFromSharedLockfile (
     deployDir,
     lockfile,
     lockfileDir,
-    rootProjectManifest,
+    patchedDependencies: opts.patchedDependencies,
     selectedProjectManifest: selectedProject.manifest,
     projectId,
     rootProjectManifestDir,
@@ -284,6 +283,7 @@ async function deployFromSharedLockfile (
       frozenLockfile: true,
       injectWorkspacePackages: undefined, // the effects of injecting workspace packages should already be part of the package snapshots
       overrides: undefined, // the effects of the overrides should already be part of the package snapshots
+      packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
       hooks: {
         ...opts.hooks,
         readPackage: [

@@ -329,6 +329,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'disallowWorkspaceCycles'
 | 'updateConfig'
 | 'overrides'
+| 'packageExtensions'
 | 'supportedArchitectures'
 | 'packageConfigs'
 > & CreateStoreControllerOptions & Partial<Pick<Config, 'globalPkgDir'>> & {
