@@ -44,7 +44,6 @@ test('findWorkspacePackages() output warnings for non-root workspace project', a
     sharedWorkspaceLockfile: true,
   })
   expect(pkgs).toHaveLength(3)
-  const fooPath = path.join(fixturePath, 'packages/foo')
   const barPath = path.join(fixturePath, 'packages/bar')
   expect(
     jest.mocked(logger.warn).mock.calls
