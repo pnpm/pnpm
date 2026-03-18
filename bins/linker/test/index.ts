@@ -697,3 +697,81 @@ describe('node binary linking', () => {
     expect(fs.existsSync(path.join(binTarget, `node${CMD_EXTENSION}`))).toBe(false)
   })
 })
+
+describe('allowReadonlyErrors', () => {
+  // Skip on Windows — chmod 0o444 does not prevent mkdir on NTFS
+  const testOnPosix = IS_WINDOWS ? test.skip : test
+
+  testOnPosix('returns empty when mkdir fails with EACCES and allowReadonlyErrors is true', async () => {
+    const simpleFixture = f.prepare('simple-fixture')
+    const readonlyDir = temporaryDirectory()
+    // Create a read-only parent so mkdir of the child fails with EACCES
+    fs.chmodSync(readonlyDir, 0o444)
+    const binsDir = path.join(readonlyDir, 'bin')
+
+    try {
+      const result = await linkBinsOfPackages(
+        [
+          {
+            location: path.join(simpleFixture, 'node_modules/simple'),
+            manifest: (await import(path.join(simpleFixture, 'node_modules/simple/package.json'))).default,
+          },
+        ],
+        binsDir,
+        { allowReadonlyErrors: true }
+      )
+      expect(result).toEqual([])
+    } finally {
+      fs.chmodSync(readonlyDir, 0o755)
+    }
+  })
+
+  testOnPosix('throws when mkdir fails with EACCES and allowReadonlyErrors is not set', async () => {
+    const simpleFixture = f.prepare('simple-fixture')
+    const readonlyDir = temporaryDirectory()
+    fs.chmodSync(readonlyDir, 0o444)
+    const binsDir = path.join(readonlyDir, 'bin')
+
+    try {
+      await expect(
+        linkBinsOfPackages(
+          [
+            {
+              location: path.join(simpleFixture, 'node_modules/simple'),
+              manifest: (await import(path.join(simpleFixture, 'node_modules/simple/package.json'))).default,
+            },
+          ],
+          binsDir
+        )
+      ).rejects.toMatchObject({ code: 'EACCES' })
+    } finally {
+      fs.chmodSync(readonlyDir, 0o755)
+    }
+  })
+
+  test('re-throws non-readonly errors even when allowReadonlyErrors is true', async () => {
+    // Point to a non-existent fixture location so getPackageBinsFromManifest
+    // produces a cmd, but binsDir path traverses a file (not a dir) → ENOTDIR
+    const tmpDir = temporaryDirectory()
+    const filePath = path.join(tmpDir, 'not-a-dir')
+    fs.writeFileSync(filePath, '')
+    const binsDir = path.join(filePath, 'bin')
+
+    await expect(
+      linkBinsOfPackages(
+        [
+          {
+            location: tmpDir,
+            manifest: {
+              name: 'fake',
+              version: '1.0.0',
+              bin: { fake: 'index.js' },
+            },
+          },
+        ],
+        binsDir,
+        { allowReadonlyErrors: true }
+      )
+    ).rejects.toMatchObject({ code: 'ENOTDIR' })
+  })
+})

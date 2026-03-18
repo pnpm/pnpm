@@ -1,6 +1,7 @@
 import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import util from 'node:util'
 
 import { type Command, getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { getBunBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getNodeBinLocationForCurrentOS } from '@pnpm/constants'
@@ -140,7 +141,16 @@ async function _linkBins (
   // deduplicate bin names to prevent race conditions (multiple writers for the same file)
   allCmds = deduplicateCommands(allCmds, binsDir)
 
-  await fs.mkdir(binsDir, { recursive: true })
+  try {
+    await fs.mkdir(binsDir, { recursive: true })
+  } catch (err: unknown) {
+    // When the GVS entry is a symlink to a read-only store (e.g. Nix),
+    // mkdir inside it fails with EACCES/EROFS/EPERM. Skip bin linking
+    // for this entry — the bins were either pre-linked by the store
+    // builder or are not critical for frozen-lockfile installs.
+    if (opts.allowReadonlyErrors && isReadonlyError(err)) return []
+    throw err
+  }
 
   const results = await Promise.allSettled(allCmds.map(async cmd => linkBin(cmd, binsDir, opts)))
 
@@ -152,6 +162,12 @@ async function _linkBins (
   }
 
   return allCmds.map(cmd => cmd.pkgName)
+}
+
+function isReadonlyError (err: unknown): boolean {
+  if (!util.types.isNativeError(err) || !('code' in err)) return false
+  const { code } = err as { code: string }
+  return code === 'EACCES' || code === 'EROFS' || code === 'EPERM'
 }
 
 function deduplicateCommands (commands: CommandInfo[], binsDir: string): CommandInfo[] {
@@ -285,6 +301,8 @@ function runtimeHasNodeDownloaded (runtime: EngineDependency | EngineDependency[
 export interface LinkBinOptions {
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
+  /** When true, silently skip EACCES/EROFS/EPERM from mkdir when creating the bins directory (e.g. GVS read-only store). */
+  allowReadonlyErrors?: boolean
 }
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {

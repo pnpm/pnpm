@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildModules } from '@pnpm/building.during-install'
@@ -492,6 +493,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 
     if (!skipPostImportLinking) {
       await linkAllBins(graph, {
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         extraNodePaths: opts.extraNodePaths,
         optional: opts.include.optionalDependencies,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
@@ -955,7 +957,18 @@ async function linkAllPkgs (
         const pkg = opts.depGraph[selfDep]
         if (!pkg) return
         const targetModulesDir = path.join(depNode.modules, depNode.name, 'node_modules')
-        await limitLinking(async () => symlinkDependency(pkg.dir, targetModulesDir, depNode.name))
+        if (opts.enableGlobalVirtualStore) {
+          try {
+            await limitLinking(async () => symlinkDependency(pkg.dir, targetModulesDir, depNode.name))
+          } catch (err: unknown) {
+            // GVS entry may be a symlink to a read-only store; skip self-dep linking
+            if (!util.types.isNativeError(err) || !('code' in err)) throw err
+            const { code } = err as { code: string }
+            if (code !== 'EACCES' && code !== 'EROFS' && code !== 'EPERM') throw err
+          }
+        } else {
+          await limitLinking(async () => symlinkDependency(pkg.dir, targetModulesDir, depNode.name))
+        }
       }
     })
   )
@@ -964,6 +977,7 @@ async function linkAllPkgs (
 async function linkAllBins (
   depGraph: DependenciesGraph,
   opts: {
+    enableGlobalVirtualStore?: boolean
     extraNodePaths?: string[]
     optional: boolean
     preferSymlinkedExecutables?: boolean
@@ -982,6 +996,7 @@ async function linkAllBins (
 
         if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line
           await linkBins(depNode.modules, binPath, {
+            allowReadonlyErrors: opts.enableGlobalVirtualStore,
             extraNodePaths: opts.extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
             warn: opts.warn,
@@ -997,6 +1012,7 @@ async function linkAllBins (
           )
 
           await linkBinsOfPackages(pkgs, binPath, {
+            allowReadonlyErrors: opts.enableGlobalVirtualStore,
             extraNodePaths: opts.extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           })
@@ -1006,6 +1022,7 @@ async function linkAllBins (
         if (depNode.hasBundledDependencies) {
           const bundledModules = path.join(depNode.dir, 'node_modules')
           await linkBins(bundledModules, binPath, {
+            allowReadonlyErrors: opts.enableGlobalVirtualStore,
             extraNodePaths: opts.extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
             warn: opts.warn,
