@@ -6,7 +6,7 @@ import { createResolver } from '@pnpm/installing.client'
 import { logger } from '@pnpm/logger'
 import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
 import type { ProjectRootDir, Registries } from '@pnpm/types'
-import { sortPackages } from '@pnpm/workspace.projects-sorter'
+import { sortProjects } from '@pnpm/workspace.projects-sorter'
 import pFilter from 'p-filter'
 import { pick } from 'ramda'
 import { writeJsonFile } from 'write-json-file'
@@ -107,7 +107,7 @@ export async function recursivePublish (
     if (opts.cliOptions['otp']) {
       appendedArgs.push(`--otp=${opts.cliOptions['otp'] as string}`)
     }
-    const chunks = sortPackages(opts.selectedProjectsGraph)
+    const chunks = sortProjects(opts.selectedProjectsGraph)
     const tag = opts.tag ?? 'latest'
     for (const chunk of chunks) {
       // We can't run publish concurrently due to the npm CLI asking for OTP.

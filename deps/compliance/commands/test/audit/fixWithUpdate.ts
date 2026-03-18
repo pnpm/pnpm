@@ -7,7 +7,7 @@ import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { DepPath } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
-import { filterPackagesFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import nock from 'nock'
 import { readYamlFileSync } from 'read-yaml-file'
@@ -408,7 +408,7 @@ The fixed vulnerabilities are:
       allProjects,
       allProjectsGraph,
       selectedProjectsGraph,
-    } = await filterPackagesFromDir(tmp, [], {
+    } = await filterProjectsFromDir(tmp, [], {
       workspaceDir: tmp,
       prefix: tmp,
     })
@@ -482,7 +482,7 @@ The fixed vulnerabilities are:
       allProjects,
       allProjectsGraph,
       selectedProjectsGraph,
-    } = await filterPackagesFromDir(tmp, [], {
+    } = await filterProjectsFromDir(tmp, [], {
       workspaceDir: tmp,
       prefix: tmp,
     })
@@ -563,7 +563,7 @@ The fixed vulnerabilities are:
       allProjects,
       allProjectsGraph,
       selectedProjectsGraph,
-    } = await filterPackagesFromDir(tmp, [], {
+    } = await filterProjectsFromDir(tmp, [], {
       workspaceDir: tmp,
       prefix: tmp,
     })
@@ -654,7 +654,7 @@ The fixed vulnerabilities are:
       allProjects,
       allProjectsGraph,
       selectedProjectsGraph,
-    } = await filterPackagesFromDir(tmp, [], {
+    } = await filterProjectsFromDir(tmp, [], {
       workspaceDir: tmp,
       prefix: tmp,
     })
@@ -742,7 +742,7 @@ The fixed vulnerabilities are:
       allProjects,
       allProjectsGraph,
       selectedProjectsGraph,
-    } = await filterPackagesFromDir(tmp, [], {
+    } = await filterProjectsFromDir(tmp, [], {
       workspaceDir: tmp,
       prefix: tmp,
     })

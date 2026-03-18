@@ -1,12 +1,12 @@
 import type { SupportedArchitectures } from '@pnpm/types'
-import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
-import { filterPkgsBySelectorObjects, type PackageSelector, type ReadProjectsResult } from './index.js'
+import { filterProjectsBySelectorObjects, type ProjectSelector, type ReadProjectsResult } from './index.js'
 
-export async function filterPkgsBySelectorObjectsFromDir (
+export async function filterProjectsBySelectorObjectsFromDir (
   workspaceDir: string,
-  pkgSelectors: PackageSelector[],
+  projectSelectors: ProjectSelector[],
   opts?: {
     engineStrict?: boolean
     linkWorkspacePackages?: boolean
@@ -15,7 +15,7 @@ export async function filterPkgsBySelectorObjectsFromDir (
   }
 ): Promise<ReadProjectsResult> {
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)
-  const allProjects = await findWorkspacePackages(workspaceDir, {
+  const allProjects = await findWorkspaceProjects(workspaceDir, {
     patterns: workspaceManifest?.packages,
     engineStrict: opts?.engineStrict,
     supportedArchitectures: opts?.supportedArchitectures ?? {
@@ -24,9 +24,9 @@ export async function filterPkgsBySelectorObjectsFromDir (
       libc: ['current'],
     },
   })
-  const { allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+  const { allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjects(
     allProjects,
-    pkgSelectors,
+    projectSelectors,
     {
       linkWorkspacePackages: opts?.linkWorkspacePackages,
       workspaceDir,

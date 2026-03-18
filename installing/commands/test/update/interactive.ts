@@ -4,7 +4,7 @@ import { jest } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import { readYamlFileSync } from 'read-yaml-file'
 
@@ -233,7 +233,7 @@ test('interactive update of dev dependencies only', async () => {
     ],
   })
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
     process.cwd(),
     []
   )

@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
-import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -32,7 +32,7 @@ test('should warn about cyclic dependencies', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -63,7 +63,7 @@ test('should not warn about cyclic dependencies if ignore-workspace-cycles is se
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -90,7 +90,7 @@ test('should not warn about cyclic dependencies if there are not', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
