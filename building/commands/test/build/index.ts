@@ -425,7 +425,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
 test('never build neverBuiltDependencies', async () => {
   const project = prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', {
-    neverBuiltDependencies: [],
+    dangerouslyAllowAllBuilds: true,
   })
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
