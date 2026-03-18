@@ -14,10 +14,10 @@ import type {
 import type {
   DependenciesField,
   DepPath,
+  PnpmSettings,
   Project,
   ProjectId,
   ProjectManifest,
-  PnpmSettings,
 } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 

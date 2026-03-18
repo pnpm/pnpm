@@ -3,7 +3,6 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { writeSettings } from '@pnpm/config.writer'
 import { renderHelp } from 'render-help'
 
-import { createProjectManifestWriter } from './createProjectManifestWriter.js'
 import * as install from './install.js'
 
 export const cliOptionsTypes = install.cliOptionsTypes

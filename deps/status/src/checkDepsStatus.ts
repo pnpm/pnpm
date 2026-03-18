@@ -3,7 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { parseOverrides } from '@pnpm/config.parse-overrides'
-import { type Config } from '@pnpm/config.reader'
+import type { Config } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
@@ -467,7 +467,6 @@ async function assertWantedLockfileUpToDate (
     linkWorkspacePackages,
     getManifestsByDir,
     getWorkspacePackages,
-    rootDir,
   } = ctx
 
   const {
