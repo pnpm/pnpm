@@ -6,7 +6,7 @@
   ],
   "updateContentCommand": [
     "sudo chown -R node:node /home/node/.local/share/pnpm",
-    "curl -fsSL https://get.pnpm.io/install.sh | sh -",
+    "curl -fsSL https://get.pnpm.io/install.sh | PNPM_VERSION=$(node -p \"require('./package.json').packageManager.split('@')[1]\") sh -",
     "$HOME/.local/share/pnpm/pnpm install"
   ],
   "remoteUser": "node",
