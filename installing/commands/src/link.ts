@@ -52,24 +52,26 @@ export const shorthands: Record<string, string> = {
   l: '--link',
 }
 
-export const rcOptionsTypes = cliOptionsTypes
+export function rcOptionsTypes (): Record<string, unknown> {
+  return pick([
+    'global-dir',
+    'global',
+    'only',
+    'package-import-method',
+    'production',
+    'registry',
+    'reporter',
+    'save-dev',
+    'save-exact',
+    'save-optional',
+    'save-prefix',
+    'unsafe-perm',
+  ], allTypes)
+}
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
-    ...pick([
-      'global-dir',
-      'global',
-      'only',
-      'package-import-method',
-      'production',
-      'registry',
-      'reporter',
-      'save-dev',
-      'save-exact',
-      'save-optional',
-      'save-prefix',
-      'unsafe-perm',
-    ], allTypes),
+    ...rcOptionsTypes(),
     file: Boolean,
     link: Boolean,
   }
