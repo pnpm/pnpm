@@ -1,10 +1,10 @@
 import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli.meta'
-import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/config.deps-installer'
 import type { Config } from '@pnpm/config.reader'
 import { installPnpmToStore } from '@pnpm/engine.pm.commands'
 import { PnpmError } from '@pnpm/error'
+import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
 import { prependDirsToPath } from '@pnpm/shell.path'

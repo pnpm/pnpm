@@ -13,9 +13,6 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../config/deps-installer"
-    },
-    {
       "path": "../../config/package-is-installable"
     },
     {
@@ -32,6 +29,9 @@
     },
     {
       "path": "../../hooks/pnpmfile"
+    },
+    {
+      "path": "../../installing/env-installer"
     },
     {
       "path": "../../pkg-manifest/utils"
