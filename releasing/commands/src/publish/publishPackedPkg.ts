@@ -4,7 +4,7 @@ import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
-import { publish, type PublishOptions } from 'libnpmpublish'
+import type { PublishOptions } from 'libnpmpublish'
 
 import { displayError } from './displayError.js'
 import { executeTokenHelper } from './executeTokenHelper.js'
@@ -12,6 +12,7 @@ import { createFailedToPublishError } from './FailedToPublishError.js'
 import { AuthTokenError, fetchAuthToken } from './oidc/authToken.js'
 import { getIdToken, IdTokenError } from './oidc/idToken.js'
 import { determineProvenance, ProvenanceError } from './oidc/provenance.js'
+import { publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 
@@ -52,9 +53,6 @@ export type PublishPackedPkgOptions = Pick<Config,
   provenanceFile?: string // NOTE: This field is currently not supported
 }
 
-// @types/libnpmpublish unfortunately uses an outdated type definition of package.json
-type ManifestFromOutdatedDefinition = typeof publish extends (_a: infer Manifest, ..._: never) => unknown ? Manifest : never
-
 export async function publishPackedPkg (
   packResult: Pick<PackResult, 'publishedManifest' | 'tarballPath'>,
   opts: PublishPackedPkgOptions
@@ -69,7 +67,7 @@ export async function publishPackedPkg (
     globalWarn(`Skip publishing ${name}@${version} (dry run)`)
     return
   }
-  const response = await publish(publishedManifest as ManifestFromOutdatedDefinition, tarballData, publishOptions)
+  const response = await publishWithOtpHandling({ manifest: publishedManifest, tarballData, publishOptions })
   if (response.ok) {
     globalInfo(`✅ Published package ${name}@${version}`)
     return
@@ -95,6 +93,11 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     userAgent,
   } = options
 
+  const headers: PublishOptions['headers'] = {
+    'npm-auth-type': 'web',
+    'npm-command': 'publish',
+  }
+
   const publishOptions: PublishOptions = {
     access,
     defaultTag,
@@ -102,6 +105,7 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     fetchRetryFactor,
     fetchRetryMaxtimeout,
     fetchRetryMintimeout,
+    headers,
     isFromCI,
     otp,
     timeout,
@@ -109,9 +113,15 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     provenanceFile,
     registry,
     userAgent,
+    // Signal to the registry that the client supports web-based authentication.
+    // Without this, the registry would never offer the web auth flow and would
+    // always fall back to prompting the user for an OTP code, even when the user
+    // has no OTP set up.
+    authType: 'web',
     ca: ssl?.ca,
     cert: Array.isArray(ssl?.cert) ? ssl.cert.join('\n') : ssl?.cert,
     key: ssl?.key,
+    npmCommand: 'publish',
     token: auth && extractToken(auth),
     username: auth?.authUserPass?.username,
     password: auth?.authUserPass?.password,
