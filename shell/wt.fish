@@ -7,10 +7,12 @@
 #   wt <pr-number>    — create a worktree for a GitHub PR and switch to it
 function wt
     set -l dir (pnpm worktree:new $argv | tail -1)
+    or return 1
+    test -n "$dir" -a -d "$dir"; or return 1
     cd $dir
 
     # If the argument looks like a PR number, auto-start Claude to review it
-    if string match -qr '^\d+$' -- $argv[1]
+    if test (count $argv) -ge 1; and string match -qr '^\d+$' -- $argv[1]
         set -l pr_number $argv[1]
         claude --dangerously-skip-permissions "Review and fix PR #$pr_number. Steps:
 1. Use gh to read the PR description, diff, and all review comments (both PR-level and inline).
