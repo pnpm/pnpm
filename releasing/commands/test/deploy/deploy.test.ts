@@ -6,6 +6,7 @@ import { assertProject } from '@pnpm/assert-project'
 import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -73,6 +74,7 @@ test('deploy without existing lockfile', async () => {
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   }
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
@@ -145,6 +147,7 @@ test('deploy in workspace with shared-workspace-lockfile=false', async () => {
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   }
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
@@ -220,6 +223,7 @@ test('deploy with node-linker=hoisted', async () => {
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   })
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
@@ -287,6 +291,7 @@ test.each(['isolated', 'hoisted'] as const)(
       },
     ])
 
+    writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
     const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
     await deploy.handler({
@@ -332,6 +337,7 @@ test('deploy fails when the destination directory exists and is not empty', asyn
   fs.writeFileSync(deployPath, 'aaa', 'utf8')
   const deployFullPath = path.resolve(deployPath)
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
 
   await expect(() =>
@@ -372,6 +378,7 @@ test('forced deploy succeeds with a warning when destination directory exists an
   fs.writeFileSync(deployPath, 'aaa', 'utf8')
   const deployFullPath = path.resolve(deployPath)
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
 
   await deploy.handler({
@@ -431,6 +438,7 @@ test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDepen
     },
   ])
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph, allProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
@@ -478,6 +486,7 @@ test('deploy works when workspace packages use catalog protocol', async () => {
     },
   ])
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
@@ -518,6 +527,7 @@ test('deploy does not preserve the inject workspace packages settings in the loc
     },
   ])
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
 
   await install.handler({

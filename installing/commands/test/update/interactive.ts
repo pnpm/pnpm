@@ -7,6 +7,7 @@ import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 const { default: enquirer } = await import('enquirer')
@@ -233,6 +234,7 @@ test('interactive update of dev dependencies only', async () => {
     ],
   })
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
     process.cwd(),
     []

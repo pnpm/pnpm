@@ -6,6 +6,7 @@ import { preparePackages } from '@pnpm/prepare'
 import type { ProjectId } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -21,6 +22,7 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
     },
   ])
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
 
   await add.handler({
@@ -111,6 +113,7 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
     },
   ])
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
 
   await add.handler({

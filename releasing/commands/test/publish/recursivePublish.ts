@@ -11,6 +11,7 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import crossSpawn from 'cross-spawn'
 import { safeExeca as execa } from 'execa'
 import { loadJsonFileSync } from 'load-json-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
@@ -75,6 +76,7 @@ test('recursive publish', async () => {
 
   fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -156,6 +158,7 @@ test('print info when no packages are published', async () => {
   const reporter = jest.fn()
   streamParser.on('data', reporter)
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -188,6 +191,7 @@ test('packages are released even if their current version is published, when for
 
   fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -251,6 +255,7 @@ test('recursive publish writes publish summary', async () => {
 
   fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   process.env.npm_config_userconfig = path.join('.npmrc')
   await publish.handler({
     ...DEFAULT_OPTS,
@@ -296,6 +301,7 @@ test('errors on fake registry', async () => {
 
   const fakeRegistry = 'https://__fake_npm_registry__.com'
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const promise = publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),

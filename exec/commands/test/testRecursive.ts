@@ -6,6 +6,7 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
@@ -54,6 +55,7 @@ test('pnpm recursive test', async () => {
     },
   ])
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa('node', [
     pnpmBin,
@@ -107,6 +109,7 @@ test('`pnpm recursive test` does not fail if none of the packages has a test com
     },
   ])
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa('node', [
     pnpmBin,
@@ -153,6 +156,7 @@ test('pnpm recursive test with filtering', async () => {
     },
   ])
 
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
     allProjects,
