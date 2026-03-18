@@ -1351,7 +1351,7 @@ describe('patch-remove', () => {
   })
   test('patch-remove should work as expected', async () => {
     // Write to workspace manifest instead of package.json pnpm field
-    writeYamlFile('pnpm-workspace.yaml', {
+    writeYamlFileSync('pnpm-workspace.yaml', {
       packages: ['.'],
       patchedDependencies: {
         'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
@@ -1381,7 +1381,7 @@ describe('patch-remove', () => {
       'chalk@4.1.2': 'patches/chalk@4.1.2.patch',
     }
     // Write to workspace manifest instead of package.json pnpm field
-    writeYamlFile('pnpm-workspace.yaml', {
+    writeYamlFileSync('pnpm-workspace.yaml', {
       packages: ['.'],
       patchedDependencies,
     })

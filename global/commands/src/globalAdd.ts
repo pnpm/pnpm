@@ -32,7 +32,7 @@ export type GlobalAddOptions = CreateStoreControllerOptions & {
   saveExact?: boolean
   savePrefix?: string
   supportedArchitectures?: { libc?: string[] }
-  rootProjectManifest?: { pnpm?: { supportedArchitectures?: { libc?: string[] } } }
+  rootProjectManifest?: unknown
 }
 
 export async function handleGlobalAdd (
@@ -66,7 +66,7 @@ export async function handleGlobalAdd (
     devDependencies: false,
     optionalDependencies: true,
   }
-  const fetchFullMetadata = (opts.supportedArchitectures?.libc ?? opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc) && true
+  const fetchFullMetadata = opts.supportedArchitectures?.libc != null && true
 
   const makeInstallOpts = (dir: string, builds: Record<string, string | boolean>) => ({
     ...opts,

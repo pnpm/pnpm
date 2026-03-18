@@ -1,5 +1,6 @@
 import { UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
+import { writeSettings } from '@pnpm/config.writer'
 import { renderHelp } from 'render-help'
 
 import { createProjectManifestWriter } from './createProjectManifestWriter.js'

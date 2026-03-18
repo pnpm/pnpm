@@ -115,6 +115,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
 | 'configDependencies'
+| 'packageExtensions'
 | 'updateConfig'
 > & CreateStoreControllerOptions & {
   argv: {

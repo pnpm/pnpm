@@ -17,6 +17,7 @@ import type {
   Project,
   ProjectId,
   ProjectManifest,
+  PnpmSettings,
 } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 
@@ -27,7 +28,7 @@ export interface CreateDeployFilesOptions {
   deployDir: string
   lockfile: LockfileObject
   lockfileDir: string
-  rootProjectManifest?: Pick<ProjectManifest, 'pnpm'>
+  patchedDependencies?: PnpmSettings['patchedDependencies']
   selectedProjectManifest: ProjectManifest
   projectId: ProjectId
   rootProjectManifestDir: string
@@ -36,6 +37,7 @@ export interface CreateDeployFilesOptions {
 
 export interface DeployWorkspaceManifest {
   allowBuilds?: Record<string, boolean | string>
+  patchedDependencies?: Record<string, string>
 }
 
 export interface DeployFiles {
@@ -49,7 +51,7 @@ export function createDeployFiles ({
   deployDir,
   lockfile,
   lockfileDir,
-  rootProjectManifest,
+  patchedDependencies,
   selectedProjectManifest,
   projectId,
   rootProjectManifestDir,
@@ -143,30 +145,26 @@ export function createDeployFiles ({
       dependencies: targetSnapshot.dependencies,
       devDependencies: targetSnapshot.devDependencies,
       optionalDependencies: targetSnapshot.optionalDependencies,
-      pnpm: {
-        ...rootProjectManifest?.pnpm,
-        overrides: undefined, // the effects of the overrides should already be part of the package snapshots
-        patchedDependencies: undefined,
-        packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
-      },
     },
   }
 
-  if (lockfile.patchedDependencies) {
-    const manifestPatchedDeps = rootProjectManifest?.pnpm?.patchedDependencies
-    if (manifestPatchedDeps) {
-      result.lockfile.patchedDependencies = { ...lockfile.patchedDependencies }
-      result.manifest.pnpm!.patchedDependencies = {}
-      for (const name in manifestPatchedDeps) {
-        const resolvedPath = path.resolve(rootProjectManifestDir, manifestPatchedDeps[name])
-        const relativePath = normalizePath(path.relative(deployDir, resolvedPath))
-        result.manifest.pnpm!.patchedDependencies[name] = relativePath
-      }
+  if (lockfile.patchedDependencies && patchedDependencies) {
+    result.lockfile.patchedDependencies = { ...lockfile.patchedDependencies }
+    const deployManifestPatchedDeps: Record<string, string> = {}
+    for (const name in patchedDependencies) {
+      const absolutePath = patchedDependencies[name]
+      const relativePath = normalizePath(path.relative(deployDir, absolutePath))
+      deployManifestPatchedDeps[name] = relativePath
+    }
+    result.workspaceManifest = {
+      ...result.workspaceManifest,
+      patchedDependencies: deployManifestPatchedDeps,
     }
   }
 
   if (allowBuilds) {
     result.workspaceManifest = {
+      ...result.workspaceManifest,
       allowBuilds,
     }
   }

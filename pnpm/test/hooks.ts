@@ -243,7 +243,7 @@ test('loading a pnpmfile from a config dependency', async () => {
     },
   })
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     configDependencies: {
       '@pnpm.e2e/exports-pnpmfile': `1.0.0+${getIntegrity('@pnpm.e2e/exports-pnpmfile', '1.0.0')}`,
     },

@@ -1891,12 +1891,6 @@ test('overrides in workspace project should be taken into account when shared-wo
     {
       name: 'project-1',
       version: '1.0.0',
-
-      pnpm: {
-        overrides: {
-          'is-odd': '1.0.0',
-        },
-      },
     },
     {
       name: 'project-2',
@@ -1907,6 +1901,12 @@ test('overrides in workspace project should be taken into account when shared-wo
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     sharedWorkspaceLockfile: false,
+  })
+
+  writeYamlFileSync(path.join(projects['project-1'].dir(), 'pnpm-workspace.yaml'), {
+    overrides: {
+      'is-odd': '1.0.0',
+    },
   })
 
   await execPnpm(['install'])

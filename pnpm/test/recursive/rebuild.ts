@@ -1,5 +1,5 @@
 import { preparePackages } from '@pnpm/prepare'
-
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
 
@@ -33,7 +33,7 @@ test('`pnpm recursive rebuild` specific dependencies', async () => {
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     neverBuiltDependencies: [],
   })

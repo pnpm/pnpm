@@ -12,7 +12,7 @@ import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { safeExeca as execa } from 'execa'
-import { sync as writeYamlFileSync } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 

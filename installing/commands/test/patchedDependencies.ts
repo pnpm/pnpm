@@ -5,6 +5,7 @@ import { jest } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -37,7 +38,7 @@ function addPatch (key: string, patchFixture: string, patchDest: string): Record
     [key]: patchDest,
   }
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['.'],
     patchedDependencies: currentPatchedDependencies,
   })

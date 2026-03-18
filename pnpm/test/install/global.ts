@@ -6,6 +6,7 @@ import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
 import PATH_NAME from 'path-name'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import {
   addDistTag,
@@ -164,12 +165,14 @@ test.skip('dangerously-allow-all-builds=true in global config', async () => {
     name: 'local',
     version: '0.0.0',
     private: true,
-    pnpm: {
-      allowBuilds: {}, // don't allow any dependencies to be built
-    },
+  }
+
+  const workspaceManifest: Record<string, unknown> = {
+    allowBuilds: {}, // don't allow any dependencies to be built
   }
 
   const project = prepare(manifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   const home = path.resolve('..', 'home/username')
   const cfgHome = path.resolve(home, '.config')
@@ -201,7 +204,8 @@ test.skip('dangerously-allow-all-builds=true in global config', async () => {
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 
   // global config should be used if local config did not specify
-  delete manifest.pnpm!.allowBuilds
+  delete workspaceManifest.allowBuilds
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
   project.writePackageJson(manifest)
   fs.rmSync('node_modules', { recursive: true })
   fs.rmSync('pnpm-lock.yaml')
@@ -219,12 +223,14 @@ test.skip('dangerously-allow-all-builds=false in global config', async () => {
     name: 'local',
     version: '0.0.0',
     private: true,
-    pnpm: {
-      allowBuilds: { '@pnpm.e2e/postinstall-calls-pnpm': true },
-    },
+  }
+
+  const workspaceManifest: Record<string, unknown> = {
+    allowBuilds: { '@pnpm.e2e/postinstall-calls-pnpm': true },
   }
 
   const project = prepare(manifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   const home = path.resolve('..', 'home/username')
   const cfgHome = path.resolve(home, '.config')
@@ -256,7 +262,8 @@ test.skip('dangerously-allow-all-builds=false in global config', async () => {
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
 
   // global config should be used if local config did not specify
-  delete manifest.pnpm!.allowBuilds
+  delete workspaceManifest.allowBuilds
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
   project.writePackageJson(manifest)
   fs.rmSync('node_modules', { recursive: true })
   fs.rmSync('pnpm-lock.yaml')

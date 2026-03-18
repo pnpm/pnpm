@@ -6,7 +6,7 @@ import type { PackageManifest, ProjectManifest } from '@pnpm/types'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
-import { writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 
@@ -110,7 +110,7 @@ test('dependency should not be added to package.json and lockfile if it was not 
     version: '1.0.0',
   }
   const project = prepare(initialPkg)
-  await writeYamlFile('pnpm-workspace.yaml', { allowBuilds: { 'package-that-cannot-be-installed': true } })
+  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { 'package-that-cannot-be-installed': true } })
 
   const result = execPnpmSync(['install', 'package-that-cannot-be-installed@0.0.0'])
 
@@ -255,7 +255,7 @@ test('the list of ignored builds is preserved after a repeat install', async () 
 
 test('git dependencies with preparation scripts should be installed when dangerouslyAllowAllBuilds is true', async () => {
   prepare({})
-  await writeYamlFile('pnpm-workspace.yaml', { dangerouslyAllowAllBuilds: true })
+  writeYamlFileSync('pnpm-workspace.yaml', { dangerouslyAllowAllBuilds: true })
 
   // 'test-git-fetch' has a prepare script that builds the package.
   const result = execPnpmSync(['add', 'https://github.com/pnpm/test-git-fetch.git#8b333f12d5357f4f25a654c305c826294cb073bf'])
@@ -265,10 +265,9 @@ test('git dependencies with preparation scripts should be installed when dangero
 })
 
 test('--allow-build flag should error when conflicting with allowBuilds: false', async () => {
-  prepare({
-    pnpm: {
-      allowBuilds: { '@pnpm.e2e/install-script-example': false },
-    },
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: { '@pnpm.e2e/install-script-example': false },
   })
   const result = execPnpmSync(['add', '--allow-build=@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
 
