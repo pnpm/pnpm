@@ -205,9 +205,9 @@ async function _filterGraph<Pkg extends Package> (
   for (const selector of projectSelectors) {
     let entryProjects: ProjectRootDir[] | null = null
     if (selector.diff) {
-      let ignoreDependentForPkgs: ProjectRootDir[] = []
+      let ignoreDependentForProjects: ProjectRootDir[] = []
       // eslint-disable-next-line no-await-in-loop
-      ;[entryProjects, ignoreDependentForPkgs] = await getChangedProjects(
+      ;[entryProjects, ignoreDependentForProjects] = await getChangedProjects(
         Object.keys(pkgGraph) as ProjectRootDir[],
         selector.diff,
         {
@@ -219,7 +219,7 @@ async function _filterGraph<Pkg extends Package> (
       selectEntries({
         ...selector,
         includeDependents: false,
-      }, ignoreDependentForPkgs)
+      }, ignoreDependentForProjects)
     } else if (selector.parentDir) {
       entryProjects = matchProjectsByPath(pkgGraph, selector.parentDir)
     }

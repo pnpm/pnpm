@@ -31,7 +31,7 @@ test('findWorkspaceProjectsNoCheck() skips engine checks', async () => {
   expect(pkgs[0].manifest.name).toBe('pkg')
 })
 
-test('findWorkspaceProjects() output warnings for non-root workspace project', async () => {
+test('findWorkspaceProjects() outputs warnings for non-root workspace project', async () => {
   const fixturePath = path.join(import.meta.dirname, '__fixtures__/warning-for-non-root-project')
 
   const workspaceManifest = await readWorkspaceManifest(fixturePath)
