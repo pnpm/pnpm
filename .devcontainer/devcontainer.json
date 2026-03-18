@@ -4,7 +4,7 @@
   "mounts": [
     "source=pnpm-store,target=/home/node/.local/share/pnpm/store,type=volume"
   ],
-  "onCreateCommand": "sudo corepack enable",
+  "onCreateCommand": "sudo corepack enable && sudo chown -R node:node /home/node/.local/share/pnpm",
   "updateContentCommand": "pnpm install",
   "remoteUser": "node",
   "customizations": {
