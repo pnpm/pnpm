@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { type ProjectSelector, parseProjectSelector } from '@pnpm/workspace.projects-filter'
+import { parseProjectSelector, type ProjectSelector } from '@pnpm/workspace.projects-filter'
 import isWindows from 'is-windows'
 
 const fixtures: Array<[string, ProjectSelector]> = [
