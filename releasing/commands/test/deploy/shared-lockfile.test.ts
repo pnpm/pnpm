@@ -10,7 +10,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
-import { writeYamlFile, writeYamlFileSync } from 'write-yaml-file'
+import { writeYamlFile } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -103,7 +103,6 @@ test('deploy with a shared lockfile after full install', async () => {
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   }
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const {
     allProjects,
     allProjectsGraph,
@@ -302,7 +301,6 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
     preparedManifests['project-0'],
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const {
     allProjects,
     allProjectsGraph,
@@ -393,7 +391,6 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const {
     allProjects,
     allProjectsGraph,
@@ -496,7 +493,6 @@ test('deploy with a shared lockfile should correctly handle workspace dependenci
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const {
     allProjects,
     allProjectsGraph,
@@ -574,7 +570,6 @@ test('deploy with a shared lockfile should correctly handle package that depends
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const {
     allProjects,
     allProjectsGraph,
@@ -692,7 +687,6 @@ test('deploy with a shared lockfile should correctly handle packageExtensions', 
     preparedManifests['project-1'],
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const {
     allProjects,
     allProjectsGraph,
@@ -799,7 +793,6 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     preparedManifests['project-1'],
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   f.copy('is-positive.patch', '__patches__/is-positive.patch')
 
   // patchedDependencies with relative paths (as from pnpm-workspace.yaml)
@@ -924,7 +917,6 @@ test('deploy with a shared lockfile that has peer dependencies suffix in workspa
     package: preparedManifests[name],
   })))
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
   const {
     allProjects,
     allProjectsGraph,

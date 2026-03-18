@@ -5,7 +5,6 @@ import type { LockfileFile } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readYamlFileSync } from 'read-yaml-file'
-import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
 
@@ -39,7 +38,6 @@ test('remove --filter only changes the specified dependency, when run with link-
     linkWorkspacePackages: false,
   }
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await install.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -117,7 +115,6 @@ test('remove from within a workspace package dir only affects the specified depe
     linkWorkspacePackages: false,
   }
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await install.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),

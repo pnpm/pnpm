@@ -336,7 +336,7 @@ test('"pnpm run" prints the list of available commands, including commands of th
       },
     },
   ])
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
+  writeYamlFileSync('pnpm-workspace.yaml', {})
   const workspaceDir = process.cwd()
 
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
@@ -427,7 +427,7 @@ test('if a script is not found but is present in the root, print an info message
       version: '1.0.0',
     },
   ])
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
+  writeYamlFileSync('pnpm-workspace.yaml', {})
 
   await execa(pnpmBin, [
     'install',

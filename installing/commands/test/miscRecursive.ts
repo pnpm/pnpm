@@ -36,7 +36,6 @@ test('recursive add/remove', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -98,7 +97,6 @@ test('recursive add/remove in workspace with many lockfiles', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -187,7 +185,6 @@ test('recursive install with package that has link', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await install.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -275,7 +272,6 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
   fs.mkdirSync('node_modules')
   process.chdir('packages')
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await install.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -309,7 +305,6 @@ test('recursive installation fails when installation in one of the packages fail
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   let err!: PnpmError
   try {
     await install.handler({
@@ -341,7 +336,6 @@ test('second run of `recursive install` after package.json has been edited manua
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -455,7 +449,6 @@ test('recursive filter multiple times', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await install.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [
@@ -492,7 +485,6 @@ test('recursive install --no-bail', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   let err!: PnpmError
   try {
     await install.handler({
@@ -528,7 +520,6 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await update.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -570,7 +561,6 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await update.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -617,7 +607,6 @@ test('recursive install on workspace with custom lockfile-dir', async () => {
   ])
 
   const lockfileDir = path.resolve('_')
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -654,7 +643,6 @@ test('recursive install in a monorepo with different modules directories specifi
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -694,7 +682,6 @@ test('recursive install in a monorepo with different modules directories specifi
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -738,7 +725,6 @@ test('prefer-workspace-package', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await install.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -769,7 +755,6 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
   const virtualPath = process.cwd() + '-virtual-disk'
   // symlink simulates windows' subst
   await symlinkDir(process.cwd(), virtualPath)
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(virtualPath, [])
   await install.handler({
     ...DEFAULT_OPTS,

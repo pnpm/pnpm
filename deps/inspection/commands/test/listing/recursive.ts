@@ -35,7 +35,6 @@ test('recursive list', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -174,7 +173,6 @@ test('recursive list --filter', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await install.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -233,7 +231,6 @@ test('recursive list --filter link-workspace-packages=false', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await install.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [], { linkWorkspacePackages: false }),

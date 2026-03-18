@@ -2,7 +2,6 @@ import { createMatcher } from '@pnpm/config.matcher'
 import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
 import { type BaseProject, createProjectsGraph, type ProjectGraphNode } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects, type Project } from '@pnpm/workspace.projects-reader'
-import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import * as micromatch from 'micromatch'
 import { difference, partition, pick } from 'ramda'
@@ -61,14 +60,9 @@ export async function filterProjectsFromDir (
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<FilterProjectsFromDirResult> {
-  let patterns = opts.patterns
-  if (patterns == null) {
-    const workspaceManifest = await readWorkspaceManifest(workspaceDir)
-    patterns = workspaceManifest != null ? (workspaceManifest.packages ?? ['.']) : undefined
-  }
   const allProjects = await findWorkspaceProjects(workspaceDir, {
     engineStrict: opts?.engineStrict,
-    patterns,
+    patterns: opts.patterns,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
     nodeVersion: opts.nodeVersion,
     supportedArchitectures: opts.supportedArchitectures,

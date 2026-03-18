@@ -7,7 +7,6 @@ import { addDistTag } from '@pnpm/registry-mock'
 import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readYamlFileSync } from 'read-yaml-file'
-import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
 
@@ -31,7 +30,6 @@ test('recursive update', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -78,7 +76,6 @@ test('recursive update prod dependencies only', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -148,7 +145,6 @@ test('recursive update with pattern', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -207,7 +203,6 @@ test('recursive update with pattern and name in project', async () => {
 
   const lockfileDir = process.cwd()
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -295,7 +290,6 @@ test('recursive update --latest foo should only update projects that have foo', 
 
   const lockfileDir = process.cwd()
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -356,7 +350,6 @@ test('recursive update --latest foo should only update packages that have foo', 
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -405,7 +398,6 @@ test('recursive update in workspace should not add new dependencies', async () =
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   let err!: PnpmError
   try {
     await update.handler({
@@ -441,7 +433,6 @@ test('recursive update with aliased workspace dependency (#7975)', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await update.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),

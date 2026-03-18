@@ -5,7 +5,6 @@ import { outdated } from '@pnpm/deps.inspection.commands'
 import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
-import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS, DEFAULT_OUTDATED_OPTS } from './utils/index.js'
 
@@ -41,7 +40,6 @@ test('pnpm recursive outdated', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
@@ -267,7 +265,6 @@ test('pnpm recursive outdated: format json when there are no outdated dependenci
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   const { output, exitCode } = await outdated.handler({
     ...DEFAULT_OUTDATED_OPTS,
@@ -313,7 +310,6 @@ test('pnpm recursive outdated in workspace with shared lockfile', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,

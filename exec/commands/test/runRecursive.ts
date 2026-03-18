@@ -59,7 +59,6 @@ test('pnpm recursive run', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -127,7 +126,6 @@ test('pnpm recursive run with enable-pre-post-scripts', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -196,7 +194,6 @@ test('pnpm recursive run reversed', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -243,7 +240,6 @@ test('pnpm recursive run concurrently', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -296,7 +292,6 @@ test('`pnpm recursive run` fails when run without filters and no package has the
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -362,7 +357,6 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   console.log('recursive run does not fail when if-present is true')
   await run.handler({
     ...DEFAULT_OPTS,
@@ -416,7 +410,6 @@ test('`pnpm recursive run` fails when run against a subset of packages and no pa
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -488,7 +481,6 @@ test('"pnpm run --filter <pkg>" without specifying the script name', async () =>
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -587,7 +579,6 @@ test('testing the bail config with "pnpm recursive run"', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -660,7 +651,6 @@ test('pnpm recursive run with filtering', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
     allProjects,
@@ -709,7 +699,6 @@ test('`pnpm recursive run` should always trust the scripts', async () => {
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   process.env['npm_config_unsafe_perm'] = 'false'
   await run.handler({
     ...DEFAULT_OPTS,
@@ -803,7 +792,6 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   let err!: PnpmError
   try {
     await run.handler({
@@ -866,7 +854,6 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await run.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '*' }]),
@@ -925,7 +912,6 @@ test('pnpm run with RegExp script selector should work on recursive', async () =
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -1001,7 +987,6 @@ test('pnpm recursive run report summary', async () => {
       version: '1.0.0',
     },
   ])
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   let error
   try {
     await run.handler({
@@ -1064,7 +1049,6 @@ test('pnpm recursive run report summary with --bail', async () => {
       version: '1.0.0',
     },
   ])
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   let error
   try {
     await run.handler({
@@ -1103,7 +1087,6 @@ test('pnpm recursive run with custom node-options', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
 
   await run.handler({

@@ -33,7 +33,6 @@ test('pnpm recursive rebuild', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa('node', [
     pnpmBin,
@@ -45,7 +44,6 @@ test('pnpm recursive rebuild', async () => {
     '--ignore-scripts',
     '--reporter=append-only',
     '--config.enableGlobalVirtualStore=false',
-    '--config.shared-workspace-lockfile=false',
   ], { stdout: 'inherit' })
 
   projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
@@ -107,8 +105,8 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await execa('node', [
     pnpmBin,
     'install',
@@ -250,7 +248,6 @@ test('only build allowBuilds (not others)', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
     process.cwd(),
     []
@@ -267,7 +264,6 @@ test('only build allowBuilds (not others)', async () => {
       '--ignore-scripts',
       '--reporter=append-only',
       '--config.enableGlobalVirtualStore=false',
-      '--config.shared-workspace-lockfile=false',
     ],
     { stdout: 'inherit' }
   )
@@ -347,7 +343,6 @@ test('only build allowBuilds', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
     process.cwd(),
     []
@@ -364,7 +359,6 @@ test('only build allowBuilds', async () => {
       '--ignore-scripts',
       '--reporter=append-only',
       '--config.enableGlobalVirtualStore=false',
-      '--config.shared-workspace-lockfile=false',
     ],
     { stdout: 'inherit' }
   )

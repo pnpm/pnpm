@@ -2,7 +2,6 @@ import type { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
-import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -20,7 +19,6 @@ test('should error if disallow-workspace-cycles is set', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
 
   let err!: PnpmError
@@ -54,7 +52,6 @@ test('should not error if disallow-workspace-cycles is not set', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
 
   let err!: PnpmError
@@ -86,7 +83,6 @@ test('should not error if there are no cyclic dependencies', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
 
   let err!: PnpmError

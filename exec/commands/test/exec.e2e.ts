@@ -8,7 +8,6 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
-import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
@@ -54,7 +53,6 @@ test('pnpm recursive exec', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -95,7 +93,6 @@ test('pnpm recursive exec finds bin files of workspace projects', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -182,7 +179,6 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await exec.handler({
     ...DEFAULT_OPTS,
@@ -230,7 +226,6 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -302,7 +297,6 @@ test('pnpm recursive exec --no-sort', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -360,7 +354,6 @@ test('pnpm recursive exec --reverse', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -512,7 +505,6 @@ testOnPosixOnly('pnpm recursive exec works with PnP', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -578,7 +570,6 @@ test('pnpm recursive exec --resume-from should work', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -612,7 +603,6 @@ test('should throw error when the package specified by resume-from does not exis
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -648,7 +638,6 @@ test('pnpm exec in directory with path delimiter', async () => {
     },
   ])
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
@@ -704,7 +693,6 @@ test('pnpm recursive exec report summary', async () => {
       },
     },
   ])
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   let error
   try {
@@ -763,7 +751,6 @@ test('pnpm recursive exec report summary with --bail', async () => {
       },
     },
   ])
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   let error
   try {

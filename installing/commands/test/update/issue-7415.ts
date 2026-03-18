@@ -4,7 +4,6 @@ import { jest } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
-import { writeYamlFileSync } from 'write-yaml-file'
 
 jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
 
@@ -66,7 +65,6 @@ test('interactive recursive should not error on git specifier override', async (
     updateDependencies: [],
   })
 
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   const sharedOptions = {
     ...DEFAULT_OPTIONS,
