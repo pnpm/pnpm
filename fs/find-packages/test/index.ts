@@ -13,7 +13,7 @@ const fixtures = path.join(import.meta.dirname, 'fixtures')
 
 test('finds package', async () => {
   const root = path.join(fixtures, 'one-pkg')
-  const pkgs = await findPackages(root)
+  const pkgs = await findPackages(root, { patterns: ['**'] })
 
   expect(pkgs).toHaveLength(1)
   expect(pkgs[0].rootDir).toBeDefined()
@@ -40,12 +40,12 @@ test('finds packages by * pattern', async () => {
   expect([pkgs[0].manifest.name, pkgs[1].manifest.name, pkgs[2].manifest.name].sort(compare)).toStrictEqual(['component-1', 'component-2', 'many-pkgs-2'])
 })
 
-test('finds packages by default pattern', async () => {
+test('default pattern only finds root package', async () => {
   const root = path.join(fixtures, 'many-pkgs-2')
   const pkgs = await findPackages(root)
 
-  expect(pkgs).toHaveLength(4)
-  expect(pkgs.map(({ manifest }) => manifest.name).sort(compare)).toStrictEqual(['component-1', 'component-2', 'foo', 'many-pkgs-2'])
+  expect(pkgs).toHaveLength(1)
+  expect(pkgs[0].manifest.name).toBe('many-pkgs-2')
 })
 
 test('ignore packages by patterns', async () => {
@@ -76,7 +76,7 @@ test('ignore packages by patterns with starts with !/', async () => {
 
 test('json and yaml manifests are also found', async () => {
   const root = path.join(fixtures, 'many-pkgs-with-different-manifest-types')
-  const pkgs = await findPackages(root)
+  const pkgs = await findPackages(root, { patterns: ['**'] })
 
   expect(pkgs).toHaveLength(3)
   expect(pkgs[0].rootDir).toBeDefined()

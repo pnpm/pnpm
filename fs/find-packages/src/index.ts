@@ -25,7 +25,7 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
   opts = opts ?? {}
   const globOpts = { ...opts, cwd: root, expandDirectories: false }
   globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
-  const patterns = normalizePatterns(opts.patterns ?? ['.', '**'])
+  const patterns = normalizePatterns(opts.patterns ?? ['.'])
   delete globOpts.patterns
   const paths: string[] = await glob(patterns, globOpts)
 
