@@ -1901,8 +1901,12 @@ test('overrides in workspace project should be taken into account when shared-wo
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     sharedWorkspaceLockfile: false,
-    overrides: {
-      'is-odd': '1.0.0',
+    packageConfigs: {
+      'project-1': {
+        overrides: {
+          'is-odd': '1.0.0',
+        },
+      },
     },
   })
 
