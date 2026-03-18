@@ -8,7 +8,6 @@ import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { makeNodeRequireOption } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
-import { prependDirsToPath } from '@pnpm/shell.path'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath, ProjectsGraph } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { sortPackages } from '@pnpm/workspace.projects-sorter'
@@ -16,7 +15,6 @@ import { safeExeca as execa } from 'execa'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
-import which from 'which'
 import { writeJsonFile } from 'write-json-file'
 
 import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint.js'
@@ -296,7 +294,7 @@ export async function handler (
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
-          if (isErrorCommandNotFound(params[0], err, prependPaths)) {
+          if (isErrorCommandNotFound(params[0], err)) {
             err.message = `Command "${params[0]}" not found`
             err.hint = await createExecCommandNotFoundHint(params[0], {
               implicitlyFellbackFromRun: opts.implicitlyFellbackFromRun ?? false,
@@ -394,20 +392,6 @@ interface CommandError extends Error {
   shortMessage: string
 }
 
-function isErrorCommandNotFound (command: string, error: CommandError, prependPaths: string[]): boolean {
-  // Mac/Linux
-  if (process.platform === 'linux' || process.platform === 'darwin') {
-    return error.originalMessage === `spawn ${command} ENOENT`
-  }
-
-  // Windows
-  if (process.platform === 'win32') {
-    const { value: path } = prependDirsToPath(prependPaths)
-    return !which.sync(command, {
-      nothrow: true,
-      path,
-    })
-  }
-
-  return false
+function isErrorCommandNotFound (command: string, error: CommandError): boolean {
+  return error.originalMessage === `spawn ${command} ENOENT`
 }

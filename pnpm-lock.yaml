@@ -3976,9 +3976,6 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 7.1.0
-      which:
-        specifier: 'catalog:'
-        version: '@pnpm/which@3.0.1'
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0

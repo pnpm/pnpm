@@ -68,7 +68,6 @@
     "realpath-missing": "catalog:",
     "render-help": "catalog:",
     "symlink-dir": "catalog:",
-    "which": "catalog:",
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
