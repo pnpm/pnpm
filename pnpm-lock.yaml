@@ -358,6 +358,9 @@ catalogs:
     '@types/proxyquire':
       specifier: ^1.3.31
       version: 1.3.31
+    '@types/qrcode-terminal':
+      specifier: ^0.12.2
+      version: 0.12.2
     '@types/ramda':
       specifier: 0.29.12
       version: 0.29.12
@@ -760,6 +763,9 @@ catalogs:
     ps-list:
       specifier: ^8.1.1
       version: 8.1.1
+    qrcode-terminal:
+      specifier: ^0.12.0
+      version: 0.12.0
     ramda:
       specifier: npm:@pnpm/ramda@0.28.1
       version: 0.28.1
@@ -7610,6 +7616,9 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0
+      qrcode-terminal:
+        specifier: 'catalog:'
+        version: 0.12.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -7683,6 +7692,9 @@ importers:
       '@types/proxyquire':
         specifier: 'catalog:'
         version: 1.3.31
+      '@types/qrcode-terminal':
+        specifier: 'catalog:'
+        version: 0.12.2
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -11075,6 +11087,9 @@ packages:
 
   '@types/proxyquire@1.3.31':
     resolution: {integrity: sha512-uALowNG2TSM1HNPMMOR0AJwv4aPYPhqB0xlEhkeRTMuto5hjoSPZkvgu1nbPUkz3gEPAHv4sy4DmKsurZiEfRQ==}
+
+  '@types/qrcode-terminal@0.12.2':
+    resolution: {integrity: sha512-v+RcIEJ+Uhd6ygSQ0u5YYY7ZM+la7GgPbs0V/7l/kFs2uO4S8BcIUEMoP7za4DNIqNnUD5npf0A/7kBhrCKG5Q==}
 
   '@types/ramda@0.29.12':
     resolution: {integrity: sha512-sgIEjpJhdQPB52gDF4aphs9nl0xe54CR22DPdWqT8gQHjZYmVApgA0R3/CpMbl0Y8az2TEZrPNL2zy0EvjbkLA==}
@@ -15221,6 +15236,10 @@ packages:
   pure-rand@7.0.1:
     resolution: {integrity: sha512-oTUZM/NAZS8p7ANR3SHh30kXB+zK2r2BPcEn/awJIbOvq82WoMN4p62AWWp3Hhw50G0xMsw1mhIBLqHw64EcNQ==}
 
+  qrcode-terminal@0.12.0:
+    resolution: {integrity: sha512-EXtzRZmC+YGmGlDFbXKxQiMZNwCLEO6BANKXG4iCtSIM0yqc/pappSx3RIKr4r0uh5JsBckOXeKrB3Iz7mdQpQ==}
+    hasBin: true
+
   qs@6.14.2:
     resolution: {integrity: sha512-V/yCWTTF7VJ9hIh18Ugr2zhJMP01MY7c5kh4J870L7imm6/DIzBsNLTXzMwUA3yZ5b/KBqLx8Kp3uRvd7xSe3Q==}
     engines: {node: '>=0.6'}
@@ -19355,6 +19374,8 @@ snapshots:
   '@types/picomatch@4.0.2': {}
 
   '@types/proxyquire@1.3.31': {}
+
+  '@types/qrcode-terminal@0.12.2': {}
 
   '@types/ramda@0.29.12':
     dependencies:
@@ -24233,6 +24254,8 @@ snapshots:
   punycode@2.3.1: {}
 
   pure-rand@7.0.1: {}
+
+  qrcode-terminal@0.12.0: {}
 
   qs@6.14.2:
     dependencies:
