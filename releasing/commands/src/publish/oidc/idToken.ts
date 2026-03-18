@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 
 import { displayError } from '../displayError.js'
 import type { PublishPackedPkgOptions } from '../publishPackedPkg.js'
-import { SHARED_CONTEXT } from './utils/shared-context.js'
+import { SHARED_CONTEXT } from '../utils/shared-context.js'
 
 export interface IdTokenDate {
   now: (this: this) => number

@@ -11,7 +11,6 @@ import { createMatcherWithIndex } from '@pnpm/config.matcher'
 import {
   type Config,
   createProjectConfigRecord,
-  getOptionsFromRootManifest,
   getWorkspaceConcurrency,
   type OptionsFromRootManifest,
   type ProjectConfig,
@@ -88,6 +87,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'tag'
 | 'cleanupUnusedCatalogs'
 | 'packageConfigs'
+| 'updateConfig'
 > & {
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
@@ -148,9 +148,7 @@ export async function recursive (
 
   const workspacePackages: WorkspacePackages = arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
   const targetDependenciesField = getSaveType(opts)
-  const rootManifestDir = (opts.lockfileDir ?? opts.dir) as ProjectRootDir
   const installOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(rootManifestDir, manifestsByPath[rootManifestDir]?.manifest ?? {}),
     allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph, opts.sort),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
@@ -186,7 +184,7 @@ export async function recursive (
   let updateMatch: UpdateDepsMatcher | null
   if (cmdFullName === 'update') {
     if (params.length === 0) {
-      const ignoreDeps = manifestsByPath[opts.workspaceDir as ProjectRootDir]?.manifest?.pnpm?.updateConfig?.ignoreDependencies
+      const ignoreDeps = opts.updateConfig?.ignoreDependencies
       if (ignoreDeps?.length) {
         params = makeIgnorePatterns(ignoreDeps)
       }
@@ -404,7 +402,6 @@ export async function recursive (
           {
             ...installOpts,
             ...localConfig,
-            ...getOptionsFromRootManifest(rootDir, manifest),
             ...opts.allProjectsGraph[rootDir]?.package,
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,

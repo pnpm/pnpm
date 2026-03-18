@@ -13,9 +13,6 @@
       "path": "../../core/types"
     },
     {
-      "path": "../../workspace/project-manifest-reader"
-    },
-    {
       "path": "../../workspace/workspace-manifest-writer"
     }
   ]
