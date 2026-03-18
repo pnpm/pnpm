@@ -17,7 +17,7 @@ import {
 } from '@pnpm/exec.commands'
 import { add, ci, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
-import { deploy, pack, publish } from '@pnpm/releasing.commands'
+import { deploy, pack, publish, version } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
 import { init } from '@pnpm/workspace.commands'
 import { pick } from 'ramda'
@@ -157,6 +157,7 @@ const commands: CommandDefinition[] = [
   findHash,
   unlink,
   update,
+  version,
   why,
   createHelp(helpByCommandName),
 ]

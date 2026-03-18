@@ -7574,6 +7574,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      '@pnpm/workspace.projects-filter':
+        specifier: workspace:*
+        version: link:../../workspace/projects-filter
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter
@@ -7619,6 +7622,9 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 2.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
       tar-stream:
         specifier: 'catalog:'
         version: 3.1.8
@@ -7668,9 +7674,6 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
-      '@pnpm/workspace.projects-filter':
-        specifier: workspace:*
-        version: link:../../workspace/projects-filter
       '@types/cross-spawn':
         specifier: 'catalog:'
         version: 6.0.6
@@ -7686,6 +7689,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
       '@types/tar':
         specifier: 'catalog:'
         version: 6.1.13
