@@ -4,7 +4,7 @@ export { UnexpectedVirtualStoreDirError } from './install/checkCompatibility/Une
 export type { InstallOptions } from './install/extendInstallOptions.js'
 export { type ProjectOptions } from '@pnpm/installing.context'
 export type { HoistingLimits } from '@pnpm/installing.deps-restorer'
-export type { UpdateMatchingFunction } from '@pnpm/installing.resolve-dependencies'
+export type { UpdateMatchingFunction } from '@pnpm/installing.deps-resolver'
 export type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 export type {
   BadPeerDependencyIssue,

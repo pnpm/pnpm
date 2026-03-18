@@ -40,7 +40,7 @@
     "@pnpm/fs.read-modules-dir",
     "@pnpm/pkg-manifest.reader",
     "@pnpm/registry-mock",
-    "@pnpm/installing.resolve-dependencies",
+    "@pnpm/installing.deps-resolver",
     "@pnpm/resolving.resolver-base",
     "@pnpm/server",
     "@pnpm/installing.linking.hoist",

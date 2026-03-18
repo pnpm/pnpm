@@ -40,7 +40,7 @@
     "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
-    "@pnpm/installing.resolve-dependencies": "workspace:*",
+    "@pnpm/installing.deps-resolver": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

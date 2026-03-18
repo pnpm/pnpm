@@ -1,6 +1,6 @@
 ---
 "@pnpm/fetching.pick-fetcher": major
-"@pnpm/installing.resolve-dependencies": minor
+"@pnpm/installing.deps-resolver": minor
 "@pnpm/releasing.commands": minor
 "@pnpm/store.connection-manager": minor
 "@pnpm/resolving.default-resolver": minor

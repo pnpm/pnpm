@@ -11,7 +11,7 @@ import { difference, isEmpty, unnest } from 'ramda'
 
 export * from '@pnpm/lockfile.types'
 
-// cannot import DependenciesGraph from @pnpm/installing.resolve-dependencies due to circular dependency
+// cannot import DependenciesGraph from @pnpm/installing.deps-resolver due to circular dependency
 type DependenciesGraph = Record<DepPath, { optional?: boolean }>
 
 export function pruneSharedLockfile (

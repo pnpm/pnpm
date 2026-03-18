@@ -1,5 +1,5 @@
 ---
-"@pnpm/installing.resolve-dependencies": minor
+"@pnpm/installing.deps-resolver": minor
 "@pnpm/installing.deps-installer": minor
 "@pnpm/config.reader": minor
 "pnpm": minor

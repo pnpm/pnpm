@@ -17,7 +17,7 @@ import type {
   DependenciesGraph,
   DependenciesGraphNode,
   LinkedDependency,
-} from '@pnpm/installing.resolve-dependencies'
+} from '@pnpm/installing.deps-resolver'
 import {
   filterLockfileByImporters,
 } from '@pnpm/lockfile.filtering'

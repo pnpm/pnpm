@@ -38,7 +38,7 @@ import {
   resolveDependencies,
   type UpdateMatchingFunction,
   type WantedDependency,
-} from '@pnpm/installing.resolve-dependencies'
+} from '@pnpm/installing.deps-resolver'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,

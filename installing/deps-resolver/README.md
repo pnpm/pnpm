@@ -1,11 +1,11 @@
-# @pnpm/resolve-dependencies
+# @pnpm/installing.deps-resolver
 
 > Resolves dependency graph of a package
 
 ## Install
 
 ```
-pnpm install @pnpm/resolve-dependencies
+pnpm install @pnpm/installing.deps-resolver
 ```
 
 ## API

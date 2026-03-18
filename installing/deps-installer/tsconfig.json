@@ -178,6 +178,9 @@
       "path": "../context"
     },
     {
+      "path": "../deps-resolver"
+    },
+    {
       "path": "../deps-restorer"
     },
     {
@@ -194,9 +197,6 @@
     },
     {
       "path": "../package-requester"
-    },
-    {
-      "path": "../resolve-dependencies"
     }
   ]
 }
