@@ -28,8 +28,6 @@ import {
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
-import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
-import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   type DependenciesGraph,
   type DependenciesGraphNode,
@@ -39,6 +37,8 @@ import {
   type UpdateMatchingFunction,
   type WantedDependency,
 } from '@pnpm/installing.deps-resolver'
+import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
+import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
