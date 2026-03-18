@@ -1,3 +1,4 @@
+import http from 'node:http'
 import getPort from 'get-port'
 import { promisify } from 'util'
 import treeKill from 'tree-kill'
@@ -31,4 +32,27 @@ export default async () => {
     killed = true
     return kill(server.pid)
   }
+  await waitForRegistry(`http://localhost:${process.env.PNPM_REGISTRY_MOCK_PORT}`)
+}
+
+function waitForRegistry (url, { maxRetries = 60, interval = 500 } = {}) {
+  return new Promise((resolve, reject) => {
+    let attempts = 0
+    const check = () => {
+      attempts++
+      const req = http.get(url, (res) => {
+        res.resume()
+        resolve()
+      })
+      req.on('error', () => {
+        if (attempts >= maxRetries) {
+          reject(new Error(`Verdaccio registry at ${url} did not become ready after ${maxRetries * interval}ms`))
+          return
+        }
+        setTimeout(check, interval)
+      })
+      req.end()
+    }
+    check()
+  })
 }
