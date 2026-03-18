@@ -6,8 +6,6 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export type { Project }
 
-export type WorkspaceProjectsPatterns = 'all-packages' | string[]
-
 export interface FindWorkspaceProjectsOpts {
   /**
    * An array of globs for the packages included in the workspace.
