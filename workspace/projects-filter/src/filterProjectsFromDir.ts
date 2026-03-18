@@ -6,7 +6,7 @@ import { filterProjectsBySelectorObjects, type ProjectSelector, type ReadProject
 
 export async function filterProjectsBySelectorObjectsFromDir (
   workspaceDir: string,
-  pkgSelectors: ProjectSelector[],
+  projectSelectors: ProjectSelector[],
   opts?: {
     engineStrict?: boolean
     linkWorkspacePackages?: boolean
@@ -26,7 +26,7 @@ export async function filterProjectsBySelectorObjectsFromDir (
   })
   const { allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjects(
     allProjects,
-    pkgSelectors,
+    projectSelectors,
     {
       linkWorkspacePackages: opts?.linkWorkspacePackages,
       workspaceDir,
