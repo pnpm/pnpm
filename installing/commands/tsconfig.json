@@ -85,6 +85,9 @@
       "path": "../../hooks/pnpmfile"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
       "path": "../../lockfile/types"
     },
     {
