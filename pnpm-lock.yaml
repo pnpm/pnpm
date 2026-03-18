@@ -4971,6 +4971,9 @@ importers:
       '@pnpm/installing.deps-installer':
         specifier: workspace:*
         version: link:../deps-installer
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
