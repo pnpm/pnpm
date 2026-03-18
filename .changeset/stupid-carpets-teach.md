@@ -1,6 +1,6 @@
 ---
 "@pnpm/installing.commands": minor
-"@pnpm/installing.resolve-dependencies": minor
+"@pnpm/installing.deps-resolver": minor
 "@pnpm/deps.compliance.commands": minor
 "@pnpm/resolving.npm-resolver": minor
 "@pnpm/installing.deps-installer": minor

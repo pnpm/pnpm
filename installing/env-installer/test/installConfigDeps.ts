@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import { installConfigDeps } from '@pnpm/config.deps-installer'
+import { installConfigDeps } from '@pnpm/installing.env-installer'
 import { createEnvLockfile, type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

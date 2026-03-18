@@ -1,6 +1,6 @@
 ---
 "@pnpm/pkg-manifest.utils": patch
-"@pnpm/installing.resolve-dependencies": patch
+"@pnpm/installing.deps-resolver": patch
 pnpm: patch
 ---
 

@@ -255,8 +255,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     scripts = { ...manifest.scripts }
     break
   case '@pnpm/building.commands':
-  case '@pnpm/config.deps-installer':
   case '@pnpm/installing.deps-restorer':
+  case '@pnpm/installing.env-installer':
   case '@pnpm/deps.inspection.outdated':
   case '@pnpm/installing.package-requester':
   case '@pnpm/cache.commands':

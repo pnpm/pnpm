@@ -6,7 +6,7 @@
 "@pnpm/installing.deps-restorer": patch
 "@pnpm/fetching.fetcher-base": minor
 "@pnpm/installing.package-requester": minor
-"@pnpm/installing.resolve-dependencies": minor
+"@pnpm/installing.deps-resolver": minor
 "@pnpm/store.controller-types": minor
 "pnpm": patch
 ---

@@ -1,6 +1,6 @@
 ---
 "@pnpm/workspace.project-manifest-reader": minor
-"@pnpm/installing.resolve-dependencies": minor
+"@pnpm/installing.deps-resolver": minor
 "@pnpm/bins.linker": minor
 "@pnpm/types": minor
 "pnpm": minor

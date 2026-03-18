@@ -8,16 +8,16 @@ import {
 } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
+import type {
+  DependenciesGraph,
+  DependenciesGraphNode,
+  LinkedDependency,
+} from '@pnpm/installing.deps-resolver'
 import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
 import { prune } from '@pnpm/installing.linking.modules-cleaner'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
-import type {
-  DependenciesGraph,
-  DependenciesGraphNode,
-  LinkedDependency,
-} from '@pnpm/installing.resolve-dependencies'
 import {
   filterLockfileByImporters,
 } from '@pnpm/lockfile.filtering'

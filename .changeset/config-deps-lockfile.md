@@ -7,7 +7,7 @@
 "@pnpm/types": patch
 "@pnpm/engine.pm.commands": minor
 "@pnpm/deps.graph-hasher": minor
-"@pnpm/installing.resolve-dependencies": patch
+"@pnpm/installing.deps-resolver": patch
 "pnpm": minor
 ---
 

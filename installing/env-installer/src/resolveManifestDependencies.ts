@@ -4,7 +4,7 @@ import { LOCKFILE_VERSION } from '@pnpm/constants'
 import {
   getWantedDependencies,
   resolveDependencies,
-} from '@pnpm/installing.resolve-dependencies'
+} from '@pnpm/installing.deps-resolver'
 import type {
   LockfileObject,
   ProjectSnapshot,

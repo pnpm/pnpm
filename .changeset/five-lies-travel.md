@@ -17,7 +17,7 @@
 "@pnpm/config.pick-registry-for-package": major
 "@pnpm/lockfile.make-dedicated-lockfile": major
 "@pnpm/resolving.parse-wanted-dependency": major
-"@pnpm/installing.resolve-dependencies": major
+"@pnpm/installing.deps-resolver": major
 "@pnpm/releasing.exportable-manifest": major
 "@pnpm/deps.inspection.tree-builder": major
 "@pnpm/pkg-manifest.reader": major
