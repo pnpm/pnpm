@@ -1,10 +1,10 @@
 ---
-"@pnpm/plugin-commands-publishing": major
+"@pnpm/releasing.commands": major
 "pnpm": major
-"@pnpm/make-dedicated-lockfile": minor
-"@pnpm/exportable-manifest": minor
+"@pnpm/lockfile.make-dedicated-lockfile": minor
+"@pnpm/releasing.exportable-manifest": minor
 "@pnpm/types": minor
-"@pnpm/config": minor
+"@pnpm/config.reader": minor
 ---
 
 `pnpm publish` now works without the `npm` CLI.

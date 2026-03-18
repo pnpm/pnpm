@@ -1,0 +1,100 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
+      "path": "../../bins/resolver"
+    },
+    {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../cli/command"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../cli/utils"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../config/version-policy"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../crypto/hash"
+    },
+    {
+      "path": "../../deps/status"
+    },
+    {
+      "path": "../../engine/runtime/commands"
+    },
+    {
+      "path": "../../engine/runtime/system-node-version"
+    },
+    {
+      "path": "../../installing/client"
+    },
+    {
+      "path": "../../installing/commands"
+    },
+    {
+      "path": "../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
+      "path": "../../shell/path"
+    },
+    {
+      "path": "../../store/path"
+    },
+    {
+      "path": "../../workspace/injected-deps-syncer"
+    },
+    {
+      "path": "../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../../workspace/projects-filter"
+    },
+    {
+      "path": "../../workspace/projects-sorter"
+    },
+    {
+      "path": "../lifecycle"
+    },
+    {
+      "path": "../pnpm-cli-runner"
+    }
+  ]
+}

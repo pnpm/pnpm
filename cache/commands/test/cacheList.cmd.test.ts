@@ -1,9 +1,10 @@
-import path from 'path'
+import path from 'node:path'
+
+import { cache } from '@pnpm/cache.commands'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import execa from 'execa'
-import { cache } from '@pnpm/cache.commands'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
@@ -25,8 +26,8 @@ describe('cache', () => {
       '--config.resolution-mode=highest',
       `--registry=${REGISTRY}`,
     ])
-    rimraf('node_modules')
-    rimraf('pnpm-lock.yaml')
+    rimrafSync('node_modules')
+    rimrafSync('pnpm-lock.yaml')
     await execa('node', [
       pnpmBin,
       'add',
@@ -44,9 +45,9 @@ describe('cache', () => {
       pnpmHomeDir: storeDir,
     }, ['list'])
 
-    expect(result).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-negative.mpk
-registry.npmjs.org/is-negative.mpk
-registry.npmjs.org/is-positive.mpk`)
+    expect(result).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-negative.json
+registry.npmjs.org/is-negative.json
+registry.npmjs.org/is-positive.json`)
   })
   test('list all metadata from the cache related to the specified registry', async () => {
     const result = await cache.handler({
@@ -57,8 +58,8 @@ registry.npmjs.org/is-positive.mpk`)
       pnpmHomeDir: storeDir,
     }, ['list'])
 
-    expect(result).toBe(`registry.npmjs.org/is-negative.mpk
-registry.npmjs.org/is-positive.mpk`)
+    expect(result).toBe(`registry.npmjs.org/is-negative.json
+registry.npmjs.org/is-positive.json`)
   })
   test('list all metadata from the cache that matches a pattern', async () => {
     const result = await cache.handler({
@@ -67,7 +68,7 @@ registry.npmjs.org/is-positive.mpk`)
       pnpmHomeDir: storeDir,
     }, ['list', '*-positive'])
 
-    expect(result).toBe('registry.npmjs.org/is-positive.mpk')
+    expect(result).toBe('registry.npmjs.org/is-positive.json')
   })
   test('list registries', async () => {
     const result = await cache.handler({

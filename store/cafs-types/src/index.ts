@@ -36,6 +36,7 @@ export interface ImportPackageOpts {
   filesResponse: PackageFilesResponse
   force: boolean
   keepModulesDir?: boolean
+  safeToSkip?: boolean
 }
 
 export type ImportPackageFunction = (
@@ -71,7 +72,6 @@ export interface Cafs {
   addFilesFromDir: (dir: string) => AddToStoreResult
   addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
-  getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
   getFilePathByModeInCafs: (digest: string, mode: number) => string
   importPackage: ImportPackageFunction
   tempDir: () => Promise<string>

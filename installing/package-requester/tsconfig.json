@@ -1,0 +1,73 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../config/package-is-installable"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/path"
+    },
+    {
+      "path": "../../fetching/fetcher-base"
+    },
+    {
+      "path": "../../fetching/pick-fetcher"
+    },
+    {
+      "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../fs/msgpack-file"
+    },
+    {
+      "path": "../../hooks/types"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/cafs-types"
+    },
+    {
+      "path": "../../store/controller-types"
+    },
+    {
+      "path": "../../store/create-cafs-store"
+    },
+    {
+      "path": "../../store/index"
+    },
+    {
+      "path": "../../worker"
+    },
+    {
+      "path": "../client"
+    }
+  ]
+}

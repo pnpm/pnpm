@@ -13,13 +13,25 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../config/config"
-    },
-    {
       "path": "../../config/parse-overrides"
     },
     {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../crypto/object-hasher"
+    },
+    {
+      "path": "../../installing/context"
     },
     {
       "path": "../../lockfile/fs"
@@ -31,31 +43,19 @@
       "path": "../../lockfile/verification"
     },
     {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/get-context"
-    },
-    {
-      "path": "../../pkg-manifest/write-project-manifest"
-    },
-    {
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../../workspace/find-packages"
+      "path": "../../workspace/project-manifest-writer"
     },
     {
-      "path": "../../workspace/read-manifest"
+      "path": "../../workspace/projects-reader"
     },
     {
       "path": "../../workspace/state"
+    },
+    {
+      "path": "../../workspace/workspace-manifest-reader"
     }
   ]
 }

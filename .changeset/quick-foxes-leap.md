@@ -1,11 +1,11 @@
 ---
 "@pnpm/store.cafs": major
-"@pnpm/store-controller-types": major
+"@pnpm/store.controller-types": major
 "@pnpm/worker": major
-"@pnpm/package-requester": major
-"@pnpm/npm-resolver": major
-"@pnpm/reviewing.dependencies-hierarchy": major
-"@pnpm/build-modules": major
+"@pnpm/installing.package-requester": major
+"@pnpm/resolving.npm-resolver": major
+"@pnpm/deps.inspection.tree-builder": major
+"@pnpm/building.during-install": major
 "pnpm": major
 ---
 

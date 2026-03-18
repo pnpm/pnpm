@@ -1,19 +1,20 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
-import isWindows from 'is-windows'
-import { jest } from '@jest/globals'
+import path from 'node:path'
 
-const { fetchWithAgent: fetchWithAgentOriginal } = await import('@pnpm/fetch')
-jest.unstable_mockModule('@pnpm/fetch', () => ({
+import { jest } from '@jest/globals'
+import isWindows from 'is-windows'
+
+const { fetchWithAgent: fetchWithAgentOriginal } = await import('@pnpm/network.fetch')
+jest.unstable_mockModule('@pnpm/network.fetch', () => ({
   fetchWithAgent: jest.fn(),
 }))
-const { default: gitOriginal } = await import('graceful-git')
+const { gracefulGit: gitOriginal } = await import('graceful-git')
 jest.unstable_mockModule('graceful-git', () => ({
-  default: jest.fn(),
+  gracefulGit: jest.fn(),
 }))
-const { fetchWithAgent } = await import('@pnpm/fetch')
-const { default: git } = await import('graceful-git')
-const { createGitResolver } = await import('@pnpm/git-resolver')
+const { fetchWithAgent } = await import('@pnpm/network.fetch')
+const { gracefulGit: git } = await import('graceful-git')
+const { createGitResolver } = await import('@pnpm/resolving.git-resolver')
 
 const resolveFromGit = createGitResolver({})
 

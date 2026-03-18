@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/symlink-dependency",
+  "name": "@pnpm/fs.symlink-dependency",
   "version": "1000.0.12",
   "description": "Symlink a dependency to node_modules",
   "keywords": [
@@ -43,9 +43,9 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "@pnpm/symlink-dependency": "workspace:*"
+    "@pnpm/prepare": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

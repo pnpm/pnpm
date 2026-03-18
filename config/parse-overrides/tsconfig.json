@@ -16,10 +16,10 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../core/error"
     },
     {
-      "path": "../../packages/parse-wanted-dependency"
+      "path": "../../resolving/parse-wanted-dependency"
     }
   ]
 }

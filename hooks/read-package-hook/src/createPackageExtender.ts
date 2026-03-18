@@ -1,5 +1,5 @@
-import { type PackageManifest, type PackageExtension, type ReadPackageHook } from '@pnpm/types'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
+import type { PackageExtension, PackageManifest, ReadPackageHook } from '@pnpm/types'
 import semver from 'semver'
 
 interface PackageExtensionMatch {

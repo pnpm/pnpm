@@ -1,4 +1,4 @@
-import { type BaseManifest, type BundledManifest } from '@pnpm/types'
+import type { BaseManifest, BundledManifest } from '@pnpm/types'
 import semver from 'semver'
 
 const BUNDLED_MANIFEST_FIELDS: Array<keyof BaseManifest> = [

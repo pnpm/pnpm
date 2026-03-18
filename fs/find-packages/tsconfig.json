@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../packages/types"
+      "path": "../../core/types"
     },
     {
-      "path": "../../pkg-manifest/read-project-manifest"
+      "path": "../../workspace/project-manifest-reader"
     }
   ]
 }

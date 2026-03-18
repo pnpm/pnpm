@@ -1,8 +1,8 @@
-import { tryReadProjectManifest } from '@pnpm/cli-utils'
-import { getOptionsFromRootManifest } from '@pnpm/config'
-import { mutateModulesInSingleProject } from '@pnpm/core'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type IgnoredBuilds, type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
+import { tryReadProjectManifest } from '@pnpm/cli.utils'
+import { getOptionsFromRootManifest } from '@pnpm/config.reader'
+import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
+import type { IgnoredBuilds, IncludedDependencies, ProjectRootDir } from '@pnpm/types'
 
 export interface InstallGlobalPackagesOptions extends CreateStoreControllerOptions {
   bin: string

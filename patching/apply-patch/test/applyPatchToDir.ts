@@ -1,8 +1,9 @@
-import fs from 'fs'
-import path from 'path'
-import { fixtures } from '@pnpm/test-fixtures'
-import { tempDir } from '@pnpm/prepare'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
+import { tempDir } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 
 const f = fixtures(import.meta.dirname)
 

@@ -1,24 +1,27 @@
-import { promises as fs } from 'fs'
-import path from 'path'
-import util from 'util'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
 import {
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { mergeLockfileChanges } from '@pnpm/lockfile.merger'
-import { type LockfileObject } from '@pnpm/lockfile.types'
-import { type ProjectId } from '@pnpm/types'
-import comverToSemver from 'comver-to-semver'
+import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { ProjectId } from '@pnpm/types'
+import { comverToSemver } from 'comver-to-semver'
 import yaml from 'js-yaml'
 import semver from 'semver'
 import stripBom from 'strip-bom'
+
 import { LockfileBreakingChangeError } from './errors/index.js'
-import { autofixMergeConflicts, isDiff } from './gitMergeFile.js'
-import { lockfileLogger as logger } from './logger.js'
-import { getWantedLockfileName } from './lockfileName.js'
 import { getGitBranchLockfileNames } from './gitBranchLockfile.js'
+import { autofixMergeConflicts, isDiff } from './gitMergeFile.js'
 import { convertToLockfileObject } from './lockfileFormatConverters.js'
+import { getWantedLockfileName } from './lockfileName.js'
+import { lockfileLogger as logger } from './logger.js'
+import { extractMainDocument } from './yamlDocuments.js'
 
 export async function readCurrentLockfile (
   pnpmInternalDir: string,
@@ -80,6 +83,14 @@ async function _read (
     if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
       throw err
     }
+    return {
+      lockfile: null,
+      hadConflicts: false,
+    }
+  }
+  // Skip the env lockfile document if present (first document in combined format)
+  lockfileRawContent = extractMainDocument(lockfileRawContent)
+  if (!lockfileRawContent.trim()) {
     return {
       lockfile: null,
       hadConflicts: false,

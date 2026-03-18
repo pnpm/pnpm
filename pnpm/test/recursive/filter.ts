@@ -1,5 +1,7 @@
-import fs from 'fs'
+import fs from 'node:fs'
+
 import { prepare } from '@pnpm/prepare'
+
 import { execPnpmSync } from '../utils/index.js'
 
 test('pnpm --filter <root> add <pkg> should work', async () => {

@@ -1,18 +1,24 @@
-import { pickFetcher } from '@pnpm/pick-fetcher'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
-import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { createFetchFromRegistry } from '@pnpm/fetch'
-import { createCafsStore } from '@pnpm/create-cafs-store'
-import { fixtures } from '@pnpm/test-fixtures'
-import { temporaryDirectory } from 'tempy'
-import path from 'path'
-import nock from 'nock'
-import type { Cafs } from '@pnpm/cafs-types'
-import type { FetchFunction, Fetchers, FetchOptions } from '@pnpm/fetcher-base'
-import type { AtomicResolution } from '@pnpm/resolver-base'
+import type { Fetchers, FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
+import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
+import { createTarballFetcher } from '@pnpm/fetching.tarball-fetcher'
 import type { CustomFetcher } from '@pnpm/hooks.types'
+import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import type { AtomicResolution } from '@pnpm/resolving.resolver-base'
+import type { Cafs } from '@pnpm/store.cafs-types'
+import { createCafsStore } from '@pnpm/store.create-cafs-store'
+import { StoreIndex } from '@pnpm/store.index'
+import { fixtures } from '@pnpm/test-fixtures'
+import nock from 'nock'
+import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)
+const storeIndex = new StoreIndex(temporaryDirectory())
+afterAll(() => {
+  storeIndex.close()
+})
 
 // Test helpers to reduce type casting
 function createMockFetchers (partial: Partial<Fetchers> = {}): Fetchers {
@@ -280,7 +286,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {} }
+        { rawConfig: {}, storeIndex }
       )
 
       // Custom fetcher that maps custom URLs to tarballs
@@ -328,7 +334,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {} }
+        { rawConfig: {}, storeIndex }
       )
 
       // Custom fetcher that maps custom local paths to tarballs
@@ -379,7 +385,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {} }
+        { rawConfig: {}, storeIndex }
       )
 
       // Custom fetcher that transforms custom resolution to tarball URL
@@ -428,7 +434,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {}, ignoreScripts: true }
+        { rawConfig: {}, storeIndex, ignoreScripts: true }
       )
 
       // Custom fetcher that maps custom git resolution to git-hosted tarball

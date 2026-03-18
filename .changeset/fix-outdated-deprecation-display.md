@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-outdated": patch
+"@pnpm/deps.inspection.commands": patch
 "pnpm": patch
 ---
 

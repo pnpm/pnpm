@@ -1,17 +1,17 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import {
-  type LockfileObject,
-  type PackageSnapshots,
-  type ProjectSnapshot,
-  type ResolvedDependencies,
+import { refToRelative } from '@pnpm/deps.path'
+import type {
+  LockfileObject,
+  PackageSnapshots,
+  ProjectSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile.types'
-import { type DepPath, type PackageManifest, type ProjectId } from '@pnpm/types'
-import { refToRelative } from '@pnpm/dependency-path'
+import type { DepPath, PackageManifest, ProjectId } from '@pnpm/types'
 import { difference, isEmpty, unnest } from 'ramda'
 
 export * from '@pnpm/lockfile.types'
 
-// cannot import DependenciesGraph from @pnpm/resolve-dependencies due to circular dependency
+// cannot import DependenciesGraph from @pnpm/installing.resolve-dependencies due to circular dependency
 type DependenciesGraph = Record<DepPath, { optional?: boolean }>
 
 export function pruneSharedLockfile (

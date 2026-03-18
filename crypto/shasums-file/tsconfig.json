@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../network/fetching-types"
+      "path": "../../core/error"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../fetching/types"
     },
     {
       "path": "../hash"

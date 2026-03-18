@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
-import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import nopt from '@pnpm/nopt'
+import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])

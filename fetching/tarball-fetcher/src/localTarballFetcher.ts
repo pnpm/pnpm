@@ -1,7 +1,9 @@
-import path from 'path'
-import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
-import type { Cafs } from '@pnpm/cafs-types'
-import gfs from '@pnpm/graceful-fs'
+import path from 'node:path'
+
+import type { FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
+import gfs from '@pnpm/fs.graceful-fs'
+import type { Cafs } from '@pnpm/store.cafs-types'
+import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
 
 const isAbsolutePath = /^\/|^[A-Z]:/i
@@ -12,12 +14,13 @@ interface Resolution {
   tarball: string
 }
 
-export function createLocalTarballFetcher (): FetchFunction {
+export function createLocalTarballFetcher (storeIndex: StoreIndex): FetchFunction {
   const fetch = (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
     const buffer = gfs.readFileSync(tarball)
     return addFilesFromTarball({
       storeDir: cafs.storeDir,
+      storeIndex,
       buffer,
       filesIndexFile: opts.filesIndexFile,
       integrity: resolution.integrity,

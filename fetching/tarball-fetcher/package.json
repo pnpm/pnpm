@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/tarball-fetcher",
+  "name": "@pnpm/fetching.tarball-fetcher",
   "version": "1003.0.0",
   "description": "Fetcher for packages hosted as tarballs",
   "keywords": [
@@ -35,18 +35,17 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/exec.prepare-package": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
-    "@pnpm/graceful-fs": "workspace:*",
-    "@pnpm/prepare-package": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
     "lodash.throttle": "catalog:",
     "p-map-values": "catalog:",
-    "path-temp": "catalog:",
-    "ramda": "catalog:",
-    "rename-overwrite": "catalog:"
+    "ramda": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:",
@@ -54,11 +53,11 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/cafs-types": "workspace:*",
-    "@pnpm/create-cafs-store": "workspace:*",
-    "@pnpm/fetch": "workspace:*",
+    "@pnpm/fetching.tarball-fetcher": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/tarball-fetcher": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
+    "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",

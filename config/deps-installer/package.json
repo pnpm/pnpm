@@ -33,23 +33,33 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/config.config-writer": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
+    "@pnpm/config.writer": "workspace:*",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetch": "workspace:*",
+    "@pnpm/fs.read-modules-dir": "workspace:*",
+    "@pnpm/installing.resolve-dependencies": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.pruner": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
-    "@pnpm/npm-resolver": "workspace:*",
-    "@pnpm/package-store": "workspace:*",
-    "@pnpm/parse-wanted-dependency": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
-    "@pnpm/read-modules-dir": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
+    "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
+    "@pnpm/store.controller": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "get-npm-tarball-url": "catalog:"
+    "get-npm-tarball-url": "catalog:",
+    "symlink-dir": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/config.deps-installer": "workspace:*",

@@ -9,9 +9,9 @@
     "_test": "node pd.js --version"
   },
   "dependencies": {
-    "@pnpm/find-workspace-dir": "workspace:*",
-    "@pnpm/workspace.find-packages": "workspace:*",
-    "@pnpm/workspace.read-manifest": "workspace:*",
+    "@pnpm/workspace.projects-reader": "workspace:*",
+    "@pnpm/workspace.root-finder": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "esbuild": "catalog:"
   },
   "devDependencies": {

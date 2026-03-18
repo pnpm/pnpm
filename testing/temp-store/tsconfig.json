@@ -10,13 +10,16 @@
   ],
   "references": [
     {
-      "path": "../../pkg-manager/client"
+      "path": "../../installing/client"
     },
     {
-      "path": "../../store/package-store"
+      "path": "../../store/controller"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/controller-types"
+    },
+    {
+      "path": "../../store/index"
     }
   ]
 }

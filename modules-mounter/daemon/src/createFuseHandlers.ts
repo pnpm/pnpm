@@ -1,14 +1,16 @@
 // cspell:ignore ents
-import fs from 'fs'
-import { readMsgpackFileSync } from '@pnpm/fs.msgpack-file'
-import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
+import fs from 'node:fs'
+
+import { type LockfileObject, type PackageSnapshot, readWantedLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import { type DepPath } from '@pnpm/types'
-import schemas from 'hyperdrive-schemas'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import type { DepPath } from '@pnpm/types'
 import Fuse from 'fuse-native'
+import schemas from 'hyperdrive-schemas'
+
 import * as cafsExplorer from './cafsExplorer.js'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
 
@@ -39,6 +41,7 @@ export async function createFuseHandlers (lockfileDir: string, storeDir: string)
 }
 
 export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeDir: string): FuseHandlers {
+  const storeIndex = new StoreIndex(storeDir)
   const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
   const virtualNodeModules = makeVirtualNodeModules(lockfile)
   return {
@@ -156,7 +159,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       currentDirEntry = currentDirEntry.entries[parts.shift()!]
     }
     if (currentDirEntry?.entryType === 'index') {
-      const pkg = getPkgInfo(currentDirEntry.depPath, storeDir)
+      const pkg = getPkgInfo(currentDirEntry.depPath)
       if (pkg == null) {
         return null
       }
@@ -168,13 +171,13 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
     }
     return currentDirEntry
   }
-  function getPkgInfo (depPath: string, storeDir: string) {
+  function getPkgInfo (depPath: string) {
     if (!pkgSnapshotCache.has(depPath)) {
       const pkgSnapshot = lockfile.packages?.[depPath as DepPath]
       if (pkgSnapshot == null) return undefined
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const pkgIndexFilePath = getIndexFilePathInCafs(storeDir, (pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
-      const pkgIndex = readMsgpackFileSync<PackageFilesIndex>(pkgIndexFilePath) // TODO: maybe make it async?
+      const pkgIndexFilePath = storeIndexKey((pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
+      const pkgIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex
       pkgSnapshotCache.set(depPath, {
         ...nameVer,
         pkgSnapshot,

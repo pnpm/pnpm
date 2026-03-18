@@ -1,13 +1,13 @@
 ---
-"@pnpm/prepare-package": major
-"@pnpm/git-fetcher": patch
-"@pnpm/tarball-fetcher": patch
-"@pnpm/core": patch
-"@pnpm/headless": patch
-"@pnpm/fetcher-base": minor
-"@pnpm/package-requester": minor
-"@pnpm/resolve-dependencies": minor
-"@pnpm/store-controller-types": minor
+"@pnpm/exec.prepare-package": major
+"@pnpm/fetching.git-fetcher": patch
+"@pnpm/fetching.tarball-fetcher": patch
+"@pnpm/installing.deps-installer": patch
+"@pnpm/installing.deps-restorer": patch
+"@pnpm/fetching.fetcher-base": minor
+"@pnpm/installing.package-requester": minor
+"@pnpm/installing.resolve-dependencies": minor
+"@pnpm/store.controller-types": minor
 "pnpm": patch
 ---
 

@@ -1,6 +1,6 @@
 ---
-"@pnpm/plugin-commands-script-runners": patch
-"@pnpm/config": patch
+"@pnpm/exec.commands": patch
+"@pnpm/config.reader": patch
 "pnpm": patch
 ---
 

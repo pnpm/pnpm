@@ -1,5 +1,5 @@
 ---
-"@pnpm/common-cli-options-help": patch
+"@pnpm/cli.common-cli-options-help": patch
 "pnpm": patch
 ---
 

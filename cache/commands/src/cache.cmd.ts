@@ -1,17 +1,18 @@
-import path from 'path'
-import { docsUrl } from '@pnpm/cli-utils'
-import { type Config, types as allTypes } from '@pnpm/config'
-import { FULL_FILTERED_META_DIR, ABBREVIATED_META_DIR } from '@pnpm/constants'
-import { getStorePath } from '@pnpm/store-path'
-import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import path from 'node:path'
+
 import {
-  cacheList,
-  cacheView,
   cacheDelete,
+  cacheList,
   cacheListRegistries,
+  cacheView,
 } from '@pnpm/cache.api'
+import { docsUrl } from '@pnpm/cli.utils'
+import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { getStorePath } from '@pnpm/store.path'
+import { pick } from 'ramda'
+import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
 

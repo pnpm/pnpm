@@ -1,11 +1,13 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { createHash } from '@pnpm/crypto.hash'
-import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
+import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 test('readPackage hook in single project doesn\'t modify manifest', async () => {
@@ -75,7 +77,7 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
       }
     `
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['add', 'is-positive@1.0.0', '--filter', 'project-a'])
   let pkg: PackageManifest = loadJsonFileSync(path.resolve('project-a/package.json'))
@@ -139,7 +141,7 @@ test('importPackage hooks', async () => {
     }
   `
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     globalPnpmfile: '.pnpmfile.cjs',
   })
 
@@ -282,7 +284,7 @@ export const hooks = {
     nodeLinker: 'hoisted',
   }),
 }`, 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { pnpmfile: ['.pnpmfile.mjs'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmfile: ['.pnpmfile.mjs'] })
 
   await execPnpm(['add', 'is-odd@1.0.0'])
 
@@ -314,7 +316,7 @@ module.exports = {
     },
   },
 }`, 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { pnpmfile: ['pnpmfile1.cjs', 'pnpmfile2.cjs'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmfile: ['pnpmfile1.cjs', 'pnpmfile2.cjs'] })
 
   await execPnpm(['add', 'is-odd@1.0.0'])
 

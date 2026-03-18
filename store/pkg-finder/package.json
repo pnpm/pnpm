@@ -30,11 +30,11 @@
     "test": "pnpm run compile"
   },
   "dependencies": {
-    "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/directory-fetcher": "workspace:*",
-    "@pnpm/fs.msgpack-file": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*"
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/fetching.directory-fetcher": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.index": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/store.pkg-finder": "workspace:*"

@@ -1,0 +1,67 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../catalogs/resolver"
+    },
+    {
+      "path": "../../../catalogs/types"
+    },
+    {
+      "path": "../../../config/matcher"
+    },
+    {
+      "path": "../../../config/parse-overrides"
+    },
+    {
+      "path": "../../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../../config/version-policy"
+    },
+    {
+      "path": "../../../core/constants"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/logger"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
+      "path": "../../../hooks/read-package-hook"
+    },
+    {
+      "path": "../../../installing/client"
+    },
+    {
+      "path": "../../../lockfile/fs"
+    },
+    {
+      "path": "../../../lockfile/utils"
+    },
+    {
+      "path": "../../../pkg-manifest/utils"
+    },
+    {
+      "path": "../../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../../resolving/resolver-base"
+    },
+    {
+      "path": "../../path"
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../bins/linker"
+    },
+    {
+      "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/graph-hasher"
+    },
+    {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
+      "path": "../../deps/path"
+    },
+    {
+      "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../installing/context"
+    },
+    {
+      "path": "../../installing/modules-yaml"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../lockfile/walker"
+    },
+    {
+      "path": "../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/connection-manager"
+    },
+    {
+      "path": "../../store/controller-types"
+    },
+    {
+      "path": "../../store/index"
+    },
+    {
+      "path": "../../worker"
+    },
+    {
+      "path": "../pkg-requires-build"
+    },
+    {
+      "path": "../policy"
+    }
+  ]
+}

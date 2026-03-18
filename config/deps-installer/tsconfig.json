@@ -13,7 +13,37 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/graph-hasher"
+    },
+    {
       "path": "../../fs/read-modules-dir"
+    },
+    {
+      "path": "../../installing/resolve-dependencies"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/pruner"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../network/auth-header"
@@ -22,34 +52,31 @@
       "path": "../../network/fetch"
     },
     {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/parse-wanted-dependency"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     },
     {
       "path": "../../resolving/npm-resolver"
     },
     {
-      "path": "../../store/package-store"
+      "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
+      "path": "../../store/controller"
+    },
+    {
+      "path": "../../store/controller-types"
     },
     {
       "path": "../../testing/temp-store"
     },
     {
-      "path": "../config-writer"
+      "path": "../../worker"
     },
     {
       "path": "../pick-registry-for-package"
+    },
+    {
+      "path": "../writer"
     }
   ]
 }

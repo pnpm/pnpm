@@ -1,9 +1,11 @@
-import fs from 'fs'
-import path from 'path'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare } from '@pnpm/prepare'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
@@ -199,7 +201,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
     fs.writeFileSync(require.resolve('./package.json'), jsonText)
     console.log('manifest mutated')
   `)
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     verifyDepsBeforeRun: 'error',
   })
 

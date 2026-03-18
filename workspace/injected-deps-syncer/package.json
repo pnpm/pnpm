@@ -31,14 +31,14 @@
     "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "dependencies": {
-    "@pnpm/directory-fetcher": "workspace:*",
+    "@pnpm/bins.linker": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/link-bins": "workspace:*",
-    "@pnpm/modules-yaml": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/fetching.directory-fetcher": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
-    "@pnpm/workspace.find-packages": "workspace:*",
+    "@pnpm/workspace.projects-reader": "workspace:*",
     "@types/normalize-path": "catalog:",
     "normalize-path": "catalog:"
   },

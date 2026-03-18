@@ -1,0 +1,71 @@
+{
+  "name": "@pnpm/deps.inspection.outdated",
+  "version": "1001.1.1",
+  "description": "Check for outdated packages",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "outdated"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/inspection/outdated",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/inspection/outdated#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "test": "pnpm run compile && pnpm run _test",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "pnpm run compile",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "compile": "tsgo --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.matcher": "workspace:*",
+    "@pnpm/config.parse-overrides": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
+    "@pnpm/config.version-policy": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/hooks.read-package-hook": "workspace:*",
+    "@pnpm/installing.client": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "ramda": "catalog:",
+    "semver": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/deps.inspection.outdated": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config/with-registry"
+  }
+}

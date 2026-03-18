@@ -1,5 +1,5 @@
 ---
-"@pnpm/graph-builder": patch
+"@pnpm/deps.graph-builder": patch
 "pnpm": patch
 ---
 

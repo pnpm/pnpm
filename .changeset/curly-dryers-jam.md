@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-script-runners": minor
+"@pnpm/exec.commands": minor
 pnpm: minor
 ---
 

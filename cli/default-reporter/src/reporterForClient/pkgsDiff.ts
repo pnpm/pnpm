@@ -1,8 +1,8 @@
 import type * as logs from '@pnpm/core-loggers'
-import { type BaseManifest } from '@pnpm/types'
+import type { BaseManifest } from '@pnpm/types'
+import { difference, mergeRight } from 'ramda'
 import * as Rx from 'rxjs'
 import { filter, map, mapTo, reduce, scan, startWith, take } from 'rxjs/operators'
-import { mergeRight, difference } from 'ramda'
 
 export interface PackageDiff {
   added: boolean
@@ -42,12 +42,12 @@ export function getPkgsDiff (
     packageManifest: Rx.Observable<logs.PackageManifestLog>
   },
   opts: {
-    prefix: string
+    prefix?: string
   }
 ): Rx.Observable<PkgsDiff> {
   const deprecationSet$ = log$.deprecation
     .pipe(
-      filter((log) => log.prefix === opts.prefix),
+      filter((log) => !opts.prefix || log.prefix === opts.prefix),
       scan((acc, log) => {
         acc.add(log.pkgId)
         return acc
@@ -55,7 +55,9 @@ export function getPkgsDiff (
       startWith(new Set())
     )
 
-  const filterPrefix = filter((log: { prefix: string }) => log.prefix === opts.prefix)
+  const filterPrefix = opts.prefix
+    ? filter((log: { prefix: string }) => log.prefix === opts.prefix)
+    : <T>(x: Rx.Observable<T>) => x
   const pkgsDiff$ = Rx.combineLatest(
     log$.root.pipe(filterPrefix),
     deprecationSet$

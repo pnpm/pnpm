@@ -1,0 +1,34 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../cli/meta"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../installing/client"
+    },
+    {
+      "path": "../controller"
+    },
+    {
+      "path": "../index"
+    },
+    {
+      "path": "../path"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/common-cli-options-help",
+  "name": "@pnpm/cli.common-cli-options-help",
   "version": "1000.0.1",
   "description": "Help for some common CLI options",
   "keywords": [
@@ -30,7 +30,7 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "devDependencies": {
-    "@pnpm/common-cli-options-help": "workspace:*"
+    "@pnpm/cli.common-cli-options-help": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

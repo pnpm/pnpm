@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/matcher",
+  "name": "@pnpm/config.matcher",
   "version": "1000.1.0",
   "description": "A simple pattern matcher for pnpm",
   "keywords": [
@@ -37,7 +37,7 @@
     "escape-string-regexp": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/matcher": "workspace:*"
+    "@pnpm/config.matcher": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

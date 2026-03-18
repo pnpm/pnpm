@@ -1,13 +1,14 @@
-import { type Config } from '@pnpm/config'
-import { type Log } from '@pnpm/core-loggers'
-import { renderDedupeCheckIssues } from '@pnpm/dedupe.issues-renderer'
-import { type DedupeCheckIssues } from '@pnpm/dedupe.types'
-import { type PnpmError } from '@pnpm/error'
-import { renderPeerIssues } from '@pnpm/render-peer-issues'
-import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
+import type { Config } from '@pnpm/config.reader'
+import type { Log } from '@pnpm/core-loggers'
+import type { PnpmError } from '@pnpm/error'
+import { renderDedupeCheckIssues } from '@pnpm/installing.dedupe.issues-renderer'
+import type { DedupeCheckIssues } from '@pnpm/installing.dedupe.types'
+import { renderPeerIssues } from '@pnpm/installing.render-peer-issues'
+import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 import { equals } from 'ramda'
 import StackTracey from 'stacktracey'
+
 import { EOL } from './constants.js'
 
 StackTracey.maxColumnWidths = {

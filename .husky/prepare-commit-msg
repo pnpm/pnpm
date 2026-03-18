@@ -1,0 +1,8 @@
+#!/bin/sh
+# Prevent Claude Code from amending commits.
+# The prepare-commit-msg hook receives "commit" as $2 when --amend is used.
+
+if [ "$2" = "commit" ] && [ -n "$CLAUDECODE" ]; then
+  echo "error: Amending commits is not allowed. Create a new commit instead." >&2
+  exit 1
+fi

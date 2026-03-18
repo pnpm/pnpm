@@ -10,22 +10,22 @@
   ],
   "references": [
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
-      "path": "../../fs/msgpack-file"
+      "path": "../../core/constants"
     },
     {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/logger"
+      "path": "../../core/logger"
     },
     {
       "path": "../../resolving/npm-resolver"
     },
     {
       "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/index"
     }
   ]
 }

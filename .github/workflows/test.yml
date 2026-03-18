@@ -1,0 +1,73 @@
+name: Test (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      node:
+        required: true
+        type: string
+      platform:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform }}-${{ inputs.node }}
+      cancel-in-progress: true
+
+    runs-on: ${{ inputs.platform }}
+
+    steps:
+    - name: Configure Git
+      run: |
+        git config --global core.autocrlf false
+        git config --global user.name "xyz"
+        git config --global user.email "x@y.z"
+    - name: Checkout Commit
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - name: Install pnpm
+      uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      with:
+        standalone: true
+    - name: Setup Node
+      run: pnpm runtime -g set node ${{ inputs.node }}
+      timeout-minutes: 2
+    # npm is needed for preparing git-hosted dependencies (e.g. in dlx tests)
+    - name: Verify npm
+      run: npm --version
+    - name: pnpm install
+      run: pnpm install
+      timeout-minutes: 3
+    - name: Download compiled artifacts
+      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+      with:
+        name: compiled-packages
+    - name: Extract compiled artifacts
+      run: tar -xzf compiled.tar.gz
+    - name: Determine test scope
+      id: test-scope
+      shell: bash
+      run: |
+        if [[ "${{ github.ref_name }}" == "main" || "${{ github.ref_name }}" == "chore/update-lockfile" ]]; then
+          echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
+          echo "scope=all" >> "$GITHUB_OUTPUT"
+        else
+          git remote set-branches --add origin main && git fetch origin main --depth=1
+          if [ -n "$(git diff --name-only origin/main HEAD -- pnpm-workspace.yaml)" ]; then
+            echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
+            echo "scope=all — pnpm-workspace.yaml modified" >> "$GITHUB_OUTPUT"
+          else
+            echo "script=ci:test-branch" >> "$GITHUB_OUTPUT"
+            echo "scope=affected packages" >> "$GITHUB_OUTPUT"
+          fi
+        fi
+    - name: Run tests (${{ steps.test-scope.outputs.scope }})
+      timeout-minutes: 70
+      run: pnpm run ${{ steps.test-scope.outputs.script }}
+      env:
+        PNPM_WORKERS: 3

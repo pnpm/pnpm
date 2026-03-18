@@ -1,8 +1,8 @@
 ---
 "@pnpm/deps.graph-builder": patch
-"@pnpm/headless": patch
-"@pnpm/core": patch
-"@pnpm/plugin-commands-installation": patch
+"@pnpm/installing.deps-restorer": patch
+"@pnpm/installing.deps-installer": patch
+"@pnpm/installing.commands": patch
 "pnpm": patch
 ---
 

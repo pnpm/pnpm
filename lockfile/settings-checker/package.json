@@ -34,10 +34,10 @@
   },
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
-    "@pnpm/parse-overrides": "workspace:*",
     "p-map-values": "catalog:",
     "ramda": "catalog:"
   },
