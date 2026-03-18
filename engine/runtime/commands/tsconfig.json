@@ -16,19 +16,19 @@
       "path": "../../../config/reader"
     },
     {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/logger"
+    },
+    {
       "path": "../../../exec/pnpm-cli-runner"
     },
     {
       "path": "../../../network/fetch"
     },
     {
-      "path": "../../../packages/error"
-    },
-    {
-      "path": "../../../packages/logger"
-    },
-    {
-      "path": "../node.resolver"
+      "path": "../node-resolver"
     }
   ]
 }

@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../network/fetch"
+      "path": "../../core/error"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../network/fetch"
     },
     {
       "path": "../resolver-base"

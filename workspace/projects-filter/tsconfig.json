@@ -13,13 +13,13 @@
       "path": "../../config/matcher"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../core/error"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../core/types"
     },
     {
-      "path": "../pkgs-graph"
+      "path": "../projects-graph"
     },
     {
       "path": "../projects-reader"

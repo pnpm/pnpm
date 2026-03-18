@@ -1,4 +1,4 @@
-import { readPackageJson } from '@pnpm/pkg-manifest.read-package-json'
+import { readPackageJson } from '@pnpm/pkg-manifest.reader'
 import type { PackageManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
 

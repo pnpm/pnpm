@@ -13,16 +13,16 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../fetching/fetcher-base"
     },
     {
       "path": "../../fs/graceful-fs"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../cafs-types"

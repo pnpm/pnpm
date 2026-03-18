@@ -281,7 +281,7 @@ async function installFromResolution (
     devDependencies: false,
     optionalDependencies: true,
   }
-  const fetchFullMetadata = Boolean(opts.supportedArchitectures?.libc ?? opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc)
+  const fetchFullMetadata = Boolean(opts.supportedArchitectures?.libc)
   await installGlobalPackages({
     ...opts,
     global: false,

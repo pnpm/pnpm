@@ -40,7 +40,7 @@ import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } fro
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
 import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
-import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
@@ -50,7 +50,7 @@ import { types } from './types.js'
 export { types }
 
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
-export { getOptionsFromPnpmSettings, getOptionsFromRootManifest, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 export {
   createProjectConfigRecord,
   type CreateProjectConfigRecordOptions,
@@ -400,9 +400,6 @@ export async function getConfig (opts: {
         pnpmConfig.wantedPackageManager = wantedPmResult.pm
       }
       warnings.push(...wantedPmResult.warnings)
-      if (pnpmConfig.rootProjectManifest) {
-        Object.assign(pnpmConfig, getOptionsFromRootManifest(pnpmConfig.rootProjectManifestDir, pnpmConfig.rootProjectManifest))
-      }
       if (pnpmConfig.nodeVersion == null) {
         pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.rootProjectManifest)
       }

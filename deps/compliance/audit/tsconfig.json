@@ -13,6 +13,18 @@
       "path": "../../../__utils__/test-fixtures"
     },
     {
+      "path": "../../../core/constants"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/logger"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
       "path": "../../../fetching/types"
     },
     {
@@ -32,18 +44,6 @@
     },
     {
       "path": "../../../network/fetch"
-    },
-    {
-      "path": "../../../packages/constants"
-    },
-    {
-      "path": "../../../packages/error"
-    },
-    {
-      "path": "../../../packages/logger"
-    },
-    {
-      "path": "../../../packages/types"
     },
     {
       "path": "../../../workspace/project-manifest-reader"

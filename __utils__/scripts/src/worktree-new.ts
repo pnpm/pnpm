@@ -51,8 +51,11 @@ if (/^\d+$/.test(arg)) {
   execSync(`git fetch "${remoteName}" "${remoteBranch}:${localBranch}"`, { stdio: gitStdio, cwd: repoRoot })
   execSync(`git worktree add "${worktreePath}" "${localBranch}"`, { stdio: gitStdio, cwd: repoRoot })
 
-  // Set upstream so `git push` targets the correct fork and branch
-  execSync(`git -C "${worktreePath}" branch --set-upstream-to="${remoteName}/${remoteBranch}" "${localBranch}"`)
+  // Set upstream so `git push` targets the correct fork and branch.
+  // Use git-config directly instead of `branch --set-upstream-to` because
+  // the targeted fetch above doesn't create a remote-tracking ref.
+  execSync(`git -C "${worktreePath}" config "branch.${localBranch}.remote" "${remoteName}"`)
+  execSync(`git -C "${worktreePath}" config "branch.${localBranch}.merge" "refs/heads/${remoteBranch}"`)
 } else {
   // Branch name — slashes replaced with dashes for the directory name
   localBranch = arg

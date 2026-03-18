@@ -33,7 +33,7 @@
   "dependencies": {
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/workspace.pkgs-graph": "workspace:*",
+    "@pnpm/workspace.projects-graph": "workspace:*",
     "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "execa": "catalog:",

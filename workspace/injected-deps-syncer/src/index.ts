@@ -4,9 +4,9 @@ import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { PnpmError } from '@pnpm/error'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { logger as createLogger } from '@pnpm/logger'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { DependencyManifest } from '@pnpm/types'
-import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import normalizePath from 'normalize-path'
 
 import { DirPatcher } from './DirPatcher.js'
@@ -99,7 +99,7 @@ async function syncBinLinks (
   // We need to relink bins for all workspace projects because injected deps
   // can be used by any project in the workspace. We relink all bins (not just
   // this package) to ensure consistency.
-  const allProjects = await findWorkspacePackagesNoCheck(workspaceDir, {})
+  const allProjects = await findWorkspaceProjectsNoCheck(workspaceDir, {})
 
   const consumerLinkPromises = allProjects.map(async (project) => {
     const projectNodeModules = path.join(project.rootDir, 'node_modules')

@@ -10,10 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../workspace/project-manifest-reader"
+      "path": "../../core/types"
     },
     {
       "path": "../../workspace/workspace-manifest-writer"

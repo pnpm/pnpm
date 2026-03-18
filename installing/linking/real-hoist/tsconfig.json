@@ -15,6 +15,12 @@
       "path": "../../../__utils__/test-fixtures"
     },
     {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
       "path": "../../../deps/path"
     },
     {
@@ -22,12 +28,6 @@
     },
     {
       "path": "../../../lockfile/utils"
-    },
-    {
-      "path": "../../../packages/error"
-    },
-    {
-      "path": "../../../packages/types"
     }
   ]
 }

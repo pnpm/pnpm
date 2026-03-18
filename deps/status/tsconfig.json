@@ -19,6 +19,15 @@
       "path": "../../config/reader"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../crypto/object-hasher"
     },
     {
@@ -32,15 +41,6 @@
     },
     {
       "path": "../../lockfile/verification"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../resolving/resolver-base"

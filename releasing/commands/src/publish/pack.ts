@@ -13,7 +13,7 @@ import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import { logger } from '@pnpm/logger'
 import { createExportableManifest, type ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { DependencyManifest, Project, ProjectManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
-import { sortPackages } from '@pnpm/workspace.sort-packages'
+import { sortProjects } from '@pnpm/workspace.projects-sorter'
 import chalk from 'chalk'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
@@ -145,7 +145,7 @@ export async function handler (opts: PackOptions): Promise<string> {
       })
     }
 
-    const chunks = sortPackages(selectedProjectsGraph)
+    const chunks = sortProjects(selectedProjectsGraph)
 
     const limitPack = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
     const resolvedOpts = { ...opts }

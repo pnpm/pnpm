@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../../packages/logger"
+      "path": "../../../core/logger"
     },
     {
       "path": "../types"

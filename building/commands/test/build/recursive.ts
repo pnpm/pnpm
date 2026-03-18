@@ -5,7 +5,7 @@ import { rebuild } from '@pnpm/building.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { PackageManifest } from '@pnpm/types'
-import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -33,7 +33,7 @@ test('pnpm recursive rebuild', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa('node', [
     pnpmBin,
     'install',
@@ -105,7 +105,7 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await execa('node', [
     pnpmBin,
@@ -199,7 +199,7 @@ test('rebuild multiple packages in correct order', async () => {
   preparePackages(pkgs)
   writeYamlFileSync('pnpm-workspace.yaml', { packages: pkgs.map(pkg => pkg.name) })
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await execa('node', [
     pnpmBin,
     'install',
@@ -248,7 +248,7 @@ test('only build allowBuilds (not others)', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
     process.cwd(),
     []
   )
@@ -343,7 +343,7 @@ test('only build allowBuilds', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
     process.cwd(),
     []
   )

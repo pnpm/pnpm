@@ -56,7 +56,7 @@
     "@pnpm/releasing.exportable-manifest": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.sort-packages": "workspace:*",
+    "@pnpm/workspace.projects-sorter": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "chalk": "catalog:",

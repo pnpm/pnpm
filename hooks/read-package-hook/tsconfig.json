@@ -16,13 +16,13 @@
       "path": "../../config/parse-overrides"
     },
     {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../deps/peer-range"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../resolving/parse-wanted-dependency"

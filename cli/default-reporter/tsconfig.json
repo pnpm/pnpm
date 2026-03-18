@@ -14,6 +14,18 @@
       "path": "../../config/reader"
     },
     {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../installing/dedupe/issues-renderer"
     },
     {
@@ -21,18 +33,6 @@
     },
     {
       "path": "../../installing/render-peer-issues"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../meta"

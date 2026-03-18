@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../../core/logger"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
       "path": "../../../lockfile/detect-dep-types"
     },
     {
@@ -22,13 +28,7 @@
       "path": "../../../lockfile/walker"
     },
     {
-      "path": "../../../packages/logger"
-    },
-    {
-      "path": "../../../packages/types"
-    },
-    {
-      "path": "../../../pkg-manifest/read-package-json"
+      "path": "../../../pkg-manifest/reader"
     },
     {
       "path": "../../../store/index"

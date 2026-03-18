@@ -420,3 +420,4 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, '@pnpm.e2e/not-compatible-with-any-os': true },
   }, [])
 })
+

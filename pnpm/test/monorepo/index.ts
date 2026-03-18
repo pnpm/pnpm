@@ -6,7 +6,7 @@ import type { Config } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.read-package-json'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import {
   prepare,
   prepareEmpty,
@@ -16,7 +16,7 @@ import {
 import { addDistTag } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectManifest } from '@pnpm/types'
-import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
@@ -1417,7 +1417,7 @@ test('root package is included when not specified', async () => {
   )
   const workspacePackagePatterns = ['project-', '!store/**']
   writeYamlFileSync('pnpm-workspace.yaml', { packages: workspacePackagePatterns })
-  const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
+  const workspacePackages = await findWorkspaceProjects(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
 
   expect(workspacePackages.some(project => {
     const relativePath = path.join('.', path.relative(tempDir, project.rootDir))
@@ -1455,7 +1455,7 @@ test("root package can't be ignored using '!.' (or any other such glob)", async 
   )
   const workspacePackagePatterns = ['project-', '!.', '!./', '!store/**']
   writeYamlFileSync('pnpm-workspace.yaml', { packages: workspacePackagePatterns })
-  const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
+  const workspacePackages = await findWorkspaceProjects(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
 
   expect(workspacePackages.some(project => {
     const relativePath = path.join('.', path.relative(tempDir, project.rootDir))
@@ -1891,12 +1891,6 @@ test('overrides in workspace project should be taken into account when shared-wo
     {
       name: 'project-1',
       version: '1.0.0',
-
-      pnpm: {
-        overrides: {
-          'is-odd': '1.0.0',
-        },
-      },
     },
     {
       name: 'project-2',
@@ -1907,6 +1901,13 @@ test('overrides in workspace project should be taken into account when shared-wo
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     sharedWorkspaceLockfile: false,
+    packageConfigs: {
+      'project-1': {
+        overrides: {
+          'is-odd': '1.0.0',
+        },
+      },
+    },
   })
 
   await execPnpm(['install'])

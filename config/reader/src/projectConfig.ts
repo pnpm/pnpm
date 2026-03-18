@@ -59,6 +59,10 @@ function createProjectConfigFromRaw (config: unknown): ProjectConfig {
     throw new ProjectConfigInvalidValueTypeError('string', config.savePrefix)
   }
 
+  if ('overrides' in config && config.overrides !== undefined && (typeof config.overrides !== 'object' || config.overrides === null || Array.isArray(config.overrides))) {
+    throw new ProjectConfigInvalidValueTypeError('object', config.overrides)
+  }
+
   for (const key in config) {
     if ((config as Record<string, unknown>)[key] !== undefined && !(PROJECT_CONFIG_FIELDS as string[]).includes(key)) {
       throw new ProjectConfigUnsupportedFieldError(key)

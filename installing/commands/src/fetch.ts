@@ -1,6 +1,6 @@
 import { UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config.reader'
+import type { Config } from '@pnpm/config.reader'
 import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { ProjectRootDir } from '@pnpm/types'
@@ -63,7 +63,6 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
     rootDir: process.cwd() as ProjectRootDir,
   }, {
     ...opts,
-    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     ignorePackageManifest: true,
     ignoreLocalPackages: true,
     include,

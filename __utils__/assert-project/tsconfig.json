@@ -10,16 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../installing/modules-yaml"
     },
     {
       "path": "../../lockfile/types"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../assert-store"

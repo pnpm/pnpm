@@ -252,6 +252,7 @@ export interface ConfigWithDeprecatedSettings extends Config {
 export const PROJECT_CONFIG_FIELDS = [
   'hoist',
   'modulesDir',
+  'overrides',
   'saveExact',
   'savePrefix',
 ] as const satisfies Array<keyof Config>

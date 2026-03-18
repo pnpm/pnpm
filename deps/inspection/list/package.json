@@ -38,7 +38,7 @@
   "dependencies": {
     "@pnpm/deps.inspection.tree-builder": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
-    "@pnpm/pkg-manifest.read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/text.tree-renderer": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",

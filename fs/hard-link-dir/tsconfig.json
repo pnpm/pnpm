@@ -13,7 +13,7 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../packages/logger"
+      "path": "../../core/logger"
     },
     {
       "path": "../graceful-fs"

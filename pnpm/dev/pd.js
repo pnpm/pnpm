@@ -4,7 +4,7 @@ import esbuild from 'esbuild'
 import pathLib from 'path'
 import childProcess from 'child_process'
 import { createRequire } from 'module'
-import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
@@ -13,7 +13,7 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(import.meta.dirn
 ;(async () => {
   const workspaceDir = await findWorkspaceDir(import.meta.dirname)
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)
-  const pkgs = await findWorkspacePackagesNoCheck(workspaceDir, { patterns: workspaceManifest.packages })
+  const pkgs = await findWorkspaceProjectsNoCheck(workspaceDir, { patterns: workspaceManifest.packages })
   const localPackages = pkgs.map(pkg => pkg.manifest.name)
   const dirByPackageName = pkgs.reduce((acc, { manifest, rootDirRealPath }) => {
     acc[manifest.name] = rootDirRealPath

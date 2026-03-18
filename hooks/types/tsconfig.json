@@ -10,13 +10,13 @@
   ],
   "references": [
     {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../fetching/fetcher-base"
     },
     {
       "path": "../../lockfile/types"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../resolving/resolver-base"

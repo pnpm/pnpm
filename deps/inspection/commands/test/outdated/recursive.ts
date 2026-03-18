@@ -4,7 +4,7 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 import { outdated } from '@pnpm/deps.inspection.commands'
 import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'
-import { filterPkgsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS, DEFAULT_OUTDATED_OPTS } from './utils/index.js'
 
@@ -40,7 +40,7 @@ test('pnpm recursive outdated', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -265,7 +265,7 @@ test('pnpm recursive outdated: format json when there are no outdated dependenci
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   const { output, exitCode } = await outdated.handler({
     ...DEFAULT_OUTDATED_OPTS,
     allProjects,
@@ -310,7 +310,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,

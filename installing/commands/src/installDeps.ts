@@ -5,7 +5,7 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli.utils'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config.reader'
+import type { Config } from '@pnpm/config.reader'
 import { checkDepsStatus } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
@@ -30,10 +30,10 @@ import type {
   ProjectsGraph,
   VulnerabilitySeverity,
 } from '@pnpm/types'
-import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
-import { filterPkgsBySelectorObjects } from '@pnpm/workspace.projects-filter'
-import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
-import { sequenceGraph } from '@pnpm/workspace.sort-packages'
+import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter'
+import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
+import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
+import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
@@ -115,6 +115,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
 | 'configDependencies'
+| 'packageExtensions'
 | 'updateConfig'
 > & CreateStoreControllerOptions & {
   argv: {
@@ -198,7 +199,7 @@ when running add/update with the --workspace option')
     typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined'
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir
-      ? await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
+      ? await findWorkspaceProjects(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
       : []
   )
   if (opts.workspaceDir) {
@@ -221,20 +222,14 @@ when running add/update with the --workspace option')
         })
       }
 
-      const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjects, {
+      const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createProjectsGraph(allProjects, {
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
 
-      const recursiveRootManifestOpts = getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {})
       await recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
           ...opts,
-          ...recursiveRootManifestOpts,
-          allowBuilds: {
-            ...recursiveRootManifestOpts.allowBuilds,
-            ...opts.allowBuilds,
-          },
           forceHoistPattern,
           forcePublicHoistPattern,
           preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
@@ -266,14 +261,8 @@ when running add/update with the --workspace option')
     manifest = {}
   }
 
-  const rootManifestOpts = getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest))
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...rootManifestOpts,
-    allowBuilds: {
-      ...rootManifestOpts.allowBuilds,
-      ...opts.allowBuilds,
-    },
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository
@@ -392,7 +381,7 @@ when running add/update with the --workspace option')
   }
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
-    const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(allProjects, [
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(allProjects, [
       {
         excludeSelf: true,
         includeDependencies: true,

@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config.reader'
+import type { Config } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
@@ -14,8 +14,8 @@ import {
 } from '@pnpm/store.connection-manager'
 import type { Project, ProjectsGraph } from '@pnpm/types'
 import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
-import { findWorkspacePackages } from '@pnpm/workspace.projects-reader'
-import { sequenceGraph } from '@pnpm/workspace.sort-packages'
+import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
+import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import * as structUtils from '@yarnpkg/core/structUtils'
 import type { LockFileObject } from '@yarnpkg/lockfile'
 import yarnLockfileLib from '@yarnpkg/lockfile'
@@ -138,7 +138,7 @@ export async function handler (
 
   // For a workspace with shared lockfile
   if (opts.workspaceDir) {
-    const allProjects = opts.allProjects ?? await findWorkspacePackages(opts.workspaceDir, {
+    const allProjects = opts.allProjects ?? await findWorkspaceProjects(opts.workspaceDir, {
       ...opts,
       patterns: opts.workspacePackagePatterns,
     })
@@ -178,10 +178,8 @@ export async function handler (
 
   const store = await createStoreController(opts)
   const manifest = await readProjectManifestOnly(opts.dir)
-  const manifestOpts = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}
   const installOpts = {
     ...opts,
-    ...manifestOpts,
     lockfileOnly: true,
     preferredVersions,
     storeController: store.ctrl,

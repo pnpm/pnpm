@@ -13,6 +13,15 @@
       "path": "../building/pkg-requires-build"
     },
     {
+      "path": "../core/error"
+    },
+    {
+      "path": "../core/logger"
+    },
+    {
+      "path": "../core/types"
+    },
+    {
       "path": "../crypto/integrity"
     },
     {
@@ -23,15 +32,6 @@
     },
     {
       "path": "../fs/symlink-dependency"
-    },
-    {
-      "path": "../packages/error"
-    },
-    {
-      "path": "../packages/logger"
-    },
-    {
-      "path": "../packages/types"
     },
     {
       "path": "../store/cafs"
