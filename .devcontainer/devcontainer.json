@@ -1,133 +1,31 @@
 {
-  // Name shown in the VS Code "Dev Containers" picker and GitHub Codespaces UI.
   "name": "pnpm",
-
-  // --- Base Image ---
-  // Using Microsoft's pre-built javascript-node devcontainer image (Node.js 22 LTS on
-  // Debian Bookworm) rather than a custom Dockerfile. Pre-built images are cached by
-  // GitHub Codespaces and start in seconds, satisfying the "build as quickly as
-  // possible" requirement. Node 22 matches the `nodeVersion: "22.13.0"` declared in
-  // pnpm-workspace.yaml and is the minimum version tested in CI.
   "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
-
-  // --- pnpm store cache ---
-  // Mount a named Docker volume at the location pnpm uses for its content-addressable
-  // store. The volume persists across container rebuilds, so packages already
-  // downloaded in a previous session are never re-fetched — critical for fast
-  // `pnpm install` runs inside Codespaces. The path matches the default store
-  // location for the `node` user in this image.
   "mounts": [
     "source=pnpm-store,target=/home/node/.local/share/pnpm/store,type=volume"
   ],
-
-  // --- Lifecycle hooks ---
-  // onCreateCommand runs once when the container image is first created (before the
-  // repo is cloned). `sudo corepack enable` registers the pnpm shim system-wide so
-  // that every subsequent `pnpm` invocation is intercepted by corepack. corepack then
-  // reads the `packageManager` field in package.json ("pnpm@11.0.0-alpha.16") and
-  // transparently downloads and activates that exact version — no manual version
-  // pinning needed in this file.
   "onCreateCommand": "sudo corepack enable",
-
-  // updateContentCommand runs after the repo is available and is re-run whenever the
-  // repo content is updated (e.g., branch switch, Codespace resume). Running
-  // `pnpm install` here ensures the workspace node_modules always reflect the current
-  // lockfile, including during GitHub Codespaces prebuilds.
   "updateContentCommand": "pnpm install",
-
-  // Run as the non-root `node` user that ships in the base image — following the
-  // principle of least privilege.
   "remoteUser": "node",
-
   "customizations": {
     "vscode": {
-      // -----------------------------------------------------------------
-      // Extensions
-      // Every extension below was chosen because the project already uses the
-      // corresponding tool; no "nice-to-have" extensions without a codebase
-      // justification were added.
-      // -----------------------------------------------------------------
       "extensions": [
-        // ESLint 9 flat config (eslint.config.mjs) — surfaces lint errors inline
-        // so developers see violations without running `pnpm run lint` manually.
         "dbaeumer.vscode-eslint",
-
-        // Respects the .editorconfig at the repo root (2-space indent, LF line
-        // endings, UTF-8, trim trailing whitespace) across ALL file types, ensuring
-        // every editor keystroke stays consistent with the project style.
         "EditorConfig.EditorConfig",
-
-        // Integrates cspell (used via `pnpm run spellcheck` / cspell.json at root)
-        // directly into the editor so typos are underlined as you type rather than
-        // discovered only on CI.
         "streetsidesoftware.code-spell-checker",
-
-        // Jest test runner integration — adds a "Test Explorer" sidebar, inline
-        // pass/fail icons next to each `test()`/`it()` call, and one-click run/debug
-        // for individual tests without leaving the editor. The project uses Jest
-        // (@pnpm/jest-config) as its sole test framework.
         "Orta.vscode-jest",
-
-        // GitLens enriches the built-in Git support with per-line blame, commit
-        // history, and branch comparison — especially valuable in a monorepo with
-        // ~50 packages and many contributors.
         "eamodio.gitlens",
-
-        // ErrorLens renders TypeScript and ESLint diagnostics inline at the end of
-        // the offending line, eliminating the need to hover or open the Problems
-        // panel for every error.
         "usernamehw.errorlens",
-
-        // pretty-ts-errors reformats TypeScript's notoriously verbose type errors
-        // into a structured, readable view. With TypeScript 5.9 and complex generic
-        // types throughout this codebase, this dramatically reduces time spent
-        // decoding error messages.
         "yoavbls.pretty-ts-errors",
-
-        // Auto-completes relative and absolute import paths as you type — reduces
-        // friction when navigating the deep directory hierarchy of this monorepo.
         "christian-kohler.path-intellisense",
-
-        // The project enforces Conventional Commits via commitlint
-        // (commitlint.config.cjs + husky). This extension provides an interactive
-        // commit message builder that guides contributors through the correct
-        // format (feat/fix/chore/etc.) directly from the Source Control panel.
         "vivaxy.vscode-conventional-commits",
-
-        // Standard Codespaces AI pair-programming tools. GitHub Copilot is
-        // available to all Codespaces users and accelerates development across
-        // this TypeScript-heavy codebase.
         "GitHub.copilot",
         "GitHub.copilot-chat",
-
-        // First-class GitHub integration: create/review pull requests, check CI
-        // status, and manage issues without leaving VS Code — important for
-        // contributors working through Codespaces.
         "GitHub.vscode-pull-request-github"
       ],
-
-      // -----------------------------------------------------------------
-      // Settings
-      // Only settings that directly relate to tools already in the project
-      // are configured here; personal preferences are left to the user's
-      // profile / dotfiles.
-      // -----------------------------------------------------------------
       "settings": {
-        // Point the TypeScript language service at the workspace-installed TypeScript
-        // (5.9.x, defined in pnpm-workspace.yaml catalog) rather than the version
-        // bundled with VS Code. This ensures IntelliSense and type checking use
-        // exactly the same compiler version as `pnpm run compile` and CI.
         "typescript.tsdk": "node_modules/typescript/lib",
-
-        // ESLint 9 uses a flat config file (eslint.config.mjs). Without this flag
-        // the VS Code ESLint extension defaults to the legacy .eslintrc behaviour and
-        // will not pick up the project's configuration.
         "eslint.useFlatConfig": true,
-
-        // Automatically apply all safe ESLint auto-fixes on save (e.g., import
-        // ordering via eslint-plugin-simple-import-sort). "explicit" means the fix
-        // only runs on an explicit save action, not on auto-save, avoiding
-        // surprising edits mid-keystroke.
         "editor.codeActionsOnSave": {
           "source.fixAll.eslint": "explicit"
         }
