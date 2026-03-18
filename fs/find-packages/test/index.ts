@@ -40,12 +40,12 @@ test('finds packages by * pattern', async () => {
   expect([pkgs[0].manifest.name, pkgs[1].manifest.name, pkgs[2].manifest.name].sort(compare)).toStrictEqual(['component-1', 'component-2', 'many-pkgs-2'])
 })
 
-test('default pattern only finds root package', async () => {
+test('default pattern finds all packages', async () => {
   const root = path.join(fixtures, 'many-pkgs-2')
   const pkgs = await findPackages(root)
 
-  expect(pkgs).toHaveLength(1)
-  expect(pkgs[0].manifest.name).toBe('many-pkgs-2')
+  expect(pkgs).toHaveLength(4)
+  expect(pkgs.map(p => p.manifest.name).sort(compare)).toStrictEqual(['component-1', 'component-2', 'foo', 'many-pkgs-2'])
 })
 
 test('ignore packages by patterns', async () => {

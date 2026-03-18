@@ -64,7 +64,7 @@ export async function filterProjectsFromDir (
   let patterns = opts.patterns
   if (patterns == null) {
     const workspaceManifest = await readWorkspaceManifest(workspaceDir)
-    patterns = workspaceManifest?.packages
+    patterns = workspaceManifest != null ? (workspaceManifest.packages ?? ['.']) : undefined
   }
   const allProjects = await findWorkspaceProjects(workspaceDir, {
     engineStrict: opts?.engineStrict,

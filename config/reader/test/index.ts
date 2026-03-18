@@ -815,7 +815,7 @@ test('reads workspacePackagePatterns', async () => {
   expect(config.workspacePackagePatterns).toEqual(['packages/*'])
 })
 
-test('workspacePackagePatterns is undefined when pnpm-workspace.yaml has no packages field', async () => {
+test('workspacePackagePatterns defaults to ["."] when pnpm-workspace.yaml has no packages field', async () => {
   const workspaceDir = path.join(import.meta.dirname, 'fixtures/workspace-yaml-without-packages')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
@@ -827,7 +827,7 @@ test('workspacePackagePatterns is undefined when pnpm-workspace.yaml has no pack
     workspaceDir,
   })
 
-  expect(config.workspacePackagePatterns).toBeUndefined()
+  expect(config.workspacePackagePatterns).toEqual(['.'])
 })
 
 test('setting workspace-concurrency to negative number', async () => {
