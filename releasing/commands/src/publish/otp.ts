@@ -85,7 +85,6 @@ interface OtpErrorBody {
 
 interface OtpErrorHeaders {
   'www-authenticate'?: string[]
-  'npm-notice'?: string[]
 }
 
 interface OtpError {
@@ -99,23 +98,6 @@ const isOtpError = (error: unknown): error is OtpError =>
   typeof error === 'object' &&
   'code' in error &&
   error.code === 'EOTP'
-
-const URL_IN_STRING_RE = /https?:\/\/\S+/gi
-
-/**
- * Extract all URLs from a string.
- *
- * For example, given:
- *   "Open https://www.npmjs.com/login/abc-123 or visit https://example.com for help"
- * Yields:
- *   "https://www.npmjs.com/login/abc-123"
- *   "https://example.com"
- */
-export function * extractUrlsFromString (text: string): Generator<string> {
-  for (const match of text.matchAll(URL_IN_STRING_RE)) {
-    yield match[0]
-  }
-}
 
 /**
  * Publish a package, handling OTP challenges:
@@ -170,12 +152,6 @@ export async function publishWithOtpHandling ({
     if (error.body?.authUrl && error.body?.doneUrl) {
       otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, { Date, setTimeout, fetch, globalInfo }, fetchOptions)
     } else {
-      // NOTE: I worry that this notice may mislead the user,
-      //       I will wait for @zkochan to test the OTP again
-      //       before deciding whether to delete or keep this
-      //       line.
-      displayNpmNotice(error, globalInfo)
-
       const enquirerResponse = await enquirer.prompt({
         message: 'This operation requires a one-time password.\nEnter OTP:',
         name: 'otp',
@@ -202,23 +178,6 @@ export async function publishWithOtpHandling ({
   }
 
   return response
-}
-
-/**
- * If the OTP error contains npm-notice headers with URLs, display the
- * notice messages and a QR code for each URL.
- */
-function displayNpmNotice (error: OtpError, globalInfo: OtpContext['globalInfo']): void {
-  const notices = error.headers?.['npm-notice']
-  if (!notices?.length) return
-
-  for (const notice of notices) {
-    globalInfo(notice)
-    for (const url of extractUrlsFromString(notice)) {
-      const qrCode = generateQrCode(url)
-      globalInfo(`\n${qrCode}\n`)
-    }
-  }
 }
 
 async function webAuthOtp (
