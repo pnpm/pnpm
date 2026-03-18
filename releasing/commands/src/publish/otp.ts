@@ -260,8 +260,8 @@ export class OtpWebAuthTimeoutError extends PnpmError {
   readonly startTime: number
   readonly timeout: number
   constructor (endTime: number, startTime: number, timeout: number) {
-    super('WEBAUTH_TIMEOUT', 'Web based authentication timed out', {
-      hint: 'Try again, do not take too long this time',
+    super('WEBAUTH_TIMEOUT', 'Web-based authentication timed out before it could be completed', {
+      hint: 'Re-run this command and complete the authentication step in your browser before the time limit is reached',
     })
     this.endTime = endTime
     this.startTime = startTime
