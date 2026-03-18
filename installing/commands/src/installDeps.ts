@@ -31,7 +31,7 @@ import type {
   VulnerabilitySeverity,
 } from '@pnpm/types'
 import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter'
-import { createPkgGraph } from '@pnpm/workspace.projects-graph'
+import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
@@ -221,7 +221,7 @@ when running add/update with the --workspace option')
         })
       }
 
-      const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjects, {
+      const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createProjectsGraph(allProjects, {
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
 

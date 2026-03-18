@@ -1,6 +1,6 @@
 import { createMatcher } from '@pnpm/config.matcher'
 import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
-import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.projects-graph'
+import { createProjectsGraph, type Package, type PackageNode } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects, type Project } from '@pnpm/workspace.projects-reader'
 import { isSubdir } from 'is-subdir'
 import * as micromatch from 'micromatch'
@@ -108,7 +108,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends Package> (
 
   if ((allProjectSelectors.length > 0) || (prodProjectSelectors.length > 0)) {
     let filteredGraph: FilteredGraph<Pkg> | undefined
-    const { graph } = createPkgGraph<Pkg>(projects, { linkWorkspacePackages: opts.linkWorkspacePackages })
+    const { graph } = createProjectsGraph<Pkg>(projects, { linkWorkspacePackages: opts.linkWorkspacePackages })
 
     if (allProjectSelectors.length > 0) {
       filteredGraph = await filterWorkspaceProjects(graph, allProjectSelectors, {
@@ -122,7 +122,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends Package> (
     let prodFilteredGraph: FilteredGraph<Pkg> | undefined
 
     if (prodProjectSelectors.length > 0) {
-      const { graph } = createPkgGraph<Pkg>(projects, { ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages })
+      const { graph } = createProjectsGraph<Pkg>(projects, { ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages })
       prodFilteredGraph = await filterWorkspaceProjects(graph, prodProjectSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
@@ -143,7 +143,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends Package> (
       ],
     }
   } else {
-    const { graph } = createPkgGraph<Pkg>(projects, { linkWorkspacePackages: opts.linkWorkspacePackages })
+    const { graph } = createProjectsGraph<Pkg>(projects, { linkWorkspacePackages: opts.linkWorkspacePackages })
     return { allProjectsGraph: graph, selectedProjectsGraph: graph, unmatchedFilters: [] }
   }
 }
