@@ -5,6 +5,7 @@
     "source=pnpm-store,target=/home/node/.local/share/pnpm/store,type=volume"
   ],
   "updateContentCommand": [
+    "which curl || (sudo apt-get update && sudo apt-get install -y curl)",
     "curl -fsSL https://get.pnpm.io/install.sh | sh -",
     "pnpm install"
   ],
