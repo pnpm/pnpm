@@ -549,7 +549,7 @@ async function patchesOrHooksAreModified (opts: {
 }): Promise<string | undefined> {
   if (opts.patchedDependencies) {
     const allPatchStats = await Promise.all(Object.values(opts.patchedDependencies).map((patchFile) => {
-      return safeStat(path.relative(opts.rootDir, patchFile))
+      return safeStat(patchFile)
     }))
     if (allPatchStats.some(
       (patch) =>

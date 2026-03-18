@@ -14,7 +14,7 @@ const defaultOpts: MakePublishManifestOptions = {
   catalogs: {},
 }
 
-test('the scripts and packageManager fields are removed', async () => {
+test('prepublish scripts and packageManager are removed', async () => {
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
