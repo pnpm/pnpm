@@ -20,7 +20,7 @@ export function help (): string {
     description: 'Approve dependencies for running scripts during installation',
     usages: [
       'pnpm approve-builds',
-      'pnpm approve-builds [<pkg> ...]',
+      'pnpm approve-builds [<pkg> ...] [!<pkg> ...]',
     ],
     descriptionLists: [
       {
@@ -70,14 +70,17 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   }
   let buildPackages: string[] = []
   if (params.length) {
-    const unknown = params.filter((p) => !automaticallyIgnoredBuilds.includes(p))
+    const denied = params.filter((p) => p.startsWith('!')).map((p) => p.slice(1))
+    const approved = params.filter((p) => !p.startsWith('!'))
+    const allMentioned = [...approved, ...denied]
+    const unknown = allMentioned.filter((p) => !automaticallyIgnoredBuilds.includes(p))
     if (unknown.length) {
       throw new PnpmError(
         'APPROVE_BUILDS_UNKNOWN_PACKAGES',
         `The following packages are not awaiting approval: ${unknown.join(', ')}`
       )
     }
-    buildPackages = sortUniqueStrings([...params])
+    buildPackages = sortUniqueStrings([...approved])
   } else if (opts.all) {
     buildPackages = sortUniqueStrings([...automaticallyIgnoredBuilds])
   } else {
