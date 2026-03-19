@@ -123,9 +123,10 @@ export class StoreIndex {
     this.exitHandler = () => this.close()
     // Multiple StoreIndex instances may be created (e.g. in tests), each adding
     // an exit listener. Raise the limit to avoid MaxListenersExceededWarning.
+    // Skip when maxListeners is 0 (unlimited).
     const currentMax = process.getMaxListeners()
-    if (currentMax < openInstances.size + 11) {
-      process.setMaxListeners(currentMax + 10)
+    if (currentMax !== 0 && currentMax < openInstances.size + 11) {
+      process.setMaxListeners(Math.max(currentMax + 10, openInstances.size + 11))
     }
     process.on('exit', this.exitHandler)
     openInstances.add(this)
