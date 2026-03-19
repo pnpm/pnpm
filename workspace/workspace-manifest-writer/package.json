@@ -43,9 +43,9 @@
     "yaml": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
+    "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-writer": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/write-file-atomic": "catalog:",
