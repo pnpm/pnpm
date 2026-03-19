@@ -39,10 +39,10 @@ export async function execPnpm (
 
     const output: Buffer[] = []
     proc.stdout!.on('data', (chunk: Buffer) => {
-      output.push(chunk); process.stdout.write(chunk)
+      output.push(chunk)
     })
     proc.stderr!.on('data', (chunk: Buffer) => {
-      output.push(chunk); process.stderr.write(chunk)
+      output.push(chunk)
     })
 
     proc.on('error', reject)
