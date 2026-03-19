@@ -231,6 +231,8 @@ catalog:
   micromatch: ^4.0.8
   msgpackr: ^1.11.2
   nm-prune: ^5.0.0
+  # nock 14 doesn't properly intercept node-fetch requests, causing tests
+  # that mock HTTP endpoints (e.g. audit) to hang indefinitely.
   nock: 13.3.4
   node-fetch: ^3.3.2
   normalize-newline: 5.0.0
