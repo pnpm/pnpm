@@ -7135,9 +7135,6 @@ importers:
       '@pnpm/exec.commands':
         specifier: workspace:*
         version: link:../exec/commands
-      '@pnpm/exec.run-npm':
-        specifier: workspace:*
-        version: link:../exec/run-npm
       '@pnpm/fs.msgpack-file':
         specifier: workspace:*
         version: link:../fs/msgpack-file
