@@ -70,9 +70,9 @@ catalog:
   '@babel/core': ^7.28.3
   '@babel/plugin-transform-explicit-resource-management': ^7.27.1
   '@changesets/cli': ^2.29.8
-  '@commitlint/cli': ^20.4.1
-  '@commitlint/config-conventional': ^20.4.1
-  '@commitlint/prompt-cli': ^20.4.1
+  '@commitlint/cli': ^20.5.0
+  '@commitlint/config-conventional': ^20.5.0
+  '@commitlint/prompt-cli': ^20.5.0
   '@cyclonedx/cyclonedx-library': 10.0.0
   '@eslint/js': ^10.0.1
   '@jest/globals': 30.3.0
@@ -137,7 +137,9 @@ catalog:
   '@types/write-file-atomic': ^4.0.3
   '@types/yarnpkg__lockfile': ^1.1.9
   '@types/zkochan__table': npm:@types/table@6.0.0
-  '@typescript-eslint/utils': ^8.53.0
+  '@typescript-eslint/utils': ^8.57.1
+  # Newer tsgo dev builds have a regression where @types/node can't be resolved,
+  # causing all node built-in types (path, url, stream, process, etc.) to fail.
   '@typescript/native-preview': 7.0.0-dev.20260216.1
   '@yarnpkg/core': 4.5.0
   '@yarnpkg/extensions': 2.0.6
@@ -213,8 +215,8 @@ catalog:
   is-subdir: ^2.0.0
   is-windows: ^1.0.2
   isexe: 4.0.0
-  jest: ^30.2.0
-  jest-diff: ^30.1.1
+  jest: ^30.3.0
+  jest-diff: ^30.3.0
   js-yaml: npm:@zkochan/js-yaml@0.0.11
   json5: ^2.2.3
   keyv: 5.6.0
@@ -224,12 +226,12 @@ catalog:
   lodash.kebabcase: ^4.1.1
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
-  lru-cache: ^11.1.0
+  lru-cache: ^11.2.7
   make-empty-dir: ^4.0.0
   mdast-util-to-string: ^4.0.0
   memoize: ^10.2.0
   micromatch: ^4.0.8
-  msgpackr: ^1.11.2
+  msgpackr: ^1.11.9
   nm-prune: ^5.0.0
   # nock 14 doesn't properly intercept node-fetch requests, causing tests
   # that mock HTTP endpoints (e.g. audit) to hang indefinitely.
@@ -288,7 +290,7 @@ catalog:
   split-cmd: ^1.1.0
   split2: ^4.2.0
   ssri: 13.0.1
-  stacktracey: ^2.1.8
+  stacktracey: ^2.2.0
   string-length: ^7.0.1
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
@@ -305,12 +307,12 @@ catalog:
   tree-kill: ^1.2.2
   ts-jest-resolver: 2.0.1
   typescript: 5.9.3
-  typescript-eslint: ^8.53.0
+  typescript-eslint: ^8.57.1
   unified: ^11.0.5
-  vfile: ^6.0.0
   validate-npm-package-name: 7.0.2
   verdaccio: 6.3.2
   version-selector-type: ^3.0.0
+  vfile: ^6.0.0
   which: npm:@pnpm/which@^3.0.1
   write-file-atomic: ^7.0.0
   write-ini-file: 5.0.0
@@ -443,20 +445,19 @@ packageExtensions:
     dependencies:
       slash: '3'
   remark-parse:
-    peerDependencies:
-      unified: '*'
     dependencies:
       vfile: ^6.0.0
+    peerDependencies:
+      unified: '*'
   remark-stringify:
-    peerDependencies:
-      unified: '*'
     dependencies:
       vfile: ^6.0.0
+    peerDependencies:
+      unified: '*'
 
 patchedDependencies:
   '@pnpm/npm-lifecycle': __patches__/@pnpm__npm-lifecycle.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
-
 
 patchesDir: __patches__
 
