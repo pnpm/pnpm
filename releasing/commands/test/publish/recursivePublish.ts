@@ -181,7 +181,7 @@ test('packages are released even if their current version is published, when for
       version: '3.1.0',
 
       scripts: {
-        prepublishOnly: 'pnpm version major',
+        prepublishOnly: 'npm version major',
       },
     },
   ])
