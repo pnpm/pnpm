@@ -116,12 +116,10 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
     buildPackages = result.map(({ value }: { value: string }) => value)
   }
+  const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
   const allowBuilds: Record<string, boolean | string> = { ...opts.allowBuilds }
-  if (!params.length) {
-    const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
-    for (const pkg of ignoredPackages) {
-      allowBuilds[pkg] = false
-    }
+  for (const pkg of ignoredPackages) {
+    allowBuilds[pkg] = false
   }
   if (buildPackages.length) {
     for (const pkg of buildPackages) {
