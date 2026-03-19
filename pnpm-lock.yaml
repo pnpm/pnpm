@@ -866,8 +866,8 @@ catalogs:
       specifier: ^3.1.7
       version: 3.1.8
     tempy:
-      specifier: 3.2.0
-      version: 3.2.0
+      specifier: 3.0.0
+      version: 3.0.0
     terminal-link:
       specifier: ^5.0.0
       version: 5.0.0
@@ -1494,7 +1494,7 @@ importers:
         version: 2.0.0
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   bins/remover:
     dependencies:
@@ -1553,7 +1553,7 @@ importers:
         version: 22.19.15
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   building/after-install:
     dependencies:
@@ -2182,7 +2182,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   cli/utils:
     dependencies:
@@ -2846,7 +2846,7 @@ importers:
         version: 3.0.0
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   deps/compliance/license-scanner:
     dependencies:
@@ -4071,7 +4071,7 @@ importers:
         version: 13.0.1
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -4198,7 +4198,7 @@ importers:
         version: 3.0.2
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   fetching/pick-fetcher:
     dependencies:
@@ -4244,7 +4244,7 @@ importers:
         version: 14.0.11
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   fetching/tarball-fetcher:
     dependencies:
@@ -4335,7 +4335,7 @@ importers:
         version: 13.0.1
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   fetching/types:
     dependencies:
@@ -4457,7 +4457,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   fs/packlist:
     dependencies:
@@ -5007,7 +5007,7 @@ importers:
         version: 9.0.0
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
@@ -5703,7 +5703,7 @@ importers:
         version: 7.0.1
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
@@ -5982,7 +5982,7 @@ importers:
         version: 0.31.1
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   installing/package-requester:
     dependencies:
@@ -6106,7 +6106,7 @@ importers:
         version: 3.0.0
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   installing/read-projects-context:
     dependencies:
@@ -6172,7 +6172,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   lockfile/filtering:
     dependencies:
@@ -6221,7 +6221,7 @@ importers:
         version: 2.1.2
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -6309,7 +6309,7 @@ importers:
         version: 4.0.3
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -6569,7 +6569,7 @@ importers:
         version: 0.31.1
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -6661,7 +6661,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   modules-mounter/daemon:
     dependencies:
@@ -6780,7 +6780,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   object/key-sorting:
     dependencies:
@@ -6967,7 +6967,7 @@ importers:
         version: 7.7.1
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -7358,7 +7358,7 @@ importers:
         version: 9.0.0
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
       tree-kill:
         specifier: 'catalog:'
         version: 1.2.2
@@ -7589,7 +7589,7 @@ importers:
         version: 3.1.8
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.15
@@ -8013,7 +8013,7 @@ importers:
         version: 14.0.11
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   resolving/parse-wanted-dependency:
     dependencies:
@@ -8155,7 +8155,7 @@ importers:
         version: 9.0.0
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   store/cafs-types:
     devDependencies:
@@ -8306,7 +8306,7 @@ importers:
         version: 13.0.1
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   store/connection-manager:
     dependencies:
@@ -8413,7 +8413,7 @@ importers:
         version: 7.1.5
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   store/controller-types:
     dependencies:
@@ -8491,7 +8491,7 @@ importers:
         version: 22.19.15
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   store/path:
     dependencies:
@@ -8823,7 +8823,7 @@ importers:
         version: 4.0.2
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   workspace/project-manifest-writer:
     dependencies:
@@ -8851,7 +8851,7 @@ importers:
         version: 4.0.3
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
 
   workspace/projects-filter:
     dependencies:
@@ -8912,7 +8912,7 @@ importers:
         version: 1.0.2
       tempy:
         specifier: 'catalog:'
-        version: 3.2.0
+        version: 3.0.0
       touch:
         specifier: 'catalog:'
         version: 3.1.1
@@ -15997,16 +15997,12 @@ packages:
     resolution: {integrity: sha512-aoBAniQmmwtcKp/7BzsH8Cxzv8OL736p7v1ihGb5e9DJ9kTwGWHrQrVB5+lfVDzfGrdRzXch+ig7LHaY1JTOrg==}
     engines: {node: '>=8'}
 
-  temp-dir@3.0.0:
-    resolution: {integrity: sha512-nHc6S/bwIilKHNRgK/3jlhDoIHcp45YgyiwcAk46Tr0LfEqGBVpmiAyuiuxeVE44m3mXnEeVhaipLOEWmH+Njw==}
-    engines: {node: '>=14.16'}
-
   tempy@1.0.1:
     resolution: {integrity: sha512-biM9brNqxSc04Ee71hzFbryD11nX7VPhQQY32AdDmjFvodsRFz/3ufeoTZ6uYkRFfGo188tENcASNs3vTdsM0w==}
     engines: {node: '>=10'}
 
-  tempy@3.2.0:
-    resolution: {integrity: sha512-d79HhZya5Djd7am0q+W4RTsSU+D/aJzM+4Y4AGJGuGlgM2L6sx5ZvOYTmZjqPhrDrV6xJTtRSm1JCLj6V6LHLQ==}
+  tempy@3.0.0:
+    resolution: {integrity: sha512-B2I9X7+o2wOaW4r/CWMkpOO9mdiTRCxXNgob6iGvPmfPWgH/KyUD6Uy5crtWBxIBe3YrNZKR2lSzv1JJKWD4vA==}
     engines: {node: '>=14.16'}
 
   term-size@2.2.1:
@@ -25122,8 +25118,6 @@ snapshots:
 
   temp-dir@2.0.0: {}
 
-  temp-dir@3.0.0: {}
-
   tempy@1.0.1:
     dependencies:
       del: 6.1.1
@@ -25132,10 +25126,10 @@ snapshots:
       type-fest: 0.16.0
       unique-string: 2.0.0
 
-  tempy@3.2.0:
+  tempy@3.0.0:
     dependencies:
       is-stream: 3.0.0
-      temp-dir: 3.0.0
+      temp-dir: 2.0.0
       type-fest: 2.19.0
       unique-string: 3.0.0
 

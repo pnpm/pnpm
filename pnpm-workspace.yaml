@@ -293,7 +293,7 @@ catalog:
   symlink-dir: ^9.0.0
   tar: ^7.5.10
   tar-stream: ^3.1.7
-  tempy: 3.2.0
+  tempy: 3.0.0
   terminal-link: ^5.0.0
   tinyglobby: ^0.2.14
   touch: 3.1.1
