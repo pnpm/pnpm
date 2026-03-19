@@ -157,7 +157,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
         return
       case 'Returned: code:': {
         if (opts.stdio === 'inherit') {
-        // Preventing the pnpm reporter from overriding the project's script output
+          // Preventing the pnpm reporter from overriding the project's script output
           return
         }
         const code = line ?? 1
